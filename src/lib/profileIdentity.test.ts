@@ -6,6 +6,7 @@ import {
   identityFromOnboardingProfile,
   identityFromProfileResponse,
   joinFullName,
+  phoneLocalPlaceholderForCountry,
   splitFullName,
   splitPhoneNumber,
   type IdentityBasicsForm,
@@ -44,6 +45,16 @@ describe("profileIdentity", () => {
       phoneLocal: "233 245",
     });
     expect(buildPhoneNumber("ES", "233245")).toBe("+34 233 245");
+  });
+
+  it("uses local phone placeholders that match the selected country", () => {
+    expect(phoneLocalPlaceholderForCountry("ES")).toBe("612 345 678");
+    expect(phoneLocalPlaceholderForCountry("UK")).toBe("7700 900 123");
+    expect(phoneLocalPlaceholderForCountry("US")).toBe("201 555 0123");
+    expect(phoneLocalPlaceholderForCountry("FR")).toBe("6 12 34 56 78");
+    expect(phoneLocalPlaceholderForCountry(null)).toBe("612 345 678");
+    expect(phoneLocalPlaceholderForCountry("ES")).not.toContain("+34");
+    expect(phoneLocalPlaceholderForCountry("UK")).not.toContain("+44");
   });
 
   it("maps a profile response into the shared identity form", () => {

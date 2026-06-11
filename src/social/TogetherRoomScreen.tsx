@@ -7662,6 +7662,7 @@ export default function TogetherRoomScreen({
     const nextStatusMessage = alreadySelected ? removedMessage : savedMessage;
 
     setIsSavingComfortCheck(true);
+    clearQuietPause();
     setPulse((current) => updateComfortCheck(current, nextNeeds));
     setStatusMessage(nextStatusMessage);
 
@@ -8748,6 +8749,37 @@ export default function TogetherRoomScreen({
             </div>
           </div>
 
+          <div className="mt-3 rounded-[18px] bg-[#F4FBF8] px-4 py-3" data-testid="together-plan-choice-note">
+            <div className="flex items-start gap-2">
+              <HeartHandshake size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planChoiceNoteTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.planChoiceNoteBody}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-4 py-3" data-testid="together-plan-next-step">
+            <div className="flex items-start gap-2">
+              <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planNextStepTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{planNextStepBody(featuredPlan, copy)}</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {copy.planNextStepChecks.map((item) => (
+                    <span
+                      key={item}
+                      className="inline-flex min-h-[38px] items-center gap-2 rounded-[14px] bg-[#F4FBF8] px-3 font-body text-[14px] font-bold text-[#315C55]"
+                    >
+                      <Check size={16} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <p className="mt-4 rounded-[18px] bg-[#EAF8F4] px-4 py-3 font-body text-[17px] font-bold leading-[1.3] text-[#315C55]">
             {pulse.safety.consentLine}
           </p>
@@ -8923,6 +8955,25 @@ export default function TogetherRoomScreen({
               {copy.clearVoteChoice}
             </button>
           )}
+
+          <VoteImpactPanel
+            copy={copy}
+            pulse={pulse}
+            leadingPollOption={leadingPollOption}
+            tiedPollLabels={tiedPollLabels}
+            topComfortLabels={topComfortLabels}
+          />
+          <RoomVoteSignalCue copy={copy} poll={pulse.activePoll} />
+
+          <div className="mt-3 rounded-[18px] border border-[#DBEAFE] bg-[#FAFCFF] px-4 py-3" data-testid="together-vote-privacy-note">
+            <div className="flex items-start gap-2">
+              <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#2563EB]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-body text-[16px] font-bold text-[#1E3A8A]">{copy.pollPrivacyTitle}</p>
+                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#3E526A]">{copy.pollPrivacyBody}</p>
+              </div>
+            </div>
+          </div>
 
           <VoteImpactPanel
             copy={copy}

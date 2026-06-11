@@ -3,19 +3,299 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#8253AB" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="VYVA is a daily AI companion for seniors and families, helping with check-ins, medication reminders, memory activities, and trusted family updates." />
+
+    <title>VYVA - Daily AI companion for seniors and families</title>
+    <link rel="canonical" href="https://v2.vyva.life/" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <title>VYVA — Your Companion</title>
-    <meta name="description" content="VYVA is your daily AI companion — managing medications, brain training, and staying connected with family." />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="VYVA" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <meta property="og:site_name" content="VYVA" />
+    <meta property="og:title" content="VYVA - Daily AI companion for seniors and families" />
+    <meta property="og:description" content="Invite VYVA into daily routines for gentle check-ins, medication reminders, memory activities, and family reassurance." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://v2.vyva.life/" />
+    <meta property="og:image" content="https://v2.vyva.life/og-vyva.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="VYVA - Daily AI companion for seniors and families" />
+    <meta name="twitter:description" content="Gentle check-ins, medication reminders, memory activities, and trusted family updates in one calm companion." />
+    <meta name="twitter:image" content="https://v2.vyva.life/og-vyva.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "VYVA",
+        "applicationCategory": "HealthApplication",
+        "operatingSystem": "Web, iOS, Android, Windows, macOS",
+        "url": "https://v2.vyva.life/",
+        "image": "https://v2.vyva.life/og-vyva.png",
+        "description": "VYVA is a daily AI companion for seniors and families, helping with check-ins, medication reminders, memory activities, and trusted family updates.",
+        "publisher": {
+          "@type": "Organization",
+          "name": "VYVA",
+          "url": "https://vyva.life"
+        }
+      }
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet" />
+    <style>
+      #vyva-launch {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: #ffffff;
+        color: #2f183f;
+        font-family: "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        transition: opacity 360ms ease, visibility 360ms ease;
+      }
 
-    <meta property="og:title" content="VYVA — Your Companion" />
-    <meta property="og:description" content="VYVA is your daily AI companion for seniors." />
-    <meta property="og:type" content="website" />
+      #vyva-launch::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, #ffffff 0%, #ffffff 58%, #f8f2ff 100%);
+      }
+
+      #vyva-launch.vyva-launch--leaving {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .vyva-launch__stage {
+        position: relative;
+        display: grid;
+        place-items: center;
+        justify-items: center;
+        width: min(88vw, 410px);
+        min-height: 252px;
+        text-align: center;
+        animation: vyva-launch-enter 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+
+      .vyva-launch__mark {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 100%;
+        aspect-ratio: 1.48;
+      }
+
+      .vyva-launch__brand {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        width: min(70vw, 292px);
+        margin-top: 22px;
+        animation: vyva-launch-logo 640ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms both;
+      }
+
+      .vyva-launch__brand::before {
+        content: "";
+        position: absolute;
+        inset: -24px -18px;
+        z-index: -1;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.9);
+        filter: blur(12px);
+      }
+
+      .vyva-launch__logo {
+        display: block;
+        width: 100%;
+        height: auto;
+        filter: drop-shadow(0 18px 34px rgba(47, 24, 63, 0.16));
+      }
+
+      .vyva-launch__fallback {
+        color: #8253ab;
+        font-family: "Lora", Georgia, serif;
+        font-size: 3.25rem;
+        font-weight: 600;
+        line-height: 1;
+      }
+
+      .vyva-launch__heart {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        filter: drop-shadow(0 18px 42px rgba(245, 181, 27, 0.22));
+      }
+
+      .vyva-launch__heart path {
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .vyva-launch__heart-base {
+        stroke: rgba(245, 181, 27, 0.24);
+        stroke-width: 4;
+        opacity: 0;
+        animation: vyva-launch-heart-base 300ms ease 860ms both;
+      }
+
+      .vyva-launch__heart-draw {
+        stroke: url(#vyva-launch-heart-gradient);
+        stroke-width: 5;
+        stroke-dasharray: 760;
+        stroke-dashoffset: 760;
+        animation: vyva-launch-heart 960ms cubic-bezier(0.2, 0.8, 0.2, 1) 900ms forwards;
+      }
+
+      .vyva-launch__heart-spark {
+        stroke: #fff0a8;
+        stroke-width: 9;
+        stroke-dasharray: 34 726;
+        stroke-dashoffset: 760;
+        opacity: 0;
+        animation: vyva-launch-spark 960ms cubic-bezier(0.2, 0.8, 0.2, 1) 900ms forwards;
+      }
+
+      @keyframes vyva-launch-enter {
+        0% {
+          opacity: 0;
+          transform: translateY(10px) scale(0.98);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes vyva-launch-logo {
+        0% {
+          opacity: 0;
+          transform: translateY(8px) scale(0.97);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes vyva-launch-heart-base {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      @keyframes vyva-launch-heart {
+        0% {
+          stroke-dashoffset: 760;
+        }
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+
+      @keyframes vyva-launch-spark {
+        0% {
+          opacity: 0;
+          stroke-dashoffset: 760;
+        }
+        24% {
+          opacity: 0.86;
+        }
+        100% {
+          stroke-dashoffset: 0;
+          opacity: 0;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #vyva-launch,
+        .vyva-launch__stage,
+        .vyva-launch__brand,
+        .vyva-launch__heart-base,
+        .vyva-launch__heart-draw,
+        .vyva-launch__heart-spark {
+          animation: none;
+          transition: none;
+        }
+
+        .vyva-launch__heart-base {
+          opacity: 1;
+        }
+
+        .vyva-launch__heart-draw,
+        .vyva-launch__heart-spark {
+          stroke-dashoffset: 0;
+        }
+
+        .vyva-launch__heart-spark {
+          opacity: 0;
+        }
+      }
+
+      @media (max-width: 420px) {
+        .vyva-launch__stage {
+          min-height: 242px;
+        }
+
+        .vyva-launch__brand {
+          width: min(72vw, 292px);
+        }
+
+        .vyva-launch__fallback {
+          font-size: 2.8rem;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="vyva-launch" aria-label="Opening VYVA" role="status">
+      <div class="vyva-launch__stage">
+        <div class="vyva-launch__mark" aria-hidden="true">
+          <svg class="vyva-launch__heart" viewBox="0 0 430 288" aria-hidden="true">
+            <defs>
+              <linearGradient id="vyva-launch-heart-gradient" x1="0.1" x2="0.9" y1="0.15" y2="0.95">
+                <stop offset="0%" stop-color="#ffd96a" />
+                <stop offset="58%" stop-color="#f5b51b" />
+                <stop offset="100%" stop-color="#d9960b" />
+              </linearGradient>
+            </defs>
+            <path class="vyva-launch__heart-base" d="M215 255C177 222 53 154 48 95C44 47 83 18 128 18C168 18 193 44 215 76C237 44 262 18 302 18C347 18 386 47 382 95C377 154 253 222 215 255Z" />
+            <path class="vyva-launch__heart-draw" d="M215 255C177 222 53 154 48 95C44 47 83 18 128 18C168 18 193 44 215 76C237 44 262 18 302 18C347 18 386 47 382 95C377 154 253 222 215 255Z" />
+            <path class="vyva-launch__heart-spark" d="M215 255C177 222 53 154 48 95C44 47 83 18 128 18C168 18 193 44 215 76C237 44 262 18 302 18C347 18 386 47 382 95C377 154 253 222 215 255Z" />
+          </svg>
+          <div class="vyva-launch__brand">
+            <img
+              class="vyva-launch__logo"
+              src="/assets/vyva/vyva-logo-launch.png"
+              alt=""
+              onerror="if (!this.dataset.publicFallback) { this.dataset.publicFallback = 'true'; this.src = 'public/assets/vyva/vyva-logo-launch.png'; } else { this.hidden = true; this.nextElementSibling.hidden = false; }"
+              onload="this.nextElementSibling.hidden = true"
+            />
+            <span class="vyva-launch__fallback" hidden>VYVA</span>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

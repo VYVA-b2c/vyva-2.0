@@ -8,7 +8,7 @@ channel = "stable-25_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["node", "./server-dist/index.cjs"]
+run = "NODE_ENV=production node ./server-dist/index.cjs"
 build = ["npm", "run", "build"]
 
 [workflows]

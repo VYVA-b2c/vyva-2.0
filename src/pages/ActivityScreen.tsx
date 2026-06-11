@@ -550,6 +550,7 @@ type ActivityLocationState = {
   preselectActivity?: string;
   duration?: number;
   startGentleRoutine?: boolean;
+  startGentleExerciseId?: string;
   highlightGentleRoutine?: boolean;
   scrollToGentleExercises?: boolean;
   routineSource?: string;
@@ -609,11 +610,15 @@ const ActivityScreen = () => {
     ? incomingState.duration
     : 20;
   const incomingStartGentleRoutine = incomingState?.startGentleRoutine === true;
+  const incomingGentleExerciseId = typeof incomingState?.startGentleExerciseId === "string" && SENIOR_EXERCISE_BY_ID.has(incomingState.startGentleExerciseId)
+    ? incomingState.startGentleExerciseId
+    : null;
   const [selected, setSelected] = useState<string | null>(() => incomingActivity);
   const [duration, setDuration] = useState<number>(() => incomingDuration);
-  const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(null);
+  const [guidedExerciseId, setGuidedExerciseId] = useState<string | null>(() => incomingGentleExerciseId);
   const [guidedRoutineId, setGuidedRoutineId] = useState<string | null>(() => incomingStartGentleRoutine ? getDailySeniorRoutine().id : null);
   const [routineStepIndex, setRoutineStepIndex] = useState(0);
+  const [recentSeniorLog, setRecentSeniorLog] = useState<SeniorExercise | null>(null);
   const [editingSteps, setEditingSteps] = useState(false);
   const [stepsInput, setStepsInput] = useState("");
   const [homeAnalyzing, setHomeAnalyzing] = useState(false);
@@ -690,6 +695,7 @@ const ActivityScreen = () => {
 
   const handleLog = () => {
     if (!selected || logMutation.isPending) return;
+    setRecentSeniorLog(null);
     logMutation.mutate({ activity_type: selected, duration_minutes: duration });
   };
 
@@ -727,6 +733,11 @@ const ActivityScreen = () => {
     }, 0);
   }, [incomingState?.scrollToGentleExercises]);
 
+  useEffect(() => {
+    if (!incomingGentleExerciseId) return;
+    setGuidedExerciseId(incomingGentleExerciseId);
+  }, [incomingGentleExerciseId]);
+
   const closeGuidedRoutine = () => {
     setGuidedRoutineId(null);
     setRoutineStepIndex(0);
@@ -737,17 +748,22 @@ const ActivityScreen = () => {
     setRoutineStepIndex(0);
   };
 
-  const handleUseSeniorExercise = (exercise: SeniorExercise) => {
-    setSelected(exercise.logType);
-    setDuration(exercise.duration);
-    setGuidedExerciseId(null);
-    window.setTimeout(() => {
-      logSectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    }, 0);
+  const handleLogSeniorExercise = (exercise: SeniorExercise) => {
+    if (logMutation.isPending) return;
+    logMutation.mutate(
+      { activity_type: exercise.logType, duration_minutes: exercise.duration },
+      {
+        onSuccess: () => {
+          setRecentSeniorLog(exercise);
+          setGuidedExerciseId(null);
+        },
+      },
+    );
   };
 
   const handleFinishSeniorRoutine = (routine: SeniorRoutine) => {
     if (logMutation.isPending) return;
+    setRecentSeniorLog(null);
     logMutation.mutate(
       { activity_type: routine.logType, duration_minutes: routine.duration },
       { onSuccess: closeGuidedRoutine },
@@ -937,79 +953,58 @@ const ActivityScreen = () => {
         </div>
       </div>
 
-      <section className="mt-[18px]" data-testid="section-todays-gentle-routine">
-        <SectionTitle
-          title={t("activity.gentleRoutines.todayTitle", "Today's gentle routine")}
-          subtitle={t("activity.gentleRoutines.todaySubtitle", "One simple 10-minute session picked for today.")}
-        />
-
+      <section className="mt-[12px]" data-testid="section-todays-gentle-routine">
         <div
-          className="mt-3 overflow-hidden rounded-[24px] border bg-[#FFFCF8]"
+          className="rounded-[20px] border bg-[#FFFCF8] p-3"
           style={{
             borderColor: todayRoutine.border,
-            boxShadow: "0 16px 34px rgba(60,38,20,0.09)",
+            boxShadow: "0 8px 20px rgba(60,38,20,0.07)",
           }}
         >
-          <div className="grid grid-cols-1 min-[720px]:grid-cols-[1fr_210px]">
-            <div className="min-w-0 p-4 min-[520px]:p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-body text-[13px] font-extrabold"
-                  style={{ background: todayRoutine.softBg, color: todayRoutine.accent }}
-                >
-                  <Clock3 size={15} />
-                  {todayRoutine.duration} {t("activity.min", "min")}
-                </span>
-                <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 font-body text-[13px] font-extrabold text-[#92400E]">
-                  {t("activity.gentleRoutines.threeMoves", "3 gentle moves")}
-                </span>
-              </div>
-
-              <h3 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1 [overflow-wrap:anywhere] min-[520px]:text-[34px]">
-                {t(todayRoutine.titleKey, todayRoutine.title)}
-              </h3>
-              <p className="mt-1 max-w-[520px] font-body text-[16px] font-semibold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
-                {t(todayRoutine.subtitleKey, todayRoutine.subtitle)}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+            <div className="min-w-0">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.08em]" style={{ color: todayRoutine.accent }}>
+                  {t("activity.gentleRoutines.todayTitle", "Today's gentle routine")}
               </p>
-
-              <div className="mt-4 grid grid-cols-3 gap-2.5">
+              <h2 className="mt-1 font-display text-[24px] leading-[1.02] text-vyva-text-1 [overflow-wrap:anywhere]">
+                {t(todayRoutine.titleKey, todayRoutine.title)}
+              </h2>
+              <p className="mt-1 line-clamp-2 font-body text-[12px] font-bold leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
+                {todayRoutineExercises.map((exercise) => t(exercise.titleKey, exercise.title)).join(" • ")}
+              </p>
+              <div className="mt-3 flex min-w-0 -space-x-2">
                 {todayRoutineExercises.map((exercise) => (
-                  <div key={exercise.id} className="min-w-0" data-testid={`senior-routine-preview-${exercise.id}`}>
-                    <div className="aspect-square overflow-hidden rounded-[18px] bg-[#F5EFE4]">
-                      <img src={exercise.image} alt="" className="h-full w-full object-cover" loading="lazy" />
-                    </div>
-                    <p className="mt-1.5 truncate font-body text-[12px] font-extrabold text-vyva-text-1">
-                      {t(exercise.titleKey, exercise.title)}
-                    </p>
+                  <div
+                    key={exercise.id}
+                    className="h-[42px] w-[42px] overflow-hidden rounded-[13px] border-2 border-[#FFFCF8] bg-[#F5EFE4] shadow-sm min-[520px]:h-[46px] min-[520px]:w-[46px]"
+                    data-testid={`senior-routine-preview-${exercise.id}`}
+                  >
+                    <img src={exercise.image} alt="" className="h-full w-full object-cover" loading="lazy" />
                   </div>
                 ))}
               </div>
             </div>
 
-            <div
-              className="flex min-h-[150px] flex-col items-stretch justify-between gap-3 border-t p-4 min-[720px]:min-h-0 min-[720px]:border-l min-[720px]:border-t-0 min-[720px]:p-5"
-              style={{ background: todayRoutine.softBg, borderColor: todayRoutine.border }}
-            >
-              <div className="min-w-0">
-                <p className="font-body text-[13px] font-black uppercase text-vyva-text-2">
-                  {t("activity.gentleRoutines.readyWhenYouAre", "Ready when you are")}
-                </p>
-                <p className="mt-1 font-body text-[15px] font-semibold leading-snug text-vyva-text-1">
-                  {t("activity.gentleRoutines.cardHint", "Vyva will guide each move one at a time.")}
-                </p>
-              </div>
+            <div className="flex w-[136px] shrink-0 flex-col items-stretch gap-2 min-[420px]:w-[150px]">
+              <span
+                className="inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-full px-3 font-body text-[13px] font-extrabold"
+                style={{ background: todayRoutine.softBg, color: todayRoutine.accent }}
+              >
+                <Clock3 size={15} />
+                {todayRoutine.duration} {t("activity.min", "min")}
+              </span>
               <button
                 type="button"
                 data-testid="button-start-senior-routine"
                 onClick={() => openGuidedRoutine(todayRoutine)}
-                className="vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[16px] font-extrabold text-white"
+                className="vyva-tap flex min-h-[52px] w-full items-center justify-center gap-1.5 rounded-[16px] px-3 py-3 font-body text-[15px] font-extrabold text-white"
                 style={{
                   background: todayRoutine.accent,
-                  boxShadow: `0 12px 24px ${todayRoutine.accent}30`,
+                  boxShadow: `0 10px 20px ${todayRoutine.accent}2B`,
                 }}
               >
-                {t("activity.gentleRoutines.start", "Start routine")}
-                <ChevronRight size={20} />
+                <span className="whitespace-nowrap">{t("activity.gentleRoutines.start", "Start routine")}</span>
+                <ChevronRight size={19} />
               </button>
             </div>
           </div>
@@ -1021,6 +1016,26 @@ const ActivityScreen = () => {
           title={t("activity.gentleExercises.title", "Gentle exercises")}
           subtitle={t("activity.gentleExercises.subtitle", "Three simple choices for strength, balance, mobility, and calm.")}
         />
+        {recentSeniorLog ? (
+          <div
+            className="mt-3 flex items-center gap-3 rounded-[18px] border px-3 py-3"
+            style={{ background: recentSeniorLog.softBg, borderColor: recentSeniorLog.border }}
+            data-testid="status-senior-exercise-logged"
+          >
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-white"
+              style={{ color: recentSeniorLog.accent }}
+            >
+              <CheckCircle2 size={22} strokeWidth={2.5} />
+            </span>
+            <span className="min-w-0 font-body text-[15px] font-extrabold leading-snug text-vyva-text-1 [overflow-wrap:anywhere]">
+              {t("activity.gentleExercises.loggedConfirmation", "{{title}} logged for {{duration}} min.", {
+                title: t(recentSeniorLog.titleKey, recentSeniorLog.title),
+                duration: recentSeniorLog.duration,
+              })}
+            </span>
+          </div>
+        ) : null}
         <div className="mt-3 space-y-5">
           {SENIOR_EXERCISE_GROUPS.map((group) => {
             const exercises = SENIOR_EXERCISES.filter((exercise) => exercise.group === group.key);
@@ -1045,7 +1060,8 @@ const ActivityScreen = () => {
                     const title = t(exercise.titleKey, exercise.title);
                     const benefit = t(exercise.benefitKey, exercise.benefit);
                     const focus = t(exercise.focusKey, exercise.focus);
-                    const selectedExercise = selected === exercise.logType;
+                    const selectedExercise = selected === exercise.logType || recentSeniorLog?.id === exercise.id;
+                    const exerciseLogged = recentSeniorLog?.id === exercise.id;
                     const Icon = exercise.icon;
                     return (
                       <button
@@ -1107,7 +1123,9 @@ const ActivityScreen = () => {
                               }}
                             >
                               {selectedExercise
-                                ? t("activity.gentleExercises.ready", "Ready")
+                                ? exerciseLogged
+                                  ? t("activity.gentleExercises.logged", "Logged")
+                                  : t("activity.gentleExercises.ready", "Ready")
                                 : t("activity.gentleExercises.choose", "Choose")}
                             </span>
                           </div>
@@ -1681,19 +1699,42 @@ const ActivityScreen = () => {
           description={t(guidedExercise.benefitKey, guidedExercise.benefit)}
           closeLabel={t("common.close", "Close")}
           footer={(
-            <button
-              type="button"
-              data-testid={`button-use-senior-exercise-${guidedExercise.id}`}
-              onClick={() => handleUseSeniorExercise(guidedExercise)}
-              className="vyva-tap flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[17px] font-extrabold text-white"
-              style={{
-                background: guidedExercise.accent,
-                boxShadow: `0 12px 24px ${guidedExercise.accent}30`,
-              }}
-            >
-              <CheckCircle2 size={21} />
-              {t("activity.gentleExercises.useExercise", "Use this exercise")}
-            </button>
+            <div className="space-y-3">
+              <p
+                className="rounded-[14px] border px-3 py-2 font-body text-[13px] font-semibold leading-snug"
+                style={{ background: "#FFF7ED", borderColor: "#FED7AA", color: "#7C2D12" }}
+              >
+                {t("activity.gentleExercises.safety", "Move gently. Stop if you feel pain, dizzy, or short of breath.")}
+              </p>
+              {logMutation.isError ? (
+                <p
+                  className="rounded-[14px] border px-3 py-2 font-body text-[13px] font-semibold leading-snug"
+                  style={{ background: "#FFF1F2", borderColor: "#FECDD3", color: "#BE185D" }}
+                  data-testid="senior-exercise-log-error"
+                >
+                  {t("activity.couldNotSave", "Could not save. Try again.")}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                data-testid={`button-use-senior-exercise-${guidedExercise.id}`}
+                onClick={() => handleLogSeniorExercise(guidedExercise)}
+                disabled={logMutation.isPending}
+                className="vyva-tap flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[18px] px-5 py-3 font-body text-[17px] font-extrabold text-white disabled:opacity-70"
+                style={{
+                  background: guidedExercise.accent,
+                  boxShadow: `0 12px 24px ${guidedExercise.accent}30`,
+                }}
+              >
+                {logMutation.isPending ? <Loader2 size={21} className="animate-spin" /> : <CheckCircle2 size={21} />}
+                {logMutation.isPending
+                  ? t("activity.saving", "Saving...")
+                  : t("activity.gentleExercises.logExercise", "Log {{duration}}m {{title}}", {
+                    duration: guidedExercise.duration,
+                    title: t(guidedExercise.titleKey, guidedExercise.title),
+                  })}
+              </button>
+            </div>
           )}
         >
           <div className="overflow-hidden rounded-[22px] border" style={{ borderColor: guidedExercise.border }}>
@@ -1753,14 +1794,6 @@ const ActivityScreen = () => {
             </ol>
           </div>
 
-          <div
-            className="mt-3 rounded-[18px] border p-3"
-            style={{ background: "#FFF7ED", borderColor: "#FED7AA" }}
-          >
-            <p className="font-body text-[14px] font-semibold leading-snug text-[#7C2D12]">
-              {t("activity.gentleExercises.safety", "Move gently. Stop if you feel pain, dizzy, or short of breath.")}
-            </p>
-          </div>
         </BottomSheet>
       )}
     </div>

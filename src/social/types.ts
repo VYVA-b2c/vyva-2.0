@@ -15,6 +15,39 @@ export type SocialActivityType =
 
 export type SocialGameKind = "chess" | "word" | "dominoes" | "bridge";
 
+export type SocialGameDifficulty = "easy" | "medium" | "hard" | "expert";
+
+export type SocialGameRoundInteraction =
+  | {
+      kind: "wordBuild";
+      instruction: string;
+      shuffleEnabled?: boolean;
+      revealLetterCount?: number;
+    }
+  | {
+      kind: "chessTap";
+      instruction: string;
+      answerSquares: string[];
+      selectableSquares?: string[];
+    }
+  | {
+      kind: "dominoPlay";
+      instruction: string;
+      answerTile?: [number, number];
+      candidateTiles?: Array<[number, number]>;
+      answerEnd?: number;
+      answerEndSide?: "left" | "right";
+      candidateEnds?: Array<"left" | "right">;
+      actions?: Array<{ id: string; label: string }>;
+      answerActionId?: string;
+    }
+  | {
+      kind: "bridgeAction";
+      instruction: string;
+      actions: Array<{ id: string; label: string }>;
+      answerActionId: string;
+    };
+
 export type SocialGameRoundVisual =
   | {
       kind: "wordTiles";
@@ -38,10 +71,17 @@ export type SocialGameRoundVisual =
       kind: "dominoes";
       caption: string;
       openEnds?: [number, number];
+      leftEnd?: number;
+      rightEnd?: number;
       hand?: Array<[number, number]>;
+      handLabel?: string;
       candidateTiles?: Array<[number, number]>;
       playedTile?: [number, number];
       focusTile?: [number, number];
+      layoutTiles?: Array<[number, number]>;
+      recentPass?: number;
+      remainingTiles?: number;
+      endChoices?: Array<"left" | "right">;
       target?: number;
       desired?: number;
       avoid?: number;
@@ -54,7 +94,7 @@ export type SocialGameRoundVisual =
       points?: number;
       contract?: string;
       partnerBid?: string;
-      cards?: Array<{ rank: string; suit: string }>;
+      cards?: Array<{ rank: string; suit: string; role?: "key" | "support" | "side" }>;
       suitLengths?: Array<{ suit: string; length: number }>;
       missingCard?: { rank: string; suit: string };
     };
@@ -71,7 +111,11 @@ export type SocialGameRound = {
   tags: string[];
   estimatedDurationSeconds: number;
   successMessage: string;
+  difficulty?: SocialGameDifficulty;
   visual?: SocialGameRoundVisual;
+  interaction?: SocialGameRoundInteraction;
+  explanation?: string;
+  tableTalkPrompt?: string;
 };
 
 export type SocialGameReadyMember = {
@@ -96,6 +140,9 @@ export type SocialGameTable = {
   roundCompleteLabel: string;
   rounds: SocialGameRound[];
   defaultRoundId: string;
+  defaultRoundIdsByKind?: Partial<Record<SocialGameKind, string>>;
+  defaultRoundIndexesByKind?: Partial<Record<SocialGameKind, number>>;
+  roundCountsByKind?: Partial<Record<SocialGameKind, number>>;
   readyMembers: SocialGameReadyMember[];
 };
 

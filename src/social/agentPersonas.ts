@@ -17,7 +17,7 @@ export type AgentPersona = {
   slug: string;
   fullName: string;
   colour: string;
-  credential: Record<SocialLanguage, string>;
+  credential: Partial<Record<SocialLanguage, string>> & { en: string; es?: string };
   glyph: AgentGlyph;
   systemPrompt: string;
   elevenLabsAgentId?: string;
@@ -116,6 +116,9 @@ export const AGENT_PERSONAS: Record<string, AgentPersona> = {
       es: "Filóloga · Literatura española",
       de: "Philologin · Spanische Literatur",
       en: "Philologist · Spanish literature",
+      fr: "Hote litteraire",
+      it: "Ospite letteraria",
+      pt: "Anfitria literaria",
     },
     glyph: "book",
     elevenLabsAgentId: import.meta.env.VITE_ELEVENLABS_AGENT_ISABEL ?? import.meta.env.VITE_ELEVENLABS_SOCIAL_AGENT_ISABEL,

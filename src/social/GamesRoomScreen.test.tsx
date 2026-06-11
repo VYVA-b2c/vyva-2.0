@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GamesRoomScreen from "./GamesRoomScreen";
-import type { SocialGameRound, SocialRoomResponse } from "./types";
+import type { SocialGameDifficulty, SocialGameRound, SocialRoomResponse } from "./types";
 
 const apiFetchMock = vi.fn();
 
@@ -9,61 +9,98 @@ vi.mock("@/lib/queryClient", () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
 }));
 
+function testDifficultyForIndex(index: number): SocialGameDifficulty {
+  if (index === 0) return "medium";
+  if (index === 1) return "easy";
+  if (index === 2) return "hard";
+  if (index === 3) return "medium";
+  return ["easy", "medium", "hard", "expert"][index % 4] as SocialGameDifficulty;
+}
+
+function tagsWithDifficulty(tags: string[], difficulty: SocialGameDifficulty) {
+  return [...tags, `difficulty:${difficulty}`];
+}
+
 function createWordRound(index: number): SocialGameRound {
+  const difficulty = testDifficultyForIndex(index);
+
   if (index === 0) {
     return {
-      id: "word-tiles-anagram-smile",
+      id: "word-table-anagram-smile",
       kind: "word",
       title: "Word tiles",
-      body: "Make a word from the tiles.",
-      prompt: "Arrange the tiles into a friendly word.",
+      body: "Solve a real word-table decision.",
+      prompt: "Find the strongest word hidden in the rack.",
       choices: ["SMILE", "LIMES", "MILES"],
       answer: "SMILE",
       hint: "Choose the word you could send as a greeting.",
-      tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
+      tags: tagsWithDifficulty(["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"], difficulty),
       estimatedDurationSeconds: 75,
-      successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      successMessage: "Good word-table judgement.",
+      difficulty,
+      interaction: {
+        kind: "wordBuild",
+        instruction: "Tap tiles into your tray.",
+        shuffleEnabled: true,
+        revealLetterCount: 1,
+      },
       visual: {
         kind: "wordTiles",
-        tiles: ["E", "I", "M", "L", "S"],
+        tiles: ["E", "I", "M", "L", "S", "R", "T"],
         answerLength: 5,
+        clue: "The rack has extra letters; use only the word that fits.",
       },
     };
   }
 
   if (index === 1) {
     return {
-      id: "word-tiles-anagram-peace",
+      id: "word-table-anagram-peace",
       kind: "word",
       title: "Word tiles",
-      body: "Make a word from the tiles.",
-      prompt: "Arrange the tiles into a friendly word.",
+      body: "Solve a real word-table decision.",
+      prompt: "Find the strongest word hidden in the rack.",
       choices: ["PEACE", "PACES", "CAPES"],
       answer: "PEACE",
       hint: "It means calm between people.",
-      tags: ["games", "scrabble", "words", "game:word", "word:anagram"],
+      tags: tagsWithDifficulty(["games", "scrabble", "words", "game:word", "word:strategy", "word:anagram"], difficulty),
       estimatedDurationSeconds: 80,
-      successMessage: "Lovely. Anagrams make word games feel quick and social.",
+      successMessage: "Good word-table judgement.",
+      difficulty,
+      interaction: {
+        kind: "wordBuild",
+        instruction: "Tap tiles into your tray.",
+        shuffleEnabled: true,
+        revealLetterCount: 1,
+      },
       visual: {
         kind: "wordTiles",
-        tiles: ["E", "A", "P", "C", "E"],
+        tiles: ["E", "A", "P", "C", "E", "R", "T"],
         answerLength: 5,
+        clue: "The rack has extra letters; use only the word that fits.",
       },
     };
   }
 
   return {
-    id: `word-tiles-test-${index + 1}`,
+    id: `word-table-test-${index + 1}`,
     kind: "word",
     title: "Word tiles",
-    body: "Solve a short word clue.",
-    prompt: `Choose the friendly test word ${index + 1}.`,
+    body: "Solve a real word-table decision.",
+    prompt: `Find the strongest test word ${index + 1}.`,
     choices: [`WORD${index + 1}`, `TILE${index + 1}`, `GAME${index + 1}`],
     answer: `WORD${index + 1}`,
-    hint: "Pick the first friendly word.",
-    tags: ["games", "scrabble", "words", "game:word", "word:test"],
+    hint: "Pick the strongest word.",
+    tags: tagsWithDifficulty(["games", "scrabble", "words", "game:word", "word:strategy", "word:test"], difficulty),
     estimatedDurationSeconds: 80,
     successMessage: "Nice word choice.",
+    difficulty,
+    interaction: {
+      kind: "wordBuild",
+      instruction: "Tap tiles into your tray.",
+      shuffleEnabled: true,
+      revealLetterCount: 1,
+    },
     visual: {
       kind: "wordTiles",
       tiles: [`D${index + 1}`, `WOR${index + 1}`],
@@ -75,44 +112,76 @@ function createWordRound(index: number): SocialGameRound {
 const wordRounds = Array.from({ length: 80 }, (_, index) => createWordRound(index));
 
 function createDominoesRound(index: number): SocialGameRound {
+  const difficulty = testDifficultyForIndex(index);
+
   if (index === 0) {
     return {
-      id: "dominoes-open-double-six",
+      id: "domino-table-next-move-six-four",
       kind: "dominoes",
       title: "Dominoes",
-      body: "Choose the strongest opening tile.",
-      prompt: "You are starting and have these doubles: Double six, Double five, Double three. Which tile is the strongest opener?",
-      choices: ["Double six", "Double five", "Double three"],
-      answer: "Double six",
-      hint: "The highest double gives the table a clear anchor.",
-      tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
-      estimatedDurationSeconds: 75,
-      successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      body: "Plan the next turn.",
+      prompt: "Find the play that leaves another move ready.",
+      choices: ["Six-four", "Two-three", "Five-one", "Four-blank"],
+      answer: "Six-four",
+      hint: "After the tile lands, look for the new open number in your hand.",
+      tags: tagsWithDifficulty(["games", "dominoes", "game:dominoes", "dominoes:next-move"], difficulty),
+      estimatedDurationSeconds: 85,
+      successMessage: "Good table sense. You left yourself a useful number.",
+      difficulty,
+      interaction: {
+        kind: "dominoPlay",
+        instruction: "Tap a tile from your hand.",
+        answerTile: [6, 4],
+        candidateTiles: [[6, 4], [2, 3], [5, 1], [4, 0]],
+      },
       visual: {
         kind: "dominoes",
-        caption: "Choose the strongest opening tile.",
-        candidateTiles: [[6, 6], [5, 5], [3, 3]],
+        caption: "Plan the next turn.",
+        openEnds: [6, 2],
+        leftEnd: 6,
+        rightEnd: 2,
+        handLabel: "Your hand",
+        hand: [[6, 4], [2, 3], [5, 1], [4, 0]],
+        layoutTiles: [[1, 6], [2, 4]],
+        recentPass: 5,
+        remainingTiles: 4,
       },
     };
   }
 
   if (index === 1) {
     return {
-      id: "dominoes-open-double-five",
+      id: "domino-table-choose-end-six-two",
       kind: "dominoes",
       title: "Dominoes",
-      body: "Choose the strongest opening tile.",
-      prompt: "You are starting and have these doubles: Double five, Double four, Double two. Which tile is the strongest opener?",
-      choices: ["Double five", "Double four", "Double two"],
-      answer: "Double five",
-      hint: "The highest double gives the table a clear anchor.",
-      tags: ["games", "dominoes", "game:dominoes", "dominoes:opening-double"],
-      estimatedDurationSeconds: 75,
-      successMessage: "Nice table sense. A strong double gives everyone an easy start.",
+      body: "Choose the better end.",
+      prompt: "The tile fits both sides. Pick the wiser side.",
+      choices: ["Six-two on the right end", "Six-two on the left end", "Six-four"],
+      answer: "Six-two on the right end",
+      hint: "Try the end that leaves a number you can use again.",
+      tags: tagsWithDifficulty(["games", "dominoes", "game:dominoes", "dominoes:choose-end"], difficulty),
+      estimatedDurationSeconds: 85,
+      successMessage: "Nice. The same tile can tell two different stories.",
+      difficulty,
+      interaction: {
+        kind: "dominoPlay",
+        instruction: "Tap a tile from your hand.",
+        answerTile: [6, 2],
+        candidateTiles: [[6, 2], [6, 4], [5, 1], [3, 0]],
+        answerEnd: 2,
+        answerEndSide: "right",
+        candidateEnds: ["left", "right"],
+      },
       visual: {
         kind: "dominoes",
-        caption: "Choose the strongest opening tile.",
-        candidateTiles: [[5, 5], [4, 4], [2, 2]],
+        caption: "Choose the better end.",
+        openEnds: [6, 2],
+        leftEnd: 6,
+        rightEnd: 2,
+        handLabel: "Your hand",
+        hand: [[6, 2], [6, 4], [5, 1], [3, 0]],
+        layoutTiles: [[1, 6], [2, 4]],
+        endChoices: ["left", "right"],
       },
     };
   }
@@ -121,18 +190,30 @@ function createDominoesRound(index: number): SocialGameRound {
     id: `dominoes-test-${index + 1}`,
     kind: "dominoes",
     title: "Dominoes",
-    body: "Solve a short dominoes table clue.",
-    prompt: `Choose the useful dominoes test tile ${index + 1}.`,
+    body: "Read a short dominoes table.",
+    prompt: `Find the table move ${index + 1}.`,
     choices: [`Tile ${index + 1}`, `Pass ${index + 1}`, `Draw ${index + 1}`],
     answer: `Tile ${index + 1}`,
-    hint: "Pick the first useful tile.",
-    tags: ["games", "dominoes", "game:dominoes", "dominoes:test"],
-    estimatedDurationSeconds: 75,
+    hint: "Use the open ends and your hand.",
+    tags: tagsWithDifficulty(["games", "dominoes", "game:dominoes", "dominoes:test"], difficulty),
+    estimatedDurationSeconds: 85,
     successMessage: "Nice table sense.",
+    difficulty,
+    interaction: {
+      kind: "dominoPlay",
+      instruction: "Tap a tile from your hand.",
+      answerTile: [1, 2],
+      candidateTiles: [[1, 2], [2, 3], [3, 4]],
+    },
     visual: {
       kind: "dominoes",
-      caption: "Solve a short dominoes table clue.",
-      candidateTiles: [[1, 2], [2, 3], [3, 4]],
+      caption: "Read a short dominoes table.",
+      openEnds: [1, 6],
+      leftEnd: 1,
+      rightEnd: 6,
+      handLabel: "Your hand",
+      hand: [[1, 2], [2, 3], [3, 4]],
+      layoutTiles: [[0, 1], [6, 2]],
     },
   };
 }
@@ -140,46 +221,86 @@ function createDominoesRound(index: number): SocialGameRound {
 const dominoesRounds = Array.from({ length: 80 }, (_, index) => createDominoesRound(index));
 
 function createBridgeRound(index: number): SocialGameRound {
+  const difficulty = testDifficultyForIndex(index);
+
   if (index === 0) {
     return {
-      id: "bridge-opening-bid-five-hearts",
+      id: "bridge-table-borderline-opening-rule-twenty",
       kind: "bridge",
       title: "Bridge table",
-      body: "Choose a calm opening bid.",
-      prompt: "You have 13 points and 5 hearts. Which calm choice fits best?",
-      choices: ["Bid 1 hearts", "Bid 1 no-trump", "Pass"],
-      answer: "Bid 1 hearts",
-      hint: "Bid the longest suit",
-      tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
+      body: "Judge the opening bid from shape and strength.",
+      prompt: "What is the best bridge action?",
+      choices: ["Bid 1 spades", "Pass", "Bid 1 no-trump"],
+      answer: "Bid 1 spades",
+      hint: "Use points plus shape; do not count points alone.",
+      tags: tagsWithDifficulty(["games", "bridge", "cards", "game:bridge", "bridge:borderline-opening"], difficulty),
       estimatedDurationSeconds: 85,
-      successMessage: "Good start. A clear opening helps partner relax.",
+      successMessage: "Good auction judgement. Shape can justify action when points are close.",
+      difficulty,
+      interaction: {
+        kind: "bridgeAction",
+        instruction: "Tap the best bridge action.",
+        actions: [
+          { id: "bid:1:spades", label: "Bid 1 spades" },
+          { id: "pass", label: "Pass" },
+          { id: "bid:1:noTrump", label: "Bid 1 no-trump" },
+        ],
+        answerActionId: "bid:1:spades",
+      },
       visual: {
         kind: "bridgeCards",
-        caption: "Choose a calm opening bid.",
-        points: 13,
-        suitLengths: [{ suit: "hearts", length: 5 }],
+        caption: "Judge the opening bid from shape and strength.",
+        points: 11,
+        cards: [
+          { rank: "ace", suit: "spades", role: "key" },
+          { rank: "king", suit: "spades", role: "key" },
+          { rank: "ten", suit: "spades", role: "key" },
+          { rank: "nine", suit: "spades", role: "support" },
+          { rank: "seven", suit: "spades", role: "support" },
+          { rank: "ten", suit: "hearts", role: "side" },
+          { rank: "eight", suit: "hearts", role: "side" },
+        ],
+        suitLengths: [{ suit: "spades", length: 5 }, { suit: "hearts", length: 4 }],
       },
     };
   }
 
   if (index === 1) {
     return {
-      id: "bridge-opening-bid-five-spades",
+      id: "bridge-table-borderline-opening-balanced-seventeen",
       kind: "bridge",
       title: "Bridge table",
-      body: "Choose a calm opening bid.",
-      prompt: "You have 12 points and 5 spades. Which calm choice fits best?",
-      choices: ["Bid 1 spades", "Bid 1 clubs", "Pass"],
-      answer: "Bid 1 spades",
-      hint: "Bid the longest suit",
-      tags: ["games", "bridge", "cards", "game:bridge", "bridge:opening-bid"],
+      body: "Judge the opening bid from shape and strength.",
+      prompt: "What is the best bridge action?",
+      choices: ["Bid 1 no-trump", "Bid 2 no-trump", "Bid 1 clubs"],
+      answer: "Bid 1 no-trump",
+      hint: "Use points plus shape; do not count points alone.",
+      tags: tagsWithDifficulty(["games", "bridge", "cards", "game:bridge", "bridge:borderline-opening"], difficulty),
       estimatedDurationSeconds: 85,
-      successMessage: "Good start. A clear opening helps partner relax.",
+      successMessage: "Good auction judgement. Shape can justify action when points are close.",
+      difficulty,
+      interaction: {
+        kind: "bridgeAction",
+        instruction: "Tap the best bridge action.",
+        actions: [
+          { id: "bid:1:noTrump", label: "Bid 1 no-trump" },
+          { id: "bid:2:noTrump", label: "Bid 2 no-trump" },
+          { id: "bid:1:clubs", label: "Bid 1 clubs" },
+        ],
+        answerActionId: "bid:1:noTrump",
+      },
       visual: {
         kind: "bridgeCards",
-        caption: "Choose a calm opening bid.",
-        points: 12,
-        suitLengths: [{ suit: "spades", length: 5 }],
+        caption: "Judge the opening bid from shape and strength.",
+        points: 17,
+        cards: [
+          { rank: "ace", suit: "spades", role: "key" },
+          { rank: "eight", suit: "spades", role: "support" },
+          { rank: "king", suit: "hearts", role: "key" },
+          { rank: "queen", suit: "diamonds", role: "key" },
+          { rank: "ten", suit: "clubs", role: "side" },
+          { rank: "nine", suit: "clubs", role: "side" },
+        ],
       },
     };
   }
@@ -188,18 +309,34 @@ function createBridgeRound(index: number): SocialGameRound {
     id: `bridge-test-${index + 1}`,
     kind: "bridge",
     title: "Bridge table",
-    body: "Solve a gentle bridge table puzzle.",
+    body: "Solve a bridge table decision.",
     prompt: `Choose the useful bridge test action ${index + 1}.`,
     choices: [`Bridge ${index + 1}`, `Pass ${index + 1}`, `Lead ${index + 1}`],
     answer: `Bridge ${index + 1}`,
-    hint: "Pick the first bridge action.",
-    tags: ["games", "bridge", "cards", "game:bridge", "bridge:test"],
+    hint: "Read the auction and table position.",
+    tags: tagsWithDifficulty(["games", "bridge", "cards", "game:bridge", "bridge:test"], difficulty),
     estimatedDurationSeconds: 85,
-    successMessage: "Nice bridge table choice.",
+    successMessage: "Good bridge table choice.",
+    difficulty,
+    interaction: {
+      kind: "bridgeAction",
+      instruction: "Tap the best bridge action.",
+      actions: [
+        { id: `bridge-${index + 1}`, label: `Bridge ${index + 1}` },
+        { id: `pass-${index + 1}`, label: `Pass ${index + 1}` },
+        { id: `lead-${index + 1}`, label: `Lead ${index + 1}` },
+      ],
+      answerActionId: `bridge-${index + 1}`,
+    },
     visual: {
       kind: "bridgeCards",
-      caption: "Solve a gentle bridge table puzzle.",
-      cards: [{ rank: "ace", suit: "spades" }],
+      caption: "Solve a bridge table decision.",
+      cards: [
+        { rank: "ace", suit: "spades", role: "key" },
+        { rank: "king", suit: "spades", role: "key" },
+        { rank: "ten", suit: "hearts", role: "side" },
+        { rank: "eight", suit: "diamonds", role: "side" },
+      ],
     },
   };
 }
@@ -251,7 +388,7 @@ const roomResponse: SocialRoomResponse = {
     chooseRoundLabel: "Choose a round",
     connectionTitle: "Find a playing partner",
     connectionBody: "Contact details stay private.",
-    startRoundLabel: "Start puzzle",
+    startRoundLabel: "Start this puzzle",
     completeRoundLabel: "Check answer",
     findPartnerLabel: "Find a playing partner",
     sayHelloLabel: "Say hello",
@@ -272,23 +409,34 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Spot a friendly tactic.",
-        prompt: "White's knight can check the king and attack the queen. What tactic is this?",
+        prompt: "Find the double threat.",
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
-        tags: ["games", "chess", "game:chess", "chess:fork"],
+        tags: tagsWithDifficulty(["games", "chess", "game:chess", "chess:fork"], "medium"),
         estimatedDurationSeconds: 90,
         successMessage: "Nice steady thinking. Forks are a classic way to start a chess chat.",
+        difficulty: "medium",
+        interaction: {
+          kind: "chessTap",
+          instruction: "Tap a piece or square.",
+          answerSquares: ["d5"],
+          selectableSquares: ["d5", "b6", "f6", "c2", "h6", "a7"],
+        },
         visual: {
           kind: "chessBoard",
-          caption: "One white piece points at two black targets.",
+          caption: "White to move.",
           pieces: [
             { square: "d5", piece: "whiteKnight" },
             { square: "f6", piece: "blackKing" },
             { square: "b6", piece: "blackQueen" },
+            { square: "c2", piece: "whiteBishop" },
+            { square: "h6", piece: "blackKnight" },
+            { square: "a7", piece: "blackPawn" },
             { square: "g1", piece: "whiteKing" },
           ],
           highlights: ["d5", "f6", "b6"],
+          arrows: [{ from: "d5", to: "f6" }, { from: "d5", to: "b6" }],
         },
       },
       {
@@ -296,25 +444,38 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Find the trapped king.",
-        prompt: "Black's king is stuck behind its own pawns and White has a rook on the open file. What idea should White look for?",
+        prompt: "Find the strongest king pressure.",
         choices: ["Back-rank mate", "En passant", "Pawn promotion"],
         answer: "Back-rank mate",
         hint: "The king has no safe square because its own pawns block the escape.",
-        tags: ["games", "chess", "game:chess", "chess:mate"],
+        tags: tagsWithDifficulty(["games", "chess", "game:chess", "chess:mate"], "hard"),
         estimatedDurationSeconds: 95,
         successMessage: "Good eye. Back-rank patterns are small puzzles that many chess players enjoy.",
+        difficulty: "hard",
+        explanation: "Why this works: The king has no safe square because its own pawns block the escape.",
+        tableTalkPrompt: "Ask someone which chess piece they enjoy moving most.",
+        interaction: {
+          kind: "chessTap",
+          instruction: "Tap a piece or square.",
+          answerSquares: ["e8"],
+          selectableSquares: ["e8", "f7", "g7", "h7", "f2", "c6", "a6"],
+        },
         visual: {
           kind: "chessBoard",
-          caption: "The black king is boxed in behind its own pawns.",
+          caption: "White to move.",
           pieces: [
             { square: "e8", piece: "whiteRook" },
             { square: "g8", piece: "blackKing" },
             { square: "f7", piece: "blackPawn" },
             { square: "g7", piece: "blackPawn" },
             { square: "h7", piece: "blackPawn" },
+            { square: "f2", piece: "whiteBishop" },
+            { square: "c6", piece: "blackKnight" },
+            { square: "a6", piece: "blackPawn" },
             { square: "g1", piece: "whiteKing" },
           ],
           highlights: ["e8", "g8", "f7", "g7", "h7"],
+          arrows: [{ from: "e8", to: "g8" }],
         },
       },
       ...wordRounds,
@@ -331,10 +492,28 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function gameRoundRequestBodies() {
+  return apiFetchMock.mock.calls
+    .filter(([url]) => url === "/api/social/rooms/games-room/game-round")
+    .map(([, options]) => JSON.parse(String((options as RequestInit).body ?? "{}")));
+}
+
 describe("GamesRoomScreen", () => {
   beforeEach(() => {
     apiFetchMock.mockReset();
     apiFetchMock.mockImplementation((url: string) => {
+      if (url.includes("/game-rounds")) {
+        const parsedUrl = new URL(url, "http://localhost");
+        const gameKind = parsedUrl.searchParams.get("gameKind");
+        const rounds = roomResponse.gameTable?.rounds.filter((round) => round.kind === gameKind) ?? [];
+        return Promise.resolve(jsonResponse({
+          gameKind,
+          rounds,
+          roundCount: rounds.length,
+          defaultRoundId: rounds[0]?.id ?? null,
+          defaultRoundIndex: 0,
+        }));
+      }
       if (url.endsWith("/match")) {
         return Promise.resolve(jsonResponse({
           noMatch: false,
@@ -347,29 +526,88 @@ describe("GamesRoomScreen", () => {
     });
   });
 
-  it("lets the chess clue card browse more than one chess puzzle", async () => {
-    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+  it("starts on the game picker and uses Back to return there before leaving", () => {
+    const onBack = vi.fn();
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={onBack} />);
 
     expect(screen.getByText("Dominoes")).toBeInTheDocument();
     expect(screen.getByText("Bridge table")).toBeInTheDocument();
     expect(screen.queryByText("Trivia")).not.toBeInTheDocument();
     expect(screen.queryByText("Memory match")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-selected-puzzle")).not.toBeInTheDocument();
+    expect(screen.queryByText("Puzzle 1 of 2")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+
+    expect(screen.queryByTestId("games-round-picker")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-selected-puzzle")).toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
-    expect(screen.getByText("White's knight can check the king and attack the queen. What tactic is this?")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a marker.");
+
+    fireEvent.click(screen.getByTestId("games-room-back"));
+
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-selected-puzzle")).not.toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("games-room-back"));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the chess clue card browse more than one chess puzzle", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+
+    expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-round-picker")).not.toBeInTheDocument();
+    const puzzleControls = screen.getByTestId("games-puzzle-controls");
+    expect(within(puzzleControls).queryByTestId("games-start-round")).not.toBeInTheDocument();
+    expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
+    expect(screen.getByText("Find the double threat.")).toBeInTheDocument();
     const chessBoard = screen.getByTestId("games-visual-chess");
     expect(chessBoard).toBeInTheDocument();
     expect(within(chessBoard).getByRole("img", { name: "White knight" })).toBeInTheDocument();
     expect(within(chessBoard).getByRole("img", { name: "Black queen" })).toBeInTheDocument();
     expect(within(chessBoard).queryByText("WN")).not.toBeInTheDocument();
     expect(within(chessBoard).queryByText("BQ")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chess-guidance-d5")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Black's king is stuck behind its own pawns and White has a rook on the open file. What idea should White look for?")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-tactile-chess")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your move")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a marker.");
+    expect(screen.queryByTestId("chess-guidance-e8")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-show-help"));
+
+    expect(screen.getByText(/Hint:/)).toHaveTextContent("The king has no safe square");
+    expect(screen.getByTestId("chess-guidance-e8")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("chess-square-f7"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Close.");
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    expect(screen.getByTestId("chess-guidance-e8")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("chess-square-e8"));
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    expect(screen.queryByText("Back-rank patterns are small puzzles that many chess players enjoy.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Why this works:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Table talk:/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-learn-why"));
+    expect(screen.getByText(/Why this works:/)).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
@@ -380,21 +618,134 @@ describe("GamesRoomScreen", () => {
         }),
       );
     });
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "chess-clue-back-rank",
+          gameKind: "chess",
+          status: "completed",
+        }),
+      ]));
+    });
+  });
+
+  it("honors personalized default rounds for initial load and game cards", () => {
+    const personalizedResponse: SocialRoomResponse = {
+      ...roomResponse,
+      gameTable: {
+        ...roomResponse.gameTable!,
+        defaultRoundId: "domino-table-choose-end-six-two",
+        defaultRoundIdsByKind: {
+          chess: "chess-clue-back-rank",
+          word: "word-table-anagram-peace",
+          dominoes: "domino-table-choose-end-six-two",
+          bridge: "bridge-table-borderline-opening-balanced-seventeen",
+        },
+      },
+    };
+
+    render(<GamesRoomScreen roomResponse={personalizedResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-selected-puzzle")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-dominoes"));
+    expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
+    expect(screen.getByText("The tile fits both sides. Pick the wiser side.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-room-back"));
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+    expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-room-back"));
+    fireEvent.click(screen.getByTestId("games-round-word"));
+    expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
+    expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
+  });
+
+  it("loads puzzle banks on demand from a compact Games Room payload", async () => {
+    const compactResponse: SocialRoomResponse = {
+      ...roomResponse,
+      gameTable: {
+        ...roomResponse.gameTable!,
+        rounds: [
+          roomResponse.gameTable!.rounds.find((round) => round.id === "chess-clue-fork")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "word-table-anagram-smile")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "domino-table-next-move-six-four")!,
+          roomResponse.gameTable!.rounds.find((round) => round.id === "bridge-table-borderline-opening-rule-twenty")!,
+        ],
+        roundCountsByKind: {
+          chess: 2,
+          word: 80,
+          dominoes: 80,
+          bridge: 80,
+        },
+        defaultRoundIdsByKind: {
+          chess: "chess-clue-fork",
+          word: "word-table-anagram-smile",
+          dominoes: "domino-table-next-move-six-four",
+          bridge: "bridge-table-borderline-opening-rule-twenty",
+        },
+        defaultRoundIndexesByKind: {
+          chess: 0,
+          word: 0,
+          dominoes: 0,
+          bridge: 0,
+        },
+      },
+    };
+
+    render(<GamesRoomScreen roomResponse={compactResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("games-round-picker")).toBeInTheDocument();
+    expect(screen.queryByText("Puzzle 1 of 2")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-round-chess"));
+
+    expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/social/rooms/games-room/game-rounds?lang=en&gameKind=chess");
+    });
+    await waitFor(() => expect(screen.getByTestId("games-next-puzzle")).toBeEnabled());
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "chess-clue-fork",
+          gameKind: "chess",
+          status: "started",
+        }),
+      ]));
+    });
+
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "chess-clue-back-rank",
+          gameKind: "chess",
+          status: "started",
+        }),
+      ]));
+    });
   });
 
   it("keeps Games Room controls localized for expanded app languages", async () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="fr" visitId="visit-1" onBack={vi.fn()} />);
 
-    expect(screen.getByText("Puzzle 1 sur 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("games-round-chess"));
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.getByText("Puzzle 1 sur 2")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"lang":"fr"'),
+          body: expect.stringMatching(/"lang":"fr".*"status":"started"/),
         }),
       );
     });
@@ -406,30 +757,86 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-round-word"));
 
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
-    expect(screen.getByText("Arrange the tiles into a friendly word.")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest word hidden in the rack.")).toBeInTheDocument();
     expect(screen.queryByText("SMILE")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
-    expect(screen.getByText("Arrange the tiles into a friendly word.")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest word hidden in the rack.")).toBeInTheDocument();
     expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
-
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.getByTestId("games-word-tiles-panel")).toBeInTheDocument();
     expect(screen.getByTestId("word-answer-tray")).toBeInTheDocument();
+    expect(screen.getByTestId("word-tile-progress")).toHaveTextContent("0 of 5 placed");
     expect(screen.queryByTestId("word-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("word-shuffle"));
+
+    fireEvent.click(screen.getByTestId("word-show-help"));
+    expect(screen.getByTestId("word-help-panel")).toHaveTextContent("Hint: It means calm between people.");
+    expect(screen.queryByTestId("word-help-choices")).not.toBeInTheDocument();
+    expect(screen.queryByText("PEACE")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("word-reveal-letter"));
+    expect(screen.getByTestId("word-tile-progress")).toHaveTextContent("1 of 5 placed");
+
+    fireEvent.click(screen.getByTestId("word-show-choices"));
+    expect(screen.getByTestId("word-help-choices")).toBeInTheDocument();
+    expect(screen.getByText("PEACE")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"word-tiles-anagram-peace".*"gameKind":"word"/),
+          body: expect.stringMatching(/"roundId":"word-table-anagram-peace".*"gameKind":"word".*"status":"started"/),
         }),
       );
     });
+  });
+
+  it("paces the next word puzzle harder after a clean solve", async () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-word"));
+    fireEvent.click(screen.getByTestId("word-tile-4"));
+    fireEvent.click(screen.getByTestId("word-tile-2"));
+    fireEvent.click(screen.getByTestId("word-tile-1"));
+    fireEvent.click(screen.getByTestId("word-tile-3"));
+    fireEvent.click(screen.getByTestId("word-tile-0"));
+    fireEvent.click(screen.getByTestId("word-check-answer"));
+
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 3 of 80")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest test word 3.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "word-table-test-3",
+          gameKind: "word",
+          status: "started",
+        }),
+      ]));
+    });
+  });
+
+  it("keeps the next word puzzle steadier after help was used", () => {
+    render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("games-round-word"));
+    fireEvent.click(screen.getByTestId("word-show-help"));
+    fireEvent.click(screen.getByTestId("word-show-choices"));
+    fireEvent.click(screen.getByText("SMILE"));
+
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("games-next-puzzle"));
+
+    expect(screen.getByText("Puzzle 4 of 80")).toBeInTheDocument();
+    expect(screen.getByText("Find the strongest test word 4.")).toBeInTheDocument();
   });
 
   it("lets the Dominoes card browse an 80-puzzle dominoes bank", async () => {
@@ -438,24 +845,43 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-round-dominoes"));
 
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
-    expect(screen.getByText("You are starting and have these doubles: Double six, Double five, Double three. Which tile is the strongest opener?")).toBeInTheDocument();
+    expect(screen.getByText("Find the play that leaves another move ready.")).toBeInTheDocument();
     expect(screen.getByTestId("games-visual-dominoes")).toBeInTheDocument();
+    expect(screen.getByText("Open ends")).toBeInTheDocument();
+    expect(screen.getByText("Recent pass: 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Target|Keep|Avoid/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
-    expect(screen.getByText("You are starting and have these doubles: Double five, Double four, Double two. Which tile is the strongest opener?")).toBeInTheDocument();
+    expect(screen.getByText("The tile fits both sides. Pick the wiser side.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-tactile-dominoes")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("domino-tile-6-2"));
+    expect(screen.getByTestId("domino-end-choices")).toBeInTheDocument();
+    expect(screen.queryByText("Puzzle complete")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("domino-end-right"));
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"dominoes-open-double-five".*"gameKind":"dominoes"/),
+          body: expect.stringMatching(/"roundId":"domino-table-choose-end-six-two".*"gameKind":"dominoes".*"status":"started"/),
         }),
       );
+    });
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "domino-table-choose-end-six-two",
+          gameKind: "dominoes",
+          status: "completed",
+        }),
+      ]));
     });
   });
 
@@ -465,24 +891,41 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-round-bridge"));
 
     expect(screen.getByText("Puzzle 1 of 80")).toBeInTheDocument();
-    expect(screen.getByText("You have 13 points and 5 hearts. Which calm choice fits best?")).toBeInTheDocument();
+    expect(screen.getByText("What is the best bridge action?")).toBeInTheDocument();
+    expect(screen.getByText("Judge the opening bid from shape and strength.")).toBeInTheDocument();
     expect(screen.getByTestId("games-visual-bridge")).toBeInTheDocument();
+    expect(screen.getByTestId("games-bridge-table")).toBeInTheDocument();
+    expect(screen.getByTestId("games-bridge-hand")).toBeInTheDocument();
+    expect(screen.getAllByTestId("games-bridge-card").length).toBeGreaterThanOrEqual(4);
 
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 80")).toBeInTheDocument();
-    expect(screen.getByText("You have 12 points and 5 spades. Which calm choice fits best?")).toBeInTheDocument();
+    expect(screen.getByText("17 points")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("games-start-round"));
+    expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
+    expect(screen.getByTestId("games-tactile-bridge")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("bridge-action-bid:1:noTrump"));
+    expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"bridge-opening-bid-five-spades".*"gameKind":"bridge"/),
+          body: expect.stringMatching(/"roundId":"bridge-table-borderline-opening-balanced-seventeen".*"gameKind":"bridge".*"status":"started"/),
         }),
       );
+    });
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "bridge-table-borderline-opening-balanced-seventeen",
+          gameKind: "bridge",
+          status: "completed",
+        }),
+      ]));
     });
   });
 
@@ -490,28 +933,37 @@ describe("GamesRoomScreen", () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId("games-round-bridge"));
-    fireEvent.click(screen.getByTestId("games-start-round"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"gameKind":"bridge"'),
+          body: expect.stringMatching(/"gameKind":"bridge".*"status":"started"/),
         }),
       );
     });
 
-    fireEvent.click(screen.getByText("Pass"));
-    expect(screen.getByTestId("games-complete-round")).toHaveTextContent("Check answer");
-    expect(screen.queryByText("Complete round")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("games-complete-round"));
-    expect(screen.getByText("Not quite. Try another answer.")).toBeInTheDocument();
+    expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("bridge-action-pass"));
+    expect(screen.getByText("Close. Look at the hint and try another table move.")).toBeInTheDocument();
+    expect(screen.getByTestId("games-help-choices")).toBeInTheDocument();
     expect(screen.queryByText("Puzzle complete")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Bid 1 hearts"));
-    fireEvent.click(screen.getByTestId("games-complete-round"));
+    fireEvent.click(screen.getByTestId("bridge-action-bid:1:spades"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    expect(screen.getByTestId("games-connection-panel")).toHaveTextContent("Viktor will look for someone who also enjoys Bridge table.");
+    expect(screen.getByTestId("games-find-partner")).toHaveTextContent("Find someone for Bridge table");
+    expect(screen.queryByText("Say hello")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "bridge-table-borderline-opening-rule-twenty",
+          gameKind: "bridge",
+          status: "completed",
+        }),
+      ]));
+    });
     fireEvent.click(screen.getByTestId("games-find-partner"));
 
     await waitFor(() => {
@@ -529,14 +981,13 @@ describe("GamesRoomScreen", () => {
     render(<GamesRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId("games-round-word"));
-    fireEvent.click(screen.getByTestId("games-start-round"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringMatching(/"roundId":"word-tiles-anagram-smile".*"gameKind":"word"/),
+          body: expect.stringMatching(/"roundId":"word-table-anagram-smile".*"gameKind":"word".*"status":"started"/),
         }),
       );
     });
@@ -554,6 +1005,15 @@ describe("GamesRoomScreen", () => {
 
     fireEvent.click(screen.getByText("SMILE"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "word-table-anagram-smile",
+          gameKind: "word",
+          status: "completed",
+        }),
+      ]));
+    });
   });
 
   it("runs a guided round and searches for a partner using the selected game kind", async () => {
@@ -563,14 +1023,13 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText("3 people ready")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-round-word"));
-    fireEvent.click(screen.getByTestId("games-start-round"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith(
         "/api/social/rooms/games-room/game-round",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"gameKind":"word"'),
+          body: expect.stringMatching(/"gameKind":"word".*"status":"started"/),
         }),
       );
     });
@@ -582,6 +1041,17 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("word-tile-0"));
     fireEvent.click(screen.getByTestId("word-check-answer"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
+    expect(screen.getByTestId("games-connection-panel")).toHaveTextContent("Viktor will look for someone who also enjoys Word tiles.");
+    expect(screen.getByTestId("games-find-partner")).toHaveTextContent("Find someone for Word tiles");
+    await waitFor(() => {
+      expect(gameRoundRequestBodies()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          roundId: "word-table-anagram-smile",
+          gameKind: "word",
+          status: "completed",
+        }),
+      ]));
+    });
 
     fireEvent.click(screen.getByTestId("games-find-partner"));
 
