@@ -28,9 +28,56 @@ import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
-const FULL_SCREEN_ROUTES = ["/chat", "/spatial-navigator", "/face-name-match"];
-const WIDE_ROUTES = ["/social-rooms", "/spatial-navigator", "/face-name-match"];
-const RESPONSIVE_APP_ROUTES = ["/settings"];
+type AppShellLayout = "compact" | "wide" | "fullscreen";
+
+const FULLSCREEN_ROUTE_PREFIXES = ["/memory-games/"];
+const FULLSCREEN_ROUTES = [
+  "/chat",
+  "/spatial-navigator",
+  "/face-name-match",
+  "/attention-boosters/rhythm-tap",
+];
+
+const WIDE_ROUTE_PREFIXES = [
+  "/settings",
+  "/health",
+  "/informes",
+  "/social-rooms",
+  "/meds",
+  "/attention-boosters",
+  "/executive-function",
+  "/memory-games",
+  "/concierge",
+];
+
+const WIDE_ROUTES = [
+  "/",
+  "/companions",
+  "/activities",
+  "/activity",
+  "/language",
+  "/safe-home",
+  "/scam-guard",
+  "/history",
+];
+
+export function getAppShellLayout(pathname: string): AppShellLayout {
+  if (
+    FULLSCREEN_ROUTES.includes(pathname) ||
+    FULLSCREEN_ROUTE_PREFIXES.some((route) => pathname.startsWith(route))
+  ) {
+    return "fullscreen";
+  }
+
+  if (
+    WIDE_ROUTES.includes(pathname) ||
+    WIDE_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+  ) {
+    return "wide";
+  }
+
+  return "compact";
+}
 
 type EmergencyProfileContact = {
   name?: string | null;
@@ -249,10 +296,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     completeActiveAction,
     dismissActiveAction,
   } = useVoiceActionContext();
-  const isFullScreen = FULL_SCREEN_ROUTES.includes(location.pathname) || location.pathname.startsWith("/memory-games/");
-  const isWideRoute = WIDE_ROUTES.some((route) => location.pathname.startsWith(route));
-  const isResponsiveAppRoute = RESPONSIVE_APP_ROUTES.some((route) => location.pathname.startsWith(route));
-  const shellMaxWidthClassName = isWideRoute || isResponsiveAppRoute ? "max-w-[920px]" : "max-w-[520px]";
+  const appShellLayout = getAppShellLayout(location.pathname);
+  const isFullScreen = appShellLayout === "fullscreen";
+  const isWideRoute = appShellLayout === "wide";
+  const shellMaxWidthClassName = isFullScreen ? "max-w-none" : isWideRoute ? "max-w-[920px]" : "max-w-[520px]";
   const voiceActionRouteMatches = activeVoiceAction
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
@@ -425,8 +472,13 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
-      <div ref={toastSurfaceRef} className={`relative w-full ${shellMaxWidthClassName}`}>
-        {!isFullScreen && <StatusBar wide={isWideRoute || isResponsiveAppRoute} />}
+      <div
+        ref={toastSurfaceRef}
+        data-testid="app-shell"
+        data-layout={appShellLayout}
+        className={`relative w-full ${shellMaxWidthClassName}`}
+      >
+        {!isFullScreen && <StatusBar wide={isWideRoute} />}
         <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[128px]"}`}>
           {showInlineVoiceAction && activeVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
@@ -439,7 +491,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           )}
           {children}
         </main>
-        {!isFullScreen && <BottomNav wide={isWideRoute || isResponsiveAppRoute} onSosClick={() => {
+        {!isFullScreen && <BottomNav wide={isWideRoute} onSosClick={() => {
           if (canUseService("sos", "/sos")) setSosOpen(true);
         }} />}
         {!isFullScreen && (

@@ -60,11 +60,18 @@ import {
   createTogetherSafetyReport,
   detectSafetyFlags,
   markTogetherNotificationRead,
+  markTogetherNotificationsRead,
+  leaveTogetherRoomPresence,
+  removeTogetherPlanHelper,
   replyToTogetherPlan,
+  registerTogetherRoomPresence,
   respondToTogetherPlan,
   saveTogetherComfortCheck,
+  saveTogetherQuietPause,
   shouldBlockReply,
   voteTogetherPoll,
+  withdrawTogetherReply,
+  withdrawTogetherProposal,
 } from "../lib/socialRoomPulse.js";
 import {
   buildReadingClubPulse,
@@ -83,6 +90,7 @@ type InterestSnapshot = {
   activityLevel: "low" | "moderate" | "active";
   roomVisitCounts: Record<string, number>;
   lastRooms: string[];
+  discoverable?: boolean;
 };
 
 type RoomVisitState = {
@@ -116,8 +124,8 @@ type MusicCatalogSong = {
 };
 
 type SocialMusicCircleWithSeed = SocialMusicCircle & {
-  seedSong: SocialMusicCircleSeedSong;
   culture: SocialMusicCircleCulture;
+  seedSong: SocialMusicCircleSeedSong;
   starterSongs: SocialMusicCircleSeedSong[];
 };
 
@@ -191,7 +199,7 @@ const gameRoundSchema = z.object({
 const planResponseSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
-  response: z.enum(["join", "maybe"]),
+  response: z.enum(["join", "maybe", "not_for_me", "clear"]),
 });
 
 const planReplySchema = z.object({
@@ -201,10 +209,18 @@ const planReplySchema = z.object({
   tone: z.enum(["support", "curious", "help", "different"]).optional().default("support"),
 });
 
+const replyWithdrawSchema = z.object({
+  lang: z.string().optional(),
+  visitId: z.string().optional(),
+});
+
+const planHelperActionSchema = z.enum(["choose", "pace", "buddy", "notify"]);
+
 const pollVoteSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
-  optionId: z.string().trim().min(1).max(80),
+  optionId: z.string().trim().min(1).max(80).optional(),
+  action: z.enum(["vote", "clear"]).optional().default("vote"),
 });
 
 const proposalSchema = z.object({
@@ -213,7 +229,7 @@ const proposalSchema = z.object({
   title: z.string().trim().min(1).max(96),
   details: z.string().trim().max(320).optional().default(""),
   locationLabel: z.enum(["nearby", "online"]).optional().default("online"),
-  comfortNeeds: z.array(z.enum(["quiet_pace", "easy_access", "seating", "transport_help"])).max(4).optional().default([]),
+  comfortNeeds: z.array(z.enum(["listen_first", "quiet_pace", "easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"])).max(7).optional().default([]),
   kind: z.enum(["plan", "message", "question"]).optional().default("plan"),
   experienceCategory: z.enum([
     "movie_date",
@@ -227,6 +243,11 @@ const proposalSchema = z.object({
   preferredTime: z.enum(["morning", "afternoon", "evening", "flexible"]).optional().default("flexible"),
   costRange: z.enum(["free", "low", "shared", "discuss"]).optional().default("discuss"),
   groupSize: z.enum(["one_to_one", "small_group", "open_room"]).optional().default("one_to_one"),
+});
+
+const proposalWithdrawSchema = z.object({
+  lang: z.string().optional(),
+  visitId: z.string().optional(),
 });
 
 const safetyReportSchema = z.object({
@@ -264,9 +285,9 @@ const musicThreadEntrySchema = z.object({
 const musicCircleItemSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
-  songText: z.string().trim().min(1).max(160),
   country: z.string().optional(),
   countryCode: z.string().optional(),
+  songText: z.string().trim().min(1).max(160),
   causeId: z.enum(["anthem", "memory", "bridge"]).optional().default("bridge"),
   memoryText: z.string().trim().max(280).optional().default(""),
 });
@@ -274,9 +295,9 @@ const musicCircleItemSchema = z.object({
 const musicCircleReactionSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
-  kind: z.enum(["heart"]).optional().default("heart"),
   country: z.string().optional(),
   countryCode: z.string().optional(),
+  kind: z.enum(["heart"]).optional().default("heart"),
 });
 
 const agreementAcknowledgementSchema = z.object({
@@ -292,7 +313,13 @@ const notificationReadSchema = z.object({
 const comfortCheckSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
-  comfortNeeds: z.array(z.enum(["quiet_pace", "easy_access", "seating", "transport_help"])).max(4).optional().default([]),
+  comfortNeeds: z.array(z.enum(["listen_first", "quiet_pace", "easy_access", "seating", "transport_help", "arrival_buddy", "clear_cost"])).max(7).optional().default([]),
+});
+
+const quietPauseSchema = z.object({
+  lang: z.string().optional(),
+  visitId: z.string().optional(),
+  paused: z.boolean(),
 });
 
 function resolveUserId(req: Request): string | null {
@@ -497,8 +524,8 @@ async function loadProfileSummary(userId: string) {
         .select({
           language: profiles.language,
           language_preference: profiles.language_preference,
-          preferred_name: profiles.preferred_name,
           country_code: profiles.country_code,
+          preferred_name: profiles.preferred_name,
           full_name: profiles.full_name,
           discoverable: profiles.discoverable,
         })
@@ -513,18 +540,18 @@ async function loadProfileSummary(userId: string) {
 
       return {
         firstName,
-        language: normalizeLanguage(row?.language_preference ?? row?.language ?? "es"),
         appLanguage: normalizeAppLanguage(row?.language_preference ?? row?.language ?? "es", "es"),
-        discoverable: row?.discoverable ?? false,
+        language: normalizeLanguage(row?.language_preference ?? row?.language ?? "es"),
         countryCode: normalizeCountryCode(row?.country_code),
+        discoverable: row?.discoverable ?? false,
       };
     },
     () => ({
       firstName: "amiga",
-      language: "es" as SocialLanguage,
       appLanguage: "es",
-      discoverable: false,
+      language: "es" as SocialLanguage,
       countryCode: null,
+      discoverable: false,
     }),
   );
 }
@@ -1136,8 +1163,8 @@ function buildMemoryMusicCircle(
     .sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt))
     .slice(0, 8)
     .map((item) => formatMemoryMusicCircleItem(item, userId));
-
   const catalog = buildMusicCircleCatalog(language, culture, dayKey);
+
   return {
     dayKey,
     prompt: musicCirclePrompt(language, dayKey),
@@ -1249,8 +1276,8 @@ async function createMusicCircleItem(input: {
   roomSlug: string;
   roomId: string | null;
   language: SocialLanguage;
-  songText: string;
   culture: SocialMusicCircleCulture;
+  songText: string;
   causeId: SocialMusicCauseId;
   memoryText: string;
 }): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircleWithSeed; error?: string; safetyFlags?: SocialRoomSafetyFlag[] }> {
@@ -1331,8 +1358,8 @@ async function toggleMusicCircleReaction(input: {
   roomId: string | null;
   itemId: string;
   language: SocialLanguage;
-  kind: "heart";
   culture: SocialMusicCircleCulture;
+  kind: "heart";
 }): Promise<{ item?: SocialMusicCircleItem; musicCircle?: SocialMusicCircleWithSeed; error?: string }> {
   return safeDb(
     "toggle music circle reaction",
@@ -2104,7 +2131,7 @@ function buildRoomChat(slug: string, language: SocialLanguage, members: Array<{ 
   }));
 }
 
-async function updateVisitInterests(userId: string, roomSlug: string): Promise<RoomVisitState> {
+async function updateVisitInterests(userId: string, roomSlug: string, discoverable = true): Promise<RoomVisitState> {
   const canonicalSlug = resolveSocialRoomSlug(roomSlug);
   const seed = getSocialRoomBySlug(canonicalSlug);
   if (!seed) return { isFirstVisit: true, previousVisitCount: 0, visitCount: 0 };
@@ -2125,6 +2152,7 @@ async function updateVisitInterests(userId: string, roomSlug: string): Promise<R
     preferredTimes: nextTimes,
     roomVisitCounts: nextCounts,
     lastRooms: nextLastRooms,
+    discoverable,
   });
 
   return visitState;
@@ -2177,11 +2205,11 @@ router.get("/rooms/:slug", async (req: Request, res: Response) => {
   const appLanguage = normalizeAppLanguage(rawLanguage ?? profile.appLanguage, profile.appLanguage);
   const language = normalizeLanguage(rawLanguage);
   const gameLanguage = normalizeGameLanguage(rawLanguage);
-  const room = buildRoomPayload(req.params.slug, language);
   const musicCulture = resolveMusicCulture({
     countryCode: profile.countryCode ?? requestCountryCode(req),
     appLanguage,
   });
+  const room = buildRoomPayload(req.params.slug, language);
   if (!room) return res.status(404).json({ error: "Room not found" });
 
   const members = buildRoomMembers(room.slug, language, room.participantCount);
@@ -2264,18 +2292,40 @@ router.post("/rooms/:slug/plans/:planId/respond", async (req: Request, res: Resp
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support plan responses" });
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomId: records?.roomId ?? null,
-    planKey: req.params.planId,
-    response: parsed.data.response,
-    language: normalizeLanguage(parsed.data.lang),
-  };
-  const result = slug === "together-room"
-    ? await respondToTogetherPlan(payload)
-    : await respondToReadingClubPlan(payload);
+  if (slug !== "together-room" && parsed.data.response === "clear") {
+    return res.status(400).json({ error: "This room does not support clearing plan responses" });
+  }
 
-  if ("error" in result) return res.status(400).json({ error: result.error });
+  const language = normalizeLanguage(parsed.data.lang);
+  let result;
+  if (slug === "together-room") {
+    result = await respondToTogetherPlan({
+      userId,
+      roomId: records?.roomId ?? null,
+      planKey: req.params.planId,
+      response: parsed.data.response,
+      language,
+    });
+  } else {
+    const readingResponse = parsed.data.response;
+    if (readingResponse === "clear") {
+      return res.status(400).json({ error: "This room does not support clearing plan responses" });
+    }
+    result = await respondToReadingClubPlan({
+      userId,
+      roomId: records?.roomId ?? null,
+      planKey: req.params.planId,
+      response: readingResponse,
+      language,
+    });
+  }
+
+  if ("error" in result) {
+    return res.status(400).json({
+      error: result.error,
+      ...("safetyFlags" in result && result.safetyFlags ? { safetyFlags: result.safetyFlags } : {}),
+    });
+  }
   return res.json({ ok: true, ...result });
 });
 
@@ -2302,7 +2352,67 @@ router.post("/rooms/:slug/plans/:planId/replies", async (req: Request, res: Resp
     language: normalizeLanguage(parsed.data.lang),
   });
 
-  if ("error" in result) return res.status(400).json({ error: result.error });
+  if ("error" in result) {
+    return res.status(400).json({
+      error: result.error,
+      ...("safetyFlags" in result && result.safetyFlags ? { safetyFlags: result.safetyFlags } : {}),
+    });
+  }
+  return res.json({ ok: true, ...result });
+});
+
+router.post("/rooms/:slug/plans/:planId/replies/:replyId/withdraw", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = replyWithdrawSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "together-room") return res.status(400).json({ error: "This room does not support gentle reply withdrawal" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await withdrawTogetherReply({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    planKey: req.params.planId,
+    replyId: req.params.replyId,
+    language: normalizeLanguage(parsed.data.lang),
+  });
+
+  return res.json({ ok: true, ...result });
+});
+
+router.post("/rooms/:slug/plans/:planId/helpers/:action/clear", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const action = planHelperActionSchema.safeParse(req.params.action);
+  if (!action.success) {
+    return res.status(400).json({ error: action.error.flatten() });
+  }
+
+  const parsed = z.object({ lang: z.string().optional(), visitId: z.string().optional() }).safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "together-room") return res.status(400).json({ error: "This room does not support activity helper removal" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await removeTogetherPlanHelper({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    planKey: req.params.planId,
+    action: action.data,
+    language: normalizeLanguage(parsed.data.lang),
+  });
+
   return res.json({ ok: true, ...result });
 });
 
@@ -2423,18 +2533,36 @@ router.post("/rooms/:slug/polls/:pollId/vote", async (req: Request, res: Respons
 
   const slug = resolveSocialRoomSlug(req.params.slug);
   if (slug !== "together-room" && slug !== "reading-room") return res.status(400).json({ error: "This room does not support room votes" });
+  if (parsed.data.action === "clear" && slug !== "together-room") {
+    return res.status(400).json({ error: "This room does not support clearing votes" });
+  }
+  if (parsed.data.action !== "clear" && !parsed.data.optionId) {
+    return res.status(400).json({ error: "Vote option is required" });
+  }
 
   const records = await ensureRoomRecords(slug);
-  const payload = {
-    userId,
-    roomId: records?.roomId ?? null,
-    pollKey: req.params.pollId,
-    optionId: parsed.data.optionId,
-    language: normalizeLanguage(parsed.data.lang),
-  };
-  const result = slug === "together-room"
-    ? await voteTogetherPoll(payload)
-    : await voteReadingClubPoll(payload);
+  const language = normalizeLanguage(parsed.data.lang);
+  let result;
+  if (slug === "together-room") {
+    result = await voteTogetherPoll({
+      userId,
+      roomId: records?.roomId ?? null,
+      pollKey: req.params.pollId,
+      optionId: parsed.data.action === "clear" ? null : parsed.data.optionId!,
+      language,
+    });
+  } else {
+    if (!parsed.data.optionId) {
+      return res.status(400).json({ error: "Vote option is required" });
+    }
+    result = await voteReadingClubPoll({
+      userId,
+      roomId: records?.roomId ?? null,
+      pollKey: req.params.pollId,
+      optionId: parsed.data.optionId,
+      language,
+    });
+  }
 
   if ("error" in result) return res.status(400).json({ error: result.error });
   return res.json({ ok: true, ...result });
@@ -2471,6 +2599,30 @@ router.post("/rooms/:slug/proposals", async (req: Request, res: Response) => {
   const result = slug === "together-room"
     ? await createTogetherProposal(payload)
     : await createReadingClubPost(payload);
+
+  return res.json({ ok: true, ...result });
+});
+
+router.post("/rooms/:slug/plans/:planId/withdraw", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = proposalWithdrawSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "together-room") return res.status(400).json({ error: "This room does not support withdrawing shared items" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await withdrawTogetherProposal({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    planKey: req.params.planId,
+    language: normalizeLanguage(parsed.data.lang),
+  });
 
   return res.json({ ok: true, ...result });
 });
@@ -2584,6 +2736,30 @@ router.post("/rooms/:slug/comfort-check", async (req: Request, res: Response) =>
   return res.json({ ok: true, ...result });
 });
 
+router.post("/rooms/:slug/quiet-pause", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = quietPauseSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "together-room") return res.status(400).json({ error: "This room does not support quiet pause" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await saveTogetherQuietPause({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
+    paused: parsed.data.paused,
+    language: normalizeLanguage(parsed.data.lang),
+  });
+
+  return res.json({ ok: true, ...result });
+});
+
 router.post("/rooms/:slug/notifications/:notificationId/read", async (req: Request, res: Response) => {
   const userId = resolveUserId(req);
   if (!userId) return res.status(401).json({ error: "Not authenticated" });
@@ -2602,6 +2778,29 @@ router.post("/rooms/:slug/notifications/:notificationId/read", async (req: Reque
     roomSlug: slug,
     roomId: records?.roomId ?? null,
     notificationId: req.params.notificationId,
+    language: normalizeLanguage(parsed.data.lang),
+  });
+
+  return res.json({ ok: true, ...result });
+});
+
+router.post("/rooms/:slug/notifications/read-all", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = notificationReadSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const slug = resolveSocialRoomSlug(req.params.slug);
+  if (slug !== "together-room") return res.status(400).json({ error: "This room does not support room update read receipts" });
+
+  const records = await ensureRoomRecords(slug);
+  const result = await markTogetherNotificationsRead({
+    userId,
+    roomSlug: slug,
+    roomId: records?.roomId ?? null,
     language: normalizeLanguage(parsed.data.lang),
   });
 
@@ -2629,7 +2828,8 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
   });
   memoryRoomOccupancy.set(slug, (memoryRoomOccupancy.get(slug) ?? 0) + 1);
 
-  const visitState = await updateVisitInterests(userId, slug);
+  const fallbackDiscoverable = req.header("x-social-discoverable") !== "false";
+  const visitState = await updateVisitInterests(userId, slug, fallbackDiscoverable);
 
   const ensured = await ensureRoomRecords(slug);
   if (ensured) {
@@ -2644,6 +2844,14 @@ router.post("/rooms/:slug/enter", async (req: Request, res: Response) => {
       },
       async () => undefined,
     );
+  }
+  if (slug === "together-room") {
+    await registerTogetherRoomPresence({
+      userId,
+      roomSlug: slug,
+      roomId: ensured?.roomId ?? null,
+      visitId,
+    });
   }
 
   return res.json({
@@ -2674,6 +2882,13 @@ router.post("/rooms/:slug/leave", async (req: Request, res: Response) => {
   if (memoryVisit?.roomSlug) {
     const current = memoryRoomOccupancy.get(memoryVisit.roomSlug) ?? 0;
     memoryRoomOccupancy.set(memoryVisit.roomSlug, Math.max(0, current - 1));
+    if (memoryVisit.roomSlug === "together-room") {
+      leaveTogetherRoomPresence({
+        visitId: parsed.data.visitId,
+        userId: memoryVisit.userId,
+        roomSlug: memoryVisit.roomSlug,
+      });
+    }
     visitSessionMemory.delete(parsed.data.visitId!);
   }
 
@@ -2808,10 +3023,12 @@ router.post("/rooms/:slug/match", async (req: Request, res: Response) => {
       if (IS_PROD) return [];
       return Array.from(memoryInterests.entries())
         .filter(([candidateId]) => candidateId !== userId)
+        .filter(([, snapshot]) => snapshot.discoverable !== false)
         .map(([candidateId, snapshot]) => ({
           userId: candidateId,
           interestTags: snapshot.interestTags,
           displayName: "Amiga",
+          discoverable: snapshot.discoverable !== false,
         }));
     },
   );

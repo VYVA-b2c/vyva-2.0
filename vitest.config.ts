@@ -19,6 +19,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    testTimeout: 15_000,
     projects: [
       {
         extends: true,

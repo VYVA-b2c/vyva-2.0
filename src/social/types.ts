@@ -148,9 +148,13 @@ export type SocialRoomChatItem = {
   connectable?: boolean;
 };
 
-export type SocialRoomPlanResponseValue = "join" | "maybe";
+export type SocialRoomPlanInterestResponseValue = "join" | "maybe";
+export type SocialRoomPlanResponseValue = SocialRoomPlanInterestResponseValue | "not_for_me";
+export type SocialRoomPlanResponseAction = SocialRoomPlanResponseValue | "clear";
+export type SocialRoomPlanResponseCounts = Record<SocialRoomPlanInterestResponseValue, number> & Partial<Record<"not_for_me", number>>;
 export type SocialRoomPlanKind = "plan" | "message" | "question";
-export type SocialRoomComfortNeed = "quiet_pace" | "easy_access" | "seating" | "transport_help";
+export type SocialRoomPlanHelperAction = "choose" | "pace" | "buddy" | "notify";
+export type SocialRoomComfortNeed = "listen_first" | "quiet_pace" | "easy_access" | "seating" | "transport_help" | "arrival_buddy" | "clear_cost";
 export type SocialRoomExperienceCategory =
   | "movie_date"
   | "restaurant_date"
@@ -162,8 +166,13 @@ export type SocialRoomExperienceCategory =
 export type SocialRoomPreferredTime = "morning" | "afternoon" | "evening" | "flexible";
 export type SocialRoomCostRange = "free" | "low" | "shared" | "discuss";
 export type SocialRoomGroupSize = "one_to_one" | "small_group" | "open_room";
-export type SocialRoomSafetyFlag = "money" | "housing" | "service" | "private_contact" | "transport";
+export type SocialRoomSafetyFlag = "money" | "housing" | "service" | "private_contact" | "transport" | "unkind_tone";
 export type SocialRoomSafetyReportTargetType = "room" | "plan" | "message" | "question" | "poll" | "reply" | "music_thread_entry" | "music_circle_item";
+export type SocialRoomReportedItemStatus = {
+  itemKey: string;
+  status: "open" | "reviewing" | "resolved" | "dismissed" | string;
+  updatedAt?: string | null;
+};
 
 export type SocialRoomReplyTone = "support" | "curious" | "help" | "different";
 
@@ -261,6 +270,7 @@ export type SocialRoomReply = {
   body: string;
   tone: SocialRoomReplyTone;
   status: "active" | "hidden" | string;
+  ownedByMe?: boolean;
   createdAt: string;
 };
 
@@ -283,16 +293,18 @@ export type SocialRoomPlan = {
   status: "active" | "hidden" | "closed" | string;
   source?: "seed" | "user" | string;
   createdBy?: string | null;
+  ownedByMe?: boolean;
   createdAt?: string | null;
-  responseCounts: Record<SocialRoomPlanResponseValue, number>;
+  responseCounts: SocialRoomPlanResponseCounts;
   myResponse?: SocialRoomPlanResponseValue | null;
+  myHelperActions?: SocialRoomPlanHelperAction[];
   replies?: SocialRoomReply[];
 };
 
 export type SocialRoomPlanResponse = {
   planId: string;
-  response: SocialRoomPlanResponseValue;
-  responseCounts: Record<SocialRoomPlanResponseValue, number>;
+  response: SocialRoomPlanResponseValue | null;
+  responseCounts: SocialRoomPlanResponseCounts;
 };
 
 export type SocialRoomPollOption = {
@@ -305,6 +317,7 @@ export type SocialRoomPoll = {
   id: string;
   key: string;
   question: string;
+  sourcePlanKey?: string | null;
   status: "active" | "closed" | string;
   options: SocialRoomPollOption[];
   totalVotes: number;
@@ -313,7 +326,7 @@ export type SocialRoomPoll = {
 
 export type SocialRoomVote = {
   pollId: string;
-  optionId: string;
+  optionId: string | null;
   options: SocialRoomPollOption[];
   totalVotes: number;
 };
@@ -323,6 +336,14 @@ export type SocialRoomDiscussionPrompt = {
   title: string;
   body: string;
   starterButtons: string[];
+  dailyQuestion?: {
+    id: string;
+    title: string;
+    body: string;
+    draft: string;
+    actionLabel: string;
+    privacyLine: string;
+  };
 };
 
 export type SocialRoomSafetyState = {
@@ -335,6 +356,9 @@ export type SocialRoomSafetyState = {
   acknowledgementLabel?: string;
   acknowledgedLabel?: string;
   myAcknowledgedAt?: string | null;
+  myQuietPausedAt?: string | null;
+  reportedItemKeys?: string[];
+  reportedItemStatuses?: SocialRoomReportedItemStatus[];
 };
 
 export type SocialRoomNotification = {
@@ -342,8 +366,57 @@ export type SocialRoomNotification = {
   type: string;
   title: string;
   body: string;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   readAt?: string | null;
+};
+
+export type SocialRoomVisibilityItem = {
+  id: "private" | "totals" | "shared" | string;
+  title: string;
+  body: string;
+};
+
+export type SocialRoomVisibilityState = {
+  title: string;
+  body: string;
+  items: SocialRoomVisibilityItem[];
+};
+
+export type SocialRoomDecisionGuide = {
+  id: string;
+  title: string;
+  body: string;
+  steps: string[];
+  primaryActionLabel?: string;
+  actionKind?: "vote" | "plan" | "view";
+};
+
+export type SocialRoomActivityDigestItem = {
+  id: string;
+  kind: "presence" | "vote" | "comfort" | "activity" | "view" | "question" | "safety" | string;
+  label: string;
+  body: string;
+  count?: number;
+  private?: boolean;
+};
+
+export type SocialRoomActivityDigest = {
+  title: string;
+  body: string;
+  privacyLine: string;
+  updatedAt: string;
+  items: SocialRoomActivityDigestItem[];
+};
+
+export type SocialRoomJoiningSupportCue = {
+  id: string;
+  title: string;
+  body: string;
+  actionLabel: string;
+  draft: string;
+  privacyLine: string;
+  needIds: SocialRoomComfortNeed[];
 };
 
 export type SocialRoomPulse = {
@@ -352,10 +425,16 @@ export type SocialRoomPulse = {
   postedExperiences: SocialRoomPlan[];
   memberPresence: SocialRoomMember[];
   activePoll: SocialRoomPoll;
+  issuePolls?: SocialRoomPoll[];
   comfortCheck: SocialRoomComfortCheck;
+  decisionGuide?: SocialRoomDecisionGuide;
   discussionPrompt: SocialRoomDiscussionPrompt;
   safety: SocialRoomSafetyState;
+  visibility?: SocialRoomVisibilityState;
+  activityDigest?: SocialRoomActivityDigest;
+  joiningSupportCue?: SocialRoomJoiningSupportCue;
   notifications: SocialRoomNotification[];
+  unreadNotificationCount?: number;
 };
 
 export type SocialReadingClubMetric = {

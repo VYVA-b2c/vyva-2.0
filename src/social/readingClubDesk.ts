@@ -66,11 +66,54 @@ export const READING_CLUB_SHELF_ITEM_KINDS = [
 
 export type ReadingClubShelfItemKind = (typeof READING_CLUB_SHELF_ITEM_KINDS)[number];
 
+export const READING_CLUB_RECOMMENDATION_MOOD_IDS = [
+  "comfort",
+  "memory",
+  "conversation",
+] as const;
+
+export type ReadingClubRecommendationMoodId = (typeof READING_CLUB_RECOMMENDATION_MOOD_IDS)[number];
+
+export const READING_CLUB_EXCHANGE_KIND_IDS = [
+  "recommendation",
+  "memory",
+  "discussion",
+] as const;
+
+export type ReadingClubExchangeKindId = (typeof READING_CLUB_EXCHANGE_KIND_IDS)[number];
+
+export const READING_CLUB_TABLE_TIME_IDS = [
+  "today",
+  "tomorrow",
+  "weekend",
+] as const;
+
+export type ReadingClubTableTimeId = (typeof READING_CLUB_TABLE_TIME_IDS)[number];
+
+export const READING_CLUB_TABLE_COMFORT_IDS = [
+  "listening",
+  "small",
+  "sharing",
+] as const;
+
+export type ReadingClubTableComfortId = (typeof READING_CLUB_TABLE_COMFORT_IDS)[number];
+
 export type ReadingClubSavedShelfItem = {
   id: string;
   kind: ReadingClubShelfItemKind;
   title: string;
   body: string;
+  createdAt: string;
+};
+
+const READING_CLUB_RECOMMENDATION_CARD_LIMIT = 8;
+
+export type ReadingClubRecommendationCard = {
+  id: string;
+  shelfId: ReadingClubShelfId;
+  moodId: ReadingClubRecommendationMoodId;
+  title: string;
+  note: string;
   createdAt: string;
 };
 
@@ -99,6 +142,29 @@ export type ReadingClubLetter = {
   sentAt: string | null;
 };
 
+const READING_CLUB_EXCHANGE_REQUEST_LIMIT = 8;
+
+export type ReadingClubExchangeRequest = {
+  id: string;
+  kindId: ReadingClubExchangeKindId;
+  shelfId: ReadingClubShelfId;
+  topic: string;
+  note: string;
+  createdAt: string;
+};
+
+const READING_CLUB_HOSTED_TABLE_LIMIT = 6;
+
+export type ReadingClubHostedTable = {
+  id: string;
+  topic: string;
+  circleId: string;
+  timeSlotId: ReadingClubTableTimeId;
+  comfortId: ReadingClubTableComfortId;
+  note: string;
+  createdAt: string;
+};
+
 export type ReadingClubDeskState = {
   version: 1;
   visitCount: number;
@@ -116,8 +182,11 @@ export type ReadingClubDeskState = {
   tablesJoined: number;
   shelfVotes: number;
   savedShelfItems: ReadingClubSavedShelfItem[];
+  recommendationCards: ReadingClubRecommendationCard[];
   journalEntries: ReadingClubJournalEntry[];
   letters: ReadingClubLetter[];
+  exchangeRequests: ReadingClubExchangeRequest[];
+  hostedTables: ReadingClubHostedTable[];
   plannedProgramSessionIds: string[];
   usedConversationCardIds: string[];
   joinedReaderCircleIds: string[];
@@ -148,8 +217,11 @@ const DEFAULT_DESK_STATE: ReadingClubDeskState = {
   tablesJoined: 0,
   shelfVotes: 0,
   savedShelfItems: [],
+  recommendationCards: [],
   journalEntries: [],
   letters: [],
+  exchangeRequests: [],
+  hostedTables: [],
   plannedProgramSessionIds: [],
   usedConversationCardIds: [],
   joinedReaderCircleIds: [],
@@ -246,6 +318,22 @@ function validShelfItemKind(value: unknown): value is ReadingClubShelfItemKind {
   return typeof value === "string" && READING_CLUB_SHELF_ITEM_KINDS.includes(value as ReadingClubShelfItemKind);
 }
 
+function validRecommendationMoodId(value: unknown): value is ReadingClubRecommendationMoodId {
+  return typeof value === "string" && READING_CLUB_RECOMMENDATION_MOOD_IDS.includes(value as ReadingClubRecommendationMoodId);
+}
+
+function validExchangeKindId(value: unknown): value is ReadingClubExchangeKindId {
+  return typeof value === "string" && READING_CLUB_EXCHANGE_KIND_IDS.includes(value as ReadingClubExchangeKindId);
+}
+
+function validTableTimeId(value: unknown): value is ReadingClubTableTimeId {
+  return typeof value === "string" && READING_CLUB_TABLE_TIME_IDS.includes(value as ReadingClubTableTimeId);
+}
+
+function validTableComfortId(value: unknown): value is ReadingClubTableComfortId {
+  return typeof value === "string" && READING_CLUB_TABLE_COMFORT_IDS.includes(value as ReadingClubTableComfortId);
+}
+
 function normalizeSavedShelfItems(value: unknown): ReadingClubSavedShelfItem[] {
   if (!Array.isArray(value)) return [];
 
@@ -271,6 +359,34 @@ function normalizeSavedShelfItems(value: unknown): ReadingClubSavedShelfItem[] {
   }
 
   return items.slice(0, 8);
+}
+
+function normalizeRecommendationCards(value: unknown): ReadingClubRecommendationCard[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const cards: ReadingClubRecommendationCard[] = [];
+
+  for (const rawCard of value) {
+    if (!rawCard || typeof rawCard !== "object") continue;
+    const card = rawCard as Partial<ReadingClubRecommendationCard>;
+    const id = typeof card.id === "string" && card.id.trim() ? card.id.trim().slice(0, 80) : "";
+    const title = typeof card.title === "string" ? card.title.replace(/\s+/g, " ").trim().slice(0, 96) : "";
+    const note = typeof card.note === "string" ? card.note.replace(/\s+/g, " ").trim().slice(0, 260) : "";
+    if (!id || !title || seen.has(id)) continue;
+
+    seen.add(id);
+    cards.push({
+      id,
+      shelfId: validShelfId(card.shelfId) ? card.shelfId : "memoir",
+      moodId: validRecommendationMoodId(card.moodId) ? card.moodId : "comfort",
+      title,
+      note,
+      createdAt: normalizeLetterDate(card.createdAt),
+    });
+  }
+
+  return cards.slice(0, READING_CLUB_RECOMMENDATION_CARD_LIMIT);
 }
 
 function normalizeJournalCreatedAt(value: unknown) {
@@ -370,6 +486,67 @@ function normalizeLetters(value: unknown): ReadingClubLetter[] {
   return letters.slice(0, READING_CLUB_LETTER_LIMIT);
 }
 
+function normalizeExchangeRequests(value: unknown): ReadingClubExchangeRequest[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const requests: ReadingClubExchangeRequest[] = [];
+
+  for (const rawRequest of value) {
+    if (!rawRequest || typeof rawRequest !== "object") continue;
+    const request = rawRequest as Partial<ReadingClubExchangeRequest>;
+    const id = typeof request.id === "string" && request.id.trim() ? request.id.trim().slice(0, 80) : "";
+    const topic = typeof request.topic === "string" ? request.topic.replace(/\s+/g, " ").trim().slice(0, 96) : "";
+    const note = typeof request.note === "string" ? request.note.replace(/\s+/g, " ").trim().slice(0, 260) : "";
+    if (!id || !topic || seen.has(id)) continue;
+
+    seen.add(id);
+    requests.push({
+      id,
+      kindId: validExchangeKindId(request.kindId) ? request.kindId : "discussion",
+      shelfId: validShelfId(request.shelfId) ? request.shelfId : "memoir",
+      topic,
+      note,
+      createdAt: normalizeLetterDate(request.createdAt),
+    });
+  }
+
+  return requests.slice(0, READING_CLUB_EXCHANGE_REQUEST_LIMIT);
+}
+
+function normalizeHostedTables(value: unknown): ReadingClubHostedTable[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const tables: ReadingClubHostedTable[] = [];
+
+  for (const rawTable of value) {
+    if (!rawTable || typeof rawTable !== "object") continue;
+    const table = rawTable as Partial<ReadingClubHostedTable>;
+    const id = typeof table.id === "string" && table.id.trim() ? table.id.trim().slice(0, 80) : "";
+    const topic = typeof table.topic === "string" ? table.topic.replace(/\s+/g, " ").trim().slice(0, 96) : "";
+    if (!id || !topic || seen.has(id)) continue;
+
+    const circleId = typeof table.circleId === "string" && table.circleId.trim()
+      ? table.circleId.trim().slice(0, 80)
+      : "open-club";
+    const note = typeof table.note === "string" ? table.note.replace(/\s+/g, " ").trim().slice(0, 260) : "";
+
+    seen.add(id);
+    tables.push({
+      id,
+      topic,
+      circleId,
+      timeSlotId: validTableTimeId(table.timeSlotId) ? table.timeSlotId : "today",
+      comfortId: validTableComfortId(table.comfortId) ? table.comfortId : "listening",
+      note,
+      createdAt: normalizeLetterDate(table.createdAt),
+    });
+  }
+
+  return tables.slice(0, READING_CLUB_HOSTED_TABLE_LIMIT);
+}
+
 export function normalizeReadingClubDeskState(value: unknown): ReadingClubDeskState {
   if (!value || typeof value !== "object") return { ...DEFAULT_DESK_STATE };
 
@@ -391,8 +568,11 @@ export function normalizeReadingClubDeskState(value: unknown): ReadingClubDeskSt
     tablesJoined: safeCount(raw.tablesJoined),
     shelfVotes: safeCount(raw.shelfVotes),
     savedShelfItems: normalizeSavedShelfItems(raw.savedShelfItems),
+    recommendationCards: normalizeRecommendationCards(raw.recommendationCards),
     journalEntries: normalizeJournalEntries(raw.journalEntries),
     letters: normalizeLetters(raw.letters),
+    exchangeRequests: normalizeExchangeRequests(raw.exchangeRequests),
+    hostedTables: normalizeHostedTables(raw.hostedTables),
     plannedProgramSessionIds: compactProgramSessionIds(raw.plannedProgramSessionIds),
     usedConversationCardIds: compactConversationCardIds(raw.usedConversationCardIds),
     joinedReaderCircleIds: compactReaderCircleIds(raw.joinedReaderCircleIds),
@@ -549,6 +729,61 @@ export function removeReadingClubShelfItem(
   };
 }
 
+function recommendationCardIdFor(title: string, now: Date) {
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "recommendation";
+  return `recommendation-${now.getTime()}-${slug}`;
+}
+
+export function saveReadingClubRecommendationCard(
+  previous: unknown,
+  card: {
+    id?: string;
+    shelfId?: ReadingClubShelfId;
+    moodId?: ReadingClubRecommendationMoodId;
+    title: string;
+    note?: string;
+  },
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  const title = card.title.replace(/\s+/g, " ").trim().slice(0, 96);
+  if (!title) return current;
+
+  const existing = card.id ? current.recommendationCards.find((item) => item.id === card.id) : null;
+  const nextCard: ReadingClubRecommendationCard = {
+    id: existing?.id ?? (card.id?.trim().slice(0, 80) || recommendationCardIdFor(title, now)),
+    shelfId: validShelfId(card.shelfId) ? card.shelfId : existing?.shelfId ?? current.favoriteShelfId,
+    moodId: validRecommendationMoodId(card.moodId) ? card.moodId : existing?.moodId ?? "comfort",
+    title,
+    note: (card.note ?? existing?.note ?? "").replace(/\s+/g, " ").trim().slice(0, 260),
+    createdAt: existing?.createdAt ?? now.toISOString(),
+  };
+
+  const duplicatesRemoved = current.recommendationCards.filter((item) => (
+    item.id !== nextCard.id &&
+    `${item.shelfId}:${item.moodId}:${item.title.toLowerCase()}` !== `${nextCard.shelfId}:${nextCard.moodId}:${nextCard.title.toLowerCase()}`
+  ));
+
+  return normalizeReadingClubDeskState({
+    ...current,
+    recommendationCards: [nextCard, ...duplicatesRemoved].slice(0, READING_CLUB_RECOMMENDATION_CARD_LIMIT),
+    updatedAt: now.toISOString(),
+  });
+}
+
+export function removeReadingClubRecommendationCard(
+  previous: unknown,
+  cardId: string,
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  return normalizeReadingClubDeskState({
+    ...current,
+    recommendationCards: current.recommendationCards.filter((card) => card.id !== cardId),
+    updatedAt: now.toISOString(),
+  });
+}
+
 function journalEntryIdFor(title: string, now: Date) {
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "page";
   return `journal-${now.getTime()}-${slug}`;
@@ -664,6 +899,119 @@ export function removeReadingClubLetter(
     letters: current.letters.filter((letter) => letter.id !== letterId),
     updatedAt: now.toISOString(),
   };
+}
+
+function exchangeRequestIdFor(topic: string, now: Date) {
+  const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "exchange";
+  return `exchange-${now.getTime()}-${slug}`;
+}
+
+export function saveReadingClubExchangeRequest(
+  previous: unknown,
+  request: {
+    id?: string;
+    kindId?: ReadingClubExchangeKindId;
+    shelfId?: ReadingClubShelfId;
+    topic: string;
+    note?: string;
+  },
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  const topic = request.topic.replace(/\s+/g, " ").trim().slice(0, 96);
+  if (!topic) return current;
+
+  const existing = request.id ? current.exchangeRequests.find((item) => item.id === request.id) : null;
+  const nextRequest: ReadingClubExchangeRequest = {
+    id: existing?.id ?? (request.id?.trim().slice(0, 80) || exchangeRequestIdFor(topic, now)),
+    kindId: validExchangeKindId(request.kindId) ? request.kindId : existing?.kindId ?? "discussion",
+    shelfId: validShelfId(request.shelfId) ? request.shelfId : existing?.shelfId ?? current.favoriteShelfId,
+    topic,
+    note: (request.note ?? existing?.note ?? "").replace(/\s+/g, " ").trim().slice(0, 260),
+    createdAt: existing?.createdAt ?? now.toISOString(),
+  };
+
+  const duplicatesRemoved = current.exchangeRequests.filter((item) => (
+    item.id !== nextRequest.id &&
+    `${item.kindId}:${item.shelfId}:${item.topic.toLowerCase()}` !== `${nextRequest.kindId}:${nextRequest.shelfId}:${nextRequest.topic.toLowerCase()}`
+  ));
+
+  return normalizeReadingClubDeskState({
+    ...current,
+    exchangeRequests: [nextRequest, ...duplicatesRemoved].slice(0, READING_CLUB_EXCHANGE_REQUEST_LIMIT),
+    updatedAt: now.toISOString(),
+  });
+}
+
+export function removeReadingClubExchangeRequest(
+  previous: unknown,
+  requestId: string,
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  return normalizeReadingClubDeskState({
+    ...current,
+    exchangeRequests: current.exchangeRequests.filter((request) => request.id !== requestId),
+    updatedAt: now.toISOString(),
+  });
+}
+
+function hostedTableIdFor(topic: string, now: Date) {
+  const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "table";
+  return `table-${now.getTime()}-${slug}`;
+}
+
+export function saveReadingClubHostedTable(
+  previous: unknown,
+  table: {
+    id?: string;
+    topic: string;
+    circleId?: string;
+    timeSlotId?: ReadingClubTableTimeId;
+    comfortId?: ReadingClubTableComfortId;
+    note?: string;
+  },
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  const topic = table.topic.replace(/\s+/g, " ").trim().slice(0, 96);
+  if (!topic) return current;
+
+  const existing = table.id ? current.hostedTables.find((item) => item.id === table.id) : null;
+  const circleId = table.circleId?.trim().slice(0, 80) || existing?.circleId || "open-club";
+  const nextTable: ReadingClubHostedTable = {
+    id: existing?.id ?? (table.id?.trim().slice(0, 80) || hostedTableIdFor(topic, now)),
+    topic,
+    circleId,
+    timeSlotId: validTableTimeId(table.timeSlotId) ? table.timeSlotId : existing?.timeSlotId ?? "today",
+    comfortId: validTableComfortId(table.comfortId) ? table.comfortId : existing?.comfortId ?? "listening",
+    note: (table.note ?? existing?.note ?? "").replace(/\s+/g, " ").trim().slice(0, 260),
+    createdAt: existing?.createdAt ?? now.toISOString(),
+  };
+
+  const duplicatesRemoved = current.hostedTables.filter((item) => (
+    item.id !== nextTable.id &&
+    `${item.circleId}:${item.timeSlotId}:${item.topic.toLowerCase()}` !== `${nextTable.circleId}:${nextTable.timeSlotId}:${nextTable.topic.toLowerCase()}`
+  ));
+
+  return normalizeReadingClubDeskState({
+    ...current,
+    hostedTables: [nextTable, ...duplicatesRemoved].slice(0, READING_CLUB_HOSTED_TABLE_LIMIT),
+    updatedAt: now.toISOString(),
+  });
+}
+
+export function removeReadingClubHostedTable(
+  previous: unknown,
+  tableId: string,
+  now = new Date(),
+): ReadingClubDeskState {
+  const current = normalizeReadingClubDeskState(previous);
+  return normalizeReadingClubDeskState({
+    ...current,
+    hostedTables: current.hostedTables.filter((table) => table.id !== tableId),
+    updatedAt: now.toISOString(),
+  });
 }
 
 export function saveReadingClubProgramSession(

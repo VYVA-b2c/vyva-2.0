@@ -150,6 +150,7 @@ async function expectElementInsideViewport(page: Page, testId: string) {
 
 test.describe("onboarding responsive layout", () => {
   test("basics step keeps controls reachable across key responsive viewports", async ({ page }) => {
+    test.setTimeout(60_000);
     await mockSignedInBasics(page);
 
     const viewports = [

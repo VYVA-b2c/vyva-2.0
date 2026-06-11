@@ -1230,6 +1230,7 @@ export const socialRoomMemberRoles = pgTable("social_room_member_roles", {
   status:                      text("status").notNull().default("active"),
   comfort_needs:               text("comfort_needs").array().notNull().default([]),
   agreement_acknowledged_at:   timestamp("agreement_acknowledged_at", { withTimezone: true }),
+  quiet_paused_at:             timestamp("quiet_paused_at", { withTimezone: true }),
   created_at:                  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at:                  timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
