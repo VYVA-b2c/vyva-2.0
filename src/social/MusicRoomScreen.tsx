@@ -121,6 +121,7 @@ const copyByLanguage: Record<SocialLanguage, {
   chorusMomentJoinedLabel: (songText: string) => string;
   chorusNextLabel: (songText: string, memberName: string) => string;
   chorusMemberLabel: (songText: string, memberName: string) => string;
+  beatPulseLabel: (songText: string) => string;
   beatTapLabel: (songText: string) => string;
   beatStatusLabel: (count: number) => string;
   beatHandoffLabel: (songText: string, memberName: string, count: number) => string;
@@ -130,14 +131,19 @@ const copyByLanguage: Record<SocialLanguage, {
   chorusInvitePrompt: (songText: string, memberName: string) => string;
   spinLabel: string;
   spinSongLabel: (songText: string) => string;
+  spinMemoryLabel: (songText: string, cueTitle: string) => string;
   recordGrooveLabel: (songText: string, cueTitle: string) => string;
   recordResponseLabel: (cueTitle: string, songText: string) => string;
   originStampLabel: (songText: string, originLabel: string) => string;
   songPassportLabel: (songText: string, originLabel: string, memberName: string) => string;
   musicBridgeLabel: (songText: string, cueTitle: string, memberName: string) => string;
+  duetPromptLabel: (cueTitle: string, memberCue: string, memberName: string, songText: string) => string;
+  duetPromptTitle: string;
+  needleCueLabel: (cueTitle: string, songText: string) => string;
   songPathLabel: (songText: string, memberName: string) => string;
   listenerPulseLabel: (songText: string, memberName: string) => string;
   primaryStartLabel: string;
+  inviteLabel: string;
   primaryConnectLabel: (songText: string, memberName: string, cueTitle?: string | null) => string;
   handoffLabel: (cueTitle: string, songText: string, memberName: string) => string;
   duetBridgeLabel: (songText: string, memberName: string) => string;
@@ -243,6 +249,7 @@ const copyByLanguage: Record<SocialLanguage, {
     chorusMomentJoinedLabel: (songText) => `Tu voz en el coro: ${songText}`,
     chorusNextLabel: (songText, memberName) => `Siguiente dueto: ${memberName} con ${songText}`,
     chorusMemberLabel: (songText, memberName) => `Coro: ${memberName} para ${songText}`,
+    beatPulseLabel: (songText) => `Tocar pulso de ${songText}`,
     beatTapLabel: (songText) => `Marcar ritmo para ${songText}`,
     beatStatusLabel: (count) => `Ritmos marcados: ${count}`,
     beatHandoffLabel: (songText, memberName, count) => `Ritmo ${count}: ${songText} hacia ${memberName}`,
@@ -252,14 +259,19 @@ const copyByLanguage: Record<SocialLanguage, {
     chorusInvitePrompt: (songText, memberName) => `${memberName}, me uni al coro de ${songText}. La cantamos juntos en recuerdos?`,
     spinLabel: "Girar",
     spinSongLabel: (songText) => `Girar disco desde ${songText}`,
+    spinMemoryLabel: (songText, cueTitle) => `Girar recuerdo: ${cueTitle} para ${songText}`,
     recordGrooveLabel: (songText, cueTitle) => `Surco activo: ${cueTitle} para ${songText}`,
     recordResponseLabel: (cueTitle, songText) => `Respuesta del disco: ${cueTitle} para ${songText}`,
     originStampLabel: (songText, originLabel) => `Origen musical: ${songText} de ${originLabel}`,
     songPassportLabel: (songText, originLabel, memberName) => `Pasaporte musical: ${songText} de ${originLabel} hacia ${memberName}`,
     musicBridgeLabel: (songText, cueTitle, memberName) => `Puente musical: ${songText}, ${cueTitle}, ${memberName}`,
+    duetPromptLabel: (cueTitle, memberCue, memberName, songText) => `Pregunta de dueto: ${cueTitle} y ${memberCue} con ${memberName} para ${songText}`,
+    duetPromptTitle: "Preguntar",
+    needleCueLabel: (cueTitle, songText) => `Aguja activa: ${cueTitle} para ${songText}`,
     songPathLabel: (songText, memberName) => `Camino: ${songText} hacia ${memberName}`,
     listenerPulseLabel: (songText, memberName) => `Escucha activa: ${songText} con ${memberName}`,
     primaryStartLabel: "Empezar",
+    inviteLabel: "Invitar",
     primaryConnectLabel: (songText, memberName, cueTitle) => cueTitle
       ? `Empezar ${cueTitle} para ${songText} con ${memberName}`
       : `Empezar ${songText} con ${memberName}`,
@@ -423,6 +435,7 @@ const copyByLanguage: Record<SocialLanguage, {
     chorusMomentJoinedLabel: (songText) => `Deine Stimme im Chor: ${songText}`,
     chorusNextLabel: (songText, memberName) => `Naechstes Duett: ${memberName} mit ${songText}`,
     chorusMemberLabel: (songText, memberName) => `Chor: ${memberName} fuer ${songText}`,
+    beatPulseLabel: (songText) => `Puls von ${songText} spielen`,
     beatTapLabel: (songText) => `Takt fuer ${songText} tippen`,
     beatStatusLabel: (count) => `Takte getippt: ${count}`,
     beatHandoffLabel: (songText, memberName, count) => `Takt ${count}: ${songText} zu ${memberName}`,
@@ -432,14 +445,19 @@ const copyByLanguage: Record<SocialLanguage, {
     chorusInvitePrompt: (songText, memberName) => `${memberName}, ich bin im Chor fuer ${songText}. Singen wir die Erinnerung zusammen?`,
     spinLabel: "Drehen",
     spinSongLabel: (songText) => `Platte weiterdrehen ab ${songText}`,
+    spinMemoryLabel: (songText, cueTitle) => `Erinnerung drehen: ${cueTitle} fuer ${songText}`,
     recordGrooveLabel: (songText, cueTitle) => `Aktive Rille: ${cueTitle} fuer ${songText}`,
     recordResponseLabel: (cueTitle, songText) => `Plattenantwort: ${cueTitle} fuer ${songText}`,
     originStampLabel: (songText, originLabel) => `Musikheimat: ${songText} aus ${originLabel}`,
     songPassportLabel: (songText, originLabel, memberName) => `Liedpass: ${songText} aus ${originLabel} zu ${memberName}`,
     musicBridgeLabel: (songText, cueTitle, memberName) => `Musikbruecke: ${songText}, ${cueTitle}, ${memberName}`,
+    duetPromptLabel: (cueTitle, memberCue, memberName, songText) => `Duettfrage: ${cueTitle} und ${memberCue} mit ${memberName} fuer ${songText}`,
+    duetPromptTitle: "Fragen",
+    needleCueLabel: (cueTitle, songText) => `Nadel aktiv: ${cueTitle} fuer ${songText}`,
     songPathLabel: (songText, memberName) => `Weg: ${songText} zu ${memberName}`,
     listenerPulseLabel: (songText, memberName) => `Hoermoment: ${songText} mit ${memberName}`,
     primaryStartLabel: "Starten",
+    inviteLabel: "Einladen",
     primaryConnectLabel: (songText, memberName, cueTitle) => cueTitle
       ? `${cueTitle} fuer ${songText} mit ${memberName} starten`
       : `${songText} mit ${memberName} starten`,
@@ -603,6 +621,7 @@ const copyByLanguage: Record<SocialLanguage, {
     chorusMomentJoinedLabel: (songText) => `Your voice in the room chorus: ${songText}`,
     chorusNextLabel: (songText, memberName) => `Next duet: ${songText} with ${memberName}`,
     chorusMemberLabel: (songText, memberName) => `Chorus lane: ${memberName} for ${songText}`,
+    beatPulseLabel: (songText) => `Play pulse for ${songText}`,
     beatTapLabel: (songText) => `Tap beat for ${songText}`,
     beatStatusLabel: (count) => `Beat count: ${count}`,
     beatHandoffLabel: (songText, memberName, count) => `Beat ${count}: ${songText} to ${memberName}`,
@@ -612,14 +631,19 @@ const copyByLanguage: Record<SocialLanguage, {
     chorusInvitePrompt: (songText, memberName) => `${memberName}, I joined the chorus for ${songText}. Want to remember it together?`,
     spinLabel: "Spin",
     spinSongLabel: (songText) => `Spin record from ${songText}`,
+    spinMemoryLabel: (songText, cueTitle) => `Spin memory: ${cueTitle} for ${songText}`,
     recordGrooveLabel: (songText, cueTitle) => `Active groove: ${cueTitle} for ${songText}`,
     recordResponseLabel: (cueTitle, songText) => `Record response: ${cueTitle} for ${songText}`,
     originStampLabel: (songText, originLabel) => `Song home: ${songText} from ${originLabel}`,
     songPassportLabel: (songText, originLabel, memberName) => `Song passport: ${songText} from ${originLabel} to ${memberName}`,
     musicBridgeLabel: (songText, cueTitle, memberName) => `Music bridge: ${songText}, ${cueTitle}, ${memberName}`,
+    duetPromptLabel: (cueTitle, memberCue, memberName, songText) => `Duet prompt: ${cueTitle} and ${memberCue} with ${memberName} for ${songText}`,
+    duetPromptTitle: "Ask",
+    needleCueLabel: (cueTitle, songText) => `Needle cue: ${cueTitle} for ${songText}`,
     songPathLabel: (songText, memberName) => `Song path: ${songText} to ${memberName}`,
     listenerPulseLabel: (songText, memberName) => `Listening match: ${songText} with ${memberName}`,
     primaryStartLabel: "Start",
+    inviteLabel: "Invite",
     primaryConnectLabel: (songText, memberName, cueTitle) => cueTitle
       ? `Start ${cueTitle} for ${songText} with ${memberName}`
       : `Start ${songText} with ${memberName}`,
@@ -1067,6 +1091,7 @@ export default function MusicRoomScreen({
   const [recordResponseKey, setRecordResponseKey] = useState(0);
   const [recordResponseCue, setRecordResponseCue] = useState<string | null>(null);
   const [studioOpen, setStudioOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   useEffect(() => {
     setMusicThreads(initialThreads);
@@ -1118,6 +1143,7 @@ export default function MusicRoomScreen({
     ? starterSongs.find((song) => normalizeCue(song.songText) === normalizeCue(draftSongText || seedSong?.songText || "")) ?? seedSong
     : null;
   const currentSongText = featuredItem?.songText ?? (draftSongText || seedSong?.songText || activeThread?.songText || "");
+  const showSongComposer = !currentSongText.trim() || composerOpen || Boolean(draftSongText);
   const userCircleItem = currentSongText
     ? musicCircleItems.find((item) => item.authorName === copy.you && normalizeCue(item.songText) === normalizeCue(currentSongText)) ?? null
     : null;
@@ -1151,6 +1177,7 @@ export default function MusicRoomScreen({
     () => selectableSparks.find((spark) => spark.prompt === memoryDraft) ?? null,
     [memoryDraft, selectableSparks],
   );
+  const selectedMemoryTone = causeTones[selectedMemorySpark?.causeId ?? currentCauseId];
   const suggestedMemoryKey = useMemo(
     () => {
       if (!currentSongText.trim() || selectedMemorySpark) return null;
@@ -1158,6 +1185,17 @@ export default function MusicRoomScreen({
     },
     [currentCauseId, currentMatchTags, currentSongText, memoryKeySparks, selectedMemorySpark],
   );
+  const nextMemoryDoorway = useMemo(() => {
+    if (!currentSongText.trim() || primaryMemoryDoorways.length === 0) return null;
+    if (!selectedMemorySpark) {
+      return suggestedMemoryKey && primaryMemoryDoorways.some((cue) => cue.id === suggestedMemoryKey.id)
+        ? suggestedMemoryKey
+        : primaryMemoryDoorways[0] ?? null;
+    }
+
+    const currentIndex = primaryMemoryDoorways.findIndex((cue) => cue.id === selectedMemorySpark.id);
+    return primaryMemoryDoorways[(currentIndex + 1) % primaryMemoryDoorways.length] ?? primaryMemoryDoorways[0] ?? null;
+  }, [currentSongText, primaryMemoryDoorways, selectedMemorySpark, suggestedMemoryKey]);
   const hasActiveChorusCue = chorusJoined && !selectedMemorySpark && roomBeatCount === 0;
   const activeMatchSignals = useMemo(
     () => selectedMemorySpark
@@ -1239,6 +1277,8 @@ export default function MusicRoomScreen({
   const activeBridgeCueTitle = activeBridgeCue?.title ?? copy.duetActionLabel;
   const activeBridgeCueTone = activeBridgeCue ? causeTones[activeBridgeCue.causeId] : currentTone;
   const hasLiveHandoff = Boolean(activeHandoffCueTitle && duetMember && currentSongText);
+  const showInviteTicket = hasLiveHandoff;
+  const hasSelectedCueInvite = Boolean(selectedMemorySpark && duetMember && currentSongText);
   const DuetActionIcon = selectedMemorySpark
     ? sparkIconById[selectedMemorySpark.id] ?? Sparkles
     : roomBeatCount > 0
@@ -1270,10 +1310,11 @@ export default function MusicRoomScreen({
     + (roomBeatCount > 0 ? 1 : 0)
     + (hasUserJoinedChorus ? 1 : 0),
   ));
-  const listenerRailMembers = hasLiveHandoff && duetMember
+  const railLeadMember = spotlightMember ?? (hasLiveHandoff ? duetMember : null);
+  const listenerRailMembers = railLeadMember
     ? [
-        duetMember,
-        ...visibleMembers.filter((member) => member.id !== duetMember.id),
+        railLeadMember,
+        ...visibleMembers.filter((member) => member.id !== railLeadMember.id),
       ]
     : visibleMembers;
 
@@ -1316,6 +1357,7 @@ export default function MusicRoomScreen({
       if (published) {
         setSongDraft("");
         setMemoryDraft("");
+        setComposerOpen(false);
       }
     } finally {
       setIsSubmitting(false);
@@ -1334,6 +1376,22 @@ export default function MusicRoomScreen({
     setSelectedCauseId(spark.causeId);
     setSpotlightMemberId(member?.id ?? null);
     triggerRecordResponse(spark.title);
+  };
+
+  const spinMemoryDoorway = () => {
+    const cue = nextMemoryDoorway;
+    const song = currentSongText.trim() || seedSong?.songText.trim() || "";
+    if (!cue || !song) return;
+
+    const nextMember = [...members]
+      .map((member, index) => ({
+        member,
+        index,
+        score: scoreMusicMember(member, song, cue.causeId, [...currentMatchTags, ...cue.tags], cue.tags),
+      }))
+      .sort((first, second) => second.score - first.score || first.index - second.index)[0]?.member;
+
+    applyMemorySpark(cue, nextMember);
   };
 
   const spinStarterSong = () => {
@@ -1659,6 +1717,34 @@ export default function MusicRoomScreen({
           35% { opacity: 0.75; }
           100% { transform: translateX(112px); opacity: 0; }
         }
+        @keyframes musicRoomListenGlow {
+          0%, 100% { transform: translate(-50%, -50%) scale(0.92); opacity: 0.16; }
+          50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.38; }
+        }
+        @keyframes musicRoomListenSweep {
+          0% { transform: translateX(-70%) scaleX(0.3); opacity: 0; }
+          30% { opacity: 0.58; }
+          100% { transform: translateX(180%) scaleX(1); opacity: 0; }
+        }
+        @keyframes musicRoomVinylTurn {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes musicRoomPathCarryLeft {
+          0% { transform: translate(-10px, 22px) scale(0.78); opacity: 0; }
+          26% { opacity: 0.72; }
+          100% { transform: translate(164px, -18px) scale(1); opacity: 0; }
+        }
+        @keyframes musicRoomPathCarryRight {
+          0% { transform: translate(10px, 20px) scale(0.78); opacity: 0; }
+          26% { opacity: 0.72; }
+          100% { transform: translate(-164px, -18px) scale(1); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .music-room-live-motion {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       <div className="mx-auto max-w-6xl">
@@ -1738,6 +1824,26 @@ export default function MusicRoomScreen({
               </div>
               <span className="absolute left-1/2 top-[40%] h-[230px] w-[560px] -translate-x-1/2 rounded-[50%] border-t border-[#E9DCF6]" />
               <span className="absolute left-1/2 top-[45%] h-[180px] w-[470px] -translate-x-1/2 rounded-[50%] border-t border-[#F1E8FA]" />
+              {!hasPrimaryActionCue && currentSongText && (
+                <span className="absolute inset-x-8 top-[25%] hidden h-[360px] lg:block">
+                  <span
+                    className="absolute left-[7%] top-[42%] h-28 w-[35%] rounded-[50%] border-b-2 border-dashed opacity-80"
+                    style={{ borderColor: `${currentTone.accent}50`, transform: "rotate(-8deg)" }}
+                  />
+                  <span
+                    className="absolute right-[7%] top-[42%] h-28 w-[35%] rounded-[50%] border-b-2 border-dashed opacity-80"
+                    style={{ borderColor: `${duetMemberTone}50`, transform: "rotate(8deg)" }}
+                  />
+                  <span
+                    className="music-room-live-motion absolute left-[25%] top-[58%] h-3.5 w-3.5 rounded-full shadow-[0_0_22px_rgba(126,34,206,0.36)]"
+                    style={{ background: currentTone.accent, animation: "musicRoomPathCarryLeft 3.4s ease-in-out infinite" }}
+                  />
+                  <span
+                    className="music-room-live-motion absolute right-[25%] top-[58%] h-3.5 w-3.5 rounded-full shadow-[0_0_22px_rgba(15,118,110,0.32)]"
+                    style={{ background: duetMemberTone, animation: "musicRoomPathCarryRight 3.4s ease-in-out 0.9s infinite" }}
+                  />
+                </span>
+              )}
               {duetMember && currentSongText && (
                 <span className="absolute left-[61%] top-[45%] hidden h-12 w-[15%] lg:block">
                   <span
@@ -1751,9 +1857,19 @@ export default function MusicRoomScreen({
                 </span>
               )}
             </div>
-            <div className="relative z-10 grid min-w-0 gap-3 lg:grid-cols-[minmax(220px,0.82fr)_minmax(300px,410px)_minmax(250px,0.9fr)] lg:items-start lg:gap-5">
-              <div className="order-5 min-w-0 lg:order-1">
-                <div className="grid gap-2.5">
+            <div
+              className={`relative z-10 grid min-w-0 gap-3 lg:gap-4 xl:gap-5 ${
+                hasPrimaryActionCue
+                  ? "lg:grid-cols-[minmax(0,1fr)] lg:items-start lg:justify-items-center"
+                  : "lg:grid-cols-[minmax(0,1.1fr)_minmax(240px,0.72fr)] lg:items-start lg:justify-center"
+              }`}
+            >
+              <div
+                role="group"
+                aria-label={copy.queueTitle}
+                className={`${hasPrimaryActionCue ? "hidden" : "block"} order-3 min-w-0 lg:order-3 lg:col-span-2 lg:col-start-1 lg:row-start-2 lg:w-full lg:max-w-none`}
+              >
+                <div className="grid gap-2.5 sm:grid-cols-3">
                   {visibleCircleItems.length > 0 ? visibleCircleItems.map((item) => {
                     const active = item.id === featuredItem?.id;
                     const tone = causeTones[item.causeId];
@@ -1802,6 +1918,15 @@ export default function MusicRoomScreen({
                                 {getInitial(item.authorName)}
                               </span>
                               {active && <Check size={15} strokeWidth={3} className="text-[#0F766E]" />}
+                              {item.myReaction && (
+                                <span
+                                  className="inline-flex h-5 items-center gap-1 rounded-full bg-white px-1.5 font-body text-[11px] font-extrabold shadow-[0_6px_14px_rgba(77,39,119,0.08)]"
+                                  style={{ color: tone.accent }}
+                                >
+                                  <Check size={12} strokeWidth={3} />
+                                  {copy.you}
+                                </span>
+                              )}
                             </span>
                           </span>
                         </button>
@@ -1810,10 +1935,17 @@ export default function MusicRoomScreen({
                           onClick={() => void toggleCircleReaction(item)}
                           aria-label={item.myReaction ? copy.unreactLabel : copy.reactLabel}
                           aria-pressed={item.myReaction}
-                          className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-full bg-white px-2 font-body text-[15px] font-extrabold text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.08)] disabled:opacity-50"
+                          className="flex h-11 min-w-11 items-center justify-center gap-1 rounded-full px-2 font-body text-[15px] font-extrabold shadow-[0_8px_16px_rgba(77,39,119,0.08)] disabled:opacity-50"
+                          style={{
+                            background: item.myReaction ? tone.accent : "#FFFFFF",
+                            color: item.myReaction ? "#FFFFFF" : "#6D28D9",
+                            boxShadow: item.myReaction
+                              ? `0 0 0 4px ${tone.soft}, 0 10px 20px rgba(77,39,119,0.12)`
+                              : "0 8px 16px rgba(77,39,119,0.08)",
+                          }}
                           disabled={Boolean(reactingItems[item.id])}
                         >
-                          <Heart size={18} strokeWidth={2.6} fill={item.myReaction ? "currentColor" : "none"} />
+                          {item.myReaction ? <Check size={18} strokeWidth={3} /> : <Heart size={18} strokeWidth={2.6} />}
                           {item.reactionCount}
                         </button>
                       </div>
@@ -1904,12 +2036,187 @@ export default function MusicRoomScreen({
                       </button>
                     );
                   })}
+                  {studioOpen && visibleCircleItems.length > 0 && currentSongText && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      {memorySparks.slice(0, 2).map((spark, index) => {
+                        const active = memoryDraft === spark.prompt;
+                        const tone = causeTones[spark.causeId];
+                        const SparkIcon = sparkIconById[spark.id] ?? Sparkles;
+                        return (
+                          <button
+                            key={spark.id}
+                            type="button"
+                            onClick={() => applyMemorySpark(spark)}
+                            aria-label={`${copy.sparkTitle}: ${spark.title}`}
+                            aria-pressed={active}
+                            className="group relative min-h-[88px] overflow-hidden rounded-[20px] border bg-white p-2 text-left shadow-[0_10px_22px_rgba(77,39,119,0.06)] transition-transform active:scale-[0.98]"
+                            style={{
+                              borderColor: active ? tone.accent : "#E8DAF6",
+                              background: active
+                                ? `linear-gradient(135deg, ${tone.soft} 0%, #FFFFFF 64%)`
+                                : "#FFFDFC",
+                              boxShadow: active
+                                ? `0 0 0 2px ${tone.accent}1f, 0 14px 26px rgba(77,39,119,0.12)`
+                                : "0 10px 22px rgba(77,39,119,0.06)",
+                            }}
+                          >
+                            <span
+                              className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full border-[10px] opacity-60"
+                              style={{ borderColor: `${tone.accent}18` }}
+                              aria-hidden="true"
+                            />
+                            <span className="relative z-10 flex items-center gap-2">
+                              <span
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-[5px] border-[#17101F] text-white shadow-[0_10px_18px_rgba(26,18,36,0.14)]"
+                                style={{
+                                  background: "repeating-radial-gradient(circle at center, #100D14 0 5px, #21172B 6px 8px, #0B090D 9px 12px)",
+                                }}
+                                aria-hidden="true"
+                              >
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full" style={{ background: tone.accent }}>
+                                  <SparkIcon size={12} strokeWidth={2.8} />
+                                </span>
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate font-body text-[13px] font-extrabold leading-tight" style={{ color: active ? tone.accent : "#3E2A50" }}>
+                                  {spark.title}
+                                </span>
+                                <span className="mt-1 flex items-end gap-0.5" aria-hidden="true">
+                                  {[0, 1, 2].map((bar) => (
+                                    <span
+                                      key={bar}
+                                      className="w-1.5 rounded-full"
+                                      style={{
+                                        height: `${7 + ((bar + index) % 3) * 5}px`,
+                                        background: tone.accent,
+                                        opacity: active ? 0.95 - bar * 0.13 : 0.42,
+                                      }}
+                                    />
+                                  ))}
+                                </span>
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {currentSongText && activeThread && (
+                    <div
+                      role="group"
+                      aria-label={`${copy.roomPulse}: ${roomPulseLevel}`}
+                      className={`${hasLiveHandoff ? "hidden" : "relative hidden min-h-[192px] overflow-hidden rounded-[24px] border border-[#E8DAF6] bg-[#FFFDFC] p-3 shadow-[0_14px_30px_rgba(77,39,119,0.07)] lg:block"}`}
+                    >
+                      <span
+                        className="pointer-events-none absolute -bottom-12 -left-10 h-36 w-36 rounded-full border-[10px] border-[#17101F] opacity-[0.055]"
+                        style={{ background: "repeating-radial-gradient(circle at center, #121018 0 7px, #21172B 8px 10px, #0B090D 11px 14px)" }}
+                        aria-hidden="true"
+                      />
+                      <div className="relative z-10 flex items-center justify-between gap-3">
+                        <span className="min-w-0 truncate font-body text-[13px] font-extrabold uppercase text-[#6D28D9]">
+                          {copy.roomPulse}
+                        </span>
+                        <span className="flex items-end gap-0.5" aria-hidden="true">
+                          {[0, 1, 2, 3, 4, 5].map((bar) => (
+                            <span
+                              key={`pulse-lane-${bar}`}
+                              className="w-1.5 rounded-full"
+                              style={{
+                                height: `${8 + ((bar + roomPulseLevel) % 4) * 6}px`,
+                                background: bar < roomPulseLevel ? currentTone.accent : "#D8C8EB",
+                                opacity: bar < roomPulseLevel ? 0.92 : 0.38,
+                              }}
+                            />
+                          ))}
+                        </span>
+                      </div>
+
+                      <div className="relative z-10 mt-3 rounded-[19px] bg-[#F9F5FF] p-2">
+                        <div className="pointer-events-none absolute inset-x-3 top-1/2 h-px bg-[#E7DAF2]" aria-hidden="true" />
+                        <div className="relative grid gap-2">
+                          {listenerRailMembers.slice(0, 3).map((member, index) => {
+                            const memberTone = memberColours[index % memberColours.length];
+                            const isActiveMember = duetMember?.id === member.id || activeThreadMember?.id === member.id;
+                            const cueSpark = pickMemberMemorySpark(copy.sparks, member, index);
+                            const CueIcon = sparkIconById[cueSpark?.id ?? ""] ?? HeartHandshake;
+                            return (
+                              <button
+                                key={`pulse-${member.id}`}
+                                type="button"
+                                onClick={() => openMemberConnection(member)}
+                                disabled={Boolean(connectingMembers[member.id]) || (Boolean(pendingConnections[member.id]) && !repliedConnections[member.id])}
+                                aria-label={copy.listenerPulseLabel(currentSongText, member.name)}
+                                aria-pressed={isActiveMember}
+                                className="relative grid min-h-[46px] grid-cols-[42px_minmax(0,1fr)_34px] items-center gap-2 rounded-[16px] bg-white px-1.5 text-left font-body shadow-[0_8px_18px_rgba(77,39,119,0.06)] transition-transform active:scale-[0.98] disabled:opacity-80"
+                              >
+                                <span
+                                  className="flex h-9 w-9 items-center justify-center rounded-full border-[5px] border-[#17101F] text-[12px] font-extrabold text-white"
+                                  style={{
+                                    background: "repeating-radial-gradient(circle at center, #100D14 0 5px, #21172B 6px 8px, #0B090D 9px 12px)",
+                                    boxShadow: isActiveMember ? `0 0 0 4px ${memberTone}24` : undefined,
+                                  }}
+                                  aria-hidden="true"
+                                >
+                                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full px-1" style={{ background: memberTone }}>
+                                    {getInitial(member.name)}
+                                  </span>
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block truncate text-[13px] font-extrabold text-[#261637]">{member.name}</span>
+                                  <span className="mt-0.5 flex items-center gap-1" aria-hidden="true">
+                                    {[0, 1, 2].map((dot) => (
+                                      <span
+                                        key={`pulse-dot-${member.id}-${dot}`}
+                                        className="h-1.5 rounded-full"
+                                        style={{
+                                          width: isActiveMember && dot === 0 ? 18 : 10,
+                                          background: memberTone,
+                                          opacity: isActiveMember ? 0.9 - dot * 0.15 : 0.38,
+                                        }}
+                                      />
+                                    ))}
+                                  </span>
+                                </span>
+                                <span
+                                  className="flex h-8 w-8 items-center justify-center rounded-full"
+                                  style={{ background: isActiveMember ? `${memberTone}18` : "#F8F3FF", color: isActiveMember ? memberTone : "#6D28D9" }}
+                                  aria-hidden="true"
+                                >
+                                  {pendingConnections[member.id] ? <Check size={16} strokeWidth={3} /> : <CueIcon size={15} strokeWidth={2.6} />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {(activeThreadMember || duetMember) && (
+                        <div className="relative z-10 mt-2 grid min-h-[46px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-[18px] bg-[#2B103F] px-3 py-2 font-body text-white shadow-[0_12px_24px_rgba(43,16,63,0.12)]">
+                          <span className="min-w-0">
+                            <span className="block truncate text-[11px] font-extrabold uppercase text-white/62">{activeThreadMember ? copy.threadTitle : copy.inviteLabel}</span>
+                            <span className="block truncate text-[14px] font-extrabold">{activeThreadMember?.name ?? duetMember?.name}</span>
+                          </span>
+                          <span className="flex items-end gap-0.5" aria-hidden="true">
+                            {[9, 15, 11, 18, 13].map((height, index) => (
+                              <span
+                                key={`pulse-thread-${height}-${index}`}
+                                className="w-1.5 rounded-full bg-white/72"
+                                style={{ height: `${height}px` }}
+                              />
+                            ))}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="order-1 min-w-0 lg:order-2">
+              <div className={`order-1 min-w-0 lg:order-1 lg:row-start-1 lg:w-full ${hasPrimaryActionCue ? "lg:col-start-1" : "lg:col-start-1"}`}>
                 <div
-                  className="relative mx-auto w-full max-w-[390px] overflow-visible rounded-[26px] border border-[#E4D8EF] bg-[#FFFDFC] p-2.5 shadow-[0_20px_44px_rgba(77,39,119,0.1)] sm:max-w-[410px] sm:p-3"
+                  className={`relative mx-auto w-full overflow-visible rounded-[26px] border border-[#E4D8EF] bg-[#FFFDFC] p-2.5 shadow-[0_20px_44px_rgba(77,39,119,0.1)] sm:p-3 ${
+                    hasPrimaryActionCue ? "max-w-[520px] lg:max-w-[620px] lg:p-4" : "max-w-[390px] sm:max-w-[440px] lg:max-w-[500px] lg:p-4"
+                  }`}
                   style={{ boxShadow: `0 18px 36px rgba(77,39,119,0.1), 0 0 0 7px ${currentTone.soft}` }}
                 >
                   <span
@@ -1917,115 +2224,147 @@ export default function MusicRoomScreen({
                     style={{ background: "repeating-radial-gradient(circle at center, #121018 0 7px, #21172B 8px 10px, #0B090D 11px 14px)" }}
                     aria-hidden="true"
                   />
-                  <span
-                    className="pointer-events-none absolute -right-5 top-14 h-24 w-24 rotate-6 rounded-[24px] border border-[#DCEFEA] bg-[#F1FBF9] opacity-80 shadow-[0_12px_24px_rgba(15,118,110,0.08)]"
-                    aria-hidden="true"
-                  />
+                  {hasPrimaryActionCue && currentSongText && nextMemoryDoorway && (
+                    <button
+                      type="button"
+                      onClick={spinMemoryDoorway}
+                      aria-label={copy.spinMemoryLabel(currentSongText, nextMemoryDoorway.title)}
+                      className="absolute -left-1 -top-1 z-20 flex h-11 w-11 items-center justify-center rounded-[17px] border border-[#E8DAF6] bg-white text-[#6D28D9] shadow-[0_12px_24px_rgba(77,39,119,0.13)] transition-transform active:scale-[0.96]"
+                    >
+                      <Shuffle size={18} strokeWidth={2.8} aria-hidden="true" />
+                    </button>
+                  )}
                   <div className="relative z-10 grid gap-3">
                     <div
                       role="img"
                       aria-label={currentSongText
                         ? `${initialCircle.prompt || copy.todaySong}: ${currentSongText}${primaryActionCueTitle ? `, ${primaryActionCueTitle}` : ""}`
                         : copy.todaySong}
-                      className="relative mx-auto flex min-h-[170px] w-full max-w-[310px] flex-col items-center justify-center overflow-hidden rounded-[24px] border border-[#E6D9F1] px-3 py-4 text-center shadow-[0_14px_28px_rgba(77,39,119,0.08)] sm:min-h-[205px] sm:max-w-[330px] sm:rounded-[28px] sm:px-4"
+                      className={`relative mx-auto flex min-h-[170px] w-full flex-col items-center justify-center overflow-hidden rounded-[24px] border border-[#E6D9F1] px-3 py-4 text-center shadow-[0_14px_28px_rgba(77,39,119,0.08)] sm:min-h-[205px] sm:rounded-[28px] sm:px-4 ${
+                        hasPrimaryActionCue ? "max-w-[430px] lg:min-h-[250px] lg:max-w-[540px]" : "max-w-[310px] sm:max-w-[360px] lg:min-h-[220px] lg:max-w-[460px]"
+                      }`}
                       style={{
                         background: `linear-gradient(145deg, #FFFFFF 0%, ${currentTone.soft} 58%, #F3FBFA 100%)`,
                       }}
                     >
-                      <span
-                        className="pointer-events-none absolute -left-14 bottom-[-64px] h-44 w-44 rounded-full border-[12px] border-[#17101F] opacity-[0.11]"
-                        style={{ background: "repeating-radial-gradient(circle at center, #15121C 0 7px, #251B30 8px 11px, #0B090D 12px 15px)" }}
-                        aria-hidden="true"
-                      />
-                      {currentOriginStamp && (
-                        <span
-                          className="absolute right-3 top-3 flex h-11 min-w-11 rotate-3 items-center justify-center rounded-[14px] border border-[#B8E0DA] bg-white px-2 font-body text-[11px] font-extrabold uppercase text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)]"
-                          title={currentOriginStamp.label}
-                        >
-                          {currentOriginStamp.code}
-                        </span>
-                      )}
-                      <span
-                        className="mb-2 inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3.5 font-body text-[13px] font-extrabold shadow-[0_10px_22px_rgba(77,39,119,0.09)]"
-                        style={{ color: currentTone.accent }}
-                      >
-                        <Music2 size={17} strokeWidth={2.8} />
-                        {initialCircle.prompt || copy.todaySong}
-                      </span>
-                      <span
-                        className="block max-w-full overflow-hidden font-body text-[25px] font-extrabold leading-[1.05] text-[#261637] sm:text-[32px]"
-                        style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}
-                      >
-                        {currentSongText || copy.todaySong}
-                      </span>
-                      {primaryActionCueTitle && (
-                        <span
-                          className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-full border px-3 font-body text-[13px] font-extrabold shadow-[0_8px_18px_rgba(15,118,110,0.08)]"
-                          style={{ background: "#FFFFFF", borderColor: `${activeBridgeCueTone.accent}40`, color: activeBridgeCueTone.accent }}
-                        >
-                          <Sparkles size={15} strokeWidth={2.7} />
-                          {primaryActionCueTitle}
-                        </span>
-                      )}
-                      <span className="mt-3 flex items-end justify-center gap-1.5" aria-hidden="true">
-                        {[0, 1, 2, 3, 4].map((bar) => (
+                      {(hasPrimaryActionCue || hasUserJoinedChorus) && currentSongText && (
+                        <span className="pointer-events-none absolute inset-3 overflow-hidden rounded-[22px]" aria-hidden="true">
+                          {[0, 1, 2].map((ring) => (
+                            <span
+                              key={`song-card-glow-${ring}`}
+                              className="music-room-live-motion absolute left-1/2 top-1/2 rounded-full border"
+                              style={{
+                                height: `${122 + ring * 34}px`,
+                                width: `${122 + ring * 34}px`,
+                                borderColor: ring === 1 ? `${activeBridgeCueTone.accent}2B` : `${currentTone.accent}24`,
+                                animation: `musicRoomListenGlow ${2.8 + ring * 0.34}s ease-in-out ${ring * 0.22}s infinite`,
+                              }}
+                            />
+                          ))}
                           <span
-                            key={bar}
-                            className="w-2 rounded-full"
+                            className="music-room-live-motion absolute left-1/2 top-[66%] h-1 w-[44%] rounded-full"
                             style={{
-                              height: `${10 + ((bar + roomPulseLevel) % 3) * 8}px`,
-                              background: bar % 2 === 0 ? currentTone.accent : "#0F766E",
-                              opacity: 0.36 + bar * 0.09,
-                              animation: currentSongText ? `socialPresencePulse ${1.5 + bar * 0.1}s ease-in-out ${bar * 0.08}s infinite` : undefined,
+                              background: `linear-gradient(90deg, ${currentTone.accent}00, ${activeBridgeCueTone.accent}85, ${currentTone.accent}00)`,
+                              animation: "musicRoomListenSweep 2.7s ease-in-out infinite",
                             }}
                           />
-                        ))}
-                      </span>
-                      {currentSongText && (
-                        <span className="mt-3 flex items-center justify-center" aria-hidden="true">
-                          <span
-                            className="flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white px-1 font-body text-[11px] font-extrabold text-white shadow-[0_8px_16px_rgba(77,39,119,0.11)]"
-                            style={{
-                              background: hasUserJoinedChorus ? currentTone.accent : "#A99AB8",
-                              opacity: hasUserJoinedChorus ? 1 : 0.76,
-                            }}
-                          >
-                            {getInitial(copy.you)}
-                          </span>
-                          {chorusLaneMembers.slice(0, 3).map((member, index) => {
-                            const memberTone = memberColours[index % memberColours.length];
-                            const active = duetMember?.id === member.id;
-                            return (
-                              <span key={member.id} className="flex items-center">
-                                <span
-                                  className="block h-0.5 w-4"
-                                  style={{ background: active ? memberTone : "#D8C8EB" }}
-                                />
-                                <span
-                                  className="flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white px-1 font-body text-[11px] font-extrabold text-white shadow-[0_8px_16px_rgba(77,39,119,0.11)]"
-                                  style={{
-                                    background: memberTone,
-                                    opacity: active ? 1 : 0.64,
-                                    boxShadow: active ? `0 0 0 4px ${memberTone}1F, 0 8px 16px rgba(77,39,119,0.11)` : undefined,
-                                  }}
-                                >
-                                  {getInitial(member.name)}
-                                </span>
-                              </span>
-                            );
-                          })}
                         </span>
                       )}
-                      {!featuredItem && seedSong?.nudge && (
-                        <span
-                          role="status"
-                          aria-label={seedSong.nudge}
-                          className="mt-2 inline-flex min-h-7 items-center gap-1.5 rounded-full border border-[#E8DAF6] bg-white/90 px-2.5 font-body text-[11px] font-extrabold text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.07)]"
+                      <div className="relative z-10 flex w-full flex-col items-center">
+                        <div
+                          className={`relative flex aspect-square items-center justify-center rounded-full border-[12px] border-white shadow-[0_22px_48px_rgba(38,22,55,0.22)] ${
+                            hasPrimaryActionCue
+                              ? "w-[220px] sm:w-[258px] lg:w-[300px]"
+                              : "w-[200px] sm:w-[238px] lg:w-[268px]"
+                          }`}
+                          style={{
+                            background: "repeating-radial-gradient(circle at center, #0E0A13 0 6px, #21172B 7px 10px, #08060A 11px 15px)",
+                            animation: hasPrimaryActionCue ? "musicRoomVinylTurn 24s linear infinite" : undefined,
+                          }}
+                          aria-hidden="true"
                         >
-                          <Sparkles size={13} strokeWidth={2.7} aria-hidden="true" />
-                          {getCompactNudgeLabel(seedSong.nudge)}
-                        </span>
-                      )}
+                          <span className="absolute inset-[-14px] rounded-full" style={{ background: `${currentTone.accent}20` }} />
+                          <span className="absolute inset-[13%] rounded-full border border-white/10" />
+                          <span className="absolute inset-[23%] rounded-full border border-white/8" />
+                          <span className="absolute inset-[34%] rounded-full border border-white/10" />
+                          <span
+                            className="absolute left-1/2 top-3 flex min-h-8 -translate-x-1/2 items-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-extrabold shadow-[0_10px_22px_rgba(0,0,0,0.16)] sm:top-4 sm:text-[13px]"
+                            style={{ color: currentTone.accent }}
+                          >
+                            <Music2 size={15} strokeWidth={2.8} />
+                            {initialCircle.prompt || copy.todaySong}
+                          </span>
+                          {currentOriginStamp && (
+                            <span
+                              className="absolute right-4 top-9 flex h-10 min-w-10 rotate-3 items-center justify-center rounded-[14px] border border-[#B8E0DA] bg-white px-2 font-body text-[10px] font-extrabold uppercase text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.1)]"
+                              title={currentOriginStamp.label}
+                            >
+                              {currentOriginStamp.code}
+                            </span>
+                          )}
+                          <span
+                            className="relative z-10 flex h-[50%] w-[50%] flex-col items-center justify-center overflow-hidden rounded-full border-[9px] border-white/82 px-2 text-white shadow-[0_0_38px_rgba(255,255,255,0.34)]"
+                            style={{ background: currentTone.accent }}
+                          >
+                            <Music2 size={hasPrimaryActionCue ? 28 : 26} strokeWidth={2.8} />
+                            <span
+                              className={`mt-0.5 block max-w-full overflow-hidden text-center font-body text-[15px] font-extrabold leading-none sm:text-[17px] ${
+                                hasPrimaryActionCue ? "lg:text-[22px]" : "lg:text-[20px]"
+                              }`}
+                              style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}
+                            >
+                              {currentSongText || copy.todaySong}
+                            </span>
+                          </span>
+                          {primaryActionCueTitle && (
+                            <span
+                              className="absolute bottom-5 left-1/2 flex min-h-8 max-w-[64%] -translate-x-1/2 items-center gap-1.5 rounded-full border bg-white px-3 font-body text-[12px] font-extrabold shadow-[0_8px_18px_rgba(15,118,110,0.12)]"
+                              style={{ borderColor: `${activeBridgeCueTone.accent}40`, color: activeBridgeCueTone.accent }}
+                            >
+                              <Sparkles size={14} strokeWidth={2.7} />
+                              <span className="truncate">{primaryActionCueTitle}</span>
+                            </span>
+                          )}
+                          <span
+                            className="absolute bottom-4 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-white/80 shadow-[0_0_18px_rgba(255,255,255,0.75)]"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={tapRoomBeat}
+                          disabled={!currentSongText.trim()}
+                          aria-label={currentSongText ? copy.beatPulseLabel(currentSongText) : copy.beatTitle}
+                          className="relative z-10 -mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#E7DAF2] bg-white px-3.5 py-1.5 font-body text-[13px] font-extrabold shadow-[0_14px_28px_rgba(77,39,119,0.15)] transition-transform active:scale-[0.96] disabled:opacity-60"
+                          style={{ color: activeBridgeCueTone.accent }}
+                        >
+                          <Radio size={15} strokeWidth={2.7} aria-hidden="true" />
+                          <span>{copy.beatTitle}</span>
+                          <span className="flex items-end gap-1" aria-hidden="true">
+                            {[0, 1, 2, 3].map((bar) => (
+                              <span
+                                key={bar}
+                                className="w-1.5 rounded-full"
+                                style={{
+                                  height: `${8 + ((bar + roomPulseLevel) % 3) * 6}px`,
+                                  background: bar % 2 === 0 ? currentTone.accent : "#0F766E",
+                                  opacity: 0.42 + bar * 0.12,
+                                  animation: currentSongText ? `socialPresencePulse ${1.5 + bar * 0.1}s ease-in-out ${bar * 0.08}s infinite` : undefined,
+                                }}
+                              />
+                            ))}
+                          </span>
+                        </button>
+                        {!featuredItem && seedSong?.nudge && (
+                          <span
+                            role="status"
+                            aria-label={seedSong.nudge}
+                            className="mt-2 inline-flex min-h-7 items-center gap-1.5 rounded-full border border-[#E8DAF6] bg-white/90 px-2.5 font-body text-[11px] font-extrabold text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.07)]"
+                          >
+                            <Sparkles size={13} strokeWidth={2.7} aria-hidden="true" />
+                            {getCompactNudgeLabel(seedSong.nudge)}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {recordResponseCue && currentSongText && (
@@ -2033,6 +2372,9 @@ export default function MusicRoomScreen({
                     )}
                     {currentSongText && (
                       <span role="status" aria-label={copy.recordGrooveLabel(currentSongText, activeBridgeCueTitle)} className="sr-only" />
+                    )}
+                    {currentSongText && activeHandoffCueTitle && (
+                      <span role="status" aria-label={copy.needleCueLabel(activeHandoffCueTitle, currentSongText)} className="sr-only" />
                     )}
                     {currentOriginStamp && currentSongText && (
                       <span role="status" aria-label={copy.originStampLabel(currentSongText, currentOriginStamp.label)} className="sr-only" />
@@ -2066,34 +2408,192 @@ export default function MusicRoomScreen({
                     )}
                     <span role="status" aria-label={`${copy.roomPulse}: ${roomPulseLevel}`} className="sr-only" />
 
-                    {duetMember && currentSongText && (
+                    {showInviteTicket && duetMember && currentSongText && (
                       <button
                         type="button"
                         onClick={() => openMemberConnection(duetMember)}
                         disabled={Boolean(connectingMembers[duetMember.id]) || (Boolean(pendingConnections[duetMember.id]) && !repliedConnections[duetMember.id])}
                         aria-label={copy.primaryConnectLabel(currentSongText, duetMember.name, primaryActionCueTitle)}
-                        className="grid min-h-[60px] grid-cols-[44px_minmax(0,1fr)_40px] items-center gap-2.5 rounded-[20px] px-3 text-left font-body text-white shadow-[0_14px_28px_rgba(15,118,110,0.18)] transition-transform active:scale-[0.99] disabled:opacity-80"
-                        style={{ background: `linear-gradient(135deg, #27113B 0%, ${duetMemberTone} 118%)` }}
+                        className="relative grid min-h-[96px] grid-cols-[44px_minmax(0,1fr)] gap-2 overflow-hidden rounded-[24px] p-2.5 text-left font-body text-white shadow-[0_18px_34px_rgba(15,118,110,0.2)] transition-transform active:scale-[0.99] disabled:opacity-80 sm:min-h-[112px] sm:grid-cols-[50px_minmax(0,1fr)] sm:gap-3 sm:p-3 lg:min-h-[136px] lg:grid-cols-[58px_minmax(0,1fr)] lg:rounded-[28px] lg:p-4"
+                        style={{ background: `linear-gradient(135deg, #261136 0%, #4B146E 50%, ${duetMemberTone} 132%)` }}
                       >
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/14" aria-hidden="true">
-                          <Send size={19} strokeWidth={2.8} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-[12px] font-extrabold uppercase leading-none text-white/70">
-                            {primaryActionCueTitle ?? copy.primaryStartLabel}
-                          </span>
-                          <span className="mt-1 block truncate text-[18px] font-extrabold leading-tight">
-                            {duetMember.name}
-                          </span>
-                        </span>
                         <span
-                          className="flex h-10 w-10 items-center justify-center rounded-full font-body text-[15px] font-extrabold text-white"
-                          style={{ background: duetMemberTone }}
+                          className="pointer-events-none absolute -right-10 -top-14 h-32 w-32 rounded-full border-[10px] border-white/12"
                           aria-hidden="true"
-                        >
-                          {pendingConnections[duetMember.id] ? <Check size={18} strokeWidth={3} /> : getInitial(duetMember.name)}
+                        />
+                        <span
+                          className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-[linear-gradient(90deg,rgba(255,255,255,0.10)_0,rgba(255,255,255,0)_58%)]"
+                          aria-hidden="true"
+                        />
+                        <span className="relative mt-1 flex h-11 w-11 items-center justify-center rounded-[18px] bg-white/14 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)] sm:h-12 sm:w-12" aria-hidden="true">
+                          {pendingConnections[duetMember.id]
+                            ? <Check size={20} strokeWidth={3} />
+                            : <Send size={19} strokeWidth={2.8} />}
+                        </span>
+                        <span className="relative min-w-0">
+                          <span className="flex min-w-0 items-center justify-between gap-2">
+                            <span className="min-w-0">
+                              <span className="block truncate text-[12px] font-extrabold uppercase leading-none text-white/68">
+                                {copy.duetPromptTitle}
+                              </span>
+                              <span className="mt-1 block truncate text-[19px] font-extrabold leading-tight sm:text-[21px] lg:text-[27px]">
+                                {duetMember.name}
+                              </span>
+                            </span>
+                            <span
+                              className="flex min-h-9 max-w-[118px] items-center justify-center gap-1 rounded-full bg-white px-2.5 font-body text-[12px] font-extrabold leading-tight shadow-[0_10px_22px_rgba(0,0,0,0.14)]"
+                              style={{ color: activeBridgeCueTone.accent }}
+                            >
+                              <DuetActionIcon size={14} strokeWidth={2.7} aria-hidden="true" />
+                              <span className="truncate">{primaryActionCueTitle ?? copy.duetActionLabel}</span>
+                            </span>
+                          </span>
+                          <span
+                            role="group"
+                            aria-label={copy.duetPromptLabel(activeBridgeCueTitle, getMemberMusicCue(duetMember), duetMember.name, currentSongText)}
+                            className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] items-center gap-1.5 rounded-[18px] bg-white/10 p-1.5 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.13)]"
+                          >
+                            <span className="flex min-w-0 items-center justify-center rounded-[15px] bg-white/10 px-1.5 py-1.5 sm:grid sm:grid-cols-[34px_minmax(0,1fr)] sm:gap-1.5">
+                              <span className="relative h-8 w-8 shrink-0" aria-hidden="true">
+                                <span
+                                  className="absolute inset-0 rounded-full border-[5px] border-[#17101F]"
+                                  style={{ background: "repeating-radial-gradient(circle at center, #100D14 0 5px, #21172B 6px 8px, #0B090D 9px 12px)" }}
+                                />
+                                <span
+                                  className="absolute inset-[7px] flex items-center justify-center rounded-full font-body text-[10px] font-extrabold text-white"
+                                  style={{ background: activeBridgeCueTone.accent }}
+                                >
+                                  {getInitial(copy.you)}
+                                </span>
+                              </span>
+                              <span className="hidden min-w-0 sm:block">
+                                <span className="block truncate text-[10px] font-extrabold uppercase leading-none text-white/58">{copy.you}</span>
+                                <span className="mt-1 hidden truncate text-[12px] font-extrabold leading-tight text-white sm:block">
+                                  {activeBridgeCueTitle}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="relative flex h-11 items-center justify-center" aria-hidden="true">
+                              <span className="absolute left-0 right-0 top-1/2 h-px bg-white/24" />
+                              <span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#6D28D9] shadow-[0_8px_18px_rgba(0,0,0,0.14)]">
+                                <Send size={13} strokeWidth={2.8} />
+                              </span>
+                              <span className="absolute bottom-0 left-1/2 flex -translate-x-1/2 items-end gap-0.5">
+                                {[0, 1, 2].map((bar) => (
+                                  <span
+                                    key={`duet-preview-bar-${bar}`}
+                                    className="music-room-live-motion w-1 rounded-full bg-white/80"
+                                    style={{
+                                      height: `${7 + bar * 4}px`,
+                                      animation: `socialPresencePulse ${1 + bar * 0.14}s ease-in-out ${bar * 0.08}s infinite`,
+                                    }}
+                                  />
+                                ))}
+                              </span>
+                            </span>
+                            <span className="flex min-w-0 items-center justify-center rounded-[15px] bg-white/10 px-1.5 py-1.5 sm:grid sm:grid-cols-[34px_minmax(0,1fr)] sm:gap-1.5">
+                              <span className="relative h-8 w-8 shrink-0" aria-hidden="true">
+                                <span
+                                  className="absolute inset-0 rounded-full border-[5px] border-[#17101F]"
+                                  style={{ background: "repeating-radial-gradient(circle at center, #100D14 0 5px, #21172B 6px 8px, #0B090D 9px 12px)" }}
+                                />
+                                <span
+                                  className="absolute inset-[7px] flex items-center justify-center rounded-full font-body text-[10px] font-extrabold text-white"
+                                  style={{ background: duetMemberTone }}
+                                >
+                                  {getInitial(duetMember.name)}
+                                </span>
+                              </span>
+                              <span className="hidden min-w-0 sm:block">
+                                <span className="block truncate text-[10px] font-extrabold uppercase leading-none text-white/58">{duetMember.name}</span>
+                                <span className="mt-1 hidden truncate text-[12px] font-extrabold leading-tight text-white sm:block">
+                                  {getMemberMusicCue(duetMember)}
+                                </span>
+                              </span>
+                            </span>
+                          </span>
+                          {hasPrimaryActionCue && (
+                            <span
+                              role="status"
+                              aria-label={copy.duetPromptLabel(activeBridgeCueTitle, getMemberMusicCue(duetMember), duetMember.name, currentSongText)}
+                              className="sr-only"
+                            />
+                          )}
                         </span>
                       </button>
+                    )}
+                    {currentSongText && listenerRailMembers.length > 0 && (
+                      <div
+                        role="group"
+                        aria-label={`${copy.chorusLaneLabel}: ${currentSongText}`}
+                        className={`${hasPrimaryActionCue ? "hidden" : "grid"} grid-cols-3 gap-1.5 lg:hidden`}
+                      >
+                        {listenerRailMembers.slice(0, 3).map((member, index) => {
+                          const memberTone = memberColours[index % memberColours.length];
+                          const active = duetMember?.id === member.id || activeThreadMember?.id === member.id;
+                          const cueSpark = pickMemberMemorySpark(copy.sparks, member, index);
+                          const CueIcon = sparkIconById[cueSpark?.id ?? ""] ?? HeartHandshake;
+                          return (
+                            <button
+                              key={`mobile-chorus-${member.id}`}
+                              type="button"
+                              onClick={() => openMemberConnection(member)}
+                              disabled={Boolean(connectingMembers[member.id]) || (Boolean(pendingConnections[member.id]) && !repliedConnections[member.id])}
+                              aria-label={copy.chorusNextLabel(currentSongText, member.name)}
+                              aria-pressed={active}
+                              className="relative min-h-[62px] min-w-0 overflow-hidden rounded-[18px] border bg-white px-1.5 py-2 font-body shadow-[0_10px_20px_rgba(77,39,119,0.07)] transition-transform active:scale-[0.98] disabled:opacity-80"
+                              style={{
+                                borderColor: active ? memberTone : "#E8DAF6",
+                                boxShadow: active
+                                  ? `0 0 0 2px ${memberTone}1f, 0 12px 22px rgba(77,39,119,0.12)`
+                                  : "0 10px 20px rgba(77,39,119,0.07)",
+                              }}
+                            >
+                              <span
+                                className="pointer-events-none absolute inset-x-2 top-2 h-px opacity-60"
+                                style={{ background: `linear-gradient(90deg, transparent, ${memberTone}, transparent)` }}
+                                aria-hidden="true"
+                              />
+                              <span className="relative z-10 flex items-center justify-center gap-1.5">
+                                <span
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-[5px] border-[#17101F] text-[11px] font-extrabold text-white"
+                                  style={{
+                                    background: "repeating-radial-gradient(circle at center, #100D14 0 5px, #21172B 6px 8px, #0B090D 9px 12px)",
+                                  }}
+                                  aria-hidden="true"
+                                >
+                                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full px-1" style={{ background: memberTone }}>
+                                    {getInitial(member.name)}
+                                  </span>
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block truncate text-[12px] font-extrabold leading-tight text-[#261637]">{member.name}</span>
+                                  <span className="mt-1 flex items-end gap-0.5" aria-hidden="true">
+                                    {[0, 1, 2].map((bar) => (
+                                      <span
+                                        key={`mobile-chorus-bar-${member.id}-${bar}`}
+                                        className="w-1.5 rounded-full"
+                                        style={{
+                                          height: `${6 + ((bar + index) % 3) * 4}px`,
+                                          background: memberTone,
+                                          opacity: active ? 0.94 - bar * 0.12 : 0.4,
+                                        }}
+                                      />
+                                    ))}
+                                  </span>
+                                </span>
+                              </span>
+                              <span
+                                className="absolute bottom-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#F8F3FF]"
+                                style={{ color: active ? memberTone : "#6D28D9" }}
+                                aria-hidden="true"
+                              >
+                                {pendingConnections[member.id] ? <Check size={12} strokeWidth={3} /> : <CueIcon size={11} strokeWidth={2.7} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     )}
                     {duetMember && currentSongText && (
                       <button
@@ -2111,7 +2611,7 @@ export default function MusicRoomScreen({
                       <div
                         role="group"
                         aria-label={copy.memoryDoorwayLabel}
-                        className="grid grid-cols-3 gap-2"
+                        className={`${hasPrimaryActionCue ? "hidden" : "grid"} grid-cols-3 gap-2`}
                       >
                         {primaryMemoryDoorways.map((cue) => {
                           const active = memoryDraft === cue.prompt;
@@ -2125,14 +2625,22 @@ export default function MusicRoomScreen({
                               onClick={() => applyMemorySpark(cue)}
                               aria-label={copy.memoryDoorwayUse(cue.title, currentSongText)}
                               aria-pressed={active}
-                              className="relative flex min-h-[56px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-[18px] border px-1.5 font-body text-[12px] font-extrabold leading-tight shadow-[0_10px_20px_rgba(77,39,119,0.06)] transition-transform active:scale-[0.98]"
+                              className={`relative flex min-h-[56px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-[18px] border px-1.5 font-body text-[12px] font-extrabold leading-tight shadow-[0_10px_20px_rgba(77,39,119,0.06)] transition-transform active:scale-[0.98] ${
+                                suggested && !active ? "min-h-[64px] -translate-y-1" : ""
+                              }`}
                               style={{
-                                background: active ? tone.soft : "linear-gradient(180deg, #FFFFFF 0%, #FFFDFC 100%)",
+                                background: active
+                                  ? tone.soft
+                                  : suggested
+                                    ? `linear-gradient(135deg, #FFFFFF 0%, ${tone.soft} 70%, #FFFDFC 100%)`
+                                    : "linear-gradient(180deg, #FFFFFF 0%, #FFFDFC 100%)",
                                 borderColor: active || suggested ? tone.accent : "#E8DAF6",
                                 color: active || suggested ? tone.accent : "#4A365B",
                                 boxShadow: active
                                   ? `0 0 0 2px ${tone.accent}20, 0 12px 24px rgba(77,39,119,0.12)`
-                                  : "0 10px 20px rgba(77,39,119,0.06)",
+                                  : suggested
+                                    ? `0 0 0 2px ${tone.accent}18, 0 16px 28px rgba(77,39,119,0.13)`
+                                    : "0 10px 20px rgba(77,39,119,0.06)",
                               }}
                             >
                               <span
@@ -2147,6 +2655,15 @@ export default function MusicRoomScreen({
                                   aria-hidden="true"
                                 >
                                   <Check size={12} strokeWidth={3} />
+                                </span>
+                              )}
+                              {suggested && !active && (
+                                <span
+                                  className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-white shadow-[0_6px_12px_rgba(77,39,119,0.12)]"
+                                  style={{ background: tone.accent }}
+                                  aria-hidden="true"
+                                >
+                                  <Sparkles size={11} strokeWidth={2.8} />
                                 </span>
                               )}
                               <span
@@ -2164,7 +2681,7 @@ export default function MusicRoomScreen({
                     )}
 
                     {currentSongText && (
-                      <div role="group" aria-label={copy.chorusLaneLabel} className="grid grid-cols-3 gap-2">
+                      <div role="group" aria-label={copy.chorusLaneLabel} className={hasPrimaryActionCue ? "hidden" : "hidden grid-cols-3 gap-2 lg:grid"}>
                         <button
                           type="button"
                           onClick={() => void joinChorus()}
@@ -2202,28 +2719,17 @@ export default function MusicRoomScreen({
                               onClick={() => void toggleCircleReaction(featuredItem)}
                               aria-label={featuredItem.myReaction ? copy.unreactLabel : copy.reactLabel}
                               aria-pressed={featuredItem.myReaction}
-                              className="flex min-h-[44px] min-w-0 items-center justify-center gap-1.5 rounded-[16px] bg-[#F8F3FF] px-2 font-body text-[12px] font-extrabold text-[#6D28D9] transition-transform active:scale-[0.98]"
+                              className="flex min-h-[44px] min-w-0 items-center justify-center gap-1.5 rounded-[16px] px-2 font-body text-[12px] font-extrabold transition-transform active:scale-[0.98]"
+                              style={{
+                                background: featuredItem.myReaction ? currentTone.accent : "#F8F3FF",
+                                color: featuredItem.myReaction ? "#FFFFFF" : "#6D28D9",
+                              }}
                             >
-                              <Heart size={16} strokeWidth={2.6} fill={featuredItem.myReaction ? "currentColor" : "none"} />
+                              {featuredItem.myReaction ? <Check size={16} strokeWidth={3} /> : <Heart size={16} strokeWidth={2.6} />}
                               <span>{featuredItem.reactionCount}</span>
                             </button>
                           )
                         )}
-                        {chorusLaneMembers.map((member) => {
-                          const active = Boolean(currentSongText && duetMember?.id === member.id);
-                          return (
-                            <button
-                              key={member.id}
-                              type="button"
-                              onClick={() => openMemberConnection(member)}
-                              aria-label={copy.chorusMemberLabel(currentSongText, member.name)}
-                              aria-pressed={active}
-                              className="sr-only"
-                            >
-                              {member.name}
-                            </button>
-                          );
-                        })}
                         <span
                           role="status"
                           aria-label={hasUserJoinedChorus ? copy.chorusMomentJoinedLabel(currentSongText) : copy.chorusMomentLabel(currentSongText)}
@@ -2313,101 +2819,138 @@ export default function MusicRoomScreen({
 
                     {activeThread && activeThreadMember && (
                       <div
-                        className="rounded-[22px] border border-[#E8DAF6] bg-[#FFFDFE] p-2 shadow-[0_12px_24px_rgba(77,39,119,0.07)]"
+                        className="overflow-hidden rounded-[24px] border border-[#E6D7F4] bg-white shadow-[0_16px_34px_rgba(77,39,119,0.1)]"
                         aria-label={`${copy.threadTitle}: ${activeThread.songText} ${activeThreadMember.name}`}
                       >
                         <div
                           role="status"
                           aria-label={copy.threadTurnLabel(activeThread.songText, activeThreadMember.name)}
-                          className="grid min-h-[48px] grid-cols-[38px_minmax(0,1fr)_38px] items-center gap-2 rounded-[16px] bg-[#F8F3FF] px-2 font-body text-[#261637]"
+                          className="relative overflow-hidden bg-[#2B103F] px-3 py-3 font-body text-white"
                         >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#6D28D9] text-[12px] font-extrabold text-white" aria-hidden="true">
-                            {getInitial(copy.you)}
-                          </span>
-                          <span className="min-w-0 text-center">
-                            <span className="block truncate text-[12px] font-extrabold text-[#6D28D9]">{activeThread.songText}</span>
-                            <span className="block truncate text-[12px] font-semibold text-[#6D6170]">{activeThreadMember.name}</span>
-                          </span>
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0F766E] text-[12px] font-extrabold text-white" aria-hidden="true">
-                            {getInitial(activeThreadMember.name)}
-                          </span>
-                        </div>
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          {activeThreadEntries.length > 0 ? activeThreadEntries.slice(-2).map((entry) => (
-                            <div key={entry.id} className="min-w-0 rounded-[16px] bg-[#FAF6FF] px-2.5 py-2 font-body text-[#4A365B]">
-                              <span className="block truncate text-[12px] font-extrabold text-[#6D28D9]">{entry.authorName}</span>
-                              <span className="block truncate text-[13px] font-semibold">
-                                {entry.kind === "voice" && <Mic size={13} strokeWidth={2.4} className="mr-1 inline text-[#0F766E]" />}
-                                {entry.body}
+                          <div className="absolute inset-0 opacity-25 [background:repeating-linear-gradient(90deg,rgba(255,255,255,0.12)_0,rgba(255,255,255,0.12)_1px,transparent_1px,transparent_14px)]" aria-hidden="true" />
+                          <div className="relative grid min-h-[62px] grid-cols-[46px_minmax(0,1fr)_46px] items-center gap-2">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/75 bg-[#7E22CE] text-[14px] font-extrabold shadow-[0_8px_18px_rgba(0,0,0,0.18)]" aria-hidden="true">
+                              {getInitial(copy.you)}
+                            </span>
+                            <span className="min-w-0 text-center">
+                              <span className="mx-auto mb-1 flex h-5 max-w-[150px] items-center justify-center gap-1 rounded-full bg-white/95 px-2 text-[11px] font-extrabold text-[#6D28D9]">
+                                {copy.threadTitle}
                               </span>
-                            </div>
-                          )) : (
-                            <>
-                              <div className="min-w-0 rounded-[16px] bg-[#FAF6FF] px-2.5 py-2 font-body text-[#4A365B]">
-                                <span className="block truncate text-[12px] font-extrabold text-[#6D28D9]">{copy.you}</span>
-                                <span className="block truncate text-[13px] font-semibold">{activeThread.songText}</span>
-                              </div>
-                              <div className="min-w-0 rounded-[16px] bg-[#FAF6FF] px-2.5 py-2 font-body text-[#4A365B]">
-                                <span className="block truncate text-[12px] font-extrabold text-[#0F766E]">{activeThreadMember.name}</span>
-                                <span className="block truncate text-[13px] font-semibold">{activeThreadMember.sharedTopic || activeThread.matchedTopic}</span>
-                              </div>
-                            </>
+                              <span className="block truncate text-[17px] font-extrabold leading-tight">{activeThread.songText}</span>
+                              <span className="mt-1 flex items-center justify-center gap-1.5" aria-hidden="true">
+                                {[8, 16, 11, 20, 13, 17, 9].map((height, index) => (
+                                  <span
+                                    key={`thread-wave-${height}-${index}`}
+                                    className="w-1 rounded-full bg-white/70"
+                                    style={{ height: `${height}px` }}
+                                  />
+                                ))}
+                              </span>
+                            </span>
+                            <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/75 bg-[#0F766E] text-[14px] font-extrabold shadow-[0_8px_18px_rgba(0,0,0,0.18)]" aria-hidden="true">
+                              {getInitial(activeThreadMember.name)}
+                            </span>
+                          </div>
+                          <div className="relative mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[12px] font-extrabold text-white/82">
+                            <span className="truncate text-right">{copy.you}</span>
+                            <HeartHandshake size={15} strokeWidth={2.7} className="text-[#E9D5FF]" aria-hidden="true" />
+                            <span className="truncate text-left">{activeThreadMember.name}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-2.5">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {activeThreadEntries.length > 0 ? activeThreadEntries.slice(-2).map((entry) => {
+                              const authoredByUser = normalizeCue(entry.authorName) === normalizeCue(copy.you);
+                              return (
+                                <div
+                                  key={entry.id}
+                                  className={`min-w-0 rounded-[18px] px-3 py-2.5 font-body shadow-[inset_0_0_0_1px_rgba(126,34,206,0.08)] ${
+                                    authoredByUser ? "bg-[#F6EEFF] text-[#3C1D57]" : "bg-[#ECFDF5] text-[#164E45]"
+                                  }`}
+                                >
+                                  <span className={`block truncate text-[12px] font-extrabold ${authoredByUser ? "text-[#6D28D9]" : "text-[#0F766E]"}`}>{entry.authorName}</span>
+                                  <span className="mt-0.5 block truncate text-[14px] font-semibold">
+                                    {entry.kind === "voice" && <Mic size={14} strokeWidth={2.5} className="mr-1 inline align-[-2px]" />}
+                                    {entry.body}
+                                  </span>
+                                </div>
+                              );
+                            }) : (
+                              <>
+                                <div className="min-w-0 rounded-[18px] bg-[#F6EEFF] px-3 py-2.5 font-body text-[#3C1D57] shadow-[inset_0_0_0_1px_rgba(126,34,206,0.08)]">
+                                  <span className="block truncate text-[12px] font-extrabold text-[#6D28D9]">{copy.you}</span>
+                                  <span className="mt-0.5 block truncate text-[14px] font-semibold">{activeThread.songText}</span>
+                                </div>
+                                <div className="min-w-0 rounded-[18px] bg-[#ECFDF5] px-3 py-2.5 font-body text-[#164E45] shadow-[inset_0_0_0_1px_rgba(15,118,110,0.1)]">
+                                  <span className="block truncate text-[12px] font-extrabold text-[#0F766E]">{activeThreadMember.name}</span>
+                                  <span className="mt-0.5 block truncate text-[14px] font-semibold">{activeThreadMember.sharedTopic || activeThread.matchedTopic}</span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          {selectedThreadCue && activeThreadMember && (
+                            <span role="status" aria-label={copy.threadCueReadyLabel(selectedThreadCue.title, activeThread.songText, activeThreadMember.name)} className="sr-only" />
                           )}
-                        </div>
-                        {selectedThreadCue && activeThreadMember && (
-                          <span role="status" aria-label={copy.threadCueReadyLabel(selectedThreadCue.title, activeThread.songText, activeThreadMember.name)} className="sr-only" />
-                        )}
-                        <div className="mt-2 grid grid-cols-4 gap-1.5">
-                          {copy.threadCues.map((cue) => (
-                            <button
-                              key={cue.id}
-                              type="button"
-                              onClick={() => {
-                                setThreadDraft(cue.body(activeThread.songText, activeThreadMember.name));
-                                setSelectedThreadCueId(cue.id);
-                              }}
-                              aria-label={copy.threadCueLabel(cue.title, activeThread.songText)}
-                              aria-pressed={selectedThreadCueId === cue.id}
-                              className="flex min-h-10 min-w-0 items-center justify-center rounded-[14px] bg-[#F8F3FF] px-1.5 font-body text-[12px] font-extrabold text-[#6D28D9]"
-                            >
-                              <span className="truncate">{cue.title}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <form
-                          className="mt-2 grid grid-cols-[minmax(0,1fr)_42px_42px] gap-2"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            void addThreadMemory();
-                          }}
-                        >
-                          <input
-                            value={threadDraft}
-                            onChange={(event) => {
-                              setThreadDraft(event.target.value);
-                              setSelectedThreadCueId(null);
+
+                          <div className="mt-2 grid grid-cols-4 gap-1.5 rounded-[18px] bg-[#F9F5FF] p-1">
+                            {copy.threadCues.map((cue) => (
+                              <button
+                                key={cue.id}
+                                type="button"
+                                onClick={() => {
+                                  setThreadDraft(cue.body(activeThread.songText, activeThreadMember.name));
+                                  setSelectedThreadCueId(cue.id);
+                                }}
+                                aria-label={copy.threadCueLabel(cue.title, activeThread.songText)}
+                                aria-pressed={selectedThreadCueId === cue.id}
+                                className={`flex min-h-10 min-w-0 items-center justify-center rounded-[14px] px-1.5 font-body text-[12px] font-extrabold transition active:scale-[0.98] ${
+                                  selectedThreadCueId === cue.id
+                                    ? "bg-white text-[#6D28D9] shadow-[0_8px_16px_rgba(77,39,119,0.12)]"
+                                    : "text-[#584167]"
+                                }`}
+                              >
+                                <span className="truncate">{cue.title}</span>
+                              </button>
+                            ))}
+                          </div>
+
+                          <form
+                            className="mt-2 grid grid-cols-[minmax(0,1fr)_42px_42px] gap-2"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void addThreadMemory();
                             }}
-                            placeholder={copy.memoryPlaceholder}
-                            aria-label={copy.memoryPlaceholder}
-                            className="h-11 min-w-0 rounded-[16px] border border-[#E5DAF2] bg-white px-3 font-body text-[14px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void addVoiceNote()}
-                            aria-label={copy.voiceButtonLabel}
-                            className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0F766E]"
                           >
-                            <Mic size={19} strokeWidth={2.5} />
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={!threadDraft.trim()}
-                            aria-label={copy.memoryButtonLabel}
-                            className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#7E22CE] text-white disabled:opacity-45"
-                          >
-                            <Send size={18} strokeWidth={2.6} />
-                          </button>
-                        </form>
+                            <input
+                              value={threadDraft}
+                              onChange={(event) => {
+                                setThreadDraft(event.target.value);
+                                setSelectedThreadCueId(null);
+                              }}
+                              placeholder={copy.memoryPlaceholder}
+                              aria-label={copy.memoryPlaceholder}
+                              className="h-11 min-w-0 rounded-[16px] border border-[#E5DAF2] bg-white px-3 font-body text-[14px] font-semibold text-[#3E2A50] outline-none placeholder:text-[#9E8FAE] focus:border-[#7E22CE]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void addVoiceNote()}
+                              aria-label={copy.voiceButtonLabel}
+                              className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0F766E] shadow-[inset_0_0_0_1px_rgba(15,118,110,0.12)] transition active:scale-[0.96]"
+                            >
+                              <Mic size={19} strokeWidth={2.5} />
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={!threadDraft.trim()}
+                              aria-label={copy.memoryButtonLabel}
+                              className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#7E22CE] text-white shadow-[0_10px_20px_rgba(126,34,206,0.18)] transition active:scale-[0.96] disabled:opacity-45"
+                            >
+                              <Send size={18} strokeWidth={2.6} />
+                            </button>
+                          </form>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2415,9 +2958,13 @@ export default function MusicRoomScreen({
               </div>
 
 
-              <div className="order-4 min-w-0 lg:order-3 lg:border-l lg:border-[#EEE5F7] lg:pl-5">
-                <h2 className="font-body text-[20px] font-extrabold leading-tight text-[#261637]">{copy.connectionTitle}</h2>
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              <div
+                role="group"
+                aria-label={copy.connectionTitle}
+                className={`${hasPrimaryActionCue ? "hidden" : "order-2 hidden min-w-0 lg:order-2 lg:col-start-2 lg:row-start-1 lg:block lg:w-full lg:max-w-none"}`}
+              >
+                <h2 className="text-center font-body text-[18px] font-extrabold leading-tight text-[#261637]">{copy.connectionTitle}</h2>
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {listenerRailMembers.map((member, index) => {
                     const sent = Boolean(pendingConnections[member.id]);
                     const replied = Boolean(repliedConnections[member.id]);
@@ -2442,7 +2989,7 @@ export default function MusicRoomScreen({
                     return (
                       <div
                         key={member.id}
-                        className="relative grid min-h-[78px] grid-cols-[minmax(0,1fr)_76px] items-center gap-2 overflow-hidden rounded-[22px] border px-2 py-2 text-left shadow-[0_10px_24px_rgba(77,39,119,0.06)]"
+                        className="relative grid min-h-[72px] grid-cols-[minmax(0,1fr)] items-center overflow-hidden rounded-[22px] border px-2 py-2 text-left shadow-[0_10px_24px_rgba(77,39,119,0.06)]"
                         style={{
                           background: strongMatch ? `linear-gradient(135deg, ${currentTone.soft} 0%, #FFFFFF 72%)` : "#FFFDFC",
                           borderColor: strongMatch ? memberTone : "#EEE5F7",
@@ -2467,10 +3014,10 @@ export default function MusicRoomScreen({
                             openMemberConnection(member);
                           }}
                           disabled={sending || (sent && !replied)}
-                          className="grid min-h-[62px] min-w-0 grid-cols-[54px_minmax(0,1fr)] items-center gap-3 rounded-[18px] px-1 text-left transition-transform active:scale-[0.99] disabled:opacity-80"
+                          className="grid min-h-[56px] min-w-0 grid-cols-[46px_minmax(0,1fr)] items-center gap-2 rounded-[18px] px-1 pr-10 text-left transition-transform active:scale-[0.99] disabled:opacity-80"
                           aria-label={replied ? `${member.name} ${copy.replied}` : sent ? `${member.name} ${copy.sent}` : copy.connect(member.name)}
                         >
-                          <span className="relative h-12 w-12 shrink-0" aria-hidden="true">
+                          <span className="relative h-10 w-10 shrink-0" aria-hidden="true">
                             <span
                               className="absolute inset-0 rounded-full border-[5px] border-[#17101F] shadow-[0_10px_20px_rgba(26,18,36,0.14)]"
                               style={{
@@ -2478,7 +3025,7 @@ export default function MusicRoomScreen({
                               }}
                             />
                             <span
-                              className="absolute inset-[9px] flex items-center justify-center rounded-full font-body text-[15px] font-extrabold text-white"
+                              className="absolute inset-[8px] flex items-center justify-center rounded-full font-body text-[13px] font-extrabold text-white"
                               style={{ background: memberTone }}
                             >
                               {sent ? <Check size={18} strokeWidth={3} /> : getInitial(member.name)}
@@ -2491,7 +3038,7 @@ export default function MusicRoomScreen({
                             )}
                           </span>
                           <span className="min-w-0">
-                            <span className="block truncate font-body text-[17px] font-extrabold leading-tight text-[#261637]">{member.name}</span>
+                            <span className="block truncate font-body text-[15px] font-extrabold leading-tight text-[#261637]">{member.name}</span>
                             <span
                               className="mt-1 flex items-center gap-1.5 overflow-hidden"
                               role={listenerPulse ? "status" : undefined}
@@ -2510,7 +3057,7 @@ export default function MusicRoomScreen({
                                   }}
                                 />
                               ))}
-                              <span className="truncate font-body text-[13px] font-bold leading-tight text-[#6D6170]">
+                              <span className={`truncate font-body text-[12px] font-bold leading-tight text-[#6D6170] ${activeCueText ? "" : "sr-only"}`}>
                                 {cue}
                               </span>
                             </span>
@@ -2522,7 +3069,7 @@ export default function MusicRoomScreen({
                             onClick={() => applyMemorySpark(actionSpark, member)}
                             aria-label={copy.duetCueLabel(actionSpark.title, member.name)}
                             aria-pressed={cueActive}
-                            className="relative flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-[18px] bg-white px-1.5 text-center font-body font-extrabold shadow-[0_8px_18px_rgba(77,39,119,0.08)] transition-transform active:scale-[0.98]"
+                            className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center overflow-hidden rounded-full bg-white text-center font-body font-extrabold shadow-[0_8px_18px_rgba(77,39,119,0.08)] transition-transform active:scale-[0.98]"
                             style={{
                               color: cueActive ? activeBridgeCueTone.accent : memberTone,
                               background: cueActive ? activeBridgeCueTone.soft : "#FFFFFF",
@@ -2532,17 +3079,12 @@ export default function MusicRoomScreen({
                             }}
                           >
                             <span
-                              className="pointer-events-none absolute left-2 right-2 top-1/2 h-px -translate-y-1/2 opacity-60"
-                              style={{ background: `linear-gradient(90deg, transparent, ${memberTone}, transparent)` }}
-                              aria-hidden="true"
-                            />
-                            <span
-                              className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-[0_8px_16px_rgba(77,39,119,0.08)]"
+                              className="relative z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white"
                               aria-hidden="true"
                             >
                               <ActionSparkIcon size={16} strokeWidth={2.6} />
                             </span>
-                            <span className="relative z-10 block max-w-full truncate text-[11px] leading-none">
+                            <span className="sr-only">
                               {actionSpark.title}
                             </span>
                           </button>
@@ -2560,8 +3102,20 @@ export default function MusicRoomScreen({
               )}
             </div>
 
+            {!hasPrimaryActionCue && !showSongComposer && (
+              <button
+                type="button"
+                onClick={() => setComposerOpen(true)}
+                aria-label={copy.addAnother}
+                className="relative z-10 mx-auto mt-4 flex min-h-12 min-w-[132px] items-center justify-center gap-2 rounded-full border border-[#E8DAF6] bg-white px-4 font-body text-[15px] font-extrabold text-[#6D28D9] shadow-[0_14px_28px_rgba(77,39,119,0.09)] transition-transform active:scale-[0.97]"
+              >
+                <Send size={17} strokeWidth={2.7} aria-hidden="true" />
+                <span>{copy.addButton}</span>
+              </button>
+            )}
+
             <form
-              className="mt-4 rounded-[26px] border border-[#E8DAF6] bg-[#FEFCFF] p-2 shadow-[0_16px_34px_rgba(77,39,119,0.08)]"
+              className={`${hasPrimaryActionCue || !showSongComposer ? "hidden" : "relative z-10 mt-4 rounded-[26px] border border-[#E8DAF6] bg-[#FEFCFF] p-2 shadow-[0_16px_34px_rgba(77,39,119,0.08)]"}`}
               style={{
                 background: `linear-gradient(135deg, ${currentTone.soft} 0%, #FFFFFF 36%, #FDF9FF 100%)`,
                 boxShadow: `0 18px 36px rgba(77,39,119,0.08), inset 0 0 0 1px ${currentTone.accent}12`,
@@ -2574,6 +3128,42 @@ export default function MusicRoomScreen({
               <p id="music-cause-heading" className="sr-only">
                 {copy.chooseCause}
               </p>
+              {selectedMemorySpark && currentSongText && (
+                <div
+                  className="mb-2 grid min-h-[62px] grid-cols-[50px_minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-[22px] border px-2.5 py-2 font-body shadow-[0_14px_28px_rgba(15,118,110,0.14)]"
+                  style={{
+                    background: `linear-gradient(135deg, #082F2E 0%, ${selectedMemoryTone.accent} 46%, #2B103F 118%)`,
+                    borderColor: selectedMemoryTone.accent,
+                    boxShadow: `0 16px 30px rgba(15,118,110,0.2), inset 0 0 0 1px rgba(255,255,255,0.18)`,
+                  }}
+                >
+                  <span
+                    className="relative flex h-11 w-11 items-center justify-center rounded-full border-[6px] border-white/85 text-white shadow-[0_10px_20px_rgba(26,18,36,0.18)]"
+                    style={{ background: "repeating-radial-gradient(circle at center, #100D14 0 5px, #21172B 6px 8px, #0B090D 9px 12px)" }}
+                    aria-hidden="true"
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full" style={{ background: selectedMemoryTone.accent }}>
+                      <Sparkles size={12} strokeWidth={2.8} />
+                    </span>
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-[12px] font-extrabold uppercase leading-tight tracking-normal text-white/72">
+                      {selectedMemorySpark.title}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[17px] font-extrabold leading-tight text-white">
+                      {currentSongText}
+                    </span>
+                  </span>
+                  {memoryTrailMember && (
+                    <span
+                      className="flex min-h-9 min-w-9 items-center justify-center rounded-full px-2 text-[12px] font-extrabold text-white shadow-[0_8px_16px_rgba(77,39,119,0.1)]"
+                      style={{ background: duetMemberTone }}
+                    >
+                      {getInitial(memoryTrailMember.name)}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(284px,352px)_96px] lg:items-stretch">
                 <label className="grid min-h-[66px] min-w-0 grid-cols-[58px_minmax(0,1fr)] items-center gap-2 rounded-[22px] border border-white bg-white/90 p-1.5 shadow-[0_12px_26px_rgba(77,39,119,0.07)]">
                   <span
@@ -2644,11 +3234,11 @@ export default function MusicRoomScreen({
                 <button
                   type="submit"
                   disabled={!songDraft.trim() || isSubmitting}
-                  className="inline-flex min-h-[62px] items-center justify-center gap-1.5 rounded-[22px] px-3 font-body text-[16px] font-extrabold text-white shadow-[0_16px_30px_rgba(77,39,119,0.22)] transition-transform active:scale-[0.98] disabled:opacity-50 sm:text-[17px]"
-                  style={{ background: `linear-gradient(135deg, #2B123C 0%, ${currentTone.accent} 100%)` }}
+                  className="relative inline-flex min-h-[62px] appearance-none items-center justify-center gap-1.5 overflow-hidden rounded-[22px] border-0 bg-transparent px-3 font-body text-[16px] font-extrabold text-white opacity-100 shadow-[0_16px_30px_rgba(77,39,119,0.24)] transition-transform active:scale-[0.98] disabled:opacity-50 sm:text-[17px]"
                 >
-                  <Send size={20} />
-                  {copy.addButton}
+                  <span className="absolute inset-0 rounded-[22px] bg-[#3B155A]" aria-hidden="true" />
+                  <Send className="relative z-10" size={20} />
+                  <span className="relative z-10">{copy.addButton}</span>
                 </button>
               </div>
             </form>

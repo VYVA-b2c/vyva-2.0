@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TogetherRoomScreen from "./TogetherRoomScreen";
-import type { SocialRoomPlan, SocialRoomResponse } from "./types";
+import type { SocialRoomPlan, SocialRoomPulse, SocialRoomResponse } from "./types";
 
 const apiFetchMock = vi.fn();
+const readingComfortPreferenceKey = "vyva:together-room:reading-comfort:v1";
+const privateRoomNoteKey = "vyva:together-room:private-note:v1";
 
 vi.mock("@/lib/queryClient", () => ({
   apiFetch: (...args: unknown[]) => apiFetchMock(...args),
@@ -137,6 +139,14 @@ const roomResponse: SocialRoomResponse = {
       title: "What would you like to say?",
       body: "You can start small.",
       starterButtons: ["Say hello", "Suggest a plan", "Ask VYVA"],
+      dailyQuestion: {
+        id: "today-gentle-question",
+        title: "Today's gentle question",
+        body: "What would make it easier for you to join in today?",
+        draft: "What would make it easier for me to join today is...",
+        actionLabel: "Answer gently",
+        privacyLine: "Your answer is shared only when you choose to post it. VYVA checks private details first.",
+      },
     },
     safety: {
       title: "Safe small circle",
@@ -165,14 +175,51 @@ const roomResponse: SocialRoomResponse = {
         },
       ],
     },
+    activityDigest: {
+      title: "What is moving in the room",
+      body: "A short no-name summary so you can decide calmly.",
+      privacyLine: "VYVA shows safe signals only, never private choices with names.",
+      updatedAt: "2026-06-04T10:00:00.000Z",
+      items: [
+        {
+          id: "presence",
+          kind: "presence",
+          label: "Quietly present",
+          body: "3 people can read or join without pressure.",
+          count: 3,
+          private: true,
+        },
+        {
+          id: "comfort",
+          kind: "comfort",
+          label: "Comfort signals",
+          body: "The room can shape plans around Easy access.",
+          count: 1,
+          private: true,
+        },
+      ],
+    },
+    joiningSupportCue: {
+      id: "access-support",
+      title: "Access and seating help",
+      body: "Access or a place to sit may matter. VYVA can check place and pace before anyone commits.",
+      actionLabel: "Ask for access help",
+      draft: "VYVA, please check access, seating, and a quiet pace for the next plan. Use totals, not names, and keep contact private.",
+      privacyLine: "This asks VYVA only. The room still sees totals, not names.",
+      needIds: ["easy_access"],
+    },
     notifications: [],
   },
 };
 
 describe("TogetherRoomScreen", () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     apiFetchMock.mockReset();
     apiFetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ ok: true })));
+    Object.defineProperty(window, "speechSynthesis", { value: undefined, configurable: true });
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    window.localStorage.clear();
   });
 
   it("renders the simple safe-haven hierarchy", () => {
@@ -187,11 +234,28 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-reading-comfort")).toHaveTextContent("Large text");
     expect(screen.getByTestId("together-reading-comfort")).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByTestId("together-reading-comfort-note")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-read-aloud")).toHaveTextContent("Read aloud");
+    expect(screen.getByTestId("together-read-aloud")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("together-at-glance")).toHaveTextContent("Today in the room");
     expect(screen.getByTestId("together-at-glance-updates")).toHaveTextContent("No new updates");
     expect(screen.getByTestId("together-at-glance-votes")).toHaveTextContent("0 votes");
     expect(screen.getByTestId("together-at-glance-interest")).toHaveTextContent("0 people interested");
     expect(screen.getByTestId("together-at-glance-comfort")).toHaveTextContent("1 comfort signal");
+    expect(screen.getByTestId("together-activity-digest")).toHaveTextContent("What is moving in the room");
+    expect(screen.getByTestId("together-activity-digest")).toHaveTextContent(
+      "A short no-name summary so you can decide calmly.",
+    );
+    expect(screen.getByTestId("together-activity-digest-item-presence")).toHaveTextContent("Quietly present");
+    expect(screen.getByTestId("together-activity-digest-item-presence")).toHaveTextContent(
+      "3 people can read or join without pressure.",
+    );
+    expect(screen.getByTestId("together-activity-digest-item-comfort")).toHaveTextContent("Comfort signals");
+    expect(screen.getByTestId("together-activity-digest-item-comfort")).toHaveTextContent(
+      "The room can shape plans around Easy access.",
+    );
+    expect(screen.getByTestId("together-activity-digest-privacy")).toHaveTextContent(
+      "VYVA shows safe signals only, never private choices with names.",
+    );
     expect(screen.getByTestId("together-room-notes")).toHaveTextContent("Today's room notes");
     expect(screen.getByTestId("together-room-notes")).toHaveTextContent(
       "A simple record of what the room knows now, so no one has to keep it all in mind.",
@@ -206,6 +270,8 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-room-notes-next")).toHaveTextContent(
       "Start with hello, a comfort choice, or one private vote.",
     );
+    expect(screen.getByTestId("together-room-notes-next-action")).toHaveTextContent("Choose a gentle start");
+    expect(screen.getByTestId("together-room-notes-copy")).toHaveTextContent("Copy no-name notes");
     expect(screen.getByTestId("together-room-notes")).toHaveTextContent(
       "These notes use totals and signals, not names.",
     );
@@ -226,12 +292,23 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-my-safe-choice-vote")).toHaveTextContent("No vote yet");
     expect(screen.getByTestId("together-my-safe-choice-comfort")).toHaveTextContent("No comfort choice yet");
     expect(screen.getByTestId("together-my-safe-choice-help")).toHaveTextContent("No helper choice yet");
+    expect(screen.getByTestId("together-my-safe-next-action")).toHaveTextContent("Add comfort choice");
+    expect(screen.queryByTestId("together-my-review-updates")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-private-note")).toHaveTextContent("Private note");
+    expect(screen.getByTestId("together-private-note")).toHaveTextContent("Saved only on this device.");
+    expect(screen.getByTestId("together-private-note-input")).toHaveAttribute(
+      "placeholder",
+      "What I want to remember...",
+    );
+    expect(screen.getByTestId("together-private-note-clear")).toBeDisabled();
     expect(screen.getByTestId("together-visibility-promise")).toHaveTextContent("Who sees what");
     expect(screen.getByTestId("together-visibility-private")).toHaveTextContent("do not show your name");
     expect(screen.getByTestId("together-visibility-totals")).toHaveTextContent("Room sees totals");
     expect(screen.getByTestId("together-visibility-shared")).toHaveTextContent("VYVA review nearby");
     expect(screen.getByTestId("together-quiet-pause")).toHaveTextContent("Pause quietly");
     expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("together-leave-quietly")).toHaveTextContent("Leave quietly");
+    expect(screen.getByTestId("together-leave-quietly")).toHaveTextContent("No one is notified.");
     expect(screen.getByTestId("together-room-trust")).toHaveTextContent("Safe to join");
     expect(screen.getByTestId("together-room-trust")).toHaveTextContent(
       "Three reminders before you take part.",
@@ -246,6 +323,7 @@ describe("TogetherRoomScreen", () => {
       "Private contact stays inside VYVA until both people agree.",
     );
     expect(screen.getByTestId("together-room-trust-action")).toHaveTextContent("Ask VYVA to check");
+    expect(screen.getByTestId("together-room-trust-intro")).toHaveTextContent("Explain this room");
     expect(screen.getByTestId("together-participation-path")).toHaveTextContent("Choose your way in");
     expect(screen.getByTestId("together-participation-path")).toHaveTextContent(
       "Three simple ways to join without reading the whole room first.",
@@ -346,6 +424,9 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-vote-lunch")).toHaveTextContent("0 votes");
     expect(screen.getByTestId("together-vote-views")).toHaveTextContent("Share views");
     expect(screen.getByTestId("together-vote-views")).toHaveTextContent("0 votes");
+    expect(screen.getByTestId("together-pass-vote")).toHaveTextContent("I'll decide later");
+    expect(screen.getByTestId("together-pass-vote")).toHaveTextContent("No vote is sent.");
+    expect(screen.getByTestId("together-pass-vote")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("together-vote-signal")).toHaveTextContent("Room signal");
     expect(screen.getByTestId("together-vote-signal")).toHaveTextContent(
       "No direction yet. Looking first is welcome too.",
@@ -356,7 +437,7 @@ describe("TogetherRoomScreen", () => {
       "The room only sees totals, not your name.",
     );
     expect(screen.getByTestId("together-vote-privacy-note")).toHaveTextContent(
-      "You can change your vote while voting is open.",
+      "You can change or remove your vote while voting is open.",
     );
     expect(screen.getByText("Your vote helps choose the next step.")).toBeInTheDocument();
     expect(screen.getByTestId("together-suggest-vote")).toHaveTextContent("Suggest a vote");
@@ -377,6 +458,14 @@ describe("TogetherRoomScreen", () => {
     );
     expect(screen.getByTestId("together-comfort-privacy-note")).toHaveTextContent(
       "You can change what helps anytime.",
+    );
+    expect(screen.getByTestId("together-joining-support")).toHaveTextContent("Access and seating help");
+    expect(screen.getByTestId("together-joining-support")).toHaveTextContent(
+      "Access or a place to sit may matter. VYVA can check place and pace before anyone commits.",
+    );
+    expect(screen.getByTestId("together-joining-support-action")).toHaveTextContent("Ask for access help");
+    expect(screen.getByTestId("together-joining-support-privacy")).toHaveTextContent(
+      "This asks VYVA only. The room still sees totals, not names.",
     );
     expect(screen.getByTestId("together-room-direction")).toHaveTextContent("Gentle room direction");
     expect(screen.getByTestId("together-room-direction")).toHaveTextContent("The room is still choosing.");
@@ -427,23 +516,114 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-useful-next-views")).toHaveTextContent(
       "No shared views to recap yet.",
     );
-    expect(screen.queryByTestId("together-useful-next-activity-action")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-useful-next-activity-action")).toHaveTextContent("Help activity");
+    expect(screen.getByTestId("together-useful-next-vote-action")).toHaveTextContent("Suggest vote");
+    expect(screen.getByTestId("together-useful-next-views-action")).toHaveTextContent("Share view");
     expect(screen.getByTestId("together-useful-next-steps")).toHaveTextContent(
       "VYVA uses signals and totals, not names.",
     );
     expect(screen.getByRole("heading", { name: "What would you like to say?" })).toBeInTheDocument();
     expect(screen.getByText("You can start small.")).toBeInTheDocument();
+    expect(screen.getByTestId("together-daily-question")).toHaveTextContent("Today's gentle question");
+    expect(screen.getByTestId("together-daily-question")).toHaveTextContent(
+      "What would make it easier for you to join in today?",
+    );
+    expect(screen.getByTestId("together-daily-question-action")).toHaveTextContent("Answer gently");
+    expect(screen.getByTestId("together-daily-question-privacy")).toHaveTextContent(
+      "Your answer is shared only when you choose to post it. VYVA checks private details first.",
+    );
     expect(screen.getAllByTestId(/together-starter-/)).toHaveLength(3);
     expect(screen.getByTestId("together-starter-hello")).toHaveTextContent("Say hello");
     expect(screen.getByTestId("together-starter-plan")).toHaveTextContent("Suggest a plan");
     expect(screen.getByTestId("together-starter-ask")).toHaveTextContent("Ask VYVA");
     expect(screen.queryByTestId("together-starter-view")).not.toBeInTheDocument();
+    const simpleOrder = [
+      screen.getByTestId("together-member-strip"),
+      screen.getByTestId("together-featured-plan"),
+      screen.getByTestId("together-room-choice"),
+      screen.getByTestId("together-starter-hello"),
+      screen.getByTestId("together-support-panels"),
+    ];
+    simpleOrder.slice(0, -1).forEach((item, index) => {
+      expect(
+        item.compareDocumentPosition(simpleOrder[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
     expect(screen.getByTestId("together-view-sharing-note")).toHaveTextContent(
       "You can share a short view with kind words and no personal contact details.",
     );
     expect(screen.queryByTestId("together-view-circle")).not.toBeInTheDocument();
     expect(screen.queryByTestId("together-view-starters")).not.toBeInTheDocument();
     expect(screen.getAllByText("Contact is shared only when both people agree.").length).toBeGreaterThan(0);
+  });
+
+  it("turns today's room notes into a gentle next action", () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+      fireEvent.click(screen.getByTestId("together-room-notes-next-action"));
+
+      expect(screen.getByTestId("together-room-notes-next-action")).toHaveTextContent("Choose a gentle start");
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+      expect(screen.getByTestId("together-participation-path")).toHaveFocus();
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
+  it("turns waiting useful next steps into gentle contribution actions", () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+      fireEvent.click(screen.getByTestId("together-useful-next-activity-action"));
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+      expect(screen.getByTestId("together-featured-plan")).toHaveFocus();
+
+      fireEvent.click(screen.getByTestId("together-useful-next-vote-action"));
+      expect(screen.getByTestId("together-ask-starters")).toHaveTextContent("Easy questions for VYVA");
+      expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
+        "VYVA, can you turn this into a simple room vote?",
+      );
+
+      fireEvent.click(screen.getByTestId("together-cancel-proposal"));
+      fireEvent.click(screen.getByTestId("together-useful-next-views-action"));
+      expect(screen.getByTestId("together-view-starters")).toHaveTextContent("Kind view starters");
+      expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
+        "I would like to hear gentle views about what matters to us today.",
+      );
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
+  it("renders privacy-safe live member presence from the pulse", () => {
+    const responseWithLivePresence: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        memberPresence: [
+          { id: "member-self", name: "You", statusLabel: "You are here quietly." },
+          { id: "member-present-1", name: "Member 1", statusLabel: "Joining at a quiet pace." },
+          { id: "member-present-2", name: "Member 2", statusLabel: "Listening and joining without pressure." },
+        ],
+      },
+    };
+
+    render(<TogetherRoomScreen roomResponse={responseWithLivePresence} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.getByText("Member 1")).toBeInTheDocument();
+    expect(screen.getByTestId("together-member-status-member-self")).toHaveTextContent("You are here quietly.");
+    expect(screen.getByTestId("together-member-status-member-present-1")).toHaveTextContent("Joining at a quiet pace.");
+    expect(screen.queryByText("safe-haven-private-signals-user")).not.toBeInTheDocument();
   });
 
   it("opens a no-pressure activity detail check with VYVA", () => {
@@ -459,7 +639,7 @@ describe("TogetherRoomScreen", () => {
       'VYVA, please check "Tea and film chat" before anyone commits. Confirm place, time, comfort, cost, and contact only by consent, without names.',
     );
     expect(screen.getByTestId("together-proposal-draft")).toHaveAttribute("rows", "6");
-  });
+  }, 10000);
 
   it("lets seniors turn on larger room text for reading comfort", () => {
     render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
@@ -474,6 +654,7 @@ describe("TogetherRoomScreen", () => {
     expect(room).toHaveClass("together-readable");
     expect(comfortToggle).toHaveTextContent("Large text on");
     expect(comfortToggle).toHaveAttribute("aria-pressed", "true");
+    expect(window.localStorage.getItem(readingComfortPreferenceKey)).toBe("on");
     expect(screen.getByTestId("together-reading-comfort-note")).toHaveTextContent(
       "Large text is on for you in this room only.",
     );
@@ -483,7 +664,162 @@ describe("TogetherRoomScreen", () => {
     expect(room).not.toHaveClass("together-readable");
     expect(comfortToggle).toHaveTextContent("Large text");
     expect(comfortToggle).toHaveAttribute("aria-pressed", "false");
+    expect(window.localStorage.getItem(readingComfortPreferenceKey)).toBeNull();
     expect(screen.queryByTestId("together-reading-comfort-note")).not.toBeInTheDocument();
+  });
+
+  it("reads the room aloud privately when speech support is available", () => {
+    class FakeSpeechSynthesisUtterance {
+      text: string;
+      lang = "";
+      rate = 1;
+      pitch = 1;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    const speak = vi.fn();
+    const cancel = vi.fn();
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+    Object.defineProperty(window, "speechSynthesis", {
+      value: { speak, cancel },
+      configurable: true,
+    });
+
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-read-aloud"));
+
+    expect(screen.getByTestId("together-read-aloud")).toHaveTextContent("Stop reading");
+    expect(screen.getByTestId("together-read-aloud")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Reading the room aloud privately");
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(speak).toHaveBeenCalledTimes(1);
+    const utterance = speak.mock.calls[0][0] as FakeSpeechSynthesisUtterance;
+    expect(utterance.lang).toBe("en-US");
+    expect(utterance.rate).toBeCloseTo(0.88);
+    expect(utterance.text).toContain("Together Room");
+    expect(utterance.text).toContain("Protected room");
+    expect(utterance.text).toContain("Tea and film chat");
+    expect(utterance.text).toContain("Best next tap");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("together-read-aloud"));
+
+    expect(cancel).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("together-read-aloud")).toHaveTextContent("Read aloud");
+    expect(screen.getByTestId("together-read-aloud")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Reading stopped");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("explains when private read aloud is not available", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-read-aloud"));
+
+    expect(screen.getByTestId("together-read-aloud")).toHaveTextContent("Read aloud");
+    expect(screen.getByTestId("together-read-aloud")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent(
+      "Read aloud is not available in this browser.",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("remembers large text for returning seniors on this device", () => {
+    window.localStorage.setItem(readingComfortPreferenceKey, "on");
+
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-room-screen")).toHaveClass("together-readable");
+    expect(screen.getByTestId("together-reading-comfort")).toHaveTextContent("Large text on");
+    expect(screen.getByTestId("together-reading-comfort")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-reading-comfort-note")).toHaveTextContent(
+      "Large text is on for you in this room only.",
+    );
+
+    fireEvent.click(screen.getByTestId("together-reading-comfort"));
+
+    expect(screen.getByTestId("together-room-screen")).not.toHaveClass("together-readable");
+    expect(window.localStorage.getItem(readingComfortPreferenceKey)).toBeNull();
+  });
+
+  it("saves and clears a private room note on this device only", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.change(screen.getByTestId("together-private-note-input"), {
+      target: { value: "Ask about transport before I vote." },
+    });
+
+    expect(screen.getByTestId("together-private-note-count")).toHaveTextContent("186 characters left");
+
+    fireEvent.click(screen.getByTestId("together-private-note-save"));
+
+    expect(window.localStorage.getItem(privateRoomNoteKey)).toBe("Ask about transport before I vote.");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Private note saved");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("together-private-note-clear"));
+
+    expect(screen.getByTestId("together-private-note-input")).toHaveValue("");
+    expect(window.localStorage.getItem(privateRoomNoteKey)).toBeNull();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Private note cleared");
+    expect(screen.getByTestId("together-private-note-clear")).toBeDisabled();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("restores a private room note for returning seniors on this device", () => {
+    window.localStorage.setItem(privateRoomNoteKey, "Remember to ask VYVA for a recap first.");
+
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-private-note-input")).toHaveValue(
+      "Remember to ask VYVA for a recap first.",
+    );
+    expect(screen.getByTestId("together-private-note-clear")).not.toBeDisabled();
+  });
+
+  it("copies today's room notes as a no-name memory aid", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-room-notes-copy"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const copiedText = writeText.mock.calls[0]?.[0] as string;
+
+    expect(copiedText).toContain("Today's room notes");
+    expect(copiedText).toContain("Known now: Vote: still open. Comfort: Easy access. Views: none yet.");
+    expect(copiedText).toContain(
+      "Still open: A few private choices are still needed. One calm view is still welcome. The activity is still being shaped.",
+    );
+    expect(copiedText).toContain("Next help: Start with hello, a comfort choice, or one private vote.");
+    expect(copiedText).toContain("These notes use totals and signals, not names.");
+    expect(copiedText).not.toContain("Carmen");
+    expect(copiedText).not.toContain("Luis");
+    expect(copiedText).not.toContain("Marco");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("together-status-message")).toHaveTextContent("No-name notes copied");
+    });
+  });
+
+  it("gives a gentle message when no-name notes cannot be copied", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-room-notes-copy"));
+
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Could not copy notes");
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("offers quick safe paths into voting, views, and activity help", () => {
@@ -504,6 +840,7 @@ describe("TogetherRoomScreen", () => {
       expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
         "I would like to hear gentle views about what matters to us today.",
       );
+      expect(screen.getByTestId("together-proposal-draft")).toHaveFocus();
       expect(screen.getByTestId("together-view-tone-preview")).toHaveTextContent("Ready to share gently");
       expect(screen.getByTestId("together-composer-preview")).toHaveTextContent("Before you send");
     } finally {
@@ -523,6 +860,23 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
       "VYVA, can you check whether this room feels safe to join today? Please summarize privacy, kindness, and contact safety in simple words, without names.",
     );
+    expect(screen.getByTestId("together-proposal-draft")).toHaveFocus();
+    expect(screen.getByTestId("together-proposal-draft")).toHaveAttribute("rows", "6");
+  });
+
+  it("opens a one-minute room intro with VYVA", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-room-trust-intro"));
+
+    expect(screen.getByTestId("together-ask-starters")).toHaveTextContent("Easy questions for VYVA");
+    expect(screen.getByTestId("together-composer-preview")).toHaveTextContent(
+      "This question will be shared so VYVA can help or turn it into a vote.",
+    );
+    expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
+      "VYVA, please explain this room in one minute: how to vote, share a view, choose an activity, and stay safe, without names or pressure.",
+    );
+    expect(screen.getByTestId("together-proposal-draft")).toHaveFocus();
     expect(screen.getByTestId("together-proposal-draft")).toHaveAttribute("rows", "6");
   });
 
@@ -538,6 +892,7 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
       'VYVA, I am not sure where to start. Please explain why "First, keep the room safe" is the safest next tap and give me one simple option, without names or pressure.',
     );
+    expect(screen.getByTestId("together-proposal-draft")).toHaveFocus();
     expect(screen.getByTestId("together-proposal-draft")).toHaveAttribute("rows", "6");
   });
 
@@ -761,6 +1116,75 @@ describe("TogetherRoomScreen", () => {
     });
   });
 
+  it("lets a member leave quietly without notifying the room", () => {
+    const onBack = vi.fn();
+
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={onBack} />);
+
+    fireEvent.click(screen.getByTestId("together-leave-quietly"));
+
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps quiet pause state when local demo API returns simple success", async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      ok: true,
+      quietPausedAt: "2026-06-04T10:20:00.000Z",
+    }));
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-quiet-pause"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/quiet-pause",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"paused":true'),
+        }),
+      );
+    });
+    expect(screen.getByTestId("together-quiet-pause")).toHaveTextContent("Quiet pause on");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, quietPausedAt: null }));
+    fireEvent.click(screen.getByTestId("together-quiet-pause"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenLastCalledWith(
+        "/api/social/rooms/together-room/quiet-pause",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"paused":false'),
+        }),
+      );
+    });
+    expect(screen.getByTestId("together-quiet-pause")).toHaveTextContent("Pause quietly");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("together-quiet-pause-note")).not.toBeInTheDocument();
+  });
+
+  it("explains when quiet pause cannot be saved", async () => {
+    apiFetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "offline" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    }));
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-quiet-pause"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Quiet pause could not be updated. Please try again.");
+    });
+    expect(screen.getByTestId("together-quiet-pause")).toHaveTextContent("Pause quietly");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("together-quiet-pause-note")).not.toBeInTheDocument();
+  });
+
   it("restores a private quiet pause from the room pulse", () => {
     render(
       <TogetherRoomScreen
@@ -786,6 +1210,64 @@ describe("TogetherRoomScreen", () => {
       "You can keep reading without telling the room.",
     );
     expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps quiet pause on when saving private comfort choices", async () => {
+    const responseWithQuietPause: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+      },
+    };
+    const quietPulse = responseWithQuietPause.pulse!;
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      ok: true,
+      pulse: {
+        ...quietPulse,
+        comfortCheck: {
+          ...quietPulse.comfortCheck,
+          myComfortNeeds: ["quiet_pace"],
+          options: quietPulse.comfortCheck.options.map((option) => (
+            option.id === "quiet_pace" ? { ...option, count: option.count + 1 } : option
+          )),
+          totalResponses: quietPulse.comfortCheck.totalResponses + 1,
+        },
+      },
+    }));
+
+    render(<TogetherRoomScreen roomResponse={responseWithQuietPause} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-arrival-comfort-quiet_pace"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("together-my-safe-choice-comfort")).toHaveTextContent("Quiet pace");
+    });
+
+    expect(screen.getByTestId("together-quiet-pause")).toHaveTextContent("Quiet pause on");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Quiet pace saved");
+    expect(screen.getByTestId("together-status-message")).not.toHaveTextContent(
+      "Quiet pause turned off so this could be sent.",
+    );
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/comfort-check",
+      expect.objectContaining({
+        body: expect.stringContaining('"comfortNeeds":["quiet_pace"]'),
+      }),
+    );
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/quiet-pause",
+      expect.objectContaining({
+        body: expect.stringContaining('"paused":false'),
+      }),
+    );
   });
 
   it("keeps my private choice snapshot current as I choose", async () => {
@@ -858,6 +1340,10 @@ describe("TogetherRoomScreen", () => {
     });
     expect(screen.getByTestId("together-quiet-pause")).toHaveTextContent("Pause quietly");
     expect(screen.queryByTestId("together-quiet-pause-note")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved for later");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent(
+      "Quiet pause turned off so this could be sent.",
+    );
 
     fireEvent.click(screen.getByTestId("together-vote-views"));
     await waitFor(() => {
@@ -869,6 +1355,303 @@ describe("TogetherRoomScreen", () => {
       expect(screen.getByTestId("together-my-safe-choice-comfort")).toHaveTextContent("Quiet pace");
     });
     expect(screen.getByTestId("together-my-safe-choices")).toHaveTextContent("The room sees totals, not your name.");
+  });
+
+  it("lets a member privately remove plan interest without leaving quiet pause", async () => {
+    const responseWithSavedPlan: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+        featuredPlan: {
+          ...roomResponse.pulse!.featuredPlan,
+          responseCounts: { join: 0, maybe: 1 },
+          myResponse: "maybe",
+        },
+      },
+    };
+    render(<TogetherRoomScreen roomResponse={responseWithSavedPlan} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-maybe-plan")).toHaveTextContent("Saved for later");
+    expect(screen.getByTestId("together-clear-plan-choice")).toHaveTextContent("Remove my choice");
+
+    fireEvent.click(screen.getByTestId("together-clear-plan-choice"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Your choice was removed");
+    expect(screen.getByTestId("together-featured-response-summary")).toHaveTextContent("You can be first to choose.");
+    expect(screen.queryByTestId("together-clear-plan-choice")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/plans/tea-film-chat/respond",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"response":"clear"'),
+        }),
+      );
+    });
+  });
+
+  it("lets a member privately pass on a plan without leaving quiet pause", async () => {
+    const responseWithQuietPause: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+      },
+    };
+    const privatePassPulse: SocialRoomPulse = {
+      ...responseWithQuietPause.pulse!,
+      featuredPlan: {
+        ...responseWithQuietPause.pulse!.featuredPlan,
+        responseCounts: { join: 0, maybe: 0, not_for_me: 1 },
+        myResponse: "not_for_me",
+      },
+    };
+    apiFetchMock.mockImplementation((url: string) => {
+      if (url.includes("/plans/tea-film-chat/respond")) {
+        return Promise.resolve(jsonResponse({
+          ok: true,
+          planResponse: {
+            planId: "tea-film-chat",
+            response: "not_for_me",
+            responseCounts: { join: 0, maybe: 0, not_for_me: 1 },
+          },
+          pulse: privatePassPulse,
+        }));
+      }
+
+      return Promise.resolve(jsonResponse({ ok: true, pulse: responseWithQuietPause.pulse }));
+    });
+
+    render(<TogetherRoomScreen roomResponse={responseWithQuietPause} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-plan-choice-note")).toHaveTextContent("Not for me is private");
+
+    fireEvent.click(screen.getByTestId("together-not-for-me-plan"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Kept private: not for me");
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/plans/tea-film-chat/respond",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"response":"not_for_me"'),
+        }),
+      );
+    });
+    expect(screen.getByTestId("together-not-for-me-plan")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-featured-response-summary")).toHaveTextContent("1 passing");
+    expect(screen.getByTestId("together-plan-next-step")).toHaveTextContent(
+      "Not for me was kept private. You can change your mind later.",
+    );
+    expect(screen.getByTestId("together-my-safe-choice-plan")).toHaveTextContent("Private pass");
+    expect(screen.getByTestId("together-clear-plan-choice")).toHaveTextContent("Remove my choice");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    expect(apiFetchMock.mock.calls.some(([url, init]) => (
+      String(url).includes("/quiet-pause") &&
+      String((init as RequestInit | undefined)?.body ?? "").includes('"paused":false')
+    ))).toBe(false);
+  });
+
+  it("lets a member privately remove a room vote without leaving quiet pause", async () => {
+    const responseWithSavedVote: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+        activePoll: {
+          ...roomResponse.pulse!.activePoll,
+          myVote: "views",
+          options: roomResponse.pulse!.activePoll.options.map((option) => (
+            option.id === "views" ? { ...option, votes: 1 } : option
+          )),
+          totalVotes: 1,
+        },
+      },
+    };
+    render(<TogetherRoomScreen roomResponse={responseWithSavedVote} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-clear-vote")).toHaveTextContent("Remove my vote");
+    expect(screen.getByTestId("together-vote-views")).toHaveTextContent("Your choice");
+
+    fireEvent.click(screen.getByTestId("together-clear-vote"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Your vote was removed");
+    expect(screen.queryByTestId("together-clear-vote")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-vote-views")).not.toHaveTextContent("Your choice");
+    expect(screen.getByTestId("together-vote-views")).toHaveTextContent("0 votes");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/polls/daily-room-choice/vote",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"action":"clear"'),
+        }),
+      );
+    });
+  });
+
+  it("lets a member pass the room vote for now without sending a vote", async () => {
+    const quietPulse: SocialRoomPulse = {
+      ...roomResponse.pulse!,
+      safety: {
+        ...roomResponse.pulse!.safety,
+        myQuietPausedAt: "2026-06-04T10:22:00.000Z",
+      },
+    };
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, pulse: quietPulse }));
+
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-pass-vote")).toHaveTextContent("I'll decide later");
+    expect(screen.getByTestId("together-pass-vote")).toHaveTextContent("No vote is sent.");
+    expect(screen.getByTestId("together-pass-vote")).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByTestId("together-pass-vote"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("You can decide later. No vote was sent.");
+    });
+    expect(screen.getByTestId("together-pass-vote")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    expect(screen.getByTestId("together-my-safe-choice-vote")).toHaveTextContent("No vote yet");
+    expect(screen.getByTestId("together-at-glance-votes")).toHaveTextContent("0 votes");
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/quiet-pause",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"paused":true'),
+      }),
+    );
+    expect(apiFetchMock.mock.calls.some(([url]) => String(url).includes("/polls/daily-room-choice/vote"))).toBe(false);
+  });
+
+  it("points my safe choices to the next missing private choice", () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      const initialRender = render(
+        <TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />,
+      );
+
+      expect(screen.getByTestId("together-my-safe-next-action")).toHaveTextContent("Add comfort choice");
+      fireEvent.click(screen.getByTestId("together-my-safe-next-action"));
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+      expect(screen.getByTestId("together-comfort-check")).toHaveFocus();
+      initialRender.unmount();
+
+      const withComfortChoice: SocialRoomResponse = {
+        ...roomResponse,
+        pulse: {
+          ...roomResponse.pulse!,
+          comfortCheck: {
+            ...roomResponse.pulse!.comfortCheck,
+            myComfortNeeds: ["quiet_pace"],
+          },
+        },
+      };
+      const comfortRender = render(
+        <TogetherRoomScreen roomResponse={withComfortChoice} language="en" visitId="visit-1" onBack={vi.fn()} />,
+      );
+
+      expect(screen.getByTestId("together-my-safe-next-action")).toHaveTextContent("Vote privately");
+      fireEvent.click(screen.getByTestId("together-my-safe-next-action"));
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+      expect(screen.getByTestId("together-room-choice")).toHaveFocus();
+      comfortRender.unmount();
+
+      const withComfortAndVote: SocialRoomResponse = {
+        ...withComfortChoice,
+        pulse: {
+          ...withComfortChoice.pulse!,
+          activePoll: {
+            ...withComfortChoice.pulse!.activePoll,
+            myVote: "views",
+          },
+        },
+      };
+      const voteRender = render(
+        <TogetherRoomScreen roomResponse={withComfortAndVote} language="en" visitId="visit-1" onBack={vi.fn()} />,
+      );
+
+      expect(screen.getByTestId("together-my-safe-next-action")).toHaveTextContent("Choose activity");
+      fireEvent.click(screen.getByTestId("together-my-safe-next-action"));
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+      expect(screen.getByTestId("together-featured-plan")).toHaveFocus();
+      voteRender.unmount();
+
+      const withAllPrivateChoices: SocialRoomResponse = {
+        ...withComfortAndVote,
+        pulse: {
+          ...withComfortAndVote.pulse!,
+          featuredPlan: {
+            ...withComfortAndVote.pulse!.featuredPlan,
+            myResponse: "maybe",
+          },
+        },
+      };
+      render(<TogetherRoomScreen roomResponse={withAllPrivateChoices} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+      expect(screen.queryByTestId("together-my-safe-next-action")).not.toBeInTheDocument();
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
+  it("keeps optimistic safe choices when local demo actions return simple success", async () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-acknowledge-agreement"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("together-room-promise")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Room promise saved");
+
+    fireEvent.click(screen.getByTestId("together-maybe-plan"));
+    await waitFor(() => {
+      expect(screen.getByTestId("together-my-safe-choice-plan")).toHaveTextContent("Saved for later");
+    });
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Saved for later");
+
+    fireEvent.click(screen.getByTestId("together-vote-views"));
+    await waitFor(() => {
+      expect(screen.getByTestId("together-my-safe-choice-vote")).toHaveTextContent("Share views");
+    });
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Your vote is saved");
+
+    fireEvent.click(screen.getByTestId("together-comfort-check-quiet_pace"));
+    await waitFor(() => {
+      expect(screen.getByTestId("together-my-safe-choice-comfort")).toHaveTextContent("Quiet pace");
+    });
+    expect(screen.getByTestId("together-comfort-check-quiet_pace")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Comfort choice saved");
+    expect(screen.queryByText("Could not post it. Please try again.")).not.toBeInTheDocument();
   });
 
   it("opens a gentle vote suggestion from the room vote card", () => {
@@ -1532,6 +2315,14 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-room-notes-next")).toHaveTextContent(
       'VYVA can prepare "Tea and film chat" as one safe step.',
     );
+    expect(screen.getByTestId("together-room-notes-next-action")).toHaveTextContent("Prepare this step");
+
+    fireEvent.click(screen.getByTestId("together-room-notes-next-action"));
+    expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
+      'VYVA, "Tea and film chat" looks ready. Room signals: Interest: 1 joining | 1 maybe; Comfort: Quiet pace; Activity helpers: Help choose. Can you prepare the next simple and safe step?',
+    );
+    fireEvent.click(screen.getByTestId("together-cancel-proposal"));
+
     expect(screen.getByTestId("together-useful-next-steps")).toHaveTextContent("Useful next steps");
     expect(screen.getByTestId("together-useful-next-activity")).toHaveTextContent(
       "Ready for VYVA to prepare one safe next step.",
@@ -1576,7 +2367,7 @@ describe("TogetherRoomScreen", () => {
       "The room is choosing to share views. VYVA helps replies stay kind.",
     );
     expect(screen.getByTestId("together-vote-impact-choice")).toHaveTextContent(
-      "Your vote: Share views. You can change it while voting stays open.",
+      "Your vote: Share views. You can change or remove it while voting stays open.",
     );
     expect(screen.getByTestId("together-room-summary-next")).toHaveTextContent("Share one kind view, with no pressure.");
     expect(screen.getByTestId("together-decision-guide")).toHaveTextContent("Share one kind view, with no pressure.");
@@ -1815,7 +2606,7 @@ describe("TogetherRoomScreen", () => {
       );
     });
     await waitFor(() => {
-      expect(screen.getByTestId("together-view-circle-review-view-1")).toHaveTextContent("VYVA will review this item gently.");
+      expect(screen.getByTestId("together-view-circle-review-view-1")).toHaveTextContent("Sent to VYVA");
     });
 
     fireEvent.click(screen.getByTestId("together-view-circle-add"));
@@ -2247,7 +3038,7 @@ describe("TogetherRoomScreen", () => {
     fireEvent.click(screen.getByTestId("together-join-plan"));
     expect(screen.getAllByText("You joined").length).toBeGreaterThan(0);
     expect(screen.getByTestId("together-plan-choice-note")).toHaveTextContent(
-      "Maybe keeps it saved while VYVA helps confirm details.",
+      "Not for me is private and helps VYVA avoid pressure.",
     );
     expect(screen.getByTestId("together-plan-next-step")).toHaveTextContent(
       "You showed interest. VYVA helps confirm details before contact is shared.",
@@ -2389,9 +3180,15 @@ describe("TogetherRoomScreen", () => {
 
     expect(quickHelp).toHaveAttribute("aria-expanded", "true");
     expect(footerHelp).toHaveAttribute("aria-expanded", "false");
+    await waitFor(() => {
+      expect(screen.getByTestId("together-safety-help-panel")).toHaveFocus();
+    });
     expect(screen.getByTestId("together-safety-help-panel")).toHaveTextContent("What should VYVA check?");
     expect(screen.getByTestId("together-safety-help-panel")).toHaveTextContent(
       "The room will not see this help request.",
+    );
+    expect(screen.getByTestId("together-safety-urgent-note")).toHaveTextContent(
+      "If something urgent is happening now, use local emergency help. VYVA is not a substitute for immediate help.",
     );
     expect(screen.getByTestId("together-safety-choice-uncomfortable")).toHaveAccessibleName(
       "I feel uneasy: Something in the room does not feel right.",
@@ -2419,12 +3216,18 @@ describe("TogetherRoomScreen", () => {
       expect(screen.queryByTestId("together-safety-help-panel")).not.toBeInTheDocument();
     });
     expect(quickHelp).toHaveAttribute("aria-expanded", "false");
+    await waitFor(() => {
+      expect(screen.getByTestId("together-safety-help-receipt")).toHaveFocus();
+    });
     expect(screen.getByTestId("together-safety-help-receipt")).toHaveTextContent("Help request sent");
     expect(screen.getByTestId("together-safety-help-receipt")).toHaveTextContent(
       "VYVA will review: I feel uneasy. The room will not see this request.",
     );
     expect(screen.getByTestId("together-safety-help-receipt")).toHaveTextContent(
       "VYVA reviews it without showing your name.",
+    );
+    expect(screen.getByTestId("together-safety-help-receipt")).toHaveTextContent(
+      "If something urgent is happening now, use local emergency help.",
     );
   });
 
@@ -2583,6 +3386,7 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-plan-collaboration-choose")).toHaveTextContent(
       "I can help choose one simple option for the group.",
     );
+    expect(screen.getByTestId("together-plan-collaboration-choose")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("together-plan-collaboration-buddy")).toHaveTextContent("Meet together");
     expect(screen.getByTestId("together-plan-collaboration-buddy")).toHaveTextContent(
       "It would help to meet with someone before joining.",
@@ -2604,6 +3408,79 @@ describe("TogetherRoomScreen", () => {
     expect(body.body).toBe("I can help choose one simple option for the group.");
     expect(screen.getByTestId("together-featured-reply-reply-plan-1")).toHaveTextContent("simple option");
     expect(screen.getByTestId("together-my-safe-choice-help")).toHaveTextContent("Tea and film chat: Help choose");
+    expect(screen.getByTestId("together-plan-collaboration-choose")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("lets a member privately remove an activity helper without leaving quiet pause", async () => {
+    const responseWithHelperAndQuietPause: SocialRoomResponse = {
+      ...roomResponse,
+      quietPausedAt: "2026-06-04T10:20:00.000Z",
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+        featuredPlan: {
+          ...roomResponse.pulse!.featuredPlan,
+          myHelperActions: ["choose"],
+          replies: [
+            {
+              id: "reply-plan-choose",
+              planKey: "tea-film-chat",
+              authorName: "Member",
+              body: "I can help choose one simple option for the group.",
+              tone: "help",
+              status: "active",
+              createdAt: "2026-06-04T10:06:00.000Z",
+            },
+          ],
+        },
+      },
+    };
+    const clearedPulse: SocialRoomPulse = {
+      ...responseWithHelperAndQuietPause.pulse!,
+      featuredPlan: {
+        ...responseWithHelperAndQuietPause.pulse!.featuredPlan,
+        myHelperActions: [],
+        replies: [],
+      },
+    };
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, pulse: clearedPulse }));
+
+    render(<TogetherRoomScreen roomResponse={responseWithHelperAndQuietPause} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    const chooseButton = screen.getByTestId("together-plan-collaboration-choose");
+    expect(chooseButton).toHaveAttribute("aria-pressed", "true");
+    expect(chooseButton).toHaveAccessibleName(
+      "Remove Help choose: This removes only your helper signal.",
+    );
+    expect(screen.getByTestId("together-my-safe-choice-help")).toHaveTextContent("Tea and film chat: Help choose");
+    expect(screen.getByTestId("together-plan-helper-choose")).toHaveAttribute("aria-label", "Help choose: 1");
+    expect(screen.getByTestId("together-plan-readiness-helper")).toHaveTextContent("1 small helper is offered.");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByTestId("together-plan-collaboration-choose"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/plans/tea-film-chat/helpers/choose/clear",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(screen.getByTestId("together-plan-collaboration-choose")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("together-my-safe-choice-help")).toHaveTextContent("No helper choice yet");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Helper choice removed");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "without telling the room",
+    );
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/quiet-pause",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"paused":false'),
+      }),
+    );
   });
 
   it("guides seniors to one low-pressure activity helper", async () => {
@@ -2892,6 +3769,10 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-shared-plan-readiness-experience-1-helper")).toHaveTextContent(
       "1 small helper is offered.",
     );
+    expect(screen.getByTestId("together-shared-plan-collaboration-choose-experience-1")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(screen.getByTestId("together-shared-plan-readiness-experience-1-action")).toHaveTextContent(
       "Ask VYVA for the next step",
     );
@@ -2940,7 +3821,7 @@ describe("TogetherRoomScreen", () => {
     render(<TogetherRoomScreen roomResponse={responseWithReadyActivity} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByTestId("together-activity-ready")).toHaveTextContent("VYVA can prepare this");
-    expect(screen.getByTestId("together-activity-ready")).toHaveTextContent("Private and no-pressure");
+    expect(screen.getByTestId("together-activity-ready")).toHaveTextContent("Private and no pressure");
     expect(screen.getByTestId("together-activity-ready")).toHaveTextContent("before anyone commits");
     expect(screen.getByTestId("together-activity-ready-signals")).toHaveTextContent("Signals without names");
     expect(screen.getByTestId("together-activity-ready-signals")).toHaveTextContent("Interest: 1 joining | 1 maybe");
@@ -2994,8 +3875,14 @@ describe("TogetherRoomScreen", () => {
     );
     expect(screen.getByTestId("together-activity-ready-prep")).toHaveTextContent("Before VYVA prepares it");
     expect(screen.getByTestId("together-activity-ready-prep")).toHaveTextContent("Confirm place, time, cost and access.");
+    expect(screen.getByTestId("together-update-action-activity-ready-secondary")).toHaveTextContent(
+      "Ask VYVA for the next step",
+    );
+    expect(screen.getByTestId("together-update-action-safety-activity-ready-secondary")).toHaveTextContent(
+      "Private and no pressure",
+    );
 
-    fireEvent.click(screen.getByTestId("together-activity-ready-action"));
+    fireEvent.click(screen.getByTestId("together-update-action-activity-ready-secondary"));
 
     expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
       'VYVA, "Quiet lunch nearby" looks ready. Room signals: Comfort: Easy access, Place to sit, Transport help, 2 more comfort notes. Can you prepare the next simple and safe step?',
@@ -3109,6 +3996,45 @@ describe("TogetherRoomScreen", () => {
       expect(screen.getByTestId("together-plan-comfort-experience-1")).not.toHaveTextContent("Know cost first");
     });
     expect(screen.getByTestId("together-plan-fit-experience-1")).toHaveTextContent("Restaurant date");
+  });
+
+  it("keeps quiet pause and the draft in place when a proposal cannot be sent", async () => {
+    const responseWithQuietPause: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+      },
+    };
+    apiFetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: "offline" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    render(<TogetherRoomScreen roomResponse={responseWithQuietPause} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-starter-plan"));
+    fireEvent.change(screen.getByTestId("together-proposal-draft"), {
+      target: { value: "Tea at a quiet cafe" },
+    });
+    fireEvent.click(screen.getByLabelText("Send"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Could not post it. Please try again.");
+    });
+
+    expect(screen.getByTestId("together-quiet-pause")).toHaveTextContent("Quiet pause on");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    expect(screen.getByTestId("together-proposal-draft")).toHaveValue("Tea at a quiet cafe");
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    expect(apiFetchMock.mock.calls[0][0]).toBe("/api/social/rooms/together-room/proposals");
+    expect(apiFetchMock.mock.calls.some(([url]) => String(url).includes("/quiet-pause"))).toBe(false);
   });
 
   it("keeps proposal notes inside the room limits before posting", async () => {
@@ -3367,6 +4293,44 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-view-sharing-note")).toHaveTextContent(
       "You can share a short view with kind words and no personal contact details.",
     );
+  });
+
+  it("opens the daily gentle question as a safe shared view draft", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-daily-question-action"));
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("together-view-starters")).toHaveTextContent("Kind view starters");
+    expect(screen.getByTestId("together-composer-preview")).toHaveTextContent(
+      "This note will be shared as a short view, with gentle replies nearby.",
+    );
+    expect(screen.getByTestId("together-composer-preview-message-shared")).toHaveTextContent(
+      "The room sees the sentence and can reply with gentle buttons.",
+    );
+    expect(screen.getByPlaceholderText("Write one small idea...")).toHaveValue(
+      "What would make it easier for me to join today is...",
+    );
+    expect(screen.queryByText("What kind of experience?")).not.toBeInTheDocument();
+  });
+
+  it("opens safe joining support as a VYVA question draft", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId("together-joining-support-action"));
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("together-ask-starters")).toHaveTextContent("Easy questions for VYVA");
+    expect(screen.getByTestId("together-composer-preview")).toHaveTextContent(
+      "This question will be shared so VYVA can help or turn it into a vote.",
+    );
+    expect(screen.getByTestId("together-composer-preview-question-private")).toHaveTextContent(
+      "Your votes and comfort needs stay private.",
+    );
+    expect(screen.getByPlaceholderText("Write one small idea...")).toHaveValue(
+      "VYVA, please check access, seating, and a quiet pace for the next plan. Use totals, not names, and keep contact private.",
+    );
+    expect(screen.queryByText("What kind of experience?")).not.toBeInTheDocument();
   });
 
   it("submits the Say hello starter as an open-room message", async () => {
@@ -3630,6 +4594,7 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByText("View")).toBeInTheDocument();
     expect(screen.queryByTestId("together-plan-location-experience-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("together-plan-comfort-experience-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("together-withdraw-item-experience-1")).not.toBeInTheDocument();
     expect(screen.getByTestId("together-reply-guide-experience-1")).toHaveTextContent("Kind reply space");
     expect(screen.getByTestId("together-reply-guide-experience-1")).toHaveTextContent(
       "If a reply feels wrong, VYVA can review it.",
@@ -3645,6 +4610,69 @@ describe("TogetherRoomScreen", () => {
         }),
       );
     });
+  });
+
+  it("lets a member hide their own shared view without leaving quiet pause", async () => {
+    const responseWithOwnSharedView: SocialRoomResponse = {
+      ...roomResponse,
+      quietPausedAt: "2026-06-04T10:20:00.000Z",
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+        postedExperiences: [
+          {
+            id: "experience-own-view",
+            key: "experience-own-view",
+            kind: "message",
+            title: "I prefer a quiet start",
+            body: "A short check-in would help me join.",
+            locationLabel: "online",
+            startsAt: null,
+            status: "active",
+            source: "user",
+            createdBy: "demo-user",
+            ownedByMe: true,
+            createdAt: "2026-06-04T10:00:00.000Z",
+            responseCounts: { join: 0, maybe: 0 },
+            myResponse: null,
+          },
+        ],
+      },
+    };
+    const withdrawnPulse: SocialRoomPulse = {
+      ...responseWithOwnSharedView.pulse!,
+      postedExperiences: [],
+    };
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, pulse: withdrawnPulse }));
+
+    render(<TogetherRoomScreen roomResponse={responseWithOwnSharedView} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    const withdrawButton = screen.getByTestId("together-withdraw-item-experience-own-view");
+    expect(withdrawButton).toHaveAccessibleName("Hide my share: I prefer a quiet start");
+    expect(withdrawButton.closest("article")).toHaveTextContent("I prefer a quiet start");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(withdrawButton);
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/plans/experience-own-view/withdraw",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(screen.queryByTestId("together-withdraw-item-experience-own-view")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Your share was removed from the room");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/quiet-pause",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"paused":false'),
+      }),
+    );
   });
 
   it("keeps hidden replies out of shared idea conversations", () => {
@@ -3937,6 +4965,99 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Reply shared");
   });
 
+  it("lets a member hide their own gentle reply without leaving quiet pause", async () => {
+    const ownReply = {
+      id: "reply-own",
+      planKey: "experience-1",
+      authorName: "Member",
+      body: "That sounds gentle.",
+      tone: "support" as const,
+      status: "active",
+      ownedByMe: true,
+      createdAt: "2026-06-04T10:05:00.000Z",
+    };
+    const otherReply = {
+      id: "reply-other",
+      planKey: "experience-1",
+      authorName: "Member",
+      body: "I would like to know more.",
+      tone: "curious" as const,
+      status: "active",
+      ownedByMe: false,
+      createdAt: "2026-06-04T10:06:00.000Z",
+    };
+    const sharedIdea: SocialRoomPlan = {
+      id: "experience-1",
+      key: "experience-1",
+      kind: "message",
+      title: "A calm cafe idea",
+      body: "I would like a quiet place for a short conversation.",
+      locationLabel: "online",
+      startsAt: null,
+      status: "active",
+      source: "user",
+      createdBy: "demo-user",
+      createdAt: "2026-06-04T10:00:00.000Z",
+      responseCounts: { join: 0, maybe: 0 },
+      myResponse: null,
+      replies: [ownReply, otherReply],
+    };
+    const responseWithOwnReply: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+        postedExperiences: [sharedIdea],
+      },
+    };
+    const withdrawnPulse: SocialRoomPulse = {
+      ...responseWithOwnReply.pulse!,
+      postedExperiences: [
+        {
+          ...sharedIdea,
+          replies: [otherReply],
+        },
+      ],
+    };
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({
+      ok: true,
+      withdrawnReply: { planId: "experience-1", replyId: "reply-own", withdrawn: true },
+      pulse: withdrawnPulse,
+    }));
+
+    render(<TogetherRoomScreen roomResponse={responseWithOwnReply} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    const withdrawButton = screen.getByTestId("together-withdraw-reply-reply-own");
+    expect(withdrawButton).toHaveAccessibleName("Hide my reply: That sounds gentle.");
+    expect(withdrawButton).toHaveClass("min-h-[44px]");
+    expect(screen.queryByTestId("together-withdraw-reply-reply-other")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-reply-reply-own")).toHaveTextContent("That sounds gentle.");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(withdrawButton);
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/plans/experience-1/replies/reply-own/withdraw",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(screen.queryByTestId("together-reply-reply-own")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-reply-reply-other")).toHaveTextContent("I would like to know more.");
+    expect(screen.getByTestId("together-status-message")).toHaveTextContent("Your reply was removed from the room");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/quiet-pause",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"paused":false'),
+      }),
+    );
+  });
+
   it("prevents repeated gentle replies while the first one is sending", async () => {
     const responseWithSharedIdea: SocialRoomResponse = {
       ...roomResponse,
@@ -4042,6 +5163,7 @@ describe("TogetherRoomScreen", () => {
 
     const reviewButton = screen.getByTestId("together-review-reply-reply-1");
     expect(reviewButton).toHaveTextContent("Review reply");
+    expect(reviewButton).toHaveClass("min-h-[44px]");
 
     fireEvent.click(reviewButton);
     fireEvent.click(reviewButton);
@@ -4061,7 +5183,7 @@ describe("TogetherRoomScreen", () => {
     expect(body).toContain('"targetId":"reply-1"');
     expect(body).toContain("That sounds gentle.");
     await waitFor(() => {
-      expect(reviewButton).toHaveTextContent("VYVA will review this item gently.");
+      expect(reviewButton).toHaveTextContent("Sent to VYVA");
     });
     expect(reviewButton).toBeDisabled();
   });
@@ -4112,9 +5234,114 @@ describe("TogetherRoomScreen", () => {
     expect(body).toContain('"targetType":"question"');
     expect(body).toContain('"targetId":"experience-question-1"');
     await waitFor(() => {
-      expect(reviewButton).toHaveTextContent("VYVA will review this item gently.");
+      expect(reviewButton).toHaveTextContent("Sent to VYVA");
     });
     expect(reviewButton).toBeDisabled();
+  });
+
+  it("keeps already reviewed shared items disabled from the room pulse", () => {
+    const responseWithReceipts: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          reportedItemKeys: ["reply:reply-1", "plan:experience-1", "plan:experience-question-1"],
+          reportedItemStatuses: [
+            {
+              itemKey: "reply:reply-1",
+              status: "resolved",
+              updatedAt: "2026-06-04T10:15:00.000Z",
+            },
+            {
+              itemKey: "plan:experience-1",
+              status: "dismissed",
+              updatedAt: "2026-06-04T10:14:00.000Z",
+            },
+            {
+              itemKey: "plan:experience-question-1",
+              status: "reviewing",
+              updatedAt: "2026-06-04T10:13:00.000Z",
+            },
+          ],
+        },
+        postedExperiences: [
+          {
+            id: "experience-1",
+            key: "experience-1",
+            kind: "message",
+            title: "A calm cafe idea",
+            body: "I would like a quiet place for a short conversation.",
+            locationLabel: "online",
+            startsAt: null,
+            status: "active",
+            source: "user",
+            createdBy: "demo-user",
+            createdAt: "2026-06-04T10:00:00.000Z",
+            responseCounts: { join: 0, maybe: 0 },
+            myResponse: null,
+            replies: [
+              {
+                id: "reply-1",
+                planKey: "experience-1",
+                authorName: "Member",
+                body: "That sounds gentle.",
+                tone: "support",
+                status: "active",
+                createdAt: "2026-06-04T10:05:00.000Z",
+              },
+            ],
+          },
+          {
+            id: "experience-question-1",
+            key: "experience-question-1",
+            kind: "question",
+            title: "Can VYVA help me choose?",
+            body: "I want an easy way to join in.",
+            locationLabel: "online",
+            startsAt: null,
+            status: "active",
+            source: "user",
+            createdBy: "demo-user",
+            createdAt: "2026-06-04T10:10:00.000Z",
+            responseCounts: { join: 0, maybe: 0 },
+            myResponse: null,
+          },
+        ],
+      },
+    };
+
+    render(<TogetherRoomScreen roomResponse={responseWithReceipts} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    const replyReviewButton = screen.getByTestId("together-review-reply-reply-1");
+    const viewReviewButton = screen.getByTestId("together-view-circle-review-experience-1");
+    const questionReviewButton = screen.getByTestId("together-review-item-experience-question-1");
+    const issueReviewButton = screen.getByTestId("together-issue-review-experience-question-1");
+    const reviewUpdates = screen.getByTestId("together-my-review-updates");
+
+    expect(replyReviewButton).toHaveTextContent("VYVA checked this");
+    expect(replyReviewButton).toBeDisabled();
+    expect(viewReviewButton).toHaveTextContent("VYVA looked at this");
+    expect(viewReviewButton).toBeDisabled();
+    expect(questionReviewButton).toHaveTextContent("VYVA is checking this");
+    expect(questionReviewButton).toBeDisabled();
+    expect(issueReviewButton).toHaveTextContent("VYVA is checking this");
+    expect(issueReviewButton).toBeDisabled();
+    expect(reviewUpdates).toHaveTextContent("VYVA review updates");
+    expect(reviewUpdates).toHaveTextContent("Only you see these review states.");
+    expect(reviewUpdates).toHaveTextContent("Reply: That sounds gentle.");
+    expect(reviewUpdates).toHaveTextContent("VYVA checked this");
+    expect(reviewUpdates).toHaveTextContent("A calm cafe idea");
+    expect(reviewUpdates).toHaveTextContent("VYVA looked at this");
+    expect(reviewUpdates).toHaveTextContent("Can VYVA help me choose?");
+    expect(reviewUpdates).toHaveTextContent("VYVA is checking this");
+
+    fireEvent.click(replyReviewButton);
+    fireEvent.click(viewReviewButton);
+    fireEvent.click(questionReviewButton);
+    fireEvent.click(issueReviewButton);
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("shows question proposals as possible future votes", async () => {
@@ -4190,6 +5417,9 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-issue-mini-poll-experience-question-1")).toHaveTextContent("Simple vote");
     expect(screen.getByTestId("together-issue-mini-poll-experience-question-1")).toHaveTextContent("This vote is private too.");
     expect(screen.getByTestId("together-issue-poll-experience-question-1-yes")).toHaveTextContent("Yes, this matters");
+    expect(screen.getByTestId("together-issue-poll-pass-experience-question-1")).toHaveTextContent("I'll decide later");
+    expect(screen.getByTestId("together-issue-poll-pass-experience-question-1")).toHaveTextContent("No vote is sent.");
+    expect(screen.getByTestId("together-issue-poll-pass-experience-question-1")).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(screen.getByTestId("together-issue-support-experience-question-1"));
 
@@ -4217,6 +5447,7 @@ describe("TogetherRoomScreen", () => {
     await waitFor(() => {
       expect(screen.getByTestId("together-issue-poll-experience-question-1-yes")).toHaveTextContent("Your choice");
     });
+    expect(screen.queryByTestId("together-issue-poll-pass-experience-question-1")).not.toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByTestId("together-issue-readiness-state-experience-question-1")).toHaveTextContent(
         "Ready to summarize",
@@ -4242,6 +5473,178 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-ask-starters")).toHaveTextContent("Easy questions for VYVA");
     expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
       'VYVA, please summarize the private vote about "Can we vote on cost first?". The current signal is: Yes, this matters. Help the room choose a safe next step, without names.',
+    );
+  });
+
+  it("lets a member pass an issue vote for now without sending a vote", async () => {
+    const responseWithIssueQuestion: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        postedExperiences: [
+          {
+            id: "experience-question-1",
+            key: "experience-question-1",
+            kind: "question",
+            title: "Can we vote on cost first?",
+            body: "I want to know the cost before anyone commits.",
+            locationLabel: "online",
+            startsAt: null,
+            status: "active",
+            source: "user",
+            createdBy: "demo-user",
+            createdAt: "2026-06-04T10:00:00.000Z",
+            responseCounts: { join: 1, maybe: 0 },
+            myResponse: null,
+          },
+        ],
+        issuePolls: [
+          {
+            id: "issue-experience-question-1",
+            key: "issue-experience-question-1",
+            sourcePlanKey: "experience-question-1",
+            question: "Vote: Can we vote on cost first?",
+            status: "active",
+            options: [
+              { id: "yes", label: "Yes, this matters", votes: 0 },
+              { id: "more_info", label: "I need more detail", votes: 0 },
+              { id: "not_now", label: "Not now", votes: 0 },
+            ],
+            totalVotes: 0,
+            myVote: null,
+          },
+        ],
+      },
+    };
+    const quietPulse: SocialRoomPulse = {
+      ...responseWithIssueQuestion.pulse!,
+      safety: {
+        ...responseWithIssueQuestion.pulse!.safety,
+        myQuietPausedAt: "2026-06-04T10:22:00.000Z",
+      },
+    };
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, pulse: quietPulse }));
+
+    render(<TogetherRoomScreen roomResponse={responseWithIssueQuestion} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-issue-poll-pass-experience-question-1")).toHaveTextContent("I'll decide later");
+    expect(screen.getByTestId("together-issue-poll-pass-experience-question-1")).toHaveTextContent("No vote is sent.");
+    expect(screen.getByTestId("together-issue-poll-pass-experience-question-1")).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByTestId("together-issue-poll-pass-experience-question-1"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("You can decide later. No vote was sent.");
+    });
+    expect(screen.getByTestId("together-issue-poll-pass-experience-question-1")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    expect(screen.getByTestId("together-my-safe-choice-vote")).toHaveTextContent("No vote yet");
+    expect(screen.getByTestId("together-at-glance-votes")).toHaveTextContent("0 votes");
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/quiet-pause",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"paused":true'),
+      }),
+    );
+    expect(apiFetchMock.mock.calls.some(([url]) => String(url).includes("/polls/issue-experience-question-1/vote"))).toBe(false);
+  });
+
+  it("lets a member privately remove an issue vote without leaving quiet pause", async () => {
+    const responseWithIssueVote: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        safety: {
+          ...roomResponse.pulse!.safety,
+          myQuietPausedAt: "2026-06-04T10:20:00.000Z",
+        },
+        postedExperiences: [
+          {
+            id: "experience-question-1",
+            key: "experience-question-1",
+            kind: "question",
+            title: "Can we vote on cost first?",
+            body: "I want to know the cost before anyone commits.",
+            locationLabel: "online",
+            startsAt: null,
+            status: "active",
+            source: "user",
+            createdBy: "demo-user",
+            createdAt: "2026-06-04T10:00:00.000Z",
+            responseCounts: { join: 1, maybe: 0 },
+            myResponse: null,
+          },
+        ],
+        issuePolls: [
+          {
+            id: "issue-experience-question-1",
+            key: "issue-experience-question-1",
+            sourcePlanKey: "experience-question-1",
+            question: "Vote: Can we vote on cost first?",
+            status: "active",
+            options: [
+              { id: "yes", label: "Yes, this matters", votes: 1 },
+              { id: "more_info", label: "I need more detail", votes: 0 },
+              { id: "not_now", label: "Not now", votes: 0 },
+            ],
+            totalVotes: 1,
+            myVote: "yes",
+          },
+        ],
+      },
+    };
+    const clearedPulse: SocialRoomPulse = {
+      ...responseWithIssueVote.pulse!,
+      issuePolls: [
+        {
+          ...responseWithIssueVote.pulse!.issuePolls![0],
+          options: responseWithIssueVote.pulse!.issuePolls![0].options.map((option) => (
+            option.id === "yes" ? { ...option, votes: 0 } : option
+          )),
+          totalVotes: 0,
+          myVote: null,
+        },
+      ],
+    };
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, pulse: clearedPulse }));
+
+    render(<TogetherRoomScreen roomResponse={responseWithIssueVote} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-issue-mini-poll-experience-question-1")).toHaveTextContent(
+      "Choose one option. You can change or remove it while voting is open.",
+    );
+    expect(screen.getByTestId("together-issue-poll-experience-question-1-yes")).toHaveTextContent("Your choice");
+    expect(screen.getByTestId("together-issue-poll-clear-experience-question-1")).toHaveTextContent("Remove my vote");
+
+    fireEvent.click(screen.getByTestId("together-issue-poll-clear-experience-question-1"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Your vote was removed");
+    });
+    expect(screen.queryByTestId("together-issue-poll-clear-experience-question-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("together-issue-poll-experience-question-1-yes")).not.toHaveTextContent("Your choice");
+    expect(screen.getByTestId("together-issue-poll-experience-question-1-yes")).toHaveTextContent("0 votes");
+    expect(screen.getByTestId("together-my-safe-choice-vote")).toHaveTextContent("No vote yet");
+    expect(screen.getByTestId("together-quiet-pause")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("together-quiet-pause-note")).toHaveTextContent(
+      "You can keep reading without telling the room.",
+    );
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/polls/issue-experience-question-1/vote",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"action":"clear"'),
+      }),
+    );
+    expect(apiFetchMock).not.toHaveBeenCalledWith(
+      "/api/social/rooms/together-room/quiet-pause",
+      expect.objectContaining({
+        body: expect.stringContaining('"paused":false'),
+      }),
     );
   });
 
@@ -4294,6 +5697,59 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-issue-poll-outcome-reassurance-experience-question-1")).toHaveTextContent(
       "Other choices still count. VYVA can include them without names.",
     );
+  });
+
+  it("shows paused issue poll results without accepting another vote", () => {
+    const responseWithClosedIssuePoll: SocialRoomResponse = {
+      ...roomResponse,
+      pulse: {
+        ...roomResponse.pulse!,
+        postedExperiences: [
+          {
+            id: "experience-question-1",
+            key: "experience-question-1",
+            kind: "question",
+            title: "Can we vote on cost first?",
+            body: "I want to know the cost before anyone commits.",
+            locationLabel: "online",
+            startsAt: null,
+            status: "active",
+            source: "user",
+            createdBy: "demo-user",
+            createdAt: "2026-06-04T10:00:00.000Z",
+            responseCounts: { join: 2, maybe: 1 },
+            myResponse: null,
+          },
+        ],
+        issuePolls: [
+          {
+            id: "issue-experience-question-1",
+            key: "issue-experience-question-1",
+            sourcePlanKey: "experience-question-1",
+            question: "Vote: Can we vote on cost first?",
+            status: "closed",
+            options: [
+              { id: "yes", label: "Yes, this matters", votes: 2 },
+              { id: "more_info", label: "I need more detail", votes: 1 },
+              { id: "not_now", label: "Not now", votes: 0 },
+            ],
+            totalVotes: 3,
+            myVote: null,
+          },
+        ],
+      },
+    };
+
+    render(<TogetherRoomScreen roomResponse={responseWithClosedIssuePoll} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-issue-mini-poll-experience-question-1")).toHaveTextContent(
+      "VYVA paused this vote for review. Totals stay visible, but no new votes are accepted.",
+    );
+    expect(screen.getByTestId("together-issue-poll-experience-question-1-yes")).toBeDisabled();
+    expect(screen.queryByTestId("together-issue-poll-pass-experience-question-1")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("together-issue-poll-experience-question-1-yes"));
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
   it("turns a vote-ready room update into a clear private-vote action", () => {
@@ -4352,8 +5808,10 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-vote-ready")).toHaveTextContent("This question is ready");
     expect(screen.getByTestId("together-vote-ready")).toHaveTextContent("Names stay hidden");
     expect(screen.getByTestId("together-vote-ready")).toHaveTextContent("without names");
+    expect(screen.getByTestId("together-update-action-vote-ready-1")).toHaveTextContent("Ask VYVA to make the vote");
+    expect(screen.getByTestId("together-update-action-safety-vote-ready-1")).toHaveTextContent("Names stay hidden");
 
-    fireEvent.click(screen.getByTestId("together-vote-ready-action"));
+    fireEvent.click(screen.getByTestId("together-update-action-vote-ready-1"));
 
     expect(screen.getByTestId("together-ask-starters")).toHaveTextContent("Easy questions for VYVA");
     expect(screen.getByTestId("together-proposal-draft")).toHaveValue(
@@ -4389,6 +5847,7 @@ describe("TogetherRoomScreen", () => {
 
     expect(screen.getByText("Voting is closed")).toBeInTheDocument();
     expect(screen.getByTestId("together-vote-film")).toBeDisabled();
+    expect(screen.queryByTestId("together-pass-vote")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("together-vote-film"));
     expect(apiFetchMock).not.toHaveBeenCalled();

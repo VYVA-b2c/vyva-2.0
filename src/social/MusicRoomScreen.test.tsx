@@ -239,8 +239,13 @@ describe("MusicRoomScreen", () => {
   it("keeps the extra music studio behind one compact control", () => {
     render(<MusicRoomScreen roomResponse={withMusicCircle()} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Start Stand By Me with Arthur" })).toBeInTheDocument();
+    expect(screen.queryByText("Ask")).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Who remembers it?" })).toHaveClass("lg:col-start-2");
+    expect(screen.getByRole("group", { name: "Songs" })).toHaveClass("lg:row-start-2");
+    expect(screen.getByRole("img", { name: "Today's Song: Stand By Me" })).toHaveClass("lg:max-w-[460px]");
     expect(screen.getByRole("group", { name: "Memory doorways" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Memory doorway: Who for Stand By Me" })).toHaveClass("min-h-[64px]");
+    expect(screen.getByRole("group", { name: "Chorus lane" })).toHaveClass("hidden");
 
     const studioButton = screen.getByRole("button", { name: "Open studio" });
 
@@ -259,7 +264,7 @@ describe("MusicRoomScreen", () => {
 
     render(<MusicRoomScreen roomResponse={withMusicCircle()} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Start Stand By Me with Arthur" }));
+    fireEvent.click(screen.getByRole("button", { name: "Say hello to Arthur" }));
 
     await waitFor(() => {
       const connectCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/connect");
@@ -273,17 +278,65 @@ describe("MusicRoomScreen", () => {
   it("uses a quick memory doorway to retune the top match", async () => {
     render(<MusicRoomScreen roomResponse={withMusicCircle()} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Start Stand By Me with Arthur" })).toBeInTheDocument();
+    expect(screen.queryByText("Ask")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Memory doorway: Dance for Stand By Me" }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Start Dance for Stand By Me with Rosa" })).toBeInTheDocument();
     });
+    const inviteTicket = screen.getByRole("button", { name: "Start Dance for Stand By Me with Rosa" });
+    expect(within(inviteTicket).getByText("Ask")).toBeInTheDocument();
+    expect(within(inviteTicket).getAllByText("Rosa").length).toBeGreaterThan(0);
+    expect(within(inviteTicket).getAllByText("Dance").length).toBeGreaterThan(0);
+    expect(within(inviteTicket).getByText("Boleros")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Today's Song: Stand By Me, Dance" })).toBeInTheDocument();
     expect(within(screen.getByRole("button", { name: "Say hello to Rosa" })).getByText("Dance")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Duet prompt: Dance and Boleros with Rosa for Stand By Me" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Duet prompt: Dance and Boleros with Rosa for Stand By Me" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Needle cue: Dance for Stand By Me" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Memory doorway: Dance for Stand By Me" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("group", { name: "Memory doorways" })).toHaveClass("hidden");
+    expect(screen.getByRole("group", { name: "Chorus lane" })).toHaveClass("hidden");
+    expect(screen.getByRole("group", { name: "Songs" })).toHaveClass("hidden");
     expect(screen.getByRole("status", { name: "Music bridge: Stand By Me, Dance, Rosa" })).toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("spins the song card through memory matches without publishing", async () => {
+    render(<MusicRoomScreen roomResponse={withMusicCircle()} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: "Spin memory: Who for Stand By Me" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Memory doorway: Who for Stand By Me" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Start Who for Stand By Me with Arthur" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("img", { name: "Today's Song: Stand By Me, Who" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spin memory: Dance for Stand By Me" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Spin memory: Dance for Stand By Me" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Start Dance for Stand By Me with Rosa" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("status", { name: "Duet prompt: Dance and Boleros with Rosa for Stand By Me" })).toBeInTheDocument();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("plays the song pulse as a beat handoff without publishing", async () => {
+    render(<MusicRoomScreen roomResponse={withMusicCircle()} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Play pulse for Stand By Me" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Start Beat for Stand By Me with Malik" })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("status", { name: "Beat 1: Stand By Me to Malik" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Room pulse: 5" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Songs" })).toHaveClass("hidden");
+    expect(screen.getByRole("button", { name: "Play pulse for Stand By Me" })).toBeInTheDocument();
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
@@ -518,7 +571,7 @@ describe("MusicRoomScreen", () => {
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
-  it("shows a tappable chorus lane for matched people", async () => {
+  it("shows tappable next-duet matches for people", async () => {
     apiFetchMock.mockResolvedValueOnce(jsonResponse({}));
 
     render(
@@ -538,7 +591,7 @@ describe("MusicRoomScreen", () => {
     expect(screen.getByRole("status", { name: "Duet pickup: Duet with Arthur" })).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Duet card: Duet with Arthur" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Chorus lane: Arthur for Stand By Me" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next duet: Stand By Me with Arthur" }));
 
     await waitFor(() => {
       const connectCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/connect");
@@ -546,6 +599,33 @@ describe("MusicRoomScreen", () => {
       expect(connectBody.memberId).toBe("member-arthur");
       expect(connectBody.songText).toBe("Stand By Me");
     });
+  });
+
+  it("moves a tapped chorus member to the front of the people rail", async () => {
+    apiFetchMock.mockResolvedValueOnce(jsonResponse({}));
+
+    render(
+      <MusicRoomScreen
+        roomResponse={withMusicCircle([])}
+        language="en"
+        visitId="visit-1"
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /^(Say hello to .+|.+ Sent)$/ })[0]).toHaveAccessibleName("Say hello to Arthur");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next duet: Stand By Me with Malik" }));
+
+    await waitFor(() => {
+      const connectCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/connect");
+      const connectBody = JSON.parse(String(connectCall?.[1]?.body)) as { memberId: string; songText: string };
+      expect(connectBody.memberId).toBe("member-malik");
+      expect(connectBody.songText).toBe("Stand By Me");
+    });
+
+    expect(screen.getByRole("button", { name: "Next duet: Stand By Me with Malik" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("button", { name: /^(Say hello to .+|.+ Sent)$/ })[0]).toHaveAccessibleName("Malik Sent");
   });
 
   it("passes the room beat to the next chorus member without publishing", () => {
@@ -559,7 +639,7 @@ describe("MusicRoomScreen", () => {
     );
 
     expect(screen.getByRole("button", { name: "Song bridge: Stand By Me with Arthur" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Chorus lane: Arthur for Stand By Me" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Next duet: Stand By Me with Arthur" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("status", { name: "Beat trail: 0 of 4" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Tap beat for Stand By Me" }));
@@ -574,8 +654,8 @@ describe("MusicRoomScreen", () => {
     expect(screen.getByRole("status", { name: "Beat trail: 1 of 4" })).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Room pulse: 2" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Song bridge: Stand By Me with Malik" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Chorus lane: Arthur for Stand By Me" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Chorus lane: Malik for Stand By Me" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Next duet: Stand By Me with Arthur" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Next duet: Stand By Me with Malik" })).toHaveAttribute("aria-pressed", "true");
     expect(apiFetchMock).not.toHaveBeenCalled();
   });
 
@@ -659,7 +739,7 @@ describe("MusicRoomScreen", () => {
       expect(screen.getByRole("button", { name: "Song bridge: Stand By Me with Rosa" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Song bridge: Stand By Me with Rosa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Dance for Stand By Me with Rosa" }));
 
     await waitFor(() => {
       const connectCall = apiFetchMock.mock.calls.find(([url]) => url === "/api/social/rooms/music-room/connect");
@@ -960,6 +1040,7 @@ describe("MusicRoomScreen", () => {
       );
     });
     expect(await screen.findAllByRole("button", { name: "Remove heart" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /Stand By Me.*You/ })).toBeInTheDocument();
     expect(screen.getAllByText("7").length).toBeGreaterThan(0);
   });
 

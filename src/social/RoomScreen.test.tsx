@@ -12,6 +12,8 @@ const voiceMock = vi.hoisted(() => ({
   stopVoice: vi.fn(),
   sendText: vi.fn(),
   sendContextUpdate: vi.fn(),
+  beginUserTurn: vi.fn(),
+  endUserTurn: vi.fn(),
   status: "idle" as "idle" | "connecting" | "connected",
 }));
 const apiFetchMock = vi.fn();
@@ -53,10 +55,19 @@ vi.mock("@/hooks/useVyvaVoice", () => ({
     hasMicrophone: false,
     lastError: null,
     transcript: [],
-    beginUserTurn: vi.fn(),
-    endUserTurn: vi.fn(),
+    beginUserTurn: voiceMock.beginUserTurn,
+    endUserTurn: voiceMock.endUserTurn,
   }),
 }));
+
+beforeEach(() => {
+  Object.values(voiceMock).forEach((value) => {
+    if (typeof value === "function" && "mockClear" in value) {
+      value.mockClear();
+    }
+  });
+  voiceMock.status = "idle";
+});
 
 const movementRoomResponse: SocialRoomResponse = {
   room: {
@@ -207,19 +218,9 @@ function renderRoom(initialEntry = "/social-rooms/morning-movement") {
   );
 }
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
 describe("RoomScreen Together Room", () => {
   beforeEach(() => {
-    languageMock.language = "en";
     localStorage.clear();
-    voiceMock.startVoice.mockReset();
-    voiceMock.stopVoice.mockReset();
-    voiceMock.sendText.mockReset();
-    voiceMock.sendContextUpdate.mockReset();
-    voiceMock.status = "idle";
     apiFetchMock.mockReset();
     queryMock.mockReset();
     queryMock.mockReturnValue({
@@ -254,16 +255,7 @@ describe("RoomScreen Together Room", () => {
 
 describe("RoomScreen movement room", () => {
   beforeEach(() => {
-    languageMock.language = "en";
     localStorage.clear();
-    voiceMock.startVoice.mockReset();
-    voiceMock.stopVoice.mockReset();
-    voiceMock.sendText.mockReset();
-    voiceMock.sendContextUpdate.mockReset();
-    voiceMock.status = "idle";
-    voiceMock.startVoice.mockResolvedValue(undefined);
-    voiceMock.sendText.mockReturnValue(true);
-    voiceMock.sendContextUpdate.mockReturnValue(true);
     apiFetchMock.mockReset();
     queryMock.mockReset();
     queryMock.mockReturnValue({
@@ -667,6 +659,95 @@ describe("RoomScreen movement room", () => {
 describe("RoomScreen reading room member lounge", () => {
   beforeEach(() => {
     languageMock.language = "en";
+    localStorage.clear();
+    apiFetchMock.mockReset();
+    queryMock.mockReset();
+    queryMock.mockReturnValue({
+      data: readingRoomResponse,
+      isLoading: false,
+      isError: false,
+    });
+    apiFetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/enter")) {
+        return Promise.resolve(jsonResponse({
+          visitId: "visit-reading-1",
+          visitState: { isFirstVisit: false, visitCount: 2, previousVisitCount: 1 },
+        }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true }));
+    });
+  });
+
+  it("turns lounge members into protected notes and table invitations", async () => {
+    renderRoom("/social-rooms/reading-room");
+
+    expect(screen.getByTestId("reading-club-start-here")).toHaveTextContent("Start here");
+    expect(screen.queryByTestId("reading-club-deep-tools")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-club-focused-path")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-club-desk")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-companion-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-reflection-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-member-lounge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-recommendation-shelf")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-reading-start-share"));
+    await waitFor(() => expect(screen.getByTestId("reading-club-focused-path")).toBeInTheDocument());
+    expect(screen.queryByTestId("reading-club-deep-tools")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-club-desk")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-companion-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-member-lounge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-recommendation-shelf")).not.toBeInTheDocument();
+    expect((screen.getByLabelText("Write a book, scene, character or memory...") as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByTestId("button-reading-start-recommend"));
+    expect(screen.getByTestId("reading-recommendation-shelf")).toHaveTextContent("Share a recommendation");
+    expect(screen.queryByTestId("reading-member-lounge")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("input-reading-recommendation-title"), {
+      target: { value: "A gentle garden story for a calm afternoon read." },
+    });
+    fireEvent.click(screen.getByTestId("button-reading-save-recommendation"));
+
+    expect(screen.getByTestId("reading-recommendation-cards")).toHaveTextContent("A gentle garden story for a calm afternoon read.");
+
+    fireEvent.click(screen.getByTestId("button-reading-use-recommendation"));
+
+    expect(screen.getByLabelText("Write a book, scene, character or memory...")).toHaveValue(
+      "A gentle garden story for a calm afternoon read.",
+    );
+
+    fireEvent.click(screen.getByTestId("button-reading-start-meet"));
+    expect(screen.getByTestId("reading-member-lounge")).toHaveTextContent("Readers in the lounge");
+    expect(screen.getByTestId("reading-member-lounge")).toHaveTextContent("Ready for a note");
+    expect(screen.getByTestId("reading-companion-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("reading-recommendation-shelf")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("reading-reflection-card")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-reading-lounge-letter-member-maria"));
+
+    expect(screen.getByTestId("input-reading-letter-recipient")).toHaveValue("Maria");
+    expect(screen.getByTestId("input-reading-letter-subject")).toHaveValue("A gentle club hello");
+    expect(screen.getByTestId("textarea-reading-letter-body")).toHaveValue(
+      "Hello Maria, I noticed your reading thread and would enjoy exchanging one small book memory when it feels comfortable.",
+    );
+    expect(screen.getByTestId("reading-club-status")).toHaveTextContent("protected note is ready");
+
+    fireEvent.click(screen.getByTestId("button-reading-lounge-table-member-jose"));
+
+    expect(screen.getByTestId("input-reading-host-table-topic")).toHaveValue("A small table with Jose");
+    expect(screen.getByTestId("textarea-reading-host-table-note")).toHaveValue(
+      "Jose might enjoy this quiet table. Bring one memory or recommendation in your own words.",
+    );
+    expect(screen.getByTestId("reading-club-status")).toHaveTextContent("table invitation is ready");
+
+    fireEvent.click(screen.getByTestId("button-reading-toggle-deep-tools"));
+    expect(screen.queryByTestId("reading-club-focused-path")).not.toBeInTheDocument();
+    expect(screen.getByTestId("reading-club-deep-tools")).toBeInTheDocument();
+    expect(screen.getByTestId("reading-club-desk")).toBeInTheDocument();
+  });
+});
+
+describe("RoomScreen reading room member lounge", () => {
+  beforeEach(() => {
     localStorage.clear();
     apiFetchMock.mockReset();
     queryMock.mockReset();

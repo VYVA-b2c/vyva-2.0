@@ -21,6 +21,9 @@ const router = Router();
 
 const reportStatusSchema = z.object({
   status: z.enum(["open", "reviewing", "resolved", "dismissed"]),
+  notes: z.string().trim().max(400).optional(),
+  roomSlug: z.string().trim().max(120).optional(),
+  lang: z.enum(["es", "de", "en"]).optional(),
 });
 
 const planModerationSchema = z.object({
@@ -59,8 +62,19 @@ function adminUserId(req: Request) {
   return req.user?.id ?? "admin";
 }
 
+function isSupportedReportModerationRoom(slug: string) {
+  return slug === "together-room" || slug === "reading-room";
+}
+
+function isTogetherModerationRoom(slug: string) {
+  return slug === "together-room";
+}
+
 router.get("/rooms/:slug/moderation", async (req: Request, res: Response) => {
   const slug = resolveSocialRoomSlug(req.params.slug);
+  if (!isSupportedReportModerationRoom(slug)) {
+    return res.status(400).json({ error: "This room does not support social moderation" });
+  }
   const roomId = await resolveRoomId(slug);
   const moderation = slug === "reading-room"
     ? await listReadingClubModeration(slug, roomId)
@@ -74,10 +88,19 @@ router.patch("/reports/:reportId", async (req: Request, res: Response) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
+  const roomSlug = parsed.data.roomSlug ? resolveSocialRoomSlug(parsed.data.roomSlug) : undefined;
+  if (roomSlug && !isSupportedReportModerationRoom(roomSlug)) {
+    return res.status(400).json({ error: "This room does not support social report moderation" });
+  }
+  const roomId = roomSlug ? await resolveRoomId(roomSlug) : null;
   const payload = {
     reportId: req.params.reportId,
     adminUserId: adminUserId(req),
     status: parsed.data.status,
+    notes: parsed.data.notes,
+    roomSlug,
+    roomId,
+    language: parsed.data.lang ?? "en",
   };
   await Promise.all([
     updateTogetherReport(payload),
@@ -94,10 +117,14 @@ router.patch("/plans/:planId", async (req: Request, res: Response) => {
   }
 
   const roomSlug = resolveSocialRoomSlug(parsed.data.roomSlug ?? "together-room");
+  if (!isTogetherModerationRoom(roomSlug)) {
+    return res.status(400).json({ error: "This room does not support Together Room plan moderation" });
+  }
   const roomId = await resolveRoomId(roomSlug);
   await updateTogetherPlanModeration({
     planKey: req.params.planId,
     adminUserId: adminUserId(req),
+    roomSlug,
     roomId,
     status: parsed.data.status,
     notes: parsed.data.notes,
@@ -113,10 +140,14 @@ router.patch("/polls/:pollId", async (req: Request, res: Response) => {
   }
 
   const roomSlug = resolveSocialRoomSlug(parsed.data.roomSlug ?? "together-room");
+  if (!isTogetherModerationRoom(roomSlug)) {
+    return res.status(400).json({ error: "This room does not support Together Room poll moderation" });
+  }
   const roomId = await resolveRoomId(roomSlug);
   await updateTogetherPollModeration({
     pollKey: req.params.pollId,
     adminUserId: adminUserId(req),
+    roomSlug,
     roomId,
     status: parsed.data.status,
     notes: parsed.data.notes,
@@ -132,10 +163,14 @@ router.patch("/replies/:replyId", async (req: Request, res: Response) => {
   }
 
   const roomSlug = resolveSocialRoomSlug(parsed.data.roomSlug ?? "together-room");
+  if (!isTogetherModerationRoom(roomSlug)) {
+    return res.status(400).json({ error: "This room does not support Together Room reply moderation" });
+  }
   const roomId = await resolveRoomId(roomSlug);
   await updateTogetherReplyModeration({
     replyId: req.params.replyId,
     adminUserId: adminUserId(req),
+    roomSlug,
     roomId,
     status: parsed.data.status,
     notes: parsed.data.notes,
