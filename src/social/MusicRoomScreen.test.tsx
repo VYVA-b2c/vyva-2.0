@@ -1160,5 +1160,14 @@ describe("MusicRoomScreen", () => {
     expect(screen.getByRole("status", { name: "Duet turn: Stand By Me with Arthur" })).toBeInTheDocument();
     expect(screen.getByText("Soul: old friends.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Send heart" }).length).toBeGreaterThan(0);
+    const threadPanel = document.getElementById("music-thread-panel");
+    const threadToggle = document.querySelector<HTMLButtonElement>('[aria-controls="music-thread-panel"]');
+    expect(threadPanel).toHaveClass("hidden");
+    expect(threadToggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(threadToggle!);
+
+    expect(threadPanel).toHaveClass("block");
+    expect(threadToggle).toHaveAttribute("aria-expanded", "true");
   });
 });
