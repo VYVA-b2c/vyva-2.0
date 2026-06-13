@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
@@ -73,6 +73,11 @@ const homeHeadlineClampStyle: React.CSSProperties = {
   WebkitLineClamp: 3,
 };
 
+function readBrowserOnline() {
+  if (typeof navigator === "undefined" || typeof navigator.onLine !== "boolean") return true;
+  return navigator.onLine;
+}
+
 const VoiceHero: React.FC<VoiceHeroProps> = ({
   heroSurface,
   heroContext,
@@ -134,10 +139,26 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     : autoStartVoice
       ? "voice-hero-auto-start"
       : null;
+  const [browserOnline, setBrowserOnline] = useState(readBrowserOnline);
   const autoStartedRef = useRef<string | null>(null);
 
   const isActive = voiceStatus === "connected";
   const showOverlay = shouldShowOverlay && (isActive || isConnecting);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOnline = () => setBrowserOnline(true);
+    const handleOffline = () => setBrowserOnline(false);
+
+    setBrowserOnline(readBrowserOnline());
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!autoStartKey || voiceControls) return;
@@ -194,10 +215,10 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           ? t("voiceHero.speaking")
           : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
-  const connectionLabel = isActive ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline");
-  const connectionColor = isActive ? "#34D399" : "#EF4444";
-  const connectionHalo = isActive ? "rgba(52,211,153,0.24)" : "rgba(239,68,68,0.20)";
-  const connectionBorder = isActive ? "rgba(52,211,153,0.42)" : "rgba(239,68,68,0.36)";
+  const connectionLabel = browserOnline ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline");
+  const connectionColor = browserOnline ? "#34D399" : "#EF4444";
+  const connectionHalo = browserOnline ? "rgba(52,211,153,0.24)" : "rgba(239,68,68,0.20)";
+  const connectionBorder = browserOnline ? "rgba(52,211,153,0.42)" : "rgba(239,68,68,0.36)";
   const isBrainHero = heroSurface === "brain";
 
   const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {

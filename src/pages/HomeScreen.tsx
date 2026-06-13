@@ -366,6 +366,7 @@ const HomeScreen = () => {
                 iconBg={theme.iconBg}
                 iconColor={theme.iconColor}
                 size="standard"
+                contentClassName="justify-start"
                 locked={locked}
                 style={{
                   borderColor: "#EDE2D1",

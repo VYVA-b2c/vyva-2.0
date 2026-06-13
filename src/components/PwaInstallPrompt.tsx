@@ -1,5 +1,6 @@
 import { Download, Share2, Smartphone, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/i18n";
 
 type BeforeInstallPromptChoice = {
   outcome: "accepted" | "dismissed";
@@ -45,6 +46,7 @@ function writeDismissed() {
 }
 
 export default function PwaInstallPrompt() {
+  const { t } = useLanguage();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState(readDismissed);
   const [standalone, setStandalone] = useState(false);
@@ -96,13 +98,13 @@ export default function PwaInstallPrompt() {
 
   return (
     <aside
-      aria-label="Install VYVA"
+      aria-label={t("pwaInstall.ariaLabel", "Add VYVA to this device")}
       className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-[440px] rounded-[22px] border border-[#E8DDF3] bg-white/95 p-4 text-[#2F183F] shadow-[0_22px_70px_rgba(47,24,63,0.22)] backdrop-blur sm:right-5 sm:left-auto sm:bottom-5"
     >
       <button
         type="button"
         onClick={handleDismiss}
-        aria-label="Dismiss install prompt"
+        aria-label={t("pwaInstall.dismissAria", "Dismiss install reminder")}
         className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-[#6F6475] transition hover:bg-[#F7F0FF] hover:text-[#8253AB]"
       >
         <X className="h-4 w-4" aria-hidden="true" />
@@ -112,11 +114,11 @@ export default function PwaInstallPrompt() {
           {showIosGuidance ? <Share2 className="h-5 w-5" aria-hidden="true" /> : <Smartphone className="h-5 w-5" aria-hidden="true" />}
         </span>
         <div>
-          <p className="font-body text-base font-black leading-tight">Add VYVA to this device</p>
+          <p className="font-body text-base font-black leading-tight">{t("pwaInstall.title", "Keep VYVA easy to find")}</p>
           <p className="mt-1 font-body text-sm leading-5 text-[#6F6475]">
             {showIosGuidance
-              ? "In Safari, use Share, then Add to Home Screen."
-              : "Open VYVA from your home screen or app launcher."}
+              ? t("pwaInstall.iosBody", "In Safari, tap Share, then Add to Home Screen.")
+              : t("pwaInstall.body", "Add VYVA to your desktop, dock, or app launcher.")}
           </p>
         </div>
       </div>
@@ -128,7 +130,7 @@ export default function PwaInstallPrompt() {
             className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#8253AB] px-4 font-body text-sm font-bold text-white transition hover:bg-[#6B3E91]"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
-            Install
+            {t("pwaInstall.action", "Add VYVA")}
           </button>
         ) : (
           <button
@@ -136,7 +138,7 @@ export default function PwaInstallPrompt() {
             onClick={handleDismiss}
             className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#8253AB] px-4 font-body text-sm font-bold text-white transition hover:bg-[#6B3E91]"
           >
-            Got it
+            {t("pwaInstall.dismiss", "Got it")}
           </button>
         )}
       </div>
