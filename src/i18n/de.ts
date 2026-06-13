@@ -20,6 +20,15 @@ const de = {
     level: "Level",
     language: "Sprache",
   },
+  pwaInstall: {
+    ariaLabel: "VYVA zu diesem Gerät hinzufügen",
+    dismissAria: "Installationshinweis schließen",
+    title: "VYVA leicht wiederfinden",
+    body: "Fügen Sie VYVA zu Desktop, Dock oder App-Übersicht hinzu.",
+    iosBody: "Tippen Sie in Safari auf Teilen und dann auf Zum Home-Bildschirm.",
+    action: "VYVA hinzufügen",
+    dismiss: "Verstanden",
+  },
   sos: {
     title: "Brauchen Sie dringend Hilfe?",
     description: "Rufen Sie jetzt den Notdienst an oder den Notfallkontakt aus Ihrem Profil.",

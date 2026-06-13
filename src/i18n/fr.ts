@@ -15,6 +15,15 @@ const fr = {
     level: "Niveau",
     language: "Langue",
   },
+  pwaInstall: {
+    ariaLabel: "Ajouter VYVA à cet appareil",
+    dismissAria: "Fermer le rappel d’installation",
+    title: "Gardez VYVA facile à trouver",
+    body: "Ajoutez VYVA à votre bureau, dock ou lanceur d’apps.",
+    iosBody: "Dans Safari, touchez Partager, puis Ajouter à l’écran d’accueil.",
+    action: "Ajouter VYVA",
+    dismiss: "Compris",
+  },
   sos: {
     title: "Besoin d'aide urgente ?",
     description: "Appelez les urgences maintenant, ou appelez le contact d'urgence enregistre dans votre profil.",

@@ -20,6 +20,15 @@ const en = {
     level: "Level",
     language: "Language",
   },
+  pwaInstall: {
+    ariaLabel: "Add VYVA to this device",
+    dismissAria: "Dismiss install reminder",
+    title: "Keep VYVA easy to find",
+    body: "Add VYVA to your desktop, dock, or app launcher.",
+    iosBody: "In Safari, tap Share, then Add to Home Screen.",
+    action: "Add VYVA",
+    dismiss: "Got it",
+  },
   sos: {
     title: "Need urgent help?",
     description: "Call emergency services now, or call the emergency contact saved in your profile.",

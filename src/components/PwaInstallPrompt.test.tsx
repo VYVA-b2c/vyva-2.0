@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { act } from "react";
+import { setLanguage } from "@/i18n";
 import PwaInstallPrompt from "./PwaInstallPrompt";
 
 type TestBeforeInstallPromptEvent = Event & {
@@ -23,26 +24,30 @@ function dispatchInstallPrompt() {
 
 describe("PwaInstallPrompt", () => {
   beforeEach(() => {
-    clearPromptStorage();
     vi.restoreAllMocks();
+    clearPromptStorage();
+    setLanguage("en");
   });
 
   it("shows the browser install action after the install prompt event", async () => {
     render(<PwaInstallPrompt />);
     const event = dispatchInstallPrompt();
 
-    expect(await screen.findByText("Add VYVA to this device")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    expect(await screen.findByText("Keep VYVA easy to find")).toBeInTheDocument();
+    expect(screen.getByText("Add VYVA to your desktop, dock, or app launcher.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add VYVA" }));
 
     await waitFor(() => expect(event.prompt).toHaveBeenCalledTimes(1));
   });
 
   it("shows iOS Home Screen guidance when browser install prompting is unavailable", async () => {
+    setLanguage("es");
     vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
     render(<PwaInstallPrompt />);
 
-    expect(await screen.findByText("In Safari, use Share, then Add to Home Screen.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    expect(await screen.findByText("Ten VYVA siempre a mano")).toBeInTheDocument();
+    expect(screen.getByText("En Safari, toca Compartir y luego Añadir a pantalla de inicio.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Entendido" }));
 
     expect(window.localStorage.getItem("vyva-pwa-install-dismissed")).toBe("1");
   });
