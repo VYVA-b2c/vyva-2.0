@@ -316,6 +316,17 @@ const it = {
       },
     },
     symptomCheck: {
+      intro: {
+        voiceStart: "Usa voce",
+        voiceStop: "Ferma voce",
+        voiceTranscribing: "Trasformo la voce in testo",
+        voiceRecording: "Ascolto... tocca ancora per fermare. Si ferma dopo 30 secondi.",
+        voiceTranscribingStatus: "Trasformo la voce in testo...",
+        voiceEmpty: "Non ho sentito chiaramente. Riprova.",
+        voiceFailed: "Non sono riuscita a trasformare quella nota vocale in testo. Riprova.",
+        voiceUnsupported: "L'inserimento vocale non e disponibile in questo browser.",
+        voiceMicError: "Non sono riuscita a usare il microfono. Riprova o scrivi.",
+      },
       tracker: {
         label: "Livello di fiducia",
         shortLabel: "Fiducia",

@@ -412,6 +412,26 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps symptom intro voice controls localized for supported account languages", () => {
+    const expected = {
+      en: ["Use voice input", "Stop voice input", "Listening... tap again to stop. It stops after 30 seconds.", "I couldn't use the microphone. Please try again or type instead."],
+      es: ["Usar voz", "Detener voz", "Escuchando... toca otra vez para parar. Se detiene a los 30 segundos.", "No he podido usar el microfono. Intentalo de nuevo o escribe."],
+      fr: ["Utiliser la voix", "Arreter la voix", "Ecoute... touchez encore pour arreter. Arret automatique apres 30 secondes.", "Je n'ai pas pu utiliser le micro. Reessayez ou ecrivez."],
+      de: ["Spracheingabe verwenden", "Spracheingabe stoppen", "Hoere zu... erneut tippen zum Stoppen. Stoppt automatisch nach 30 Sekunden.", "Ich konnte das Mikrofon nicht verwenden. Bitte erneut versuchen oder tippen."],
+      it: ["Usa voce", "Ferma voce", "Ascolto... tocca ancora per fermare. Si ferma dopo 30 secondi.", "Non sono riuscita a usare il microfono. Riprova o scrivi."],
+      pt: ["Usar voz", "Parar voz", "A ouvir... toque outra vez para parar. Para apos 30 segundos.", "Nao consegui usar o microfone. Tente de novo ou escreva."],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceStart"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceStop"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceRecording"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceMicError"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps scam guard action buttons localized for supported account languages", () => {
     const expected = {
       en: ["Quick safe actions", "Call {{name}}", "Get safe help", "Call guidance"],

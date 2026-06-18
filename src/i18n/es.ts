@@ -321,6 +321,17 @@ const es = {
       },
     },
     symptomCheck: {
+      intro: {
+        voiceStart: "Usar voz",
+        voiceStop: "Detener voz",
+        voiceTranscribing: "Convirtiendo voz en texto",
+        voiceRecording: "Escuchando... toca otra vez para parar. Se detiene a los 30 segundos.",
+        voiceTranscribingStatus: "Convirtiendo voz en texto...",
+        voiceEmpty: "No he oido nada con claridad. Intentalo de nuevo.",
+        voiceFailed: "No he podido convertir esa nota de voz en texto. Intentalo de nuevo.",
+        voiceUnsupported: "La entrada por voz no esta disponible en este navegador.",
+        voiceMicError: "No he podido usar el microfono. Intentalo de nuevo o escribe.",
+      },
       tracker: {
         label: "Nivel de confianza",
         shortLabel: "Confianza",

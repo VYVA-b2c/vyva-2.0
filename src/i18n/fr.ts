@@ -316,6 +316,17 @@ const fr = {
       },
     },
     symptomCheck: {
+      intro: {
+        voiceStart: "Utiliser la voix",
+        voiceStop: "Arreter la voix",
+        voiceTranscribing: "Conversion de la voix en texte",
+        voiceRecording: "Ecoute... touchez encore pour arreter. Arret automatique apres 30 secondes.",
+        voiceTranscribingStatus: "Conversion de la voix en texte...",
+        voiceEmpty: "Je n'ai rien entendu clairement. Reessayez.",
+        voiceFailed: "Je n'ai pas pu convertir cette note vocale en texte. Reessayez.",
+        voiceUnsupported: "La saisie vocale n'est pas disponible dans ce navigateur.",
+        voiceMicError: "Je n'ai pas pu utiliser le micro. Reessayez ou ecrivez.",
+      },
       tracker: {
         label: "Niveau de confiance",
         shortLabel: "Confiance",

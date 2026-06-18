@@ -2,19 +2,30 @@ import express from "express";
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { openAiCreateMock } = vi.hoisted(() => ({
+const { openAiCreateMock, openAiToFileMock, openAiTranscriptionCreateMock } = vi.hoisted(() => ({
   openAiCreateMock: vi.fn(),
+  openAiToFileMock: vi.fn(),
+  openAiTranscriptionCreateMock: vi.fn(),
 }));
 
-vi.mock("openai", () => ({
-  default: class MockOpenAI {
+vi.mock("openai", () => {
+  class MockOpenAI {
+    static toFile = openAiToFileMock;
+
     chat = {
       completions: {
         create: openAiCreateMock,
       },
     };
-  },
-}));
+    audio = {
+      transcriptions: {
+        create: openAiTranscriptionCreateMock,
+      },
+    };
+  }
+
+  return { default: MockOpenAI };
+});
 
 import triageRouter from "../routes/triage.js";
 import {
@@ -266,6 +277,41 @@ describe("triage route wizard questions", () => {
     vi.unstubAllGlobals();
     resetTriageTelemetrySink();
     openAiCreateMock.mockReset();
+    openAiToFileMock.mockReset();
+    openAiTranscriptionCreateMock.mockReset();
+  });
+
+  it("transcribes raw symptom audio into a short clue", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    openAiToFileMock.mockResolvedValue("audio-file");
+    openAiTranscriptionCreateMock.mockResolvedValue({ text: "bad headache" });
+
+    const res = await request(app())
+      .post("/api/triage/transcribe?language=en")
+      .set("Content-Type", "audio/webm")
+      .send(Buffer.alloc(64, 1))
+      .expect(200);
+
+    expect(res.body).toEqual({ transcript: "bad headache" });
+    expect(openAiToFileMock).toHaveBeenCalledWith(expect.any(Buffer), "symptom-voice.webm", { type: "audio/webm" });
+    expect(openAiTranscriptionCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      file: "audio-file",
+      language: "en",
+      model: "gpt-4o-mini-transcribe",
+    }));
+  });
+
+  it("returns a clear voice setup error when transcription is not configured", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    const res = await request(app())
+      .post("/api/triage/transcribe")
+      .set("Content-Type", "audio/webm")
+      .send(Buffer.alloc(64, 1))
+      .expect(503);
+
+    expect(res.body).toEqual({ error: "Voice transcription is not configured." });
+    expect(openAiTranscriptionCreateMock).not.toHaveBeenCalled();
   });
 
   it("returns anxiety-specific deterministic wording for the anxiety quick clue", async () => {
