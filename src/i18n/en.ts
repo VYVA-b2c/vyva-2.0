@@ -321,6 +321,9 @@ const en = {
     },
     symptomCheck: {
       intro: {
+        clueSub: "Say or type a few words.",
+        oneQuestionTitle: "One question at a time",
+        oneQuestionBody: "Speak, type, or tap a suggestion.",
         voiceStart: "Use voice input",
         voiceStop: "Stop voice input",
         voiceTranscribing: "Turning voice into text",

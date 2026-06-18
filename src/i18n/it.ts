@@ -317,6 +317,9 @@ const it = {
     },
     symptomCheck: {
       intro: {
+        clueSub: "Di o scrivi poche parole.",
+        oneQuestionTitle: "Una domanda alla volta",
+        oneQuestionBody: "Parla, scrivi o tocca un suggerimento.",
         voiceStart: "Usa voce",
         voiceStop: "Ferma voce",
         voiceTranscribing: "Trasformo la voce in testo",

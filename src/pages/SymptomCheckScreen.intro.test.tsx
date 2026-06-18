@@ -83,7 +83,7 @@ describe("SymptomCheck intro chips", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
     expect(screen.getByTestId("symptom-check-one-question-note")).toHaveTextContent("One question at a time");
-    expect(screen.getByText("You can tap simple choices, type a short answer, or stop after the next-step report is ready.")).toBeVisible();
+    expect(screen.getByText("Speak, type, or tap a suggestion.")).toBeVisible();
   });
 
   it("shows profile-aware concern and improvement lanes", () => {

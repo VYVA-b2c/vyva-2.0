@@ -317,6 +317,9 @@ const fr = {
     },
     symptomCheck: {
       intro: {
+        clueSub: "Dites ou ecrivez quelques mots.",
+        oneQuestionTitle: "Une question a la fois",
+        oneQuestionBody: "Parlez, ecrivez ou touchez une suggestion.",
         voiceStart: "Utiliser la voix",
         voiceStop: "Arreter la voix",
         voiceTranscribing: "Conversion de la voix en texte",

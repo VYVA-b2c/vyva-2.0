@@ -317,6 +317,9 @@ const pt = {
     },
     symptomCheck: {
       intro: {
+        clueSub: "Diga ou escreva algumas palavras.",
+        oneQuestionTitle: "Uma pergunta de cada vez",
+        oneQuestionBody: "Fale, escreva ou toque numa sugestao.",
         voiceStart: "Usar voz",
         voiceStop: "Parar voz",
         voiceTranscribing: "A transformar voz em texto",

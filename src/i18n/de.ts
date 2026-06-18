@@ -322,6 +322,9 @@ const de = {
     },
     symptomCheck: {
       intro: {
+        clueSub: "Sag oder schreibe ein paar Worte.",
+        oneQuestionTitle: "Eine Frage nach der anderen",
+        oneQuestionBody: "Sprich, tippe oder waehle einen Vorschlag.",
         voiceStart: "Spracheingabe verwenden",
         voiceStop: "Spracheingabe stoppen",
         voiceTranscribing: "Sprache wird in Text umgewandelt",

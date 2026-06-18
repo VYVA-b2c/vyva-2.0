@@ -872,7 +872,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
         icon={<Stethoscope size={28} />}
         kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
         title={t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
-        body={t("health.symptomCheck.intro.clueSub", "Use a few words. VYVA will choose the right questions.")}
+        body={t("health.symptomCheck.intro.clueSub", "Say or type a few words.")}
       />
 
       <HealthWizardCard tone="soft" className="px-4 py-4" testId="symptom-check-one-question-note">
@@ -885,7 +885,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
               {t("health.symptomCheck.intro.oneQuestionTitle", "One question at a time")}
             </p>
             <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-              {t("health.symptomCheck.intro.oneQuestionBody", "You can tap simple choices, type a short answer, or stop after the next-step report is ready.")}
+              {t("health.symptomCheck.intro.oneQuestionBody", "Speak, type, or tap a suggestion.")}
             </p>
           </div>
         </div>
