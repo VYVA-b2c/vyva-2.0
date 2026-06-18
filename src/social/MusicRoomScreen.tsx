@@ -1092,6 +1092,7 @@ export default function MusicRoomScreen({
   const [recordResponseCue, setRecordResponseCue] = useState<string | null>(null);
   const [studioOpen, setStudioOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [threadOpen, setThreadOpen] = useState(false);
 
   useEffect(() => {
     setMusicThreads(initialThreads);
@@ -1242,6 +1243,7 @@ export default function MusicRoomScreen({
   }, [currentSongText]);
   useEffect(() => {
     setSelectedThreadCueId(null);
+    setThreadOpen(false);
   }, [activeThreadId]);
   const activeThreadMember = useMemo(
     () => activeThread
@@ -2681,7 +2683,7 @@ export default function MusicRoomScreen({
                     )}
 
                     {currentSongText && (
-                      <div role="group" aria-label={copy.chorusLaneLabel} className={hasPrimaryActionCue ? "hidden" : "hidden grid-cols-3 gap-2 lg:grid"}>
+                      <div role="group" aria-label={copy.chorusLaneLabel} className="hidden">
                         <button
                           type="button"
                           onClick={() => void joinChorus()}
@@ -2822,23 +2824,30 @@ export default function MusicRoomScreen({
                         className="overflow-hidden rounded-[24px] border border-[#E6D7F4] bg-white shadow-[0_16px_34px_rgba(77,39,119,0.1)]"
                         aria-label={`${copy.threadTitle}: ${activeThread.songText} ${activeThreadMember.name}`}
                       >
-                        <div
+                        <span
                           role="status"
                           aria-label={copy.threadTurnLabel(activeThread.songText, activeThreadMember.name)}
-                          className="relative overflow-hidden bg-[#2B103F] px-3 py-3 font-body text-white"
+                          className="sr-only"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setThreadOpen((current) => !current)}
+                          aria-expanded={threadOpen}
+                          aria-controls="music-thread-panel"
+                          className="relative w-full overflow-hidden bg-[#2B103F] px-3 py-2.5 text-left font-body text-white transition-transform active:scale-[0.995]"
                         >
                           <div className="absolute inset-0 opacity-25 [background:repeating-linear-gradient(90deg,rgba(255,255,255,0.12)_0,rgba(255,255,255,0.12)_1px,transparent_1px,transparent_14px)]" aria-hidden="true" />
-                          <div className="relative grid min-h-[62px] grid-cols-[46px_minmax(0,1fr)_46px] items-center gap-2">
-                            <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/75 bg-[#7E22CE] text-[14px] font-extrabold shadow-[0_8px_18px_rgba(0,0,0,0.18)]" aria-hidden="true">
+                          <div className="relative grid min-h-[52px] grid-cols-[42px_minmax(0,1fr)_42px] items-center gap-2">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/75 bg-[#7E22CE] text-[13px] font-extrabold shadow-[0_8px_18px_rgba(0,0,0,0.18)]" aria-hidden="true">
                               {getInitial(copy.you)}
                             </span>
                             <span className="min-w-0 text-center">
                               <span className="mx-auto mb-1 flex h-5 max-w-[150px] items-center justify-center gap-1 rounded-full bg-white/95 px-2 text-[11px] font-extrabold text-[#6D28D9]">
                                 {copy.threadTitle}
                               </span>
-                              <span className="block truncate text-[17px] font-extrabold leading-tight">{activeThread.songText}</span>
+                              <span className="block truncate text-[16px] font-extrabold leading-tight">{activeThread.songText}</span>
                               <span className="mt-1 flex items-center justify-center gap-1.5" aria-hidden="true">
-                                {[8, 16, 11, 20, 13, 17, 9].map((height, index) => (
+                                {[7, 13, 9, 16, 10].map((height, index) => (
                                   <span
                                     key={`thread-wave-${height}-${index}`}
                                     className="w-1 rounded-full bg-white/70"
@@ -2847,18 +2856,18 @@ export default function MusicRoomScreen({
                                 ))}
                               </span>
                             </span>
-                            <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/75 bg-[#0F766E] text-[14px] font-extrabold shadow-[0_8px_18px_rgba(0,0,0,0.18)]" aria-hidden="true">
+                            <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/75 bg-[#0F766E] text-[13px] font-extrabold shadow-[0_8px_18px_rgba(0,0,0,0.18)]" aria-hidden="true">
                               {getInitial(activeThreadMember.name)}
                             </span>
                           </div>
-                          <div className="relative mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[12px] font-extrabold text-white/82">
+                          <div className="relative mt-1.5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-[12px] font-extrabold text-white/82">
                             <span className="truncate text-right">{copy.you}</span>
                             <HeartHandshake size={15} strokeWidth={2.7} className="text-[#E9D5FF]" aria-hidden="true" />
                             <span className="truncate text-left">{activeThreadMember.name}</span>
                           </div>
-                        </div>
+                        </button>
 
-                        <div className="p-2.5">
+                        <div id="music-thread-panel" className={`${threadOpen ? "block" : "hidden"} p-2.5`}>
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             {activeThreadEntries.length > 0 ? activeThreadEntries.slice(-2).map((entry) => {
                               const authoredByUser = normalizeCue(entry.authorName) === normalizeCue(copy.you);
