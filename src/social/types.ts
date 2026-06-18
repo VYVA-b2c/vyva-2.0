@@ -31,6 +31,16 @@ export type SocialGameRoundInteraction =
       selectableSquares?: string[];
     }
   | {
+      kind: "chessMove";
+      instruction: string;
+      from: string;
+      to: string;
+      moveLabel: string;
+      selectableSquares: string[];
+      candidateMoves: Array<{ from: string; to: string; label?: string }>;
+      hintSquares?: string[];
+    }
+  | {
       kind: "dominoPlay";
       instruction: string;
       answerTile?: [number, number];

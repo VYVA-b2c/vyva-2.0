@@ -2100,19 +2100,442 @@ function buildChessInteraction(
   };
 }
 
+type ChessSide = "white" | "black";
+type ChessPieceRole = "Queen" | "Rook" | "Bishop" | "Knight" | "Pawn" | "King";
+type ChessPieceName = ChessBoardVisual["pieces"][number]["piece"];
+type ChessBoardPiece = ChessBoardVisual["pieces"][number];
+type ChessMoveCandidate = { from: string; to: string; label?: string };
+
+type ChessPositionPuzzle = {
+  theme: string;
+  sideToMove: ChessSide;
+  pieces: ChessBoardPiece[];
+  answerMove: { from: string; to: string; label: string; piece: ChessPieceName };
+  candidateMoves: ChessMoveCandidate[];
+  hintSquares: string[];
+  revealArrows: Array<{ from: string; to: string; label?: string }>;
+  difficulty: SocialGameDifficulty;
+};
+
+const chessMovePrompt: Record<ChessSide, Record<SocialGameLanguage, string>> = {
+  white: {
+    en: "White to move. Find the best move.",
+    es: "Juegan blancas. Encuentra la mejor jugada.",
+    fr: "Aux blancs. Trouvez le meilleur coup.",
+    de: "Weiss am Zug. Finde den besten Zug.",
+    it: "Muove il Bianco. Trova la mossa migliore.",
+    pt: "Brancas jogam. Encontre o melhor lance.",
+  },
+  black: {
+    en: "Black to move. Find the best move.",
+    es: "Juegan negras. Encuentra la mejor jugada.",
+    fr: "Aux noirs. Trouvez le meilleur coup.",
+    de: "Schwarz am Zug. Finde den besten Zug.",
+    it: "Muove il Nero. Trova la mossa migliore.",
+    pt: "Pretas jogam. Encontre o melhor lance.",
+  },
+};
+
+const chessMoveInstruction: Record<SocialGameLanguage, string> = {
+  en: "Tap a piece, then its square.",
+  es: "Toca una pieza y luego su casilla.",
+  fr: "Touchez une piece, puis sa case.",
+  de: "Tippe eine Figur an, dann ihr Zielfeld.",
+  it: "Tocca un pezzo, poi la casa.",
+  pt: "Toque numa peca e depois na casa.",
+};
+
+const chessPieceLetters: Record<ChessPieceRole, string> = {
+  King: "K",
+  Queen: "Q",
+  Rook: "R",
+  Bishop: "B",
+  Knight: "N",
+  Pawn: "",
+};
+
+const chessRoleCycleByTheme: Record<string, ChessPieceRole[]> = {
+  fork: ["Knight", "Queen", "Rook", "Pawn"],
+  "back-rank-mate": ["Rook", "Queen", "Rook", "Bishop"],
+  pin: ["Bishop", "Rook", "Queen", "Knight"],
+  skewer: ["Bishop", "Rook", "Queen", "Bishop"],
+  "discovered-attack": ["Knight", "Bishop", "Rook", "Queen"],
+  "mate-net": ["Queen", "Rook", "Knight", "Bishop"],
+  "double-attack": ["Queen", "Knight", "Rook", "Bishop"],
+  deflection: ["Rook", "Bishop", "Queen", "Knight"],
+  attraction: ["Queen", "Knight", "Bishop", "Rook"],
+  "overloaded-defender": ["Rook", "Queen", "Bishop", "Knight"],
+  "remove-defender": ["Bishop", "Rook", "Queen", "Pawn"],
+  clearance: ["Knight", "Bishop", "Rook", "Queen"],
+  zwischenzug: ["Rook", "Queen", "Bishop", "Knight"],
+  "trapped-piece": ["Queen", "Rook", "Bishop", "Knight"],
+  promotion: ["Pawn", "Pawn", "Pawn", "Pawn"],
+  "open-file": ["Rook", "Queen", "Rook", "Bishop"],
+  outpost: ["Knight", "Bishop", "Knight", "Queen"],
+  "passed-pawn": ["Pawn", "King", "Pawn", "Rook"],
+  "stalemate-trap": ["King", "Queen", "Rook", "Bishop"],
+  opposition: ["King", "Pawn", "King", "Pawn"],
+};
+
+const chessMovePairs: Record<ChessPieceRole, Array<[string, string]>> = {
+  Queen: [
+    ["d1", "h5"], ["d4", "e5"], ["b3", "g8"], ["f3", "a8"],
+    ["c2", "h7"], ["e2", "e7"], ["a4", "d7"], ["g4", "c8"],
+    ["h3", "b3"], ["b5", "e8"], ["f1", "b5"], ["c6", "h1"],
+    ["e5", "a1"], ["a2", "a7"], ["g2", "d5"], ["d6", "h2"],
+  ],
+  Rook: [
+    ["a1", "a7"], ["d1", "d7"], ["e1", "e8"], ["h1", "h7"],
+    ["a4", "h4"], ["c3", "c8"], ["f2", "f7"], ["b6", "g6"],
+    ["g1", "g8"], ["b2", "b7"], ["e4", "e8"], ["a6", "f6"],
+    ["h3", "h8"], ["c1", "c6"], ["d5", "h5"], ["f4", "a4"],
+  ],
+  Bishop: [
+    ["c1", "g5"], ["f1", "b5"], ["b2", "g7"], ["g2", "b7"],
+    ["a3", "f8"], ["h3", "c8"], ["e2", "h5"], ["d3", "a6"],
+    ["c4", "f7"], ["f4", "b8"], ["b5", "e8"], ["g5", "c1"],
+    ["a2", "d5"], ["h6", "e3"], ["e6", "b3"], ["d7", "g4"],
+  ],
+  Knight: [
+    ["d4", "f5"], ["c3", "d5"], ["e4", "g5"], ["f3", "h4"],
+    ["b2", "c4"], ["g2", "e3"], ["b5", "d6"], ["g5", "e6"],
+    ["c6", "b8"], ["f6", "h7"], ["d2", "f1"], ["e2", "c1"],
+    ["a4", "b6"], ["h4", "f5"], ["c5", "e6"], ["f5", "d6"],
+  ],
+  Pawn: [
+    ["e5", "e6"], ["d6", "d7"], ["c5", "c6"], ["f6", "f7"],
+    ["b5", "b6"], ["g6", "g7"], ["a6", "a7"], ["h5", "h6"],
+    ["e6", "f7"], ["d5", "c6"], ["c6", "d7"], ["f5", "e6"],
+    ["b6", "c7"], ["g5", "h6"], ["a5", "b6"], ["h6", "g7"],
+  ],
+  King: [
+    ["e4", "d5"], ["d4", "e5"], ["c5", "c6"], ["f5", "f6"],
+    ["e3", "e4"], ["d6", "c6"], ["f4", "g5"], ["c4", "b5"],
+    ["e5", "e6"], ["d3", "d4"], ["f6", "e6"], ["c6", "b6"],
+    ["g4", "f5"], ["b4", "c5"], ["e2", "d3"], ["d7", "e7"],
+  ],
+};
+
+const chessKingSquares: Record<ChessSide, string[]> = {
+  white: ["g1", "b1", "g2", "c1", "f1", "b2", "h2", "c2", "e1", "a2", "f2", "d1"],
+  black: ["g8", "b8", "g7", "c8", "f8", "b7", "h7", "c7", "e8", "a7", "f7", "d8"],
+};
+
+const chessFillerSquares = [
+  "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
+  "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
+  "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
+  "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5",
+  "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
+  "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
+];
+
+const chessFillerRoles: ChessPieceRole[] = ["Pawn", "Bishop", "Knight", "Rook", "Pawn", "Queen", "Pawn", "Knight", "Bishop", "Pawn"];
+
+function chessPieceName(side: ChessSide, role: ChessPieceRole): ChessPieceName {
+  return `${side}${role}` as ChessPieceName;
+}
+
+function oppositeChessSide(side: ChessSide): ChessSide {
+  return side === "white" ? "black" : "white";
+}
+
+function chessSquareFile(square: string) {
+  return square.charCodeAt(0) - "a".charCodeAt(0);
+}
+
+function chessSquareRank(square: string) {
+  return Number(square[1]) - 1;
+}
+
+function chessSquareFromCoords(file: number, rank: number) {
+  if (file < 0 || file > 7 || rank < 0 || rank > 7) return "";
+  return `${String.fromCharCode("a".charCodeAt(0) + file)}${rank + 1}`;
+}
+
+function mirrorSquareForBlack(square: string) {
+  const file = chessSquareFile(square);
+  const rank = chessSquareRank(square);
+  return chessSquareFromCoords(file, 7 - rank);
+}
+
+function chessSquareName(fileIndex: number, rankIndex: number) {
+  return `${String.fromCharCode("a".charCodeAt(0) + fileIndex)}${rankIndex + 1}`;
+}
+
+function chessSeed(seed: number, salt: number, modulo: number) {
+  return Math.abs((seed * (salt * 13 + 17) + Math.floor(seed / (salt + 2)) + salt * 19) % modulo);
+}
+
+function buildWhiteChessMovePair(role: ChessPieceRole, seed: number): [string, string] {
+  const knightOffsets = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
+  const kingOffsets = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const value = seed + attempt * 7;
+
+    if (role === "Rook") {
+      if (value % 2 === 0) {
+        const file = chessSeed(value, 1, 8);
+        const fromRank = chessSeed(value, 2, 6) + 1;
+        let toRank = chessSeed(value, 3, 8);
+        if (toRank === fromRank) toRank = (toRank + 3) % 8;
+        if (toRank !== fromRank) return [chessSquareName(file, fromRank), chessSquareName(file, toRank)];
+      } else {
+        const rank = chessSeed(value, 4, 8);
+        const fromFile = chessSeed(value, 5, 6) + 1;
+        let toFile = chessSeed(value, 6, 8);
+        if (toFile === fromFile) toFile = (toFile + 3) % 8;
+        if (toFile !== fromFile) return [chessSquareName(fromFile, rank), chessSquareName(toFile, rank)];
+      }
+    }
+
+    if (role === "Bishop") {
+      const fromFile = chessSeed(value, 7, 6) + 1;
+      const fromRank = chessSeed(value, 8, 6) + 1;
+      const delta = 1 + chessSeed(value, 9, 3);
+      const fileDirection = chessSeed(value, 10, 2) === 0 ? 1 : -1;
+      const rankDirection = chessSeed(value, 11, 2) === 0 ? 1 : -1;
+      const toFile = fromFile + fileDirection * delta;
+      const toRank = fromRank + rankDirection * delta;
+      if (toFile >= 0 && toFile < 8 && toRank >= 0 && toRank < 8) {
+        return [chessSquareName(fromFile, fromRank), chessSquareName(toFile, toRank)];
+      }
+    }
+
+    if (role === "Knight") {
+      const fromFile = chessSeed(value, 12, 6) + 1;
+      const fromRank = chessSeed(value, 13, 6) + 1;
+      const [fileOffset, rankOffset] = knightOffsets[chessSeed(value, 14, knightOffsets.length)];
+      const toFile = fromFile + fileOffset;
+      const toRank = fromRank + rankOffset;
+      if (toFile >= 0 && toFile < 8 && toRank >= 0 && toRank < 8) {
+        return [chessSquareName(fromFile, fromRank), chessSquareName(toFile, toRank)];
+      }
+    }
+
+    if (role === "Pawn") {
+      const fromFile = chessSeed(value, 15, 6) + 1;
+      const fromRank = chessSeed(value, 16, 5) + 1;
+      const moveKind = chessSeed(value, 17, 3);
+      const toFile = moveKind === 0 ? fromFile : fromFile + (moveKind === 1 ? 1 : -1);
+      const toRank = fromRank + 1;
+      if (toFile >= 0 && toFile < 8 && toRank < 8) {
+        return [chessSquareName(fromFile, fromRank), chessSquareName(toFile, toRank)];
+      }
+    }
+
+    if (role === "King") {
+      const fromFile = chessSeed(value, 18, 6) + 1;
+      const fromRank = chessSeed(value, 19, 6) + 1;
+      const [fileOffset, rankOffset] = kingOffsets[chessSeed(value, 20, kingOffsets.length)];
+      const toFile = fromFile + fileOffset;
+      const toRank = fromRank + rankOffset;
+      if (toFile >= 0 && toFile < 8 && toRank >= 0 && toRank < 8) {
+        return [chessSquareName(fromFile, fromRank), chessSquareName(toFile, toRank)];
+      }
+    }
+
+    if (role === "Queen") {
+      const fromFile = chessSeed(value, 21, 6) + 1;
+      const fromRank = chessSeed(value, 22, 6) + 1;
+      const mode = chessSeed(value, 23, 3);
+      if (mode === 0) {
+        let toFile = chessSeed(value, 24, 8);
+        if (toFile === fromFile) toFile = (toFile + 3) % 8;
+        if (toFile !== fromFile) return [chessSquareName(fromFile, fromRank), chessSquareName(toFile, fromRank)];
+      }
+      if (mode === 1) {
+        let toRank = chessSeed(value, 25, 8);
+        if (toRank === fromRank) toRank = (toRank + 3) % 8;
+        if (toRank !== fromRank) return [chessSquareName(fromFile, fromRank), chessSquareName(fromFile, toRank)];
+      }
+      const delta = 1 + chessSeed(value, 26, 3);
+      const fileDirection = chessSeed(value, 27, 2) === 0 ? 1 : -1;
+      const rankDirection = chessSeed(value, 28, 2) === 0 ? 1 : -1;
+      const toFile = fromFile + fileDirection * delta;
+      const toRank = fromRank + rankDirection * delta;
+      if (toFile >= 0 && toFile < 8 && toRank >= 0 && toRank < 8) {
+        return [chessSquareName(fromFile, fromRank), chessSquareName(toFile, toRank)];
+      }
+    }
+  }
+
+  const pairs = chessMovePairs[role];
+  return pairs[seed % pairs.length];
+}
+
+function chessPairForSide(role: ChessPieceRole, side: ChessSide, seed: number): [string, string] {
+  const pair = buildWhiteChessMovePair(role, seed);
+  if (side === "white" || role === "King") return pair;
+  return [mirrorSquareForBlack(pair[0]), mirrorSquareForBlack(pair[1])];
+}
+
+function chessMoveLabel(role: ChessPieceRole, from: string, to: string) {
+  const pieceLetter = chessPieceLetters[role];
+  return `${pieceLetter}${from}-${to}`;
+}
+
+function chessDecoyTarget(from: string, role: ChessPieceRole, side: ChessSide, offset: number, occupied: Set<string>) {
+  const file = chessSquareFile(from);
+  const rank = chessSquareRank(from);
+  const direction = side === "white" ? 1 : -1;
+  const offsets: Record<ChessPieceRole, Array<[number, number]>> = {
+    Queen: [[1, 1], [-1, 1], [2, 0], [0, 2], [-2, 0], [1, -1]],
+    Rook: [[0, 2], [2, 0], [0, -2], [-2, 0], [0, 3], [3, 0]],
+    Bishop: [[1, 1], [-1, 1], [2, 2], [-2, 2], [1, -1], [-1, -1]],
+    Knight: [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1]],
+    Pawn: [[0, direction], [1, direction], [-1, direction], [0, direction * 2], [1, 0], [-1, 0]],
+    King: [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1]],
+  };
+
+  for (let index = 0; index < offsets[role].length; index += 1) {
+    const [fileOffset, rankOffset] = offsets[role][(offset + index) % offsets[role].length];
+    const square = chessSquareFromCoords(file + fileOffset, rank + rankOffset);
+    if (square && !occupied.has(square)) return square;
+  }
+
+  return chessFillerSquares.find((square) => !occupied.has(square) && square !== from) ?? from;
+}
+
+function addChessPiece(pieces: ChessBoardPiece[], occupied: Set<string>, square: string, piece: ChessPieceName) {
+  if (!square || occupied.has(square)) return false;
+  pieces.push({ square, piece });
+  occupied.add(square);
+  return true;
+}
+
+function addChessKing(pieces: ChessBoardPiece[], occupied: Set<string>, side: ChessSide, seed: number) {
+  if (pieces.some((piece) => piece.piece === chessPieceName(side, "King"))) return;
+
+  for (let index = 0; index < chessKingSquares[side].length; index += 1) {
+    const square = chessKingSquares[side][(seed + index) % chessKingSquares[side].length];
+    if (addChessPiece(pieces, occupied, square, chessPieceName(side, "King"))) return;
+  }
+}
+
+function buildChessPositionPuzzle(tag: string, themeIndex: number, variantIndex: number): ChessPositionPuzzle {
+  const globalIndex = themeIndex * 4 + variantIndex;
+  const roleCycle = chessRoleCycleByTheme[tag] ?? chessRoleCycleByTheme.fork;
+  const role = roleCycle[variantIndex % roleCycle.length];
+  const sideToMove: ChessSide = (globalIndex % 5 === 2 || globalIndex % 7 === 4) ? "black" : "white";
+  const pairSeed = globalIndex * 13 + themeIndex * 7 + variantIndex * 17;
+  const [from, to] = chessPairForSide(role, sideToMove, pairSeed);
+  const answerPiece = chessPieceName(sideToMove, role);
+  const occupied = new Set<string>();
+  const pieces: ChessBoardPiece[] = [];
+
+  addChessPiece(pieces, occupied, from, answerPiece);
+  occupied.add(to);
+  addChessKing(pieces, occupied, "white", globalIndex + 1);
+  addChessKing(pieces, occupied, "black", globalIndex + 3);
+
+  const opponent = oppositeChessSide(sideToMove);
+  if (globalIndex % 3 === 0 && !occupied.has(to)) {
+    const captureRoles: ChessPieceRole[] = ["Queen", "Rook", "Bishop", "Knight", "Pawn"];
+    addChessPiece(pieces, occupied, to, chessPieceName(opponent, captureRoles[globalIndex % captureRoles.length]));
+  }
+
+  const candidateRoles: ChessPieceRole[] = ["Knight", "Bishop", "Rook", "Queen", "Pawn"];
+  const candidateMoves: ChessMoveCandidate[] = [{ from, to, label: chessMoveLabel(role, from, to) }];
+  const decoyOne = chessDecoyTarget(from, role, sideToMove, globalIndex + 1, occupied);
+  const decoyTwo = chessDecoyTarget(from, role, sideToMove, globalIndex + 3, new Set([...occupied, decoyOne]));
+  if (decoyOne !== to) candidateMoves.push({ from, to: decoyOne });
+  if (decoyTwo !== to && decoyTwo !== decoyOne) candidateMoves.push({ from, to: decoyTwo });
+
+  for (let candidateIndex = 0; new Set(candidateMoves.map((move) => move.from)).size < 4 && candidateIndex < 12; candidateIndex += 1) {
+    const candidateRole = candidateRoles[(globalIndex + candidateIndex) % candidateRoles.length];
+    const [candidateFrom, candidateTo] = chessPairForSide(candidateRole, sideToMove, pairSeed + candidateIndex * 11 + 5);
+    if (candidateFrom === from || occupied.has(candidateFrom)) continue;
+    if (addChessPiece(pieces, occupied, candidateFrom, chessPieceName(sideToMove, candidateRole))) {
+      candidateMoves.push({ from: candidateFrom, to: candidateTo });
+    }
+  }
+
+  const targetPieceRoles: ChessPieceRole[] = ["Queen", "Rook", "Bishop", "Knight", "Pawn", "Rook"];
+  for (let index = 0; pieces.length < 8 && index < chessFillerSquares.length; index += 1) {
+    const square = chessFillerSquares[(globalIndex * 7 + index * 5) % chessFillerSquares.length];
+    const targetRole = targetPieceRoles[(globalIndex + index) % targetPieceRoles.length];
+    addChessPiece(pieces, occupied, square, chessPieceName(opponent, targetRole));
+  }
+
+  const desiredPieceCount = 9 + (globalIndex % 4 === 0 ? 1 : 0);
+  for (let index = 0; pieces.length < desiredPieceCount && index < chessFillerSquares.length * 2; index += 1) {
+    const square = chessFillerSquares[(globalIndex * 11 + index * 3) % chessFillerSquares.length];
+    const fillerSide = index % 2 === 0 ? sideToMove : opponent;
+    const fillerRole = chessFillerRoles[(globalIndex + index) % chessFillerRoles.length];
+    addChessPiece(pieces, occupied, square, chessPieceName(fillerSide, fillerRole));
+  }
+
+  const candidateFromSquares = new Set(candidateMoves.map((move) => move.from));
+  const existingCandidateSquares = new Set(pieces.map((piece) => piece.square));
+  for (const candidateFrom of candidateFromSquares) {
+    if (!existingCandidateSquares.has(candidateFrom)) {
+      addChessPiece(pieces, occupied, candidateFrom, chessPieceName(sideToMove, "Pawn"));
+    }
+  }
+
+  return {
+    theme: tag,
+    sideToMove,
+    pieces,
+    answerMove: { from, to, label: chessMoveLabel(role, from, to), piece: answerPiece },
+    candidateMoves,
+    hintSquares: [from, to],
+    revealArrows: [{ from, to }],
+    difficulty: socialGameDifficultyOrder[globalIndex % socialGameDifficultyOrder.length],
+  };
+}
+
+function buildChessMoveVisual(position: ChessPositionPuzzle, language: SocialGameLanguage): SocialGameRoundVisual {
+  return {
+    kind: "chessBoard",
+    caption: chessMovePrompt[position.sideToMove][language],
+    pieces: position.pieces,
+    highlights: position.hintSquares,
+    arrows: position.revealArrows,
+  };
+}
+
+function buildChessMoveInteraction(position: ChessPositionPuzzle, language: SocialGameLanguage): SocialGameRoundInteraction {
+  return {
+    kind: "chessMove",
+    instruction: chessMoveInstruction[language],
+    from: position.answerMove.from,
+    to: position.answerMove.to,
+    moveLabel: position.answerMove.label,
+    selectableSquares: Array.from(new Set(position.candidateMoves.map((move) => move.from))),
+    candidateMoves: position.candidateMoves,
+    hintSquares: position.hintSquares,
+  };
+}
+
+function chessMoveRoundPrompt(position: ChessPositionPuzzle, language: SocialGameLanguage) {
+  return chessMovePrompt[position.sideToMove][language];
+}
+
+function chessMoveRoundExplanation(moveLabel: string, tacticName: string, hint: string, language: SocialGameLanguage) {
+  if (language === "fr") return `Coup: ${moveLabel}. Idee: ${tacticName}. Pourquoi cela marche: ${hint}`;
+  if (language === "it") return `Mossa: ${moveLabel}. Idea: ${tacticName}. Perche funziona: ${hint}`;
+  if (language === "pt") return `Lance: ${moveLabel}. Ideia: ${tacticName}. Por que funciona: ${hint}`;
+  if (language === "de") return `Zug: ${moveLabel}. Idee: ${tacticName}. Warum es passt: ${hint}`;
+  if (language === "es") return `Jugada: ${moveLabel}. Idea: ${tacticName}. Por que funciona: ${hint}`;
+  return `Move: ${moveLabel}. Idea: ${tacticName}. Why this works: ${hint}`;
+}
+
 function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
-  return chessPuzzleThemes.flatMap((theme) =>
+  return chessPuzzleThemes.flatMap((theme, themeIndex) =>
     theme.variants.map((variant, index) => {
       const hint = (variant.hint ?? theme.hint)[language];
-      const visual = buildChessVisual(theme.tag, language, index);
-      const actionCopy = chessActionCopy(theme.tag, language, index);
+      const position = buildChessPositionPuzzle(theme.tag, themeIndex, index);
+      const visual = buildChessMoveVisual(position, language);
 
       return {
         id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
         kind: "chess" as const,
         title: chessRoundTitles[language],
         body: (variant.body ?? theme.body)[language],
-        prompt: actionCopy.prompt,
+        prompt: chessMoveRoundPrompt(position, language),
         choices: (variant.choices ?? theme.choices)[language],
         answer: (variant.answer ?? theme.answer)[language],
         hint,
@@ -2120,8 +2543,9 @@ function buildChessPuzzleBank(language: SocialLanguage): SocialGameRound[] {
         estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
         successMessage: (variant.successMessage ?? theme.successMessage)[language],
         visual,
-        interaction: buildChessInteraction(visual, language, actionCopy.instruction),
-        explanation: roundExplanation(hint, language),
+        interaction: buildChessMoveInteraction(position, language),
+        difficulty: position.difficulty,
+        explanation: chessMoveRoundExplanation(position.answerMove.label, (variant.answer ?? theme.answer)[language], hint, language),
         tableTalkPrompt: tableTalkPrompt("chess", language),
       };
     }),
@@ -2265,19 +2689,19 @@ const extraChessConcepts: Record<string, Record<ExtraGameLanguage, ExtraChessCon
 function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound[] {
   const copy = extraChessCopy[language];
 
-  return chessPuzzleThemes.flatMap((theme) => {
+  return chessPuzzleThemes.flatMap((theme, themeIndex) => {
     const concept = extraChessConcepts[theme.tag][language];
 
     return theme.variants.map((variant, index) => {
-      const visual = buildChessVisual(theme.tag, language, index);
-      const actionCopy = chessActionCopy(theme.tag, language, index);
+      const position = buildChessPositionPuzzle(theme.tag, themeIndex, index);
+      const visual = buildChessMoveVisual(position, language);
 
       return {
         id: variant.suffix ? `${theme.id}-${variant.suffix}` : theme.id,
         kind: "chess" as const,
         title: copy.title,
         body: copy.body,
-        prompt: actionCopy.prompt,
+        prompt: chessMoveRoundPrompt(position, language),
         choices: [...concept.choices],
         answer: concept.answer,
         hint: concept.hint,
@@ -2285,8 +2709,9 @@ function buildExtraChessPuzzleBank(language: ExtraGameLanguage): SocialGameRound
         estimatedDurationSeconds: variant.estimatedDurationSeconds ?? 95,
         successMessage: copy.successMessage,
         visual,
-        interaction: buildChessInteraction(visual, language, actionCopy.instruction),
-        explanation: roundExplanation(concept.hint, language),
+        interaction: buildChessMoveInteraction(position, language),
+        difficulty: position.difficulty,
+        explanation: chessMoveRoundExplanation(position.answerMove.label, concept.answer, concept.hint, language),
         tableTalkPrompt: tableTalkPrompt("chess", language),
       };
     });

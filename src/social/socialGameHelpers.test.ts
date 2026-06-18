@@ -56,17 +56,17 @@ describe("social games room helpers", () => {
   });
 
   it("keeps game prompts varied across every supported language", () => {
-    const promptVarietyExpectations: Record<SocialGameKind, { minUnique: number; maxRepeat: number }> = {
-      chess: { minUnique: 72, maxRepeat: 1 },
+    const promptVarietyExpectations: Record<Exclude<SocialGameKind, "chess">, { minUnique: number; maxRepeat: number }> = {
       word: { minUnique: 45, maxRepeat: 5 },
       dominoes: { minUnique: 72, maxRepeat: 1 },
       bridge: { minUnique: 70, maxRepeat: 3 },
     };
+    const promptVarietyKinds = supportedGameKinds.filter((kind): kind is Exclude<SocialGameKind, "chess"> => kind !== "chess");
 
     for (const language of supportedGameLanguages) {
       const table = buildGameTable(language, 6);
 
-      for (const kind of supportedGameKinds) {
+      for (const kind of promptVarietyKinds) {
         const rounds = table.rounds.filter((round) => round.kind === kind);
         const promptCounts = new Map<string, number>();
 
@@ -90,21 +90,21 @@ describe("social games room helpers", () => {
   });
 
   it("generates non-giveaway chess prompts and tactile instructions", () => {
-    const actionPromptStart: Record<SocialGameLanguage, RegExp> = {
-      en: /^(Find|Spot|Choose|Look for) /,
-      es: /^(Encuentra|Busca|Elige|Observa) /,
-      fr: /^(Trouvez|Reperez|Choisissez|Cherchez) /,
-      de: /^(Finde|Suche|Waehle|Erkenne) /,
-      it: /^(Trova|Osserva|Scegli|Cerca) /,
-      pt: /^(Encontre|Veja|Escolha|Procure) /,
+    const bestMovePrompt: Record<SocialGameLanguage, RegExp> = {
+      en: /^(White|Black) to move\. Find the best move\.$/,
+      es: /^(Juegan blancas|Juegan negras)\. Encuentra la mejor jugada\.$/,
+      fr: /^(Aux blancs|Aux noirs)\. Trouvez le meilleur coup\.$/,
+      de: /^(Weiss|Schwarz) am Zug\. Finde den besten Zug\.$/,
+      it: /^Muove il (Bianco|Nero)\. Trova la mossa migliore\.$/,
+      pt: /^(Brancas|Pretas) jogam\. Encontre o melhor lance\.$/,
     };
     const genericInstruction: Record<SocialGameLanguage, string> = {
-      en: "Tap a piece or square.",
-      es: "Toca una pieza o casilla.",
-      fr: "Touchez une piece ou une case.",
-      de: "Tippe auf eine Figur oder ein Feld.",
-      it: "Tocca un pezzo o una casa.",
-      pt: "Toque numa peca ou casa.",
+      en: "Tap a piece, then its square.",
+      es: "Toca una pieza y luego su casilla.",
+      fr: "Touchez une piece, puis sa case.",
+      de: "Tippe eine Figur an, dann ihr Zielfeld.",
+      it: "Tocca un pezzo, poi la casa.",
+      pt: "Toque numa peca e depois na casa.",
     };
     const giveawayPattern = /white (queen|rook|bishop|knight|pawn)|dama blanca|torre blanca|alfil blanco|caballo blanco|peon blanco|weisse dame|weissen turm|weissen laeufer|weissen springer|weissen bauern|dame blanche|tour blanche|fou blanc|cavalier blanc|pion blanc|donna bianca|torre bianca|alfiere bianco|cavallo bianco|pedone bianco|dama branca|torre branca|bispo branco|cavalo branco|peao branco|fork|horquilla|gabel|fourchette|forchetta|garfo|double threat|doble amenaza|doppelte drohung|double menace|doppia minaccia|ameaca dupla|back-rank mate|mate de primera fila|grundreihenmatt|mat du couloir|matto di corridoio|mate de corredor|\bpin\b|clouage|inchiodatura|cravada|skewer|enfilade|infilata|espeto/i;
 
@@ -116,29 +116,26 @@ describe("social games room helpers", () => {
 
       for (const round of chessRounds) {
         promptCounts.set(round.prompt, (promptCounts.get(round.prompt) ?? 0) + 1);
-        expect(round.prompt).toMatch(actionPromptStart[language]);
+        expect(round.prompt).toMatch(bestMovePrompt[language]);
         expect(round.prompt).not.toMatch(giveawayPattern);
         expect(round.prompt.toLocaleLowerCase()).not.toContain(round.answer.toLocaleLowerCase());
-        expect(round.interaction?.kind).toBe("chessTap");
-        if (round.interaction?.kind !== "chessTap") continue;
+        expect(round.interaction?.kind).toBe("chessMove");
+        if (round.interaction?.kind !== "chessMove") continue;
         expect(round.interaction.instruction).toBe(genericInstruction[language]);
+        expect(round.prompt).not.toContain(round.interaction.from);
+        expect(round.prompt).not.toContain(round.interaction.to);
+        expect(round.prompt).not.toContain(round.interaction.moveLabel);
+        expect(round.choices.length).toBeGreaterThan(0);
+        expect(round.explanation).toContain(round.interaction.moveLabel);
+        expect(round.explanation).toContain(round.answer);
       }
-
-      expect(promptCounts.size).toBeGreaterThanOrEqual(72);
-      expect(Math.max(...promptCounts.values())).toBeLessThanOrEqual(1);
 
       const chessThemeTags = new Set(
         chessRounds.flatMap((round) => round.tags.filter((tag) => tag.startsWith("chess:"))),
       );
 
-      for (const tag of chessThemeTags) {
-        const themePrompts = new Set(
-          chessRounds
-            .filter((round) => round.tags.includes(tag))
-            .map((round) => round.prompt),
-        );
-        expect(themePrompts.size).toBeGreaterThanOrEqual(4);
-      }
+      expect(promptCounts.size).toBeLessThanOrEqual(2);
+      expect(chessThemeTags.size).toBe(20);
     }
   });
 
@@ -204,7 +201,7 @@ describe("social games room helpers", () => {
       roundId: round.id,
       startedCount: index === 9 ? 1 : 2,
       completedCount: 0,
-      lastSeenAt: `2026-06-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
+      lastSeenAt: index === 9 ? "2026-05-01T10:00:00.000Z" : `2026-06-${String((index % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
     }));
 
     expect(buildGameDefaultRoundIds(expandedWordRounds, attempts).word).toBe("word-table-new-neighbor");
@@ -284,19 +281,30 @@ describe("social games room helpers", () => {
         }
 
         if (round.kind === "chess") {
-          expect(round.interaction.kind).toBe("chessTap");
+          expect(round.interaction.kind).toBe("chessMove");
           expect(round.visual?.kind).toBe("chessBoard");
-          if (round.interaction.kind !== "chessTap" || round.visual?.kind !== "chessBoard") continue;
-          const validSquares = new Set([
-            ...round.visual.pieces.map((piece) => piece.square),
-            ...(round.visual.highlights ?? []),
-          ]);
-          expect(round.interaction.answerSquares.length).toBeGreaterThan(0);
-          expect(round.interaction.answerSquares.every((square) => validSquares.has(square))).toBe(true);
-          expect(round.interaction.selectableSquares?.length).toBeGreaterThanOrEqual(5);
-          expect(round.interaction.answerSquares.every((square) => round.interaction.kind === "chessTap" && round.interaction.selectableSquares?.includes(square))).toBe(true);
+          if (round.interaction.kind !== "chessMove" || round.visual?.kind !== "chessBoard") continue;
+          const validSquarePattern = /^[a-h][1-8]$/;
+          const pieceSquares = round.visual.pieces.map((piece) => piece.square);
+          const piecesBySquare = new Map(round.visual.pieces.map((piece) => [piece.square, piece.piece]));
+          expect(pieceSquares.every((square) => validSquarePattern.test(square))).toBe(true);
+          expect(new Set(pieceSquares).size).toBe(pieceSquares.length);
+          expect(round.visual.pieces.filter((piece) => piece.piece === "whiteKing")).toHaveLength(1);
+          expect(round.visual.pieces.filter((piece) => piece.piece === "blackKing")).toHaveLength(1);
+          expect(validSquarePattern.test(round.interaction.from)).toBe(true);
+          expect(validSquarePattern.test(round.interaction.to)).toBe(true);
+          expect(piecesBySquare.has(round.interaction.from)).toBe(true);
+          expect(round.interaction.selectableSquares.length).toBeGreaterThanOrEqual(3);
+          expect(round.interaction.selectableSquares).toContain(round.interaction.from);
+          expect(round.interaction.candidateMoves.length).toBeGreaterThanOrEqual(3);
+          expect(round.interaction.candidateMoves).toEqual(expect.arrayContaining([
+            expect.objectContaining({ from: round.interaction.from, to: round.interaction.to }),
+          ]));
+          expect(round.interaction.candidateMoves.every((move) => validSquarePattern.test(move.from) && validSquarePattern.test(move.to))).toBe(true);
+          expect(round.interaction.candidateMoves.every((move) => round.interaction.kind === "chessMove" && round.interaction.selectableSquares.includes(move.from))).toBe(true);
+          expect(round.interaction.hintSquares).toEqual(expect.arrayContaining([round.interaction.from, round.interaction.to]));
           expect(round.visual.pieces.length).toBeGreaterThanOrEqual(6);
-          expect(round.visual.pieces.length).toBeLessThanOrEqual(10);
+          expect(round.visual.pieces.length).toBeLessThanOrEqual(12);
         }
 
         if (round.kind === "dominoes") {
@@ -338,18 +346,33 @@ describe("social games room helpers", () => {
     }
   });
 
-  it("keeps early chess puzzle boards distinct when browsing variants", () => {
+  it("builds unique club-smart chess positions and balanced answer moves", () => {
     for (const language of supportedGameLanguages) {
       const chessRounds = buildGameTable(language, 6).rounds.filter((round) => round.kind === "chess");
-      const firstFourBoards = chessRounds.slice(0, 4).map((round) => JSON.stringify(round.visual));
+      const boardSignatures = chessRounds.map((round) => {
+        if (round.visual?.kind !== "chessBoard") return "";
+        return JSON.stringify({
+          caption: round.visual.caption,
+          pieces: [...round.visual.pieces].sort((a, b) => a.square.localeCompare(b.square)),
+        });
+      });
+      const answerTargetCounts = new Map<string, number>();
+      const answerPieceCounts = new Map<string, number>();
 
-      expect(new Set(firstFourBoards).size).toBe(4);
+      expect(new Set(boardSignatures).size).toBe(80);
 
-      const secondBoard = chessRounds[1].visual;
-      expect(secondBoard?.kind).toBe("chessBoard");
-      if (secondBoard?.kind !== "chessBoard") continue;
-      expect(secondBoard.pieces.some((piece) => piece.piece === "whiteRook")).toBe(true);
-      expect(secondBoard.pieces.some((piece) => piece.piece === "blackBishop")).toBe(true);
+      for (const round of chessRounds) {
+        expect(round.interaction?.kind).toBe("chessMove");
+        expect(round.visual?.kind).toBe("chessBoard");
+        if (round.interaction?.kind !== "chessMove" || round.visual?.kind !== "chessBoard") continue;
+        const answerPiece = round.visual.pieces.find((piece) => piece.square === round.interaction.from)?.piece ?? "";
+        const answerPieceRole = answerPiece.replace(/^white|^black/, "");
+        answerTargetCounts.set(round.interaction.to, (answerTargetCounts.get(round.interaction.to) ?? 0) + 1);
+        answerPieceCounts.set(answerPieceRole, (answerPieceCounts.get(answerPieceRole) ?? 0) + 1);
+      }
+
+      expect(Math.max(...answerTargetCounts.values())).toBeLessThanOrEqual(5);
+      expect(Math.max(...answerPieceCounts.values())).toBeLessThanOrEqual(24);
     }
   });
 

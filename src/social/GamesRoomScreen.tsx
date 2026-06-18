@@ -683,14 +683,16 @@ function ChessBoardVisual({
   visual,
   interaction,
   selectedSquare,
+  selectedFromSquare,
   wrongSquare,
   isComplete = false,
   revealGuidance = false,
   onSquareSelect,
 }: {
   visual: Extract<SocialGameRoundVisual, { kind: "chessBoard" }>;
-  interaction?: Extract<SocialGameRoundInteraction, { kind: "chessTap" }>;
+  interaction?: Extract<SocialGameRoundInteraction, { kind: "chessTap" | "chessMove" }>;
   selectedSquare?: string | null;
+  selectedFromSquare?: string | null;
   wrongSquare?: string | null;
   isComplete?: boolean;
   revealGuidance?: boolean;
@@ -699,10 +701,15 @@ function ChessBoardVisual({
   const piecesBySquare = new Map(visual.pieces.map((piece) => [piece.square, piece]));
   const highlightSet = new Set(visual.highlights ?? []);
   const arrowTargets = new Set((visual.arrows ?? []).flatMap((arrow) => [arrow.from, arrow.to]));
-  const selectableSquares = new Set(interaction?.selectableSquares ?? [
-    ...visual.pieces.map((piece) => piece.square),
-    ...(visual.highlights ?? []),
-  ]);
+  const targetSquaresForSelectedPiece = interaction?.kind === "chessMove" && selectedFromSquare
+    ? interaction.candidateMoves.filter((move) => move.from === selectedFromSquare).map((move) => move.to)
+    : [];
+  const selectableSquares = interaction?.kind === "chessMove"
+    ? new Set(selectedFromSquare ? [selectedFromSquare, ...targetSquaresForSelectedPiece] : interaction.selectableSquares)
+    : new Set(interaction?.selectableSquares ?? [
+      ...visual.pieces.map((piece) => piece.square),
+      ...(visual.highlights ?? []),
+    ]);
   const canTap = Boolean(interaction && onSquareSelect);
 
   return (
@@ -716,7 +723,7 @@ function ChessBoardVisual({
           const piece = piecesBySquare.get(square);
           const dark = (file + rank) % 2 === 0;
           const marked = revealGuidance && (highlightSet.has(square) || arrowTargets.has(square));
-          const selected = selectedSquare === square;
+          const selected = selectedSquare === square || selectedFromSquare === square;
           const wrong = wrongSquare === square;
           const tappable = canTap && selectableSquares.has(square);
           const squareClassName = `relative flex aspect-square items-center justify-center text-[11px] font-black ${dark ? "bg-[#8CB5A7]" : "bg-[#F2E7D5]"} ${tappable ? "cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-[#FBBF24] hover:ring-4 hover:ring-[#FBBF24]/70" : canTap ? "cursor-default" : ""}`;
@@ -1054,6 +1061,7 @@ function PuzzleVisualPanel({
   interaction,
   language,
   selectedTactileValue,
+  selectedChessFromSquare,
   wrongTactileValue,
   isComplete,
   revealChessGuidance,
@@ -1064,6 +1072,7 @@ function PuzzleVisualPanel({
   interaction?: SocialGameRoundInteraction;
   language: SocialGameLanguage;
   selectedTactileValue?: string | null;
+  selectedChessFromSquare?: string | null;
   wrongTactileValue?: string | null;
   isComplete?: boolean;
   revealChessGuidance?: boolean;
@@ -1075,8 +1084,9 @@ function PuzzleVisualPanel({
     return (
       <ChessBoardVisual
         visual={visual}
-        interaction={interaction?.kind === "chessTap" ? interaction : undefined}
+        interaction={interaction?.kind === "chessTap" || interaction?.kind === "chessMove" ? interaction : undefined}
         selectedSquare={selectedTactileValue}
+        selectedFromSquare={selectedChessFromSquare}
         wrongSquare={wrongTactileValue}
         isComplete={isComplete}
         revealGuidance={revealChessGuidance}
@@ -1169,12 +1179,12 @@ function TactileInteractionPanel({
     </button>
   );
 
-  if (interaction.kind === "chessTap") {
+  if (interaction.kind === "chessTap" || interaction.kind === "chessMove") {
     return (
       <div className="mt-3 flex items-center justify-between gap-2 rounded-[18px] bg-[#E8F7F6] px-3 py-2 shadow-[0_8px_18px_rgba(11,60,66,0.05)]" data-testid="games-chess-action-row">
         <p className="flex min-w-0 items-center gap-2 font-body text-[15px] font-extrabold leading-snug text-[#075C64] sm:text-[16px]">
           <Hand className="shrink-0" size={20} strokeWidth={2.7} />
-          <span>{getChessTapCue(language)}</span>
+          <span>{interaction.kind === "chessMove" ? interaction.instruction : getChessTapCue(language)}</span>
         </p>
         {helpButton}
       </div>
@@ -1599,6 +1609,7 @@ export default function GamesRoomScreen({
   const [wordFeedback, setWordFeedback] = useState<string | null>(null);
   const [choiceFeedback, setChoiceFeedback] = useState<string | null>(null);
   const [selectedTactileValue, setSelectedTactileValue] = useState<string | null>(null);
+  const [selectedChessFromSquare, setSelectedChessFromSquare] = useState<string | null>(null);
   const [wrongTactileValue, setWrongTactileValue] = useState<string | null>(null);
   const [showTactileHelp, setShowTactileHelp] = useState(false);
   const [showTactileChoices, setShowTactileChoices] = useState(false);
@@ -1657,7 +1668,7 @@ export default function GamesRoomScreen({
   );
   const displayedPrompt = selectedRound?.prompt;
   const shouldRevealChessGuidance = Boolean(
-    selectedRound?.interaction?.kind === "chessTap"
+    (selectedRound?.interaction?.kind === "chessTap" || selectedRound?.interaction?.kind === "chessMove")
     && (showTactileHelp || wrongTactileValue || hasCompletedSelectedRound),
   );
   const showConnectionPanel = Boolean(isGameSelected && hasCompletedSelectedRound);
@@ -1780,6 +1791,7 @@ export default function GamesRoomScreen({
     setWordFeedback(null);
     setChoiceFeedback(null);
     setSelectedTactileValue(null);
+    setSelectedChessFromSquare(null);
     setWrongTactileValue(null);
     setShowTactileHelp(false);
     setShowTactileChoices(false);
@@ -1840,6 +1852,7 @@ export default function GamesRoomScreen({
     setCompletedRoundId(round.id);
     setChoiceFeedback(null);
     setTactileFeedback(null);
+    setSelectedChessFromSquare(null);
     setWrongTactileValue(null);
     persistCompletedRound(round);
   };
@@ -1858,6 +1871,7 @@ export default function GamesRoomScreen({
     setWordFeedback(null);
     setChoiceFeedback(null);
     setSelectedTactileValue(null);
+    setSelectedChessFromSquare(null);
     setWrongTactileValue(null);
     setShowTactileHelp(false);
     setShowTactileChoices(false);
@@ -1892,6 +1906,7 @@ export default function GamesRoomScreen({
 
   const isCorrectTactileAnswer = (interaction: SocialGameRoundInteraction, value: string) => {
     if (interaction.kind === "chessTap") return interaction.answerSquares.includes(value);
+    if (interaction.kind === "chessMove") return value === `${interaction.from}:${interaction.to}`;
     if (interaction.kind === "dominoPlay") {
       if (interaction.answerTile && interaction.answerEndSide) {
         const parsedValue = parseDominoAnswerValue(value);
@@ -1906,6 +1921,50 @@ export default function GamesRoomScreen({
 
   const chooseTactileAnswer = (value: string) => {
     if (!selectedRound?.interaction || selectedRound.interaction.kind === "wordBuild" || hasCompletedSelectedRound) return;
+
+    if (selectedRound.interaction.kind === "chessMove") {
+      const interaction = selectedRound.interaction;
+      setChoiceFeedback(null);
+
+      if (!selectedChessFromSquare) {
+        if (value === interaction.from) {
+          setSelectedChessFromSquare(value);
+          setSelectedTactileValue(value);
+          setWrongTactileValue(null);
+          setTactileFeedback(null);
+          return;
+        }
+
+        markRoundAssisted(selectedRound);
+        setSelectedTactileValue(value);
+        setWrongTactileValue(value);
+        setTactileFeedback(getTactileTryAgainCopy(language));
+        setShowTactileHelp(true);
+        return;
+      }
+
+      if (value === selectedChessFromSquare) {
+        setSelectedChessFromSquare(null);
+        setSelectedTactileValue(null);
+        setWrongTactileValue(null);
+        setTactileFeedback(null);
+        return;
+      }
+
+      const moveValue = `${selectedChessFromSquare}:${value}`;
+      setSelectedTactileValue(moveValue);
+
+      if (isCorrectTactileAnswer(interaction, moveValue)) {
+        markRoundComplete(selectedRound);
+        return;
+      }
+
+      markRoundAssisted(selectedRound);
+      setWrongTactileValue(value);
+      setTactileFeedback(getTactileTryAgainCopy(language));
+      setShowTactileHelp(true);
+      return;
+    }
 
     setSelectedTactileValue(value);
     setChoiceFeedback(null);
@@ -2190,6 +2249,7 @@ export default function GamesRoomScreen({
                       <>
                         {!hasCompletedSelectedRound && (
                           selectedRound.interaction?.kind === "chessTap"
+                          || selectedRound.interaction?.kind === "chessMove"
                           || selectedRound.interaction?.kind === "dominoPlay"
                         ) && (
                           <TactileInteractionPanel
@@ -2211,6 +2271,7 @@ export default function GamesRoomScreen({
                             interaction={selectedRound.interaction}
                             language={language}
                             selectedTactileValue={selectedTactileValue}
+                            selectedChessFromSquare={selectedChessFromSquare}
                             wrongTactileValue={wrongTactileValue}
                             isComplete={hasCompletedSelectedRound}
                             revealChessGuidance={shouldRevealChessGuidance}
@@ -2221,6 +2282,7 @@ export default function GamesRoomScreen({
 
                         {!hasCompletedSelectedRound
                           && selectedRound.interaction?.kind !== "chessTap"
+                          && selectedRound.interaction?.kind !== "chessMove"
                           && selectedRound.interaction?.kind !== "dominoPlay"
                           && (
                           <TactileInteractionPanel
