@@ -13,6 +13,7 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
+import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import LoginPage from "@/pages/LoginPage";
 import LandingPage from "@/pages/LandingPage";
@@ -345,17 +346,11 @@ function AgentAppContextTracker() {
   return null;
 }
 
-function PublicPwaInstallPrompt() {
+function PwaInstallPromptGate() {
   const { user, isLoading } = useAuth();
   const location = useLocation();
-  const publicPath =
-    location.pathname === "/" ||
-    location.pathname === "/invite" ||
-    location.pathname === "/login" ||
-    location.pathname.startsWith("/access/") ||
-    location.pathname.startsWith("/care-team/invite/");
 
-  if (isLoading || user || !publicPath) return null;
+  if (isLoading || !shouldShowPwaInstallPromptForRoute(location.pathname, Boolean(user))) return null;
   return <PwaInstallPrompt />;
 }
 
@@ -451,7 +446,7 @@ const App = () => (
                 </Route>
                 <Route path="*" element={<NotFound />} />
                     </Routes>
-                    <PublicPwaInstallPrompt />
+                    <PwaInstallPromptGate />
                   </VoiceActionProvider>
                 </VyvaVoiceProvider>
               </LanguageFrameBoundary>
