@@ -409,7 +409,7 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Spot a friendly tactic.",
-        prompt: "Find the double threat.",
+        prompt: "White to move. Find the best move.",
         choices: ["Fork", "Castle", "Trade pawns"],
         answer: "Fork",
         hint: "One piece makes two threats at the same time.",
@@ -418,10 +418,20 @@ const roomResponse: SocialRoomResponse = {
         successMessage: "Nice steady thinking. Forks are a classic way to start a chess chat.",
         difficulty: "medium",
         interaction: {
-          kind: "chessTap",
-          instruction: "Tap a piece or square.",
-          answerSquares: ["d5"],
+          kind: "chessMove",
+          instruction: "Tap a piece, then its square.",
+          from: "d5",
+          to: "f6",
+          moveLabel: "Nd5-f6",
           selectableSquares: ["d5", "b6", "f6", "c2", "h6", "a7"],
+          candidateMoves: [
+            { from: "d5", to: "f6", label: "Nd5-f6" },
+            { from: "d5", to: "b6" },
+            { from: "b6", to: "b2" },
+            { from: "c2", to: "h7" },
+            { from: "a7", to: "a6" },
+          ],
+          hintSquares: ["d5", "f6"],
         },
         visual: {
           kind: "chessBoard",
@@ -444,7 +454,7 @@ const roomResponse: SocialRoomResponse = {
         kind: "chess",
         title: "Chess clue",
         body: "Find the trapped king.",
-        prompt: "Find the strongest king pressure.",
+        prompt: "White to move. Find the best move.",
         choices: ["Back-rank mate", "En passant", "Pawn promotion"],
         answer: "Back-rank mate",
         hint: "The king has no safe square because its own pawns block the escape.",
@@ -455,10 +465,19 @@ const roomResponse: SocialRoomResponse = {
         explanation: "Why this works: The king has no safe square because its own pawns block the escape.",
         tableTalkPrompt: "Ask someone which chess piece they enjoy moving most.",
         interaction: {
-          kind: "chessTap",
-          instruction: "Tap a piece or square.",
-          answerSquares: ["e8"],
-          selectableSquares: ["e8", "f7", "g7", "h7", "f2", "c6", "a6"],
+          kind: "chessMove",
+          instruction: "Tap a piece, then its square.",
+          from: "e8",
+          to: "g8",
+          moveLabel: "Re8-g8",
+          selectableSquares: ["e8", "f2", "g1", "a6"],
+          candidateMoves: [
+            { from: "e8", to: "g8", label: "Re8-g8" },
+            { from: "e8", to: "e7" },
+            { from: "f2", to: "c5" },
+            { from: "a6", to: "a5" },
+          ],
+          hintSquares: ["e8", "g8"],
         },
         visual: {
           kind: "chessBoard",
@@ -545,7 +564,7 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByTestId("games-selected-puzzle")).toBeInTheDocument();
     expect(screen.getByText("Puzzle 1 of 2")).toBeInTheDocument();
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
-    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a marker.");
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a piece, then its square.");
 
     fireEvent.click(screen.getByTestId("games-room-back"));
 
@@ -568,7 +587,7 @@ describe("GamesRoomScreen", () => {
     const puzzleControls = screen.getByTestId("games-puzzle-controls");
     expect(within(puzzleControls).queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(within(puzzleControls).getByTestId("games-next-puzzle")).toBeInTheDocument();
-    expect(screen.getByText("Find the double threat.")).toBeInTheDocument();
+    expect(screen.getAllByText("White to move. Find the best move.").length).toBeGreaterThan(0);
     const chessBoard = screen.getByTestId("games-visual-chess");
     expect(chessBoard).toBeInTheDocument();
     expect(within(chessBoard).getByRole("img", { name: "White knight" })).toBeInTheDocument();
@@ -580,14 +599,13 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-next-puzzle"));
 
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
 
     expect(screen.queryByTestId("games-start-round")).not.toBeInTheDocument();
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
-    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
+    expect(screen.getAllByText("White to move. Find the best move.").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("games-tactile-chess")).not.toBeInTheDocument();
     expect(screen.queryByText("Your move")).not.toBeInTheDocument();
-    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a marker.");
+    expect(screen.getByTestId("games-chess-action-row")).toHaveTextContent("Tap a piece, then its square.");
     expect(screen.queryByTestId("chess-guidance-e8")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("games-show-help"));
@@ -595,12 +613,14 @@ describe("GamesRoomScreen", () => {
     expect(screen.getByText(/Hint:/)).toHaveTextContent("The king has no safe square");
     expect(screen.getByTestId("chess-guidance-e8")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("chess-square-f7"));
+    fireEvent.click(screen.getByTestId("chess-square-f2"));
 
     expect(screen.getByRole("status")).toHaveTextContent("Close.");
     expect(screen.queryByTestId("games-help-choices")).not.toBeInTheDocument();
     expect(screen.getByTestId("chess-guidance-e8")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("chess-square-e8"));
+    expect(screen.queryByText("Puzzle complete")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("chess-square-g8"));
     expect(screen.getByText("Puzzle complete")).toBeInTheDocument();
     expect(screen.queryByText("Back-rank patterns are small puzzles that many chess players enjoy.")).not.toBeInTheDocument();
     expect(screen.queryByText(/Why this works:/)).not.toBeInTheDocument();
@@ -656,7 +676,7 @@ describe("GamesRoomScreen", () => {
     fireEvent.click(screen.getByTestId("games-room-back"));
     fireEvent.click(screen.getByTestId("games-round-chess"));
     expect(screen.getByText("Puzzle 2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("Find the strongest king pressure.")).toBeInTheDocument();
+    expect(screen.getAllByText("White to move. Find the best move.").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByTestId("games-room-back"));
     fireEvent.click(screen.getByTestId("games-round-word"));
