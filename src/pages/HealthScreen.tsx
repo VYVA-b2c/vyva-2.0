@@ -327,6 +327,39 @@ function uniqueValues(values: string[]): string[] {
   return values.filter((value, index, array) => array.indexOf(value) === index);
 }
 
+const LOCATION_COUNTRY_CODE_LABELS: Record<string, string> = {
+  DE: "Germany",
+  ES: "Spain",
+  FR: "France",
+  GB: "United Kingdom",
+  IT: "Italy",
+  PT: "Portugal",
+  UK: "United Kingdom",
+  US: "United States",
+};
+
+function locationCountryLabel(country?: string | null): string {
+  const trimmed = country?.trim();
+  if (!trimmed) return "";
+  if (/^[A-Za-z]{2}$/.test(trimmed)) return LOCATION_COUNTRY_CODE_LABELS[trimmed.toUpperCase()] ?? "";
+  return trimmed;
+}
+
+export function profileLocationFromParts({
+  postalCode,
+  cityState,
+  country,
+}: {
+  postalCode?: string | null;
+  cityState?: string | null;
+  country?: string | null;
+}): string {
+  const areaParts = [postalCode, cityState].map((part) => part?.trim()).filter(Boolean) as string[];
+  if (!areaParts.length) return "";
+
+  return uniqueValues([...areaParts, locationCountryLabel(country)].filter(Boolean)).join(", ");
+}
+
 function localizedSpecialistPrompt(key: string, language: string): string {
   const isSpanish = activeLanguage(language) === "es";
   const prompts: Record<string, { es: string; en: string }> = {
@@ -1152,12 +1185,11 @@ const HealthScreen = () => {
   const specialistLanguage = activeLanguage(appLanguage);
 
   const profileLocation = useMemo(() => {
-    const parts = [
-      profile?.postalCode,
-      profile?.cityState,
-      profile?.country,
-    ].map((part) => part?.trim()).filter(Boolean);
-    return uniqueValues(parts as string[]).join(", ");
+    return profileLocationFromParts({
+      postalCode: profile?.postalCode,
+      cityState: profile?.cityState,
+      country: profile?.country,
+    });
   }, [profile?.postalCode, profile?.cityState, profile?.country]);
 
   const { data: personalisationData } = useQuery<{

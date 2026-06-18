@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { translate } from "@/i18n";
 import {
   DailyCheckinCard,
+  profileLocationFromParts,
   VisualHealthScanCardContent,
   VisualScanResultPanel,
   visualScanDoctorContext,
@@ -68,6 +69,16 @@ describe("VisualHealthScanCardContent", () => {
     for (const label of ["Wounds", "Bruises", "Fluids", "Stool", "Urine", "X-rays"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+  });
+});
+
+describe("Find specialist profile location", () => {
+  it("does not expose a country code as the whole visible location", () => {
+    expect(profileLocationFromParts({ country: "ES" })).toBe("");
+  });
+
+  it("uses real area details and expands known country codes", () => {
+    expect(profileLocationFromParts({ postalCode: "11380", cityState: "Tarifa", country: "ES" })).toBe("11380, Tarifa, Spain");
   });
 });
 
