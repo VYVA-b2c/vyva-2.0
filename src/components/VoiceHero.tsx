@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
@@ -138,6 +138,21 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 
   const isActive = voiceStatus === "connected";
   const showOverlay = shouldShowOverlay && (isActive || isConnecting);
+  const [browserOnline, setBrowserOnline] = useState(() => (
+    typeof navigator === "undefined" ? true : navigator.onLine
+  ));
+
+  useEffect(() => {
+    const updateOnlineStatus = () => setBrowserOnline(navigator.onLine);
+
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+
+    return () => {
+      window.removeEventListener("online", updateOnlineStatus);
+      window.removeEventListener("offline", updateOnlineStatus);
+    };
+  }, []);
 
   useEffect(() => {
     if (!autoStartKey || voiceControls) return;
@@ -194,10 +209,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           ? t("voiceHero.speaking")
           : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
-  const connectionLabel = isActive ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline");
-  const connectionColor = isActive ? "#34D399" : "#EF4444";
-  const connectionHalo = isActive ? "rgba(52,211,153,0.24)" : "rgba(239,68,68,0.20)";
-  const connectionBorder = isActive ? "rgba(52,211,153,0.42)" : "rgba(239,68,68,0.36)";
+  const isSystemOnline = browserOnline || isConnecting || isActive;
+  const connectionLabel = isSystemOnline ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline");
+  const connectionColor = isSystemOnline ? "#34D399" : "#EF4444";
+  const connectionHalo = isSystemOnline ? "rgba(52,211,153,0.24)" : "rgba(239,68,68,0.20)";
+  const connectionBorder = isSystemOnline ? "rgba(52,211,153,0.42)" : "rgba(239,68,68,0.36)";
   const isBrainHero = heroSurface === "brain";
 
   const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {
