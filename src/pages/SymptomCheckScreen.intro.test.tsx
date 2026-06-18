@@ -1,7 +1,18 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AssessmentConfidenceTracker, IntroScreen } from "./SymptomCheckScreen";
 import type { TriagePersonalizedSuggestion } from "@/triage";
+
+const { apiFetchMock } = vi.hoisted(() => ({
+  apiFetchMock: vi.fn(),
+}));
+
+vi.mock("@/lib/queryClient", () => ({
+  apiFetch: apiFetchMock,
+  queryClient: {
+    invalidateQueries: vi.fn(),
+  },
+}));
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
@@ -14,6 +25,12 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 describe("SymptomCheck intro chips", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    apiFetchMock.mockReset();
+    vi.unstubAllGlobals();
+  });
+
   const profileSuggestions: TriagePersonalizedSuggestion[] = [
     {
       id: "heart-chest-pressure",
@@ -66,7 +83,7 @@ describe("SymptomCheck intro chips", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
     expect(screen.getByTestId("symptom-check-one-question-note")).toHaveTextContent("One question at a time");
-    expect(screen.getByText("You can tap simple choices, type a short answer, or stop after the next-step report is ready.")).toBeVisible();
+    expect(screen.getByText("Speak, type, or tap a suggestion.")).toBeVisible();
   });
 
   it("shows profile-aware concern and improvement lanes", () => {
@@ -93,6 +110,125 @@ describe("SymptomCheck intro chips", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start symptom check" }));
 
     expect(onStart).toHaveBeenCalledWith("Chest pressure or tightness");
+  });
+
+  it("fills the symptom input from the voice transcription button", async () => {
+    const trackStop = vi.fn();
+    const getUserMedia = vi.fn().mockResolvedValue({
+      getTracks: () => [{ stop: trackStop }],
+    });
+
+    class MockMediaRecorder {
+      static isTypeSupported = vi.fn(() => true);
+      mimeType = "audio/webm";
+      state: RecordingState = "inactive";
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onstop: ((event: Event) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+
+      start() {
+        this.state = "recording";
+      }
+
+      stop() {
+        this.state = "inactive";
+        this.ondataavailable?.({
+          data: new Blob(["symptom voice audio content with enough bytes"], { type: "audio/webm" }),
+        } as BlobEvent);
+        this.onstop?.(new Event("stop"));
+      }
+    }
+
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    vi.stubGlobal("MediaRecorder", MockMediaRecorder);
+    apiFetchMock.mockResolvedValue(new Response(JSON.stringify({ transcript: "bad headache" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    render(<IntroScreen onStart={vi.fn()} />);
+
+    const voiceButton = screen.getByTestId("button-symptom-clue-voice");
+    fireEvent.click(voiceButton);
+
+    expect(await screen.findByText("Listening... tap again to stop. It stops after 30 seconds.")).toBeVisible();
+
+    fireEvent.click(voiceButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-symptom-clue")).toHaveValue("bad headache");
+    });
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/triage/transcribe?language=en", expect.objectContaining({
+      method: "POST",
+      headers: { "Content-Type": "audio/webm" },
+    }));
+    expect(trackStop).toHaveBeenCalled();
+  });
+
+  it("automatically stops voice capture after the safety limit", async () => {
+    vi.useFakeTimers();
+    const trackStop = vi.fn();
+    const getUserMedia = vi.fn().mockResolvedValue({
+      getTracks: () => [{ stop: trackStop }],
+    });
+    const recorderStop = vi.fn();
+
+    class MockMediaRecorder {
+      static isTypeSupported = vi.fn(() => true);
+      mimeType = "audio/webm";
+      state: RecordingState = "inactive";
+      ondataavailable: ((event: BlobEvent) => void) | null = null;
+      onstop: ((event: Event) => void) | null = null;
+
+      constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+
+      start() {
+        this.state = "recording";
+      }
+
+      stop() {
+        recorderStop();
+        this.state = "inactive";
+        this.ondataavailable?.({
+          data: new Blob(["automatic stop voice audio content with enough bytes"], { type: "audio/webm" }),
+        } as BlobEvent);
+        this.onstop?.(new Event("stop"));
+      }
+    }
+
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    vi.stubGlobal("MediaRecorder", MockMediaRecorder);
+    apiFetchMock.mockResolvedValue(new Response(JSON.stringify({ transcript: "aching back" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    render(<IntroScreen onStart={vi.fn()} />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("button-symptom-clue-voice"));
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Listening... tap again to stop. It stops after 30 seconds.")).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(recorderStop).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("input-symptom-clue")).toHaveValue("aching back");
+    expect(trackStop).toHaveBeenCalled();
   });
 
   it("opens support routes from improvement chips", () => {

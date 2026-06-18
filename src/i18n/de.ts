@@ -321,6 +321,20 @@ const de = {
       },
     },
     symptomCheck: {
+      intro: {
+        clueSub: "Sag oder schreibe ein paar Worte.",
+        oneQuestionTitle: "Eine Frage nach der anderen",
+        oneQuestionBody: "Sprich, tippe oder waehle einen Vorschlag.",
+        voiceStart: "Spracheingabe verwenden",
+        voiceStop: "Spracheingabe stoppen",
+        voiceTranscribing: "Sprache wird in Text umgewandelt",
+        voiceRecording: "Hoere zu... erneut tippen zum Stoppen. Stoppt automatisch nach 30 Sekunden.",
+        voiceTranscribingStatus: "Sprache wird in Text umgewandelt...",
+        voiceEmpty: "Ich konnte nichts klar hoeren. Bitte erneut versuchen.",
+        voiceFailed: "Ich konnte diese Sprachnotiz nicht in Text umwandeln. Bitte erneut versuchen.",
+        voiceUnsupported: "Spracheingabe ist in diesem Browser nicht verfugbar.",
+        voiceMicError: "Ich konnte das Mikrofon nicht verwenden. Bitte erneut versuchen oder tippen.",
+      },
       tracker: {
         label: "Vertrauensniveau",
         shortLabel: "Vertrauen",

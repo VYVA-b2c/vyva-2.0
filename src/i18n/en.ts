@@ -320,6 +320,20 @@ const en = {
       },
     },
     symptomCheck: {
+      intro: {
+        clueSub: "Say or type a few words.",
+        oneQuestionTitle: "One question at a time",
+        oneQuestionBody: "Speak, type, or tap a suggestion.",
+        voiceStart: "Use voice input",
+        voiceStop: "Stop voice input",
+        voiceTranscribing: "Turning voice into text",
+        voiceRecording: "Listening... tap again to stop. It stops after 30 seconds.",
+        voiceTranscribingStatus: "Turning voice into text...",
+        voiceEmpty: "I couldn't hear anything clearly. Please try again.",
+        voiceFailed: "I couldn't turn that voice note into text. Please try again.",
+        voiceUnsupported: "Voice input is not available in this browser.",
+        voiceMicError: "I couldn't use the microphone. Please try again or type instead.",
+      },
       tracker: {
         label: "Confidence level",
         shortLabel: "Confidence",

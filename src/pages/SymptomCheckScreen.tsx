@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Activity, Brain, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, ArrowRight, Droplets, Eye, ClipboardList, FileText, Gauge, Heart, HeartPulse, Home, ListChecks, Loader2, Mail, PhoneCall, Pill, Send, ShieldCheck, ShoppingBasket, Stethoscope, Users, Wind, type LucideIcon } from "lucide-react";
+import { Activity, Brain, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, ArrowRight, Droplets, Eye, ClipboardList, FileText, Gauge, Heart, HeartPulse, Home, ListChecks, Loader2, Mail, Mic, PhoneCall, Pill, Send, ShieldCheck, ShoppingBasket, Square, Stethoscope, Users, Wind, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -624,11 +624,45 @@ const suggestionToneClass: Record<TriagePersonalizedSuggestion["tone"], { button
   },
 };
 
+type VoiceCaptureState = "idle" | "recording" | "transcribing";
+const VOICE_CAPTURE_MAX_MS = 30_000;
+
+const voiceMimeCandidates = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/mp4",
+  "audio/ogg;codecs=opus",
+];
+
+function preferredVoiceMimeType() {
+  if (typeof MediaRecorder === "undefined") return "";
+  return voiceMimeCandidates.find((type) => {
+    try {
+      return MediaRecorder.isTypeSupported(type);
+    } catch {
+      return false;
+    }
+  }) ?? "";
+}
+
+function stopVoiceStream(stream: MediaStream | null) {
+  stream?.getTracks().forEach((track) => track.stop());
+}
+
 export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: IntroScreenProps) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const [clue, setClue] = useState("");
+  const [voiceState, setVoiceState] = useState<VoiceCaptureState>("idle");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const voiceStreamRef = useRef<MediaStream | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceStopTimerRef = useRef<number | null>(null);
   const cleanClue = clue.trim();
   const canStart = cleanClue.length >= 2;
+  const isRecordingVoice = voiceState === "recording";
+  const isTranscribingVoice = voiceState === "transcribing";
   const suggestions = personalizedSuggestions?.length ? personalizedSuggestions : fallbackIntroSuggestions(t);
   const commonConcerns = suggestions.filter((suggestion) => suggestion.kind === "common_concern").slice(0, 6);
   const healthImprovements = suggestions.filter((suggestion) => suggestion.kind === "health_improvement").slice(0, 5);
@@ -684,13 +718,161 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
     );
   };
 
+  const clearVoiceStopTimer = useCallback(() => {
+    if (voiceStopTimerRef.current !== null) {
+      window.clearTimeout(voiceStopTimerRef.current);
+      voiceStopTimerRef.current = null;
+    }
+  }, []);
+
+  const transcribeVoiceBlob = useCallback(async (blob: Blob) => {
+    if (blob.size < 32) {
+      setVoiceState("idle");
+      setVoiceError(t("health.symptomCheck.intro.voiceEmpty", "I couldn't hear anything clearly. Please try again."));
+      return;
+    }
+
+    setVoiceState("transcribing");
+    try {
+      const res = await apiFetch(`/api/triage/transcribe?language=${encodeURIComponent(language)}`, {
+        method: "POST",
+        headers: { "Content-Type": blob.type || "application/octet-stream" },
+        body: blob,
+      });
+
+      const payload = await res.json().catch(() => null) as { transcript?: unknown; error?: unknown } | null;
+      if (!res.ok) {
+        const message = typeof payload?.error === "string"
+          ? payload.error
+          : t("health.symptomCheck.intro.voiceFailed", "I couldn't turn that voice note into text. Please try again.");
+        throw new Error(message);
+      }
+
+      const transcript = typeof payload?.transcript === "string" ? payload.transcript.trim() : "";
+      if (!transcript) {
+        throw new Error(t("health.symptomCheck.intro.voiceEmpty", "I couldn't hear anything clearly. Please try again."));
+      }
+
+      setClue(transcript);
+      setVoiceError(null);
+      window.setTimeout(() => {
+        document.getElementById("symptom-clue")?.focus();
+      }, 0);
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : t("health.symptomCheck.intro.voiceFailed", "I couldn't turn that voice note into text. Please try again."));
+    } finally {
+      setVoiceState("idle");
+    }
+  }, [language, t]);
+
+  const stopVoiceCapture = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }, []);
+
+  const startVoiceCapture = useCallback(async () => {
+    setVoiceError(null);
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setVoiceError(t("health.symptomCheck.intro.voiceUnsupported", "Voice input is not available in this browser."));
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      voiceStreamRef.current = stream;
+      voiceChunksRef.current = [];
+
+      const mimeType = preferredVoiceMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) voiceChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        clearVoiceStopTimer();
+        stopVoiceStream(stream);
+        voiceStreamRef.current = null;
+        recorderRef.current = null;
+        voiceChunksRef.current = [];
+        setVoiceState("idle");
+        setVoiceError(t("health.symptomCheck.intro.voiceMicError", "I couldn't use the microphone. Please try again or type instead."));
+      };
+      recorder.onstop = () => {
+        clearVoiceStopTimer();
+        const chunks = voiceChunksRef.current;
+        const recordedType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunks, { type: recordedType });
+        stopVoiceStream(stream);
+        voiceStreamRef.current = null;
+        recorderRef.current = null;
+        voiceChunksRef.current = [];
+        void transcribeVoiceBlob(blob);
+      };
+
+      recorder.start();
+      voiceStopTimerRef.current = window.setTimeout(() => {
+        const activeRecorder = recorderRef.current;
+        if (activeRecorder && activeRecorder.state !== "inactive") {
+          activeRecorder.stop();
+        }
+      }, VOICE_CAPTURE_MAX_MS);
+      setVoiceState("recording");
+    } catch {
+      clearVoiceStopTimer();
+      stopVoiceStream(voiceStreamRef.current);
+      voiceStreamRef.current = null;
+      recorderRef.current = null;
+      setVoiceState("idle");
+      setVoiceError(t("health.symptomCheck.intro.voiceMicError", "I couldn't use the microphone. Please try again or type instead."));
+    }
+  }, [clearVoiceStopTimer, t, transcribeVoiceBlob]);
+
+  const toggleVoiceCapture = useCallback(() => {
+    if (isTranscribingVoice) return;
+    if (isRecordingVoice) {
+      stopVoiceCapture();
+      return;
+    }
+    void startVoiceCapture();
+  }, [isRecordingVoice, isTranscribingVoice, startVoiceCapture, stopVoiceCapture]);
+
+  useEffect(() => () => {
+    clearVoiceStopTimer();
+    const recorder = recorderRef.current;
+    if (recorder) {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      recorder.onerror = null;
+    }
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    stopVoiceStream(voiceStreamRef.current);
+  }, [clearVoiceStopTimer]);
+
+  const voiceButtonLabel = isRecordingVoice
+    ? t("health.symptomCheck.intro.voiceStop", "Stop voice input")
+    : isTranscribingVoice
+      ? t("health.symptomCheck.intro.voiceTranscribing", "Turning voice into text")
+      : t("health.symptomCheck.intro.voiceStart", "Use voice input");
+  const voiceStatus = isRecordingVoice
+    ? t("health.symptomCheck.intro.voiceRecording", "Listening... tap again to stop. It stops after 30 seconds.")
+    : isTranscribingVoice
+      ? t("health.symptomCheck.intro.voiceTranscribingStatus", "Turning voice into text...")
+      : voiceError;
+
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-5 px-[18px] py-5">
       <HealthWizardHero
         icon={<Stethoscope size={28} />}
         kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
         title={t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
-        body={t("health.symptomCheck.intro.clueSub", "Use a few words. VYVA will choose the right questions.")}
+        body={t("health.symptomCheck.intro.clueSub", "Say or type a few words.")}
       />
 
       <HealthWizardCard tone="soft" className="px-4 py-4" testId="symptom-check-one-question-note">
@@ -703,7 +885,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
               {t("health.symptomCheck.intro.oneQuestionTitle", "One question at a time")}
             </p>
             <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-              {t("health.symptomCheck.intro.oneQuestionBody", "You can tap simple choices, type a short answer, or stop after the next-step report is ready.")}
+              {t("health.symptomCheck.intro.oneQuestionBody", "Speak, type, or tap a suggestion.")}
             </p>
           </div>
         </div>
@@ -713,14 +895,51 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
         <label className="sr-only" htmlFor="symptom-clue">
           {t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
         </label>
-        <input
-          id="symptom-clue"
-          value={clue}
-          onChange={(event) => setClue(event.target.value)}
-          placeholder={t("health.symptomCheck.intro.cluePlaceholder", "For example: bad headache...")}
-          data-testid="input-symptom-clue"
-          className="min-h-[78px] w-full min-w-0 max-w-full rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5 font-body text-[22px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8]"
-        />
+        <div className="grid gap-2">
+          <div className="relative">
+            <input
+              id="symptom-clue"
+              value={clue}
+              onChange={(event) => {
+                setClue(event.target.value);
+                if (voiceError) setVoiceError(null);
+              }}
+              placeholder={t("health.symptomCheck.intro.cluePlaceholder", "For example: bad headache...")}
+              data-testid="input-symptom-clue"
+              className="min-h-[78px] w-full min-w-0 max-w-full rounded-[24px] border-2 border-[#DDD6FE] bg-white py-3 pl-5 pr-[76px] font-body text-[16px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:text-[22px] sm:pr-[86px]"
+            />
+            <button
+              type="button"
+              onClick={toggleVoiceCapture}
+              disabled={isTranscribingVoice}
+              aria-label={voiceButtonLabel}
+              title={voiceButtonLabel}
+              data-testid="button-symptom-clue-voice"
+              className={`absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6B21A8] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
+                isRecordingVoice
+                  ? "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]"
+                  : "border-[#DDD6FE] bg-[#F5F3FF] text-vyva-purple hover:border-[#C4B5FD]"
+              } disabled:cursor-wait disabled:opacity-70`}
+            >
+              {isTranscribingVoice ? (
+                <Loader2 size={22} strokeWidth={2.8} className="animate-spin" />
+              ) : isRecordingVoice ? (
+                <Square size={18} strokeWidth={3} fill="currentColor" />
+              ) : (
+                <Mic size={23} strokeWidth={2.8} />
+              )}
+            </button>
+          </div>
+          {voiceStatus ? (
+            <p
+              role={voiceError ? "alert" : "status"}
+              data-testid="symptom-clue-voice-status"
+              className={`px-2 font-body text-[13px] font-bold leading-snug ${voiceError ? "text-[#B91C1C]" : "text-vyva-text-2"}`}
+            >
+              {voiceStatus}
+            </p>
+          ) : null}
+        </div>
 
         <div className="rounded-[22px] border border-[#EDE5DB] bg-[#FFFCF8] px-4 py-3">
           <p className="font-body text-[12px] font-black uppercase tracking-[0.14em] text-vyva-purple">

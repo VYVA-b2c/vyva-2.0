@@ -412,6 +412,45 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps symptom intro voice controls localized for supported account languages", () => {
+    const expected = {
+      en: ["Use voice input", "Stop voice input", "Listening... tap again to stop. It stops after 30 seconds.", "I couldn't use the microphone. Please try again or type instead."],
+      es: ["Usar voz", "Detener voz", "Escuchando... toca otra vez para parar. Se detiene a los 30 segundos.", "No he podido usar el microfono. Intentalo de nuevo o escribe."],
+      fr: ["Utiliser la voix", "Arreter la voix", "Ecoute... touchez encore pour arreter. Arret automatique apres 30 secondes.", "Je n'ai pas pu utiliser le micro. Reessayez ou ecrivez."],
+      de: ["Spracheingabe verwenden", "Spracheingabe stoppen", "Hoere zu... erneut tippen zum Stoppen. Stoppt automatisch nach 30 Sekunden.", "Ich konnte das Mikrofon nicht verwenden. Bitte erneut versuchen oder tippen."],
+      it: ["Usa voce", "Ferma voce", "Ascolto... tocca ancora per fermare. Si ferma dopo 30 secondi.", "Non sono riuscita a usare il microfono. Riprova o scrivi."],
+      pt: ["Usar voz", "Parar voz", "A ouvir... toque outra vez para parar. Para apos 30 segundos.", "Nao consegui usar o microfone. Tente de novo ou escreva."],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceStart"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceStop"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceRecording"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.voiceMicError"),
+      ]).toEqual(labels);
+    }
+  });
+
+  it("keeps symptom intro prompt copy concise across supported account languages", () => {
+    const expected = {
+      en: ["Say or type a few words.", "One question at a time", "Speak, type, or tap a suggestion."],
+      es: ["Di o escribe unas palabras.", "Una pregunta cada vez", "Habla, escribe o toca una sugerencia."],
+      fr: ["Dites ou ecrivez quelques mots.", "Une question a la fois", "Parlez, ecrivez ou touchez une suggestion."],
+      de: ["Sag oder schreibe ein paar Worte.", "Eine Frage nach der anderen", "Sprich, tippe oder waehle einen Vorschlag."],
+      it: ["Di o scrivi poche parole.", "Una domanda alla volta", "Parla, scrivi o tocca un suggerimento."],
+      pt: ["Diga ou escreva algumas palavras.", "Uma pergunta de cada vez", "Fale, escreva ou toque numa sugestao."],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.clueSub"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.oneQuestionTitle"),
+        translate(language as keyof typeof expected, "health.symptomCheck.intro.oneQuestionBody"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps scam guard action buttons localized for supported account languages", () => {
     const expected = {
       en: ["Quick safe actions", "Call {{name}}", "Get safe help", "Call guidance"],

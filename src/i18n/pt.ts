@@ -316,6 +316,20 @@ const pt = {
       },
     },
     symptomCheck: {
+      intro: {
+        clueSub: "Diga ou escreva algumas palavras.",
+        oneQuestionTitle: "Uma pergunta de cada vez",
+        oneQuestionBody: "Fale, escreva ou toque numa sugestao.",
+        voiceStart: "Usar voz",
+        voiceStop: "Parar voz",
+        voiceTranscribing: "A transformar voz em texto",
+        voiceRecording: "A ouvir... toque outra vez para parar. Para apos 30 segundos.",
+        voiceTranscribingStatus: "A transformar voz em texto...",
+        voiceEmpty: "Nao consegui ouvir com clareza. Tente de novo.",
+        voiceFailed: "Nao consegui transformar essa nota de voz em texto. Tente de novo.",
+        voiceUnsupported: "A entrada por voz nao esta disponivel neste navegador.",
+        voiceMicError: "Nao consegui usar o microfone. Tente de novo ou escreva.",
+      },
       tracker: {
         label: "Nivel de confianca",
         shortLabel: "Confianca",
