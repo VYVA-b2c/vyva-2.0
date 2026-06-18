@@ -189,7 +189,7 @@ export function savedCheckinNavigationFor(report: CheckinHistoryReport, name: st
 const CheckinHistoryScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { firstName } = useProfile();
+  const { firstName, profile } = useProfile();
   const { language } = useLanguage();
   const name = firstName.trim();
   const { data, isLoading, isError } = useQuery<CheckinHistoryResponse>({
