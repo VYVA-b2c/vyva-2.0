@@ -731,37 +731,39 @@ const MedsScreen = () => {
             </div>
           ))}
 
-          <div className="flex flex-col gap-3 border-t border-vyva-border bg-[#FFFCF8] px-4 py-4">
-            {!todayLoading && displayMeds.length > 0 && totalRemainingDoseCount === 0 ? (
-              <div
-                className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-emerald-50 px-5 py-4 font-body text-[16px] font-bold text-emerald-700"
-                data-testid="status-all-meds-taken"
-              >
-                <Check size={18} />
-                {t("meds.allTaken")}
-              </div>
-            ) : (
+          {displayMeds.length > 0 ? (
+            <div className="flex flex-col gap-3 border-t border-vyva-border bg-[#FFFCF8] px-4 py-4">
+              {!todayLoading && totalRemainingDoseCount === 0 ? (
+                <div
+                  className="flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-emerald-50 px-5 py-4 font-body text-[16px] font-bold text-emerald-700"
+                  data-testid="status-all-meds-taken"
+                >
+                  <Check size={18} />
+                  {t("meds.allTaken")}
+                </div>
+              ) : (
+                <button
+                  data-testid="button-confirm-all-meds"
+                  onClick={() => {
+                    void confirmAllRemainingDoses(pendingMeds);
+                  }}
+                  disabled={confirmMutation.isPending || todayLoading || totalRemainingDoseCount === 0}
+                  className="vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 py-4 font-body text-[16px] font-bold text-white transition-opacity disabled:opacity-60"
+                >
+                  <LinkIcon size={18} />
+                  {t("meds.confirmRemaining", "Confirm remaining doses")}
+                </button>
+              )}
               <button
-                data-testid="button-confirm-all-meds"
-                onClick={() => {
-                  void confirmAllRemainingDoses(pendingMeds);
-                }}
-                disabled={confirmMutation.isPending || todayLoading || totalRemainingDoseCount === 0}
-                className="vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 py-4 font-body text-[16px] font-bold text-white transition-opacity disabled:opacity-60"
+                data-testid="button-meds-add-by-voice"
+                onClick={() => setVoiceModalOpen(true)}
+                className="vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 py-3 font-body text-[15px] font-bold text-vyva-purple"
               >
-                <LinkIcon size={18} />
-                {t("meds.confirmRemaining", "Confirm remaining doses")}
+                <Mic size={16} />
+                {t("meds.addByVoice")}
               </button>
-            )}
-            <button
-              data-testid="button-meds-add-by-voice"
-              onClick={() => setVoiceModalOpen(true)}
-              className="vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 py-3 font-body text-[15px] font-bold text-vyva-purple"
-            >
-              <Mic size={16} />
-              {t("meds.addByVoice")}
-            </button>
-          </div>
+            </div>
+          ) : null}
         </div>
       </section>
 
