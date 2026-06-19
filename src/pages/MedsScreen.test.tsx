@@ -1,18 +1,38 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { apiFetch } from "@/lib/queryClient";
 import MedsScreen from "./MedsScreen";
 
 const labels: Record<string, string> = {
   "meds.addByVoice": "Add by voice",
+  "meds.voiceStop": "Stop voice input",
+  "meds.voiceTranscribing": "Turning voice into text",
+  "meds.voiceRecording": "Listening... tap again to stop.",
   "meds.noMedsTitle": "No medications added yet",
   "meds.noMedsSub": "Use the button below to add your medications by voice",
   "meds.confirmRemaining": "Confirm remaining doses",
   "meds.allTaken": "All doses taken",
   "meds.taken": "Taken",
   "meds.confirm": "Confirm",
+  "meds.toastAdded": "Medication added",
+  "meds.toastAddedDesc": "{{name}} has been added to your list.",
+  "meds.added": "Added",
 };
+
+const mocks = vi.hoisted(() => ({
+  apiFetch: vi.fn(),
+  toast: vi.fn(),
+}));
+
+vi.mock("@/lib/queryClient", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/queryClient")>("@/lib/queryClient");
+  return {
+    ...actual,
+    apiFetch: mocks.apiFetch,
+  };
+});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -35,7 +55,7 @@ vi.mock("@/contexts/ProfileContext", () => ({
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({ toast: mocks.toast }),
 }));
 
 vi.mock("@/hooks/useVoiceActionFulfillment", () => ({
@@ -53,13 +73,46 @@ vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
   default: () => null,
 }));
 
-vi.mock("@/components/VoiceMedsModal", () => ({
-  default: () => null,
-}));
-
 vi.mock("@/components/MedsAssistantSheet", () => ({
   default: () => null,
 }));
+
+const apiFetchMock = vi.mocked(apiFetch);
+
+function installMediaRecorderMock() {
+  const getUserMedia = vi.fn().mockResolvedValue({
+    getTracks: () => [{ stop: vi.fn() }],
+  });
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: { getUserMedia },
+  });
+
+  class MockMediaRecorder {
+    static isTypeSupported = vi.fn(() => true);
+    state: "inactive" | "recording" = "inactive";
+    mimeType = "audio/webm";
+    ondataavailable: ((event: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+
+    constructor(_stream: MediaStream, options?: { mimeType?: string }) {
+      this.mimeType = options?.mimeType ?? "audio/webm";
+    }
+
+    start() {
+      this.state = "recording";
+    }
+
+    stop() {
+      this.state = "inactive";
+      this.ondataavailable?.({ data: new Blob([new Uint8Array(64)], { type: this.mimeType }) });
+      this.onstop?.();
+    }
+  }
+
+  vi.stubGlobal("MediaRecorder", MockMediaRecorder);
+}
 
 type TestMedication = {
   id: string;
@@ -97,6 +150,15 @@ function renderMedsScreen(medications: TestMedication[] = []) {
 }
 
 describe("MedsScreen schedule actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiFetchMock.mockResolvedValue(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("does not repeat Add by voice in the empty schedule state", async () => {
     renderMedsScreen();
 
@@ -123,5 +185,50 @@ describe("MedsScreen schedule actions", () => {
 
     expect(await screen.findByTestId("button-meds-add-by-voice")).toBeInTheDocument();
     expect(screen.queryByTestId("button-meds-add-by-voice-empty")).not.toBeInTheDocument();
+  });
+
+  it("starts inline voice capture and adds the parsed medication without opening a modal", async () => {
+    installMediaRecorderMock();
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).startsWith("/api/meds-voice-transcribe")) {
+        return new Response(JSON.stringify({ transcript: "I take Metformin 500mg twice daily" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (String(url) === "/api/meds-voice-parse") {
+        return new Response(JSON.stringify({
+          name: "Metformin",
+          dosage: "500mg",
+          frequency: "twice_daily",
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    renderMedsScreen();
+
+    const voiceButton = await screen.findByTestId("button-meds-add-by-voice-empty");
+    fireEvent.click(voiceButton);
+    expect(await screen.findByTestId("meds-voice-status")).toHaveTextContent("Listening... tap again to stop.");
+
+    fireEvent.click(voiceButton);
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/meds-voice-transcribe"),
+      expect.objectContaining({ method: "POST" }),
+    ));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/meds-voice-parse",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ transcript: "I take Metformin 500mg twice daily" }),
+      }),
+    ));
+    expect(await screen.findByText("Metformin")).toBeInTheDocument();
+    expect(screen.queryByTestId("modal-voice-meds")).not.toBeInTheDocument();
   });
 });
