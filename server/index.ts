@@ -150,8 +150,8 @@ app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboard
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/fail", failCallbackOnboardingToolHandler);
-app.post("/api/meds-voice-transcribe", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsVoiceTranscribeAudioBody, medsVoiceTranscribeHandler);
-app.post("/api/meds-voice-parse", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsVoiceParseHandler);
+app.post("/api/meds-voice-transcribe", authMiddleware, requireUser, medsVoiceTranscribeAudioBody, medsVoiceTranscribeHandler);
+app.post("/api/meds-voice-parse", authMiddleware, requireUser, medsVoiceParseHandler);
 app.post("/api/meds-assistant", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAssistantHandler);
 app.post("/api/concierge", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeHandler);
 app.post("/api/concierge/recommendations", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationsHandler);

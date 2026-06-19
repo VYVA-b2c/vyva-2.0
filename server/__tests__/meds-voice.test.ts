@@ -33,12 +33,15 @@ import {
   medsVoiceTranscribeAudioBody,
   medsVoiceTranscribeHandler,
 } from "../routes/medsVoiceParse.js";
+import { authMiddleware, requireUser } from "../middleware/auth.js";
+
+const TEST_USER_ID = "meds-voice-test-user";
 
 function app() {
   const testApp = express();
   testApp.use(express.json({ limit: "12mb" }));
-  testApp.post("/api/meds-voice-transcribe", medsVoiceTranscribeAudioBody, medsVoiceTranscribeHandler);
-  testApp.post("/api/meds-voice-parse", medsVoiceParseHandler);
+  testApp.post("/api/meds-voice-transcribe", authMiddleware, requireUser, medsVoiceTranscribeAudioBody, medsVoiceTranscribeHandler);
+  testApp.post("/api/meds-voice-parse", authMiddleware, requireUser, medsVoiceParseHandler);
   return testApp;
 }
 
@@ -57,6 +60,7 @@ describe("medication voice routes", () => {
 
     const res = await request(app())
       .post("/api/meds-voice-transcribe?language=en")
+      .set("x-user-id", TEST_USER_ID)
       .set("Content-Type", "audio/webm")
       .send(Buffer.alloc(64, 1))
       .expect(200);
@@ -75,6 +79,7 @@ describe("medication voice routes", () => {
 
     const res = await request(app())
       .post("/api/meds-voice-transcribe")
+      .set("x-user-id", TEST_USER_ID)
       .set("Content-Type", "audio/webm")
       .send(Buffer.alloc(64, 1))
       .expect(503);
@@ -99,6 +104,7 @@ describe("medication voice routes", () => {
 
     const res = await request(app())
       .post("/api/meds-voice-parse")
+      .set("x-user-id", TEST_USER_ID)
       .send({ transcript: "I take Metformin 500mg twice daily" })
       .expect(200);
 
@@ -111,5 +117,13 @@ describe("medication voice routes", () => {
       response_format: { type: "json_object" },
       temperature: 0,
     }));
+  });
+
+  it("requires a signed-in user for medication voice routes", async () => {
+    await request(app())
+      .post("/api/meds-voice-transcribe")
+      .set("Content-Type", "audio/webm")
+      .send(Buffer.alloc(64, 1))
+      .expect(401);
   });
 });

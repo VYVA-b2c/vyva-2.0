@@ -807,7 +807,7 @@ const MedsScreen = () => {
           title={t("meds.todaySchedule")}
           subtitle={t("meds.scheduleSubtitle", "Review what is due today and mark doses as taken.")}
           titleClassName="font-body text-[22px] font-extrabold not-italic"
-          action={
+          action={displayMeds.length > 0 ? (
             <span
               className="inline-flex min-h-[32px] items-center rounded-full px-3 font-body text-[12px] font-bold"
               style={{
@@ -819,7 +819,7 @@ const MedsScreen = () => {
                 ? t("meds.remainingBadge", { count: totalRemainingDoseCount })
                 : t("meds.allTakenShort", "Done")}
             </span>
-          }
+          ) : null}
         />
 
         <div className="vyva-card overflow-hidden">
