@@ -11,6 +11,9 @@ import {
   Tag,
   Plus,
   Sparkles,
+  BellRing,
+  Eye,
+  ShieldCheck,
   PhoneCall,
   CircleCheck,
   ExternalLink,
@@ -18,9 +21,15 @@ import {
   FileUp,
   Mic,
   ShoppingBasket,
+  PackageCheck,
+  PiggyBank,
+  Plane,
+  Building2,
   PencilLine,
   Zap,
   X,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +75,14 @@ interface ConciergePendingItem {
 
 type ConciergeActionListResponse<T> = { items?: T[] };
 
+interface OfferScoreBreakdown {
+  distance: number;
+  price_value: number;
+  trust: number;
+  simplicity: number;
+  preference_match: number;
+}
+
 interface OfferOption {
   label: "Opcion recomendada" | "Alternativa 1" | "Alternativa 2";
   name: string;
@@ -80,6 +97,14 @@ interface OfferOption {
   maps_url?: string;
   trust_note: string;
   score: number;
+  score_breakdown?: OfferScoreBreakdown;
+}
+
+interface OfferProtectionSummary {
+  title: string;
+  checkpoints: string[];
+  notification_triggers: string[];
+  action_guardrail: string;
 }
 
 interface OffersSearchResponse {
@@ -88,6 +113,7 @@ interface OffersSearchResponse {
   decision_explanation: string;
   neutrality_note: string;
   source_guidance: string[];
+  protection_summary?: OfferProtectionSummary;
   next_step: string;
   no_results_message?: string;
 }
@@ -222,6 +248,20 @@ const OFFER_CATEGORY_CHIPS = [
   },
 ] as const;
 
+const OFFER_CATEGORY_VISUALS = [
+  { Icon: Zap, color: "#6B21A8", bg: "#F5F3FF", border: "#DDD6FE" },
+  { Icon: Building2, color: "#0F766E", bg: "#F0FDFA", border: "#99F6E4" },
+  { Icon: ShieldCheck, color: "#1D4ED8", bg: "#EFF6FF", border: "#BFDBFE" },
+  { Icon: PackageCheck, color: "#B45309", bg: "#FFF7ED", border: "#FED7AA" },
+  { Icon: PiggyBank, color: "#0A7C4E", bg: "#ECFDF5", border: "#BBF7D0" },
+] as const;
+
+const OFFER_STARTER_VISUALS = [
+  { Icon: PiggyBank, color: "#0A7C4E", bg: "#ECFDF5" },
+  { Icon: CircleCheck, color: "#B45309", bg: "#FFF7ED" },
+  { Icon: Building2, color: "#6B21A8", bg: "#F5F3FF" },
+] as const;
+
 const OFFER_IDEA_CHIPS = [
   {
     es: "Reducir gastos mensuales",
@@ -343,12 +383,17 @@ function chatHistoryKey(locale: string) {
   return `${CHAT_HISTORY_BASE}_${lang}`;
 }
 
-const QUICK_ACTIONS = [
-  { key: "shoppingHelper", Icon: ShoppingBasket, color: "#0F766E", bg: "#F0FDFA" },
-  { key: "bookRide", Icon: Car, color: "#6B21A8", bg: "#F5F3FF" },
-  { key: "scheduleAppt", Icon: Calendar, color: "#0F766E", bg: "#F0FDFA" },
-  { key: "researchTopic", Icon: Search, color: "#0A7C4E", bg: "#ECFDF5" },
-  { key: "findDeals", Icon: Tag, color: "#C9890A", bg: "#FEF3C7" },
+const PRIMARY_CONCIERGE_CARDS = [
+  { key: "shop", fallback: "Shop", Icon: ShoppingBasket, color: "#6B21A8", bg: "#F5F3FF", primary: true },
+  { key: "book", fallback: "Book", Icon: Calendar, color: "#0F766E", bg: "#F0FDFA", primary: false },
+  { key: "order", fallback: "Order", Icon: PackageCheck, color: "#1D4ED8", bg: "#EFF6FF", primary: false },
+  { key: "save", fallback: "Save", Icon: PiggyBank, color: "#B45309", bg: "#FFF7ED", primary: false },
+] as const;
+
+const CONCIERGE_QUICK_ACTIONS = [
+  { key: "findBestDeals", fallback: "Find the best deals", Icon: Tag, color: "#B45309", bg: "#FFF7ED" },
+  { key: "bookTrip", fallback: "Book a trip", Icon: Plane, color: "#0F766E", bg: "#F0FDFA" },
+  { key: "researchCompany", fallback: "Research a company", Icon: Building2, color: "#6B21A8", bg: "#F5F3FF" },
 ] as const;
 
 async function callConcierge(
@@ -701,6 +746,76 @@ function phoneHref(phone?: string | null): string {
   return `tel:${normalized || raw}`;
 }
 
+function offerProtectionFallback(isSpanish: boolean): OfferProtectionSummary {
+  return isSpanish
+    ? {
+      title: "Revision objetiva",
+      checkpoints: [
+        "Sin ranking pagado.",
+        "Valida precio, confianza, facilidad y encaje.",
+        "Usa fuentes oficiales, publicas o verificables.",
+        "Separa hechos, estimaciones y pendientes.",
+      ],
+      notification_triggers: [
+        "cambio de precio",
+        "renovacion",
+        "dato pendiente",
+        "nueva senal de riesgo",
+      ],
+      action_guardrail: "VYVA pide confirmacion antes de contactar, cambiar o compartir datos.",
+    }
+    : {
+      title: "Objective check",
+      checkpoints: [
+        "No paid ranking.",
+        "Validates price, trust, ease, and fit.",
+        "Uses official, public, or verifiable sources.",
+        "Separates facts, estimates, and gaps.",
+      ],
+      notification_triggers: [
+        "price change",
+        "renewal date",
+        "missing detail",
+        "new risk signal",
+      ],
+      action_guardrail: "VYVA asks before contact, switching, or sharing details.",
+    };
+}
+
+function sourceGuidanceFor(result: OffersSearchResponse, isSpanish: boolean): string[] {
+  const guidance = Array.isArray(result.source_guidance) ? result.source_guidance : [];
+  if (guidance.length > 0) return guidance;
+  return isSpanish
+    ? ["fuentes oficiales o reguladas", "negocios locales verificables", "programas publicos o comunitarios"]
+    : ["official or regulated sources", "verifiable local businesses", "public or community programmes"];
+}
+
+function offerScoreRows(option: OfferOption, isSpanish: boolean) {
+  const breakdown = option.score_breakdown;
+  if (!breakdown) {
+    return [
+      { key: "overall", label: isSpanish ? "Puntuacion global" : "Overall score", value: option.score },
+    ];
+  }
+
+  return [
+    { key: "price_value", label: isSpanish ? "Precio o valor" : "Price or value", value: breakdown.price_value },
+    { key: "trust", label: isSpanish ? "Confianza" : "Trust", value: breakdown.trust },
+    { key: "simplicity", label: isSpanish ? "Facilidad" : "Ease", value: breakdown.simplicity },
+    { key: "preference_match", label: isSpanish ? "Encaje personal" : "Personal fit", value: breakdown.preference_match },
+    { key: "distance", label: isSpanish ? "Cercania" : "Proximity", value: breakdown.distance },
+  ];
+}
+
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function offerCardKey(option: OfferOption): string {
+  return `${option.label}-${option.name}`.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "offer";
+}
+
 function getBookingUrl(item: ConciergePendingItem): string {
   return typeof item.action_payload?.booking_url === "string"
     ? item.action_payload.booking_url.trim()
@@ -794,7 +909,8 @@ const ConciergeScreen = () => {
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
-  const [offersIdeaPage, setOffersIdeaPage] = useState(0);
+  const [objectiveProofOpen, setObjectiveProofOpen] = useState(false);
+  const [expandedOfferScoreKey, setExpandedOfferScoreKey] = useState<string | null>(null);
   const [billAnalysis, setBillAnalysis] = useState<BillDocumentAnalysis | null>(null);
   const [billAnalysisLoading, setBillAnalysisLoading] = useState(false);
   const [billAnalysisError, setBillAnalysisError] = useState<string | null>(null);
@@ -970,14 +1086,6 @@ const ConciergeScreen = () => {
     }
   }, [messages, chatLoading]);
 
-  useEffect(() => {
-    if (!offersOpen) return;
-    const interval = window.setInterval(() => {
-      setOffersIdeaPage((page) => (page + 1) % Math.max(1, Math.ceil((OFFER_IDEA_CHIPS.length - 3) / 4)));
-    }, 4200);
-    return () => window.clearInterval(interval);
-  }, [offersOpen]);
-
   function handleNewConversation() {
     setMessages([]);
     setHasRestoredHistory(false);
@@ -1033,42 +1141,75 @@ const ConciergeScreen = () => {
     }
   }
 
-  function handleQuickAction(key: string) {
-    if (key === "shoppingHelper") {
+  function openSavingsPanel(query?: string) {
+    setOffersOpen(true);
+    setSavingsPanelView("overview");
+    setAppointmentOpen(false);
+    setOffersError(null);
+    if (query) {
+      setOffersQuery(query);
+      return;
+    }
+    if (!offersQuery) {
+      setOffersQuery(isSpanish
+        ? "reducir gastos mensuales y revisar servicios importantes"
+        : "reduce monthly costs and review important services");
+    }
+  }
+
+  function handlePrimaryConciergeCard(key: (typeof PRIMARY_CONCIERGE_CARDS)[number]["key"]) {
+    if (key === "shop") {
       navigate("/concierge/shopping");
       return;
     }
-    if (key === "bookRide") {
-      const message = isSpanish
-        ? "Ayudame a reservar un transporte seguro. Preguntame destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion."
-        : "Help me book safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.";
-      setRoutePrefill({ kind: "ride", message });
-      setInput((current) => current.trim() ? current : message);
-      setAppointmentOpen(false);
-      setOffersOpen(false);
-      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-      return;
-    }
-    if (key === "scheduleAppt") {
+    if (key === "book") {
       setAppointmentOpen((open) => !open);
       setOffersOpen(false);
       return;
     }
-    if (key === "findDeals") {
-      setOffersOpen(true);
-      setSavingsPanelView("overview");
-      setAppointmentOpen(false);
-      setOffersError(null);
-      if (!offersQuery) {
-        setOffersQuery(isSpanish
-          ? "reducir gastos mensuales y revisar servicios importantes"
-          : "reduce monthly costs and review important services");
-      }
+    if (key === "order") {
+      navigate("/concierge/shopping", {
+        state: {
+          shoppingPrefill: {
+            needText: isSpanish
+              ? "Ayuda para pedir una entrega de productos esenciales sin iniciar compra"
+              : "Delivery or order help for everyday essentials without starting checkout",
+            category: "groceries",
+            priorities: ["delivery", "simplicity"],
+            constraints: isSpanish
+              ? ["no iniciar compra", "confirmar antes de contactar o pedir"]
+              : ["no checkout", "confirm before contacting or ordering"],
+            sourceRecommendation: isSpanish
+              ? "VYVA prepara opciones y pide confirmacion antes de cualquier pedido."
+              : "VYVA prepares options and asks for confirmation before any order.",
+          },
+        },
+      });
       return;
     }
-    const prompt = t(`concierge.prompts.${key}`);
-    if (!prompt) return;
-    setInput(prompt);
+    if (key === "save") {
+      openSavingsPanel();
+    }
+  }
+
+  function handleQuickAction(key: (typeof CONCIERGE_QUICK_ACTIONS)[number]["key"]) {
+    if (key === "findBestDeals") {
+      openSavingsPanel(isSpanish
+        ? "encontrar las mejores ofertas en servicios y compras importantes"
+        : "find the best deals on services and important purchases");
+      return;
+    }
+    if (key === "bookTrip") {
+      prepareConciergeRequest(isSpanish
+        ? "Ayudame a planear un viaje. Preguntame destino, fechas, presupuesto, movilidad y preferencias. Prepara opciones claras y no reserves ni pagues nada sin mi confirmacion."
+        : "Help me plan a trip. Ask for destination, dates, budget, mobility needs, and preferences. Prepare clear options and do not book or pay for anything without my confirmation.");
+      return;
+    }
+    if (key === "researchCompany") {
+      prepareConciergeRequest(isSpanish
+        ? "Ayudame a investigar una empresa antes de tomar una decision. Preguntame el nombre, revisa confianza, precios, opiniones, riesgos y alternativas. No contactes ni compartas datos sin mi confirmacion."
+        : "Help me research a company before I make a decision. Ask for the company name, then review trust, pricing, reviews, risks, and alternatives. Do not contact them or share details without my confirmation.");
+    }
   }
 
   function startAppointmentFlow(chip: (typeof APPOINTMENT_TYPE_CHIPS)[number]) {
@@ -1091,6 +1232,8 @@ const ConciergeScreen = () => {
     if (!query || offersLoading) return;
     setOffersLoading(true);
     setOffersError(null);
+    setObjectiveProofOpen(false);
+    setExpandedOfferScoreKey(null);
     try {
       const result = await searchOffers(query, language, documentContext);
       setOffersResult(result);
@@ -1109,6 +1252,8 @@ const ConciergeScreen = () => {
     setOffersResult(null);
     setBillAnalysis(null);
     setUtilityResult(null);
+    setObjectiveProofOpen(false);
+    setExpandedOfferScoreKey(null);
     handleSearchOffers(query);
   }
 
@@ -1116,11 +1261,15 @@ const ConciergeScreen = () => {
     setSavingsPanelView("utilities");
     setOffersResult(null);
     setOffersError(null);
+    setObjectiveProofOpen(false);
+    setExpandedOfferScoreKey(null);
   }
 
   function closeOffersPanel() {
     setOffersOpen(false);
     setSavingsPanelView("overview");
+    setObjectiveProofOpen(false);
+    setExpandedOfferScoreKey(null);
   }
 
   function resetUtilityReview(method?: UtilityInputMethod) {
@@ -1449,24 +1598,50 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function prepareConciergeRequest(message: string) {
+    setRoutePrefill({ kind: "task", message });
+    setInput(message);
+    closeOffersPanel();
+    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function handleOfferAssistance(option: OfferOption) {
-    if (option.phone) {
-      setInput(isSpanish
-        ? `Ayudame a contactar con ${option.name} para revisar esta opcion y confirmar el siguiente paso.`
-        : `Help me contact ${option.name} to review this option and confirm the next step.`);
-      closeOffersPanel();
-      chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    const url = option.website || option.maps_url;
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
+    const message = isSpanish
+      ? [
+        `Ayudame a revisar ${option.name} antes de contactar.`,
+        `Puntuacion VYVA: ${option.score}/100.`,
+        `Contacto disponible: ${contact}.`,
+        "Comprueba condiciones, precio real, permanencia, opiniones y riesgos. No llames, contrates ni compartas datos sin pedirme confirmacion.",
+      ].join("\n")
+      : [
+        `Help me review ${option.name} before contacting them.`,
+        `VYVA score: ${option.score}/100.`,
+        `Available contact: ${contact}.`,
+        "Check terms, real price, commitment, reviews, and risks. Do not call, book, switch, or share details without asking me to confirm.",
+      ].join("\n");
+    prepareConciergeRequest(message);
+  }
+
+  function handleOfferWatch(option: OfferOption) {
+    const message = isSpanish
+      ? [
+        `Vigila cambios importantes para ${option.name}.`,
+        "Avisame si cambia el precio, aparece una permanencia, faltan documentos, baja la confianza o aparece una opcion claramente mejor.",
+        "Antes de actuar, prepara un resumen breve y pideme confirmacion.",
+      ].join("\n")
+      : [
+        `Watch important changes for ${option.name}.`,
+        "Notify me if the price changes, a commitment appears, documents are missing, trust drops, or a clearly better option appears.",
+        "Before acting, prepare a short summary and ask me to confirm.",
+      ].join("\n");
+    prepareConciergeRequest(message);
   }
 
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
   const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
   const queuedActionCount = queuedActions.length;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
-  const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
   const routePrefillMeta = routePrefill
@@ -1507,13 +1682,12 @@ const ConciergeScreen = () => {
   }
 
   return (
-    <div className="vyva-page">
+    <div className="vyva-page flex flex-col">
       <VoiceHero
-        heroSurface="concierge"
-        sourceText={t("concierge.voiceSource")}
-        headline={t("concierge.headline")}
-        subtitle={t("concierge.subtitle")}
-        contextHint="concierge"
+        sourceText={t("concierge.voiceSource", "Concierge")}
+        headline={t("concierge.headline", "What should VYVA prepare?")}
+        subtitle={t("concierge.subtitle", "Services, trips, orders, and savings stay confirmation-first.")}
+        contextHint="concierge services trips orders savings"
         autoStartVoice={autoStartVoice ? "concierge" : false}
         showVoiceOverlay={false}
         activeLabel={t("voiceHero.endCall", "Pause listening")}
@@ -1663,7 +1837,7 @@ const ConciergeScreen = () => {
         </section>
       )}
 
-      <section className="mt-5" data-testid="section-concierge-active-task">
+      <section className="order-[20] mt-5" data-testid="section-concierge-active-task">
         <div className="flex items-center justify-between mb-[10px]">
           <h2 className="vyva-section-title">
             {isSpanish ? "Ahora mismo" : "Right now"}
@@ -1820,31 +1994,55 @@ const ConciergeScreen = () => {
         )}
       </section>
 
-      <section className="mt-6">
-        <h2 className="vyva-section-title mb-[10px]">
-          {t("concierge.quickActions")}
-        </h2>
-        <div className="grid grid-cols-2 gap-4">
-          {QUICK_ACTIONS.map(({ key, Icon, color, bg }) => (
+      <section className="order-[10] mt-5" data-testid="concierge-guided-hub">
+        <div className="grid grid-cols-2 gap-3">
+          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, color, bg, primary }) => (
             <button
               key={key}
-              data-testid={`button-concierge-action-${key}`}
-              onClick={() => handleQuickAction(key)}
-              disabled={chatLoading}
-              className={`vyva-tap flex min-h-[144px] min-w-0 flex-col items-start justify-between rounded-[28px] border border-vyva-border bg-[#FFFCF8] px-4 py-5 text-left transition-transform active:scale-[0.99] disabled:opacity-50 ${key === "shoppingHelper" ? "col-span-2" : ""}`}
-              style={{ boxShadow: "0 14px 30px rgba(60,38,20,0.08)" }}
+              type="button"
+              data-testid={`button-concierge-card-${key}`}
+              onClick={() => handlePrimaryConciergeCard(key)}
+              className={`vyva-tap flex min-h-[96px] flex-col justify-between rounded-[22px] p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] transition active:scale-[0.98] ${
+                primary
+                  ? "bg-vyva-purple text-white shadow-[0_10px_24px_rgba(107,33,168,0.24)]"
+                  : "border border-[#EDE5DB] bg-white text-vyva-text-1"
+              }`}
             >
-              <div
-                className="flex h-[56px] w-[56px] flex-shrink-0 items-center justify-center rounded-[20px]"
-                style={{ background: bg }}
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-[15px] ${primary ? "bg-white/16" : ""}`}
+                style={primary ? undefined : { background: bg }}
               >
-                <Icon size={25} style={{ color }} />
-              </div>
-              <span className="font-body text-[20px] font-extrabold leading-[1.08] text-vyva-text-1 [overflow-wrap:anywhere]">
-                {t(`concierge.actions.${key}`)}
+                <Icon size={22} style={{ color: primary ? "#FFFFFF" : color }} />
+              </span>
+              <span className={`font-body text-[15px] font-bold leading-tight ${primary ? "text-white" : "text-vyva-text-1"}`}>
+                {t(`concierge.primaryCards.${key}`, fallback)}
               </span>
             </button>
           ))}
+        </div>
+
+        <div className="mt-4">
+          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-2">
+            {t("concierge.quickActions")}
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {CONCIERGE_QUICK_ACTIONS.map(({ key, fallback, Icon, color, bg }) => (
+              <button
+                key={key}
+                type="button"
+                data-testid={`button-concierge-quick-${key}`}
+                onClick={() => handleQuickAction(key)}
+                className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-2 text-left shadow-[0_6px_16px_rgba(63,45,35,0.05)] transition active:scale-[0.98]"
+              >
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px]" style={{ background: bg }}>
+                  <Icon size={17} style={{ color }} />
+                </span>
+                <span className="font-body text-[13px] font-extrabold leading-tight text-vyva-text-1">
+                  {t(`concierge.quickPrompts.${key}`, fallback)}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {appointmentOpen && (
@@ -1918,36 +2116,50 @@ const ConciergeScreen = () => {
           >
             <div className="flex items-start gap-3">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-white shadow-sm">
-                <Tag size={21} style={{ color: "#6B21A8" }} />
+                <ShieldCheck size={21} style={{ color: "#6B21A8" }} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-body text-[18px] font-semibold leading-tight text-vyva-text-1">
-                  {isSpanish ? "Ahorra y mejora tus servicios" : "Save and improve your services"}
+                  {isSpanish ? "Ahorra con proteccion real" : "Save with real protection"}
                 </p>
                 <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
                   {isSpanish
-                    ? "Comparamos opciones verificables para ayudarle a pagar menos, elegir mejor y gestionar servicios importantes."
-                    : "We compare verifiable options to help you pay less, choose better, and manage important services."}
+                    ? "La IA compara, valida y espera su confirmacion antes de actuar."
+                    : "AI compares, validates, and waits for your confirmation before action."}
                 </p>
-                <span className="mt-2 inline-flex rounded-full bg-white px-3 py-1 font-body text-[12px] font-semibold text-vyva-purple">
-                  {isSpanish ? "Neutral y sin comisiones." : "Neutral and commission-free."}
-                </span>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {[
+                    { Icon: ShieldCheck, label: isSpanish ? "Sin comisiones" : "No commissions" },
+                    { Icon: CircleCheck, label: isSpanish ? "Validado" : "Validated" },
+                    { Icon: Search, label: isSpanish ? "Fuentes fiables" : "Trusted sources" },
+                    { Icon: BellRing, label: isSpanish ? "Alertas" : "Alerts" },
+                  ].map((chip) => {
+                    const Icon = chip.Icon;
+                    return (
+                      <span
+                        key={chip.label}
+                        role="img"
+                        aria-label={chip.label}
+                        title={chip.label}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-vyva-purple shadow-sm"
+                      >
+                        <Icon size={13} aria-hidden="true" />
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
               <button
                 type="button"
                 onClick={closeOffersPanel}
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white font-body text-[15px] text-vyva-text-2"
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-vyva-text-2"
                 aria-label={isSpanish ? "Cerrar" : "Close"}
               >
-                x
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
 
-            <p className="mt-4 rounded-[18px] border border-vyva-border bg-white/80 p-3 font-body text-[13px] leading-relaxed text-vyva-text-2">
-              {isSpanish
-                ? "VYVA compara opciones verificables según precio, confianza, facilidad y adecuación a su situación. No promociona servicios ni recibe comisiones."
-                : "VYVA compares verifiable options by price, trust, ease, and fit for your situation. It does not promote services or receive commissions."}
-            </p>
+
 
             {savingsPanelView === "utilities" && (
             <div className="mt-4 rounded-[22px] border border-[#E8DCCF] bg-white p-4">
@@ -2265,6 +2477,52 @@ const ConciergeScreen = () => {
                     </p>
                   </div>
 
+                  <div data-testid="panel-utility-validation-trail" className="rounded-[20px] border border-[#D9C7B6] bg-white p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+                        <Eye size={19} aria-hidden="true" />
+                      </span>
+                      <div>
+                        <p className="font-body text-[15px] font-semibold leading-tight text-vyva-text-1">
+                          {isSpanish ? "Validacion de factura" : "Bill validation trail"}
+                        </p>
+                        <p className="mt-1 font-body text-[12px] leading-relaxed text-vyva-text-2">
+                          {utilityResult.source_note || (isSpanish
+                            ? "VYVA separa datos leidos, estimaciones y fuentes antes de recomendar."
+                            : "VYVA separates read details, estimates, and sources before recommending.")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {[
+                        isSpanish ? "Datos normalizados antes de comparar." : "Details normalized before comparison.",
+                        utilityResult.source_used === "CNMC"
+                          ? (isSpanish ? "Comparacion con fuente oficial CNMC." : "Compared with the official CNMC source.")
+                          : (isSpanish ? "Fuente alternativa marcada como orientativa." : "Fallback source clearly marked as indicative."),
+                        isSpanish ? "Ahorros y costes son estimaciones, no promesas." : "Savings and costs are estimates, not promises.",
+                        isSpanish ? "VYVA pide confirmacion antes de cambiar o compartir datos." : "VYVA asks for confirmation before switching or sharing details.",
+                      ].map((item) => (
+                        <div key={item} className="flex items-start gap-2 rounded-[14px] bg-[#FBF8F4] px-3 py-2">
+                          <CircleCheck size={15} className="mt-0.5 shrink-0 text-[#0A7C4E]" aria-hidden="true" />
+                          <span className="font-body text-[12px] leading-relaxed text-vyva-text-2">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {[
+                        isSpanish ? "subida de precio" : "price increase",
+                        isSpanish ? "fin de permanencia" : "commitment end",
+                        isSpanish ? "mejor tarifa nueva" : "better new tariff",
+                        isSpanish ? "dato pendiente" : "missing detail",
+                      ].map((item) => (
+                        <span key={item} className="inline-flex items-center gap-1 rounded-full bg-[#F0FDF4] px-3 py-1 font-body text-[12px] text-[#0A7C4E]">
+                          <BellRing size={12} aria-hidden="true" />
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
                   {utilityResult.results.map((result, index) => {
                     const optionUrl = utilityOptionUrl(result, utilityResult);
                     return (
@@ -2331,223 +2589,379 @@ const ConciergeScreen = () => {
 
             {savingsPanelView === "overview" && (
               <>
-            <div className="mt-4 rounded-[22px] bg-white/85 p-3">
-              <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
-                {isSpanish ? "Puede mejorar esto ahora" : "You can improve this now"}
-              </p>
-              <div className="mt-3 grid grid-cols-1 gap-2">
-                {priorityOfferIdeas.map((idea) => {
-                  const label = isSpanish ? idea.es : idea.en;
-                  const query = isSpanish ? idea.queryEs : idea.queryEn;
-                  const opensUtilityReview = shouldOpenUtilitySavingsReview(idea.es);
-                  return (
-                    <button
-                      key={idea.es}
-                      type="button"
-                      onClick={() => opensUtilityReview ? openUtilitySavingsReview() : handleOfferChipSearch(query)}
-                      className="vyva-tap rounded-[18px] border border-[#E8DCCF] bg-[#FFFCF7] px-4 py-3 text-left font-body text-[15px] font-semibold leading-tight text-vyva-text-1"
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-[22px] bg-white/85 p-3">
-              <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                {isSpanish ? "Categorias importantes" : "Important categories"}
-              </p>
-              <div className="mt-3 grid grid-cols-1 gap-2">
-                {OFFER_CATEGORY_CHIPS.map((chip) => {
-                  const label = isSpanish ? chip.es : chip.en;
-                  const detail = isSpanish ? chip.detailEs : chip.detailEn;
-                  const query = isSpanish ? chip.queryEs : chip.queryEn;
-                  const opensUtilityReview = shouldOpenUtilitySavingsReview(chip.es);
-                  return (
-                    <button
-                      key={chip.es}
-                      type="button"
-                      onClick={() => opensUtilityReview ? openUtilitySavingsReview() : handleOfferChipSearch(query)}
-                      className="vyva-tap rounded-[18px] border border-vyva-border bg-white px-4 py-3 text-left"
-                    >
-                      <span className="block font-body text-[15px] font-semibold leading-tight text-vyva-text-1">
-                        {label}
-                      </span>
-                      <span className="mt-1 block font-body text-[12px] leading-relaxed text-vyva-text-2">
-                        {detail}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-3 rounded-[22px] bg-white/85 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                  {isSpanish ? "Recomendado para usted" : "Recommended for you"}
-                </p>
-                <span className="font-body text-[11px] text-vyva-text-2">
-                  {isSpanish ? "Según perfil y contexto" : "Based on profile and context"}
-                </span>
-              </div>
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {visibleOfferIdeas.map((idea) => {
-                  const label = isSpanish ? idea.es : idea.en;
-                  const query = isSpanish ? idea.queryEs : idea.queryEn;
-                  const opensUtilityReview = shouldOpenUtilitySavingsReview(idea.es);
-                  return (
-                    <button
-                      key={idea.es}
-                      type="button"
-                      onClick={() => opensUtilityReview ? openUtilitySavingsReview() : handleOfferChipSearch(query)}
-                      className="vyva-tap rounded-[16px] border border-vyva-border bg-white px-3 py-3 text-left font-body text-[13px] font-semibold leading-tight text-vyva-text-1"
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-2">
-              <Input
-                data-testid="input-offers-query"
-                value={offersQuery}
-                onChange={(event) => setOffersQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    handleSearchOffers();
-                  }
-                }}
-                placeholder={isSpanish ? "Ej: revisar mi seguro, reducir la luz..." : "E.g. review my insurance, lower electricity..."}
-                className="h-[46px] flex-1 rounded-full border-[#D9C7B6] bg-white font-body text-[14px]"
-              />
-              <Button
-                data-testid="button-offers-search"
-                onClick={() => handleSearchOffers()}
-                disabled={offersLoading || !offersQuery.trim()}
-                className="h-[46px] rounded-full bg-vyva-purple px-4 font-body text-[14px] hover:bg-vyva-purple/90"
-              >
-                {offersLoading ? <Loader2 size={16} className="animate-spin text-white" /> : (isSpanish ? "Buscar" : "Search")}
-              </Button>
-            </div>
-
-            {offersError && (
-              <p className="mt-3 rounded-[16px] bg-white px-3 py-2 font-body text-[13px] text-[#B91C1C]">
-                {offersError}
-              </p>
-            )}
-
-            {offersResult && (
-              <div className="mt-4 space-y-3">
-                <div className="rounded-[18px] bg-white p-3">
-                  <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-[#C9890A]">
-                    {offersResult.category}
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(250px,0.82fr)_minmax(0,1.18fr)] lg:items-start">
+              <div className="space-y-3">
+                <div className="rounded-[20px] bg-white/90 p-3">
+                  <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
+                    {isSpanish ? "Empiece aqui" : "Start here"}
                   </p>
-                  <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                    {offersResult.decision_explanation}
-                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {priorityOfferIdeas.map((idea, index) => {
+                      const label = isSpanish ? idea.es : idea.en;
+                      const query = isSpanish ? idea.queryEs : idea.queryEn;
+                      const opensUtilityReview = shouldOpenUtilitySavingsReview(idea.es);
+                      const visual = OFFER_STARTER_VISUALS[index] ?? OFFER_STARTER_VISUALS[0];
+                      const Icon = visual.Icon;
+                      return (
+                        <button
+                          key={idea.es}
+                          type="button"
+                          onClick={() => opensUtilityReview ? openUtilitySavingsReview() : handleOfferChipSearch(query)}
+                          className="vyva-tap flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-[15px] border border-[#E8DCCF] bg-[#FFFCF7] px-2 py-2 text-center font-body text-[12px] font-semibold leading-tight text-vyva-text-1"
+                        >
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: visual.bg, color: visual.color }}>
+                            <Icon size={17} aria-hidden="true" />
+                          </span>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {offersResult.options.length === 0 ? (
-                  <div className="rounded-[18px] bg-white p-4">
-                    <p className="font-body text-[14px] leading-relaxed text-vyva-text-1">
-                      {offersResult.no_results_message || (isSpanish
-                        ? "No hay suficientes opciones verificables ahora mismo."
-                        : "There are not enough verifiable options right now.")}
-                    </p>
+                <div className="rounded-[20px] bg-white/90 p-3">
+                  <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
+                    {isSpanish ? "Categorias" : "Categories"}
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-3">
+                    {OFFER_CATEGORY_CHIPS.map((chip, index) => {
+                      const label = isSpanish ? chip.es : chip.en;
+                      const detail = isSpanish ? chip.detailEs : chip.detailEn;
+                      const query = isSpanish ? chip.queryEs : chip.queryEn;
+                      const opensUtilityReview = shouldOpenUtilitySavingsReview(chip.es);
+                      const visual = OFFER_CATEGORY_VISUALS[index] ?? OFFER_CATEGORY_VISUALS[0];
+                      const Icon = visual.Icon;
+                      return (
+                        <button
+                          key={chip.es}
+                          type="button"
+                          aria-label={`${label}: ${detail}`}
+                          onClick={() => opensUtilityReview ? openUtilitySavingsReview() : handleOfferChipSearch(query)}
+                          className="vyva-tap flex min-h-[82px] flex-col items-start justify-between rounded-[15px] border px-3 py-2.5 text-left"
+                          style={{ background: visual.bg, borderColor: visual.border }}
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white" style={{ color: visual.color }}>
+                            <Icon size={16} aria-hidden="true" />
+                          </span>
+                          <span className="block font-body text-[13px] font-semibold leading-tight text-vyva-text-1">
+                            {label}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
-                ) : (
-                  offersResult.options.map((option) => {
-                    const offerPhoneHref = phoneHref(option.phone);
-                    const offerUrl = option.website || option.maps_url || "";
-                    const primaryLabel = offerPhoneHref
-                      ? (isSpanish ? "Llamar ahora" : "Call now")
-                      : offerUrl
-                        ? (isSpanish ? "Abrir ahora" : "Open now")
-                        : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
-                    const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
+                </div>
 
-                    return (
-                    <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
-                            {option.label}
-                          </p>
-                          <p className="mt-1 font-body text-[17px] font-semibold leading-tight text-vyva-text-1">
-                            {option.name}
-                          </p>
-                        </div>
-                        <span className="rounded-full bg-[#ECFDF5] px-2.5 py-1 font-body text-[12px] font-semibold text-[#0A7C4E]">
-                          {option.score}/100
-                        </span>
-                      </div>
-                      <div className="mt-3 grid gap-2">
-                        <p className="font-body text-[13px] leading-relaxed text-vyva-text-1">{option.what_it_offers}</p>
-                        <p className="rounded-[14px] bg-[#F5F3FF] p-3 font-body text-[13px] leading-relaxed text-vyva-text-1">
-                          {option.price_or_advantage}
-                        </p>
-                        <p className="font-body text-[13px] leading-relaxed text-vyva-text-2">{option.why_good_option}</p>
-                        <p className="font-body text-[13px] leading-relaxed text-vyva-text-2">{option.distance_or_availability}</p>
-                        <p className="font-body text-[12px] leading-relaxed text-vyva-text-2">{option.trust_note}</p>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {offerPhoneHref || offerUrl ? (
-                          <a
-                            href={offerPhoneHref || offerUrl}
-                            target={offerUrl ? "_blank" : undefined}
-                            rel={offerUrl ? "noopener noreferrer" : undefined}
-                            className="vyva-tap inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white"
-                          >
-                            <PrimaryIcon size={15} />
-                            {primaryLabel}
-                          </a>
-                        ) : (
-                          <Button
-                            type="button"
-                            onClick={() => handleOfferAssistance(option)}
-                            className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
-                          >
-                            <Send size={15} className="mr-2" />
-                            {primaryLabel}
-                          </Button>
-                        )}
-                        {(offerPhoneHref || offerUrl) && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => handleOfferAssistance(option)}
-                            className="h-[40px] rounded-full border-vyva-border bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
-                          >
-                            {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
-                          </Button>
-                        )}
-                        <span className="inline-flex items-center rounded-full bg-[#FBF8F4] px-3 py-2 font-body text-[12px] text-vyva-text-2">
-                          {option.contact_method}
-                        </span>
-                      </div>
-                    </div>
-                    );
-                  })
+                <div className="rounded-[20px] border border-[#E8DCCF] bg-white p-3">
+                  <label className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-purple" htmlFor="offers-query">
+                    {isSpanish ? "Buscar" : "Search"}
+                  </label>
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      id="offers-query"
+                      data-testid="input-offers-query"
+                      value={offersQuery}
+                      onChange={(event) => setOffersQuery(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleSearchOffers();
+                        }
+                      }}
+                      placeholder={isSpanish ? "Seguro, luz, ayuda en casa..." : "Insurance, electricity, home help..."}
+                      className="h-[44px] min-w-0 flex-1 rounded-full border-[#D9C7B6] bg-white font-body text-[14px]"
+                    />
+                    <Button
+                      data-testid="button-offers-search"
+                      onClick={() => handleSearchOffers()}
+                      disabled={offersLoading || !offersQuery.trim()}
+                      className="h-[44px] shrink-0 rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
+                    >
+                      {offersLoading ? <Loader2 size={16} className="animate-spin text-white" /> : (isSpanish ? "Buscar" : "Search")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {offersLoading && (
+                  <div className="flex items-center gap-2 rounded-[18px] bg-white p-3 font-body text-[13px] text-vyva-text-2">
+                    <Loader2 size={16} className="animate-spin text-vyva-purple" />
+                    {isSpanish ? "Validando opciones..." : "Validating options..."}
+                  </div>
                 )}
 
-                <div className="rounded-[18px] border border-vyva-border bg-white p-3">
-                  <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                    {isSpanish ? "Neutralidad" : "Neutrality"}
+                {offersError && (
+                  <p className="rounded-[16px] bg-white px-3 py-2 font-body text-[13px] text-[#B91C1C]">
+                    {offersError}
                   </p>
-                  <p className="mt-1 font-body text-[12px] leading-relaxed text-vyva-text-2">
-                    {offersResult.neutrality_note}
-                  </p>
-                  <p className="mt-2 font-body text-[12px] leading-relaxed text-vyva-text-2">
-                    {offersResult.next_step}
-                  </p>
-                </div>
+                )}
+
+                {!offersLoading && !offersError && !offersResult && (
+                  <div className="rounded-[20px] border border-[#E8DCCF] bg-white/90 p-4">
+                    <p className="font-body text-[15px] font-semibold text-vyva-text-1">
+                      {isSpanish ? "Elija una mejora o busque directamente." : "Choose an improvement or search directly."}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
+                      {isSpanish
+                        ? "VYVA muestra la recomendacion y guarda la prueba detallada para cuando quiera verla."
+                        : "VYVA shows the recommendation first and keeps the detailed proof one tap away."}
+                    </p>
+                  </div>
+                )}
+
+                {offersResult && (
+                  <>
+                    <div className="rounded-[18px] bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-[#C9890A]">
+                          {offersResult.category}
+                        </p>
+                        <span
+                          role="img"
+                          aria-label={isSpanish ? "Recomendacion protegida" : "Protected recommendation"}
+                          title={isSpanish ? "Recomendacion protegida" : "Protected recommendation"}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#F5F3FF] text-vyva-purple"
+                        >
+                          <ShieldCheck size={15} aria-hidden="true" />
+                        </span>
+                      </div>
+                      <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
+                        {offersResult.decision_explanation}
+                      </p>
+                    </div>
+
+                    {(() => {
+                      const protection = offersResult.protection_summary ?? offerProtectionFallback(isSpanish);
+                      const sourceGuidance = sourceGuidanceFor(offersResult, isSpanish);
+                      const sourceCountLabel = isSpanish
+                        ? `${sourceGuidance.length} fuentes`
+                        : `${sourceGuidance.length} sources`;
+                      const summaryChips = [
+                        isSpanish ? "Independiente" : "Independent",
+                        sourceCountLabel,
+                        isSpanish ? "Usted confirma" : "You confirm",
+                      ];
+                      return (
+                        <div data-testid="panel-offers-objective-summary" className="rounded-[20px] border border-[#BBF7D0] bg-[#F0FDF4] p-3">
+                          <button
+                            type="button"
+                            data-testid="button-offers-objective-toggle"
+                            onClick={() => setObjectiveProofOpen((open) => !open)}
+                            aria-expanded={objectiveProofOpen}
+                            className="flex w-full items-center justify-between gap-3 text-left"
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-white text-[#0A7C4E]">
+                                <ShieldCheck size={18} aria-hidden="true" />
+                              </span>
+                              <span>
+                                <span className="block font-body text-[15px] font-semibold leading-tight text-vyva-text-1">
+                                  {isSpanish ? "Por que es objetivo" : "Why this is objective"}
+                                </span>
+                                <span className="mt-0.5 block font-body text-[12px] leading-snug text-[#166534]">
+                                  {protection.title}
+                                </span>
+                              </span>
+                            </span>
+                            {objectiveProofOpen ? <ChevronUp size={16} className="shrink-0 text-[#0A7C4E]" /> : <ChevronDown size={16} className="shrink-0 text-[#0A7C4E]" />}
+                          </button>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {summaryChips.map((chip) => (
+                              <span key={chip} className="rounded-full bg-white px-3 py-1 font-body text-[12px] font-semibold text-[#166534]">
+                                {chip}
+                              </span>
+                            ))}
+                          </div>
+                          {objectiveProofOpen && (
+                            <div data-testid="panel-offers-objective-details" className="mt-3 grid gap-2">
+                              <p className="rounded-[15px] bg-white/80 px-3 py-2 font-body text-[12px] leading-relaxed text-[#166534]">
+                                {protection.action_guardrail}
+                              </p>
+                              <div className="rounded-[15px] bg-white/80 p-3">
+                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0A7C4E]">
+                                  {isSpanish ? "Fuentes" : "Sources"}
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {sourceGuidance.map((source) => (
+                                    <span key={source} className="rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] text-[#166534]">
+                                      {source}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="rounded-[15px] bg-white/80 p-3">
+                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0A7C4E]">
+                                  {isSpanish ? "Validaciones" : "Checkpoints"}
+                                </p>
+                                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                  {protection.checkpoints.map((checkpoint) => (
+                                    <span key={checkpoint} className="flex items-start gap-2 font-body text-[12px] leading-snug text-vyva-text-2">
+                                      <CircleCheck size={14} className="mt-0.5 shrink-0 text-[#0A7C4E]" aria-hidden="true" />
+                                      {checkpoint}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="rounded-[15px] bg-white/80 p-3">
+                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0A7C4E]">
+                                  {isSpanish ? "Alertas" : "Alerts"}
+                                </p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {protection.notification_triggers.map((trigger) => (
+                                    <span key={trigger} className="inline-flex items-center gap-1 rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] text-vyva-purple">
+                                      <BellRing size={12} aria-hidden="true" />
+                                      {trigger}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {offersResult.options.length === 0 ? (
+                      <div className="rounded-[18px] bg-white p-4">
+                        <p className="font-body text-[14px] leading-relaxed text-vyva-text-1">
+                          {offersResult.no_results_message || (isSpanish
+                            ? "No hay suficientes opciones verificables ahora mismo."
+                            : "There are not enough verifiable options right now.")}
+                        </p>
+                      </div>
+                    ) : (
+                      offersResult.options.map((option) => {
+                        const optionKey = offerCardKey(option);
+                        const scoreDetailsOpen = expandedOfferScoreKey === optionKey;
+                        const offerPhoneHref = phoneHref(option.phone);
+                        const offerUrl = option.website || option.maps_url || "";
+                        const primaryLabel = offerPhoneHref
+                          ? (isSpanish ? "Llamar ahora" : "Call now")
+                          : offerUrl
+                            ? (isSpanish ? "Abrir ahora" : "Open now")
+                            : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
+                        const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
+                        const overallScore = clampScore(option.score);
+
+                        return (
+                          <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
+                                  {option.label}
+                                </p>
+                                <p className="mt-1 font-body text-[17px] font-semibold leading-tight text-vyva-text-1">
+                                  {option.name}
+                                </p>
+                              </div>
+                              <span
+                                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full p-1"
+                                style={{ background: `conic-gradient(#0A7C4E ${overallScore * 3.6}deg, #ECFDF5 0deg)` }}
+                                aria-label={`${isSpanish ? "Puntuacion" : "Score"} ${overallScore} de 100`}
+                                title={`${overallScore}/100`}
+                              >
+                                <span className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white font-body text-[15px] font-black leading-none text-[#0A7C4E]">
+                                  {overallScore}
+                                  <span className="mt-0.5 text-[9px] font-semibold text-vyva-text-2">/100</span>
+                                </span>
+                              </span>
+                            </div>
+                            <p className="mt-3 rounded-[14px] bg-[#F5F3FF] px-3 py-2 font-body text-[13px] leading-relaxed text-vyva-text-1">
+                              {option.price_or_advantage || option.what_it_offers}
+                            </p>
+                            <p className="mt-2 font-body text-[12px] leading-relaxed text-vyva-text-2">
+                              {option.trust_note}
+                            </p>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                data-testid={`button-offer-score-details-${optionKey}`}
+                                onClick={() => setExpandedOfferScoreKey((current) => current === optionKey ? null : optionKey)}
+                                aria-expanded={scoreDetailsOpen}
+                                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full border border-[#E8DCCF] bg-[#FFFCF7] px-3 font-body text-[12px] font-semibold text-vyva-text-2"
+                              >
+                                {scoreDetailsOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                                {isSpanish ? "Detalles" : "Score details"}
+                              </button>
+                              <span className="inline-flex min-h-[34px] items-center rounded-full bg-[#FBF8F4] px-3 font-body text-[12px] text-vyva-text-2">
+                                {option.contact_method}
+                              </span>
+                            </div>
+                            {scoreDetailsOpen && (
+                              <div data-testid={`panel-offer-score-${optionKey}`} className="mt-3 rounded-[16px] border border-[#E8DCCF] bg-[#FFFCF7] p-3">
+                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
+                                  {isSpanish ? "Por que esta puntuacion" : "Why this score"}
+                                </p>
+                                <div className="mt-2 grid gap-2">
+                                  {offerScoreRows(option, isSpanish).map((row) => {
+                                    const score = clampScore(row.value);
+                                    return (
+                                      <div key={row.key} className="grid grid-cols-[minmax(82px,1fr)_minmax(80px,1.2fr)_34px] items-center gap-2">
+                                        <span className="font-body text-[12px] leading-tight text-vyva-text-2">{row.label}</span>
+                                        <span className="h-2 rounded-full bg-[#EFE7DB]">
+                                          <span className="block h-2 rounded-full bg-[#0A7C4E]" style={{ width: `${score}%` }} />
+                                        </span>
+                                        <span className="text-right font-body text-[12px] font-semibold text-vyva-text-1">{score}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {offerPhoneHref || offerUrl ? (
+                                <a
+                                  href={offerPhoneHref || offerUrl}
+                                  target={offerUrl ? "_blank" : undefined}
+                                  rel={offerUrl ? "noopener noreferrer" : undefined}
+                                  className="vyva-tap inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold text-white"
+                                >
+                                  <PrimaryIcon size={15} />
+                                  {primaryLabel}
+                                </a>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  onClick={() => handleOfferAssistance(option)}
+                                  className="h-[40px] rounded-full bg-vyva-purple px-4 font-body text-[13px] hover:bg-vyva-purple/90"
+                                >
+                                  <Send size={15} className="mr-2" />
+                                  {primaryLabel}
+                                </Button>
+                              )}
+                              {(offerPhoneHref || offerUrl) && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => handleOfferAssistance(option)}
+                                  className="h-[40px] rounded-full border-vyva-border bg-white px-4 font-body text-[13px] font-bold text-vyva-purple"
+                                >
+                                  {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleOfferWatch(option)}
+                                className="h-[40px] rounded-full border-[#BBF7D0] bg-[#F0FDF4] px-4 font-body text-[13px] font-bold text-[#0A7C4E]"
+                              >
+                                <BellRing size={15} className="mr-2" />
+                                {isSpanish ? "Vigilar cambios" : "Watch changes"}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+
+                    <p className="rounded-[16px] border border-vyva-border bg-white px-3 py-2 font-body text-[12px] leading-relaxed text-vyva-text-2">
+                      {offersResult.neutrality_note} {offersResult.next_step}
+                    </p>
+                  </>
+                )}
               </div>
-            )}
+            </div>
               </>
             )}
           </div>

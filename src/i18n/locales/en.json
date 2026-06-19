@@ -1718,14 +1718,30 @@
     "viewFullImage": "View Full Image"
   },
   "concierge": {
-    "voiceSource": "VYVA is your personal concierge",
-    "headline": "How can I\nhelp you today?",
-    "subtitle": "Services, savings, plans and daily support",
+    "voiceSource": "Concierge",
+    "headline": "What should VYVA prepare?",
+    "subtitle": "Services, trips, orders, and savings stay confirmation-first.",
     "forYouToday": "For You Today",
     "loadingRecs": "Finding great picks for you…",
     "noRecs": "Tap Refresh to get today's picks.",
     "refreshRecs": "Refresh",
     "quickActions": "Quick Actions",
+    "hub": {
+      "kicker": "Concierge",
+      "title": "What should VYVA prepare?",
+      "subtitle": "Services, trips, orders, and savings stay confirmation-first."
+    },
+    "primaryCards": {
+      "shop": "Shop",
+      "book": "Book",
+      "order": "Order",
+      "save": "Save"
+    },
+    "quickPrompts": {
+      "findBestDeals": "Find the best deals",
+      "bookTrip": "Book a trip",
+      "researchCompany": "Research a company"
+    },
     "chatTitle": "Chat with VYVA",
     "placeholder": "Ask me anything — services, savings, plans, tips…",
     "chatEmptyHint": "Use a quick action above or type your own question.",

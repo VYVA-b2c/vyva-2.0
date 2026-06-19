@@ -1706,14 +1706,30 @@
     "viewFullImage": "Ver Imagen Completa"
   },
   "concierge": {
-    "voiceSource": "VYVA es tu conserje personal",
-    "headline": "¿En qué puedo\nayudarte hoy?",
-    "subtitle": "Servicios, ahorro, planes y apoyo diario",
+    "voiceSource": "Conserje",
+    "headline": "Que debe preparar VYVA?",
+    "subtitle": "Servicios, viajes, pedidos y ahorro siempre con confirmacion previa.",
     "forYouToday": "Para ti hoy",
     "loadingRecs": "Buscando las mejores sugerencias para ti…",
     "noRecs": "Pulsa Actualizar para ver las sugerencias de hoy.",
     "refreshRecs": "Actualizar",
     "quickActions": "Acciones rápidas",
+    "hub": {
+      "kicker": "Conserje",
+      "title": "Que debe preparar VYVA?",
+      "subtitle": "Servicios, viajes, pedidos y ahorro siempre con confirmacion previa."
+    },
+    "primaryCards": {
+      "shop": "Comprar",
+      "book": "Reservar",
+      "order": "Pedir",
+      "save": "Ahorrar"
+    },
+    "quickPrompts": {
+      "findBestDeals": "Encontrar mejores ofertas",
+      "bookTrip": "Planear un viaje",
+      "researchCompany": "Investigar una empresa"
+    },
     "chatTitle": "Chatea con VYVA",
     "placeholder": "Pregúntame lo que quieras — servicios, ahorro, planes, consejos…",
     "chatEmptyHint": "Usa una acción rápida o escribe tu propia pregunta.",
