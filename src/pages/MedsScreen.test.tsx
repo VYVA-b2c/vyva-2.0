@@ -12,6 +12,25 @@ const labels: Record<string, string> = {
   "meds.voiceRecording": "Listening... tap again to stop.",
   "meds.noMedsTitle": "No medications added yet",
   "meds.noMedsSub": "Use the button below to add your medications by voice",
+  "meds.todaySchedule": "Today's Schedule",
+  "meds.quickAccess": "Medication",
+  "meds.primary.reminders": "Reminders",
+  "meds.primary.remindersSub": "Review today's schedule and add medication reminders.",
+  "meds.primary.refills": "Refills",
+  "meds.primary.refillsSub": "Prepare repeat prescriptions or delivery.",
+  "meds.primary.interactions": "Interactions",
+  "meds.primary.interactionsSub": "Check medicines and supplements.",
+  "meds.primary.adherence": "Adherence",
+  "meds.primary.adherenceSub": "See progress and missed doses.",
+  "meds.canHelpWith": "I can help you with",
+  "meds.assistant.interactions.label": "Check Interactions",
+  "meds.assistant.interactions.sub": "See if any medications conflict",
+  "meds.assistant.naturalMedicine.label": "Natural Medicine",
+  "meds.assistant.naturalMedicine.sub": "Herbal remedies & plant-based wellness",
+  "meds.assistant.order.label": "Order Online",
+  "meds.assistant.order.sub": "Repeat prescriptions and home delivery",
+  "meds.assistant.advances.label": "Latest Advances",
+  "meds.assistant.advances.sub": "Recent research on your medications",
   "meds.confirmRemaining": "Confirm remaining doses",
   "meds.allTaken": "All doses taken",
   "meds.taken": "Taken",
@@ -24,6 +43,7 @@ const labels: Record<string, string> = {
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
   toast: vi.fn(),
+  navigate: vi.fn(),
 }));
 
 vi.mock("@/lib/queryClient", async () => {
@@ -31,6 +51,14 @@ vi.mock("@/lib/queryClient", async () => {
   return {
     ...actual,
     apiFetch: mocks.apiFetch,
+  };
+});
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => mocks.navigate,
   };
 });
 
@@ -48,10 +76,6 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({ language: "en" }),
   getLanguageSnapshot: () => ({ language: "en", source: "test" }),
-}));
-
-vi.mock("@/contexts/ProfileContext", () => ({
-  useProfile: () => ({ profile: {} }),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({
@@ -159,15 +183,46 @@ describe("MedsScreen schedule actions", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not repeat Add by voice in the empty schedule state", async () => {
+  it("renders the health-style meds layout and keeps the schedule hidden by default", async () => {
     renderMedsScreen();
 
-    expect(await screen.findByTestId("status-no-medications")).toBeInTheDocument();
+    expect(await screen.findByTestId("voice-hero")).toBeInTheDocument();
+    expect(screen.queryByText("Today's Schedule")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("status-no-medications")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("button-meds-primary-reminders")).toHaveTextContent("Reminders");
+    expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("Refills");
+    expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Interactions");
+    expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("Adherence");
+
+    expect(screen.getByText("I can help you with")).toBeInTheDocument();
+    expect(screen.getByTestId("button-assistant-interactions")).toHaveTextContent("Check Interactions");
+    expect(screen.getByTestId("button-assistant-naturalMedicine")).toHaveTextContent("Natural Medicine");
+    expect(screen.getByTestId("button-assistant-order")).toHaveTextContent("Order Online");
+    expect(screen.getByTestId("button-assistant-advances")).toHaveTextContent("Latest Advances");
+  });
+
+  it("reveals the compact reminders add-by-voice area from the Reminders card", async () => {
+    renderMedsScreen();
+
+    fireEvent.click(await screen.findByTestId("button-meds-primary-reminders"));
+
+    expect(await screen.findByTestId("section-meds-reminders")).toBeInTheDocument();
+    expect(screen.getByText("Today's Schedule")).toBeInTheDocument();
+    expect(screen.getByTestId("status-no-medications")).toBeInTheDocument();
     expect(screen.getByTestId("button-meds-add-by-voice-empty")).toBeInTheDocument();
     expect(screen.queryByTestId("button-meds-add-by-voice")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-confirm-all-meds")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add by voice" })).toHaveLength(1);
     expect(screen.queryByText("Done")).not.toBeInTheDocument();
+  });
+
+  it("navigates to the adherence report from the Adherence card", async () => {
+    renderMedsScreen();
+
+    fireEvent.click(await screen.findByTestId("button-meds-primary-adherence"));
+
+    expect(mocks.navigate).toHaveBeenCalledWith("/meds/adherence-report");
   });
 
   it("keeps the footer Add by voice action when medications exist", async () => {
@@ -183,6 +238,8 @@ describe("MedsScreen schedule actions", () => {
         scheduledCountToday: 1,
       },
     ]);
+
+    fireEvent.click(await screen.findByTestId("button-meds-primary-reminders"));
 
     expect(await screen.findByTestId("button-meds-add-by-voice")).toBeInTheDocument();
     expect(screen.queryByTestId("button-meds-add-by-voice-empty")).not.toBeInTheDocument();
@@ -211,6 +268,8 @@ describe("MedsScreen schedule actions", () => {
     });
 
     renderMedsScreen();
+
+    fireEvent.click(await screen.findByTestId("button-meds-primary-reminders"));
 
     const voiceButton = await screen.findByTestId("button-meds-add-by-voice-empty");
     fireEvent.click(voiceButton);

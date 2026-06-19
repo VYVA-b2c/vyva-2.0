@@ -1177,6 +1177,18 @@
     "noMedsTitle": "No medications added yet",
     "noMedsSub": "Use the button below to add your medications by voice",
     "noMedsScheduled": "No medications scheduled for today",
+    "quickAccess": "Medication",
+    "primary": {
+      "reminders": "Reminders",
+      "remindersSub": "Review today's schedule and add medication reminders.",
+      "refills": "Refills",
+      "refillsSub": "Prepare repeat prescriptions or delivery.",
+      "interactions": "Interactions",
+      "interactionsSub": "Check medicines and supplements.",
+      "adherence": "Adherence",
+      "adherenceSub": "See progress and missed doses."
+    },
+    "canHelpWith": "I can help you with",
     "confirmTaken": "Confirm I’ve taken Metformin",
     "addByVoice": "Add by voice",
     "medicationInfo": "Medication Info",
