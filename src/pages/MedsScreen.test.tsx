@@ -167,6 +167,7 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.queryByTestId("button-meds-add-by-voice")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-confirm-all-meds")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add by voice" })).toHaveLength(1);
+    expect(screen.queryByText("Done")).not.toBeInTheDocument();
   });
 
   it("keeps the footer Add by voice action when medications exist", async () => {
