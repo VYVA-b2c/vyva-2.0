@@ -461,6 +461,18 @@ const en = {
     },
   },
   activities: {
+    primaryTitle: "Choose your focus",
+    libraryTitle: "Choose an activity",
+    primary: {
+      memory: "Strengthen Memory",
+      memorySub: "Practice recall, matching, and daily routines.",
+      reflexes: "Train Reflexes",
+      reflexesSub: "Build faster focus and response.",
+      intelligence: "Boost Intelligence",
+      intelligenceSub: "Challenge logic, planning, and problem solving.",
+      senses: "Sharpen Senses",
+      sensesSub: "Reset with sound, breath, and calm attention.",
+    },
     chooseActivity: "Choose an activity",
     trivia: "Focus & Attention",
     memory: "Memory Game",
