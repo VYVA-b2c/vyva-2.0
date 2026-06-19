@@ -1,3 +1,4 @@
+import { raw } from "express";
 import type { Request, Response } from "express";
 import OpenAI from "openai";
 
@@ -22,8 +23,61 @@ interface ParsedMedication {
   prescribedBy?: string;
 }
 
+const AUDIO_EXTENSION_BY_MIME: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/mp4": "mp4",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/mpga": "mpga",
+  "audio/m4a": "m4a",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+};
+
+export const medsVoiceTranscribeAudioBody = raw({ type: ["audio/*", "application/octet-stream"], limit: "8mb" });
+
+function audioMimeType(req: Request) {
+  const rawType = String(req.headers["content-type"] ?? "audio/webm").split(";")[0]?.trim().toLowerCase();
+  return rawType && rawType !== "application/octet-stream" ? rawType : "audio/webm";
+}
+
+function audioFileNameFor(mimeType: string) {
+  return `medication-voice.${AUDIO_EXTENSION_BY_MIME[mimeType] ?? "webm"}`;
+}
+
 function emptyResult(): ParsedMedication {
   return {};
+}
+
+export async function medsVoiceTranscribeHandler(req: Request, res: Response) {
+  const audio = Buffer.isBuffer(req.body) ? req.body : null;
+  if (!audio || audio.length < 32) {
+    return res.status(400).json({ error: "audio is required" });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY ?? "";
+  if (!apiKey) {
+    return res.status(503).json({ error: "Voice transcription is not configured." });
+  }
+
+  try {
+    const mimeType = audioMimeType(req);
+    const client = new OpenAI({ apiKey });
+    const file = await OpenAI.toFile(audio, audioFileNameFor(mimeType), { type: mimeType });
+    const transcription = await client.audio.transcriptions.create({
+      model: process.env.OPENAI_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe",
+      file,
+      prompt: "Medication details for a medication list. Transcribe the user's words plainly, preserving medication names, dosage, frequency, timing, food instructions, and prescriber names.",
+    });
+
+    const transcript = transcription.text.trim();
+    if (!transcript) return res.status(422).json({ error: "No speech detected." });
+    return res.json({ transcript });
+  } catch (err) {
+    console.error("[meds-voice-transcribe] Error:", err);
+    return res.status(500).json({ error: "Failed to transcribe medication voice input." });
+  }
 }
 
 export async function medsVoiceParseHandler(req: Request, res: Response) {

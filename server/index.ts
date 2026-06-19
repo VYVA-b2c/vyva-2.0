@@ -38,7 +38,11 @@ import { authRouter } from "./routes/auth.js";
 import { authMiddleware, requireAdminUser, requireUser } from "./middleware/auth.js";
 import { requireEntitlement } from "./middleware/entitlements.js";
 import { languageMiddleware } from "./middleware/language.js";
-import { medsVoiceParseHandler } from "./routes/medsVoiceParse.js";
+import {
+  medsVoiceParseHandler,
+  medsVoiceTranscribeAudioBody,
+  medsVoiceTranscribeHandler,
+} from "./routes/medsVoiceParse.js";
 import { medsAssistantHandler } from "./routes/medsAssistant.js";
 import {
   conciergeHandler,
@@ -146,6 +150,7 @@ app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboard
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/fail", failCallbackOnboardingToolHandler);
+app.post("/api/meds-voice-transcribe", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsVoiceTranscribeAudioBody, medsVoiceTranscribeHandler);
 app.post("/api/meds-voice-parse", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsVoiceParseHandler);
 app.post("/api/meds-assistant", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAssistantHandler);
 app.post("/api/concierge", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeHandler);

@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, PhoneCall, Mail, Stethoscope, Calendar, Car, type LucideIcon } from "lucide-react";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, PhoneCall, Mail, Stethoscope, Calendar, Car, Square, Loader2, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
-import VoiceMedsModal, { type MedicationForForm } from "@/components/VoiceMedsModal";
+import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
 import { EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -94,6 +94,31 @@ function normalizeVoiceFocus(value: string) {
     .trim();
 }
 
+type MedicationVoiceCaptureState = "idle" | "recording" | "transcribing";
+const MEDICATION_VOICE_CAPTURE_MAX_MS = 30_000;
+
+const medicationVoiceMimeCandidates = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/mp4",
+  "audio/ogg;codecs=opus",
+];
+
+function preferredMedicationVoiceMimeType() {
+  if (typeof MediaRecorder === "undefined") return "";
+  return medicationVoiceMimeCandidates.find((type) => {
+    try {
+      return MediaRecorder.isTypeSupported(type);
+    } catch {
+      return false;
+    }
+  }) ?? "";
+}
+
+function stopMedicationVoiceStream(stream: MediaStream | null) {
+  stream?.getTracks().forEach((track) => track.stop());
+}
+
 const MedsScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -148,8 +173,13 @@ const MedsScreen = () => {
   );
 
   const [confirmedDoseCounts, setConfirmedDoseCounts] = useState<Map<string, number>>(new Map());
-  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [voiceAddedMeds, setVoiceAddedMeds] = useState<MedicationForForm[]>([]);
+  const [medicationVoiceState, setMedicationVoiceState] = useState<MedicationVoiceCaptureState>("idle");
+  const [medicationVoiceError, setMedicationVoiceError] = useState<string | null>(null);
+  const medicationRecorderRef = useRef<MediaRecorder | null>(null);
+  const medicationVoiceStreamRef = useRef<MediaStream | null>(null);
+  const medicationVoiceChunksRef = useRef<Blob[]>([]);
+  const medicationVoiceStopTimerRef = useRef<number | null>(null);
   const [headlineIndex, setHeadlineIndex] = useState(0);
   const [headlineVisible, setHeadlineVisible] = useState(true);
 
@@ -368,7 +398,7 @@ const MedsScreen = () => {
     },
   ];
 
-  const handleAddMedication = (med: MedicationForForm) => {
+  const handleAddMedication = useCallback((med: MedicationForForm) => {
     setVoiceAddedMeds(prev => [...prev, med]);
     toast({
       title: t("meds.toastAdded"),
@@ -376,7 +406,185 @@ const MedsScreen = () => {
         ? t("meds.toastAddedDesc", { name: med.name })
         : t("meds.toastAddedDefault"),
     });
-  };
+  }, [t, toast]);
+
+  const clearMedicationVoiceStopTimer = useCallback(() => {
+    if (medicationVoiceStopTimerRef.current !== null) {
+      window.clearTimeout(medicationVoiceStopTimerRef.current);
+      medicationVoiceStopTimerRef.current = null;
+    }
+  }, []);
+
+  const transcribeMedicationVoiceBlob = useCallback(async (blob: Blob) => {
+    if (blob.size < 32) {
+      setMedicationVoiceState("idle");
+      setMedicationVoiceError(t("meds.voiceEmpty", "I couldn't hear anything clearly. Please try again."));
+      return;
+    }
+
+    setMedicationVoiceState("transcribing");
+    try {
+      const transcriptionResponse = await apiFetch(`/api/meds-voice-transcribe?language=${encodeURIComponent(language)}`, {
+        method: "POST",
+        headers: { "Content-Type": blob.type || "application/octet-stream" },
+        body: blob,
+      });
+
+      const transcriptionPayload = await transcriptionResponse.json().catch(() => null) as { transcript?: unknown; error?: unknown } | null;
+      if (!transcriptionResponse.ok) {
+        const message = typeof transcriptionPayload?.error === "string"
+          ? transcriptionPayload.error
+          : t("meds.voiceFailed", "I couldn't turn that voice note into medication details. Please try again.");
+        throw new Error(message);
+      }
+
+      const transcript = typeof transcriptionPayload?.transcript === "string" ? transcriptionPayload.transcript.trim() : "";
+      if (!transcript) {
+        throw new Error(t("meds.voiceEmpty", "I couldn't hear anything clearly. Please try again."));
+      }
+
+      const parseResponse = await apiFetch("/api/meds-voice-parse", {
+        method: "POST",
+        body: JSON.stringify({ transcript }),
+      });
+      const parsed = await parseResponse.json().catch(() => ({})) as {
+        name?: unknown;
+        dosage?: unknown;
+        frequency?: unknown;
+        times?: unknown;
+        withFood?: unknown;
+        prescribedBy?: unknown;
+        error?: unknown;
+      };
+
+      if (!parseResponse.ok) {
+        throw new Error(typeof parsed.error === "string" ? parsed.error : t("meds.voiceFailed", "I couldn't turn that voice note into medication details. Please try again."));
+      }
+
+      const med: MedicationForForm = {
+        name: typeof parsed.name === "string" ? parsed.name : "",
+        dosage: typeof parsed.dosage === "string" ? parsed.dosage : "",
+        frequency: typeof parsed.frequency === "string" ? parsed.frequency : "",
+        times: typeof parsed.times === "string" ? parsed.times : "",
+        with_food: typeof parsed.withFood === "string" ? parsed.withFood : "",
+        prescribed_by: typeof parsed.prescribedBy === "string" ? parsed.prescribedBy : "",
+      };
+      const hasMedicationDetail = Object.values(med).some((value) => value.trim().length > 0);
+      if (!hasMedicationDetail) {
+        throw new Error(t("meds.voiceNoMedication", "I couldn't find a medication in that voice note. Please try again."));
+      }
+
+      handleAddMedication(med);
+      setMedicationVoiceError(null);
+    } catch (err) {
+      setMedicationVoiceError(err instanceof Error ? err.message : t("meds.voiceFailed", "I couldn't turn that voice note into medication details. Please try again."));
+    } finally {
+      setMedicationVoiceState("idle");
+    }
+  }, [handleAddMedication, language, t]);
+
+  const stopMedicationVoiceCapture = useCallback(() => {
+    const recorder = medicationRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+  }, []);
+
+  const startMedicationVoiceCapture = useCallback(async () => {
+    setMedicationVoiceError(null);
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setMedicationVoiceError(t("meds.voiceUnsupported", "Voice input is not available in this browser."));
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+      });
+      medicationVoiceStreamRef.current = stream;
+      medicationVoiceChunksRef.current = [];
+
+      const mimeType = preferredMedicationVoiceMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      medicationRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) medicationVoiceChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        clearMedicationVoiceStopTimer();
+        stopMedicationVoiceStream(stream);
+        medicationVoiceStreamRef.current = null;
+        medicationRecorderRef.current = null;
+        medicationVoiceChunksRef.current = [];
+        setMedicationVoiceState("idle");
+        setMedicationVoiceError(t("meds.voiceMicError", "I couldn't use the microphone. Please try again."));
+      };
+      recorder.onstop = () => {
+        clearMedicationVoiceStopTimer();
+        const chunks = medicationVoiceChunksRef.current;
+        const recordedType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunks, { type: recordedType });
+        stopMedicationVoiceStream(stream);
+        medicationVoiceStreamRef.current = null;
+        medicationRecorderRef.current = null;
+        medicationVoiceChunksRef.current = [];
+        void transcribeMedicationVoiceBlob(blob);
+      };
+
+      recorder.start();
+      medicationVoiceStopTimerRef.current = window.setTimeout(() => {
+        const activeRecorder = medicationRecorderRef.current;
+        if (activeRecorder && activeRecorder.state !== "inactive") {
+          activeRecorder.stop();
+        }
+      }, MEDICATION_VOICE_CAPTURE_MAX_MS);
+      setMedicationVoiceState("recording");
+    } catch {
+      clearMedicationVoiceStopTimer();
+      stopMedicationVoiceStream(medicationVoiceStreamRef.current);
+      medicationVoiceStreamRef.current = null;
+      medicationRecorderRef.current = null;
+      setMedicationVoiceState("idle");
+      setMedicationVoiceError(t("meds.voiceMicError", "I couldn't use the microphone. Please try again."));
+    }
+  }, [clearMedicationVoiceStopTimer, t, transcribeMedicationVoiceBlob]);
+
+  const isRecordingMedicationVoice = medicationVoiceState === "recording";
+  const isTranscribingMedicationVoice = medicationVoiceState === "transcribing";
+  const toggleMedicationVoiceCapture = useCallback(() => {
+    if (isTranscribingMedicationVoice) return;
+    if (isRecordingMedicationVoice) {
+      stopMedicationVoiceCapture();
+      return;
+    }
+    void startMedicationVoiceCapture();
+  }, [isRecordingMedicationVoice, isTranscribingMedicationVoice, startMedicationVoiceCapture, stopMedicationVoiceCapture]);
+
+  useEffect(() => () => {
+    clearMedicationVoiceStopTimer();
+    const recorder = medicationRecorderRef.current;
+    if (recorder) {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      recorder.onerror = null;
+    }
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    stopMedicationVoiceStream(medicationVoiceStreamRef.current);
+  }, [clearMedicationVoiceStopTimer]);
+
+  const medicationVoiceButtonLabel = isRecordingMedicationVoice
+    ? t("meds.voiceStop", "Stop voice input")
+    : isTranscribingMedicationVoice
+      ? t("meds.voiceTranscribing", "Turning voice into text")
+      : t("meds.addByVoice");
+  const medicationVoiceStatus = isRecordingMedicationVoice
+    ? t("meds.voiceRecording", "Listening... tap again to stop.")
+    : isTranscribingMedicationVoice
+      ? t("meds.voiceTranscribingStatus", "Turning voice into medication details...")
+      : medicationVoiceError;
 
   function openAssistant(prompt: string, title: string) {
     setAssistantPrompt(prompt);
@@ -635,14 +843,36 @@ const MedsScreen = () => {
                 title={t("meds.noMedsTitle", "No medications added yet")}
                 description={t("meds.noMedsSub", "Use the button below to add your medications by voice")}
                 action={
-                  <button
-                    data-testid="button-meds-add-by-voice-empty"
-                    onClick={() => setVoiceModalOpen(true)}
-                    className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[15px] font-bold text-white shadow-vyva-card"
-                  >
-                    <Mic size={16} />
-                    {t("meds.addByVoice")}
-                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      data-testid="button-meds-add-by-voice-empty"
+                      onClick={toggleMedicationVoiceCapture}
+                      disabled={isTranscribingMedicationVoice}
+                      aria-label={medicationVoiceButtonLabel}
+                      title={medicationVoiceButtonLabel}
+                      className={`vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full px-5 font-body text-[15px] font-bold text-white shadow-vyva-card transition disabled:cursor-wait disabled:opacity-70 ${
+                        isRecordingMedicationVoice ? "bg-[#BE123C]" : "bg-vyva-purple"
+                      }`}
+                    >
+                      {isTranscribingMedicationVoice ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : isRecordingMedicationVoice ? (
+                        <Square size={14} fill="currentColor" />
+                      ) : (
+                        <Mic size={16} />
+                      )}
+                      {medicationVoiceButtonLabel}
+                    </button>
+                    {medicationVoiceStatus ? (
+                      <p
+                        role={medicationVoiceError ? "alert" : "status"}
+                        data-testid="meds-voice-status"
+                        className={`max-w-[32ch] font-body text-[12px] font-bold leading-snug ${medicationVoiceError ? "text-[#B91C1C]" : "text-vyva-text-2"}`}
+                      >
+                        {medicationVoiceStatus}
+                      </p>
+                    ) : null}
+                  </div>
                 }
               />
             </div>
@@ -756,12 +986,34 @@ const MedsScreen = () => {
               )}
               <button
                 data-testid="button-meds-add-by-voice"
-                onClick={() => setVoiceModalOpen(true)}
-                className="vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 py-3 font-body text-[15px] font-bold text-vyva-purple"
+                onClick={toggleMedicationVoiceCapture}
+                disabled={isTranscribingMedicationVoice}
+                aria-label={medicationVoiceButtonLabel}
+                title={medicationVoiceButtonLabel}
+                className={`vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full border px-5 py-3 font-body text-[15px] font-bold transition disabled:cursor-wait disabled:opacity-70 ${
+                  isRecordingMedicationVoice
+                    ? "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]"
+                    : "border-vyva-purple bg-white text-vyva-purple"
+                }`}
               >
-                <Mic size={16} />
-                {t("meds.addByVoice")}
+                {isTranscribingMedicationVoice ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : isRecordingMedicationVoice ? (
+                  <Square size={14} fill="currentColor" />
+                ) : (
+                  <Mic size={16} />
+                )}
+                {medicationVoiceButtonLabel}
               </button>
+              {medicationVoiceStatus ? (
+                <p
+                  role={medicationVoiceError ? "alert" : "status"}
+                  data-testid="meds-voice-status"
+                  className={`px-2 text-center font-body text-[12px] font-bold leading-snug ${medicationVoiceError ? "text-[#B91C1C]" : "text-vyva-text-2"}`}
+                >
+                  {medicationVoiceStatus}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -865,12 +1117,6 @@ const MedsScreen = () => {
           })}
         </ResponsiveGrid>
       </section>
-
-      <VoiceMedsModal
-        open={voiceModalOpen}
-        onOpenChange={setVoiceModalOpen}
-        onAddMedication={handleAddMedication}
-      />
 
       <MedsAssistantSheet
         open={assistantOpen}
