@@ -37,7 +37,7 @@
     "pending": "Pending",
     "overallBody": "Latest update",
     "scanAction": "Phone estimate",
-    "logAction": "Confirmed reading",
+    "logAction": "Type reading",
     "sourceNote": "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.",
     "share": "Share",
     "keyMetrics": "Key metrics",

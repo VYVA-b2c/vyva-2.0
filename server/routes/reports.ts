@@ -4,6 +4,7 @@ import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { db, pool } from "../db.js";
 import { caregiverAlerts, profiles, triageReports, vitalsReadings, medicationAdherence, userMedications } from "../../shared/schema.js";
 import { VITALS_READING_SOURCES, type VitalsReadingSource } from "../../shared/vitalsEvidence.js";
+import { unitForSignal, type VitalsSignalKey } from "../../shared/vitalsSignalCatalog.js";
 import type { TriageScanResult } from "../../shared/triageScans.js";
 import { mergeTriageRecommendations, trackTriageEvent } from "../../src/triage/index.js";
 import { z } from "zod";
@@ -251,8 +252,8 @@ async function mirrorVitalsScanToEngine(params: {
   if (!looksLikeUuid(params.userId)) return;
 
   const entries = [
-    { signalType: "resting_hr_bpm", value: params.bpm },
-    ...(params.respiratoryRate != null ? [{ signalType: "respiratory_rate", value: params.respiratoryRate }] : []),
+    { signalType: "resting_hr_bpm" as VitalsSignalKey, value: params.bpm },
+    ...(params.respiratoryRate != null ? [{ signalType: "respiratory_rate" as VitalsSignalKey, value: params.respiratoryRate }] : []),
   ];
 
   for (const entry of entries) {
@@ -262,6 +263,8 @@ async function mirrorVitalsScanToEngine(params: {
         signal_type,
         value,
         source,
+        capture_method,
+        unit,
         context_tag
       )
       VALUES (
@@ -269,6 +272,8 @@ async function mirrorVitalsScanToEngine(params: {
         ${entry.signalType},
         ${entry.value},
         ${params.source},
+        'phone_camera',
+        ${unitForSignal(entry.signalType)},
         'camera_scan'
       )
     `);

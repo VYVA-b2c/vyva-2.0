@@ -162,6 +162,12 @@ function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: str
     if (value >= 140) return { status: "recheck", label: "blood pressure", reason: `Blood pressure top number is ${value}.` };
   }
 
+  if (signal === "bp_diastolic") {
+    if (value >= 120) return { status: "urgent_help", label: "blood pressure", reason: `Blood pressure bottom number is ${value}.` };
+    if (value >= 100) return { status: "contact_doctor", label: "blood pressure", reason: `Blood pressure bottom number is ${value}.` };
+    if (value >= 90) return { status: "recheck", label: "blood pressure", reason: `Blood pressure bottom number is ${value}.` };
+  }
+
   if (signal === "glucose_mgdl") {
     if (value <= 54 || value >= 400) return { status: "urgent_help", label: "glucose", reason: `Glucose is ${value} mg/dL.` };
     if (value <= 70 || value >= 250) return { status: "contact_doctor", label: "glucose", reason: `Glucose is ${value} mg/dL.` };
@@ -190,6 +196,12 @@ function signalRule(summary: SignalSummary): { status: SafetyStatus; reason: str
   if ((signal === "sleep_quality_score" || signal === "mood_score" || signal === "energy_level") && value <= 2) {
     const label = signal === "sleep_quality_score" ? "sleep" : signal === "energy_level" ? "energy" : "mood";
     return { status: "recheck", label, reason: `${label[0].toUpperCase()}${label.slice(1)} score is low at ${value}/10.` };
+  }
+
+  if (signal === "weight_kg") {
+    const latestDeviation = Number(summary.deviations_pct[0] ?? summary.max_deviation ?? 0);
+    if (latestDeviation >= 5) return { status: "contact_doctor", label: "weight", reason: `Weight is up ${latestDeviation}% from baseline.` };
+    if (latestDeviation >= 3) return { status: "recheck", label: "weight", reason: `Weight is up ${latestDeviation}% from baseline.` };
   }
 
   return null;

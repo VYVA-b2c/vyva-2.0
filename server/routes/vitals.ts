@@ -10,6 +10,7 @@ import {
   vitalsEvidenceFor,
   type VitalsReadingSource,
 } from "../../shared/vitalsEvidence.js";
+import { unitForSignal, type VitalsSignalKey } from "../../shared/vitalsSignalCatalog.js";
 import { requireUser } from "../middleware/auth.js";
 
 const router = Router();
@@ -194,6 +195,7 @@ export function buildVitalsSummary(byMetric: VitalsSummaryByMetric): {
 async function mirrorToVitalsEngine(userId: string, metricType: MetricType, value: string, source: ReadingSource) {
   const numeric = numericMetricValue(metricType, value);
   if (numeric == null) return;
+  const signalType = ENGINE_SIGNAL_BY_METRIC[metricType] as VitalsSignalKey;
 
   await db.execute(sql`
     INSERT INTO vyva_signal_readings (
@@ -201,16 +203,46 @@ async function mirrorToVitalsEngine(userId: string, metricType: MetricType, valu
       signal_type,
       value,
       source,
+      capture_method,
+      unit,
       context_tag
     )
     VALUES (
       ${userId},
-      ${ENGINE_SIGNAL_BY_METRIC[metricType]},
+      ${signalType},
       ${numeric},
       ${source},
+      ${source === "phone_estimate" ? "phone_camera" : "manual"},
+      ${unitForSignal(signalType)},
       'general'
     )
   `);
+
+  if (metricType === "bp" && value.includes("/")) {
+    const diastolic = Number.parseFloat(value.split("/")[1]?.trim() ?? "");
+    if (Number.isFinite(diastolic)) {
+      await db.execute(sql`
+        INSERT INTO vyva_signal_readings (
+          user_id,
+          signal_type,
+          value,
+          source,
+          capture_method,
+          unit,
+          context_tag
+        )
+        VALUES (
+          ${userId},
+          'bp_diastolic',
+          ${diastolic},
+          ${source},
+          'manual',
+          ${unitForSignal("bp_diastolic")},
+          'general'
+        )
+      `);
+    }
+  }
 }
 
 router.get("/", requireUser, async (req: Request, res: Response) => {

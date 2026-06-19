@@ -1,6 +1,7 @@
-import { Router } from "express";
+import { Router, raw } from "express";
 import type { Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -26,7 +27,28 @@ import {
   userHealthConditions,
   userMedications,
 } from "../../shared/schema.js";
-import { vitalsEvidenceFor } from "../../shared/vitalsEvidence.js";
+import {
+  VITALS_READING_SOURCES,
+  normalizeVitalsSource,
+  vitalsEvidenceFor,
+  type VitalsReadingSource,
+} from "../../shared/vitalsEvidence.js";
+import {
+  VITALS_CAPTURE_METHODS,
+  defaultContextForSignal,
+  isVitalsCaptureMethod,
+  isVitalsSignalKey,
+  unitForSignal,
+  validateVitalsSignalValue,
+  type VitalsCaptureMethod,
+  type VitalsSignalKey,
+} from "../../shared/vitalsSignalCatalog.js";
+import {
+  normalizeParsedReading,
+  parseVitalsText,
+  type ProposedVitalsReading,
+  type VitalsParsingResult,
+} from "../../shared/vitalsParsing.js";
 
 const router = Router();
 router.use(requireUser);
@@ -37,14 +59,38 @@ const ALERT_TYPE = "vitals_safety_check";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const readingSchema = z.object({
-  user_id: z.string().optional(),
+const parseAudioBody = raw({ type: ["audio/*", "application/octet-stream"], limit: "8mb" });
+
+const signalReadingSchema = z.object({
   signal_type: z.string().min(1).max(80),
   value: z.coerce.number(),
-  source: z.string().min(1).max(80).default("manual_entry"),
+  source: z.enum(VITALS_READING_SOURCES).default("manual_entry"),
+  capture_method: z.enum(VITALS_CAPTURE_METHODS).default("manual"),
   context_tag: z.string().min(1).max(80).default("general"),
+  unit: z.string().min(1).max(24).optional(),
+  source_ref: z.record(z.unknown()).optional(),
   recorded_at: z.string().datetime().optional(),
   condition_tags: z.array(z.string()).optional().default([]),
+});
+
+const readingSchema = signalReadingSchema.extend({
+  user_id: z.string().optional(),
+});
+
+const bulkReadingsSchema = z.object({
+  user_id: z.string().optional(),
+  readings: z.array(signalReadingSchema).min(1).max(24),
+});
+
+const parseTextSchema = z.object({
+  text: z.string().min(1).max(500),
+  source: z.enum(VITALS_READING_SOURCES).default("manual_entry"),
+  capture_method: z.enum(VITALS_CAPTURE_METHODS).default("manual"),
+});
+
+const scanDevicePhotoSchema = z.object({
+  image: z.string().min(1),
+  language: z.string().optional(),
 });
 
 const analyseSchema = z.object({
@@ -126,6 +172,53 @@ function todayStartUTC(): Date {
 function targetMatchesRequest(req: Request, profileId: string, requestedUserId?: string): boolean {
   if (!requestedUserId) return true;
   return requestedUserId === profileId || requestedUserId === req.user!.id;
+}
+
+function normalizedSource(value: string): VitalsReadingSource {
+  return normalizeVitalsSource(value);
+}
+
+function normalizedCaptureMethod(value?: string | null): VitalsCaptureMethod {
+  return isVitalsCaptureMethod(value) ? value : "manual";
+}
+
+function validateSignalReading(signalType: string, value: number): { signalType: VitalsSignalKey; error?: string } {
+  if (!isVitalsSignalKey(signalType)) {
+    return { signalType: "resting_hr_bpm", error: "Unsupported vital sign." };
+  }
+  const validation = validateVitalsSignalValue(signalType, value);
+  if (!validation.ok) return { signalType, error: validation.reason };
+  return { signalType };
+}
+
+const AUDIO_EXTENSION_BY_MIME: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/mp4": "mp4",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/mpga": "mpga",
+  "audio/m4a": "m4a",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+};
+
+function audioMimeType(req: Request) {
+  const rawType = String(req.headers["content-type"] ?? "audio/webm").split(";")[0]?.trim().toLowerCase();
+  return rawType && rawType !== "application/octet-stream" ? rawType : "audio/webm";
+}
+
+function audioFileNameFor(mimeType: string) {
+  return `vitals-reading.${AUDIO_EXTENSION_BY_MIME[mimeType] ?? "webm"}`;
+}
+
+function parsingResponseFromReadings(readings: ProposedVitalsReading[], transcript: string, clarification?: string): VitalsParsingResult {
+  return {
+    proposed_readings: readings,
+    needs_confirmation: true,
+    transcript,
+    ...(clarification ? { clarification_prompt: clarification } : {}),
+  };
 }
 
 async function resolveProfileId(req: Request): Promise<string> {
@@ -487,10 +580,13 @@ async function maybeRecordCaregiverAlert(userId: string, analysis: DailySafetyCh
 
 async function saveSignalReading(params: {
   userId: string;
-  signalType: string;
+  signalType: VitalsSignalKey;
   value: number;
-  source: string;
+  source: VitalsReadingSource;
+  captureMethod: VitalsCaptureMethod;
   contextTag: string;
+  unit?: string;
+  sourceRef?: Record<string, unknown>;
   recordedAt?: string;
   conditionTags: string[];
 }) {
@@ -513,6 +609,9 @@ async function saveSignalReading(params: {
       value,
       recorded_at,
       source,
+      capture_method,
+      unit,
+      source_ref,
       context_tag,
       baseline_ref,
       deviation_pct,
@@ -524,6 +623,9 @@ async function saveSignalReading(params: {
       ${params.value},
       ${params.recordedAt ? new Date(params.recordedAt) : new Date()},
       ${params.source},
+      ${params.captureMethod},
+      ${params.unit ?? unitForSignal(params.signalType)},
+      ${params.sourceRef ? JSON.stringify(params.sourceRef) : null}::jsonb,
       ${params.contextTag},
       ${baselineMean},
       ${deviationPct},
@@ -537,6 +639,46 @@ async function saveSignalReading(params: {
   };
 }
 
+async function saveValidatedReadings(
+  profileId: string,
+  readings: z.infer<typeof signalReadingSchema>[],
+) {
+  const saved: Array<{ reading: Record<string, unknown>; deviation_pct: number | null }> = [];
+  let shouldAnalyse = false;
+
+  for (const reading of readings) {
+    const { signalType, error } = validateSignalReading(reading.signal_type, reading.value);
+    if (error) {
+      const err = new Error(error) as Error & { status?: number };
+      err.status = 400;
+      throw err;
+    }
+
+    const result = await saveSignalReading({
+      userId: profileId,
+      signalType,
+      value: reading.value,
+      source: normalizedSource(reading.source),
+      captureMethod: normalizedCaptureMethod(reading.capture_method),
+      contextTag: reading.context_tag || defaultContextForSignal(signalType),
+      unit: reading.unit ?? unitForSignal(signalType),
+      sourceRef: reading.source_ref,
+      recordedAt: reading.recorded_at,
+      conditionTags: reading.condition_tags,
+    });
+    saved.push(result);
+    if (result.deviation_pct !== null && Math.abs(result.deviation_pct) > 25) {
+      shouldAnalyse = true;
+    }
+  }
+
+  if (shouldAnalyse) {
+    runAnalysis(profileId).catch((err) => console.error("[vitals-engine analysis trigger]", err));
+  }
+
+  return saved;
+}
+
 router.post("/reading", async (req: Request, res: Response) => {
   const profileId = await resolveProfileId(req);
   const parsed = readingSchema.safeParse(req.body);
@@ -546,24 +688,128 @@ router.post("/reading", async (req: Request, res: Response) => {
   }
 
   try {
-    const result = await saveSignalReading({
-      userId: profileId,
-      signalType: parsed.data.signal_type,
-      value: parsed.data.value,
-      source: parsed.data.source,
-      contextTag: parsed.data.context_tag,
-      recordedAt: parsed.data.recorded_at,
-      conditionTags: parsed.data.condition_tags,
+    const [result] = await saveValidatedReadings(profileId, [parsed.data]);
+    return res.json({ ...result, saved_count: 1 });
+  } catch (err) {
+    const status = typeof (err as { status?: unknown }).status === "number" ? (err as { status: number }).status : 500;
+    if (status === 500) console.error("[vitals-engine reading]", err);
+    return res.status(status).json({ error: status === 500 ? "Failed to save vitals reading" : String((err as Error).message) });
+  }
+});
+
+router.post("/readings", async (req: Request, res: Response) => {
+  const profileId = await resolveProfileId(req);
+  const parsed = bulkReadingsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!targetMatchesRequest(req, profileId, parsed.data.user_id)) {
+    return res.status(403).json({ error: "Cannot save readings for another user" });
+  }
+
+  try {
+    const results = await saveValidatedReadings(profileId, parsed.data.readings);
+    return res.status(201).json({
+      readings: results.map((result) => result.reading),
+      saved_count: results.length,
+    });
+  } catch (err) {
+    const status = typeof (err as { status?: unknown }).status === "number" ? (err as { status: number }).status : 500;
+    if (status === 500) console.error("[vitals-engine readings]", err);
+    return res.status(status).json({ error: status === 500 ? "Failed to save vitals readings" : String((err as Error).message) });
+  }
+});
+
+router.post("/parse-text", async (req: Request, res: Response) => {
+  const parsed = parseTextSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const result = parseVitalsText(parsed.data.text, {
+    source: parsed.data.source,
+    captureMethod: parsed.data.capture_method,
+    confidence: "medium",
+  });
+  return res.json(result);
+});
+
+router.post("/parse-audio", parseAudioBody, async (req: Request, res: Response) => {
+  const audio = Buffer.isBuffer(req.body) ? req.body : null;
+  if (!audio || audio.length < 32) return res.status(400).json({ error: "audio is required" });
+
+  const apiKey = process.env.OPENAI_API_KEY ?? "";
+  if (!apiKey) return res.status(503).json({ error: "Voice reading is not configured." });
+
+  try {
+    const mimeType = audioMimeType(req);
+    const client = new OpenAI({ apiKey });
+    const file = await OpenAI.toFile(audio, audioFileNameFor(mimeType), { type: mimeType });
+    const transcription = await client.audio.transcriptions.create({
+      model: process.env.OPENAI_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe",
+      file,
+      prompt: "Transcribe a short home vital-sign reading. Examples: blood pressure, oxygen, glucose, temperature, pulse, weight, pain, mood, sleep, energy, medication taken.",
+    });
+    const transcript = transcription.text.trim();
+    if (!transcript) return res.status(422).json({ error: "No speech detected." });
+    return res.json(parseVitalsText(transcript, { source: "manual_entry", captureMethod: "voice", confidence: "medium" }));
+  } catch (err) {
+    console.error("[vitals-engine parse-audio]", err);
+    return res.status(500).json({ error: "Failed to read voice vital." });
+  }
+});
+
+router.post("/scan-device-photo", async (req: Request, res: Response) => {
+  const parsed = scanDevicePhotoSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const apiKey = process.env.OPENAI_API_KEY ?? "";
+  if (!apiKey) {
+    return res.json(parsingResponseFromReadings([], "", "Photo reading is not configured. You can type the number instead."));
+  }
+
+  const match = parsed.data.image.match(/^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/);
+  if (!match) return res.status(400).json({ error: "image must be a base64 data URL" });
+
+  try {
+    const client = new OpenAI({ apiKey });
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_VISION_MODEL || "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You read numbers from home health device screens for an older-adult app.",
+            "Return JSON only with proposed_readings: signal_type, value, context_tag, explanation.",
+            "Allowed signal_type values: resting_hr_bpm, respiratory_rate, bp_systolic, bp_diastolic, oxygen_saturation, temperature_c, glucose_mgdl, weight_kg, pain_score, mood_score, energy_level, sleep_quality_score, medication_confirmed.",
+            "If blood pressure appears, return systolic and diastolic separately. Do not diagnose.",
+          ].join(" "),
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: { url: parsed.data.image, detail: "low" },
+            },
+            {
+              type: "text",
+              text: "Read the visible health measurement from this device screen. Return only JSON.",
+            },
+          ],
+        },
+      ],
+      temperature: 0,
+      max_tokens: 500,
+      response_format: { type: "json_object" },
     });
 
-    if (result.deviation_pct !== null && Math.abs(result.deviation_pct) > 25) {
-      runAnalysis(profileId).catch((err) => console.error("[vitals-engine analysis trigger]", err));
-    }
+    const raw = completion.choices[0]?.message?.content?.trim() ?? "{}";
+    const parsedJson = JSON.parse(raw) as { proposed_readings?: unknown[]; clarification_prompt?: string };
+    const readings = (Array.isArray(parsedJson.proposed_readings) ? parsedJson.proposed_readings : [])
+      .map((row) => normalizeParsedReading(row, { source: "manual_entry", captureMethod: "device_photo", confidence: "medium" }))
+      .filter((row): row is ProposedVitalsReading => Boolean(row));
 
-    return res.json(result);
+    return res.json(parsingResponseFromReadings(readings, "", parsedJson.clarification_prompt));
   } catch (err) {
-    console.error("[vitals-engine reading]", err);
-    return res.status(500).json({ error: "Failed to save vitals reading" });
+    console.error("[vitals-engine scan-device-photo]", err);
+    return res.status(500).json({ error: "Failed to read device photo." });
   }
 });
 

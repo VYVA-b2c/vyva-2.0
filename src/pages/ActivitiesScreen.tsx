@@ -88,8 +88,8 @@ const activityRoutes: Partial<Record<string, ActivityDestination>> = {
   "brain.activities.spatialNavigator": { to: "/spatial-navigator" },
   "brain.activities.scrabble": { to: "/language" },
   "brain.activities.logicPuzzle": { to: "/executive-function" },
-  "brain.activities.meditation": { to: "/activity", state: { preselectActivity: "Breathing", duration: 10 } },
-  "brain.activities.breathing": { to: "/activity", state: { preselectActivity: "Breathing", duration: 10 } },
+  "brain.activities.meditation": { to: "/activities/relax-breathe" },
+  "brain.activities.breathing": { to: "/activities/relax-breathe" },
 };
 
 const activityCompletionTypes: Record<string, string[]> = {

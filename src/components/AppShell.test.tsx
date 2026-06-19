@@ -75,6 +75,7 @@ describe("app shell route layout", () => {
     ["/companions", "wide"],
     ["/concierge/shopping", "wide"],
     ["/chat", "fullscreen"],
+    ["/activities/relax-breathe", "fullscreen"],
     ["/memory-games/word_recall", "fullscreen"],
     ["/attention-boosters/rhythm-tap", "fullscreen"],
     ["/profiles/select", "compact"],

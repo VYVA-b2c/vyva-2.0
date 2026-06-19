@@ -288,7 +288,7 @@ const de = {
       nextAt: "Nachster Check",
       defaultTime: "Standardzeit: 10:00",
       needsCaregiver: "Betreuungskontakt fehlt",
-      history: "Verlauf",
+      history: "Mein Gesundheitsplan",
       messages: {
         completed: "VYVA hat das heutige Signal.",
         dueNow: "Antworte in wenigen Sekunden.",
@@ -299,7 +299,7 @@ const de = {
       },
       actions: {
         primary: "Antworten",
-        viewHistory: "Verlauf",
+        viewHistory: "Mein Gesundheitsplan",
         checkInEarly: "Frueher",
         setup: "Einrichten",
       },

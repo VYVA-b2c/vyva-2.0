@@ -1223,6 +1223,11 @@ export default function VitalsTracker({
   }, [loadDashboard]);
 
   useEffect(() => {
+    window.addEventListener("vyva:vitals-updated", loadDashboard);
+    return () => window.removeEventListener("vyva:vitals-updated", loadDashboard);
+  }, [loadDashboard]);
+
+  useEffect(() => {
     if (!visibleSignals.some(([key]) => key === selectedSignal)) {
       selectSignal(visibleSignals[0]?.[0] ?? "resting_hr_bpm");
     }

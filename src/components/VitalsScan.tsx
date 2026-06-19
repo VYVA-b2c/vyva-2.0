@@ -125,6 +125,7 @@ export default function VitalsScan({ onComplete, compact = false, saveReading = 
   const [svgPath, setSvgPath] = useState("");
   const [pulseScale, setPulseScale] = useState(1);
   const [done, setDone] = useState(false);
+  const [qualityState, setQualityState] = useState<"finding" | "steady" | "low_light" | "motion">("finding");
 
   const svgWidth = 280;
   const svgHeight = 60;
@@ -233,10 +234,21 @@ export default function VitalsScan({ onComplete, compact = false, saveReading = 
       const pixels = data.length / 4;
       for (let i = 0; i < data.length; i += 4) green += data[i + 1];
       const avgGreen = green / pixels;
+      const previousGreen = signalRef.current.at(-1);
 
       signalRef.current.push(avgGreen);
       displaySignalRef.current.push(avgGreen);
       if (displaySignalRef.current.length > DISPLAY_SAMPLES) displaySignalRef.current.shift();
+
+      if (avgGreen < 35) {
+        setQualityState("low_light");
+      } else if (previousGreen != null && Math.abs(avgGreen - previousGreen) > 18) {
+        setQualityState("motion");
+      } else if (signalRef.current.length >= actualFpsRef.current * 3) {
+        setQualityState("steady");
+      } else {
+        setQualityState("finding");
+      }
 
       const remaining = Math.ceil((SCAN_DURATION_MS - elapsed) / 1000);
       setCountdown(Math.max(0, remaining));
@@ -278,6 +290,14 @@ export default function VitalsScan({ onComplete, compact = false, saveReading = 
   const r = 110;
   const circ = 2 * Math.PI * r;
   const dashOffset = circ - progressFraction * circ;
+  const qualityCopy = {
+    finding: t("statusVitals.scanQuality.finding", "Finding signal"),
+    steady: t("statusVitals.scanQuality.steady", "Signal steady"),
+    low_light: t("statusVitals.scanQuality.lowLight", "More light needed"),
+    motion: t("statusVitals.scanQuality.motion", "Hold still"),
+  }[qualityState];
+  const qualityColor = qualityState === "steady" ? "#047857" : qualityState === "finding" ? "#6B21A8" : "#B45309";
+  const qualityBg = qualityState === "steady" ? "#ECFDF5" : qualityState === "finding" ? "#F5F3FF" : "#FFFBEB";
 
   if (permissionDenied) {
     return (
@@ -423,6 +443,15 @@ export default function VitalsScan({ onComplete, compact = false, saveReading = 
         <p className="mt-3 rounded-[18px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[12px] font-semibold leading-relaxed text-vyva-text-2">
           {t("health.symptomCheck.scan.estimateNote", "Phone scans are estimates for trends. Confirm unusual results with a device or clinician.")}
         </p>
+        {!done && (
+          <p
+            className="mt-2 rounded-[18px] px-3 py-2 text-center font-body text-[12px] font-extrabold uppercase tracking-[0.08em]"
+            style={{ color: qualityColor, background: qualityBg }}
+            data-testid="vitals-scan-quality"
+          >
+            {qualityCopy}
+          </p>
+        )}
       </div>
       </HealthWizardCard>
 
