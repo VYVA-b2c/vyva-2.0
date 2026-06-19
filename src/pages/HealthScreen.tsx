@@ -731,7 +731,7 @@ export function DailyCheckinCard({
     checkin.status === "upcoming" ? t("health.dailyCheckin.messages.upcoming", "Scheduled for later today.") :
     t("health.dailyCheckin.messages.notScheduled", "Pick a daily check-in time.");
   const primaryLabel =
-    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "History") :
+    checkin?.status === "completed" ? t("health.dailyCheckin.actions.viewHistory", "My Health Plan") :
     checkin?.status === "upcoming" ? t("health.dailyCheckin.actions.checkInEarly", "Check early") :
     checkin?.status === "not_scheduled" ? t("health.dailyCheckin.actions.setup", "Set up") :
     t("health.dailyCheckin.actions.primary", "Check in");
@@ -784,7 +784,7 @@ export function DailyCheckinCard({
             onClick={onHistory}
             className="vyva-secondary-action min-h-[58px] text-[17px]"
           >
-            {t("health.dailyCheckin.history", "History")}
+            {t("health.dailyCheckin.history", "My Health Plan")}
           </button>
         ) : null}
       </div>

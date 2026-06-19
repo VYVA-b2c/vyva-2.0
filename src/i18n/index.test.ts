@@ -157,6 +157,28 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps Relax & Breathe page copy localized without falling back to English", () => {
+    const expected = {
+      es: ["Relajarse y respirar", "Iniciar guia de Marco", "Respira despacio"],
+      fr: ["Se detendre et respirer", "Demarrer le guide Marco", "Respirer lentement"],
+      it: ["Rilassati e respira", "Avvia guida Marco", "Respira lentamente"],
+      pt: ["Relaxe e respire", "Iniciar guia Marco", "Respirar devagar"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      const actual = [
+        translate(language as keyof typeof expected, "activities.relaxBreathe.title"),
+        translate(language as keyof typeof expected, "activities.relaxBreathe.startGuide"),
+        translate(language as keyof typeof expected, "activities.relaxBreathe.stages.breathe.title"),
+      ];
+
+      expect(actual).toEqual(labels);
+      expect(actual).not.toContain("Relax & Breathe");
+      expect(actual).not.toContain("Start Marco guide");
+      expect(actual).not.toContain("Breathe slowly");
+    }
+  });
+
   it("keeps SOS direct call actions localized for supported account languages", () => {
     const expected = {
       en: ["Need urgent help?", "Call {{number}} now", "Call {{name}}"],
@@ -473,12 +495,12 @@ describe("language persistence", () => {
 
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
-      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "History"],
-      es: ["Control diario", "Hecho hoy", "Como estas hoy?", "VYVA tiene la senal de hoy.", "Historial"],
-      fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Historique"],
-      de: ["Taglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Verlauf"],
-      it: ["Check-in quotidiano", "Fatto oggi", "Come ti senti oggi?", "VYVA ha il segnale di oggi.", "Cronologia"],
-      pt: ["Check-in diario", "Feito hoje", "Como se sente hoje?", "A VYVA tem o sinal de hoje.", "Historico"],
+      en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "My Health Plan", "My Health Plan"],
+      es: ["Control diario", "Hecho hoy", "Como estas hoy?", "VYVA tiene la senal de hoy.", "Mi plan de salud", "Mi plan de salud"],
+      fr: ["Contrôle quotidien", "Contrôle fait aujourd'hui", "Comment allez-vous ?", "VYVA a le signal du jour.", "Mon plan de sante", "Mon plan de sante"],
+      de: ["Taglicher Check", "Heute erledigt", "Wie geht es dir heute?", "VYVA hat das heutige Signal.", "Mein Gesundheitsplan", "Mein Gesundheitsplan"],
+      it: ["Check-in quotidiano", "Fatto oggi", "Come ti senti oggi?", "VYVA ha il segnale di oggi.", "Il mio piano salute", "Il mio piano salute"],
+      pt: ["Check-in diario", "Feito hoje", "Como se sente hoje?", "A VYVA tem o sinal de hoje.", "Meu plano de saude", "Meu plano de saude"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -487,6 +509,7 @@ describe("language persistence", () => {
         translate(language as keyof typeof expected, "health.dailyCheckin.completed"),
         translate(language as keyof typeof expected, "health.dailyCheckin.title"),
         translate(language as keyof typeof expected, "health.dailyCheckin.messages.completed"),
+        translate(language as keyof typeof expected, "health.dailyCheckin.history"),
         translate(language as keyof typeof expected, "health.dailyCheckin.actions.viewHistory"),
       ]).toEqual(labels);
     }

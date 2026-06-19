@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,8 @@ import {
   Activity,
   AlertTriangle,
   Calendar,
+  Camera,
+  Check,
   Car,
   CheckCircle2,
   ChevronDown,
@@ -13,10 +15,14 @@ import {
   ChevronUp,
   ClipboardList,
   Heart,
+  Keyboard,
   LucideIcon,
+  Loader2,
   Mail,
+  Mic,
   Phone,
   Plus,
+  RefreshCw,
   ScanLine,
   Share2,
   ShieldCheck,
@@ -45,6 +51,16 @@ import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { vitalsEvidenceFor, type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
+import {
+  VITALS_SIGNAL_CATALOG,
+  promptSignalsForProfile,
+  type VitalsSignalKey,
+} from "../../shared/vitalsSignalCatalog";
+import {
+  formatVitalsReadingDisplay,
+  type ProposedVitalsReading,
+  type VitalsParsingResult,
+} from "../../shared/vitalsParsing";
 
 type MetricType = "hr" | "rr" | "bp";
 type ReadingSource = "phone_estimate" | "manual_entry" | "connected_device" | "clinical";
@@ -65,6 +81,15 @@ interface VitalsResponse {
   summary: Record<string, VitalsSummaryEntry>;
   compliance_days: boolean[];
 }
+
+type VitalsCaptureMode = "text" | "voice" | "photo";
+
+type VitalsEngineLatestResponse = {
+  recent_readings?: Array<{
+    signal_type: string;
+    recorded_at?: string | null;
+  }>;
+};
 
 interface MetricMeta {
   id: MetricType;
@@ -130,10 +155,88 @@ const DAY_LABELS = [
 ];
 
 const DEVICE_ROWS = [
-  { id: "watch", Icon: Watch, labelKey: "statusVitals.deviceRows.smartwatch", fallbackLabel: "Smartwatch", model: "VYVA Band 2", connected: true },
-  { id: "bp-cuff", Icon: Activity, labelKey: "statusVitals.deviceRows.bloodPressureCuff", fallbackLabel: "Blood pressure cuff", model: "OmronConnect", connected: true },
-  { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Eko DUO", connected: false },
+  { id: "watch", Icon: Watch, labelKey: "statusVitals.deviceRows.smartwatch", fallbackLabel: "Smartwatch", model: "Connect later", connected: false },
+  { id: "bp-cuff", Icon: Activity, labelKey: "statusVitals.deviceRows.bloodPressureCuff", fallbackLabel: "Blood pressure cuff", model: "Connect later", connected: false },
+  { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Connect later", connected: false },
 ];
+
+const VITALS_AUDIO_TYPES = [
+  "audio/webm;codecs=opus",
+  "audio/webm",
+  "audio/mp4",
+  "audio/ogg;codecs=opus",
+];
+
+function supportedVitalsAudioType() {
+  if (typeof MediaRecorder === "undefined") return "";
+  return VITALS_AUDIO_TYPES.find((type) => {
+    try {
+      return MediaRecorder.isTypeSupported(type);
+    } catch {
+      return false;
+    }
+  }) ?? "";
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read image"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function isTodayReading(iso?: string | null) {
+  if (!iso) return false;
+  return new Date(iso).toDateString() === new Date().toDateString();
+}
+
+function publicSignalLabel(signal: VitalsSignalKey) {
+  if (signal === "bp_systolic" || signal === "bp_diastolic") return "Blood pressure";
+  return VITALS_SIGNAL_CATALOG[signal].shortLabel;
+}
+
+type ProposedVitalsReadingCard = {
+  key: string;
+  display: string;
+  explanation: string;
+  confidence: VitalsSourceConfidence;
+};
+
+function lowerConfidence(a: VitalsSourceConfidence, b: VitalsSourceConfidence): VitalsSourceConfidence {
+  const rank: Record<VitalsSourceConfidence, number> = { low: 0, medium: 1, high: 2 };
+  return rank[a] <= rank[b] ? a : b;
+}
+
+function proposedVitalsReadingCards(readings: ProposedVitalsReading[]): ProposedVitalsReadingCard[] {
+  const systolic = readings.find((reading) => reading.signal_type === "bp_systolic");
+  const diastolic = readings.find((reading) => reading.signal_type === "bp_diastolic");
+  const cards: ProposedVitalsReadingCard[] = [];
+
+  for (const reading of readings) {
+    if (reading.signal_type === "bp_systolic" && diastolic) {
+      cards.push({
+        key: "blood-pressure-pair",
+        display: `Blood pressure: ${reading.value}/${diastolic.value} mmHg`,
+        explanation: "Blood pressure reading detected.",
+        confidence: lowerConfidence(reading.confidence, diastolic.confidence),
+      });
+      continue;
+    }
+
+    if (reading.signal_type === "bp_diastolic" && systolic) continue;
+
+    cards.push({
+      key: `${reading.signal_type}-${reading.value}-${reading.context_tag}`,
+      display: formatVitalsReadingDisplay(reading),
+      explanation: reading.explanation,
+      confidence: reading.confidence,
+    });
+  }
+
+  return cards;
+}
 
 type VitalsStatusServiceActionKind =
   | "call_gp"
@@ -597,6 +700,316 @@ function ScanModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function VitalsCaptureModal({
+  mode,
+  onClose,
+  initialSignal,
+}: {
+  mode: VitalsCaptureMode;
+  onClose: () => void;
+  initialSignal?: VitalsSignalKey | null;
+}) {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const [inputText, setInputText] = useState(initialSignal ? `${publicSignalLabel(initialSignal)} ` : "");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [result, setResult] = useState<VitalsParsingResult | null>(null);
+  const [error, setError] = useState("");
+
+  const proposed = useMemo(() => result?.proposed_readings ?? [], [result?.proposed_readings]);
+  const proposedCards = useMemo(() => proposedVitalsReadingCards(proposed), [proposed]);
+  const title =
+    mode === "voice"
+      ? t("statusVitals.capture.voiceTitle", "Say a reading")
+      : mode === "photo"
+        ? t("statusVitals.capture.photoTitle", "Scan a device screen")
+        : t("statusVitals.capture.textTitle", "Type a reading");
+  const subtitle =
+    mode === "voice"
+      ? t("statusVitals.capture.voiceSubtitle", "Say something like: blood pressure 128 over 76, oxygen 97, sugar 142.")
+      : mode === "photo"
+        ? t("statusVitals.capture.photoSubtitle", "Take or upload a clear photo of the number on your device.")
+        : t("statusVitals.capture.textSubtitle", "Use natural words. VYVA will pull out the numbers for you to confirm.");
+
+  const parseText = useCallback(async () => {
+    if (!inputText.trim()) return;
+    setIsParsing(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/vitals-engine/parse-text", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({ text: inputText.trim(), capture_method: "manual", source: "manual_entry" }),
+      });
+      if (!response.ok) throw new Error("parse failed");
+      setResult(await response.json() as VitalsParsingResult);
+    } catch {
+      setError(t("statusVitals.capture.parseError", "I could not read that yet. Try a simpler phrase or type the number."));
+    } finally {
+      setIsParsing(false);
+    }
+  }, [inputText, t]);
+
+  const sendAudio = useCallback(async (blob: Blob) => {
+    setIsParsing(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/vitals-engine/parse-audio", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": blob.type || "audio/webm" },
+        body: blob,
+      });
+      if (!response.ok) throw new Error("audio parse failed");
+      setResult(await response.json() as VitalsParsingResult);
+    } catch {
+      setError(t("statusVitals.capture.voiceError", "I could not read the voice note. You can type it instead."));
+    } finally {
+      setIsParsing(false);
+    }
+  }, [t]);
+
+  const stopRecording = useCallback(() => {
+    recorderRef.current?.stop();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    setIsRecording(false);
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setError(t("statusVitals.capture.voiceUnsupported", "Voice capture is not available on this browser."));
+      return;
+    }
+    setError("");
+    chunksRef.current = [];
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      streamRef.current = stream;
+      const mimeType = supportedVitalsAudioType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        if (blob.size > 0) void sendAudio(blob);
+      };
+      recorder.start();
+      setIsRecording(true);
+    } catch {
+      setError(t("statusVitals.capture.voicePermission", "Microphone access is needed to say a reading."));
+    }
+  }, [sendAudio, t]);
+
+  const parsePhoto = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsParsing(true);
+    setError("");
+    try {
+      const image = await fileToDataUrl(file);
+      const response = await apiFetch("/api/vitals-engine/scan-device-photo", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({ image }),
+      });
+      if (!response.ok) throw new Error("photo parse failed");
+      setResult(await response.json() as VitalsParsingResult);
+    } catch {
+      setError(t("statusVitals.capture.photoError", "I could not read that photo. Try a clearer image or type the number."));
+    } finally {
+      setIsParsing(false);
+    }
+  }, [t]);
+
+  const saveReadings = useCallback(async () => {
+    if (!proposed.length) return;
+    setIsSaving(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/vitals-engine/readings", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({
+          readings: proposed.map((reading) => ({
+            signal_type: reading.signal_type,
+            value: reading.value,
+            source: reading.source,
+            capture_method: reading.capture_method,
+            context_tag: reading.context_tag,
+            unit: reading.unit,
+            recorded_at: reading.recorded_at,
+          })),
+        }),
+      });
+      if (!response.ok) throw new Error("save failed");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals-engine/latest"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals-engine/latest", "hub-prompts"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] }),
+      ]);
+      window.dispatchEvent(new Event("vyva:vitals-updated"));
+      toast({
+        title: t("statusVitals.savedTitle", "Reading saved"),
+        description: t("statusVitals.savedBody", "Your vitals timeline has been updated."),
+      });
+      onClose();
+    } catch {
+      setError(t("statusVitals.saveErrorBody", "Please try again in a moment."));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [onClose, proposed, queryClient, t, toast]);
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <section className="max-h-[92vh] w-full max-w-[560px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]">
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-display text-[26px] italic leading-tight text-vyva-text-1">{title}</h2>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
+            aria-label={t("common.close", "Close")}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {mode === "text" && (
+          <div className="grid gap-3">
+            <textarea
+              value={inputText}
+              onChange={(event) => setInputText(event.target.value)}
+              placeholder={t("statusVitals.capture.textPlaceholder", "BP 128/76, oxygen 97, sugar 142...")}
+              className="min-h-[132px] rounded-[22px] border border-[#DDD6FE] bg-[#FAF9F6] px-4 py-4 font-body text-[18px] font-bold leading-snug text-vyva-text-1 outline-none focus:border-[#7C3AED]"
+              data-testid="textarea-vitals-reading"
+            />
+            <button
+              type="button"
+              onClick={parseText}
+              disabled={!inputText.trim() || isParsing}
+              className="vyva-primary-action min-h-[58px] text-[17px] disabled:opacity-60"
+              data-testid="button-parse-vitals-text"
+            >
+              {isParsing ? <Loader2 size={18} className="animate-spin" /> : <Keyboard size={18} />}
+              {isParsing ? t("statusVitals.capture.reading", "Reading...") : t("statusVitals.capture.findReadings", "Find readings")}
+            </button>
+          </div>
+        )}
+
+        {mode === "voice" && (
+          <div className="grid gap-3">
+            <button
+              type="button"
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isParsing}
+              className={`flex min-h-[96px] items-center justify-center gap-3 rounded-[24px] px-5 font-body text-[20px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.24)] ${isRecording ? "bg-[#BE123C]" : "bg-[#6B21A8]"}`}
+              data-testid="button-vitals-voice-record"
+            >
+              {isParsing ? <Loader2 size={22} className="animate-spin" /> : <Mic size={24} />}
+              {isParsing
+                ? t("statusVitals.capture.reading", "Reading...")
+                : isRecording
+                  ? t("statusVitals.capture.stopRecording", "Stop")
+                  : t("statusVitals.capture.startRecording", "Record reading")}
+            </button>
+            <p className="rounded-[18px] border border-[#EDE5DB] bg-[#FAF9F6] px-4 py-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+              {t("statusVitals.capture.voiceHint", "VYVA only uses this voice note to extract the numbers you confirm here.")}
+            </p>
+          </div>
+        )}
+
+        {mode === "photo" && (
+          <div className="grid gap-3">
+            <label className="flex min-h-[112px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[24px] border border-dashed border-[#BDA7FF] bg-[#F5F3FF] px-5 text-center font-body text-[17px] font-black text-[#6B21A8]">
+              {isParsing ? <Loader2 size={24} className="animate-spin" /> : <Camera size={26} />}
+              {isParsing ? t("statusVitals.capture.reading", "Reading...") : t("statusVitals.capture.choosePhoto", "Take or upload photo")}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={parsePhoto}
+                className="hidden"
+                data-testid="input-vitals-device-photo"
+              />
+            </label>
+            <p className="rounded-[18px] border border-[#EDE5DB] bg-[#FAF9F6] px-4 py-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+              {t("statusVitals.capture.photoHint", "Photos are used to read the device number. Confirm before anything is saved.")}
+            </p>
+          </div>
+        )}
+
+        {result?.transcript && mode !== "text" && (
+          <p className="mt-4 rounded-[18px] bg-[#FAF9F6] px-4 py-3 font-body text-[13px] font-semibold text-vyva-text-2">
+            {result.transcript}
+          </p>
+        )}
+
+        {result?.clarification_prompt && (
+          <p className="mt-4 rounded-[18px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 font-body text-[14px] font-bold leading-snug text-[#92400E]">
+            {result.clarification_prompt}
+          </p>
+        )}
+
+        {proposed.length > 0 && (
+          <div className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4">
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
+              {t("statusVitals.capture.confirmTitle", "Confirm before saving")}
+            </p>
+            <div className="mt-3 grid gap-2">
+              {proposedCards.map((reading) => (
+                <div key={reading.key} className="flex items-start gap-3 rounded-[18px] bg-white px-4 py-3">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
+                    <Check size={16} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                      {reading.display}
+                    </p>
+                    <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                      {reading.explanation} {reading.confidence === "medium" ? t("statusVitals.confidence.medium", "Medium") : reading.confidence}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={saveReadings}
+              disabled={isSaving}
+              className="vyva-primary-action mt-4 min-h-[60px] w-full text-[18px] disabled:opacity-60"
+              data-testid="button-confirm-vitals-readings"
+            >
+              {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+              {isSaving ? t("statusVitals.saving", "Saving...") : t("statusVitals.capture.saveConfirmed", "Save confirmed readings")}
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <p className="mt-4 rounded-[18px] bg-[#FEF2F2] px-4 py-3 font-body text-[14px] font-bold text-[#B91C1C]">
+            {error}
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 const SignosScreen = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -604,8 +1017,9 @@ const SignosScreen = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { profile } = useProfile();
-  const [showLogModal, setShowLogModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
+  const [captureMode, setCaptureMode] = useState<VitalsCaptureMode | null>(null);
+  const [captureSignal, setCaptureSignal] = useState<VitalsSignalKey | null>(null);
   const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
     domain: "health",
     actionTypes: ["health.vitals_review"],
@@ -613,6 +1027,10 @@ const SignosScreen = () => {
 
   const { data: vitalsData, isLoading } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
+    retry: false,
+  });
+  const { data: vitalsEngineData } = useQuery<VitalsEngineLatestResponse>({
+    queryKey: ["/api/vitals-engine/latest", "hub-prompts"],
     retry: false,
   });
   const { data: personalisationData } = useQuery<{
@@ -629,6 +1047,23 @@ const SignosScreen = () => {
   const complianceDays = vitalsData?.compliance_days ?? (Array(7).fill(false) as boolean[]);
   const filledDays = complianceDays.filter(Boolean).length;
   const connectedDevices = DEVICE_ROWS.filter((device) => device.connected).length;
+  const todaySignals = useMemo(() => new Set(
+    (vitalsEngineData?.recent_readings ?? [])
+      .filter((reading) => isTodayReading(reading.recorded_at))
+      .map((reading) => reading.signal_type),
+  ), [vitalsEngineData?.recent_readings]);
+  const suggestedSignals = useMemo(() => {
+    const profileSignals = promptSignalsForProfile(personalisationData?.conditions ?? []);
+    return profileSignals.filter((signal) => {
+      if (signal === "bp_systolic") return !todaySignals.has("bp_systolic") || !todaySignals.has("bp_diastolic");
+      return !todaySignals.has(signal);
+    }).slice(0, 4);
+  }, [personalisationData?.conditions, todaySignals]);
+
+  const openCapture = (mode: VitalsCaptureMode, signal?: VitalsSignalKey) => {
+    setCaptureSignal(signal ?? null);
+    setCaptureMode(mode);
+  };
 
   const latestReadingAt = useMemo(() => {
     if (!summary) return null;
@@ -854,6 +1289,98 @@ const SignosScreen = () => {
         className="mt-4"
       />
 
+      <section className="mt-5 rounded-[28px] border border-[#E8DED4] bg-white p-4 shadow-[0_12px_30px_rgba(63,45,35,0.07)]" data-testid="vitals-guided-hub">
+        <div className="flex items-start gap-3">
+          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple">
+            <Activity size={22} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
+              {t("statusVitals.hub.kicker", "Scan, say, snap, or type")}
+            </p>
+            <h2 className="mt-1 font-display text-[28px] italic leading-tight text-vyva-text-1">
+              {t("statusVitals.hub.title", "Add home vitals your way")}
+            </h2>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+              {t("statusVitals.hub.subtitle", "VYVA reads the number, shows it back, and saves only after you confirm.")}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setShowScanModal(true)}
+            className="flex min-h-[96px] flex-col justify-between rounded-[22px] bg-[#6B21A8] p-4 text-left text-white shadow-[0_10px_24px_rgba(107,33,168,0.24)] active:scale-[0.98]"
+            data-testid="button-open-vitals-scan"
+          >
+            <ScanLine size={22} />
+            <span className="font-body text-[15px] font-bold leading-tight">{t("statusVitals.scanAction", "Phone estimate")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openCapture("voice")}
+            className="flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-[#FFF7ED] p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
+            data-testid="button-vitals-say-reading"
+          >
+            <Mic size={22} className="text-[#B45309]" />
+            <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">{t("statusVitals.hub.say", "Say reading")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openCapture("photo")}
+            className="flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-[#EFF6FF] p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
+            data-testid="button-vitals-snap-reading"
+          >
+            <Camera size={22} className="text-[#1D4ED8]" />
+            <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">{t("statusVitals.hub.snap", "Scan device")}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openCapture("text")}
+            className="flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
+            data-testid="button-log-reading"
+          >
+            <Keyboard size={22} className="text-[#6B21A8]" />
+            <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">{t("statusVitals.logAction", "Type reading")}</span>
+          </button>
+        </div>
+
+        {suggestedSignals.length > 0 && (
+          <div className="mt-4 rounded-[22px] border border-[#EDE5DB] bg-[#FAF9F6] p-4" data-testid="vitals-today-prompts">
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-2">
+              {t("statusVitals.hub.todayPrompt", "Useful to add today")}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {suggestedSignals.map((signal) => (
+                <button
+                  key={signal}
+                  type="button"
+                  onClick={() => openCapture("text", signal)}
+                  className="rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-[#6B21A8] active:scale-95"
+                  data-testid={`button-suggested-vital-${signal}`}
+                >
+                  {publicSignalLabel(signal)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-2">
+          {[
+            t("statusVitals.hub.evidencePhone", "Phone scan: pulse and breathing trend"),
+            t("statusVitals.hub.evidenceManual", "Voice, photo, or typed readings: confirm before saving"),
+            t("statusVitals.hub.evidenceDevice", "Connected devices: ready for the next phase"),
+          ].map((item) => (
+            <div key={item} className="flex items-center gap-3 rounded-[17px] bg-[#FAF9F6] px-3 py-2 font-body text-[13px] font-bold text-vyva-text-2">
+              <ShieldCheck size={15} className="text-[#047857]" />
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {user?.id && (
         <div className="mt-5">
           <VitalsTracker
@@ -905,31 +1432,6 @@ const SignosScreen = () => {
           </div>
         </div>
       </section>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => setShowScanModal(true)}
-          className="flex min-h-[92px] flex-col justify-between rounded-[22px] bg-[#6B21A8] p-4 text-left shadow-[0_10px_24px_rgba(107,33,168,0.24)] active:scale-[0.98]"
-          data-testid="button-open-vitals-scan"
-        >
-          <ScanLine size={21} className="text-white" />
-          <span className="font-body text-[15px] font-bold leading-tight text-white">
-            {t("statusVitals.scanAction", "Phone estimate")}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowLogModal(true)}
-          className="flex min-h-[92px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
-          data-testid="button-log-reading"
-        >
-          <Plus size={21} style={{ color: "#6B21A8" }} />
-          <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">
-            {t("statusVitals.logAction", "Confirmed reading")}
-          </span>
-        </button>
-      </div>
 
       <p className="mt-3 rounded-[20px] border border-[#EDE5DB] bg-white px-4 py-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
         {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
@@ -1098,8 +1600,17 @@ const SignosScreen = () => {
         </div>
       </section>
 
-      {showLogModal && <LogReadingModal onClose={() => setShowLogModal(false)} />}
       {showScanModal && <ScanModal onClose={() => setShowScanModal(false)} />}
+      {captureMode && (
+        <VitalsCaptureModal
+          mode={captureMode}
+          initialSignal={captureSignal}
+          onClose={() => {
+            setCaptureMode(null);
+            setCaptureSignal(null);
+          }}
+        />
+      )}
     </HealthWizardShell>
   );
 };

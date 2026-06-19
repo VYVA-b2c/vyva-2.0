@@ -37,7 +37,7 @@
     "pending": "Pendiente",
     "overallBody": "Última actualización",
     "scanAction": "Estimación con teléfono",
-    "logAction": "Lectura confirmada",
+    "logAction": "Escribir lectura",
     "sourceNote": "Los escaneos con teléfono son estimaciones para ver tendencias. Las lecturas manuales o de dispositivos son evidencia más fuerte para VYVA.",
     "share": "Compartir",
     "keyMetrics": "Métricas clave",

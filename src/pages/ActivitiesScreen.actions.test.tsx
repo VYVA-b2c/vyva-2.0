@@ -79,6 +79,7 @@ function renderActivities() {
       <Routes>
         <Route path="/activities" element={<ActivitiesScreen />} />
         <Route path="/activity" element={<LocationProbe />} />
+        <Route path="/activities/relax-breathe" element={<LocationProbe />} />
         <Route path="/social-rooms" element={<LocationProbe />} />
         <Route path="/companions" element={<LocationProbe />} />
       </Routes>
@@ -91,14 +92,13 @@ describe("Activities service actions", () => {
     vi.clearAllMocks();
   });
 
-  it("routes the calm activity card to movement logging with breathing preselected", async () => {
+  it("routes the calm activity card to the dedicated Relax & Breathe page", async () => {
     renderActivities();
 
     fireEvent.click(screen.getByTestId("activity-card-brain-activities-meditation"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/activity"));
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"preselectActivity\":\"Breathing\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("\"duration\":10");
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/activities/relax-breathe"));
+    expect(screen.getByTestId("route-state")).toHaveTextContent("{}");
   });
 
   it("opens social rooms from the companionship tile", async () => {

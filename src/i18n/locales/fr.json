@@ -1785,7 +1785,7 @@
     "pending": "En attente",
     "overallBody": "Dernière mise à jour",
     "scanAction": "Estimation téléphone",
-    "logAction": "Mesure confirmée",
+    "logAction": "Saisir mesure",
     "sourceNote": "Les scans par téléphone sont des estimations pour suivre les tendances. Les mesures par appareil ou saisies manuellement ont plus de poids pour VYVA.",
     "share": "Partager",
     "keyMetrics": "Mesures clés",

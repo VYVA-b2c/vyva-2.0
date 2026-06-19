@@ -1785,7 +1785,7 @@
     "pending": "Ausstehend",
     "overallBody": "Letzte Aktualisierung",
     "scanAction": "Telefon-Schätzung",
-    "logAction": "Bestätigte Messung",
+    "logAction": "Messung eingeben",
     "sourceNote": "Telefon-Scans sind Schätzungen für Trends. Geräte- oder manuelle Messungen sind stärkere Hinweise für VYVA.",
     "share": "Teilen",
     "keyMetrics": "Wichtige Messwerte",

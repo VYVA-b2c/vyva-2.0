@@ -37,6 +37,38 @@ describe("daily safety check rules", () => {
     expect(result.risk_tier).toBe("watch");
   });
 
+  it("uses diastolic blood pressure in safety checks", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [signal({ signal: "bp_diastolic", recent_values: [104] })],
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("contact_doctor");
+    expect(result.contributing_signals.reasons).toEqual([
+      expect.stringMatching(/bottom number is 104/i),
+    ]);
+  });
+
+  it("treats meaningful weight increases as a vitals signal", () => {
+    const result = buildDailySafetyCheck({
+      signalSummary: [
+        signal({
+          signal: "weight_kg",
+          recent_values: [84],
+          deviations_pct: [5.5],
+          max_deviation: 5.5,
+          reading_count: 2,
+        }),
+      ],
+      language: "en",
+    });
+
+    expect(result.safety_status).toBe("contact_doctor");
+    expect(result.contributing_signals.reasons).toEqual([
+      expect.stringMatching(/weight is up 5.5%/i),
+    ]);
+  });
+
   it("raises repeated baseline deviation to caregiver sharing", () => {
     const result = buildDailySafetyCheck({
       signalSummary: [
