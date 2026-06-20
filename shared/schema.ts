@@ -1797,7 +1797,14 @@ export const userProviders = pgTable("user_providers", {
   address:      text("address"),
   place_id:     text("place_id"),
   maps_url:     text("maps_url"),
+  website_url:  text("website_url"),
+  booking_url:  text("booking_url"),
+  email:        text("email"),
+  whatsapp:     text("whatsapp"),
+  contact_name: text("contact_name"),
+  contact_role: text("contact_role"),
   notes:        text("notes"),
+  metadata:     jsonb("metadata").notNull().default({}),
   is_primary:   boolean("is_primary").notNull().default(true),
   is_active:    boolean("is_active").notNull().default(true),
   last_used_at: timestamp("last_used_at", { withTimezone: true }),
@@ -1856,6 +1863,66 @@ export const conciergeSessions = pgTable("concierge_sessions", {
 export const insertConciergeSessionSchema = createInsertSchema(conciergeSessions).omit({ id: true, started_at: true });
 export type InsertConciergeSession = z.infer<typeof insertConciergeSessionSchema>;
 export type ConciergeSession = typeof conciergeSessions.$inferSelect;
+
+export const appointmentRequests = pgTable("appointment_requests", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  user_id:                  text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  appointment_type:         text("appointment_type").notNull(),
+  reason_detail:            text("reason_detail"),
+  preferences:              jsonb("preferences").notNull().default({}),
+  status:                   text("status").notNull().default("draft"),
+  selected_provider_id:     uuid("selected_provider_id").references(() => userProviders.id, { onDelete: "set null" }),
+  selected_provider_option_id: uuid("selected_provider_option_id"),
+  selected_channel:         text("selected_channel"),
+  linked_pending_id:        uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  linked_scheduled_event_id: uuid("linked_scheduled_event_id").references(() => scheduledEvents.id, { onDelete: "set null" }),
+  route_prefill_source:     text("route_prefill_source"),
+  language:                 text("language").notNull().default("es"),
+  created_at:               timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:               timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAppointmentRequestSchema = createInsertSchema(appointmentRequests).omit({ id: true, created_at: true, updated_at: true });
+export type InsertAppointmentRequest = z.infer<typeof insertAppointmentRequestSchema>;
+export type AppointmentRequest = typeof appointmentRequests.$inferSelect;
+
+export const appointmentProviderOptions = pgTable("appointment_provider_options", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  request_id:         uuid("request_id").notNull().references(() => appointmentRequests.id, { onDelete: "cascade" }),
+  user_id:            text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  provider_id:        uuid("provider_id").references(() => userProviders.id, { onDelete: "set null" }),
+  provider_source:    text("provider_source").notNull().default("saved"),
+  provider_snapshot:  jsonb("provider_snapshot").notNull().default({}),
+  match_reason:       text("match_reason"),
+  available_channels: text("available_channels").array().notNull().default([]),
+  rank:               integer("rank").notNull().default(0),
+  status:             text("status").notNull().default("suggested"),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAppointmentProviderOptionSchema = createInsertSchema(appointmentProviderOptions).omit({ id: true, created_at: true, updated_at: true });
+export type InsertAppointmentProviderOption = z.infer<typeof insertAppointmentProviderOptionSchema>;
+export type AppointmentProviderOption = typeof appointmentProviderOptions.$inferSelect;
+
+export const appointmentAttempts = pgTable("appointment_attempts", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  request_id:         uuid("request_id").notNull().references(() => appointmentRequests.id, { onDelete: "cascade" }),
+  user_id:            text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  provider_option_id: uuid("provider_option_id").references(() => appointmentProviderOptions.id, { onDelete: "set null" }),
+  provider_id:        uuid("provider_id").references(() => userProviders.id, { onDelete: "set null" }),
+  channel:            text("channel").notNull(),
+  status:             text("status").notNull().default("pending"),
+  pending_id:         uuid("pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  result_notes:       text("result_notes"),
+  metadata:           jsonb("metadata").notNull().default({}),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertAppointmentAttemptSchema = createInsertSchema(appointmentAttempts).omit({ id: true, created_at: true, updated_at: true });
+export type InsertAppointmentAttempt = z.infer<typeof insertAppointmentAttemptSchema>;
+export type AppointmentAttempt = typeof appointmentAttempts.$inferSelect;
 
 export const conciergeReminders = pgTable("concierge_reminders", {
   id:                  uuid("id").primaryKey().defaultRandom(),
@@ -2192,6 +2259,9 @@ export const schema = {
   userProviders,
   conciergePending,
   conciergeSessions,
+  appointmentRequests,
+  appointmentProviderOptions,
+  appointmentAttempts,
   conciergeReminders,
   utilityReviewRuns,
   conciergeRecommendationFeedback,
