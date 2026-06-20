@@ -39,13 +39,13 @@ vi.mock("@/components/VoiceHero", () => ({
 const labels: Record<string, string> = {
   "home.whatNow": "or explore a topic",
   "home.fastHelp.kicker": "Fast help",
-  "home.fastHelp.title": "What do you need now?",
-  "home.fastHelp.doctor.label": "Doctor help",
-  "home.fastHelp.doctor.sub": "Talk through a health concern",
-  "home.fastHelp.appointment.label": "Book appointment",
-  "home.fastHelp.appointment.sub": "Prepare a request to confirm",
-  "home.fastHelp.ride.label": "Book ride",
-  "home.fastHelp.ride.sub": "Arrange safe transport",
+  "home.fastHelp.title": "What would you like VYVA to do?",
+  "home.fastHelp.doctor.label": "Talk to a real doctor now",
+  "home.fastHelp.doctor.sub": "Get live medical help.",
+  "home.fastHelp.appointment.label": "Schedule an appointment",
+  "home.fastHelp.appointment.sub": "Let VYVA arrange it with you.",
+  "home.fastHelp.ride.label": "Book my transport",
+  "home.fastHelp.ride.sub": "Let VYVA arrange your ride.",
   "home.fastHelp.doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
   "home.fastHelp.appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
   "home.fastHelp.ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation.",
@@ -122,9 +122,9 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-callGp")).toHaveTextContent("Call Dr Garcia");
     expect(screen.getByTestId("button-home-fast-emailGp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
     expect(screen.getByTestId("button-home-fast-emailGp")).toHaveAttribute("href", expect.stringContaining("VYVA%20symptom%20report"));
-    expect(screen.getByTestId("button-home-fast-doctor")).toHaveTextContent("Doctor help");
-    expect(screen.getByTestId("button-home-fast-appointment")).toHaveTextContent("Book appointment");
-    expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Book ride");
+    expect(screen.getByTestId("button-home-fast-doctor")).toHaveTextContent("Talk to a real doctor now");
+    expect(screen.getByTestId("button-home-fast-appointment")).toHaveTextContent("Schedule an appointment");
+    expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Book my transport");
   });
 
   it("opens doctor help with voice context from Home", () => {

@@ -252,18 +252,18 @@
     },
     "fastHelp": {
       "kicker": "Schnelle Hilfe",
-      "title": "Was brauchen Sie jetzt?",
+      "title": "Was soll VYVA fur Sie tun?",
       "doctor": {
-        "label": "Arzthilfe",
-        "sub": "Ein Gesundheitsanliegen besprechen"
+        "label": "Jetzt mit echtem Arzt sprechen",
+        "sub": "Live medizinische Hilfe erhalten."
       },
       "appointment": {
-        "label": "Termin buchen",
-        "sub": "Anfrage zur Bestatigung vorbereiten"
+        "label": "Termin vereinbaren",
+        "sub": "VYVA organisiert ihn mit Ihnen."
       },
       "ride": {
-        "label": "Fahrt buchen",
-        "sub": "Sicheren Transport organisieren"
+        "label": "Transport buchen",
+        "sub": "VYVA organisiert Ihre Fahrt."
       },
       "doctorContext": "Schnelle Arzthilfe-Anfrage von der Startseite. Fragen Sie, was passiert, und helfen Sie, den sicheren nachsten Schritt vorzubereiten.",
       "appointmentPrefill": "Bitte helfen Sie mir, einen Termin zu vereinbaren. Fragen Sie, welche Art Termin ich brauche, und buchen Sie nichts ohne meine Bestatigung.",
