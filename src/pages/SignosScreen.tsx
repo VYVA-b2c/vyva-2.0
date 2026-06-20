@@ -1902,9 +1902,9 @@ const SignosScreen = () => {
       doctorHelp: t("statusVitals.actions.doctorHelp", "Doctor help"),
       addDoctor: t("statusVitals.actions.addDoctor", "Add doctor"),
       appointment: t("statusVitals.actions.appointment", "Book appointment"),
-      ride: t("statusVitals.actions.ride", "Book ride"),
+      ride: t("statusVitals.actions.ride", "Find transport"),
       appointmentPrefill: t("statusVitals.actions.appointmentPrefill", "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."),
-      ridePrefill: t("statusVitals.actions.ridePrefill", "Please help me arrange safe transport based on my VYVA vitals. Ask me to confirm before booking."),
+      ridePrefill: t("statusVitals.actions.ridePrefill", "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking."),
     },
   }), [profile?.gpEmail, profile?.gpName, profile?.gpPhone, statusSummaryText, t]);
 

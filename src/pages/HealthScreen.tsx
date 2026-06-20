@@ -850,7 +850,7 @@ export function latestTriageServiceActionsFor({
     call_gp: "Call GP",
     email_gp: "Email GP",
     doctor_help: "Doctor help",
-    book_ride: "Book ride",
+    book_ride: "Find transport",
     schedule_appointment: "Appointment",
     online_order: "Online order",
     request_quote: "Request quote",
@@ -944,7 +944,7 @@ export function healthDoctorQuickActionsFor({
   const appointmentMessage = messages.appointment
     ?? `Please help me schedule a doctor appointment. Ask me to confirm before booking anything.\n\n${safeContext}`;
   const rideMessage = messages.ride
-    ?? `Please help me arrange safe transport for a medical appointment. Ask me to confirm before booking anything.\n\n${safeContext}`;
+    ?? `Please help me find safe transport options for a medical appointment. Ask me to confirm before contacting anyone.\n\n${safeContext}`;
   const actions: HealthDoctorQuickAction[] = [];
 
   if (gpPhoneHref) {
@@ -997,8 +997,8 @@ export function healthDoctorQuickActionsFor({
     },
     {
       kind: "book_ride",
-      label: labels.book_ride ?? "Book transport",
-      description: descriptions.book_ride ?? "Arrange a safe ride to care.",
+      label: labels.book_ride ?? "Find transport",
+      description: descriptions.book_ride ?? "Compare safe ways to get there.",
       to: "/concierge",
       state: {
         conciergePrefill: {
@@ -1262,7 +1262,7 @@ const HealthScreen = () => {
       call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
       email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
       doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
-      book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+      book_ride: t("health.symptomCheck.report.actions.bookRide", "Find transport"),
       schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
       online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
       request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
@@ -1301,7 +1301,7 @@ const HealthScreen = () => {
       email_gp: t("health.seeDoctor.actions.emailGp", "Email GP"),
       doctor_help: t("health.seeDoctor.actions.doctorHelp", "Doctor help"),
       schedule_appointment: t("health.seeDoctor.actions.bookAppointment", "Book appointment"),
-      book_ride: t("health.seeDoctor.actions.bookTransport", "Book transport"),
+      book_ride: t("health.seeDoctor.actions.bookTransport", "Find transport"),
       add_doctor_contact: t("health.seeDoctor.actions.addGp", "Add GP contact"),
     },
     descriptions: {
@@ -1309,7 +1309,7 @@ const HealthScreen = () => {
       email_gp: t("health.seeDoctor.actions.emailGpSub", "Open an email with context filled in."),
       doctor_help: t("health.seeDoctor.actions.doctorHelpSub", "Talk through the next step with VYVA."),
       schedule_appointment: t("health.seeDoctor.actions.bookAppointmentSub", "VYVA prepares the request for approval."),
-      book_ride: t("health.seeDoctor.actions.bookTransportSub", "Arrange a safe ride to care."),
+      book_ride: t("health.seeDoctor.actions.bookTransportSub", "Compare safe ways to get there."),
       add_doctor_contact: t("health.seeDoctor.actions.addGpSub", "Save phone or email first."),
     },
     messages: {
@@ -1320,7 +1320,7 @@ const HealthScreen = () => {
       ),
       ride: t(
         "health.seeDoctor.actions.ridePrefill",
-        "Please help me arrange safe transport for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        "Please help me find safe transport options for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
         { context: seeDoctorContext },
       ),
     },
@@ -1406,7 +1406,7 @@ const HealthScreen = () => {
 
         return {
           kind,
-          label: t("health.scanWound.actions.ride", "Book ride"),
+          label: t("health.scanWound.actions.ride", "Find transport"),
           Icon: Car,
           onClick: () => navigate("/concierge", {
             state: {
@@ -2278,7 +2278,7 @@ const HealthScreen = () => {
                                 style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
                               >
                                 <Car size={15} />
-                                {t("health.findSpecialist.bookRide", "Book ride")}
+                                {t("health.findSpecialist.bookRide", "Find transport")}
                               </button>
                             );
                           }
@@ -2820,7 +2820,7 @@ const HealthScreen = () => {
                                     style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
                                   >
                                     <Car size={15} />
-                                    {t("health.findSpecialist.bookRide", "Book ride")}
+                                    {t("health.findSpecialist.bookRide", "Find transport")}
                                   </button>
                                 );
                               }

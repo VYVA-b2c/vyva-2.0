@@ -74,6 +74,74 @@ interface ConciergePendingItem {
   expires_at?: string | null;
 }
 
+type AppointmentType = (typeof APPOINTMENT_TYPE_CHIPS)[number]["key"];
+type AppointmentChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
+
+interface AppointmentRequestItem {
+  id: string;
+  appointment_type: AppointmentType;
+  reason_detail: string | null;
+  status: string;
+  selected_provider_option_id: string | null;
+  selected_channel: AppointmentChannel | null;
+}
+
+interface AppointmentProviderOption {
+  id: string;
+  provider_id: string | null;
+  provider_source: "saved" | "external" | "manual";
+  provider_snapshot: Record<string, unknown>;
+  match_reason: string | null;
+  available_channels: AppointmentChannel[];
+  rank: number;
+  status: string;
+}
+
+interface AppointmentAttemptResponse {
+  attempt?: { id: string; channel: AppointmentChannel; status: string };
+  pending?: { pendingId?: string; status?: string; message?: string } | null;
+  booking_url?: string | null;
+  draft?: string | null;
+  needs_booking_confirmation?: boolean;
+}
+
+interface AppointmentRequestResponse {
+  request: AppointmentRequestItem;
+  options: AppointmentProviderOption[];
+}
+
+type TransportAction =
+  | "open_url"
+  | "call_phone"
+  | "draft_message"
+  | "start_concierge_action";
+
+type TransportOptionKind =
+  | "saved_provider"
+  | "ride_app"
+  | "local_taxi"
+  | "medical_transport"
+  | "caregiver"
+  | "concierge_manual";
+
+interface TransportOption {
+  id: string;
+  kind: TransportOptionKind;
+  label: string;
+  description: string;
+  providerName?: string;
+  phone?: string;
+  url?: string;
+  actions: TransportAction[];
+}
+
+interface TransportOptionsResponse {
+  market: { countryCode?: string; region?: string; city?: string };
+  options: TransportOption[];
+  fallbackReason?: string;
+  disclaimers: string[];
+}
+
 type ConciergeActionListResponse<T> = { items?: T[] };
 
 interface OfferScoreBreakdown {
@@ -442,14 +510,21 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
   },
   {
     key: "ride",
-    fallbackTitle: "Book ride",
-    fallbackSubtitle: "Arrange safe transport",
+    fallbackTitle: "Find transport",
+    fallbackSubtitle: "Compare safe ways to get there",
     Icon: Car,
     color: "#047857",
     bg: "#ECFDF5",
     border: "#BBF7D0",
     shadow: "rgba(4,120,87,0.10)",
   },
+] as const;
+
+const TRANSPORT_MOBILITY_NEEDS = [
+  "Wheelchair access",
+  "Help to the door",
+  "Walker or cane",
+  "Caregiver coming",
 ] as const;
 
 async function callConcierge(
@@ -472,6 +547,140 @@ async function fetchPendingActions(): Promise<ConciergePendingItem[]> {
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   const data = (await res.json()) as ConciergeActionListResponse<ConciergePendingItem>;
   return data.items ?? [];
+}
+
+async function createAppointmentRequest(params: {
+  appointmentType: AppointmentType;
+  detail: string;
+  routePrefillSource?: string;
+  locale: string;
+}): Promise<AppointmentRequestResponse> {
+  const res = await apiFetch("/api/appointments/requests", {
+    method: "POST",
+    body: JSON.stringify({
+      appointment_type: params.appointmentType,
+      detail: params.detail,
+      route_prefill_source: params.routePrefillSource,
+      language: params.locale,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not create appointment request");
+  }
+  return await res.json() as AppointmentRequestResponse;
+}
+
+async function confirmAppointmentAttempt(params: {
+  requestId: string;
+  optionId: string;
+  channel: AppointmentChannel;
+}): Promise<AppointmentAttemptResponse> {
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/confirm-attempt`, {
+    method: "POST",
+    body: JSON.stringify({
+      option_id: params.optionId,
+      channel: params.channel,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not confirm appointment attempt");
+  }
+  return await res.json() as AppointmentAttemptResponse;
+}
+
+async function markAppointmentBooked(params: {
+  requestId: string;
+  scheduledFor: string;
+  timezone: string;
+  providerName?: string;
+  location?: string;
+  notes?: string;
+}): Promise<{ scheduled_event?: unknown }> {
+  const scheduledDate = new Date(params.scheduledFor);
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/mark-booked`, {
+    method: "POST",
+    body: JSON.stringify({
+      scheduled_for: scheduledDate.toISOString(),
+      timezone: params.timezone,
+      provider_name: params.providerName,
+      location: params.location,
+      notes: params.notes,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not save appointment");
+  }
+  return await res.json() as { scheduled_event?: unknown };
+}
+
+async function fetchTransportOptions(params: {
+  pickupAddress: string;
+  destinationAddress: string;
+  requestedTime: string;
+  mobilityNeeds: string[];
+  locale: string;
+}): Promise<TransportOptionsResponse> {
+  const res = await apiFetch("/api/transport/options", {
+    method: "POST",
+    body: JSON.stringify({
+      pickup: params.pickupAddress.trim() ? { address: params.pickupAddress.trim() } : undefined,
+      destination: params.destinationAddress.trim() ? { address: params.destinationAddress.trim() } : undefined,
+      requestedTime: params.requestedTime.trim() || "now",
+      purpose: "medical",
+      mobilityNeeds: params.mobilityNeeds,
+      language: params.locale,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? `Request failed: ${res.status}`);
+  }
+  return await res.json() as TransportOptionsResponse;
+}
+
+async function prepareTransportConciergeAction(params: {
+  option: TransportOption;
+  pickupAddress: string;
+  destinationAddress: string;
+  requestedTime: string;
+  mobilityNeeds: string[];
+  locale: string;
+}) {
+  const summaryParts = [
+    params.option.providerName || params.option.label,
+    params.destinationAddress.trim() ? `to ${params.destinationAddress.trim()}` : "",
+    params.requestedTime.trim() ? `at ${params.requestedTime.trim()}` : "",
+  ].filter(Boolean);
+
+  const res = await apiFetch("/api/concierge/actions/trigger", {
+    method: "POST",
+    body: JSON.stringify({
+      use_case: "book_ride",
+      provider_name: params.option.providerName || params.option.label,
+      provider_phone: params.option.phone ?? null,
+      found_externally: params.option.kind !== "saved_provider",
+      action_summary: `Transport option prepared: ${summaryParts.join(" ") || params.option.label}.`,
+      action_payload: {
+        pickup_address: params.pickupAddress.trim(),
+        destination_address: params.destinationAddress.trim(),
+        requested_time: params.requestedTime.trim() || "now",
+        mobility_needs: params.mobilityNeeds,
+        option_kind: params.option.kind,
+        provider_url: params.option.url,
+      },
+      language: params.locale,
+      trigger_source: "user_request",
+      auto_start: false,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not prepare transport request");
+  }
+  return await res.json() as { pendingId?: string; status?: string; message?: string };
 }
 
 async function searchOffers(query: string, locale: string, documentContext?: BillDocumentAnalysis): Promise<OffersSearchResponse> {
@@ -802,6 +1011,36 @@ function phoneHref(phone?: string | null): string {
   return `tel:${normalized || raw}`;
 }
 
+function testIdSlug(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function appointmentSnapshotText(option: AppointmentProviderOption | null | undefined, key: string): string {
+  const value = option?.provider_snapshot?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function appointmentOptionName(option: AppointmentProviderOption | null | undefined, isSpanish: boolean): string {
+  return appointmentSnapshotText(option, "name") || (isSpanish ? "Proveedor guardado" : "Saved provider");
+}
+
+function appointmentChannelLabel(channel: AppointmentChannel, isSpanish: boolean): string {
+  switch (channel) {
+    case "booking_url":
+      return isSpanish ? "Reserva online" : "Online booking";
+    case "phone":
+      return isSpanish ? "Llamada" : "Phone call";
+    case "whatsapp":
+      return "WhatsApp";
+    case "email":
+      return "Email";
+    case "manual":
+      return isSpanish ? "Manual" : "Manual";
+    default:
+      return channel;
+  }
+}
+
 function offerProtectionFallback(isSpanish: boolean): OfferProtectionSummary {
   return isSpanish
     ? {
@@ -958,7 +1197,26 @@ const ConciergeScreen = () => {
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
+  const [appointmentRequest, setAppointmentRequest] = useState<AppointmentRequestItem | null>(null);
+  const [appointmentOptions, setAppointmentOptions] = useState<AppointmentProviderOption[]>([]);
+  const [selectedAppointmentOptionId, setSelectedAppointmentOptionId] = useState<string | null>(null);
+  const [selectedAppointmentChip, setSelectedAppointmentChip] = useState<(typeof APPOINTMENT_TYPE_CHIPS)[number] | null>(null);
+  const [appointmentAttemptResult, setAppointmentAttemptResult] = useState<AppointmentAttemptResponse | null>(null);
+  const [appointmentNotice, setAppointmentNotice] = useState<string | null>(null);
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
+  const [appointmentBookedForm, setAppointmentBookedForm] = useState({
+    scheduledFor: "",
+    location: "",
+    notes: "",
+  });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
+  const [transportPickup, setTransportPickup] = useState("");
+  const [transportDestination, setTransportDestination] = useState("");
+  const [transportTime, setTransportTime] = useState("now");
+  const [transportMobilityNeeds, setTransportMobilityNeeds] = useState<string[]>([]);
+  const [transportResult, setTransportResult] = useState<TransportOptionsResponse | null>(null);
+  const [transportError, setTransportError] = useState<string | null>(null);
+  const [transportNotice, setTransportNotice] = useState<string | null>(null);
   const [offersOpen, setOffersOpen] = useState(false);
   const [savingsPanelView, setSavingsPanelView] = useState<SavingsPanelView>("overview");
   const [offersQuery, setOffersQuery] = useState("");
@@ -1022,6 +1280,83 @@ const ConciergeScreen = () => {
     refetchInterval: 8000,
   });
 
+  const selectedAppointmentOption = useMemo(() => {
+    if (selectedAppointmentOptionId) {
+      return appointmentOptions.find((option) => option.id === selectedAppointmentOptionId) ?? appointmentOptions[0] ?? null;
+    }
+    return appointmentOptions[0] ?? null;
+  }, [appointmentOptions, selectedAppointmentOptionId]);
+
+  const appointmentProviderName = appointmentOptionName(selectedAppointmentOption, isSpanish);
+
+  const createAppointmentMutation = useMutation({
+    mutationFn: createAppointmentRequest,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+      setAppointmentAttemptResult(null);
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setSelectedAppointmentOptionId(null);
+    },
+    onSuccess: (result) => {
+      setAppointmentRequest(result.request);
+      setAppointmentOptions(result.options);
+      setSelectedAppointmentOptionId(result.options[0]?.id ?? null);
+      setAppointmentNotice(result.options.length > 0
+        ? (isSpanish ? "He encontrado un proveedor guardado para revisar primero." : "I found a saved provider to review first.")
+        : (isSpanish ? "No veo un proveedor guardado para esto. Puedo buscar opciones." : "I do not see a saved provider for this yet. I can look for options."));
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido crear la solicitud." : "I could not create the request."));
+    },
+  });
+
+  const confirmAppointmentMutation = useMutation({
+    mutationFn: confirmAppointmentAttempt,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+    },
+    onSuccess: async (result) => {
+      setAppointmentAttemptResult(result);
+      if (result.booking_url) {
+        window.open(result.booking_url, "_blank", "noopener,noreferrer");
+        setAppointmentNotice(isSpanish ? "Pagina abierta. Cuando tengas hora, guardala aqui." : "Booking page opened. When you have a time, save it here.");
+      } else if (result.pending) {
+        setAppointmentNotice(isSpanish ? "Solicitud preparada en Ahora mismo para confirmar." : "Request prepared under Right now for confirmation.");
+      } else if (result.draft) {
+        setAppointmentNotice(isSpanish ? "Borrador preparado. Copialo o usalo antes de guardar la cita." : "Draft prepared. Copy or use it before saving the appointment.");
+      } else {
+        setAppointmentNotice(isSpanish ? "Siguiente paso preparado. Guarda la cita cuando este confirmada." : "Next step prepared. Save the appointment once it is confirmed.");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar el contacto." : "I could not prepare the contact step."));
+    },
+  });
+
+  const markAppointmentBookedMutation = useMutation({
+    mutationFn: markAppointmentBooked,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+    },
+    onSuccess: () => {
+      setAppointmentNotice(isSpanish ? "Cita guardada en Scheduled Support." : "Appointment saved in Scheduled Support.");
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setSelectedAppointmentOptionId(null);
+      setAppointmentAttemptResult(null);
+      setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+      queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la cita." : "I could not save the appointment."));
+    },
+  });
+
   const confirmMutation = useMutation({
     mutationFn: confirmPendingAction,
     onSuccess: async () => {
@@ -1039,6 +1374,50 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  const transportOptionsMutation = useMutation({
+    mutationFn: () => fetchTransportOptions({
+      pickupAddress: transportPickup,
+      destinationAddress: transportDestination,
+      requestedTime: transportTime,
+      mobilityNeeds: transportMobilityNeeds,
+      locale,
+    }),
+    onMutate: () => {
+      setTransportError(null);
+      setTransportNotice(null);
+    },
+    onSuccess: (result) => {
+      setTransportResult(result);
+    },
+    onError: (error) => {
+      setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido buscar transporte." : "I could not find transport options."));
+    },
+  });
+
+  const prepareTransportMutation = useMutation({
+    mutationFn: (option: TransportOption) => prepareTransportConciergeAction({
+      option,
+      pickupAddress: transportPickup,
+      destinationAddress: transportDestination,
+      requestedTime: transportTime,
+      mobilityNeeds: transportMobilityNeeds,
+      locale,
+    }),
+    onMutate: () => {
+      setTransportError(null);
+      setTransportNotice(null);
+    },
+    onSuccess: async () => {
+      setTransportNotice(isSpanish
+        ? "Solicitud preparada. Confirma antes de que VYVA contacte con nadie."
+        : "Transport request prepared. Confirm before VYVA contacts anyone.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la solicitud." : "I could not prepare the request."));
     },
   });
 
@@ -1097,6 +1476,12 @@ const ConciergeScreen = () => {
     setOffersOpen(false);
     setAppointmentOpen(prefill.kind === "appointment");
     setAppointmentNote((current) => current.trim() ? current : message);
+    if (prefill.kind === "ride") {
+      setTransportResult(null);
+      setTransportError(null);
+      setTransportNotice(null);
+      setTransportTime("now");
+    }
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
@@ -1181,6 +1566,21 @@ const ConciergeScreen = () => {
   function sendPrefillToConcierge() {
     const text = routePrefill?.message.trim() || input.trim();
     if (!text || chatLoading) return;
+    if (routePrefill?.kind === "appointment") {
+      const chip = APPOINTMENT_TYPE_CHIPS[0];
+      setSelectedAppointmentChip(chip);
+      setAppointmentOpen(true);
+      setAppointmentNote(text);
+      setInput((current) => current.trim() ? current : text);
+      setRoutePrefill(null);
+      createAppointmentMutation.mutate({
+        appointmentType: chip.key,
+        detail: text,
+        routePrefillSource: routePrefill.source,
+        locale,
+      });
+      return;
+    }
     const userMsg: ChatMessage = { role: "user", content: text };
     const nextHistory = [...messages, userMsg];
     setMessages(nextHistory);
@@ -1216,15 +1616,20 @@ const ConciergeScreen = () => {
   function openAppointmentAssistant() {
     setAppointmentOpen(true);
     setOffersOpen(false);
+    setAppointmentError(null);
   }
 
   function prepareRideRequest() {
     const message = t(
       "concierge.fastHelp.ridePrefill",
-      "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+      "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
     );
     setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
     setInput((current) => current.trim() ? current : message);
+    setTransportResult(null);
+    setTransportError(null);
+    setTransportNotice(null);
+    setTransportTime("now");
     setAppointmentOpen(false);
     setOffersOpen(false);
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -1289,6 +1694,19 @@ const ConciergeScreen = () => {
   function startAppointmentFlow(chip: (typeof APPOINTMENT_TYPE_CHIPS)[number]) {
     const base = isSpanish ? chip.promptEs : chip.promptEn;
     const note = appointmentNote.trim();
+    setSelectedAppointmentChip(chip);
+    createAppointmentMutation.mutate({
+      appointmentType: chip.key,
+      detail: note || base,
+      routePrefillSource: routePrefill?.source,
+      locale,
+    });
+  }
+
+  function sendAppointmentToChat() {
+    const chip = selectedAppointmentChip ?? APPOINTMENT_TYPE_CHIPS[0];
+    const base = isSpanish ? chip.promptEs : chip.promptEn;
+    const note = appointmentNote.trim();
     const message = note
       ? `${base}\n\nDetalle del usuario: ${note}`
       : base;
@@ -1297,8 +1715,35 @@ const ConciergeScreen = () => {
     setMessages(nextHistory);
     setAppointmentOpen(false);
     setAppointmentNote("");
+    setAppointmentRequest(null);
+    setAppointmentOptions([]);
+    setAppointmentAttemptResult(null);
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     sendMessage(message, nextHistory);
+  }
+
+  function handleAppointmentChannel(channel: AppointmentChannel) {
+    if (!appointmentRequest || !selectedAppointmentOption) return;
+    confirmAppointmentMutation.mutate({
+      requestId: appointmentRequest.id,
+      optionId: selectedAppointmentOption.id,
+      channel,
+    });
+  }
+
+  function handleMarkAppointmentBooked() {
+    if (!appointmentRequest || !appointmentBookedForm.scheduledFor) {
+      setAppointmentError(isSpanish ? "Anade fecha y hora confirmadas." : "Add the confirmed date and time.");
+      return;
+    }
+    markAppointmentBookedMutation.mutate({
+      requestId: appointmentRequest.id,
+      scheduledFor: appointmentBookedForm.scheduledFor,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
+      providerName: appointmentProviderName,
+      location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || undefined,
+      notes: appointmentBookedForm.notes.trim() || appointmentRequest.reason_detail || undefined,
+    });
   }
 
   async function handleSearchOffers(nextQuery = offersQuery, documentContext?: BillDocumentAnalysis) {
@@ -1722,14 +2167,14 @@ const ConciergeScreen = () => {
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
         title: routePrefill.kind === "ride"
-          ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
+          ? (isSpanish ? "Opciones de transporte" : "Transport options")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
               : (isSpanish ? "Solicitud preparada" : "Request ready"),
         detail: routePrefill.kind === "ride"
-          ? (isSpanish ? "VYVA puede buscar opciones y dejarte confirmar antes de reservar." : "VYVA can find options and let you confirm before booking.")
+          ? (isSpanish ? "Compara formas seguras de llegar y confirma antes de contactar." : "Compare safe ways to get there and confirm before anyone is contacted.")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
             : routePrefill.kind === "home_care_quote"
@@ -1777,7 +2222,226 @@ const ConciergeScreen = () => {
         className="order-[30] mt-5"
       />
 
-      {routePrefill && routePrefillMeta && (
+      {routePrefill?.kind === "ride" && routePrefillMeta && (
+        <section
+          className="order-[15] mt-4 overflow-hidden rounded-[28px] border border-[#BBF7D0] bg-white"
+          style={{ boxShadow: "0 18px 42px rgba(4,120,87,0.14)" }}
+          data-testid="panel-concierge-route-prefill"
+        >
+          <div className="bg-[linear-gradient(135deg,#0F9F6E_0%,#047857_100%)] p-4 text-white" data-testid="panel-concierge-transport">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/18 text-white shadow-sm">
+                <Car size={23} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#BBF7D0]">
+                  {isSpanish ? "Transporte" : "Transport"}
+                </p>
+                <h2 className="mt-1 font-body text-[23px] font-black leading-tight">
+                  {routePrefillMeta.title}
+                </h2>
+                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
+                  {routePrefillMeta.detail}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRoutePrefill(null)}
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
+                aria-label={isSpanish ? "Cerrar" : "Close"}
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                  {isSpanish ? "Recogida" : "Pickup"}
+                </span>
+                <Input
+                  value={transportPickup}
+                  onChange={(event) => setTransportPickup(event.target.value)}
+                  placeholder={isSpanish ? "Usar mi direccion guardada" : "Use my saved address"}
+                  data-testid="input-transport-pickup"
+                  className="min-h-[52px] rounded-[18px] border-[#E8DED4] bg-[#FFFCF8] font-body text-[16px] font-semibold"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                  {isSpanish ? "Destino" : "Destination"}
+                </span>
+                <Input
+                  value={transportDestination}
+                  onChange={(event) => setTransportDestination(event.target.value)}
+                  placeholder={isSpanish ? "Clinica, farmacia o direccion" : "Clinic, pharmacy, or address"}
+                  data-testid="input-transport-destination"
+                  className="min-h-[52px] rounded-[18px] border-[#E8DED4] bg-[#FFFCF8] font-body text-[16px] font-semibold"
+                />
+              </label>
+            </div>
+
+            <label className="mt-3 block">
+              <span className="mb-1 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                {isSpanish ? "Cuando" : "When"}
+              </span>
+              <Input
+                value={transportTime}
+                onChange={(event) => setTransportTime(event.target.value)}
+                placeholder={isSpanish ? "ahora, manana a las 10..." : "now, tomorrow at 10..."}
+                data-testid="input-transport-time"
+                className="min-h-[52px] rounded-[18px] border-[#E8DED4] bg-[#FFFCF8] font-body text-[16px] font-semibold"
+              />
+            </label>
+
+            <div className="mt-4">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                {isSpanish ? "Necesidades" : "Needs"}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {TRANSPORT_MOBILITY_NEEDS.map((need) => {
+                  const selected = transportMobilityNeeds.includes(need);
+                  return (
+                    <button
+                      key={need}
+                      type="button"
+                      data-testid={`button-transport-need-${testIdSlug(need)}`}
+                      onClick={() => setTransportMobilityNeeds((current) => (
+                        current.includes(need)
+                          ? current.filter((item) => item !== need)
+                          : [...current, need]
+                      ))}
+                      className={`vyva-tap rounded-full border px-3 py-2 font-body text-[13px] font-black ${
+                        selected
+                          ? "border-[#047857] bg-[#ECFDF5] text-[#047857]"
+                          : "border-[#E8DED4] bg-white text-vyva-text-2"
+                      }`}
+                    >
+                      {need}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => transportOptionsMutation.mutate()}
+                disabled={transportOptionsMutation.isPending}
+                data-testid="button-transport-find-options"
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(4,120,87,0.22)] disabled:opacity-60"
+              >
+                {transportOptionsMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                {isSpanish ? "Buscar transporte" : "Find ride options"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setInput(routePrefill.message);
+                  setRoutePrefill(null);
+                }}
+                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#BBF7D0] bg-white px-5 font-body text-[17px] font-black text-[#047857]"
+              >
+                <PencilLine size={18} />
+                {isSpanish ? "Usar chat" : "Use chat instead"}
+              </button>
+            </div>
+
+            {transportError ? (
+              <p className="mt-3 rounded-[18px] border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 font-body text-[13px] font-black text-[#B91C1C]">
+                {transportError}
+              </p>
+            ) : null}
+            {transportNotice ? (
+              <p className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-2 font-body text-[13px] font-black text-[#047857]">
+                {transportNotice}
+              </p>
+            ) : null}
+
+            {transportResult ? (
+              <div className="mt-4 space-y-3" data-testid="transport-options-list">
+                {transportResult.fallbackReason ? (
+                  <p className="rounded-[18px] bg-[#FFF7ED] px-3 py-2 font-body text-[13px] font-bold text-[#9A3412]">
+                    {isSpanish ? "Si falta algun dato, VYVA aun puede preparar una opcion manual." : "If a detail is missing, VYVA can still prepare a manual option."}
+                  </p>
+                ) : null}
+                {transportResult.options.map((option) => {
+                  const href = phoneHref(option.phone);
+                  const canPrepare = option.actions.includes("start_concierge_action");
+                  return (
+                    <article
+                      key={option.id}
+                      data-testid={`card-transport-option-${option.id}`}
+                      className="rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
+                          {option.kind === "ride_app" ? <ExternalLink size={20} /> : <Car size={20} />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <strong className="block font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                            {option.label}
+                          </strong>
+                          <span className="mt-1 block font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                            {option.description}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        {option.url ? (
+                          <a
+                            href={option.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            data-testid={`link-transport-open-${option.id}`}
+                            className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full border border-[#BBF7D0] bg-white px-4 font-body text-[15px] font-black text-[#047857]"
+                          >
+                            <ExternalLink size={16} />
+                            {isSpanish ? "Abrir opcion" : "Open option"}
+                          </a>
+                        ) : null}
+                        {href ? (
+                          <a
+                            href={href}
+                            data-testid={`link-transport-call-${option.id}`}
+                            className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full border border-[#BFDBFE] bg-white px-4 font-body text-[15px] font-black text-[#2563EB]"
+                          >
+                            <PhoneCall size={16} />
+                            {isSpanish ? "Llamar" : "Call"}
+                          </a>
+                        ) : null}
+                        {canPrepare ? (
+                          <button
+                            type="button"
+                            onClick={() => prepareTransportMutation.mutate(option)}
+                            disabled={prepareTransportMutation.isPending}
+                            data-testid={`button-transport-prepare-${option.id}`}
+                            className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
+                          >
+                            {prepareTransportMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <CircleCheck size={16} />}
+                            {isSpanish ? "Preparar con VYVA" : "Prepare with VYVA"}
+                          </button>
+                        ) : null}
+                      </div>
+                    </article>
+                  );
+                })}
+                <p className="rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
+                  {transportResult.disclaimers[2] ?? (isSpanish ? "Nada se reserva sin tu confirmacion." : "Nothing is booked without your confirmation.")}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
+                {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {routePrefill && routePrefill.kind !== "ride" && routePrefillMeta && (
         <section
           className="order-[15] mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
           style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.16)" }}
@@ -2168,7 +2832,7 @@ const ConciergeScreen = () => {
                     key={chip.key}
                     type="button"
                     onClick={() => startAppointmentFlow(chip)}
-                    disabled={chatLoading}
+                    disabled={chatLoading || createAppointmentMutation.isPending}
                     className="vyva-tap rounded-[17px] border border-[#99F6E4] bg-white px-3 py-3 text-left font-body text-[14px] font-semibold leading-tight text-vyva-text-1 disabled:opacity-60"
                   >
                     {isSpanish ? chip.es : chip.en}
@@ -2188,6 +2852,153 @@ const ConciergeScreen = () => {
                 className="mt-2 min-h-[50px] rounded-[18px] border-vyva-border bg-white font-body text-[15px]"
               />
             </div>
+
+            {(appointmentNotice || appointmentError || createAppointmentMutation.isPending) && (
+              <div
+                className={`mt-3 rounded-[18px] px-4 py-3 font-body text-[13px] font-semibold ${
+                  appointmentError ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-white text-[#0F766E]"
+                }`}
+              >
+                {createAppointmentMutation.isPending
+                  ? (isSpanish ? "Preparando solicitud..." : "Preparing request...")
+                  : appointmentError || appointmentNotice}
+              </div>
+            )}
+
+            {appointmentRequest && appointmentOptions.length > 0 && (
+              <div className="mt-3 rounded-[22px] border border-[#99F6E4] bg-white p-3" data-testid="panel-appointment-provider-options">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                  {isSpanish ? "Proveedor guardado" : "Saved provider"}
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {appointmentOptions.map((option) => {
+                    const isSelected = option.id === selectedAppointmentOption?.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSelectedAppointmentOptionId(option.id)}
+                        data-testid={`button-appointment-option-${testIdSlug(appointmentOptionName(option, isSpanish))}`}
+                        className={`vyva-tap rounded-[17px] border px-3 py-3 text-left font-body ${
+                          isSelected ? "border-vyva-purple bg-[#F5F3FF]" : "border-[#E8DED4] bg-[#FFFCF8]"
+                        }`}
+                      >
+                        <span className="block text-[15px] font-black text-vyva-text-1">
+                          {appointmentOptionName(option, isSpanish)}
+                        </span>
+                        <span className="mt-1 block text-[12px] font-semibold text-vyva-text-2">
+                          {option.match_reason || (isSpanish ? "Desde Settings" : "From Settings")}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedAppointmentOption && (
+                  <div className="mt-3 rounded-[18px] bg-[#F8FFFC] p-3">
+                    <p className="font-body text-[16px] font-black text-vyva-text-1">
+                      {isSpanish ? "Intentar primero con " : "Try first with "}{appointmentProviderName}
+                    </p>
+                    {appointmentSnapshotText(selectedAppointmentOption, "address") && (
+                      <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-2">
+                        {appointmentSnapshotText(selectedAppointmentOption, "address")}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {selectedAppointmentOption.available_channels.map((channel) => (
+                        <button
+                          key={channel}
+                          type="button"
+                          onClick={() => handleAppointmentChannel(channel)}
+                          disabled={confirmAppointmentMutation.isPending}
+                          data-testid={`button-appointment-channel-${channel}`}
+                          className="vyva-tap inline-flex min-h-[42px] items-center justify-center rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[13px] font-black text-[#0F766E] disabled:opacity-60"
+                        >
+                          {confirmAppointmentMutation.isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
+                          {appointmentChannelLabel(channel, isSpanish)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {appointmentRequest && appointmentOptions.length === 0 && (
+              <div className="mt-3 rounded-[20px] border border-[#FCD34D] bg-[#FFFBEB] p-4">
+                <p className="font-body text-[15px] font-black text-vyva-text-1">
+                  {isSpanish ? "No hay proveedor guardado para esto." : "No saved provider for this yet."}
+                </p>
+                <button
+                  type="button"
+                  onClick={sendAppointmentToChat}
+                  disabled={chatLoading}
+                  className="vyva-tap mt-3 inline-flex min-h-[46px] w-full items-center justify-center rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
+                >
+                  {isSpanish ? "Buscar opciones" : "Look for options"}
+                </button>
+              </div>
+            )}
+
+            {appointmentAttemptResult?.draft && (
+              <div className="mt-3 rounded-[20px] border border-[#D8B4FE] bg-white p-4" data-testid="panel-appointment-draft">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+                  {isSpanish ? "Borrador" : "Draft"}
+                </p>
+                <pre className="mt-2 whitespace-pre-wrap font-body text-[13px] font-semibold leading-relaxed text-vyva-text-1">
+                  {appointmentAttemptResult.draft}
+                </pre>
+              </div>
+            )}
+
+            {appointmentAttemptResult && appointmentRequest && (
+              <div className="mt-3 rounded-[20px] border border-[#BBF7D0] bg-white p-4" data-testid="panel-appointment-mark-booked">
+                <p className="font-body text-[15px] font-black text-vyva-text-1">
+                  {isSpanish ? "Cuando este confirmada" : "When it is confirmed"}
+                </p>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input
+                    type="datetime-local"
+                    value={appointmentBookedForm.scheduledFor}
+                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, scheduledFor: event.target.value }))}
+                    className="min-h-[48px] rounded-[16px] border-vyva-border bg-white font-body text-[14px]"
+                    aria-label={isSpanish ? "Fecha y hora" : "Date and time"}
+                  />
+                  <Input
+                    value={appointmentBookedForm.location}
+                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, location: event.target.value }))}
+                    placeholder={isSpanish ? "Lugar" : "Location"}
+                    className="min-h-[48px] rounded-[16px] border-vyva-border bg-white font-body text-[14px]"
+                  />
+                </div>
+                <Input
+                  value={appointmentBookedForm.notes}
+                  onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, notes: event.target.value }))}
+                  placeholder={isSpanish ? "Nota opcional" : "Optional note"}
+                  className="mt-2 min-h-[48px] rounded-[16px] border-vyva-border bg-white font-body text-[14px]"
+                />
+                <button
+                  type="button"
+                  onClick={handleMarkAppointmentBooked}
+                  disabled={markAppointmentBookedMutation.isPending}
+                  className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#0F766E] px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
+                >
+                  {markAppointmentBookedMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+                  {isSpanish ? "Guardar cita" : "Save appointment"}
+                </button>
+              </div>
+            )}
+
+            {appointmentRequest && appointmentOptions.length > 0 && (
+              <button
+                type="button"
+                onClick={sendAppointmentToChat}
+                disabled={chatLoading}
+                className="vyva-tap mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[14px] font-black text-[#0F766E] disabled:opacity-60"
+              >
+                {isSpanish ? "Buscar otras opciones" : "Look for other options"}
+              </button>
+            )}
           </div>
         )}
 

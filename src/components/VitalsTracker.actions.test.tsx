@@ -116,7 +116,7 @@ describe("Vitals safety service actions", () => {
     expect(screen.getByTestId("button-safety-email-gp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
     expect(screen.getByTestId("button-safety-doctor-help")).toBeInTheDocument();
     expect(screen.getByTestId("button-safety-schedule-appointment")).toHaveTextContent("Book appointment");
-    expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Book ride");
+    expect(screen.getByTestId("button-safety-book-ride")).toHaveTextContent("Find transport");
   });
 
   it("offers doctor setup when GP contact is missing", async () => {
@@ -172,7 +172,7 @@ describe("Vitals safety service actions", () => {
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge"));
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"ride\"");
     expect(screen.getByTestId("route-state")).toHaveTextContent("\"source\":\"vitals_safety\"");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("Please help me arrange safe transport");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Please help me find safe transport options");
     expect(screen.getByTestId("route-state")).toHaveTextContent("Your readings need urgent support");
   });
 });

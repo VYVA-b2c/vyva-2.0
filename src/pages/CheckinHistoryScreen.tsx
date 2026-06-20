@@ -95,7 +95,7 @@ export function savedCheckinServiceActionsFor(report: CheckinHistoryReport): Sav
   if (needsCare) {
     add({ key: "care", title: "Hablar con doctor", to: "/health/doctor" });
     add({ key: "appointment", title: "Pedir cita", to: "/concierge" });
-    add({ key: "ride", title: "Reservar transporte", to: "/concierge" });
+    add({ key: "ride", title: "Buscar transporte", to: "/concierge" });
   }
   if (/\b(sintoma|symptom|empeora|worsen|dolor|mareo|fiebre|nausea|preocupa|worries)\b/.test(text)) {
     add({ key: "symptom", title: "Chequear sintomas", to: "/health/symptom-check" });
@@ -171,7 +171,7 @@ export function savedCheckinNavigationFor(report: CheckinHistoryReport, name: st
         conciergePrefill: {
           kind: isRide ? "ride" : "appointment",
           message: isRide
-            ? `Please help me arrange safe transport for care based on this saved VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`
+            ? `Please help me find safe transport options for care based on this saved VYVA check-in. Ask me to confirm before contacting anyone.\n\n${contextText}`
             : `Please help me schedule a care appointment based on this saved VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`,
           source: "daily_checkin",
         },

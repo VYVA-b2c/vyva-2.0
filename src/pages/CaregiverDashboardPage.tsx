@@ -231,7 +231,7 @@ export function caregiverAlertContext(alert: CaregiverAlert, statusLabel = "Care
 const CAREGIVER_ALERT_SERVICE_ACTIONS: Record<CaregiverAlertNavigationActionKind, CaregiverAlertNavigationAction> = {
   doctor_help: { kind: "doctor_help", label: "Doctor help", Icon: Stethoscope },
   schedule_appointment: { kind: "schedule_appointment", label: "Appointment", Icon: CalendarDays },
-  book_ride: { kind: "book_ride", label: "Book ride", Icon: Car },
+  book_ride: { kind: "book_ride", label: "Find transport", Icon: Car },
 };
 
 export function caregiverAlertServiceActionsFor(

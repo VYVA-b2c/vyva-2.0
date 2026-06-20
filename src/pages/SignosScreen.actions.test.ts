@@ -8,9 +8,9 @@ const labels = {
   doctorHelp: "Doctor help",
   addDoctor: "Add doctor",
   appointment: "Book appointment",
-  ride: "Book ride",
+  ride: "Find transport",
   appointmentPrefill: "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking.",
-  ridePrefill: "Please help me arrange safe transport based on my VYVA vitals. Ask me to confirm before booking.",
+  ridePrefill: "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before contacting anyone.",
 };
 
 describe("Vitals status service actions", () => {
