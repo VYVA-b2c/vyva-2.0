@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -83,27 +83,34 @@ describe("SymptomCheck report service actions", () => {
     );
 
     expect(screen.getByTestId("button-report-emergency")).toHaveTextContent("Call 112");
-    expect(screen.getByTestId("button-report-next-step-action-0-call_emergency")).toHaveAttribute("href", "tel:112");
+    expect(screen.queryByTestId("report-next-step-actions")).not.toBeInTheDocument();
+    expect(screen.getByTestId("card-report-emergency")).toHaveTextContent("Call 112 now");
   });
 
-  it("puts direct GP call and email actions on the live next step", () => {
+  it("keeps one direct GP primary action and moves share controls behind disclosure", () => {
     renderReport({
       gpPhone: "+34 612 345 678",
       gpEmail: "gp@example.com",
     });
 
     expect(screen.getByTestId("button-report-call-gp")).toHaveTextContent("Call GP");
-    expect(screen.getByTestId("button-report-next-step-action-0-call_gp")).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("button-report-next-step-action-1-email_gp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
-    expect(screen.getByTestId("button-report-next-step-action-2-doctor_help")).toBeInTheDocument();
+    expect(screen.queryByTestId("report-next-step-actions")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-report-share")).not.toBeVisible();
+    expect(screen.getByTestId("button-report-view-reports")).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("Share or save"));
+
+    expect(screen.getByTestId("button-report-share")).toBeVisible();
+    expect(screen.getByTestId("button-report-view-reports")).toBeVisible();
   });
 
-  it("offers doctor contact setup directly on the live next step when GP contact is missing", async () => {
+  it("offers doctor contact setup from the doctor details row when GP contact is missing", async () => {
     renderReport();
 
     expect(screen.getByTestId("button-report-doctor")).toHaveTextContent("Talk to doctor");
-    expect(screen.getByTestId("button-report-next-step-action-0-doctor_help")).toBeInTheDocument();
-    const addDoctor = screen.getByTestId("button-report-next-step-action-1-add_doctor_contact");
+    expect(screen.queryByTestId("report-next-step-actions")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Details for doctor"));
+    const addDoctor = screen.getByTestId("button-report-add-doctor-contact");
 
     fireEvent.click(addDoctor);
 
@@ -141,5 +148,39 @@ describe("SymptomCheck report service actions", () => {
     expect(screen.getByTestId("button-report-action-0-doctor_help")).toBeInTheDocument();
     expect(screen.queryByTestId("button-report-action-0-online_order")).not.toBeInTheDocument();
     expect(screen.queryByText("Get support package")).not.toBeInTheDocument();
+  });
+
+  it("shows two Do now steps by default and collapses supporting report detail", () => {
+    renderReport({}, {
+      summaryOverride: {
+        recommendations: [
+          "Drink water now",
+          "Rest somewhere cool",
+          "Call a doctor if symptoms worsen",
+          "Write down any new symptoms",
+        ],
+        triageReasons: ["Symptoms were mild and stable."],
+        watchSigns: ["Chest pain", "Confusion"],
+        vitalsNotes: ["Heart Rate: 72 bpm"],
+        evidenceSummary: "Checked trusted guidance.",
+      },
+    });
+
+    expect(screen.queryByTestId("card-report-next-step-explainer")).not.toBeInTheDocument();
+    expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Drink water now");
+    expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Rest somewhere cool");
+    expect(screen.getByTestId("report-all-steps")).toHaveTextContent("Show all steps");
+    expect(screen.getByText("Why this answer")).toBeVisible();
+    expect(screen.getByText("What to watch for")).toBeVisible();
+    expect(screen.getByText("Readings used")).toBeVisible();
+    expect(screen.getByText("Full report")).toBeVisible();
+    screen.getAllByText("Chest pain").forEach((match) => {
+      expect(match).not.toBeVisible();
+    });
+
+    fireEvent.click(screen.getByText("Show all steps"));
+
+    expect(within(screen.getByTestId("report-all-steps")).getByText("Call a doctor if symptoms worsen")).toBeVisible();
+    expect(within(screen.getByTestId("report-all-steps")).getByText("Write down any new symptoms")).toBeVisible();
   });
 });

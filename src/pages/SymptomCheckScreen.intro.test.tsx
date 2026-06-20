@@ -79,21 +79,38 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getByRole("meter", { name: "Confidence level" })).toHaveAttribute("aria-valuenow", "5");
   });
 
-  it("sets expectation for a one-question-at-a-time flow", () => {
+  it("renders one senior-friendly start panel", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
-    expect(screen.getByTestId("symptom-check-one-question-note")).toHaveTextContent("One question at a time");
-    expect(screen.getByText("Speak, type, or tap a suggestion.")).toBeVisible();
+    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what feels wrong");
+    expect(screen.getByText("Speak, type, or tap an example.")).toBeVisible();
+    expect(screen.getByPlaceholderText("Type what you feel...")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();
+    expect(screen.queryByTestId("symptom-check-one-question-note")).not.toBeInTheDocument();
+    expect(screen.queryByText("One question at a time")).not.toBeInTheDocument();
+    expect(screen.queryByText("Profile tuned")).not.toBeInTheDocument();
+    expect(screen.queryByText("Common concerns from your profile")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ways to improve health")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId(/button-symptom-example-/)).toHaveLength(3);
   });
 
-  it("shows profile-aware concern and improvement lanes", () => {
-    render(<IntroScreen onStart={vi.fn()} personalizedSuggestions={profileSuggestions} />);
+  it("shows profile-aware examples and keeps extra ideas collapsed", () => {
+    render(
+      <IntroScreen
+        onStart={vi.fn()}
+        personalizedSuggestions={profileSuggestions}
+        profileContextItems={["medications", "latest vitals"]}
+      />,
+    );
 
-    expect(screen.getByText("Profile tuned")).toBeVisible();
-    expect(screen.getByText("Common concerns from your profile")).toBeVisible();
-    expect(screen.getByText("Ways to improve health")).toBeVisible();
     expect(screen.getByRole("button", { name: /Chest pressure or tightness/i })).toBeVisible();
+    expect(screen.getByText("More ideas")).toBeVisible();
+    expect(screen.getByRole("button", { name: /Blood pressure check/i })).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("More ideas"));
+
     expect(screen.getByRole("button", { name: /Blood pressure check/i })).toBeVisible();
+    expect(screen.getByText("Profile tuned")).toBeVisible();
     expect(screen.queryByText("condition_match")).not.toBeInTheDocument();
     expect(screen.queryByText("3430")).not.toBeInTheDocument();
   });
@@ -107,7 +124,7 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getByTestId("input-symptom-clue")).toHaveValue("Chest pressure or tightness");
     expect(onStart).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Start symptom check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start check" }));
 
     expect(onStart).toHaveBeenCalledWith("Chest pressure or tightness");
   });
@@ -235,17 +252,24 @@ describe("SymptomCheck intro chips", () => {
     const onNavigate = vi.fn();
     render(<IntroScreen onStart={vi.fn()} onNavigate={onNavigate} personalizedSuggestions={profileSuggestions} />);
 
+    fireEvent.click(screen.getByText("More ideas"));
     fireEvent.click(screen.getByRole("button", { name: /Blood pressure check/i }));
 
     expect(onNavigate).toHaveBeenCalledWith("/health/vitals");
   });
 
-  it("shows polished fallback lanes when no profile suggestions are available", () => {
+  it("shows three fallback example chips and moves other ideas behind disclosure", () => {
     render(<IntroScreen onStart={vi.fn()} personalizedSuggestions={[]} />);
 
-    expect(screen.getByText("Helpful starts")).toBeVisible();
-    expect(screen.getByText("Common concerns to start with")).toBeVisible();
+    expect(screen.queryByText("Helpful starts")).not.toBeInTheDocument();
+    expect(screen.queryByText("Common concerns to start with")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId(/button-symptom-example-/)).toHaveLength(3);
     expect(screen.getByRole("button", { name: /Breathing feels different/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Dizzy or weak/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Check vitals/i })).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("More ideas"));
+
     expect(screen.getByRole("button", { name: /Check vitals/i })).toBeVisible();
   });
 });

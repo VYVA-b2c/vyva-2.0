@@ -532,6 +532,7 @@ type IntroScreenProps = {
   onStart: (clue: string) => void;
   onNavigate?: (route: string) => void;
   personalizedSuggestions?: TriagePersonalizedSuggestion[];
+  profileContextItems?: string[];
 };
 
 function fallbackIntroSuggestions(t: ReturnType<typeof useTranslation>["t"]): TriagePersonalizedSuggestion[] {
@@ -557,6 +558,17 @@ function fallbackIntroSuggestions(t: ReturnType<typeof useTranslation>["t"]): Tr
       icon: "heart",
       source: "fallback",
       priority: 44,
+    },
+    {
+      id: "fallback-dizzy",
+      kind: "common_concern",
+      label: t("health.symptomCheck.intro.fallbackDizzyLabel", "Dizzy or weak"),
+      description: t("health.symptomCheck.intro.fallbackDizzyDesc", "Start with when it began."),
+      initialClue: t("health.symptomCheck.intro.fallbackDizzyClue", "Dizzy or weak"),
+      tone: "amber",
+      icon: "activity",
+      source: "fallback",
+      priority: 43,
     },
     {
       id: "fallback-vitals",
@@ -649,7 +661,7 @@ function stopVoiceStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
 }
 
-export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: IntroScreenProps) {
+export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, profileContextItems = [] }: IntroScreenProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const [clue, setClue] = useState("");
@@ -663,9 +675,20 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
   const canStart = cleanClue.length >= 2;
   const isRecordingVoice = voiceState === "recording";
   const isTranscribingVoice = voiceState === "transcribing";
-  const suggestions = personalizedSuggestions?.length ? personalizedSuggestions : fallbackIntroSuggestions(t);
-  const commonConcerns = suggestions.filter((suggestion) => suggestion.kind === "common_concern").slice(0, 6);
+  const fallbackSuggestions = fallbackIntroSuggestions(t);
+  const suggestions = personalizedSuggestions?.length ? personalizedSuggestions : fallbackSuggestions;
+  const candidateConcerns = suggestions.filter((suggestion) => suggestion.kind === "common_concern");
+  const fallbackConcerns = fallbackSuggestions.filter((suggestion) => suggestion.kind === "common_concern");
+  const visibleExamples = [
+    ...candidateConcerns,
+    ...fallbackConcerns.filter((fallback) => !candidateConcerns.some((suggestion) => suggestion.id === fallback.id)),
+  ].slice(0, 3);
+  const visibleExampleIds = new Set(visibleExamples.map((suggestion) => suggestion.id));
   const healthImprovements = suggestions.filter((suggestion) => suggestion.kind === "health_improvement").slice(0, 5);
+  const moreIdeas = [
+    ...suggestions.filter((suggestion) => !visibleExampleIds.has(suggestion.id)),
+    ...fallbackSuggestions.filter((suggestion) => !visibleExampleIds.has(suggestion.id) && !suggestions.some((current) => current.id === suggestion.id)),
+  ].slice(0, 8);
   const hasProfileSuggestions = suggestions.some((suggestion) => suggestion.source !== "fallback");
   const sourceLabels: Record<TriagePersonalizedSuggestion["source"], string> = {
     fallback: t("health.symptomCheck.intro.sourceFallback", "Common option"),
@@ -714,6 +737,27 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
             <ArrowRight size={18} strokeWidth={2.8} />
           </span>
         )}
+      </button>
+    );
+  };
+
+  const renderExampleChip = (suggestion: TriagePersonalizedSuggestion, index: number) => {
+    const Icon = suggestionIconByKey[suggestion.icon] ?? Stethoscope;
+    const tone = suggestionToneClass[suggestion.tone] ?? suggestionToneClass.purple;
+    return (
+      <button
+        key={suggestion.id}
+        type="button"
+        onClick={() => setClue(suggestion.initialClue || suggestion.label)}
+        data-testid={`button-symptom-example-${index}`}
+        className={`vyva-tap flex min-h-[74px] min-w-0 items-center gap-3 rounded-[22px] border px-4 py-3 text-left shadow-[0_8px_20px_rgba(63,45,35,0.05)] transition ${tone.button}`}
+      >
+        <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] ${tone.icon}`}>
+          <Icon size={21} strokeWidth={2.6} />
+        </span>
+        <span className="min-w-0 flex-1 break-words font-body text-[16px] font-black leading-tight text-vyva-text-1">
+          {suggestion.label}
+        </span>
       </button>
     );
   };
@@ -867,69 +911,57 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
       : voiceError;
 
   return (
-    <div className="mx-auto flex w-full min-w-0 max-w-[760px] flex-1 flex-col gap-5 px-4 py-5 sm:px-5 lg:px-0" data-testid="symptom-check-intro">
-      <HealthWizardHero
-        icon={<Stethoscope size={28} />}
-        kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
-        title={t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
-        body={t("health.symptomCheck.intro.clueSub", "Say or type a few words.")}
-      />
+    <div className="mx-auto flex w-full min-w-0 max-w-[760px] flex-1 flex-col gap-4 px-4 py-5 sm:px-5 lg:px-0" data-testid="symptom-check-intro">
+      <section
+        data-testid="symptom-check-start-panel"
+        className="grid min-w-0 gap-5 rounded-[32px] border border-[#E8DED4] bg-white p-5 text-center shadow-[0_18px_46px_rgba(63,45,35,0.10)] sm:p-6"
+      >
+        <button
+          type="button"
+          onClick={toggleVoiceCapture}
+          disabled={isTranscribingVoice}
+          aria-label={voiceButtonLabel}
+          title={voiceButtonLabel}
+          data-testid="button-symptom-clue-voice"
+          className={`mx-auto flex h-20 w-20 items-center justify-center rounded-[26px] border shadow-[0_12px_28px_rgba(107,33,168,0.16)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6B21A8] focus-visible:ring-offset-2 sm:h-24 sm:w-24 ${
+            isRecordingVoice
+              ? "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]"
+              : "border-[#DDD6FE] bg-[#F5F3FF] text-vyva-purple hover:border-[#C4B5FD]"
+          } disabled:cursor-wait disabled:opacity-70`}
+        >
+          {isTranscribingVoice ? (
+            <Loader2 size={30} strokeWidth={2.8} className="animate-spin" />
+          ) : isRecordingVoice ? (
+            <Square size={24} strokeWidth={3} fill="currentColor" />
+          ) : (
+            <Mic size={36} strokeWidth={2.7} />
+          )}
+        </button>
 
-      <HealthWizardCard tone="soft" className="px-4 py-4" testId="symptom-check-one-question-note">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-            <ListChecks size={22} />
-          </span>
-          <div className="min-w-0">
-            <p className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
-              {t("health.symptomCheck.intro.oneQuestionTitle", "One question at a time")}
-            </p>
-            <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-              {t("health.symptomCheck.intro.oneQuestionBody", "Speak, type, or tap a suggestion.")}
-            </p>
-          </div>
-        </div>
-      </HealthWizardCard>
-
-      <HealthWizardCard className="grid min-w-0 gap-5">
-        <label className="sr-only" htmlFor="symptom-clue">
-          {t("health.symptomCheck.intro.clueTitle", "What is bothering you?")}
-        </label>
         <div className="grid gap-2">
-          <div className="relative">
-            <input
-              id="symptom-clue"
-              value={clue}
-              onChange={(event) => {
-                setClue(event.target.value);
-                if (voiceError) setVoiceError(null);
-              }}
-              placeholder={t("health.symptomCheck.intro.cluePlaceholder", "For example: bad headache...")}
-              data-testid="input-symptom-clue"
-              className="min-h-[78px] w-full min-w-0 max-w-full rounded-[24px] border-2 border-[#DDD6FE] bg-white py-3 pl-5 pr-[76px] font-body text-[17px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:text-[22px] sm:pr-[86px]"
-            />
-            <button
-              type="button"
-              onClick={toggleVoiceCapture}
-              disabled={isTranscribingVoice}
-              aria-label={voiceButtonLabel}
-              title={voiceButtonLabel}
-              data-testid="button-symptom-clue-voice"
-              className={`absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6B21A8] focus-visible:ring-offset-2 sm:h-12 sm:w-12 ${
-                isRecordingVoice
-                  ? "border-[#FCA5A5] bg-[#FEF2F2] text-[#B91C1C]"
-                  : "border-[#DDD6FE] bg-[#F5F3FF] text-vyva-purple hover:border-[#C4B5FD]"
-              } disabled:cursor-wait disabled:opacity-70`}
-            >
-              {isTranscribingVoice ? (
-                <Loader2 size={22} strokeWidth={2.8} className="animate-spin" />
-              ) : isRecordingVoice ? (
-                <Square size={18} strokeWidth={3} fill="currentColor" />
-              ) : (
-                <Mic size={23} strokeWidth={2.8} />
-              )}
-            </button>
-          </div>
+          <h1 className="font-body text-[28px] font-black leading-tight text-vyva-text-1 sm:text-[34px]">
+            {t("health.symptomCheck.intro.simpleTitle", "Tell VYVA what feels wrong")}
+          </h1>
+          <p className="font-body text-[17px] font-bold leading-relaxed text-vyva-text-2">
+            {t("health.symptomCheck.intro.simpleBody", "Speak, type, or tap an example.")}
+          </p>
+        </div>
+
+        <div className="grid gap-2 text-left">
+          <label className="sr-only" htmlFor="symptom-clue">
+            {t("health.symptomCheck.intro.simpleTitle", "Tell VYVA what feels wrong")}
+          </label>
+          <input
+            id="symptom-clue"
+            value={clue}
+            onChange={(event) => {
+              setClue(event.target.value);
+              if (voiceError) setVoiceError(null);
+            }}
+            placeholder={t("health.symptomCheck.intro.simplePlaceholder", "Type what you feel...")}
+            data-testid="input-symptom-clue"
+            className="min-h-[72px] w-full min-w-0 max-w-full rounded-[24px] border-2 border-[#DDD6FE] bg-white px-5 py-3 font-body text-[18px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:text-[22px]"
+          />
           {voiceStatus ? (
             <p
               role={voiceError ? "alert" : "status"}
@@ -941,46 +973,15 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
           ) : null}
         </div>
 
-        <div className="rounded-[22px] border border-[#EDE5DB] bg-[#FFFCF8] px-4 py-3">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.14em] text-vyva-purple">
-            {hasProfileSuggestions
-              ? t("health.symptomCheck.intro.personalizedBadge", "Profile tuned")
-              : t("health.symptomCheck.intro.fallbackBadge", "Helpful starts")}
+        <div className="grid gap-2 text-left" data-testid="symptom-check-example-chips">
+          <p className="px-1 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
+            {t("health.symptomCheck.intro.examplesLabel", "Examples")}
           </p>
-          <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-            {hasProfileSuggestions
-              ? t("health.symptomCheck.intro.personalizedBody", "Suggestions use your profile context without showing private details here.")
-              : t("health.symptomCheck.intro.fallbackBody", "Choose a concern or open a support step.")}
-          </p>
-        </div>
-
-        <div className="grid gap-3">
-          <div>
-            <p className="mb-2 font-body text-[13px] font-black uppercase tracking-[0.13em] text-vyva-text-2">
-              {hasProfileSuggestions
-                ? t("health.symptomCheck.intro.commonConcernsProfile", "Common concerns from your profile")
-                : t("health.symptomCheck.intro.commonConcernsFallback", "Common concerns to start with")}
-            </p>
-            <div className="grid gap-2">
-              {commonConcerns.map(renderSuggestion)}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 font-body text-[13px] font-black uppercase tracking-[0.13em] text-vyva-text-2">
-              {t("health.symptomCheck.intro.healthImprovements", "Ways to improve health")}
-            </p>
-            <div className="grid gap-2">
-              {healthImprovements.map(renderSuggestion)}
-            </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {visibleExamples.map(renderExampleChip)}
           </div>
         </div>
-      </HealthWizardCard>
 
-      <div className="grid gap-3">
-        <p className="font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-          {t("health.symptomCheck.intro.vitalsAsNextStep", "Vitals can be checked after VYVA understands what is happening.")}
-        </p>
         <button
           type="button"
           onClick={() => onStart(cleanClue)}
@@ -988,9 +989,38 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
           data-testid="button-symptom-check-start"
           className="vyva-primary-action min-h-[72px] w-full text-[18px] disabled:opacity-45 sm:text-[20px]"
         >
-          {t("health.symptomCheck.intro.startBtn", "Start symptom check")}
+          {t("health.symptomCheck.intro.startBtn", "Start check")}
         </button>
-      </div>
+      </section>
+
+      {(moreIdeas.length || profileContextItems.length) ? (
+        <details
+          data-testid="symptom-check-more-ideas"
+          className="group rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="font-body text-[17px] font-black text-vyva-text-1">
+              {t("health.symptomCheck.intro.moreIdeas", "More ideas")}
+            </span>
+            <ChevronLeft size={20} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="mt-4 grid gap-3 border-t border-[#EADFD5] pt-4">
+            {profileContextItems.length ? (
+              <div data-testid="symptom-check-profile-context" className="rounded-[20px] border border-[#EDE5DB] bg-[#FFFCF8] px-4 py-3">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.14em] text-vyva-purple">
+                  {hasProfileSuggestions
+                    ? t("health.symptomCheck.intro.personalizedBadge", "Profile tuned")
+                    : t("health.symptomCheck.intro.fallbackBadge", "Helpful starts")}
+                </p>
+                <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                  {profileContextItems.slice(0, 4).join(" - ")}
+                </p>
+              </div>
+            ) : null}
+            {moreIdeas.map(renderSuggestion)}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -1555,9 +1585,9 @@ export function ReportScreen({
     ...(summary.vitalsNotes ?? []),
     ...(summary.scanNotes ?? []),
   ]);
-  const visibleReasons = allReasons.slice(0, 2);
   const visibleRecommendations = reportRecommendations.slice(0, 4);
-  const nextStepActions = nextStepDisplayText ? actionsForRecommendation(nextStepDisplayText) : [];
+  const primaryRecommendations = visibleRecommendations.slice(0, 2);
+  const remainingRecommendations = visibleRecommendations.slice(2);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? []), ...(summary.scanNotes ?? [])]);
   const vitalsSummaryItems = uniqueLines([
@@ -1565,10 +1595,6 @@ export function ReportScreen({
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Breathing rate")}: ${respiratoryRate} breaths/min` : "",
     ...(summary.vitalsNotes ?? []),
   ]).slice(0, 4);
-  const contactTransparencyText = notifiedText || t(
-    "health.symptomCheck.report.noAutomaticContacts",
-    "No doctor or caregiver contact is set in your profile yet. This report is saved and ready to share.",
-  );
   const answerFinding = t("health.symptomCheck.report.summaryIntro", "This recommendation is based on the answers and any profile or vitals context available during this check.");
   const evidenceSourceNames = summary.evidenceSources?.map((source) => source.title).filter(Boolean) ?? [];
   const openReport = () => navigate(reportId ? `/informes/${reportId}` : "/informes");
@@ -1662,6 +1688,54 @@ export function ReportScreen({
       });
     }
   };
+  const renderRecommendationItem = (recommendation: string, index: number) => {
+    const actions = actionsForRecommendation(recommendation);
+    return (
+      <li key={`${recommendation}-${index}`} className="rounded-[20px] border border-[#F1E8DE] bg-[#FFFCF8] p-3">
+        <div className="flex items-start gap-3 font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+          <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple text-white">
+            {index + 1}
+          </span>
+          <span className="min-w-0 flex-1 pt-0.5">{recommendation}</span>
+        </div>
+        {actions.length ? (
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`report-actions-${index}`}>
+            {actions.map((action) => {
+              const Icon = action.Icon;
+              const className = "vyva-tap inline-flex min-h-[50px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-sm";
+              if (action.href) {
+                return (
+                  <a
+                    key={action.kind}
+                    href={action.href}
+                    aria-label={action.ariaLabel}
+                    data-testid={`button-report-action-${index}-${action.kind}`}
+                    className={className}
+                  >
+                    <Icon size={19} className="flex-shrink-0" />
+                    <span className="min-w-0 break-words">{action.label}</span>
+                  </a>
+                );
+              }
+              return (
+                <button
+                  key={action.kind}
+                  type="button"
+                  onClick={action.onClick}
+                  aria-label={action.ariaLabel}
+                  data-testid={`button-report-action-${index}-${action.kind}`}
+                  className={className}
+                >
+                  <Icon size={19} className="flex-shrink-0" />
+                  <span className="min-w-0 break-words">{action.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </li>
+    );
+  };
   const PrimaryActionIcon = primaryAction.Icon;
 
   return (
@@ -1692,45 +1766,13 @@ export function ReportScreen({
         <p className="mt-5 font-body text-[21px] font-black leading-tight text-white sm:text-[24px]">
           {nextStepDisplayText}
         </p>
-        <p className="mt-2 font-body text-[16px] font-bold leading-relaxed text-white/90">
+        <p className="mt-2 font-body text-[16px] font-bold leading-relaxed text-white/92">
+          {recommendationExplanation}
+        </p>
+        <p className="mt-2 font-body text-[14px] font-bold leading-relaxed text-white/82">
           <span className="sr-only">{t("health.symptomCheck.report.findingLabel", "Finding")}: </span>
           {answerFinding}
         </p>
-        {nextStepActions.length ? (
-          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="report-next-step-actions">
-            {nextStepActions.map((action, index) => {
-              const Icon = action.Icon;
-              const className = "vyva-tap inline-flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[16px] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-[0_10px_22px_rgba(31,15,54,0.14)]";
-              if (action.href) {
-                return (
-                  <a
-                    key={`${action.kind}-${index}`}
-                    href={action.href}
-                    aria-label={action.ariaLabel}
-                    data-testid={`button-report-next-step-action-${index}-${action.kind}`}
-                    className={className}
-                  >
-                    <Icon size={19} className="flex-shrink-0" />
-                    <span className="min-w-0 break-words">{action.label}</span>
-                  </a>
-                );
-              }
-              return (
-                <button
-                  key={`${action.kind}-${index}`}
-                  type="button"
-                  onClick={action.onClick}
-                  aria-label={action.ariaLabel}
-                  data-testid={`button-report-next-step-action-${index}-${action.kind}`}
-                  className={className}
-                >
-                  <Icon size={19} className="flex-shrink-0" />
-                  <span className="min-w-0 break-words">{action.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
 
         <div className="mt-4 flex flex-wrap gap-2">
           {bpm != null ? (
@@ -1758,102 +1800,32 @@ export function ReportScreen({
         </div>
       </section>
 
-      <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-4 pb-[210px] sm:px-5 sm:pb-[236px] lg:px-0">
-        <section className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-next-step-explainer">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-              <CheckCircle size={21} />
-            </span>
-            <div className="min-w-0">
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
-                {t("health.symptomCheck.report.whatThisMeans", "What this means")}
-              </p>
-              <p className="mt-1 font-body text-[18px] font-black leading-snug text-vyva-text-1">
-                {recommendationExplanation}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {visibleReasons.length ? (
-          <section className="rounded-[26px] border-2 border-[#7C3AED] bg-[linear-gradient(135deg,#F5F3FF_0%,#FFFFFF_58%,#FFF7ED_100%)] p-4 text-vyva-purple shadow-[0_18px_38px_rgba(107,33,168,0.18)] ring-4 ring-[#F5E8FF]" data-testid="card-report-why">
-            <div className="mb-4 flex items-center gap-3">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#6B21A8] text-white shadow-[0_10px_22px_rgba(107,33,168,0.22)]">
-                <Stethoscope size={20} />
-              </span>
-              <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.12em]">
-                {t("health.symptomCheck.report.whyThisStep", "Initial Assessment")}
-              </p>
-            </div>
-            <ul className="grid gap-3 border-l-4 border-[#7C3AED] pl-4">
-              {visibleReasons.map((reason, index) => (
-                <li key={index} className="font-body text-[16px] font-black leading-snug text-vyva-text-1 sm:text-[18px]">
-                  {reason}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
-        {visibleRecommendations.length ? (
+      <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-4 pb-[172px] sm:px-5 sm:pb-[190px] lg:px-0">
+        {primaryRecommendations.length ? (
           <section className="rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-do-now">
             <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
               {t("health.symptomCheck.report.doNow", "Do now")}
             </p>
             <ol className="mt-3 grid gap-3">
-              {visibleRecommendations.map((recommendation, index) => {
-                const actions = actionsForRecommendation(recommendation);
-                return (
-                  <li key={index} className="rounded-[20px] border border-[#F1E8DE] bg-[#FFFCF8] p-3">
-                    <div className="flex items-start gap-3 font-body text-[16px] font-bold leading-snug text-vyva-text-1">
-                      <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-vyva-purple text-white">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 flex-1 pt-0.5">{recommendation}</span>
-                    </div>
-                    {actions.length ? (
-                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`report-actions-${index}`}>
-                        {actions.map((action) => {
-                          const Icon = action.Icon;
-                          const className = "vyva-tap inline-flex min-h-[50px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-sm";
-                          if (action.href) {
-                            return (
-                              <a
-                                key={action.kind}
-                                href={action.href}
-                                aria-label={action.ariaLabel}
-                                data-testid={`button-report-action-${index}-${action.kind}`}
-                                className={className}
-                              >
-                                <Icon size={19} className="flex-shrink-0" />
-                                <span className="min-w-0 break-words">{action.label}</span>
-                              </a>
-                            );
-                          }
-                          return (
-                            <button
-                              key={action.kind}
-                              type="button"
-                              onClick={action.onClick}
-                              aria-label={action.ariaLabel}
-                              data-testid={`button-report-action-${index}-${action.kind}`}
-                              className={className}
-                            >
-                              <Icon size={19} className="flex-shrink-0" />
-                              <span className="min-w-0 break-words">{action.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
+              {primaryRecommendations.map((recommendation, index) => renderRecommendationItem(recommendation, index))}
             </ol>
+            {remainingRecommendations.length ? (
+              <details data-testid="report-all-steps" className="group mt-3 rounded-[20px] border border-[#E8DED4] bg-white px-3 py-3">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                  <span className="font-body text-[15px] font-black text-vyva-purple">
+                    {t("health.symptomCheck.report.showAllSteps", "Show all steps")}
+                  </span>
+                  <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
+                </summary>
+                <ol className="mt-3 grid gap-3 border-t border-[#EADFD5] pt-3">
+                  {remainingRecommendations.map((recommendation, index) => renderRecommendationItem(recommendation, index + 2))}
+                </ol>
+              </details>
+            ) : null}
           </section>
         ) : null}
 
-        {visibleWatchSigns.length ? (
+        {isEmergency && visibleWatchSigns.length ? (
           <section className="overflow-hidden rounded-[28px] border-2 border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412] shadow-[0_18px_42px_rgba(154,52,18,0.12)]" data-testid="card-report-watch">
             <div className="flex items-center gap-3 border-b border-[#FED7AA] bg-[#FFEDD5] px-4 py-3">
               <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#C2410C] text-white shadow-[0_10px_22px_rgba(194,65,12,0.22)]">
@@ -1878,46 +1850,88 @@ export function ReportScreen({
           </section>
         ) : null}
 
-        {vitalsSummaryItems.length ? (
-          <section className="rounded-[24px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-blue-900 shadow-[0_10px_24px_rgba(29,78,216,0.08)]" data-testid="card-report-vitals-context">
-            <div className="mb-3 flex items-center gap-3">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-blue-700 shadow-sm">
-                <Activity size={21} />
+        {!isEmergency && visibleWatchSigns.length ? (
+          <details className="group rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#9A3412] shadow-[0_8px_22px_rgba(154,52,18,0.08)]" data-testid="card-report-watch">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFEDD5] text-[#C2410C]">
+                  <AlertTriangle size={18} />
+                </span>
+                <span className="font-body text-[15px] font-black text-[#9A3412]">
+                  {t("health.symptomCheck.report.whatToWatchFor", "What to watch for")}
+                </span>
               </span>
-              <div className="min-w-0">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-blue-700">
-                  {t("health.symptomCheck.report.vitalsIncluded", "Vitals included")}
-                </p>
-                <p className="font-body text-[16px] font-bold leading-snug text-blue-900">
-                  {t("health.symptomCheck.report.vitalsIncludedBody", "These readings were already available for this report.")}
-                </p>
-              </div>
-            </div>
-            <ul className="grid gap-2">
-              {vitalsSummaryItems.map((item, index) => (
-                <li key={index} className="rounded-[18px] bg-white px-4 py-3 font-body text-[16px] font-black leading-snug text-vyva-text-1 shadow-sm">
-                  {item}
+              <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-[#C2410C] transition-transform group-open:rotate-90" />
+            </summary>
+            <ul className="mt-3 grid gap-2 border-t border-[#FED7AA] pt-3">
+              {visibleWatchSigns.map((sign, index) => (
+                <li key={index} className="rounded-[16px] bg-white px-4 py-3 font-body text-[15px] font-black leading-snug text-[#9A3412] shadow-sm">
+                  {sign}
                 </li>
               ))}
             </ul>
-          </section>
+          </details>
         ) : null}
 
-        <section className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-escalation-transparency">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
-              <Users size={21} />
-            </span>
-            <div className="min-w-0">
-              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
-                {t("health.symptomCheck.report.careTeamTransparency", "Care team transparency")}
-              </p>
-              <p className="mt-1 font-body text-[17px] font-black leading-snug text-vyva-text-1">
-                {contactTransparencyText}
-              </p>
+        {allReasons.length ? (
+          <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-why">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+                  <Stethoscope size={18} />
+                </span>
+                <span className="font-body text-[15px] font-black text-vyva-text-1">
+                  {t("health.symptomCheck.report.whyThisAnswer", "Why this answer")}
+                </span>
+              </span>
+              <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
+            </summary>
+            <ul className="mt-3 grid gap-2 border-t border-[#EADFD5] pt-3">
+              {allReasons.map((reason, index) => (
+                <li key={index} className="rounded-[16px] bg-[#FAF7F3] px-4 py-3 font-body text-[15px] font-bold leading-snug text-vyva-text-1">
+                  {reason}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
+        {(vitalsSummaryItems.length || summary.evidenceSummary || evidenceSourceNames.length) ? (
+          <details className="group rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-blue-900 shadow-[0_8px_22px_rgba(29,78,216,0.07)]" data-testid="card-report-vitals-context">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-white text-blue-700 shadow-sm">
+                  <Activity size={18} />
+                </span>
+                <span className="font-body text-[15px] font-black text-blue-900">
+                  {t("health.symptomCheck.report.readingsUsed", "Readings used")}
+                </span>
+              </span>
+              <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 text-blue-700 transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="mt-3 grid gap-3 border-t border-[#BFDBFE] pt-3">
+              {vitalsSummaryItems.length ? (
+                <ul className="grid gap-2">
+                  {vitalsSummaryItems.map((item, index) => (
+                    <li key={index} className="rounded-[16px] bg-white px-4 py-3 font-body text-[15px] font-black leading-snug text-vyva-text-1 shadow-sm">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {summary.evidenceSummary ? (
+                <p className="rounded-[16px] bg-white px-4 py-3 font-body text-[15px] font-bold leading-snug text-vyva-text-1 shadow-sm">
+                  {summary.evidenceSummary}
+                </p>
+              ) : null}
+              {evidenceSourceNames.length ? (
+                <p className="font-body text-[13px] font-extrabold leading-snug text-blue-700">
+                  {evidenceSourceNames.slice(0, 2).join(" - ")}
+                </p>
+              ) : null}
             </div>
-          </div>
-        </section>
+          </details>
+        ) : null}
 
         {vitalActions.length ? (
           <section className="rounded-[24px] border border-[#DDD6FE] bg-[#FAF5FF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.06)]" data-testid="card-report-vital-refinement-note">
@@ -2084,6 +2098,40 @@ export function ReportScreen({
           </section>
         ) : null}
 
+        <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="report-share-save">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#F5F3FF] text-vyva-purple">
+                <Share2 size={18} />
+              </span>
+              <span className="font-body text-[15px] font-black text-vyva-text-1">
+                {t("health.symptomCheck.report.shareOrSave", "Share or save")}
+              </span>
+            </span>
+            <ChevronLeft size={20} className="-rotate-90 flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-90" />
+          </summary>
+          <div className="mt-4 grid gap-2 border-t border-[#EADFD5] pt-4 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={handleShare}
+              data-testid="button-report-share"
+              className="vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] px-4 text-center font-body text-[15px] font-black text-vyva-purple"
+            >
+              <Share2 size={18} />
+              {t("health.symptomCheck.report.shareReportAria", "Share report")}
+            </button>
+            <button
+              type="button"
+              onClick={openReport}
+              data-testid="button-report-view-reports"
+              className="vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-[18px] border border-[#BFDBFE] bg-[#EFF6FF] px-4 text-center font-body text-[15px] font-black text-[#1D4ED8]"
+            >
+              <FileText size={18} />
+              {t("health.symptomCheck.report.openReportAria", "Open report")}
+            </button>
+          </div>
+        </details>
+
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
           <summary className="cursor-pointer list-none">
             <span className="flex items-center justify-between gap-3">
@@ -2171,7 +2219,7 @@ export function ReportScreen({
                 <FileText size={18} />
               </span>
               <span className="min-w-0 font-body text-[15px] font-extrabold text-vyva-text-1">
-                {t("health.symptomCheck.report.showFullReport", "Show full report")}
+                {t("health.symptomCheck.report.fullReport", "Full report")}
               </span>
             </span>
             <ChevronLeft size={20} className="-rotate-90 text-vyva-purple transition-transform group-open:rotate-90" />
@@ -2296,36 +2344,16 @@ export function ReportScreen({
       </div>
 
       <div className="pointer-events-none fixed bottom-[calc(84px+env(safe-area-inset-bottom))] left-1/2 z-[70] w-full max-w-[760px] -translate-x-1/2 bg-[linear-gradient(180deg,rgba(250,248,245,0)_0%,#FAF8F5_26%,#FAF8F5_100%)] px-4 pb-3 pt-5 sm:bottom-[calc(96px+env(safe-area-inset-bottom))] sm:px-5 lg:px-0">
-        <div className="pointer-events-auto flex items-center gap-1.5 rounded-[24px] border border-[#E8DED4]/80 bg-white/95 p-2 shadow-[0_18px_44px_rgba(63,45,35,0.14)] backdrop-blur sm:gap-2">
+        <div className="pointer-events-auto rounded-[24px] border border-[#E8DED4]/80 bg-white/95 p-2 shadow-[0_18px_44px_rgba(63,45,35,0.14)] backdrop-blur">
           <button
             type="button"
             onClick={primaryAction.onClick}
             disabled={isEmergency && !emergencyContact?.telHref}
             data-testid={primaryAction.testId}
-            className={`vyva-tap flex min-h-[54px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[18px] px-3 text-center font-body text-[15px] font-black leading-tight sm:min-h-[58px] sm:px-4 sm:text-[17px] ${primaryAction.className}`}
+            className={`vyva-tap flex min-h-[58px] w-full min-w-0 items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[17px] font-black leading-tight sm:min-h-[62px] sm:text-[19px] ${primaryAction.className}`}
           >
             <PrimaryActionIcon size={20} className="flex-shrink-0" />
             <span className="min-w-0 break-words">{primaryAction.label}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleShare}
-            aria-label={t("health.symptomCheck.report.shareReportAria", "Share report")}
-            title={t("health.symptomCheck.report.shareReportAria", "Share report")}
-            data-testid="button-report-share"
-            className="vyva-tap flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] text-vyva-purple sm:h-[58px] sm:w-[58px]"
-          >
-            <Share2 size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={openReport}
-            aria-label={t("health.symptomCheck.report.openReportAria", "Open report")}
-            title={t("health.symptomCheck.report.openReportAria", "Open report")}
-            data-testid="button-report-view-reports"
-            className="vyva-tap flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-[18px] border border-[#E8DED4] bg-[#EFF6FF] text-[#1D4ED8] sm:h-[58px] sm:w-[58px]"
-          >
-            <FileText size={20} />
           </button>
         </div>
       </div>
@@ -2663,18 +2691,6 @@ export default function SymptomCheckScreen() {
         />
       </div>
 
-      {step === "chat" && (
-        <div className="flex-shrink-0 pb-3">
-          <AssessmentConfidenceTracker current={step} variant="compact" />
-        </div>
-      )}
-
-      {step === "report" && (
-        <div className="flex-shrink-0 pb-3">
-          <AssessmentConfidenceTracker current={step} />
-        </div>
-      )}
-
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="mx-auto w-full max-w-[760px] px-4 pt-4 sm:px-5 lg:px-0">
           <VoiceActionFulfillmentPanel
@@ -2683,23 +2699,6 @@ export default function SymptomCheckScreen() {
             title={t("health.symptomCheck.contextReady", "Symptom context ready")}
             description={t("health.symptomCheck.contextReadySub", "VYVA can keep the current symptom topic, scan context, and report flow together here.")}
           />
-          {triageContext?.usedItems?.length ? (
-            <div className="mt-3 rounded-[22px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_6px_18px_rgba(63,45,35,0.05)]">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
-                  <ClipboardList size={19} />
-                </span>
-                <div className="min-w-0">
-                  <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
-                    {t("health.symptomCheck.memory.title", "VYVA checked your health profile")}
-                  </p>
-                  <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {triageContext.usedItems.slice(0, 4).join(" - ")}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
 
         {step === "intro" && (
@@ -2707,6 +2706,7 @@ export default function SymptomCheckScreen() {
             onStart={(clue) => startChatDirectly(clue, false)}
             onNavigate={(route) => navigate(route)}
             personalizedSuggestions={triageContext?.personalizedSuggestions}
+            profileContextItems={triageContext?.usedItems ?? []}
           />
         )}
 
