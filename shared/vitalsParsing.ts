@@ -17,6 +17,7 @@ export type ProposedVitalsReading = {
   recorded_at: string;
   source: VitalsReadingSource;
   capture_method: VitalsCaptureMethod;
+  source_ref?: Record<string, unknown>;
   confidence: VitalsSourceConfidence;
   explanation: string;
 };
@@ -85,7 +86,10 @@ export function buildProposedVitalsReading(
   signalType: VitalsSignalKey,
   value: number,
   explanation: string,
-  options: Required<Pick<ParseOptions, "source" | "captureMethod" | "confidence" | "now">> & { contextTag?: string },
+  options: Required<Pick<ParseOptions, "source" | "captureMethod" | "confidence" | "now">> & {
+    contextTag?: string;
+    sourceRef?: Record<string, unknown>;
+  },
 ): ProposedVitalsReading | null {
   const validation = validateVitalsSignalValue(signalType, value);
   if (!validation.ok) return null;
@@ -97,6 +101,7 @@ export function buildProposedVitalsReading(
     recorded_at: options.now.toISOString(),
     source: options.source,
     capture_method: options.captureMethod,
+    ...(options.sourceRef ? { source_ref: options.sourceRef } : {}),
     confidence: options.confidence,
     explanation,
   };
@@ -201,6 +206,7 @@ export function normalizeParsedReading(value: unknown, fallback: ParseOptions = 
       confidence: fallback.confidence ?? "medium",
       now: fallback.now ?? new Date(),
       contextTag: typeof row.context_tag === "string" ? row.context_tag : undefined,
+      sourceRef: row.source_ref && typeof row.source_ref === "object" ? row.source_ref as Record<string, unknown> : undefined,
     },
   );
 }
