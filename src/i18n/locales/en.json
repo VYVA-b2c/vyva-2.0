@@ -1756,8 +1756,8 @@
       "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
       "actions": {
         "doctor": {
-          "label": "Doctor help",
-          "sub": "Talk through a health concern"
+          "label": "Find a trusted provider",
+          "sub": "Get help choosing the right care"
         },
         "appointment": {
           "label": "Book appointment",

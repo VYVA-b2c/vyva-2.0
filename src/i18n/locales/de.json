@@ -1640,8 +1640,8 @@
       "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit, bereiten Sie klare Optionen vor und buchen Sie nichts ohne meine Bestaetigung.",
       "actions": {
         "doctor": {
-          "label": "Arzthilfe",
-          "sub": "Ein Gesundheitsproblem besprechen"
+          "label": "Vertrauenswuerdigen Anbieter finden",
+          "sub": "Hilfe bei der passenden Versorgung"
         },
         "appointment": {
           "label": "Termin buchen",

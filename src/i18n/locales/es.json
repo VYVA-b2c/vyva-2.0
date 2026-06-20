@@ -1756,8 +1756,8 @@
       "ridePrefill": "Ayudame a organizar transporte seguro. Pregunta destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion.",
       "actions": {
         "doctor": {
-          "label": "Ayuda medica",
-          "sub": "Hablar sobre una preocupacion de salud"
+          "label": "Encontrar un proveedor de confianza",
+          "sub": "Ayuda para elegir la atencion adecuada"
         },
         "appointment": {
           "label": "Reservar cita",

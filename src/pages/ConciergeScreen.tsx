@@ -422,8 +422,8 @@ const PRIMARY_CONCIERGE_CARDS = [
 const CONCIERGE_FAST_HELP_ACTIONS = [
   {
     key: "doctor",
-    fallbackTitle: "Doctor help",
-    fallbackSubtitle: "Talk through a health concern",
+    fallbackTitle: "Find a trusted provider",
+    fallbackSubtitle: "Get help choosing the right care",
     Icon: Stethoscope,
     color: "#2563EB",
     bg: "#EEF6FF",

@@ -1756,8 +1756,8 @@
       "ridePrefill": "Aiutami a organizzare un trasporto sicuro. Chiedi destinazione e orario, prepara opzioni chiare e non prenotare nulla senza la mia conferma.",
       "actions": {
         "doctor": {
-          "label": "Aiuto medico",
-          "sub": "Parla di un problema di salute"
+          "label": "Trova un professionista fidato",
+          "sub": "Aiuto per scegliere l'assistenza giusta"
         },
         "appointment": {
           "label": "Prenota appuntamento",

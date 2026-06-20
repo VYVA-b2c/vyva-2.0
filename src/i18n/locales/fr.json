@@ -1640,8 +1640,8 @@
       "ridePrefill": "Aidez-moi a organiser un transport sur. Demandez la destination et l'horaire, preparez des options claires et ne reservez rien sans ma confirmation.",
       "actions": {
         "doctor": {
-          "label": "Aide medecin",
-          "sub": "Parler d'un probleme de sante"
+          "label": "Trouver un prestataire de confiance",
+          "sub": "Aide pour choisir les bons soins"
         },
         "appointment": {
           "label": "Prendre rendez-vous",

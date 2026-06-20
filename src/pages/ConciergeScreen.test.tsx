@@ -118,7 +118,7 @@ describe("ConciergeScreen action hub", () => {
     }
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("What do you need now?");
-    expect(screen.getByTestId("button-concierge-fast-doctor")).toHaveTextContent("Doctor help");
+    expect(screen.getByTestId("button-concierge-fast-doctor")).toHaveTextContent("Find a trusted provider");
     expect(screen.getByTestId("button-concierge-fast-appointment")).toHaveTextContent("Book appointment");
     expect(screen.getByTestId("button-concierge-fast-ride")).toHaveTextContent("Book ride");
   });
