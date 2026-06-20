@@ -22,15 +22,18 @@ const labels: Record<string, string> = {
   "meds.primary.interactionsSub": "Check medicines and supplements.",
   "meds.primary.adherence": "Adherence",
   "meds.primary.adherenceSub": "See progress and missed doses.",
+  "meds.fastHelpKicker": "Fast help",
   "meds.canHelpWith": "I can help you with",
   "meds.assistant.interactions.label": "Check Interactions",
   "meds.assistant.interactions.sub": "See if any medications conflict",
-  "meds.assistant.naturalMedicine.label": "Natural Medicine",
-  "meds.assistant.naturalMedicine.sub": "Herbal remedies & plant-based wellness",
+  "meds.assistant.naturalMedicine.label": "Natural Options",
+  "meds.assistant.naturalMedicine.sub": "Check herbal and supplement fit",
   "meds.assistant.order.label": "Order Online",
   "meds.assistant.order.sub": "Repeat prescriptions and home delivery",
-  "meds.assistant.advances.label": "Latest Advances",
-  "meds.assistant.advances.sub": "Recent research on your medications",
+  "meds.assistant.advances.label": "Medication Research",
+  "meds.assistant.advances.sub": "See recent updates in plain language",
+  "meds.assistant.sideEffects.label": "Side Effect Check",
+  "meds.assistant.sideEffects.sub": "Talk through symptoms to watch",
   "meds.confirmRemaining": "Confirm remaining doses",
   "meds.allTaken": "All doses taken",
   "meds.taken": "Taken",
@@ -195,11 +198,13 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Interactions");
     expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("Adherence");
 
-    expect(screen.getByText("I can help you with")).toBeInTheDocument();
-    expect(screen.getByTestId("button-assistant-interactions")).toHaveTextContent("Check Interactions");
-    expect(screen.getByTestId("button-assistant-naturalMedicine")).toHaveTextContent("Natural Medicine");
-    expect(screen.getByTestId("button-assistant-order")).toHaveTextContent("Order Online");
-    expect(screen.getByTestId("button-assistant-advances")).toHaveTextContent("Latest Advances");
+    expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("Fast help");
+    expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("I can help you with");
+    expect(screen.getByTestId("button-assistant-naturalMedicine")).toHaveTextContent("Natural Options");
+    expect(screen.getByTestId("button-assistant-advances")).toHaveTextContent("Medication Research");
+    expect(screen.getByTestId("button-assistant-sideEffects")).toHaveTextContent("Side Effect Check");
+    expect(screen.queryByTestId("button-assistant-interactions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-assistant-order")).not.toBeInTheDocument();
   });
 
   it("reveals the compact reminders add-by-voice area from the Reminders card", async () => {

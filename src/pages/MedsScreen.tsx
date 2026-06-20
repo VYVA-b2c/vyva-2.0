@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, ExternalLink, Zap, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, type LucideIcon } from "lucide-react";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -331,47 +331,43 @@ const MedsScreen = () => {
 
   const ASSISTANT_ACTIONS = [
     {
-      id: "interactions",
-      icon: Zap,
-      label: t("meds.assistant.interactions.label"),
-      sub: t("meds.assistant.interactions.sub"),
-      color: "#C9890A",
-      bg: "#FEF3C7",
-      type: "chat" as const,
-      prompt: t("meds.assistant.interactions.prompt", { medNames }),
-      sheetTitle: t("meds.assistant.interactions.sheetTitle"),
-    },
-    {
       id: "naturalMedicine",
       icon: Leaf,
-      label: t("meds.assistant.naturalMedicine.label"),
-      sub: t("meds.assistant.naturalMedicine.sub"),
+      label: t("meds.assistant.naturalMedicine.label", "Natural Options"),
+      sub: t("meds.assistant.naturalMedicine.sub", "Check herbal and supplement fit"),
       color: "#166534",
       bg: "#DCFCE7",
+      border: "#BDEBD8",
+      shadow: "rgba(16,185,129,0.12)",
       type: "chat" as const,
       prompt: t("meds.assistant.naturalMedicine.prompt", { medNames }),
-      sheetTitle: t("meds.assistant.naturalMedicine.sheetTitle"),
-    },
-    {
-      id: "order",
-      icon: ShoppingCart,
-      label: t("meds.assistant.order.label"),
-      sub: t("meds.assistant.order.sub"),
-      color: "#0A7C4E",
-      bg: "#ECFDF5",
-      type: "action" as const,
-      onClick: openRefillSupport,
+      sheetTitle: t("meds.assistant.naturalMedicine.sheetTitle", "Natural Options"),
     },
     {
       id: "advances",
       icon: Sparkles,
-      label: t("meds.assistant.advances.label"),
-      sub: t("meds.assistant.advances.sub"),
+      label: t("meds.assistant.advances.label", "Medication Research"),
+      sub: t("meds.assistant.advances.sub", "See recent updates in plain language"),
       color: "#7C3AED",
       bg: "#EDE9FE",
+      border: "#D9C7F8",
+      shadow: "rgba(109,40,217,0.13)",
       type: "chat" as const,
       prompt: t("meds.assistant.advances.prompt", { medNames }),
-      sheetTitle: t("meds.assistant.advances.sheetTitle"),
+      sheetTitle: t("meds.assistant.advances.sheetTitle", "Medication Research"),
+    },
+    {
+      id: "sideEffects",
+      icon: ShieldCheck,
+      label: t("meds.assistant.sideEffects.label", "Side Effect Check"),
+      sub: t("meds.assistant.sideEffects.sub", "Talk through symptoms to watch"),
+      color: "#1D4ED8",
+      bg: "#EFF6FF",
+      border: "#BFDBFE",
+      shadow: "rgba(37,99,235,0.11)",
+      type: "chat" as const,
+      prompt: t("meds.assistant.sideEffects.prompt", { medNames }),
+      sheetTitle: t("meds.assistant.sideEffects.sheetTitle", "Side Effect Check"),
     },
   ];
 
@@ -956,45 +952,53 @@ const MedsScreen = () => {
       </section>
       ) : null}
 
-      <section className="mb-6 mt-6" data-testid="section-meds-can-help">
-        <SectionTitle
-          className="mb-3"
-          title={t("meds.canHelpWith", "I can help you with")}
-          titleClassName="font-body text-[22px] font-extrabold not-italic"
-        />
+      <section
+        className="mb-6 mt-6 rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+        data-testid="section-meds-can-help"
+      >
+        <div className="mb-4">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+            {t("meds.fastHelpKicker", "Fast help")}
+          </p>
+          <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+            {t("meds.canHelpWith", "I can help you with")}
+          </h2>
+        </div>
 
-        <ResponsiveGrid columns="two" gap="sm">
+        <div className="grid grid-cols-1 gap-3">
           {ASSISTANT_ACTIONS.map((action) => {
             const Icon = action.icon;
 
             return (
-              <div key={action.id} className="min-w-0">
-                <button
-                  data-testid={`button-assistant-${action.id}`}
-                  onClick={() => {
-                    if (action.type === "chat") {
-                      openAssistant(action.prompt, action.sheetTitle);
-                      return;
-                    }
-                    action.onClick();
-                  }}
-                  className="vyva-tap flex min-h-[184px] w-full flex-col justify-between rounded-[26px] border border-[#EDE5DB] bg-white p-5 text-left shadow-[0_14px_30px_rgba(60,38,20,0.08)] transition active:scale-[0.99]"
+              <button
+                key={action.id}
+                data-testid={`button-assistant-${action.id}`}
+                onClick={() => openAssistant(action.prompt, action.sheetTitle)}
+                className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
+                style={{
+                  borderColor: action.border,
+                  boxShadow: `0 10px 24px ${action.shadow}`,
+                }}
+              >
+                <span
+                  className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
+                  style={{ background: action.bg, color: action.color }}
                 >
-                  <div className="flex w-full items-start justify-between gap-3">
-                    <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-[20px]" style={{ background: action.bg }}>
-                      <Icon size={30} strokeWidth={2.5} style={{ color: action.color }} />
-                    </div>
-                    <ExternalLink size={20} className="text-[#8A7A70]" />
-                  </div>
-                  <div className="mt-6 min-w-0">
-                    <p className="font-body text-[20px] font-extrabold leading-tight text-vyva-text-1">{action.label}</p>
-                    <p className="mt-1 font-body text-[15px] font-medium leading-snug text-vyva-text-2">{action.sub}</p>
-                  </div>
-                </button>
-              </div>
+                  <Icon size={24} strokeWidth={2.4} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    {action.label}
+                  </span>
+                  <span className="mt-1 block max-w-[26rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                    {action.sub}
+                  </span>
+                </span>
+                <ChevronRight size={22} strokeWidth={2.5} className="shrink-0 text-vyva-text-3" aria-hidden="true" />
+              </button>
             );
           })}
-        </ResponsiveGrid>
+        </div>
       </section>
 
       <MedsAssistantSheet

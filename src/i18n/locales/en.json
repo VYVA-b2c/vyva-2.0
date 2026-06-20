@@ -1189,6 +1189,7 @@
       "adherenceSub": "See progress and missed doses."
     },
     "canHelpWith": "I can help you with",
+    "fastHelpKicker": "Fast help",
     "confirmTaken": "Confirm I’ve taken Metformin",
     "addByVoice": "Add by voice",
     "medicationInfo": "Medication Info",
@@ -1210,9 +1211,9 @@
         "prompt": "I take the following medications: {{medNames}}. Please check for any known interactions between these medications and let me know if anything I should discuss with my doctor or pharmacist."
       },
       "naturalMedicine": {
-        "label": "Natural Medicine",
-        "sub": "Herbal remedies & plant-based wellness",
-        "sheetTitle": "Natural Medicine",
+        "label": "Natural Options",
+        "sub": "Check herbal and supplement fit",
+        "sheetTitle": "Natural Options",
         "prompt": "I take the following medications: {{medNames}}. Can you share information about herbal remedies, natural supplements, or plant-based wellness options that might complement my health? Please also let me know if any common natural remedies could interact with my current medications, so I can stay safe."
       },
       "order": {
@@ -1236,10 +1237,16 @@
         }
       },
       "advances": {
-        "label": "Latest Advances",
-        "sub": "Recent research on your medications",
-        "sheetTitle": "Latest Advances",
+        "label": "Medication Research",
+        "sub": "See recent updates in plain language",
+        "sheetTitle": "Medication Research",
         "prompt": "I take the following medications: {{medNames}}. Can you give me a friendly summary of any recent research or news about these medications? I'd like to stay informed about advances that might be relevant to my health."
+      },
+      "sideEffects": {
+        "label": "Side Effect Check",
+        "sub": "Talk through symptoms to watch",
+        "sheetTitle": "Side Effect Check",
+        "prompt": "I take the following medications: {{medNames}}. Please help me think through possible side effects, symptoms to monitor, and what I should ask my doctor or pharmacist. If anything sounds urgent, tell me to seek medical help."
       }
     },
     "notes": {

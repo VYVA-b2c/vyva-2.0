@@ -1061,6 +1061,7 @@
       "adherenceSub": "Veja progresso e doses esquecidas."
     },
     "canHelpWith": "Posso ajudar com",
+    "fastHelpKicker": "Ajuda rapida",
     "takenToday": "{{taken}} de {{total}} tomados hoje",
     "todaySchedule": "Horário de hoje",
     "dueTonight": "1 para esta noite",
@@ -1094,9 +1095,9 @@
         "prompt": "Tomo os seguintes medicamentos: {{medNames}}. Verifique as interações conhecidas entre estes medicamentos e informe-me se há algo que deva discutir com o meu médico ou farmacêutico."
       },
       "naturalMedicine": {
-        "label": "Medicina natural",
-        "sub": "Remédios herbais e bem-estar natural",
-        "sheetTitle": "Medicina natural",
+        "label": "Opcoes naturais",
+        "sub": "Verificar ervas e suplementos",
+        "sheetTitle": "Opcoes naturais",
         "prompt": "Tomo os seguintes medicamentos: {{medNames}}. Pode partilhar informações sobre remédios herbais, suplementos naturais ou opções de bem-estar à base de plantas que possam complementar a minha saúde? Por favor, informe-me também se algum remédio natural comum pode interagir com os meus medicamentos atuais, para que eu possa manter-me seguro."
       },
       "order": {
@@ -1120,10 +1121,16 @@
         }
       },
       "advances": {
-        "label": "Últimos avanços",
-        "sub": "Investigações recentes sobre os seus medicamentos",
-        "sheetTitle": "Últimos avanços",
+        "label": "Pesquisa sobre medicamentos",
+        "sub": "Novidades recentes em linguagem simples",
+        "sheetTitle": "Pesquisa sobre medicamentos",
         "prompt": "Tomo os seguintes medicamentos: {{medNames}}. Pode dar-me um resumo amigável de qualquer investigação ou notícia recente sobre estes medicamentos? Gostaria de me manter informado sobre os avanços que possam ser relevantes para a minha saúde."
+      },
+      "sideEffects": {
+        "label": "Verificar efeitos secundarios",
+        "sub": "Falar sobre sintomas a observar",
+        "sheetTitle": "Verificar efeitos secundarios",
+        "prompt": "Tomo os seguintes medicamentos: {{medNames}}. Ajude-me a pensar em possiveis efeitos secundarios, sintomas a observar e perguntas para o meu medico ou farmaceutico. Se algo parecer urgente, diga-me para procurar ajuda medica."
       }
     },
     "notes": {

@@ -108,7 +108,14 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByRole("button", { name: label })).toBeVisible();
     }
     expect(screen.getByTestId("button-concierge-card-shop")).not.toHaveClass("bg-vyva-purple");
-    expect(screen.getByTestId("button-concierge-card-shop")).toHaveClass("bg-white");
+    for (const key of ["shop", "book", "order", "save"]) {
+      const card = screen.getByTestId(`button-concierge-card-${key}`);
+      expect(card).toHaveClass("min-h-[160px]");
+      expect(card).toHaveClass("rounded-[28px]");
+      expect(card).toHaveClass("bg-[#FFFCF8]");
+      expect(card).not.toHaveClass("rounded-[22px]");
+      expect(card).not.toHaveClass("min-h-[104px]");
+    }
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("What do you need now?");
     expect(screen.getByTestId("button-concierge-fast-doctor")).toHaveTextContent("Doctor help");

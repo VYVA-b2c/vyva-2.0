@@ -1177,6 +1177,7 @@
       "adherenceSub": "Ve progreso y dosis omitidas."
     },
     "canHelpWith": "Te puedo ayudar con",
+    "fastHelpKicker": "Ayuda rapida",
     "takenToday": "{{taken}} de {{total}} tomados hoy",
     "todaySchedule": "Horario de hoy",
     "dueTonight": "1 pendiente esta noche",
@@ -1210,9 +1211,9 @@
         "prompt": "Tomo los siguientes medicamentos: {{medNames}}. Por favor, comprueba si hay interacciones conocidas entre estos medicamentos e indícame si hay algo que deba comentar con mi médico o farmacéutico."
       },
       "naturalMedicine": {
-        "label": "Medicina natural",
-        "sub": "Remedios herbales y bienestar natural",
-        "sheetTitle": "Medicina natural",
+        "label": "Opciones naturales",
+        "sub": "Revisa hierbas y suplementos",
+        "sheetTitle": "Opciones naturales",
         "prompt": "Tomo los siguientes medicamentos: {{medNames}}. ¿Puedes compartir información sobre remedios herbales, suplementos naturales u opciones de bienestar a base de plantas que puedan complementar mi salud? También indícame si algún remedio natural común podría interactuar con mis medicamentos actuales, para que pueda mantenerme seguro."
       },
       "order": {
@@ -1236,10 +1237,16 @@
         }
       },
       "advances": {
-        "label": "Últimos avances",
-        "sub": "Investigaciones recientes sobre tus medicamentos",
-        "sheetTitle": "Últimos avances",
+        "label": "Investigacion sobre medicamentos",
+        "sub": "Novedades recientes en lenguaje claro",
+        "sheetTitle": "Investigacion sobre medicamentos",
         "prompt": "Tomo los siguientes medicamentos: {{medNames}}. ¿Puedes darme un resumen amigable de cualquier investigación o noticia reciente sobre estos medicamentos? Me gustaría mantenerme informado sobre los avances que puedan ser relevantes para mi salud."
+      },
+      "sideEffects": {
+        "label": "Revisar efectos secundarios",
+        "sub": "Hablar de sintomas a vigilar",
+        "sheetTitle": "Revisar efectos secundarios",
+        "prompt": "Tomo los siguientes medicamentos: {{medNames}}. Ayudame a pensar en posibles efectos secundarios, sintomas que debo vigilar y preguntas para mi medico o farmaceutico. Si algo suena urgente, dime que busque ayuda medica."
       }
     },
     "notes": {

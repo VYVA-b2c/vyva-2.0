@@ -714,6 +714,7 @@
     "noMedsTitle": "Dim meddyginiaeth wedi'i hychwanegu eto",
     "noMedsSub": "Defnyddiwch y botwm isod i ychwanegu eich meddyginiaethau drwy lais",
     "noMedsScheduled": "Dim meddyginiaethau wedi'u trefnu ar gyfer heddiw",
+    "fastHelpKicker": "Help cyflym",
     "confirmTaken": "Cadarnhau fy mod wedi cymryd Metfformin",
     "addByVoice": "Ychwanegu drwy lais",
     "medicationInfo": "Gwybodaeth meddyginiaeth",
@@ -735,9 +736,9 @@
         "prompt": "Rwy'n cymryd y meddyginiaethau canlynol: {{medNames}}. Gwiriwch am unrhyw ryngweithiadau hysbys rhwng y meddyginiaethau hyn a rhowch wybod i mi os oes unrhyw beth y dylwn ei drafod gyda fy meddyg neu fferyllydd."
       },
       "naturalMedicine": {
-        "label": "Meddygaeth naturiol",
-        "sub": "Meddyginiaethau llysieuol a llesiant naturiol",
-        "sheetTitle": "Meddygaeth naturiol",
+        "label": "Opsiynau naturiol",
+        "sub": "Gwirio perlysiau ac atchwanegiadau",
+        "sheetTitle": "Opsiynau naturiol",
         "prompt": "Rwy'n cymryd y meddyginiaethau canlynol: {{medNames}}. A allwch rannu gwybodaeth am feddyginiaethau llysieuol, atchwanegiadau naturiol, neu opsiynau llesiant ar sail planhigion a allai ategu fy iechyd? Rhowch wybod i mi hefyd os gallai unrhyw feddyginiaeth naturiol gyffredin ryngweithio â'm meddyginiaethau cyfredol, er mwyn i mi aros yn ddiogel."
       },
       "order": {
@@ -761,10 +762,16 @@
         }
       },
       "advances": {
-        "label": "Datblygiadau diweddaraf",
-        "sub": "Ymchwil diweddar ar eich meddyginiaethau",
-        "sheetTitle": "Datblygiadau diweddaraf",
+        "label": "Ymchwil meddyginiaethau",
+        "sub": "Newyddion diweddar mewn iaith syml",
+        "sheetTitle": "Ymchwil meddyginiaethau",
         "prompt": "Rwy'n cymryd y meddyginiaethau canlynol: {{medNames}}. A allwch roi crynodeb cyfeillgar o unrhyw ymchwil neu newyddion diweddar am y meddyginiaethau hyn? Hoffwn aros yn wybodus am ddatblygiadau a allai fod yn berthnasol i'm hiechyd."
+      },
+      "sideEffects": {
+        "label": "Gwirio sgil-effeithiau",
+        "sub": "Siarad am symptomau i'w gwylio",
+        "sheetTitle": "Gwirio sgil-effeithiau",
+        "prompt": "Rwy'n cymryd y meddyginiaethau canlynol: {{medNames}}. Helpwch fi i feddwl am sgil-effeithiau posibl, symptomau i'w monitro, a chwestiynau i'w gofyn i fy meddyg neu fferyllydd. Os yw unrhyw beth yn swnio'n frys, dywedwch wrthyf i geisio cymorth meddygol."
       }
     },
     "notes": {

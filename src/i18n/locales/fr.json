@@ -1061,6 +1061,7 @@
       "adherenceSub": "Voir progres et prises manquees."
     },
     "canHelpWith": "Je peux vous aider avec",
+    "fastHelpKicker": "Aide rapide",
     "takenToday": "{{taken}} sur {{total}} pris aujourd'hui",
     "todaySchedule": "Programme du jour",
     "dueTonight": "1 prévu ce soir",
@@ -1094,9 +1095,9 @@
         "prompt": "Je prends les médicaments suivants : {{medNames}}. Veuillez vérifier les interactions connues entre ces médicaments et me dire s'il y a des choses à discuter avec mon médecin ou mon pharmacien."
       },
       "naturalMedicine": {
-        "label": "Médecine naturelle",
-        "sub": "Remèdes à base de plantes et bien-être naturel",
-        "sheetTitle": "Médecine naturelle",
+        "label": "Options naturelles",
+        "sub": "Verifier plantes et complements",
+        "sheetTitle": "Options naturelles",
         "prompt": "Je prends les médicaments suivants : {{medNames}}. Pouvez-vous me donner des informations sur les remèdes à base de plantes, les compléments naturels ou les options de bien-être végétal qui pourraient compléter ma santé ? Veuillez également me signaler si des remèdes naturels courants pourraient interagir avec mes médicaments actuels, afin que je puisse rester en sécurité."
       },
       "order": {
@@ -1120,10 +1121,16 @@
         }
       },
       "advances": {
-        "label": "Dernières avancées",
-        "sub": "Recherches récentes sur vos médicaments",
-        "sheetTitle": "Dernières avancées",
+        "label": "Recherche medicamenteuse",
+        "sub": "Nouveautes recentes en langage clair",
+        "sheetTitle": "Recherche medicamenteuse",
         "prompt": "Je prends les médicaments suivants : {{medNames}}. Pouvez-vous me faire un résumé convivial des recherches ou actualités récentes concernant ces médicaments ? Je souhaite rester informé des avancées susceptibles d'être pertinentes pour ma santé."
+      },
+      "sideEffects": {
+        "label": "Verifier les effets secondaires",
+        "sub": "Parler des signes a surveiller",
+        "sheetTitle": "Verifier les effets secondaires",
+        "prompt": "Je prends les medicaments suivants : {{medNames}}. Aidez-moi a reflechir aux effets secondaires possibles, aux symptomes a surveiller et aux questions a poser a mon medecin ou pharmacien. Si quelque chose semble urgent, dites-moi de consulter rapidement."
       }
     },
     "notes": {

@@ -1177,6 +1177,7 @@
       "adherenceSub": "Vedi progressi e dosi saltate."
     },
     "canHelpWith": "Posso aiutarti con",
+    "fastHelpKicker": "Aiuto rapido",
     "takenToday": "{{taken}} di {{total}} presi oggi",
     "todaySchedule": "Programma di oggi",
     "dueTonight": "1 previsto stasera",
@@ -1210,9 +1211,9 @@
         "prompt": "Prendo i seguenti farmaci: {{medNames}}. Controlla le interazioni note tra questi farmaci e dimmi se c'è qualcosa di cui dovrei parlare con il mio medico o farmacista."
       },
       "naturalMedicine": {
-        "label": "Medicina naturale",
-        "sub": "Rimedi erboristici e benessere naturale",
-        "sheetTitle": "Medicina naturale",
+        "label": "Opzioni naturali",
+        "sub": "Controlla erbe e integratori",
+        "sheetTitle": "Opzioni naturali",
         "prompt": "Prendo i seguenti farmaci: {{medNames}}. Puoi condividere informazioni su rimedi erboristici, integratori naturali o opzioni di benessere a base vegetale che potrebbero integrare la mia salute? Indicami anche se qualche rimedio naturale comune potrebbe interagire con i miei farmaci attuali, così posso restare al sicuro."
       },
       "order": {
@@ -1236,10 +1237,16 @@
         }
       },
       "advances": {
-        "label": "Ultimi progressi",
-        "sub": "Ricerche recenti sui tuoi farmaci",
-        "sheetTitle": "Ultimi progressi",
+        "label": "Ricerca sui farmaci",
+        "sub": "Novita recenti spiegate in modo semplice",
+        "sheetTitle": "Ricerca sui farmaci",
         "prompt": "Prendo i seguenti farmaci: {{medNames}}. Puoi darmi un riassunto semplice delle ricerche o notizie recenti su questi farmaci? Vorrei tenermi aggiornato sugli sviluppi che potrebbero essere rilevanti per la mia salute."
+      },
+      "sideEffects": {
+        "label": "Controllo effetti collaterali",
+        "sub": "Parla dei sintomi da osservare",
+        "sheetTitle": "Controllo effetti collaterali",
+        "prompt": "Prendo i seguenti farmaci: {{medNames}}. Aiutami a ragionare su possibili effetti collaterali, sintomi da monitorare e domande da fare al medico o al farmacista. Se qualcosa sembra urgente, dimmi di cercare assistenza medica."
       }
     },
     "notes": {

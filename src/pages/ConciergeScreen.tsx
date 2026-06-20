@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
@@ -384,10 +385,38 @@ function chatHistoryKey(locale: string) {
 }
 
 const PRIMARY_CONCIERGE_CARDS = [
-  { key: "shop", fallback: "Shop", Icon: ShoppingBasket, color: "#6B21A8", bg: "#F5F3FF" },
-  { key: "book", fallback: "Book", Icon: Calendar, color: "#0F766E", bg: "#F0FDFA" },
-  { key: "order", fallback: "Order", Icon: PackageCheck, color: "#1D4ED8", bg: "#EFF6FF" },
-  { key: "save", fallback: "Save", Icon: PiggyBank, color: "#B45309", bg: "#FFF7ED" },
+  {
+    key: "shop",
+    fallback: "Shop",
+    Icon: ShoppingBasket,
+    iconColor: "#7C3AED",
+    iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
+    glow: "rgba(124,58,237,0.13)",
+  },
+  {
+    key: "book",
+    fallback: "Book",
+    Icon: Calendar,
+    iconColor: "#149A63",
+    iconBg: "linear-gradient(135deg, #DDF8EA 0%, #F1FBF5 100%)",
+    glow: "rgba(20,154,99,0.12)",
+  },
+  {
+    key: "order",
+    fallback: "Order",
+    Icon: PackageCheck,
+    iconColor: "#2F66D0",
+    iconBg: "linear-gradient(135deg, #E6F0FF 0%, #F3F8FF 100%)",
+    glow: "rgba(47,102,208,0.12)",
+  },
+  {
+    key: "save",
+    fallback: "Save",
+    Icon: PiggyBank,
+    iconColor: "#B45309",
+    iconBg: "linear-gradient(135deg, #FFF1D6 0%, #FFF7ED 100%)",
+    glow: "rgba(180,83,9,0.12)",
+  },
 ] as const;
 
 const CONCIERGE_FAST_HELP_ACTIONS = [
@@ -2040,27 +2069,26 @@ const ConciergeScreen = () => {
       </section>
 
       <section className="order-[10] mt-[22px]" data-testid="concierge-guided-hub">
-        <div className="grid grid-cols-2 gap-3">
-          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, color, bg }) => (
-            <button
+        <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
+          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, iconColor, iconBg, glow }) => (
+            <ActionCard
               key={key}
-              type="button"
               data-testid={`button-concierge-card-${key}`}
               onClick={() => handlePrimaryConciergeCard(key)}
-              className="vyva-tap flex min-h-[104px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left text-vyva-text-1 shadow-[0_14px_32px_rgba(60,38,20,0.07)] transition-transform hover:-translate-y-0.5 active:scale-[0.98] sm:min-h-[116px]"
-            >
-              <span
-                className="flex h-10 w-10 items-center justify-center rounded-[15px]"
-                style={{ background: bg }}
-              >
-                <Icon size={22} style={{ color }} />
-              </span>
-              <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">
-                {t(`concierge.primaryCards.${key}`, fallback)}
-              </span>
-            </button>
+              title={t(`concierge.primaryCards.${key}`, fallback)}
+              icon={Icon}
+              iconBg={iconBg}
+              iconColor={iconColor}
+              size="standard"
+              surface="warm"
+              contentClassName="justify-start"
+              style={{
+                borderColor: "#EDE2D1",
+                boxShadow: `0 16px 34px ${glow}, 0 2px 10px rgba(43,31,24,0.05)`,
+              }}
+            />
           ))}
-        </div>
+        </ResponsiveGrid>
 
         <section
           className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
