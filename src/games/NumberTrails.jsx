@@ -20,29 +20,45 @@ const BRAND = {
   red: "#DC2626",
 };
 
-const FALLBACK_CONFIG = {
-  id: null,
-  trail_type: "numeric",
-  node_count: 5,
-  nodes: [
-    { label: "1", x: 0.15, y: 0.2 },
-    { label: "2", x: 0.72, y: 0.35 },
-    { label: "3", x: 0.3, y: 0.58 },
-    { label: "4", x: 0.8, y: 0.7 },
-    { label: "5", x: 0.45, y: 0.88 },
-  ],
-  par_time_seconds: 30,
-  difficulty_tier: 1,
-  language: "es",
-  is_active: true,
-};
-
 const TUTORIAL_NODES = [
   { label: "1", x: 0.18, y: 0.22 },
   { label: "2", x: 0.72, y: 0.36 },
   { label: "3", x: 0.32, y: 0.64 },
   { label: "4", x: 0.78, y: 0.82 },
 ];
+
+const FALLBACK_CONFIG = {
+  id: null,
+  local_key: "local-empty",
+  trail_type: "numeric",
+  node_count: 0,
+  nodes: [],
+  par_time_seconds: 30,
+  difficulty_tier: 1,
+  language: "es",
+  is_active: true,
+  is_local_practice: true,
+};
+
+const TUTORIAL_SEEN_KEY = "numberTrails:tutorialSeen:v1";
+const RECENT_LOCAL_TRAILS_KEY = "numberTrails:recentLocalTrails:v1";
+const RECENT_CONFIGS_KEY = "numberTrails:recentConfigIds:v1";
+const RECENT_TRAIL_LIMIT = 8;
+
+const TIER_SETTINGS = [
+  { trailType: "numeric", nodeCount: 5, parSeconds: 30 },
+  { trailType: "numeric", nodeCount: 8, parSeconds: 45 },
+  { trailType: "numeric", nodeCount: 10, parSeconds: 55 },
+  { trailType: "numeric", nodeCount: 12, parSeconds: 65 },
+  { trailType: "numeric", nodeCount: 15, parSeconds: 80 },
+  { trailType: "alternating", nodeCount: 8, parSeconds: 50 },
+  { trailType: "alternating", nodeCount: 10, parSeconds: 65 },
+  { trailType: "alternating", nodeCount: 14, parSeconds: 85 },
+  { trailType: "alternating", nodeCount: 18, parSeconds: 110 },
+  { trailType: "alternating", nodeCount: 25, parSeconds: 150 },
+];
+
+let localTrailCounter = 0;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -112,10 +128,157 @@ function normalizeConfig(row) {
   };
 }
 
-function withFallbackTier(tier) {
+function readStorageArray(key) {
+  if (typeof window === "undefined") return [];
+  try {
+    const value = JSON.parse(window.localStorage.getItem(key) ?? "[]");
+    return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberStorageValue(key, value, limit = RECENT_TRAIL_LIMIT) {
+  if (typeof window === "undefined" || !value) return;
+  const next = [String(value), ...readStorageArray(key).filter((item) => item !== String(value))].slice(0, limit);
+  window.localStorage.setItem(key, JSON.stringify(next));
+}
+
+function hasSeenTutorial() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(TUTORIAL_SEEN_KEY) === "true";
+}
+
+function saveTutorialSeen() {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(TUTORIAL_SEEN_KEY, "true");
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createSeededRandom(seed) {
+  let state = hashString(seed) || 1;
+  return () => {
+    state += 0x6D2B79F5;
+    let next = state;
+    next = Math.imul(next ^ (next >>> 15), next | 1);
+    next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWithRandom(items, random) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function getTierSettings(tier) {
+  const safeTier = clamp(Number(tier) || 1, 1, TIER_SETTINGS.length);
+  return {
+    tier: safeTier,
+    ...TIER_SETTINGS[safeTier - 1],
+  };
+}
+
+function buildTrailLabels(nodeCount, trailType) {
+  return Array.from({ length: nodeCount }, (_, index) => {
+    if (trailType !== "alternating") return String(index + 1);
+    const pair = Math.floor(index / 2) + 1;
+    return index % 2 === 0 ? String(pair) : String.fromCharCode(64 + pair);
+  });
+}
+
+function generateTrailNodes(nodeCount, trailType, random) {
+  const columns = Math.ceil(Math.sqrt(nodeCount * 1.2));
+  const rows = Math.ceil(nodeCount / columns);
+  const cells = [];
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      cells.push({ row, column });
+    }
+  }
+
+  const labels = buildTrailLabels(nodeCount, trailType);
+  const selectedCells = shuffleWithRandom(cells, random).slice(0, nodeCount);
+
+  return labels.map((label, index) => {
+    const cell = selectedCells[index];
+    const jitterX = (random() - 0.5) * 0.46;
+    const jitterY = (random() - 0.5) * 0.42;
+    const x = clamp((cell.column + 0.5 + jitterX) / columns, 0.09, 0.91);
+    const y = clamp((cell.row + 0.5 + jitterY) / rows, 0.12, 0.88);
+
+    return {
+      label,
+      x: Number(x.toFixed(3)),
+      y: Number(y.toFixed(3)),
+    };
+  });
+}
+
+function createLocalTrailConfig(tier, language = "es") {
+  const settings = getTierSettings(tier);
+  const recent = readStorageArray(RECENT_LOCAL_TRAILS_KEY);
+  let selected = null;
+
+  for (let attempt = 0; attempt < RECENT_TRAIL_LIMIT + 2; attempt += 1) {
+    localTrailCounter += 1;
+    const seed = `${todayKey()}-${settings.tier}-${localTrailCounter}-${Date.now()}-${Math.random()}-${attempt}`;
+    const localKey = `local-${settings.tier}-${hashString(seed).toString(36)}`;
+    const random = createSeededRandom(seed);
+    const candidate = {
+      id: null,
+      local_key: localKey,
+      trail_type: settings.trailType,
+      node_count: settings.nodeCount,
+      nodes: generateTrailNodes(settings.nodeCount, settings.trailType, random),
+      par_time_seconds: settings.parSeconds,
+      difficulty_tier: settings.tier,
+      language,
+      is_active: true,
+      is_local_practice: true,
+    };
+
+    selected = candidate;
+    if (!recent.includes(localKey)) break;
+  }
+
+  rememberStorageValue(RECENT_LOCAL_TRAILS_KEY, selected.local_key);
+  return selected;
+}
+
+export function pickFreshNumberTrailConfig(rows, recentIds = []) {
+  const configs = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!configs.length) return null;
+  const recent = new Set(recentIds.map(String));
+  const fresh = configs.filter((row) => !recent.has(String(row.id)));
+  const pool = fresh.length ? fresh : configs;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function rememberConfig(config) {
+  if (config?.id) {
+    rememberStorageValue(RECENT_CONFIGS_KEY, config.id);
+  }
+}
+
+function withFallbackTier(tier, language = "es") {
+  const fallback = createLocalTrailConfig(tier, language);
   return {
     ...FALLBACK_CONFIG,
-    difficulty_tier: clamp(Number(tier) || 1, 1, 10),
+    ...fallback,
   };
 }
 
@@ -255,6 +418,15 @@ function TrailCanvas({
         const completed = completedLabels.has(node.label) || showAllLines;
         const isNext = nextLabel === node.label && !completed;
         const flashing = flashLabel === node.label;
+        const isStart = node.label === nodes[0]?.label;
+        const isFinish = node.label === nodes[nodes.length - 1]?.label;
+        const borderColor = completed
+          ? BRAND.purple
+          : isNext || isFinish
+            ? BRAND.gold
+            : isStart
+              ? BRAND.teal
+              : BRAND.purple;
         return (
           <button
             key={node.label}
@@ -273,7 +445,7 @@ function TrailCanvas({
               minWidth: nodeSize,
               minHeight: nodeSize,
               transform: "translate(-50%, -50%)",
-              borderColor: completed ? BRAND.purple : isNext ? BRAND.gold : BRAND.purple,
+              borderColor,
               color: completed ? "#FFFFFF" : BRAND.ink,
               background: completed ? BRAND.purple : "#FFFFFF",
               fontSize: mode === "playing" || mode === "tutorial" ? 24 : 18,
@@ -281,6 +453,13 @@ function TrailCanvas({
               boxShadow: flashing ? `0 0 0 7px ${BRAND.red}` : "0 3px 12px rgba(43,34,51,0.08)",
             }}
           >
+            {(isStart || isFinish) && (
+              <span
+                className="absolute -right-1 -top-1 h-4 w-4 rounded-full border-2 border-white"
+                style={{ background: isStart ? BRAND.teal : BRAND.gold }}
+                aria-hidden="true"
+              />
+            )}
             {node.label}
           </button>
         );
@@ -315,6 +494,7 @@ export default function NumberTrails({ userId, onExit }) {
     instructionAlt: t("games.numberTrails.instructionAlt"),
     example: t("games.numberTrails.example"),
     tapInOrder: t("games.numberTrails.tapInOrder"),
+    practiceExample: t("games.numberTrails.practiceExample"),
     nextTarget: t("games.numberTrails.nextTarget"),
     stillThere: t("games.numberTrails.stillThere"),
     badgeNumeric: t("games.numberTrails.badgeNumeric"),
@@ -329,14 +509,14 @@ export default function NumberTrails({ userId, onExit }) {
     score: t("games.numberTrails.score"),
     streak: t("games.numberTrails.streak"),
     days: t("games.numberTrails.days"),
+    nextTrail: t("games.numberTrails.nextTrail"),
+    tryThisTrail: t("games.numberTrails.tryThisTrail"),
     start: t("common.start"),
     skip: t("common.skip"),
     exit: t("common.exit"),
     nextLevel: t("common.nextLevel"),
     level: t("common.level"),
-    continueAction: t("brainGames.resultActions.continue"),
     continueToLevel: t("brainGames.resultActions.continueToLevel"),
-    playAgain: t("brainGames.resultActions.playAgain"),
     playAnotherGame: t("brainGames.resultActions.playAnotherGame"),
   }), [t]);
 
@@ -345,6 +525,7 @@ export default function NumberTrails({ userId, onExit }) {
   const [nodes, setNodes] = useState([]);
   const [userState, setUserState] = useState(null);
   const [loadNote, setLoadNote] = useState("");
+  const [tutorialSeen, setTutorialSeen] = useState(() => hasSeenTutorial());
 
   const [currentTargetIndex, setCurrentTargetIndex] = useState(0);
   const [completedNodes, setCompletedNodes] = useState(new Set());
@@ -479,12 +660,13 @@ export default function NumberTrails({ userId, onExit }) {
   }, [userId]);
 
   const loadConfig = useCallback(async (state) => {
-    if (!userId) return withFallbackTier(state?.current_tier);
+    if (!userId) return withFallbackTier(state?.current_tier, gameLanguage);
 
     const tier = Number(state?.current_tier ?? 1);
     const start = startOfLocalDay();
     const end = addDays(start, 1);
     const languageOrder = [...new Set([gameLanguage, "es", "en", "de"])];
+    const recentConfigIds = readStorageArray(RECENT_CONFIGS_KEY);
 
     const todaySessions = await supabase
       .from("number_trails_sessions")
@@ -512,7 +694,8 @@ export default function NumberTrails({ userId, onExit }) {
       const rows = await query;
       if (rows.error) throw rows.error;
       if (rows.data?.length) {
-        const selected = rows.data[Math.floor(Math.random() * rows.data.length)];
+        const selected = pickFreshNumberTrailConfig(rows.data, recentConfigIds);
+        rememberConfig(selected);
         return normalizeConfig(selected);
       }
     }
@@ -546,11 +729,13 @@ export default function NumberTrails({ userId, onExit }) {
       if (rows.error) throw rows.error;
       if (!rows.data?.length) continue;
 
-      const selected = [...rows.data].sort((a, b) => (lastPlayed.get(a.id) ?? 0) - (lastPlayed.get(b.id) ?? 0))[0];
+      const leastRecentRows = [...rows.data].sort((a, b) => (lastPlayed.get(a.id) ?? 0) - (lastPlayed.get(b.id) ?? 0));
+      const selected = pickFreshNumberTrailConfig(leastRecentRows, recentConfigIds);
+      rememberConfig(selected);
       return normalizeConfig(selected);
     }
 
-    return withFallbackTier(tier);
+    return withFallbackTier(tier, gameLanguage);
   }, [gameLanguage, userId]);
 
   const loadGame = useCallback(async (overrideState = null) => {
@@ -567,18 +752,19 @@ export default function NumberTrails({ userId, onExit }) {
       setUserState(state);
       setConfig(normalized);
       setNodes(normalized.nodes);
+      setLoadNote(normalized.is_local_practice ? text.practiceNote : "");
       setScreen("intro");
     } catch (error) {
       console.warn("Number Trails is using a local practice trail.", error);
       const fallbackState = attemptedState ?? defaultUserState(userId);
-      const fallbackConfig = withFallbackTier(fallbackState.current_tier);
+      const fallbackConfig = withFallbackTier(fallbackState.current_tier, gameLanguage);
       setUserState(fallbackState);
       setConfig(fallbackConfig);
       setNodes(fallbackConfig.nodes);
       setLoadNote(text.practiceNote);
       setScreen("intro");
     }
-  }, [loadConfig, loadUserState, resetRoundState, text.practiceNote, userId]);
+  }, [gameLanguage, loadConfig, loadUserState, resetRoundState, text.practiceNote, userId]);
 
   const saveSession = useCallback(async (result) => {
     if (!userId || !config || sessionSavedRef.current) return null;
@@ -880,6 +1066,37 @@ export default function NumberTrails({ userId, onExit }) {
     resetIdleTimer();
   }, [resetIdleTimer]);
 
+  const rememberTutorialSeen = useCallback(() => {
+    saveTutorialSeen();
+    setTutorialSeen(true);
+  }, []);
+
+  const handleStartTrail = useCallback(() => {
+    if (tutorialSeen) {
+      beginPlaying();
+      return;
+    }
+    setScreen("tutorial");
+  }, [beginPlaying, tutorialSeen]);
+
+  const handleSkipTutorial = useCallback(() => {
+    rememberTutorialSeen();
+    beginPlaying();
+  }, [beginPlaying, rememberTutorialSeen]);
+
+  const replayCurrentTrail = useCallback(() => {
+    if (!config?.nodes?.length) {
+      void loadGame(userState);
+      return;
+    }
+
+    resetRoundState();
+    setConfig(config);
+    setNodes(config.nodes);
+    setLoadNote(config.is_local_practice ? text.practiceNote : "");
+    setScreen("intro");
+  }, [config, loadGame, resetRoundState, text.practiceNote, userState]);
+
   const handleNodeTap = useCallback((node) => {
     if (gamePhase === "complete" || savingResult || !nodes.length) return;
     const expectedNode = nodes[currentTargetIndex];
@@ -931,9 +1148,12 @@ export default function NumberTrails({ userId, onExit }) {
     setTutorialIndex(nextIndex);
 
     if (nextIndex >= TUTORIAL_NODES.length) {
-      scheduleTimeout(beginPlaying, 1000);
+      scheduleTimeout(() => {
+        rememberTutorialSeen();
+        beginPlaying();
+      }, 1000);
     }
-  }, [beginPlaying, scheduleTimeout, tutorialAnimating, tutorialCanTry, tutorialIndex]);
+  }, [beginPlaying, rememberTutorialSeen, scheduleTimeout, tutorialAnimating, tutorialCanTry, tutorialIndex]);
 
   const handleExit = useCallback(async () => {
     if (screen === "playing") {
@@ -1011,13 +1231,24 @@ export default function NumberTrails({ userId, onExit }) {
 
             <button
               type="button"
-              onClick={() => setScreen("tutorial")}
+              onClick={handleStartTrail}
               className="mt-6 flex min-h-[72px] w-full items-center justify-center gap-3 rounded-full px-6 text-[24px] font-extrabold text-white shadow-vyva-hero active:scale-[0.99]"
               style={{ background: BRAND.purple }}
             >
               <Play size={30} />
               {text.start}
             </button>
+
+            {tutorialSeen && (
+              <button
+                type="button"
+                onClick={() => setScreen("tutorial")}
+                className="mx-auto mt-4 flex min-h-[56px] items-center justify-center rounded-full border-2 bg-white px-5 text-[20px] font-extrabold"
+                style={{ borderColor: BRAND.border, color: BRAND.purple }}
+              >
+                {text.practiceExample}
+              </button>
+            )}
 
             <p className="mt-5 text-center text-[24px] font-semibold leading-[1.35]" style={{ color: BRAND.ink }}>
               {instruction}
@@ -1039,7 +1270,7 @@ export default function NumberTrails({ userId, onExit }) {
             <h1 className="text-[26px] font-extrabold leading-[1.15]" style={{ color: BRAND.ink }}>{text.example}</h1>
             <button
               type="button"
-              onClick={beginPlaying}
+              onClick={handleSkipTutorial}
               className="min-h-[64px] rounded-full border-2 bg-white px-5 text-[22px] font-extrabold"
               style={{ borderColor: BRAND.border, color: BRAND.purple }}
             >
@@ -1135,10 +1366,9 @@ export default function NumberTrails({ userId, onExit }) {
   const resultWasPromoted = resultTier > completedTier;
   const continueLabel = resultWasPromoted
     ? text.continueToLevel.replace("{level}", String(resultTier))
-    : text.continueAction;
+    : text.nextTrail;
   const nextTier = clamp(resultTier + 1, 1, 10);
   const promotionProgress = clamp(Number(resultState.consecutive_wins ?? 0) / 3, 0, 1);
-  const replayState = { ...resultState, current_tier: completedTier };
 
   return (
     <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg }}>
@@ -1205,10 +1435,10 @@ export default function NumberTrails({ userId, onExit }) {
           <BrainGameResultActions
             className="mt-6"
             continueLabel={continueLabel}
-            replayLabel={text.playAgain}
+            replayLabel={text.tryThisTrail}
             anotherLabel={text.playAnotherGame}
             onContinue={() => loadGame(resultState)}
-            onReplay={() => loadGame(replayState)}
+            onReplay={replayCurrentTrail}
             onAnother={handleExit}
             disabled={savingResult}
           />
