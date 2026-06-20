@@ -114,6 +114,14 @@ const ACTIVITY_CATALOG: ActivityCandidate[] = [
     estimatedDurationMinutes: 5,
   },
   {
+    activityType: "remember_later",
+    title: "Remember Later",
+    domain: "prospective_memory",
+    secondaryDomain: "attention",
+    route: "/memory-games/remember-later",
+    estimatedDurationMinutes: 5,
+  },
+  {
     activityType: "story_recall",
     title: "Story Recall",
     domain: "language",
