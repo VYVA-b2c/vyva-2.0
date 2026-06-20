@@ -7,6 +7,7 @@ import {
   Loader2,
   Car,
   Calendar,
+  Stethoscope,
   Search,
   Tag,
   Plus,
@@ -23,7 +24,6 @@ import {
   ShoppingBasket,
   PackageCheck,
   PiggyBank,
-  Plane,
   Building2,
   PencilLine,
   Zap,
@@ -390,10 +390,37 @@ const PRIMARY_CONCIERGE_CARDS = [
   { key: "save", fallback: "Save", Icon: PiggyBank, color: "#B45309", bg: "#FFF7ED" },
 ] as const;
 
-const CONCIERGE_QUICK_ACTIONS = [
-  { key: "findBestDeals", fallback: "Find the best deals", Icon: Tag, color: "#B45309", bg: "#FFF7ED" },
-  { key: "bookTrip", fallback: "Book a trip", Icon: Plane, color: "#0F766E", bg: "#F0FDFA" },
-  { key: "researchCompany", fallback: "Research a company", Icon: Building2, color: "#6B21A8", bg: "#F5F3FF" },
+const CONCIERGE_FAST_HELP_ACTIONS = [
+  {
+    key: "doctor",
+    fallbackTitle: "Doctor help",
+    fallbackSubtitle: "Talk through a health concern",
+    Icon: Stethoscope,
+    color: "#2563EB",
+    bg: "#EEF6FF",
+    border: "#BFDBFE",
+    shadow: "rgba(37,99,235,0.10)",
+  },
+  {
+    key: "appointment",
+    fallbackTitle: "Book appointment",
+    fallbackSubtitle: "Prepare a request to confirm",
+    Icon: Calendar,
+    color: "#6B21A8",
+    bg: "#F5F3FF",
+    border: "#D8B4FE",
+    shadow: "rgba(107,33,168,0.11)",
+  },
+  {
+    key: "ride",
+    fallbackTitle: "Book ride",
+    fallbackSubtitle: "Arrange safe transport",
+    Icon: Car,
+    color: "#047857",
+    bg: "#ECFDF5",
+    border: "#BBF7D0",
+    shadow: "rgba(4,120,87,0.10)",
+  },
 ] as const;
 
 async function callConcierge(
@@ -1157,14 +1184,30 @@ const ConciergeScreen = () => {
     }
   }
 
+  function openAppointmentAssistant() {
+    setAppointmentOpen(true);
+    setOffersOpen(false);
+  }
+
+  function prepareRideRequest() {
+    const message = t(
+      "concierge.fastHelp.ridePrefill",
+      "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+    );
+    setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
+    setInput((current) => current.trim() ? current : message);
+    setAppointmentOpen(false);
+    setOffersOpen(false);
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
   function handlePrimaryConciergeCard(key: (typeof PRIMARY_CONCIERGE_CARDS)[number]["key"]) {
     if (key === "shop") {
       navigate("/concierge/shopping");
       return;
     }
     if (key === "book") {
-      setAppointmentOpen((open) => !open);
-      setOffersOpen(false);
+      openAppointmentAssistant();
       return;
     }
     if (key === "order") {
@@ -1192,23 +1235,25 @@ const ConciergeScreen = () => {
     }
   }
 
-  function handleQuickAction(key: (typeof CONCIERGE_QUICK_ACTIONS)[number]["key"]) {
-    if (key === "findBestDeals") {
-      openSavingsPanel(isSpanish
-        ? "encontrar las mejores ofertas en servicios y compras importantes"
-        : "find the best deals on services and important purchases");
+  function handleFastHelpAction(key: (typeof CONCIERGE_FAST_HELP_ACTIONS)[number]["key"]) {
+    if (key === "doctor") {
+      navigate("/health/doctor", {
+        state: {
+          autoStartVoice: true,
+          latestSymptomReport: t(
+            "concierge.fastHelp.doctorContext",
+            "Concierge doctor help request. Ask what is happening and help prepare a safe next step.",
+          ),
+        },
+      });
       return;
     }
-    if (key === "bookTrip") {
-      prepareConciergeRequest(isSpanish
-        ? "Ayudame a planear un viaje. Preguntame destino, fechas, presupuesto, movilidad y preferencias. Prepara opciones claras y no reserves ni pagues nada sin mi confirmacion."
-        : "Help me plan a trip. Ask for destination, dates, budget, mobility needs, and preferences. Prepare clear options and do not book or pay for anything without my confirmation.");
+    if (key === "appointment") {
+      openAppointmentAssistant();
       return;
     }
-    if (key === "researchCompany") {
-      prepareConciergeRequest(isSpanish
-        ? "Ayudame a investigar una empresa antes de tomar una decision. Preguntame el nombre, revisa confianza, precios, opiniones, riesgos y alternativas. No contactes ni compartas datos sin mi confirmacion."
-        : "Help me research a company before I make a decision. Ask for the company name, then review trust, pricing, reviews, risks, and alternatives. Do not contact them or share details without my confirmation.");
+    if (key === "ride") {
+      prepareRideRequest();
     }
   }
 
@@ -1700,12 +1745,12 @@ const ConciergeScreen = () => {
         description={isSpanish
           ? "VYVA puede usar la peticion, la fecha, el proveedor y la ubicacion antes de confirmar cualquier accion."
           : "VYVA can use the request, date, provider, and location before confirming any action."}
-        className="mt-5"
+        className="order-[30] mt-5"
       />
 
       {routePrefill && routePrefillMeta && (
         <section
-          className="mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
+          className="order-[15] mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
           style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.16)" }}
           data-testid="panel-concierge-route-prefill"
         >
@@ -1781,7 +1826,7 @@ const ConciergeScreen = () => {
 
       {conciergeVoiceAction && (
         <section
-          className="mt-4 rounded-[24px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
+          className="order-[15] mt-4 rounded-[24px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
           style={{ boxShadow: "0 12px 32px rgba(15,118,110,0.12)" }}
           data-testid="panel-voice-concierge-prefill"
         >
@@ -1994,7 +2039,7 @@ const ConciergeScreen = () => {
         )}
       </section>
 
-      <section className="order-[10] mt-5" data-testid="concierge-guided-hub">
+      <section className="order-[10] mt-[22px]" data-testid="concierge-guided-hub">
         <div className="grid grid-cols-2 gap-3">
           {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, color, bg }) => (
             <button
@@ -2002,7 +2047,7 @@ const ConciergeScreen = () => {
               type="button"
               data-testid={`button-concierge-card-${key}`}
               onClick={() => handlePrimaryConciergeCard(key)}
-              className="vyva-tap flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left text-vyva-text-1 shadow-[0_8px_22px_rgba(63,45,35,0.06)] transition active:scale-[0.98]"
+              className="vyva-tap flex min-h-[104px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left text-vyva-text-1 shadow-[0_14px_32px_rgba(60,38,20,0.07)] transition-transform hover:-translate-y-0.5 active:scale-[0.98] sm:min-h-[116px]"
             >
               <span
                 className="flex h-10 w-10 items-center justify-center rounded-[15px]"
@@ -2017,29 +2062,43 @@ const ConciergeScreen = () => {
           ))}
         </div>
 
-        <div className="mt-4">
-          <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-2">
-            {t("concierge.quickActions")}
-          </p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {CONCIERGE_QUICK_ACTIONS.map(({ key, fallback, Icon, color, bg }) => (
+        <section
+          className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+          data-testid="concierge-fast-help"
+        >
+          <div className="mb-4">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+              {t("concierge.fastHelp.kicker", "Fast help")}
+            </p>
+            <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+              {t("concierge.fastHelp.title", "What do you need now?")}
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {CONCIERGE_FAST_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, Icon, color, bg, border, shadow }) => (
               <button
                 key={key}
                 type="button"
-                data-testid={`button-concierge-quick-${key}`}
-                onClick={() => handleQuickAction(key)}
-                className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-2 text-left shadow-[0_6px_16px_rgba(63,45,35,0.05)] transition active:scale-[0.98]"
+                data-testid={`button-concierge-fast-${key}`}
+                onClick={() => handleFastHelpAction(key)}
+                className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.98]"
+                style={{ borderColor: border, boxShadow: `0 10px 24px ${shadow}` }}
               >
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px]" style={{ background: bg }}>
-                  <Icon size={17} style={{ color }} />
+                <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: bg, color }}>
+                  <Icon size={24} strokeWidth={2.4} />
                 </span>
-                <span className="font-body text-[13px] font-extrabold leading-tight text-vyva-text-1">
-                  {t(`concierge.quickPrompts.${key}`, fallback)}
+                <span className="min-w-0 flex-1">
+                  <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    {t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
+                  </span>
+                  <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                    {t(`concierge.fastHelp.actions.${key}.sub`, fallbackSubtitle)}
+                  </span>
                 </span>
               </button>
             ))}
           </div>
-        </div>
+        </section>
 
         {appointmentOpen && (
           <div

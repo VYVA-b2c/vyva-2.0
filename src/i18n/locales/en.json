@@ -1742,6 +1742,26 @@
       "bookTrip": "Book a trip",
       "researchCompany": "Research a company"
     },
+    "fastHelp": {
+      "kicker": "Fast help",
+      "title": "What do you need now?",
+      "doctorContext": "Concierge doctor help request. Ask what is happening and help prepare a safe next step.",
+      "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+      "actions": {
+        "doctor": {
+          "label": "Doctor help",
+          "sub": "Talk through a health concern"
+        },
+        "appointment": {
+          "label": "Book appointment",
+          "sub": "Prepare a request to confirm"
+        },
+        "ride": {
+          "label": "Book ride",
+          "sub": "Arrange safe transport"
+        }
+      }
+    },
     "chatTitle": "Chat with VYVA",
     "placeholder": "Ask me anything — services, savings, plans, tips…",
     "chatEmptyHint": "Use a quick action above or type your own question.",

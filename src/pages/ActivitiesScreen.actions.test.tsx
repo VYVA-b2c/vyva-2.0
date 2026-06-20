@@ -49,6 +49,13 @@ const labels: Record<string, string> = {
   "activities.primary.intelligenceSub": "Challenge logic, planning, and problem solving.",
   "activities.primary.senses": "Sharpen Senses",
   "activities.primary.sensesSub": "Reset with sound, breath, and calm attention.",
+  "activities.quick.kicker": "Brain Coach",
+  "activities.quick.relax": "Relax & Breathe",
+  "activities.quick.relaxSub": "Take a calm guided pause.",
+  "activities.quick.learn": "Learn Something New",
+  "activities.quick.learnSub": "Try words, language, and recall.",
+  "activities.quick.play": "Play a Brain Game",
+  "activities.quick.playSub": "Practice memory and focus.",
   "activities.chooseActivity": "Choose an activity",
   "activities.trivia": "Focus & Attention",
   "activities.memory": "Memory Game",
@@ -92,6 +99,7 @@ function renderActivities() {
         <Route path="/memory-games" element={<LocationProbe />} />
         <Route path="/attention-boosters" element={<LocationProbe />} />
         <Route path="/executive-function" element={<LocationProbe />} />
+        <Route path="/language" element={<LocationProbe />} />
         <Route path="/activities/relax-breathe" element={<LocationProbe />} />
         <Route path="/social-rooms" element={<LocationProbe />} />
         <Route path="/companions" element={<LocationProbe />} />
@@ -108,21 +116,26 @@ describe("Activities service actions", () => {
   it("renders the health-style primary cards and reordered activity library", () => {
     renderActivities();
 
+    const streakCard = screen.getByTestId("brain-coach-weekly-streak");
+    const primarySection = screen.getByTestId("section-activities-primary-actions");
+    expect(streakCard).toHaveTextContent("Streak this week");
+    expect(screen.queryByText("Start with one short activity")).not.toBeInTheDocument();
+    expect(streakCard.compareDocumentPosition(primarySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
     expect(screen.getByText("Choose your focus")).toBeInTheDocument();
     expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");
     expect(screen.getByTestId("button-activities-primary-reflexes")).toHaveTextContent("Train Reflexes");
     expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Boost Intelligence");
     expect(screen.getByTestId("button-activities-primary-senses")).toHaveTextContent("Sharpen Senses");
 
-    const activityCards = screen.getAllByTestId(/^activity-card-/);
-    expect(activityCards.map((card) => card.textContent)).toEqual([
-      expect.stringContaining("Memory Game"),
-      expect.stringContaining("Focus & Attention"),
-      expect.stringContaining("Brain Training"),
-      expect.stringContaining("Logic & Reasoning"),
-      expect.stringContaining("Word & Language"),
-      expect.stringContaining("Relax & Breathe"),
-    ]);
+    const quickActions = screen.getByTestId("activities-quick-actions");
+    expect(quickActions).toHaveTextContent("Brain Coach");
+    expect(quickActions).toHaveTextContent("Choose an activity");
+    expect(screen.queryByTestId(/^activity-card-/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-activities-quick-relax")).toHaveTextContent("Relax & Breathe");
+    expect(screen.getByTestId("button-activities-quick-relax")).toHaveTextContent("Take a calm guided pause.");
+    expect(screen.getByTestId("button-activities-quick-learn")).toHaveTextContent("Learn Something New");
+    expect(screen.getByTestId("button-activities-quick-play")).toHaveTextContent("Play a Brain Game");
   });
 
   it("routes the Strengthen Memory primary card to memory games", async () => {
@@ -133,13 +146,29 @@ describe("Activities service actions", () => {
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
   });
 
-  it("routes the calm activity card to the dedicated Relax & Breathe page", async () => {
+  it("routes the Relax & Breathe quick action to the dedicated page", async () => {
     renderActivities();
 
-    fireEvent.click(screen.getByTestId("activity-card-brain-activities-meditation"));
+    fireEvent.click(screen.getByTestId("button-activities-quick-relax"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/activities/relax-breathe"));
     expect(screen.getByTestId("route-state")).toHaveTextContent("{}");
+  });
+
+  it("routes the Learn Something New quick action to language activities", async () => {
+    renderActivities();
+
+    fireEvent.click(screen.getByTestId("button-activities-quick-learn"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/language"));
+  });
+
+  it("routes the brain game quick action to memory games", async () => {
+    renderActivities();
+
+    fireEvent.click(screen.getByTestId("button-activities-quick-play"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
   });
 
   it("opens social rooms from the companionship tile", async () => {

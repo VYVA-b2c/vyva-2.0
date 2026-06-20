@@ -1730,6 +1730,26 @@
       "bookTrip": "Planear un viaje",
       "researchCompany": "Investigar una empresa"
     },
+    "fastHelp": {
+      "kicker": "Ayuda rapida",
+      "title": "Que necesitas ahora?",
+      "doctorContext": "Solicitud de ayuda medica desde Concierge. Pregunta que esta pasando y ayuda a preparar un siguiente paso seguro.",
+      "ridePrefill": "Ayudame a organizar transporte seguro. Pregunta destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion.",
+      "actions": {
+        "doctor": {
+          "label": "Ayuda medica",
+          "sub": "Hablar sobre una preocupacion de salud"
+        },
+        "appointment": {
+          "label": "Reservar cita",
+          "sub": "Preparar una solicitud para confirmar"
+        },
+        "ride": {
+          "label": "Reservar transporte",
+          "sub": "Organizar traslado seguro"
+        }
+      }
+    },
     "chatTitle": "Chatea con VYVA",
     "placeholder": "Pregúntame lo que quieras — servicios, ahorro, planes, consejos…",
     "chatEmptyHint": "Usa una acción rápida o escribe tu propia pregunta.",
