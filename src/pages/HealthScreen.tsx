@@ -1472,15 +1472,6 @@ const HealthScreen = () => {
     setSpecialistVoiceListening(false);
   };
 
-  const resetSpecialistSearch = () => {
-    stopSpecialistVoice();
-    setSpecialistCondition("");
-    setSpecialistResult(null);
-    setSpecialistExamplePage(0);
-    setSpecialistLocationEdited(false);
-    setSpecialistLocation(profileLocation || "");
-  };
-
   const startSpecialistVoice = () => {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
@@ -1719,8 +1710,16 @@ const HealthScreen = () => {
   };
 
   const openVisualScan = () => {
-    setVisualScanOpen(true);
-    fileInputRef.current?.click();
+    const shouldOpen = !visualScanOpen;
+    setVisualScanOpen(shouldOpen);
+    if (shouldOpen) {
+      window.setTimeout(() => {
+        document.getElementById("health-visual-scan-panel")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 80);
+    }
   };
 
   const openSpecialistPanel = () => {
@@ -1933,12 +1932,16 @@ const HealthScreen = () => {
           <div className="grid grid-cols-1 gap-3">
             {FAST_HELP_ACTIONS.map((action) => {
               const Icon = action.Icon;
+              const isVisualScanAction = action.id === "visual-scan";
+              const visualScanExpanded = isVisualScanAction && (visualScanOpen || Boolean(woundResult));
               return (
                 <button
                   key={action.id}
                   type="button"
                   data-testid={`button-health-fast-${action.id}`}
                   onClick={action.action}
+                  aria-expanded={isVisualScanAction ? visualScanExpanded : undefined}
+                  aria-controls={isVisualScanAction ? "health-visual-scan-panel" : undefined}
                   className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5"
                   style={{
                     borderColor: action.border,
@@ -1959,6 +1962,19 @@ const HealthScreen = () => {
                       {action.sub}
                     </span>
                   </span>
+                  {isVisualScanAction ? (
+                    <span
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-transform"
+                      style={{
+                        background: "#FFFBEB",
+                        color: action.iconColor,
+                        transform: visualScanExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                      }}
+                      aria-hidden="true"
+                    >
+                      <ChevronDown size={20} strokeWidth={2.8} />
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -1967,6 +1983,7 @@ const HealthScreen = () => {
 
         {(visualScanOpen || woundResult) && (
           <div
+            id="health-visual-scan-panel"
             className="mt-4 overflow-hidden rounded-[24px] border border-[#FDE68A] bg-white shadow-[0_10px_24px_rgba(201,137,10,0.08)]"
             data-testid="section-health-visual-scan"
           >
@@ -2050,20 +2067,9 @@ const HealthScreen = () => {
             className="mt-4 overflow-hidden rounded-[24px] border border-[#DDD6FE] bg-white p-[18px] shadow-[0_10px_24px_rgba(124,58,237,0.08)]"
             data-testid="section-health-specialist"
           >
-            <div className="flex items-start justify-between gap-3">
-              <p className="font-body text-[15px] leading-relaxed text-vyva-text-2">
-                {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
-              </p>
-              <button
-                data-testid="button-reset-specialist-search"
-                type="button"
-                onClick={resetSpecialistSearch}
-                className="vyva-tap flex-shrink-0 rounded-full px-[10px] py-[6px] font-body text-[12px] font-semibold"
-                style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-              >
-                {t("health.findSpecialist.reset", "Reset")}
-              </button>
-            </div>
+            <p className="font-body text-[15px] leading-relaxed text-vyva-text-2">
+              {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
+            </p>
 
             <div className="flex items-center justify-between gap-2 pt-[12px] pb-[8px]">
               <p className="font-body text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#7C3AED" }}>
@@ -2511,20 +2517,9 @@ const HealthScreen = () => {
 
               {specialistOpen && (
                 <div className="px-[18px] pb-[16px]" style={{ borderTop: "1px solid #F5F3FF" }}>
-                  <div className="flex items-start justify-between gap-3 pt-[14px]">
-                    <p className="font-body text-[15px] leading-relaxed text-vyva-text-2">
-                      {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
-                    </p>
-                    <button
-                      data-testid="button-reset-specialist-search"
-                      type="button"
-                      onClick={resetSpecialistSearch}
-                      className="vyva-tap flex-shrink-0 rounded-full px-[10px] py-[6px] font-body text-[12px] font-semibold"
-                      style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                    >
-                      {t("health.findSpecialist.reset", "Reset")}
-                    </button>
-                  </div>
+                  <p className="pt-[14px] font-body text-[15px] leading-relaxed text-vyva-text-2">
+                    {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
+                  </p>
                   <div className="flex items-center justify-between gap-2 pt-[12px] pb-[8px]">
                     <p className="font-body text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#7C3AED" }}>
                       {t("health.findSpecialist.suggestions", "Suggestions for you")}

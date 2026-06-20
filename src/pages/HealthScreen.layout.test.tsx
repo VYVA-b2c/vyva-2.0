@@ -131,6 +131,8 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("health-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("button-health-fast-reports")).toHaveTextContent("My Reports");
     expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveTextContent("Visual Health Scan");
+    expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("section-health-visual-scan")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-health-fast-specialist")).toHaveTextContent("Find a Specialist");
   });
 
@@ -150,6 +152,7 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("section-health-specialist")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-health-fast-visual-scan"));
+    expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("section-health-visual-scan")).toBeInTheDocument();
   });
 });
