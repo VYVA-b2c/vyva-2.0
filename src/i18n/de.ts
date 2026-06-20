@@ -218,6 +218,8 @@ const de = {
       appointment: "Medikamententermin",
       appointmentSub: "VYVA bereitet die Terminanfrage zur Bestatigung vor.",
       appointmentPrefill: "Bitte helfen Sie mir, einen Termin zur Medikamentenprufung zu planen. Bericht: {{summary}}. Braucht Aufmerksamkeit: {{attention}}. Vor jeder Buchung bitte bestatigen lassen.",
+      ride: "Transport finden",
+      rideSub: "Sichere Wege dorthin vergleichen.",
       doctorNoteTitle: "VYVA Medikamenten-Adhaerenzbericht",
     },
   },
@@ -274,7 +276,14 @@ const de = {
       actions: {
         doctorHelp: "Arzthilfe",
         appointment: "Termin",
-        ride: "Fahrt buchen",
+        ride: "Transport finden",
+      },
+    },
+    seeDoctor: {
+      actions: {
+        bookTransport: "Transport finden",
+        bookTransportSub: "Sichere Wege dorthin vergleichen.",
+        ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen fur einen Arzttermin zu finden. Vor jeder Buchung bitte bestatigen lassen.\n\n{{context}}",
       },
     },
     vitalsPage: {
@@ -374,11 +383,14 @@ const de = {
         emailGpSub: "Gesundheitskontext senden.",
         bookAppointment: "Termin buchen",
         bookAppointmentSub: "VYVA bereitet die Anfrage vor.",
-        bookRide: "Fahrt buchen",
-        bookRideSub: "Fahrt zur Versorgung organisieren.",
+        bookRide: "Transport finden",
+        bookRideSub: "Sichere Wege dorthin vergleichen.",
         addGp: "Arztkontakt hinzufuegen",
         addGpSub: "Telefon oder E-Mail zuerst speichern.",
       },
+    },
+    findSpecialist: {
+      bookRide: "Transport finden",
     },
     symptomCheck: {
       intro: {
@@ -495,13 +507,13 @@ const de = {
           callGp: "Arzt anrufen",
           emailGp: "Arzt mailen",
           doctorHelp: "Arzthilfe",
-          bookRide: "Fahrt buchen",
+          bookRide: "Transport finden",
           scheduleAppointment: "Termin",
           onlineOrder: "Get support package",
           requestQuote: "Angebot anfragen",
           aria: "{{action}} fur: {{recommendation}}",
           emailSubject: "VYVA Symptombericht",
-          ridePrefill: "Bitte helfen Sie mir, eine sichere Fahrt fur diese Gesundheitsempfehlung zu buchen: {{recommendation}}. Bericht: {{report}}. Fragen Sie vor der Buchung nach meiner Bestatigung.",
+          ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen fur diese Gesundheitsempfehlung zu finden: {{recommendation}}. Bericht: {{report}}. Fragen Sie vor der Buchung nach meiner Bestatigung.",
           appointmentPrefill: "Bitte helfen Sie mir, Versorgung fur diese Gesundheitsempfehlung zu planen: {{recommendation}}. Bericht: {{report}}. Fragen Sie vor der Buchung nach meiner Bestatigung.",
           hydrationPrefill: "Unterstutzung bei Hydration fur diese Gesundheitsempfehlung: {{recommendation}}. Bitte schlagen Sie einfache Lieferoptionen wie Wasser, orale Rehydratationssalze oder Elektrolytgetranke vor.",
           quotePrefill: "Bitte helfen Sie mir, ein Angebot anzufragen, damit jemand bei mir bleibt oder mich zu Hause unterstutzt: {{recommendation}}. Bericht: {{report}}. Fragen Sie vor jeder Anfrage nach meiner Bestatigung.",
@@ -951,18 +963,49 @@ const de = {
       },
     },
   },
+  home: {
+    fastHelp: {
+      ride: {
+        label: "Transport finden",
+        sub: "Sichere Wege dorthin vergleichen.",
+      },
+      ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen zu finden. Fragen Sie nach Ziel und Zeit und buchen Sie nichts ohne meine Bestatigung.",
+    },
+  },
+  concierge: {
+    fastHelp: {
+      ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen zu finden. Fragen Sie nach Ziel und Zeit, bereiten Sie klare Optionen vor und buchen Sie nichts ohne meine Bestatigung.",
+      actions: {
+        ride: {
+          label: "Transport finden",
+          sub: "Sichere Wege dorthin vergleichen",
+        },
+      },
+    },
+  },
+  activity: {
+    bookRide: "Transport finden",
+    bookRideSub: "Sichere Wege dorthin vergleichen.",
+    ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen fur eine {{duration}}-minutige Aktivitat {{activity}} zu finden. Fragen Sie nach meiner Bestatigung, bevor etwas gebucht wird.",
+  },
+  statusVitals: {
+    actions: {
+      ride: "Transport finden",
+      ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen fur diese VYVA-Vitalwerte zu finden. Vor jeder Buchung bitte bestatigen lassen.",
+    },
+  },
   informes: {
     fastServiceAccess: "Schneller Servicezugang",
     actions: {
       reviewVitals: "Vitalwerte ansehen",
       doctorHelp: "Arzthilfe",
       bookAppointment: "Termin",
-      bookRide: "Fahrt buchen",
+      bookRide: "Transport finden",
       reviewMeds: "Medikamente ansehen",
       prepareRefill: "Nachfullung",
       vitalsContext: "Letzte VYVA Vitalwerte: Puls {{bpm}} bpm{{resp}}. Bitte helfen Sie mir, den sichersten nachsten Schritt zu wahlen.",
       vitalsAppointmentPrefill: "Bitte helfen Sie mir, einen Termin zur Prufung dieser VYVA Vitalwerte zu planen. {{context}} Bitte vor der Buchung bestatigen lassen.",
-      vitalsRidePrefill: "Bitte helfen Sie mir, eine sichere Fahrt zu einem medizinischen Termin wegen dieser VYVA Vitalwerte zu organisieren. {{context}} Bitte vor der Buchung bestatigen lassen.",
+      vitalsRidePrefill: "Bitte helfen Sie mir, sichere Transportoptionen fur einen medizinischen Termin wegen dieser VYVA Vitalwerte zu finden. {{context}} Bitte vor der Buchung bestatigen lassen.",
       medsContext: "Medikamentenstatus heute: {{taken}} von {{total}} genommen, {{pending}} noch offen.",
       medsRefillPrefill: "Bitte helfen Sie mir, eine sichere Apotheken-Nachfullung oder Lieferung vorzubereiten: {{context}} Bitte vor Bestellung oder Zahlung bestatigen lassen.",
       medsDoctorContext: "VYVA Medikamentenhilfe. {{context}} Bitte helfen Sie mir zu entscheiden, ob ich Arzt oder Apotheke kontaktieren soll.",

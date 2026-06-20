@@ -245,7 +245,7 @@ const CHECKIN_TEXT = {
     appActions: {
       care: ["Buscar atención médica", "Si empeora, hay dolor en el pecho, falta de aire o confusión, no esperes."],
       appointment: ["Pedir cita médica", "VYVA prepara la solicitud con tu lectura de hoy para que confirmes antes de reservar."],
-      ride: ["Reservar transporte", "Organiza un viaje seguro para atención médica si decides salir."],
+      ride: ["Buscar transporte", "Compara formas seguras de llegar si decides salir."],
       order: ["Pedir entrega", "Prepara compra o farmacia a domicilio y confirma antes de pedir o pagar."],
       quote: ["Pedir ayuda en casa", "Solicita presupuesto para acompañamiento o apoyo en casa, siempre con confirmacion."],
       symptom: ["Hacer chequeo de síntomas", "VYVA te guía con preguntas claras y te ayuda a decidir el siguiente paso."],
@@ -313,7 +313,7 @@ const CHECKIN_TEXT = {
     appActions: {
       care: ["Seek medical attention", "If things worsen, or there is chest pain, breathlessness, or confusion, do not wait."],
       appointment: ["Book care appointment", "VYVA prepares the request with today's reading so you can confirm before booking."],
-      ride: ["Book transport", "Arrange a safe ride to care if you decide to go."],
+      ride: ["Find transport", "Compare safe ways to get there if you decide to go."],
       order: ["Order delivery", "Prepare grocery or pharmacy delivery and confirm before ordering or paying."],
       quote: ["Request home help", "Request a quote for companion or home support, always with confirmation."],
       symptom: ["Do a symptom check", "VYVA guides you with clear questions and helps decide the next step."],
@@ -593,7 +593,7 @@ const CHECKIN_LAUNCH_TEXT = {
     appActions: {
       care: ["Procurar assistência médica", "Se piorar, ou houver dor no peito, falta de ar ou confusão, não esperes."],
       appointment: ["Marcar consulta", "A VYVA prepara o pedido com a leitura de hoje. Tu confirmas antes da marcação."],
-      ride: ["Reservar transporte", "Organiza uma viagem segura para cuidados se decidires ir."],
+      ride: ["Encontrar transporte", "Compare formas seguras de chegar se decidir sair."],
       order: ["Pedir entrega", "Prepara compras ou farmácia ao domicílio. Confirmas antes de pedir ou pagar."],
       quote: ["Ajuda em casa", "Pede orçamento para companhia ou apoio em casa, sempre com confirmação."],
       symptom: ["Fazer cheque de sintomas", "A VYVA guia-te com perguntas claras e ajuda a decidir o próximo passo."],
@@ -1355,7 +1355,7 @@ export function appActionsFor(answers: Answers, result: CheckinResult): AppActio
       case "ride":
         return {
           key,
-          title: "Reservar transporte",
+          title: "Buscar transporte",
           description: "Organiza un viaje seguro para atencion medica si decides salir.",
           to: "/concierge",
           primary,
@@ -1692,7 +1692,7 @@ export function checkinActionNavigationFor(
         conciergePrefill: {
           kind: isRide ? "ride" : "appointment",
           message: isRide
-            ? `Please help me arrange safe transport for care based on today's VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`
+            ? `Please help me find safe transport options for care based on today's VYVA check-in. Ask me to confirm before contacting anyone.\n\n${contextText}`
             : `Please help me schedule a care appointment based on today's VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`,
           source: "daily_checkin",
         },

@@ -226,8 +226,10 @@ export default function HealthDevicesSettings() {
     queryKey: ["/api/settings/health-devices"],
     retry: false,
   });
-  const storedDevices = data?.devices ?? [];
-  const readyById = useMemo(() => new Map(storedDevices.map((device) => [device.id, device])), [storedDevices]);
+  const readyById = useMemo(() => {
+    const storedDevices = data?.devices ?? [];
+    return new Map(storedDevices.map((device) => [device.id, device]));
+  }, [data?.devices]);
   const bluetoothSupported = isWebBluetoothSupported();
 
   const updateDeviceCache = (payload: { devices: StoredHealthDevice[] }) => {

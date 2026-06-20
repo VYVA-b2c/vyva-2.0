@@ -216,6 +216,8 @@ const fr = {
       appointment: "Rendez-vous medicaments",
       appointmentSub: "VYVA prepare la demande de rendez-vous pour confirmation.",
       appointmentPrefill: "Aidez-moi a programmer un rendez-vous de revue des medicaments. Rapport: {{summary}}. A surveiller: {{attention}}. Demandez ma confirmation avant toute reservation.",
+      ride: "Trouver transport",
+      rideSub: "Comparer des facons sures d'y aller.",
       doctorNoteTitle: "Rapport VYVA d'observance medicamenteuse",
     },
   },
@@ -272,7 +274,14 @@ const fr = {
       actions: {
         doctorHelp: "Aide medecin",
         appointment: "Rendez-vous",
-        ride: "Reserver transport",
+        ride: "Trouver transport",
+      },
+    },
+    seeDoctor: {
+      actions: {
+        bookTransport: "Trouver transport",
+        bookTransportSub: "Comparer des facons sures d'y aller.",
+        ridePrefill: "Aidez-moi a trouver des options de transport sur pour un rendez-vous medical. Demandez ma confirmation avant toute reservation.\n\n{{context}}",
       },
     },
     vitalsPage: {
@@ -372,11 +381,14 @@ const fr = {
         emailGpSub: "Envoyer le contexte sante.",
         bookAppointment: "Prendre rendez-vous",
         bookAppointmentSub: "VYVA prepare la demande.",
-        bookRide: "Reserver transport",
-        bookRideSub: "Organiser le trajet vers les soins.",
+        bookRide: "Trouver transport",
+        bookRideSub: "Comparer des facons sures d'y aller.",
         addGp: "Ajouter medecin",
         addGpSub: "Enregistrez telephone ou email.",
       },
+    },
+    findSpecialist: {
+      bookRide: "Trouver transport",
     },
     symptomCheck: {
       intro: {
@@ -493,13 +505,13 @@ const fr = {
           callGp: "Appeler le medecin",
           emailGp: "Email au medecin",
           doctorHelp: "Aide medecin",
-          bookRide: "Reserver un trajet",
+          bookRide: "Trouver transport",
           scheduleAppointment: "Rendez-vous",
           onlineOrder: "Get support package",
           requestQuote: "Demander un devis",
           aria: "{{action}} pour : {{recommendation}}",
           emailSubject: "Rapport de symptomes VYVA",
-          ridePrefill: "Aidez-moi a reserver un trajet sur pour cette recommandation de sante : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant de reserver.",
+          ridePrefill: "Aidez-moi a trouver des options de transport sur pour cette recommandation de sante : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant de reserver.",
           appointmentPrefill: "Aidez-moi a planifier des soins pour cette recommandation de sante : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant de reserver.",
           hydrationPrefill: "Aide a l'hydratation pour cette recommandation de sante : {{recommendation}}. Proposez des options de livraison simples comme de l'eau, des sels de rehydratation orale ou des boissons electrolytiques.",
           quotePrefill: "Aidez-moi a demander un devis pour qu'une personne reste avec moi ou m'aide a domicile : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant toute demande.",
@@ -988,18 +1000,49 @@ const fr = {
       },
     },
   },
+  home: {
+    fastHelp: {
+      ride: {
+        label: "Trouver transport",
+        sub: "Comparer des facons sures d'y aller.",
+      },
+      ridePrefill: "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, et ne reservez rien sans ma confirmation.",
+    },
+  },
+  concierge: {
+    fastHelp: {
+      ridePrefill: "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, preparez des options claires et ne reservez rien sans ma confirmation.",
+      actions: {
+        ride: {
+          label: "Trouver transport",
+          sub: "Comparer des facons sures d'y aller",
+        },
+      },
+    },
+  },
+  activity: {
+    bookRide: "Trouver transport",
+    bookRideSub: "Comparer des facons sures d'y aller.",
+    ridePrefill: "Aidez-moi a trouver des options de transport sur pour une activite {{activity}} de {{duration}} minutes. Demandez-moi confirmation avant toute reservation.",
+  },
+  statusVitals: {
+    actions: {
+      ride: "Trouver transport",
+      ridePrefill: "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. Demandez ma confirmation avant toute reservation.",
+    },
+  },
   informes: {
     fastServiceAccess: "Acces rapide aux services",
     actions: {
       reviewVitals: "Voir constantes",
       doctorHelp: "Aide medecin",
       bookAppointment: "Rendez-vous",
-      bookRide: "Transport",
+      bookRide: "Trouver transport",
       reviewMeds: "Voir medicaments",
       prepareRefill: "Renouvellement",
       vitalsContext: "Dernieres constantes VYVA : pouls {{bpm}} bpm{{resp}}. Aidez-moi a choisir l'etape la plus sure.",
       vitalsAppointmentPrefill: "Aidez-moi a planifier une consultation pour ces constantes VYVA. {{context}} Demandez ma confirmation avant toute reservation.",
-      vitalsRidePrefill: "Aidez-moi a organiser un transport sur pour une visite medicale liee a ces constantes VYVA. {{context}} Demandez ma confirmation avant toute reservation.",
+      vitalsRidePrefill: "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. {{context}} Demandez ma confirmation avant toute reservation.",
       medsContext: "Etat des medicaments aujourd'hui : {{taken}} sur {{total}} pris, {{pending}} restants.",
       medsRefillPrefill: "Aidez-moi a preparer un renouvellement ou une livraison pharmacie selon cet etat : {{context}} Demandez ma confirmation avant toute commande ou paiement.",
       medsDoctorContext: "Demande d'aide medicaments VYVA. {{context}} Aidez-moi a decider si je dois contacter mon medecin ou pharmacien.",

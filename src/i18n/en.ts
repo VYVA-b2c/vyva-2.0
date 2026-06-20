@@ -217,6 +217,8 @@ const en = {
       appointment: "Medication appointment",
       appointmentSub: "VYVA prepares the appointment request for you to confirm.",
       appointmentPrefill: "Please help me schedule a medication review appointment. Medication report: {{summary}}. Needs attention: {{attention}}. Ask me to confirm before booking anything.",
+      ride: "Find transport",
+      rideSub: "Compare safe ways to get there.",
       doctorNoteTitle: "VYVA medication adherence report",
     },
   },
@@ -273,7 +275,14 @@ const en = {
       actions: {
         doctorHelp: "Doctor help",
         appointment: "Appointment",
-        ride: "Book ride",
+        ride: "Find transport",
+      },
+    },
+    seeDoctor: {
+      actions: {
+        bookTransport: "Find transport",
+        bookTransportSub: "Compare safe ways to get there.",
+        ridePrefill: "Please help me find safe transport options for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
       },
     },
     vitalsPage: {
@@ -373,11 +382,14 @@ const en = {
         emailGpSub: "Send the health context.",
         bookAppointment: "Book appointment",
         bookAppointmentSub: "VYVA prepares the request.",
-        bookRide: "Book transport",
-        bookRideSub: "Arrange a ride to care.",
+        bookRide: "Find transport",
+        bookRideSub: "Compare safe ways to get there.",
         addGp: "Add GP contact",
         addGpSub: "Save phone or email first.",
       },
+    },
+    findSpecialist: {
+      bookRide: "Find transport",
     },
     symptomCheck: {
       intro: {
@@ -513,13 +525,13 @@ const en = {
           callGp: "Call GP",
           emailGp: "Email GP",
           doctorHelp: "Doctor help",
-          bookRide: "Book ride",
+          bookRide: "Find transport",
           scheduleAppointment: "Appointment",
           onlineOrder: "Get support package",
           requestQuote: "Request quote",
           aria: "{{action}} for: {{recommendation}}",
           emailSubject: "VYVA symptom report",
-          ridePrefill: "Please help me book a safe ride for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
+          ridePrefill: "Please help me find safe transport options for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
           appointmentPrefill: "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
           hydrationPrefill: "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
           quotePrefill: "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.",
@@ -1027,18 +1039,49 @@ const en = {
       },
     },
   },
+  home: {
+    fastHelp: {
+      ride: {
+        label: "Find transport",
+        sub: "Compare safe ways to get there.",
+      },
+      ridePrefill: "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+    },
+  },
+  concierge: {
+    fastHelp: {
+      ridePrefill: "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+      actions: {
+        ride: {
+          label: "Find transport",
+          sub: "Compare safe ways to get there",
+        },
+      },
+    },
+  },
+  activity: {
+    bookRide: "Find transport",
+    bookRideSub: "Compare safe ways to get there.",
+    ridePrefill: "Please help me find safe transport options for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
+  },
+  statusVitals: {
+    actions: {
+      ride: "Find transport",
+      ridePrefill: "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking.",
+    },
+  },
   informes: {
     fastServiceAccess: "Fast service access",
     actions: {
       reviewVitals: "Review vitals",
       doctorHelp: "Doctor help",
       bookAppointment: "Appointment",
-      bookRide: "Book ride",
+      bookRide: "Find transport",
       reviewMeds: "Review meds",
       prepareRefill: "Prepare refill",
       vitalsContext: "Latest VYVA vitals: pulse {{bpm}} bpm{{resp}}. Please help me decide the safest next step.",
       vitalsAppointmentPrefill: "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
-      vitalsRidePrefill: "Please help me arrange safe transport for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
+      vitalsRidePrefill: "Please help me find safe transport options for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
       medsContext: "Today's medication status: {{taken}} of {{total}} taken, {{pending}} still pending.",
       medsRefillPrefill: "Please help me prepare a safe pharmacy refill or delivery based on this medication status: {{context}} Ask me to confirm before ordering or paying.",
       medsDoctorContext: "VYVA medication support request. {{context}} Please help me decide if I should contact my doctor or pharmacist.",

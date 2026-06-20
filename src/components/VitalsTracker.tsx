@@ -149,7 +149,7 @@ const COPY = {
     doctorHelp: "Arzthilfe",
     addDoctor: "Arzt hinzufugen",
     appointment: "Termin buchen",
-    ride: "Fahrt buchen",
+    ride: "Transport finden",
     shareSummary: "Zusammenfassung teilen",
     sourceEstimated: "Geschatzt",
     sourceManual: "Manuell",
@@ -195,7 +195,7 @@ const COPY = {
     doctorHelp: "Doctor help",
     addDoctor: "Add doctor",
     appointment: "Book appointment",
-    ride: "Book ride",
+    ride: "Find transport",
     shareSummary: "Share summary",
     sourceEstimated: "Estimated",
     sourceManual: "Manual",
@@ -1177,7 +1177,7 @@ export default function VitalsTracker({
       ? language === "de"
         ? "Bitte hilf mir, eine sichere Fahrt wegen meiner VYVA Vitalwerte zu organisieren. Vor der Buchung bitte bestaetigen lassen."
         : language === "en"
-          ? "Please help me arrange safe transport based on my VYVA vitals. Ask me to confirm before booking."
+          ? "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before contacting anyone."
           : "Ayudame a organizar transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar."
       : language === "de"
         ? "Bitte hilf mir, einen Arzttermin wegen meiner VYVA Vitalwerte zu vereinbaren. Vor der Buchung bitte bestaetigen lassen."

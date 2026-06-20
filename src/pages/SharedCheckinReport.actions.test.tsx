@@ -108,7 +108,7 @@ describe("SharedCheckinReport service actions", () => {
     });
     expect(screen.getByTestId("shared-checkin-service-actions")).toHaveTextContent("Doctor help");
     expect(screen.getByTestId("shared-checkin-service-actions")).toHaveTextContent("Book appointment");
-    expect(screen.getByTestId("shared-checkin-service-actions")).toHaveTextContent("Book ride");
+    expect(screen.getByTestId("shared-checkin-service-actions")).toHaveTextContent("Find transport");
 
     fireEvent.click(screen.getByTestId("button-shared-checkin-service-doctor_help"));
 

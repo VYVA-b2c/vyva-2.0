@@ -135,15 +135,15 @@ export function sharedCheckinServiceActionsFor(result: SharedCheckinResult, name
     });
     actions.push({
       key: "ride",
-      label: isSpanish ? "Reservar transporte" : "Book ride",
-      description: isSpanish ? "Organizar transporte seguro si hace falta." : "Arrange safe transport if needed.",
+      label: isSpanish ? "Buscar transporte" : "Find transport",
+      description: isSpanish ? "Comparar opciones seguras si hace falta." : "Compare safe transport options if needed.",
       to: "/concierge",
       state: {
         conciergePrefill: {
           kind: "ride",
           message: isSpanish
             ? `Ayudame a preparar transporte seguro para atencion basada en este informe compartido de VYVA. Confirma conmigo antes de reservar.\n\n${context}`
-            : `Please help me arrange safe transport for care based on this shared VYVA report. Ask me to confirm before booking.\n\n${context}`,
+            : `Please help me find safe transport options for care based on this shared VYVA report. Ask me to confirm before contacting anyone.\n\n${context}`,
           source: "shared_checkin",
         },
       },
