@@ -494,7 +494,6 @@ export default function NumberTrails({ userId, onExit }) {
     instructionAlt: t("games.numberTrails.instructionAlt"),
     example: t("games.numberTrails.example"),
     tapInOrder: t("games.numberTrails.tapInOrder"),
-    practiceExample: t("games.numberTrails.practiceExample"),
     nextTarget: t("games.numberTrails.nextTarget"),
     stillThere: t("games.numberTrails.stillThere"),
     badgeNumeric: t("games.numberTrails.badgeNumeric"),
@@ -1239,17 +1238,6 @@ export default function NumberTrails({ userId, onExit }) {
               {text.start}
             </button>
 
-            {tutorialSeen && (
-              <button
-                type="button"
-                onClick={() => setScreen("tutorial")}
-                className="mx-auto mt-4 flex min-h-[56px] items-center justify-center rounded-full border-2 bg-white px-5 text-[20px] font-extrabold"
-                style={{ borderColor: BRAND.border, color: BRAND.purple }}
-              >
-                {text.practiceExample}
-              </button>
-            )}
-
             <p className="mt-5 text-center text-[24px] font-semibold leading-[1.35]" style={{ color: BRAND.ink }}>
               {instruction}
             </p>
@@ -1418,19 +1406,21 @@ export default function NumberTrails({ userId, onExit }) {
             </p>
           )}
 
-          <div className="mt-6 text-left">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[22px] font-extrabold" style={{ color: BRAND.ink }}>
-                {formatTemplate(text.nextLevel, { n: nextTier })}
-              </p>
-              <p className="text-[22px] font-extrabold" style={{ color: BRAND.purple }}>
-                {Math.round(promotionProgress * 3)}/3
-              </p>
+          {!resultWasPromoted && (
+            <div className="mt-6 text-left">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[22px] font-extrabold" style={{ color: BRAND.ink }}>
+                  {formatTemplate(text.nextLevel, { n: nextTier })}
+                </p>
+                <p className="text-[22px] font-extrabold" style={{ color: BRAND.purple }}>
+                  {Math.round(promotionProgress * 3)}/3
+                </p>
+              </div>
+              <div className="mt-3 h-4 overflow-hidden rounded-full bg-[#F0E7F8]">
+                <div className="h-full rounded-full transition-all" style={{ width: `${promotionProgress * 100}%`, background: BRAND.gold }} />
+              </div>
             </div>
-            <div className="mt-3 h-4 overflow-hidden rounded-full bg-[#F0E7F8]">
-              <div className="h-full rounded-full transition-all" style={{ width: `${promotionProgress * 100}%`, background: BRAND.gold }} />
-            </div>
-          </div>
+          )}
 
           <BrainGameResultActions
             className="mt-6"

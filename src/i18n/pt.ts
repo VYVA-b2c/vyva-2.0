@@ -714,7 +714,6 @@ const pt = {
       instructionAlt: "Siga a rota: 1, A, 2, B, 3, C...",
       example: "Exemplo de pratica - sem pontuacao",
       tapInOrder: "Siga o caminho desde o 1.",
-      practiceExample: "Exemplo de pratica",
       nextTarget: "Ponto seguinte: {label}",
       stillThere: "Leve o tempo que precisar. O proximo ponto esta marcado.",
       badgeNumeric: "So numeros",

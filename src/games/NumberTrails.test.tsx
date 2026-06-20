@@ -3,6 +3,42 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import NumberTrails, { pickFreshNumberTrailConfig } from "./NumberTrails";
 
+const supabaseMock = vi.hoisted(() => {
+  const queue: Array<{ data: unknown; error: unknown }> = [];
+  const from = vi.fn(() => {
+    const query: Record<string, unknown> = {};
+    query.select = vi.fn(() => query);
+    query.eq = vi.fn(() => query);
+    query.gte = vi.fn(() => query);
+    query.lt = vi.fn(() => query);
+    query.limit = vi.fn(() => query);
+    query.not = vi.fn(() => query);
+    query.order = vi.fn(() => query);
+    query.insert = vi.fn((payload) => Promise.resolve({ data: [{ id: "session-1", payload }], error: null }));
+    query.upsert = vi.fn((payload) => {
+      query.payload = payload;
+      return query;
+    });
+    query.single = vi.fn(() => Promise.resolve({ data: query.payload, error: null }));
+    query.maybeSingle = vi.fn(() => Promise.resolve(queue.shift() ?? { data: null, error: null }));
+    query.then = (onfulfilled: (value: unknown) => unknown, onrejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(queue.shift() ?? { data: null, error: null }).then(onfulfilled, onrejected);
+    return query;
+  });
+
+  return { from, queue };
+});
+
+vi.mock("../lib/supabaseClient", () => ({
+  supabase: {
+    from: supabaseMock.from,
+  },
+}));
+
+vi.mock("./shared/brainCoachSessions", () => ({
+  recordCognitiveSession: vi.fn().mockResolvedValue(null),
+}));
+
 function tapCurrentTrail(labels = ["1", "2", "3", "4", "5"]) {
   labels.forEach((label) => {
     fireEvent.click(screen.getByRole("button", { name: label }));
@@ -18,6 +54,8 @@ describe("NumberTrails", () => {
   beforeEach(() => {
     window.localStorage.clear();
     setLanguage("es");
+    supabaseMock.queue.length = 0;
+    supabaseMock.from.mockClear();
   });
 
   it("plays a local practice trail, ignores an out-of-order tap, completes, and exits", async () => {
@@ -93,6 +131,56 @@ describe("NumberTrails", () => {
     expect(await screen.findByRole("heading", { name: /Sendero/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Empezar" }));
     expect(nodePosition("1")).not.toBe(firstTrailPosition);
+  }, 10_000);
+
+  it("does not show next-next level progress when a level is unlocked", async () => {
+    setLanguage("en");
+    window.localStorage.setItem("numberTrails:tutorialSeen:v1", "true");
+    const userState = {
+      user_id: "user-1",
+      current_tier: 1,
+      sessions_at_tier: 2,
+      consecutive_wins: 2,
+      consecutive_losses: 0,
+      total_sessions: 2,
+      best_score: 500,
+      last_played_at: null,
+      streak_days: 1,
+      last_streak_date: null,
+      updated_at: new Date().toISOString(),
+    };
+    const config = {
+      id: "config-1",
+      trail_type: "numeric",
+      node_count: 5,
+      nodes: [
+        { label: "1", x: 0.15, y: 0.2 },
+        { label: "2", x: 0.72, y: 0.35 },
+        { label: "3", x: 0.3, y: 0.58 },
+        { label: "4", x: 0.8, y: 0.7 },
+        { label: "5", x: 0.45, y: 0.88 },
+      ],
+      par_time_seconds: 30,
+      difficulty_tier: 1,
+      language: "en",
+      is_active: true,
+    };
+
+    supabaseMock.queue.push(
+      { data: userState, error: null },
+      { data: [], error: null },
+      { data: [config], error: null },
+      { data: userState, error: null },
+    );
+
+    render(<NumberTrails userId="user-1" />);
+
+    expect(await screen.findByRole("heading", { name: "Number Trails" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    tapCurrentTrail();
+
+    expect(await screen.findByRole("button", { name: "Continue to Level 2" })).toBeInTheDocument();
+    expect(screen.queryByText("Next level: 3")).not.toBeInTheDocument();
   }, 10_000);
 
   it("prefers database configs outside the recent local guard", () => {

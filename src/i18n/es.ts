@@ -716,7 +716,6 @@ const es = {
       instructionAlt: "Sigue la ruta: 1, A, 2, B, 3, C...",
       example: "Ejemplo de practica - sin puntuacion",
       tapInOrder: "Sigue el camino desde el 1.",
-      practiceExample: "Ejemplo de practica",
       nextTarget: "Siguiente punto: {label}",
       stillThere: "Tomate tu tiempo. El siguiente punto esta resaltado.",
       badgeNumeric: "Solo números",

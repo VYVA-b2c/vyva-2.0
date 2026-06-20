@@ -714,7 +714,6 @@ const fr = {
       instructionAlt: "Suivez la route: 1, A, 2, B, 3, C...",
       example: "Exemple d'entrainement - sans score",
       tapInOrder: "Suivez le chemin depuis 1.",
-      practiceExample: "Exemple d'entrainement",
       nextTarget: "Point suivant: {label}",
       stillThere: "Prenez votre temps. Le prochain point est marque.",
       badgeNumeric: "Nombres seuls",

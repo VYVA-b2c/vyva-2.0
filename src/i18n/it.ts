@@ -714,7 +714,6 @@ const it = {
       instructionAlt: "Segui il percorso: 1, A, 2, B, 3, C...",
       example: "Esempio di pratica - senza punteggio",
       tapInOrder: "Segui il percorso dal numero 1.",
-      practiceExample: "Esempio di pratica",
       nextTarget: "Punto successivo: {label}",
       stillThere: "Prenditi il tempo necessario. Il prossimo punto e evidenziato.",
       badgeNumeric: "Solo numeri",

@@ -677,7 +677,6 @@ const de = {
       instructionAlt: "Folge der Route: 1, A, 2, B, 3, C...",
       example: "Uebungsbeispiel - ohne Wertung",
       tapInOrder: "Folge dem Weg ab 1.",
-      practiceExample: "Uebungsbeispiel",
       nextTarget: "Naechster Punkt: {label}",
       stillThere: "Nimm dir Zeit. Der naechste Punkt ist markiert.",
       badgeNumeric: "Nur Zahlen",
