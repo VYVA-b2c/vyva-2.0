@@ -2,7 +2,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { serviceForPath, useServiceGate, type ReadinessResponse, type ServiceReadiness } from "./useServiceGate";
+import {
+  READINESS_CHECK_TIMEOUT_MS,
+  fetchReadiness,
+  serviceForPath,
+  useServiceGate,
+  type ReadinessResponse,
+  type ServiceReadiness,
+} from "./useServiceGate";
 
 function ready(): ServiceReadiness {
   return { ready: true, missing: [] };
@@ -81,6 +88,7 @@ function renderGate(path: string, body: ReadinessResponse) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -134,5 +142,23 @@ describe("service readiness gates", () => {
         "/settings/subscription?returnTo=%2Fconcierge",
       );
     });
+  });
+
+  it("aborts readiness checks that hang instead of waiting forever", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(global, "fetch").mockImplementation((_url, init) => new Promise((_resolve, reject) => {
+      const signal = (init as RequestInit | undefined)?.signal;
+      if (signal?.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+      signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    }));
+
+    const request = fetchReadiness({});
+
+    vi.advanceTimersByTime(READINESS_CHECK_TIMEOUT_MS + 100);
+
+    await expect(request).rejects.toThrow();
   });
 });
