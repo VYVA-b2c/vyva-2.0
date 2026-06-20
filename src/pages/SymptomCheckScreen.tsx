@@ -280,7 +280,7 @@ export function AssessmentConfidenceTracker({
   if (variant === "compact") {
     return (
       <section
-        className="mx-[18px] overflow-hidden rounded-[28px] border border-[#D8C7FF] bg-white shadow-[0_16px_36px_rgba(63,45,35,0.10)]"
+        className="mx-4 overflow-hidden rounded-[28px] border border-[#D8C7FF] bg-white shadow-[0_16px_36px_rgba(63,45,35,0.10)] sm:mx-5 lg:mx-auto lg:w-full lg:max-w-[760px]"
         data-testid="assessment-confidence-tracker"
       >
         <div className="bg-[linear-gradient(135deg,#FFFFFF_0%,#F7F1FF_58%,#FFF8EA_100%)] px-4 py-4">
@@ -396,7 +396,7 @@ export function AssessmentConfidenceTracker({
 
   return (
     <div
-      className="mx-[18px] rounded-[30px] border border-[#E8DED4] bg-[linear-gradient(135deg,#FFFFFF_0%,#F6EEFF_48%,#FFF7E8_100%)] p-4 shadow-[0_16px_34px_rgba(63,45,35,0.10)]"
+      className="mx-4 rounded-[30px] border border-[#E8DED4] bg-[linear-gradient(135deg,#FFFFFF_0%,#F6EEFF_48%,#FFF7E8_100%)] p-4 shadow-[0_16px_34px_rgba(63,45,35,0.10)] sm:mx-5 lg:mx-auto lg:w-full lg:max-w-[760px]"
       data-testid="assessment-confidence-tracker"
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -691,14 +691,14 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
           if (suggestion.route) onNavigate?.(suggestion.route);
         }}
         data-testid={`button-symptom-intro-suggestion-${suggestion.id}`}
-        className={`vyva-tap group flex min-h-[78px] w-full items-center gap-3 rounded-[22px] border px-3 py-3 text-left shadow-[0_8px_20px_rgba(63,45,35,0.05)] transition ${tone.button}`}
+        className={`vyva-tap group flex min-h-[78px] w-full min-w-0 items-start gap-3 rounded-[22px] border px-3 py-3 text-left shadow-[0_8px_20px_rgba(63,45,35,0.05)] transition sm:items-center ${tone.button}`}
       >
         <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] ${tone.icon}`}>
           <Icon size={21} strokeWidth={2.6} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            <span className="break-words font-body text-[16px] font-black leading-tight text-vyva-text-1">
               {suggestion.label}
             </span>
             <span className={`rounded-full px-2.5 py-1 font-body text-[10px] font-black uppercase tracking-[0.08em] ${tone.badge}`}>
@@ -867,7 +867,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
       : voiceError;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-5 px-[18px] py-5">
+    <div className="mx-auto flex w-full min-w-0 max-w-[760px] flex-1 flex-col gap-5 px-4 py-5 sm:px-5 lg:px-0" data-testid="symptom-check-intro">
       <HealthWizardHero
         icon={<Stethoscope size={28} />}
         kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
@@ -906,7 +906,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
               }}
               placeholder={t("health.symptomCheck.intro.cluePlaceholder", "For example: bad headache...")}
               data-testid="input-symptom-clue"
-              className="min-h-[78px] w-full min-w-0 max-w-full rounded-[24px] border-2 border-[#DDD6FE] bg-white py-3 pl-5 pr-[76px] font-body text-[16px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:text-[22px] sm:pr-[86px]"
+              className="min-h-[78px] w-full min-w-0 max-w-full rounded-[24px] border-2 border-[#DDD6FE] bg-white py-3 pl-5 pr-[76px] font-body text-[17px] font-black text-vyva-text-1 shadow-[0_10px_26px_rgba(63,45,35,0.06)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:text-[22px] sm:pr-[86px]"
             />
             <button
               type="button"
@@ -986,7 +986,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions }: In
           onClick={() => onStart(cleanClue)}
           disabled={!canStart}
           data-testid="button-symptom-check-start"
-          className="vyva-primary-action min-h-[72px] w-full text-[20px] disabled:opacity-45"
+          className="vyva-primary-action min-h-[72px] w-full text-[18px] disabled:opacity-45 sm:text-[20px]"
         >
           {t("health.symptomCheck.intro.startBtn", "Start symptom check")}
         </button>
@@ -1665,11 +1665,11 @@ export function ReportScreen({
   const PrimaryActionIcon = primaryAction.Icon;
 
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="symptom-check-report">
       <div ref={reportTopRef} />
       <section
         data-testid="card-report-answer"
-        className={`mx-[18px] mb-4 mt-4 rounded-[28px] p-5 text-white shadow-[0_16px_36px_rgba(91,18,160,0.18)] ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
+        className={`mx-4 mb-4 mt-4 rounded-[28px] p-4 text-white shadow-[0_16px_36px_rgba(91,18,160,0.18)] sm:mx-5 sm:p-5 lg:mx-auto lg:w-full lg:max-w-[760px] ${isEmergency ? "motion-safe:animate-pulse" : ""}`}
         style={{ background: cfg.bg }}
       >
         <div className="flex items-start gap-3">
@@ -1683,13 +1683,13 @@ export function ReportScreen({
             <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.12em] text-white/76">
               {urgencyQualifierText}
             </p>
-            <p className="mt-1 font-display text-[28px] italic leading-tight text-white">
+            <p className="mt-1 font-display text-[25px] italic leading-tight text-white sm:text-[28px]">
               {urgencyStatusText}
             </p>
           </div>
         </div>
 
-        <p className="mt-5 font-body text-[24px] font-black leading-tight text-white">
+        <p className="mt-5 font-body text-[21px] font-black leading-tight text-white sm:text-[24px]">
           {nextStepDisplayText}
         </p>
         <p className="mt-2 font-body text-[16px] font-bold leading-relaxed text-white/90">
@@ -1700,7 +1700,7 @@ export function ReportScreen({
           <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="report-next-step-actions">
             {nextStepActions.map((action, index) => {
               const Icon = action.Icon;
-              const className = "vyva-tap inline-flex min-h-[52px] items-center justify-center gap-2 rounded-[16px] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-[0_10px_22px_rgba(31,15,54,0.14)]";
+              const className = "vyva-tap inline-flex min-h-[52px] min-w-0 items-center justify-center gap-2 rounded-[16px] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-[0_10px_22px_rgba(31,15,54,0.14)]";
               if (action.href) {
                 return (
                   <a
@@ -1710,8 +1710,8 @@ export function ReportScreen({
                     data-testid={`button-report-next-step-action-${index}-${action.kind}`}
                     className={className}
                   >
-                    <Icon size={19} />
-                    <span>{action.label}</span>
+                    <Icon size={19} className="flex-shrink-0" />
+                    <span className="min-w-0 break-words">{action.label}</span>
                   </a>
                 );
               }
@@ -1724,8 +1724,8 @@ export function ReportScreen({
                   data-testid={`button-report-next-step-action-${index}-${action.kind}`}
                   className={className}
                 >
-                  <Icon size={19} />
-                  <span>{action.label}</span>
+                  <Icon size={19} className="flex-shrink-0" />
+                  <span className="min-w-0 break-words">{action.label}</span>
                 </button>
               );
             })}
@@ -1758,7 +1758,7 @@ export function ReportScreen({
         </div>
       </section>
 
-      <div className="flex flex-col gap-4 px-[18px] pb-[236px]">
+      <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-4 pb-[210px] sm:px-5 sm:pb-[236px] lg:px-0">
         <section className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-next-step-explainer">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
@@ -1787,7 +1787,7 @@ export function ReportScreen({
             </div>
             <ul className="grid gap-3 border-l-4 border-[#7C3AED] pl-4">
               {visibleReasons.map((reason, index) => (
-                <li key={index} className="font-body text-[18px] font-black leading-snug text-vyva-text-1">
+                <li key={index} className="font-body text-[16px] font-black leading-snug text-vyva-text-1 sm:text-[18px]">
                   {reason}
                 </li>
               ))}
@@ -1815,7 +1815,7 @@ export function ReportScreen({
                       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid={`report-actions-${index}`}>
                         {actions.map((action) => {
                           const Icon = action.Icon;
-                          const className = "vyva-tap inline-flex min-h-[50px] items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-sm";
+                          const className = "vyva-tap inline-flex min-h-[50px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-4 py-3 text-center font-body text-[15px] font-black leading-tight text-vyva-purple shadow-sm";
                           if (action.href) {
                             return (
                               <a
@@ -1825,8 +1825,8 @@ export function ReportScreen({
                                 data-testid={`button-report-action-${index}-${action.kind}`}
                                 className={className}
                               >
-                                <Icon size={19} />
-                                <span>{action.label}</span>
+                                <Icon size={19} className="flex-shrink-0" />
+                                <span className="min-w-0 break-words">{action.label}</span>
                               </a>
                             );
                           }
@@ -1839,8 +1839,8 @@ export function ReportScreen({
                               data-testid={`button-report-action-${index}-${action.kind}`}
                               className={className}
                             >
-                              <Icon size={19} />
-                              <span>{action.label}</span>
+                              <Icon size={19} className="flex-shrink-0" />
+                              <span className="min-w-0 break-words">{action.label}</span>
                             </button>
                           );
                         })}
@@ -1869,7 +1869,7 @@ export function ReportScreen({
                   <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FFF7ED] text-[#C2410C] ring-2 ring-[#FDBA74]">
                     <AlertTriangle size={17} strokeWidth={2.5} />
                   </span>
-                  <span className="font-body text-[17px] font-black leading-snug text-[#9A3412]">
+                  <span className="font-body text-[15px] font-black leading-snug text-[#9A3412] sm:text-[17px]">
                     {sign}
                   </span>
                 </li>
@@ -1956,14 +1956,14 @@ export function ReportScreen({
                   <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-vyva-purple">
                     <Activity size={28} />
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
                       {t("health.symptomCheck.report.actionNeeded", "Action now")}
                     </p>
-                    <p className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                    <p className="mt-1 break-words font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
                       {action.title}
                     </p>
-                    <p className="mt-1 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
+                    <p className="mt-1 break-words font-body text-[15px] font-bold leading-snug text-vyva-text-2 sm:text-[16px]">
                       {action.helper}
                     </p>
                   </div>
@@ -2022,16 +2022,16 @@ export function ReportScreen({
                   </button>
                   {open ? (
                     <div className="grid min-w-0 gap-3 overflow-hidden border-t border-[#EADFD5] pt-3">
-                      <label className="flex min-h-[86px] w-full min-w-0 max-w-full items-baseline gap-3 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-white px-4">
+                      <label className="flex min-h-[86px] w-full min-w-0 max-w-full items-end gap-2 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-white px-4 py-2 sm:items-baseline sm:gap-3 sm:py-0">
                         <input
                           type="text"
                           inputMode={action.key === "bloodPressure" ? "text" : "decimal"}
                           value={value}
                           onChange={(event) => setVitalInputs((current) => ({ ...current, [action.key]: event.target.value }))}
                           placeholder={action.placeholder}
-                          className="w-full min-w-0 flex-1 bg-transparent font-body text-[44px] font-black leading-none text-vyva-text-1 outline-none placeholder:text-[#D6C7BA] sm:text-[48px]"
+                          className="w-full min-w-0 flex-1 bg-transparent font-body text-[34px] font-black leading-none text-vyva-text-1 outline-none placeholder:text-[#D6C7BA] sm:text-[48px]"
                         />
-                        <span className="flex-shrink-0 font-body text-[18px] font-black text-vyva-text-2 sm:text-[20px]">{action.unit}</span>
+                        <span className="flex-shrink-0 pb-1 font-body text-[15px] font-black text-vyva-text-2 sm:pb-0 sm:text-[20px]">{action.unit}</span>
                       </label>
                       {vitalInputError ? (
                         <p className="font-body text-[16px] font-black text-[#B91C1C]">{vitalInputError}</p>
@@ -2046,7 +2046,7 @@ export function ReportScreen({
                         type="button"
                         disabled={busy}
                         onClick={() => handleRefineVital(action, value)}
-                        className="vyva-tap flex min-h-[74px] w-full min-w-0 max-w-full items-center justify-center gap-3 overflow-hidden rounded-[22px] bg-[#0A7C4E] px-4 text-center font-body text-[18px] font-black leading-tight text-white disabled:opacity-60 sm:text-[20px]"
+                        className="vyva-tap flex min-h-[74px] w-full min-w-0 max-w-full items-center justify-center gap-3 overflow-hidden rounded-[22px] bg-[#0A7C4E] px-4 text-center font-body text-[16px] font-black leading-tight text-white disabled:opacity-60 sm:text-[20px]"
                       >
                         {busy ? <Loader2 size={22} className="animate-spin" /> : <CheckCircle size={22} />}
                         {busy
@@ -2060,7 +2060,7 @@ export function ReportScreen({
             );
           })}
           {refinementStatus.message ? (
-            <div className={`col-span-2 rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
+            <div className={`col-span-1 rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
               refinementStatus.state === "error"
                 ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
                 : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
@@ -2166,11 +2166,11 @@ export function ReportScreen({
 
         <details className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-            <span className="flex items-center gap-3">
+            <span className="flex min-w-0 items-center gap-3">
               <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#EFF6FF] text-[#1D4ED8]">
                 <FileText size={18} />
               </span>
-              <span className="font-body text-[15px] font-extrabold text-vyva-text-1">
+              <span className="min-w-0 font-body text-[15px] font-extrabold text-vyva-text-1">
                 {t("health.symptomCheck.report.showFullReport", "Show full report")}
               </span>
             </span>
@@ -2295,17 +2295,17 @@ export function ReportScreen({
         </p>
       </div>
 
-      <div className="pointer-events-none fixed bottom-[calc(96px+env(safe-area-inset-bottom))] left-1/2 z-[70] w-full max-w-[520px] -translate-x-1/2 bg-[linear-gradient(180deg,rgba(250,248,245,0)_0%,#FAF8F5_26%,#FAF8F5_100%)] px-[18px] pb-3 pt-5">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-[24px] border border-[#E8DED4]/80 bg-white/95 p-2 shadow-[0_18px_44px_rgba(63,45,35,0.14)] backdrop-blur">
+      <div className="pointer-events-none fixed bottom-[calc(84px+env(safe-area-inset-bottom))] left-1/2 z-[70] w-full max-w-[760px] -translate-x-1/2 bg-[linear-gradient(180deg,rgba(250,248,245,0)_0%,#FAF8F5_26%,#FAF8F5_100%)] px-4 pb-3 pt-5 sm:bottom-[calc(96px+env(safe-area-inset-bottom))] sm:px-5 lg:px-0">
+        <div className="pointer-events-auto flex items-center gap-1.5 rounded-[24px] border border-[#E8DED4]/80 bg-white/95 p-2 shadow-[0_18px_44px_rgba(63,45,35,0.14)] backdrop-blur sm:gap-2">
           <button
             type="button"
             onClick={primaryAction.onClick}
             disabled={isEmergency && !emergencyContact?.telHref}
             data-testid={primaryAction.testId}
-            className={`vyva-tap flex min-h-[58px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[17px] font-black leading-tight ${primaryAction.className}`}
+            className={`vyva-tap flex min-h-[54px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[18px] px-3 text-center font-body text-[15px] font-black leading-tight sm:min-h-[58px] sm:px-4 sm:text-[17px] ${primaryAction.className}`}
           >
-            <PrimaryActionIcon size={20} />
-            <span>{primaryAction.label}</span>
+            <PrimaryActionIcon size={20} className="flex-shrink-0" />
+            <span className="min-w-0 break-words">{primaryAction.label}</span>
           </button>
           <button
             type="button"
@@ -2313,7 +2313,7 @@ export function ReportScreen({
             aria-label={t("health.symptomCheck.report.shareReportAria", "Share report")}
             title={t("health.symptomCheck.report.shareReportAria", "Share report")}
             data-testid="button-report-share"
-            className="vyva-tap flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] text-vyva-purple"
+            className="vyva-tap flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-[18px] border border-[#E8DED4] bg-[#FAF9F6] text-vyva-purple sm:h-[58px] sm:w-[58px]"
           >
             <Share2 size={20} />
           </button>
@@ -2323,7 +2323,7 @@ export function ReportScreen({
             aria-label={t("health.symptomCheck.report.openReportAria", "Open report")}
             title={t("health.symptomCheck.report.openReportAria", "Open report")}
             data-testid="button-report-view-reports"
-            className="vyva-tap flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[18px] border border-[#E8DED4] bg-[#EFF6FF] text-[#1D4ED8]"
+            className="vyva-tap flex h-[54px] w-[54px] flex-shrink-0 items-center justify-center rounded-[18px] border border-[#E8DED4] bg-[#EFF6FF] text-[#1D4ED8] sm:h-[58px] sm:w-[58px]"
           >
             <FileText size={20} />
           </button>
@@ -2643,8 +2643,8 @@ export default function SymptomCheckScreen() {
   };
 
   return (
-    <HealthWizardShell contentClassName="flex min-h-[calc(100vh-204px)] flex-col overflow-hidden px-0 pb-0 pt-0">
-      <div className="px-[18px] pt-3" data-testid="symptom-check-shell">
+    <HealthWizardShell contentClassName="flex min-h-[calc(100dvh-204px)] max-w-[920px] flex-col overflow-hidden px-0 pb-0 pt-0">
+      <div className="mx-auto w-full max-w-[760px] px-4 pt-3 sm:px-5 lg:px-0" data-testid="symptom-check-shell">
         <HealthWizardTopBar
           title={stepTitle[step]}
           kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
@@ -2675,8 +2675,8 @@ export default function SymptomCheckScreen() {
         </div>
       )}
 
-      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
-        <div className="px-4 pt-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto w-full max-w-[760px] px-4 pt-4 sm:px-5 lg:px-0">
           <VoiceActionFulfillmentPanel
             domain="health"
             actionTypes={["health.symptom_support"]}

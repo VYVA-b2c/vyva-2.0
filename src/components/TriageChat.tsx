@@ -959,7 +959,7 @@ export default function TriageChat({
               {t("health.symptomCheck.chat.listening")}
             </p>
           )}
-          <div className="flex items-center gap-3 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)]">
+          <div className="flex items-center gap-1.5 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)] sm:gap-3">
             <input
               ref={inputRef}
               type="text"
@@ -969,7 +969,7 @@ export default function TriageChat({
               disabled={!languageReady || loading || animatingIdx !== null}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
-              className="min-w-0 flex-1 rounded-full px-4 py-[16px] font-body text-[20px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83]"
+              className="min-w-0 flex-1 rounded-full px-3 py-[15px] font-body text-[17px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83] sm:px-4 sm:py-[16px] sm:text-[20px]"
               style={{
                 background: "transparent",
               }}
@@ -979,7 +979,7 @@ export default function TriageChat({
               disabled={!isListening && (!languageReady || loading || animatingIdx !== null)}
               data-testid="button-triage-voice"
               aria-label={t(isListening ? "health.symptomCheck.chat.voiceStop" : "health.symptomCheck.chat.voiceStart")}
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 sm:h-12 sm:w-12"
               style={{
                 background: isListening ? "#FEE2E2" : "hsl(var(--vyva-purple-light))",
                 color: isListening ? "#B91C1C" : "hsl(var(--vyva-purple))",
@@ -992,7 +992,7 @@ export default function TriageChat({
               disabled={!input.trim() || !languageReady || loading || animatingIdx !== null}
               data-testid="button-triage-send"
               aria-label={t("health.symptomCheck.chat.send")}
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 sm:h-12 sm:w-12"
               style={{ background: "hsl(var(--vyva-purple))" }}
             >
               <Send size={18} className="text-white" />
