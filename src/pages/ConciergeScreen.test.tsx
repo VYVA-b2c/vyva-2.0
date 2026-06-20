@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ComponentProps } from "react";
-import { MemoryRouter } from "react-router-dom";
+import type { ComponentProps, ReactNode } from "react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeScreen from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
@@ -11,7 +11,13 @@ vi.mock("@/lib/queryClient", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: () => <div data-testid="voice-hero" />,
+  default: ({ sourceText, headline, subtitle }: { sourceText?: ReactNode; headline?: ReactNode; subtitle?: ReactNode }) => (
+    <div data-testid="voice-hero">
+      <span>{sourceText}</span>
+      <span>{headline}</span>
+      <span>{subtitle}</span>
+    </div>
+  ),
 }));
 
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
@@ -46,6 +52,16 @@ vi.mock("react-i18next", () => ({
 
 const apiFetchMock = vi.mocked(apiFetch);
 
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <>
+      <span data-testid="location-path">{location.pathname}</span>
+      <span data-testid="route-state">{JSON.stringify(location.state)}</span>
+    </>
+  );
+}
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -64,6 +80,7 @@ function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initi
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={initialEntries}>
+        <LocationProbe />
         <ConciergeScreen />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -74,6 +91,158 @@ afterEach(() => {
   apiFetchMock.mockReset();
   vi.restoreAllMocks();
   localStorage.clear();
+});
+
+describe("ConciergeScreen action hub", () => {
+  it("renders the requested primary cards and quick actions", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+
+    expect(await screen.findByTestId("concierge-guided-hub")).toBeVisible();
+    expect(screen.getByTestId("voice-hero")).toHaveTextContent("What should VYVA prepare?");
+    expect(screen.getByTestId("voice-hero")).toHaveTextContent("Services, trips, orders, and savings stay confirmation-first.");
+    expect(screen.getByTestId("concierge-guided-hub")).not.toHaveTextContent("What should VYVA prepare?");
+    for (const label of ["Shop", "Book", "Order", "Save"]) {
+      expect(screen.getByRole("button", { name: label })).toBeVisible();
+    }
+    for (const label of ["Find the best deals", "Book a trip", "Research a company"]) {
+      expect(screen.getByRole("button", { name: label })).toBeVisible();
+    }
+  });
+
+  it("routes Shop and Order through the shopping helper", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    const firstRender = renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-shop"));
+
+    await waitFor(() => expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping"));
+    firstRender.unmount();
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-order"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge/shopping");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"category\":\"groceries\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"delivery\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"simplicity\"");
+    });
+  });
+
+  it("opens Book, Save, and best-deals flows in place", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-book"));
+    expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Schedule an appointment");
+
+    fireEvent.click(screen.getByTestId("button-concierge-card-save"));
+    expect(screen.getByTestId("panel-offers-search")).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("button-concierge-quick-findBestDeals"));
+    expect(screen.getByTestId("panel-offers-search")).toBeVisible();
+    expect(screen.getByTestId("input-offers-query")).toHaveValue("find the best deals on services and important purchases");
+  });
+
+  it("renders compact protected savings results with expandable proof and watch confirmation", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Household costs",
+          decision_explanation: "This option has the best mix of price, trust, ease, and fit.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: [
+            "official or regulated comparison sources",
+            "verified local businesses",
+            "community programmes",
+          ],
+          protection_summary: {
+            title: "Objective check",
+            checkpoints: [
+              "No paid ranking.",
+              "Validates price, trust, ease, and fit.",
+              "Uses official, public, or verifiable sources.",
+            ],
+            notification_triggers: ["price change", "renewal date"],
+            action_guardrail: "VYVA asks before contact, switching, or sharing details.",
+          },
+          options: [{
+            label: "Opcion recomendada",
+            name: "Senior Energy Saver",
+            category: "Household costs",
+            what_it_offers: "Lower-cost electric service.",
+            price_or_advantage: "Estimated 18% monthly saving with no early switch.",
+            why_good_option: "Strong fit for the current household profile.",
+            distance_or_availability: "Available online.",
+            contact_method: "Online",
+            website: "https://example.com",
+            trust_note: "Official source and verified tariff.",
+            score: 91,
+            score_breakdown: {
+              distance: 70,
+              price_value: 94,
+              trust: 90,
+              simplicity: 88,
+              preference_match: 92,
+            },
+          }],
+          next_step: "Confirm before contacting or switching.",
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-quick-findBestDeals"));
+
+    expect(screen.getByTestId("panel-offers-search")).toBeVisible();
+    expect(screen.getByTitle("No commissions")).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    const proofSummary = await screen.findByTestId("panel-offers-objective-summary");
+    expect(proofSummary).toHaveTextContent("Independent");
+    expect(proofSummary).toHaveTextContent("3 sources");
+    expect(proofSummary).toHaveTextContent("You confirm");
+    expect(screen.queryByTestId("panel-offers-objective-details")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-offers-objective-toggle"));
+
+    const proofDetails = await screen.findByTestId("panel-offers-objective-details");
+    expect(proofDetails).toHaveTextContent("No paid ranking.");
+    expect(proofDetails).toHaveTextContent("official or regulated comparison sources");
+    expect(proofDetails).toHaveTextContent("Validates price, trust, ease, and fit.");
+    expect(proofDetails).toHaveTextContent("price change");
+    expect(screen.queryByText("Price or value")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /score details/i }));
+    expect(await screen.findByText("Price or value")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: /watch changes/i }));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Watch important changes for Senior Energy Saver");
+    expect(prefill).toHaveTextContent("ask me to confirm");
+  });
+
+  it("prepares trip and company research requests without booking or contacting", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-quick-bookTrip"));
+
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Help me plan a trip");
+    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("do not book or pay");
+
+    fireEvent.click(screen.getByTestId("button-concierge-quick-researchCompany"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Help me research a company");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Do not contact them or share details");
+    });
+  });
 });
 
 describe("ConciergeScreen route prefill", () => {

@@ -209,6 +209,75 @@ const ActivitiesScreen = () => {
     "brain.activities.breathing": t("activities.breathing"),
   };
 
+  const primaryActivityActions: Array<{
+    id: string;
+    icon: LucideIcon;
+    label: string;
+    sub: string;
+    color: string;
+    bg: string;
+    to: string;
+    testId: string;
+  }> = [
+    {
+      id: "memory",
+      icon: BrainCircuit,
+      label: t("activities.primary.memory", "Strengthen Memory"),
+      sub: t("activities.primary.memorySub", "Practice recall, matching, and daily routines."),
+      color: "#7C3AED",
+      bg: "#F5F3FF",
+      to: "/memory-games",
+      testId: "button-activities-primary-memory",
+    },
+    {
+      id: "reflexes",
+      icon: Route,
+      label: t("activities.primary.reflexes", "Train Reflexes"),
+      sub: t("activities.primary.reflexesSub", "Build faster focus and response."),
+      color: "#0A7C4E",
+      bg: "#ECFDF5",
+      to: "/attention-boosters",
+      testId: "button-activities-primary-reflexes",
+    },
+    {
+      id: "intelligence",
+      icon: Puzzle,
+      label: t("activities.primary.intelligence", "Boost Intelligence"),
+      sub: t("activities.primary.intelligenceSub", "Challenge logic, planning, and problem solving."),
+      color: "#C9890A",
+      bg: "#FEF3C7",
+      to: "/executive-function",
+      testId: "button-activities-primary-intelligence",
+    },
+    {
+      id: "senses",
+      icon: Headphones,
+      label: t("activities.primary.senses", "Sharpen Senses"),
+      sub: t("activities.primary.sensesSub", "Reset with sound, breath, and calm attention."),
+      color: "#0F766E",
+      bg: "#CCFBF1",
+      to: "/activities/relax-breathe",
+      testId: "button-activities-primary-senses",
+    },
+  ];
+
+  const activityDisplayOrder = [
+    "brain.activities.memoryGame",
+    "brain.activities.triviaQuiz",
+    "brain.activities.logicPuzzle",
+    "brain.activities.spatialNavigator",
+    "brain.activities.scrabble",
+    "brain.activities.meditation",
+    "brain.activities.breathing",
+  ];
+  const orderedActivities = margaret.activities
+    .slice()
+    .sort((a, b) => {
+      const aIndex = activityDisplayOrder.indexOf(a.name);
+      const bIndex = activityDisplayOrder.indexOf(b.name);
+      return (aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex);
+    });
+
   const handleActivityClick = (activityName: string) => {
     const destination = activityRoutes[activityName];
     if (destination) navigate(destination.to, destination.state ? { state: destination.state } : undefined);
@@ -361,6 +430,30 @@ const ActivitiesScreen = () => {
         </section>
       )}
 
+      <section className="mt-[18px]" data-testid="section-activities-primary-actions">
+        <SectionTitle
+          className="mb-3"
+          title={t("activities.primaryTitle", "Choose your focus")}
+          titleClassName="font-body text-[22px] font-extrabold not-italic"
+        />
+        <ResponsiveGrid columns="two" gap="sm">
+          {primaryActivityActions.map((action) => (
+            <ActionCard
+              key={action.id}
+              data-testid={action.testId}
+              icon={action.icon}
+              iconBg={action.bg}
+              iconColor={action.color}
+              title={action.label}
+              description={action.sub}
+              size="large"
+              surface="white"
+              onClick={() => navigate(action.to)}
+            />
+          ))}
+        </ResponsiveGrid>
+      </section>
+
       {dailyPlan && dailyPlan.activities.length > 0 && (
         <section
           className="mt-[18px] rounded-[26px] border bg-[#FFFCF8] p-[16px]"
@@ -458,9 +551,12 @@ const ActivitiesScreen = () => {
       </section>
 
       <section className="mt-[18px]">
-        <SectionTitle title={t("activities.chooseActivity")} />
+        <SectionTitle
+          title={t("activities.libraryTitle", "Choose an activity")}
+          titleClassName="font-body text-[22px] font-extrabold not-italic"
+        />
         <ResponsiveGrid className="mt-3" columns="two" gap="sm">
-          {margaret.activities.map((act) => {
+          {orderedActivities.map((act) => {
             const Icon = activityIcons[act.name] || BrainCircuit;
             const doneToday = (activityCompletionTypes[act.name] ?? []).some((activityType) => todayActivityTypes.has(activityType));
             const style = activityStyles[act.name] || {

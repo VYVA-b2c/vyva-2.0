@@ -39,6 +39,16 @@ const labels: Record<string, string> = {
   "brain.headline": "Brain coach",
   "brain.subtitle": "Keep your mind sharp",
   "brain.streakThisWeek": "Streak this week",
+  "activities.primaryTitle": "Choose your focus",
+  "activities.libraryTitle": "Choose an activity",
+  "activities.primary.memory": "Strengthen Memory",
+  "activities.primary.memorySub": "Practice recall, matching, and daily routines.",
+  "activities.primary.reflexes": "Train Reflexes",
+  "activities.primary.reflexesSub": "Build faster focus and response.",
+  "activities.primary.intelligence": "Boost Intelligence",
+  "activities.primary.intelligenceSub": "Challenge logic, planning, and problem solving.",
+  "activities.primary.senses": "Sharpen Senses",
+  "activities.primary.sensesSub": "Reset with sound, breath, and calm attention.",
   "activities.chooseActivity": "Choose an activity",
   "activities.trivia": "Focus & Attention",
   "activities.memory": "Memory Game",
@@ -79,6 +89,9 @@ function renderActivities() {
       <Routes>
         <Route path="/activities" element={<ActivitiesScreen />} />
         <Route path="/activity" element={<LocationProbe />} />
+        <Route path="/memory-games" element={<LocationProbe />} />
+        <Route path="/attention-boosters" element={<LocationProbe />} />
+        <Route path="/executive-function" element={<LocationProbe />} />
         <Route path="/activities/relax-breathe" element={<LocationProbe />} />
         <Route path="/social-rooms" element={<LocationProbe />} />
         <Route path="/companions" element={<LocationProbe />} />
@@ -90,6 +103,34 @@ function renderActivities() {
 describe("Activities service actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("renders the health-style primary cards and reordered activity library", () => {
+    renderActivities();
+
+    expect(screen.getByText("Choose your focus")).toBeInTheDocument();
+    expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");
+    expect(screen.getByTestId("button-activities-primary-reflexes")).toHaveTextContent("Train Reflexes");
+    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Boost Intelligence");
+    expect(screen.getByTestId("button-activities-primary-senses")).toHaveTextContent("Sharpen Senses");
+
+    const activityCards = screen.getAllByTestId(/^activity-card-/);
+    expect(activityCards.map((card) => card.textContent)).toEqual([
+      expect.stringContaining("Memory Game"),
+      expect.stringContaining("Focus & Attention"),
+      expect.stringContaining("Brain Training"),
+      expect.stringContaining("Logic & Reasoning"),
+      expect.stringContaining("Word & Language"),
+      expect.stringContaining("Relax & Breathe"),
+    ]);
+  });
+
+  it("routes the Strengthen Memory primary card to memory games", async () => {
+    renderActivities();
+
+    fireEvent.click(screen.getByTestId("button-activities-primary-memory"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
   });
 
   it("routes the calm activity card to the dedicated Relax & Breathe page", async () => {
