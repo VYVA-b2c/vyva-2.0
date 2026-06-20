@@ -1876,11 +1876,6 @@ const HealthScreen = () => {
         ) : null}
 
         <div className="mt-[22px]">
-          <SectionTitle
-            className="mb-4"
-            title={t("health.whatNow", "or explore a topic")}
-            titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-          />
           <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
             {PRIMARY_CARDS.map((tile) => {
               const locked = isSubscriptionLocked(tile.path);

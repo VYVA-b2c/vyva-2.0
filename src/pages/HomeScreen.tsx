@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Heart, Brain, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
-import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
@@ -344,11 +344,6 @@ const HomeScreen = () => {
       />
 
       <div className="mt-[22px]">
-        <SectionTitle
-          className="mb-4"
-          title={t("home.whatNow")}
-          titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
-        />
         <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
           {HOME_AGENT_CARDS.map((card) => {
             const theme = HOME_AGENT_THEMES[card.theme];
