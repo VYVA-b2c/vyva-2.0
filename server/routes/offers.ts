@@ -110,6 +110,13 @@ interface RankedOffer {
   };
 }
 
+interface OfferProtectionSummary {
+  title: string;
+  checkpoints: string[];
+  notification_triggers: string[];
+  action_guardrail: string;
+}
+
 const CATEGORY_ALIASES: Array<{ category: OfferCategory; terms: RegExp }> = [
   { category: "Gastos del hogar", terms: /(luz|electric|gas|internet|telefono|factura|tarifa|mantenimiento|comunidad|bill|utility|phone|broadband|maintenance)/i },
   { category: "Vivienda y cuidados", terms: /(residencia|centro de dia|cuidad|ayuda a domicilio|dependencia|estancia|care|home help|day centre|residence|nursing)/i },
@@ -514,18 +521,78 @@ async function getOfferProfileContext(userId: string): Promise<OfferProfileConte
   };
 }
 
-function trustedSourceGuidance(category: OfferCategory, countryCode: string): string[] {
-  const base = [
-    "negocios locales verificados",
-    "servicios publicos o municipales",
-    "programas comunitarios",
-  ];
-  if (category === "Gastos del hogar") base.unshift("comparadores oficiales o regulados");
-  if (category === "Vivienda y cuidados") base.unshift("directorios publicos de cuidados y centros acreditados");
-  if (category === "Seguros y proteccion") base.unshift("aseguradoras reconocidas y fuentes regulatorias");
-  if (category === "Ayudas y beneficios") base.unshift("servicios publicos, ayuntamiento y programas sociales");
-  if (countryCode.toUpperCase() !== "ES") base.push("directorios locales fiables del pais");
+function trustedSourceGuidance(category: OfferCategory, countryCode: string, locale: string): string[] {
+  const es = locale === "es";
+  const base = es
+    ? [
+      "negocios locales verificados",
+      "servicios publicos o municipales",
+      "programas comunitarios",
+    ]
+    : [
+      "verified local businesses",
+      "public or municipal services",
+      "community programmes",
+    ];
+  if (category === "Gastos del hogar") base.unshift(es ? "comparadores oficiales o regulados" : "official or regulated comparison sources");
+  if (category === "Vivienda y cuidados") base.unshift(es ? "directorios publicos de cuidados y centros acreditados" : "public care directories and accredited centres");
+  if (category === "Seguros y proteccion") base.unshift(es ? "aseguradoras reconocidas y fuentes regulatorias" : "recognised insurers and regulatory sources");
+  if (category === "Ayudas y beneficios") base.unshift(es ? "servicios publicos, ayuntamiento y programas sociales" : "public services, town halls, and social programmes");
+  if (countryCode.toUpperCase() !== "ES") base.push(es ? "directorios locales fiables del pais" : "trusted local directories for the country");
   return base;
+}
+
+function offerProtectionSummary(category: OfferCategory, locale: string): OfferProtectionSummary {
+  const es = locale === "es";
+  const categoryFocus = es
+    ? {
+      "Gastos del hogar": "facturas, tarifas y permanencias",
+      "Vivienda y cuidados": "calidad, acreditacion y facilidad para la familia",
+      "Seguros y proteccion": "cobertura, exclusiones y condiciones",
+      "Servicios en casa": "identidad, disponibilidad y forma de pago segura",
+      "Ayudas y beneficios": "requisitos, documentos y plazos",
+    }[category]
+    : {
+      "Gastos del hogar": "bills, tariffs, and contract commitments",
+      "Vivienda y cuidados": "quality, accreditation, and family ease",
+      "Seguros y proteccion": "coverage, exclusions, and terms",
+      "Servicios en casa": "identity, availability, and safe payment",
+      "Ayudas y beneficios": "eligibility, documents, and deadlines",
+    }[category];
+
+  return es
+    ? {
+      title: "Revision objetiva",
+      checkpoints: [
+        "Sin ranking pagado.",
+        `Revisa ${categoryFocus}, precio, confianza, facilidad y encaje.`,
+        "Usa fuentes oficiales, publicas o verificables.",
+        "Separa hechos, estimaciones y pendientes.",
+      ],
+      notification_triggers: [
+        "cambio de precio",
+        "renovacion",
+        "dato pendiente",
+        "nueva senal de riesgo",
+      ],
+      action_guardrail: "VYVA pide confirmacion antes de contactar, cambiar o compartir datos.",
+    }
+    : {
+      title: "Objective check",
+      checkpoints: [
+        "No paid ranking.",
+        `Checks ${categoryFocus}, price, trust, ease, and fit.`,
+        "Uses official, public, or verifiable sources.",
+        "Separates facts, estimates, and gaps.",
+      ],
+      notification_triggers: [
+        "price change",
+        "renewal date",
+        "missing detail",
+        "new risk signal",
+      ],
+      action_guardrail: "VYVA asks before contact, switching, or sharing details.",
+    };
 }
 
 async function searchGooglePlaces(
@@ -1035,7 +1102,8 @@ router.post("/search", async (req: Request, res: Response) => {
       neutrality_note: es
         ? "VYVA no recibe comisiones ni promociona servicios. Estas opciones se muestran de forma neutral para ayudarle a elegir lo mejor para usted."
         : "VYVA does not receive commissions or promote services. These options are shown neutrally to help you choose what is best for you.",
-      source_guidance: trustedSourceGuidance(classifiedCategory, context.countryCode),
+      source_guidance: trustedSourceGuidance(classifiedCategory, context.countryCode, normalizedLocale),
+      protection_summary: offerProtectionSummary(classifiedCategory, normalizedLocale),
       next_step: es
         ? "Puedo ayudarle a revisar ahora, comparar opciones, contactar un proveedor, guardar un recordatorio o enviar un resumen por WhatsApp."
         : "I can help review now, compare options, contact a provider, save a reminder, or send a WhatsApp summary.",
