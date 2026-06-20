@@ -174,11 +174,23 @@ const de = {
       reviewNext: "Dosis, Nachfullung oder Wechselwirkung prufen",
       pickMedication: "Medikament auswahlen",
     },
+    quickAccess: "Medikamente",
+    primary: {
+      reminders: "Erinnerungen",
+      remindersSub: "Heutigen Plan prufen und Medikamentenerinnerungen hinzufugen.",
+      refills: "Nachfullungen",
+      refillsSub: "Wiederholungsrezepte oder Lieferung vorbereiten.",
+      interactions: "Wechselwirkungen",
+      interactionsSub: "Medikamente und Erganzungen prufen.",
+      adherence: "Adhaerenz",
+      adherenceSub: "Fortschritt und verpasste Dosen ansehen.",
+    },
     scheduleSubtitle: "Prufen Sie, was heute fallig ist, und markieren Sie Einnahmen als erledigt.",
     remainingBadge_one: "{{count}} offen",
     remainingBadge_other: "{{count}} offen",
     allTakenShort: "Fertig",
     confirmRemaining: "Offene Dosen bestatigen",
+    canHelpWith: "Ich kann Ihnen helfen mit",
     supportTitle: "Medikamentenhilfe",
     supportSubtitle: "Schnelle Prufungen fur Nachfullungen, Wechselwirkungen und Fortschritt.",
     medicationSummaryFallback: "meine Medikamente",
@@ -210,6 +222,41 @@ const de = {
     },
   },
   health: {
+    whatNow: "oder ein Thema erkunden",
+    homeCards: {
+      symptoms: {
+        label: "Meine Symptome",
+        hint: "Prufen, wie ich mich fuhle",
+      },
+      medication: {
+        label: "Meine Medikamente",
+        hint: "Meine Medikamente prufen",
+      },
+      vitals: {
+        label: "Meine Vitalwerte",
+        hint: "Puls, Atmung und Trends",
+      },
+      healthPlan: {
+        label: "Mein Gesundheitsplan",
+        hint: "Check-ins und Pflegeplan",
+      },
+    },
+    fastHelp: {
+      kicker: "Schnelle Hilfe",
+      title: "Was brauchen Sie jetzt?",
+      reports: {
+        label: "Meine Berichte",
+        sub: "Gesundheitszusammenfassungen und aktuelle Checks ansehen",
+      },
+      visualScan: {
+        label: "Visueller Gesundheitscheck",
+        sub: "Bild aufnehmen oder hochladen",
+      },
+      specialist: {
+        label: "Spezialisten finden",
+        sub: "Mit dem passenden Experten verbinden",
+      },
+    },
     scanWound: {
       actions: {
         doctorHelp: "Arzthilfe",

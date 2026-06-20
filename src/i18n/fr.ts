@@ -172,11 +172,23 @@ const fr = {
       reviewNext: "Revoir prise, renouvellement ou interaction",
       pickMedication: "Choisir un medicament",
     },
+    quickAccess: "Medicaments",
+    primary: {
+      reminders: "Rappels",
+      remindersSub: "Revoir le programme du jour et ajouter des rappels.",
+      refills: "Renouvellements",
+      refillsSub: "Preparer ordonnances renouvelees ou livraison.",
+      interactions: "Interactions",
+      interactionsSub: "Verifier medicaments et complements.",
+      adherence: "Observance",
+      adherenceSub: "Voir progres et prises manquees.",
+    },
     scheduleSubtitle: "Verifiez ce qui est prevu aujourd'hui et marquez les prises faites.",
     remainingBadge_one: "{{count}} a faire",
     remainingBadge_other: "{{count}} a faire",
     allTakenShort: "Termine",
     confirmRemaining: "Confirmer les prises restantes",
+    canHelpWith: "Je peux vous aider avec",
     supportTitle: "Aide medicaments",
     supportSubtitle: "Verifications rapides pour renouvellements, interactions et progres.",
     medicationSummaryFallback: "mes medicaments",
@@ -208,6 +220,41 @@ const fr = {
     },
   },
   health: {
+    whatNow: "ou explorez un sujet",
+    homeCards: {
+      symptoms: {
+        label: "Mes symptomes",
+        hint: "Verifier comment je me sens",
+      },
+      medication: {
+        label: "Mes medicaments",
+        hint: "Revoir mes traitements",
+      },
+      vitals: {
+        label: "Mes constantes",
+        hint: "Pouls, respiration et tendances",
+      },
+      healthPlan: {
+        label: "Mon plan de sante",
+        hint: "Check-ins et plan de soins",
+      },
+    },
+    fastHelp: {
+      kicker: "Aide rapide",
+      title: "De quoi avez-vous besoin maintenant?",
+      reports: {
+        label: "Mes rapports",
+        sub: "Voir les resumes de sante et controles recents",
+      },
+      visualScan: {
+        label: "Scan visuel de sante",
+        sub: "Prenez ou importez une image a examiner",
+      },
+      specialist: {
+        label: "Trouver un specialiste",
+        sub: "Connectez-vous au bon expert",
+      },
+    },
     scanWound: {
       actions: {
         doctorHelp: "Aide medecin",

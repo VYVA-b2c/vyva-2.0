@@ -221,6 +221,41 @@ const en = {
     },
   },
   health: {
+    whatNow: "or explore a topic",
+    homeCards: {
+      symptoms: {
+        label: "My Symptoms",
+        hint: "Check how I feel",
+      },
+      medication: {
+        label: "My Medication",
+        hint: "Review my medicines",
+      },
+      vitals: {
+        label: "My Vitals",
+        hint: "Pulse, breathing, trends",
+      },
+      healthPlan: {
+        label: "My Health Plan",
+        hint: "Check-ins and care plan",
+      },
+    },
+    fastHelp: {
+      kicker: "Fast help",
+      title: "What do you need now?",
+      reports: {
+        label: "My Reports",
+        sub: "View health summaries and recent checks",
+      },
+      visualScan: {
+        label: "Visual Health Scan",
+        sub: "Take or upload an image for review",
+      },
+      specialist: {
+        label: "Find a Specialist",
+        sub: "Connect with the right expert",
+      },
+    },
     scanWound: {
       actions: {
         doctorHelp: "Doctor help",
