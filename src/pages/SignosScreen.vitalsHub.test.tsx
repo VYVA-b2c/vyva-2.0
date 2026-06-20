@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SignosScreen from "./SignosScreen";
 import { apiFetch } from "@/lib/queryClient";
@@ -76,11 +76,19 @@ function renderScreen() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <SignosScreen />
+      <MemoryRouter initialEntries={["/health/vitals"]}>
+        <Routes>
+          <Route path="/health/vitals" element={<SignosScreen />} />
+          <Route path="/settings/health-devices" element={<div data-testid="health-devices-route">Health devices settings</div>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+async function openAddReadingSheet() {
+  fireEvent.click(await screen.findByTestId("button-open-add-reading-sheet"));
+  return screen.findByTestId("add-reading-sheet");
 }
 
 describe("Vitals Hub", () => {
@@ -92,68 +100,27 @@ describe("Vitals Hub", () => {
     delete (window as Window & { __VYVA_FACE_SCAN_TEST_DURATION_MS?: number }).__VYVA_FACE_SCAN_TEST_DURATION_MS;
   });
 
-  it("renders all supported home device cards", async () => {
+  it("renders a mobile-first hub with capture methods hidden by default", async () => {
     renderScreen();
 
-    expect(await screen.findByTestId("connect-health-devices")).toBeInTheDocument();
-    expect(screen.getByTestId("device-card-bp_cuff")).toHaveTextContent("Blood pressure cuff");
-    expect(screen.getByTestId("device-card-pulse_oximeter")).toHaveTextContent("Pulse oximeter");
-    expect(screen.getByTestId("device-card-thermometer")).toHaveTextContent("Thermometer");
-    expect(screen.getByTestId("device-card-glucose_meter")).toHaveTextContent("Glucose meter / CGM");
-    expect(screen.getByTestId("device-card-weight_scale")).toHaveTextContent("Weight scale");
-    expect(screen.getByTestId("device-card-heart_monitor")).toHaveTextContent("Heart-rate strap / BLE monitor");
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add a vital reading");
+    expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Add reading");
+    expect(screen.getByTestId("mobile-todays-readings")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-vitals-say-reading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-vitals-snap-reading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("connect-health-devices")).not.toBeInTheDocument();
   });
 
-  it("shows Bluetooth unsupported fallback options", async () => {
+  it("opens capture methods and sends device setup to Settings", async () => {
     renderScreen();
 
-    fireEvent.click(await screen.findByTestId("button-open-bluetooth-device"));
+    await openAddReadingSheet();
+    expect(screen.getByTestId("button-vitals-say-reading")).toBeInTheDocument();
+    expect(screen.getByTestId("button-vitals-snap-reading")).toBeInTheDocument();
+    expect(screen.getByTestId("button-log-reading")).toBeInTheDocument();
 
-    expect(await screen.findByTestId("bluetooth-state-unsupported")).toHaveTextContent("Bluetooth is not available");
-    expect(screen.getByTestId("button-bluetooth-fallback-photo")).toBeInTheDocument();
-    expect(screen.getByTestId("button-bluetooth-fallback-voice")).toBeInTheDocument();
-    expect(screen.getByTestId("button-bluetooth-fallback-type")).toBeInTheDocument();
-  });
-
-  it("confirms a mocked Bluetooth heart-rate reading before saving", async () => {
-    apiFetchMock.mockImplementation(async (url) => {
-      if (String(url).includes("/api/vitals-engine/readings")) {
-        return new Response(JSON.stringify({ saved_count: 1, readings: [] }), { status: 201, headers: { "Content-Type": "application/json" } });
-      }
-      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
-    });
-    const value = new DataView(Uint8Array.from([0x00, 72]).buffer);
-    Object.defineProperty(navigator, "bluetooth", {
-      configurable: true,
-      value: {
-        requestDevice: vi.fn(async () => ({
-          id: "heart-monitor-1",
-          name: "Test heart strap",
-          gatt: {
-            connect: vi.fn(async () => ({
-              getPrimaryService: vi.fn(async () => ({
-                getCharacteristic: vi.fn(async () => ({
-                  readValue: vi.fn(async () => value),
-                })),
-              })),
-            })),
-          },
-        })),
-      },
-    });
-
-    renderScreen();
-
-    fireEvent.click(await screen.findByTestId("button-device-bluetooth-heart_monitor"));
-    fireEvent.click(await screen.findByTestId("button-start-bluetooth"));
-
-    expect(await screen.findByText(/Pulse: 72 bpm/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("button-confirm-bluetooth-readings"));
-
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/vitals-engine/readings", expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining('"capture_method":"web_bluetooth"'),
-    })));
+    fireEvent.click(screen.getByTestId("button-open-bluetooth-device"));
+    expect(await screen.findByTestId("health-devices-route")).toBeInTheDocument();
   });
 
   it("confirms a mocked VitalLens face-scan result before saving", async () => {
@@ -218,7 +185,8 @@ describe("Vitals Hub", () => {
 
     renderScreen();
 
-    fireEvent.click(await screen.findByTestId("button-open-face-scan"));
+    await openAddReadingSheet();
+    fireEvent.click(screen.getByTestId("button-open-face-scan"));
     fireEvent.click(await screen.findByTestId("button-start-face-scan"));
 
     expect(await screen.findByText(/Pulse: 70 bpm/i)).toBeInTheDocument();
@@ -282,6 +250,7 @@ describe("Vitals Hub", () => {
     renderScreen();
 
     expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add a vital reading");
+    await openAddReadingSheet();
     expect(screen.getByTestId("button-vitals-say-reading")).toBeInTheDocument();
     expect(screen.getByTestId("button-vitals-snap-reading")).toBeInTheDocument();
 
