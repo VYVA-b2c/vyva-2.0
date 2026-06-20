@@ -1,4 +1,18 @@
-import { BookOpen, ChevronRight, HeartHandshake, Trophy, Users, type LucideIcon } from "lucide-react";
+import {
+  BookOpen,
+  ChefHat,
+  ChevronRight,
+  Footprints,
+  Gamepad2,
+  HeartHandshake,
+  Leaf,
+  MessageCircleHeart,
+  Music2,
+  Share2,
+  Sparkles,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -6,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/i18n";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
-import { ActionCard, BottomSheet, EmptyState, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import { BottomSheet, EmptyState } from "@/components/vyva-ui";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
@@ -27,8 +41,9 @@ import {
 } from "./togetherRoom";
 import type { SocialGameLanguage, SocialHubResponse, SocialLanguage, SocialRoom } from "./types";
 
-const ROOM_WINDOW_SIZE = 4;
+const FAST_HELP_WINDOW_SIZE = 3;
 const ROOM_ROTATION_MS = 9000;
+const FAST_HELP_PRIORITY = ["kitchen-table", "music-room", "garden-corner"] as const;
 
 function getMoreRoomsLabel(language: SocialLanguage) {
   if (language === "es") return "Mostrar más salas";
@@ -42,172 +57,345 @@ function getLoadingRoomsLabel(language: SocialLanguage) {
   return "Preparing rooms...";
 }
 
-type SocialQuickAction = {
-  id: "match" | "challenge" | "learn" | "socialise";
+type SocialPrimaryCard = {
+  id: "match" | "socialise" | "share" | "participate";
   title: string;
   description: string;
-  path: string;
   Icon: LucideIcon;
   iconBg: string;
   iconColor: string;
+  glow: string;
 };
 
-function getSocialQuickActionCopy(language: SocialLanguage): { sectionTitle: string; focusDescription: string; actions: SocialQuickAction[] } {
-  const baseActions: Pick<SocialQuickAction, "id" | "title" | "path" | "Icon" | "iconBg" | "iconColor">[] = [
+type SocialHubEntryCopy = {
+  primaryTitle: string;
+  focusDescription: string;
+  fastHelpKicker: string;
+  fastHelpTitle: string;
+  cards: SocialPrimaryCard[];
+};
+
+function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
+  const baseCards: Pick<SocialPrimaryCard, "id" | "title" | "Icon" | "iconBg" | "iconColor" | "glow">[] = [
     {
       id: "match",
       title: "Match",
-      path: "/social-rooms/together-room",
       Icon: HeartHandshake,
       iconBg: "#ECFDF5",
       iconColor: "#0A7C4E",
-    },
-    {
-      id: "challenge",
-      title: "Challenge",
-      path: "/social-rooms/games-room",
-      Icon: Trophy,
-      iconBg: "#FEF3C7",
-      iconColor: "#B45309",
-    },
-    {
-      id: "learn",
-      title: "Learn",
-      path: "/social-rooms/reading-room",
-      Icon: BookOpen,
-      iconBg: "#EFF6FF",
-      iconColor: "#1D4ED8",
+      glow: "rgba(16,185,129,0.16)",
     },
     {
       id: "socialise",
       title: "Socialise",
-      path: "/social-rooms",
       Icon: Users,
       iconBg: "#F5F3FF",
       iconColor: "#6D28D9",
+      glow: "rgba(109,40,217,0.16)",
+    },
+    {
+      id: "share",
+      title: "Share",
+      Icon: Share2,
+      iconBg: "#EFF6FF",
+      iconColor: "#1D4ED8",
+      glow: "rgba(37,99,235,0.14)",
+    },
+    {
+      id: "participate",
+      title: "Participate",
+      Icon: Sparkles,
+      iconBg: "#FEF3C7",
+      iconColor: "#B45309",
+      glow: "rgba(180,83,9,0.14)",
     },
   ];
 
   if (language === "es") {
     return {
-      sectionTitle: "Mas para ti",
+      primaryTitle: "o explora un tema",
       focusDescription: "VYVA puede usar intereses, sala y estilo de conversacion para sugerir un buen lugar por donde empezar.",
-      actions: baseActions.map((action) => ({
-        ...action,
+      fastHelpKicker: "Ayuda rapida",
+      fastHelpTitle: "Donde quieres entrar ahora?",
+      cards: baseCards.map((card) => ({
+        ...card,
         description: {
           match: "Encuentra una conexion amable.",
-          challenge: "Empieza un juego ligero.",
-          learn: "Entra en el club de lectura.",
           socialise: "Explora las salas abiertas.",
-        }[action.id],
+          share: "Comparte un recuerdo o una idea.",
+          participate: "Unete a una actividad compartida.",
+        }[card.id],
       })),
     };
   }
 
   if (language === "de") {
     return {
-      sectionTitle: "Mehr fuer dich",
+      primaryTitle: "oder Thema erkunden",
       focusDescription: "VYVA kann Interessen, Raumkontext und Gespraechsstil nutzen, um einen warmen Startpunkt vorzuschlagen.",
-      actions: baseActions.map((action) => ({
-        ...action,
+      fastHelpKicker: "Schnelle Hilfe",
+      fastHelpTitle: "Wo moechtest du mitmachen?",
+      cards: baseCards.map((card) => ({
+        ...card,
         description: {
           match: "Finde eine freundliche Verbindung.",
-          challenge: "Starte ein leichtes Spiel.",
-          learn: "Geh in den Leseclub.",
           socialise: "Entdecke offene Raeume.",
-        }[action.id],
+          share: "Teile eine Erinnerung oder Idee.",
+          participate: "Mach bei einer gemeinsamen Aktivitaet mit.",
+        }[card.id],
       })),
     };
   }
 
   return {
-    sectionTitle: "More for you",
+    primaryTitle: "or explore a topic",
     focusDescription: "VYVA can use interests, room context, and conversation style to suggest one warm place to start.",
-    actions: baseActions.map((action) => ({
-      ...action,
+    fastHelpKicker: "Fast help",
+    fastHelpTitle: "Where would you like to join in?",
+    cards: baseCards.map((card) => ({
+      ...card,
       description: {
         match: "Find a kind connection.",
-        challenge: "Start a light game.",
-        learn: "Join the reading club.",
         socialise: "Browse open rooms.",
-      }[action.id],
+        share: "Share a memory, song, or thought.",
+        participate: "Join a game, chat, or shared activity.",
+      }[card.id],
     })),
   };
 }
 
-type RoomPickerTileProps = {
-  room: SocialRoom;
-  language: SocialLanguage;
-  togetherLanguage: SocialGameLanguage;
-  onSelect: (room: SocialRoom) => void;
+type FastHelpRoomCopy = {
+  title: string;
+  subtitle: string;
+  Icon: LucideIcon;
+  iconBg: string;
+  iconColor: string;
+  border: string;
+  shadow: string;
 };
 
-function RoomPickerTile({ room, language, togetherLanguage, onSelect }: RoomPickerTileProps) {
-  const topic = room.contentTitle || room.topic;
-  const pickerName = isTogetherRoom(room.slug) ? room.name : getRoomPickerName(room.slug, language, room.name);
-  const participantLocale = isTogetherRoom(room.slug) ? togetherLanguage : language;
-  const participantLabel = room.participantCount.toLocaleString(participantLocale);
-  const togetherCopy = isTogetherRoom(room.slug) ? getTogetherRoomCopy(togetherLanguage) : null;
-  const roomBadge = togetherCopy ? room.name : getRoomBadge(room.slug, language);
+const FAST_HELP_THEMES = {
+  green: {
+    iconBg: "#ECFDF5",
+    iconColor: "#0A7C4E",
+    border: "#BDEBD8",
+    shadow: "rgba(16,185,129,0.12)",
+  },
+  purple: {
+    iconBg: "#F5F3FF",
+    iconColor: "#6D28D9",
+    border: "#D9C7F8",
+    shadow: "rgba(109,40,217,0.13)",
+  },
+  amber: {
+    iconBg: "#FEF3C7",
+    iconColor: "#B45309",
+    border: "#F8D97B",
+    shadow: "rgba(217,119,6,0.12)",
+  },
+  blue: {
+    iconBg: "#EFF6FF",
+    iconColor: "#1D4ED8",
+    border: "#BFDBFE",
+    shadow: "rgba(37,99,235,0.11)",
+  },
+  rose: {
+    iconBg: "#FFF1F2",
+    iconColor: "#E11D48",
+    border: "#FECDD3",
+    shadow: "rgba(225,29,72,0.10)",
+  },
+  teal: {
+    iconBg: "#CCFBF1",
+    iconColor: "#0F766E",
+    border: "#99F6E4",
+    shadow: "rgba(13,148,136,0.11)",
+  },
+} as const;
+
+function orderFastHelpRooms(rooms: SocialRoom[]) {
+  const roomBySlug = new Map(rooms.map((room) => [room.slug, room]));
+  const ordered: SocialRoom[] = [];
+  const seen = new Set<string>();
+
+  FAST_HELP_PRIORITY.forEach((slug) => {
+    const room = roomBySlug.get(slug);
+    if (room) {
+      ordered.push(room);
+      seen.add(room.slug);
+    }
+  });
+
+  rooms.forEach((room) => {
+    if (!seen.has(room.slug)) {
+      ordered.push(room);
+      seen.add(room.slug);
+    }
+  });
+
+  return ordered;
+}
+
+function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHelpRoomCopy {
+  const fallbackName = isTogetherRoom(room.slug) ? room.name : getRoomPickerName(room.slug, language, room.name);
+  const subtitle = room.contentTitle || room.topic;
+
+  if (room.slug === "kitchen-table") {
+    return {
+      title: "Cook Something Simple",
+      subtitle,
+      Icon: ChefHat,
+      ...FAST_HELP_THEMES.amber,
+    };
+  }
+
+  if (room.slug === "music-room" || room.slug === "music-salon") {
+    return {
+      title: "Bring a Song",
+      subtitle,
+      Icon: Music2,
+      ...FAST_HELP_THEMES.purple,
+    };
+  }
+
+  if (room.slug === "garden-corner" || room.slug === "garden-chat") {
+    return {
+      title: "Grow Something Together",
+      subtitle,
+      Icon: Leaf,
+      ...FAST_HELP_THEMES.green,
+    };
+  }
+
+  if (room.slug === "reading-room" || room.slug === "book-club") {
+    return {
+      title: "Find a Reading Corner",
+      subtitle,
+      Icon: BookOpen,
+      ...FAST_HELP_THEMES.blue,
+    };
+  }
+
+  if (room.slug === "games-room" || room.slug === "chess-corner") {
+    return {
+      title: "Play a Light Game",
+      subtitle,
+      Icon: Gamepad2,
+      ...FAST_HELP_THEMES.amber,
+    };
+  }
+
+  if (room.slug === "morning-movement" || room.slug === "walking-companion" || room.slug === "walking-club") {
+    return {
+      title: "Move Gently Together",
+      subtitle,
+      Icon: Footprints,
+      ...FAST_HELP_THEMES.teal,
+    };
+  }
+
+  return {
+    title: `Join ${fallbackName}`,
+    subtitle,
+    Icon: MessageCircleHeart,
+    ...FAST_HELP_THEMES.rose,
+  };
+}
+
+type SocialPrimaryCardViewProps = {
+  card: SocialPrimaryCard;
+};
+
+function SocialPrimaryCardView({ card }: SocialPrimaryCardViewProps) {
+  const Icon = card.Icon;
 
   return (
     <article
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(room)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(room);
-        }
-      }}
-      className={`vyva-tap min-h-[188px] w-full cursor-pointer overflow-hidden rounded-[28px] border p-4 text-left shadow-[0_14px_30px_rgba(60,38,20,0.08)] transition-transform active:scale-[0.99] ${
-        togetherCopy
-          ? "border-[#D9C7F8] bg-[linear-gradient(135deg,#FFFCF8_0%,#F7F2FF_54%,#ECFDF5_100%)]"
-          : "border-[#EDE2D1] bg-[#FFFCF8]"
-      }`}
+      data-testid={`card-social-primary-${card.id}`}
+      className="min-h-[132px] rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] px-5 py-5 shadow-[0_14px_30px_rgba(60,38,20,0.07)]"
+      style={{ boxShadow: `0 16px 34px ${card.glow}, 0 2px 10px rgba(43,31,24,0.05)` }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <AgentAvatar
-            agentSlug={room.agentSlug}
-            fullName={room.agentFullName}
-            colour={room.agentColour}
-            size={54}
-            title={room.agentFullName}
-          />
-          <span className="min-w-0 truncate rounded-full bg-white px-3 py-1.5 font-body text-[12px] font-black uppercase text-vyva-text-2 shadow-sm">
-            {roomBadge}
-          </span>
-        </div>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#F7F2FF] px-2.5 py-1.5 font-body text-[13px] font-black text-[#6D28D9] shadow-sm">
-          <Users size={16} strokeWidth={2.5} />
-          {participantLabel}
-        </span>
+      <div
+        className="flex h-14 w-14 items-center justify-center rounded-[18px]"
+        style={{ background: card.iconBg, color: card.iconColor }}
+      >
+        <Icon size={25} strokeWidth={2.45} aria-hidden="true" />
       </div>
-
-      <h2
-        className="mt-5 min-w-0 overflow-hidden break-words font-body text-[21px] font-extrabold leading-tight text-vyva-text-1"
-        style={{
-          display: "-webkit-box",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 2,
-        }}
-      >
-        {pickerName}
+      <h2 className="mt-5 font-body text-[20px] font-black leading-tight text-vyva-text-1">
+        {card.title}
       </h2>
-      <p
-        className="mt-2 min-w-0 overflow-hidden break-words font-body text-[14px] font-medium leading-snug text-vyva-text-2"
-        style={{
-          display: "-webkit-box",
-          WebkitBoxOrient: "vertical",
-          WebkitLineClamp: 2,
-        }}
-      >
-        {topic}
+      <p className="mt-1 max-w-[18rem] font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+        {card.description}
       </p>
-
     </article>
+  );
+}
+
+type FastHelpRoomRowProps = {
+  room: SocialRoom;
+  language: SocialLanguage;
+  onSelect: (room: SocialRoom) => void;
+};
+
+function FastHelpRoomRow({ room, language, onSelect }: FastHelpRoomRowProps) {
+  const roomCopy = getFastHelpRoomCopy(room, language);
+  const Icon = roomCopy.Icon;
+
+  return (
+    <button
+      type="button"
+      data-testid={`button-social-fast-help-${room.slug}`}
+      onClick={() => onSelect(room)}
+      className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
+      style={{
+        borderColor: roomCopy.border,
+        boxShadow: `0 10px 24px ${roomCopy.shadow}`,
+      }}
+    >
+      <span
+        className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
+        style={{ background: roomCopy.iconBg, color: roomCopy.iconColor }}
+      >
+        <Icon size={24} strokeWidth={2.4} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
+          {roomCopy.title}
+        </span>
+        <span className="mt-1 block max-w-[26rem] overflow-hidden break-words font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+          {roomCopy.subtitle}
+        </span>
+      </span>
+      <span className="hidden shrink-0 items-center gap-1 rounded-full bg-[#FBF7F0] px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2 sm:inline-flex">
+        <Users size={14} strokeWidth={2.4} aria-hidden="true" />
+        {formatLiveText(room, language)}
+      </span>
+      <ChevronRight size={22} strokeWidth={2.5} className="shrink-0 text-vyva-text-3" aria-hidden="true" />
+    </button>
+  );
+}
+
+type FastHelpDotsProps = {
+  count: number;
+  activeIndex: number;
+};
+
+function FastHelpDots({ count, activeIndex }: FastHelpDotsProps) {
+  if (count <= 1) return null;
+
+  return (
+    <div className="flex gap-1" aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <span
+          key={index}
+          className="h-1.5 rounded-full transition-all"
+          style={{
+            width: index === activeIndex ? 18 : 7,
+            background: index === activeIndex ? "#6D28D9" : "#D9C7F8",
+          }}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -364,11 +552,11 @@ const SocialHub = () => {
   const language = getSocialLanguage(appLanguage);
   const togetherLanguage = getSocialGameLanguage(appLanguage);
   const copy = getSocialCopy(language);
-  const quickActionCopy = getSocialQuickActionCopy(language);
+  const entryCopy = getSocialHubEntryCopy(language);
   const loadingRoomsLabel = getLoadingRoomsLabel(language);
   const autoStartVoice = useRouteVoiceAutoStart();
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
-  const [roomWindowIndex, setRoomWindowIndex] = useState(0);
+  const [fastHelpWindowIndex, setFastHelpWindowIndex] = useState(0);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
     queryKey: [`/api/social/hub?lang=${togetherLanguage}`],
@@ -377,45 +565,36 @@ const SocialHub = () => {
   });
 
   const hubRooms = useMemo(() => data?.listRooms ?? [], [data?.listRooms]);
-  const filteredRooms = hubRooms;
+  const fastHelpRooms = useMemo(() => orderFastHelpRooms(hubRooms), [hubRooms]);
   const selectedRoom = useMemo(
     () => hubRooms.find((room) => room.slug === selectedRoomSlug) ?? null,
     [hubRooms, selectedRoomSlug],
   );
-  const roomWindowCount = Math.max(1, Math.ceil(filteredRooms.length / ROOM_WINDOW_SIZE));
-  const visibleRooms = useMemo(() => {
-    if (filteredRooms.length <= ROOM_WINDOW_SIZE) return filteredRooms;
-    const start = (roomWindowIndex * ROOM_WINDOW_SIZE) % filteredRooms.length;
+  const fastHelpWindowCount = Math.max(1, Math.ceil(fastHelpRooms.length / FAST_HELP_WINDOW_SIZE));
+  const visibleFastHelpRooms = useMemo(() => {
+    if (fastHelpRooms.length <= FAST_HELP_WINDOW_SIZE) return fastHelpRooms;
+    const start = (fastHelpWindowIndex * FAST_HELP_WINDOW_SIZE) % fastHelpRooms.length;
     return Array.from(
-      { length: ROOM_WINDOW_SIZE },
-      (_, index) => filteredRooms[(start + index) % filteredRooms.length],
+      { length: FAST_HELP_WINDOW_SIZE },
+      (_, index) => fastHelpRooms[(start + index) % fastHelpRooms.length],
     );
-  }, [filteredRooms, roomWindowIndex]);
+  }, [fastHelpRooms, fastHelpWindowIndex]);
   const moreRoomsLabel = getMoreRoomsLabel(language);
-  const canRotateRooms = filteredRooms.length > ROOM_WINDOW_SIZE;
+  const canRotateRooms = fastHelpRooms.length > FAST_HELP_WINDOW_SIZE;
 
   const showNextRooms = useCallback(() => {
-    setRoomWindowIndex((current) => (current + 1) % roomWindowCount);
-  }, [roomWindowCount]);
-
-  const handleQuickAction = useCallback((action: SocialQuickAction) => {
-    navigate(action.path);
-    if (action.id === "socialise") {
-      window.requestAnimationFrame(() => {
-        document.getElementById("social-rooms-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    }
-  }, [navigate]);
+    setFastHelpWindowIndex((current) => (current + 1) % fastHelpWindowCount);
+  }, [fastHelpWindowCount]);
 
   useEffect(() => {
-    setRoomWindowIndex(0);
-  }, [language, filteredRooms.length]);
+    setFastHelpWindowIndex(0);
+  }, [language, fastHelpRooms.length]);
 
   useEffect(() => {
-    if (roomWindowIndex >= roomWindowCount) {
-      setRoomWindowIndex(0);
+    if (fastHelpWindowIndex >= fastHelpWindowCount) {
+      setFastHelpWindowIndex(0);
     }
-  }, [roomWindowCount, roomWindowIndex]);
+  }, [fastHelpWindowCount, fastHelpWindowIndex]);
 
   useEffect(() => {
     if (!canRotateRooms || selectedRoom) return undefined;
@@ -444,50 +623,45 @@ const SocialHub = () => {
         domain="social"
         actionTypes={["social.rooms"]}
         title={copy.chooseRoom}
-        description={quickActionCopy.focusDescription}
+        description={entryCopy.focusDescription}
         highlights={[
-          ...(filteredRooms.length > 0 ? [{ label: "Rooms", value: filteredRooms.length, tone: "good" as const }] : []),
+          ...(fastHelpRooms.length > 0 ? [{ label: "Rooms", value: fastHelpRooms.length, tone: "good" as const }] : []),
         ]}
         className="mt-5"
       />
 
-      <section className="mt-[20px]" aria-label={copy.chooseRoom}>
-        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 lg:grid-cols-4">
-          {quickActionCopy.actions.map((action) => (
-            <ActionCard
-              key={action.id}
-              data-testid={`button-social-quick-${action.id}`}
-              onClick={() => handleQuickAction(action)}
-              title={action.title}
-              description={action.description}
-              icon={action.Icon}
-              iconBg={action.iconBg}
-              iconColor={action.iconColor}
-              align="center"
-              size="compact"
-            />
+      <section className="mt-[22px]" aria-labelledby="social-primary-title" data-testid="social-primary-cards">
+        <p
+          id="social-primary-title"
+          className="mb-3 font-body text-[13px] font-bold text-vyva-text-2"
+        >
+          {entryCopy.primaryTitle}
+        </p>
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
+          {entryCopy.cards.map((card) => (
+            <SocialPrimaryCardView key={card.id} card={card} />
           ))}
         </div>
       </section>
 
-      <main id="social-rooms-list" className="mt-[24px]">
-        <SectionTitle
-          className="mb-3"
-          title={quickActionCopy.sectionTitle}
-          action={canRotateRooms && (
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1" aria-hidden="true">
-                {Array.from({ length: roomWindowCount }, (_, index) => (
-                  <span
-                    key={index}
-                    className="h-1.5 rounded-full transition-all"
-                    style={{
-                      width: index === roomWindowIndex ? 18 : 7,
-                      background: index === roomWindowIndex ? "#6D28D9" : "#D9C7F8",
-                    }}
-                  />
-                ))}
-              </div>
+      <main
+        id="social-rooms-list"
+        className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+        data-testid="social-fast-help"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+              {entryCopy.fastHelpKicker}
+            </p>
+            <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+              {entryCopy.fastHelpTitle}
+            </h2>
+          </div>
+
+          {canRotateRooms ? (
+            <div className="flex shrink-0 items-center gap-2 pt-1">
+              <FastHelpDots count={fastHelpWindowCount} activeIndex={fastHelpWindowIndex} />
               <button
                 type="button"
                 onClick={showNextRooms}
@@ -499,32 +673,31 @@ const SocialHub = () => {
                 <ChevronRight size={23} strokeWidth={2.6} aria-hidden="true" />
               </button>
             </div>
+          ) : null}
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          {isLoading && (
+            <EmptyState title={loadingRoomsLabel} className="text-[#6E5A8A]" />
           )}
-        />
 
-        {isLoading && (
-          <EmptyState title={loadingRoomsLabel} className="text-[#6E5A8A]" />
-        )}
+          {isError && !fastHelpRooms.length && (
+            <EmptyState icon={Users} title={copy.noRooms} />
+          )}
 
-        {isError && !filteredRooms.length && (
-          <EmptyState icon={Users} title={copy.noRooms} />
-        )}
+          {!isLoading && !isError && !fastHelpRooms.length && (
+            <EmptyState icon={Users} title={copy.noRooms} />
+          )}
 
-        {!isLoading && !isError && !filteredRooms.length && (
-          <EmptyState icon={Users} title={copy.noRooms} />
-        )}
-
-        <ResponsiveGrid columns="two">
-          {visibleRooms.map((room) => (
-            <RoomPickerTile
-              key={room.slug}
+          {!isLoading && visibleFastHelpRooms.map((room) => (
+            <FastHelpRoomRow
+              key={`${fastHelpWindowIndex}:${room.slug}`}
               room={room}
               language={language}
-              togetherLanguage={togetherLanguage}
               onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
             />
           ))}
-        </ResponsiveGrid>
+        </div>
       </main>
 
       {selectedRoom && (
