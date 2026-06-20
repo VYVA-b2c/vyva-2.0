@@ -39,7 +39,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import VoiceHero from "@/components/VoiceHero";
-import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -1662,6 +1662,8 @@ const HealthScreen = () => {
       glow: "rgba(231,76,67,0.12)",
       label: t("health.homeCards.symptoms.label", "My Symptoms"),
       hint: t("health.homeCards.symptoms.hint", "Check how I feel"),
+      mobileLabel: t("health.homeCards.symptoms.mobileLabel", "Symptoms"),
+      mobileHint: t("health.homeCards.symptoms.mobileHint", "Check feelings"),
       path: "/health/symptom-check",
       agentMessage: "I want to talk about my symptoms",
       action: () => guardPath("/health/symptom-check"),
@@ -1674,6 +1676,8 @@ const HealthScreen = () => {
       glow: "rgba(134,25,143,0.11)",
       label: t("health.homeCards.medication.label", "My Medication"),
       hint: t("health.homeCards.medication.hint", "Review my medicines"),
+      mobileLabel: t("health.homeCards.medication.mobileLabel", "Medication"),
+      mobileHint: t("health.homeCards.medication.mobileHint", "Review medicines"),
       path: "/meds",
       agentMessage: "I want to review my medications",
       action: () => guardPath("/meds"),
@@ -1686,6 +1690,8 @@ const HealthScreen = () => {
       glow: "rgba(20,154,99,0.11)",
       label: t("health.homeCards.vitals.label", "My Vitals"),
       hint: t("health.homeCards.vitals.hint", "Pulse, breathing, trends"),
+      mobileLabel: t("health.homeCards.vitals.mobileLabel", "Vitals"),
+      mobileHint: t("health.homeCards.vitals.mobileHint", "Pulse and trends"),
       path: "/health/vitals",
       agentMessage: "I want to check my health status",
       action: () => navigate("/health/vitals"),
@@ -1698,6 +1704,8 @@ const HealthScreen = () => {
       glow: "rgba(124,58,237,0.13)",
       label: t("health.homeCards.healthPlan.label", "My Health Plan"),
       hint: t("health.homeCards.healthPlan.hint", "Check-ins and care plan"),
+      mobileLabel: t("health.homeCards.healthPlan.mobileLabel", "Health Plan"),
+      mobileHint: t("health.homeCards.healthPlan.mobileHint", "Check-ins"),
       path: "/health/check-ins",
       agentMessage: "I want to review my health plan",
       action: () => navigate("/health/check-ins"),
@@ -1714,6 +1722,7 @@ const HealthScreen = () => {
     setVisualScanOpen(shouldOpen);
     if (shouldOpen) {
       window.setTimeout(() => {
+        if (typeof document === "undefined") return;
         document.getElementById("health-visual-scan-panel")?.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -1727,6 +1736,7 @@ const HealthScreen = () => {
     setSpecialistOpen((value) => !value);
     if (shouldOpen) {
       window.setTimeout(() => {
+        if (typeof document === "undefined") return;
         document.getElementById("health-specialist-panel")?.scrollIntoView({
           behavior: "smooth",
           block: "center",
@@ -1745,6 +1755,7 @@ const HealthScreen = () => {
       shadow: "rgba(37,99,235,0.10)",
       label: t("health.fastHelp.reports.label", "My Reports"),
       sub: t("health.fastHelp.reports.sub", "View health summaries and recent checks"),
+      subMobile: t("health.fastHelp.reports.subMobile", "Recent health summaries"),
       action: () => navigate("/informes"),
     },
     {
@@ -1756,6 +1767,7 @@ const HealthScreen = () => {
       shadow: "rgba(201,137,10,0.10)",
       label: t("health.fastHelp.visualScan.label", "Visual Health Scan"),
       sub: t("health.fastHelp.visualScan.sub", "Take or upload an image for review"),
+      subMobile: t("health.fastHelp.visualScan.subMobile", "Take or upload an image"),
       action: openVisualScan,
     },
     {
@@ -1767,6 +1779,7 @@ const HealthScreen = () => {
       shadow: "rgba(124,58,237,0.10)",
       label: t("health.fastHelp.specialist.label", "Find a Specialist"),
       sub: t("health.fastHelp.specialist.sub", "Connect with the right expert"),
+      subMobile: t("health.fastHelp.specialist.subMobile", "Find the right expert"),
       action: openSpecialistPanel,
     },
   ];
@@ -1791,6 +1804,7 @@ const HealthScreen = () => {
           headline={headlineText}
           contextHint="health symptoms"
           talkLabel={t("health.talkToDoctor", "Connect with a real doctor")}
+          mobileTalkLabel={t("health.talkToDoctorMobile", "Talk to doctor")}
           onTalkClick={() => {
             if (doctorVoiceLive) {
               stopDoctorVoice();
@@ -1875,35 +1889,65 @@ const HealthScreen = () => {
           </section>
         ) : null}
 
-        <div className="mt-[22px]">
-          <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
+        <div className="mt-4 sm:mt-[22px]">
+          <ResponsiveGrid columns="two" gap="sm" className="grid-cols-2 max-[339px]:grid-cols-1 sm:grid-cols-2" data-testid="health-primary-grid">
             {PRIMARY_CARDS.map((tile) => {
               const locked = isSubscriptionLocked(tile.path);
+              const Icon = locked ? null : tile.Icon;
               return (
-                <ActionCard
+                <button
+                  type="button"
                   key={tile.id}
                   data-testid={`button-health-primary-${tile.id}`}
                   onClick={() => handlePrimaryCardClick(tile)}
-                  title={tile.label}
-                  description={tile.hint}
-                  icon={locked ? undefined : tile.Icon}
-                  iconNode={locked ? <Lock size={28} aria-hidden="true" /> : undefined}
-                  iconBg={tile.iconBg}
-                  iconColor={tile.iconColor}
-                  size="standard"
-                  contentClassName="justify-start"
-                  locked={locked}
+                  aria-label={`${tile.label}. ${tile.hint}`}
+                  disabled={false}
+                  className={`vyva-tap group relative min-w-0 overflow-hidden rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] px-3 py-3 text-left transition-transform active:scale-[0.99] sm:min-h-[160px] sm:rounded-[28px] sm:px-4 sm:py-4 ${
+                    locked ? "opacity-80" : ""
+                  }`}
                   style={{
                     borderColor: "#EDE2D1",
                     boxShadow: `0 16px 34px ${tile.glow}, 0 2px 10px rgba(43,31,24,0.05)`,
                   }}
-                  badge={locked ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2.5 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
-                      <Lock size={12} strokeWidth={2.5} />
-                      Plan
-                    </span>
-                  ) : null}
-                />
+                >
+                  <div className="relative z-10 flex h-full min-w-0 flex-col justify-start gap-3 sm:gap-4">
+                    <div className="flex w-full items-start justify-between gap-2">
+                      <div
+                        className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-[18px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px]"
+                        style={{ background: tile.iconBg, color: tile.iconColor }}
+                      >
+                        {Icon ? <Icon size={26} strokeWidth={2.5} aria-hidden="true" className="sm:h-[30px] sm:w-[30px]" /> : <Lock size={26} aria-hidden="true" />}
+                      </div>
+                      {locked ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2 py-1 font-body text-[10px] font-bold text-[#6B21A8] sm:px-2.5 sm:text-[11px]">
+                          <Lock size={12} strokeWidth={2.5} />
+                          Plan
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-auto min-w-0">
+                      <span
+                        data-testid={`button-health-primary-${tile.id}-mobile-label`}
+                        className="block font-body text-[18px] font-black leading-[1.08] text-vyva-text-1 [hyphens:none] [overflow-wrap:normal] max-[339px]:text-[20px] sm:hidden"
+                      >
+                        {tile.mobileLabel}
+                      </span>
+                      <span
+                        data-testid={`button-health-primary-${tile.id}-desktop-label`}
+                        className="hidden font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [hyphens:none] [overflow-wrap:normal] sm:block"
+                      >
+                        {tile.label}
+                      </span>
+                      <span
+                        data-testid={`button-health-primary-${tile.id}-desktop-hint`}
+                        className="mt-2 hidden font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:normal] sm:block"
+                      >
+                        {tile.hint}
+                      </span>
+                    </div>
+                  </div>
+                </button>
               );
             })}
           </ResponsiveGrid>
@@ -1912,15 +1956,16 @@ const HealthScreen = () => {
 
         {/* ── 3. Acciones rápidas ── */}
         <section
-          className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+          className="mt-4 rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] p-4 shadow-[0_14px_32px_rgba(60,38,20,0.07)] sm:mt-[18px] sm:rounded-[28px] sm:p-5"
           data-testid="health-fast-help"
         >
           <div className="mb-4">
             <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
               {t("health.fastHelp.kicker", "Fast help")}
             </p>
-            <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-              {t("health.fastHelp.title", "What do you need now?")}
+            <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
+              <span className="sm:hidden">{t("health.fastHelp.titleMobile", "Need help now?")}</span>
+              <span className="hidden sm:inline">{t("health.fastHelp.title", "What do you need now?")}</span>
             </h2>
           </div>
 
@@ -1937,23 +1982,26 @@ const HealthScreen = () => {
                   onClick={action.action}
                   aria-expanded={isVisualScanAction ? visualScanExpanded : undefined}
                   aria-controls={isVisualScanAction ? "health-visual-scan-panel" : undefined}
-                  className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5"
+                  className="vyva-tap flex min-h-[76px] w-full items-center gap-3 rounded-[20px] border bg-white px-3 py-3 text-left transition-transform hover:-translate-y-0.5 sm:min-h-[86px] sm:gap-4 sm:rounded-[22px] sm:px-4 sm:py-4"
                   style={{
                     borderColor: action.border,
                     boxShadow: `0 10px 24px ${action.shadow}`,
                   }}
                 >
                   <span
-                    className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
+                    className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] sm:h-14 sm:w-14 sm:rounded-[18px]"
                     style={{ background: action.iconBg, color: action.iconColor }}
                   >
-                    <Icon size={24} strokeWidth={2.4} />
+                    <Icon size={22} strokeWidth={2.4} className="sm:h-6 sm:w-6" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1 sm:text-[18px]">
                       {action.label}
                     </span>
-                    <span className="mt-1 block max-w-[28rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                    <span className="mt-1 block max-w-[28rem] font-body text-[13px] font-semibold leading-snug text-vyva-text-2 sm:hidden">
+                      {action.subMobile}
+                    </span>
+                    <span className="mt-1 hidden max-w-[28rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2 sm:block">
                       {action.sub}
                     </span>
                   </span>

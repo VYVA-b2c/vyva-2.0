@@ -70,7 +70,9 @@ vi.mock("@/hooks/use-toast", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: () => <div data-testid="voice-hero" />,
+  default: ({ mobileTalkLabel }: { mobileTalkLabel?: string }) => (
+    <div data-testid="voice-hero" data-mobile-talk-label={mobileTalkLabel ?? ""} />
+  ),
 }));
 
 function renderHealthScreen() {
@@ -121,14 +123,25 @@ describe("HealthScreen home-style layout", () => {
     renderHealthScreen();
 
     expect(screen.getByTestId("voice-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-mobile-talk-label", "Talk to doctor");
     expect(screen.queryByTestId("daily-checkin-status-card")).not.toBeInTheDocument();
+
+    expect(screen.getByTestId("health-primary-grid").className).toContain("grid-cols-2");
+    expect(screen.getByTestId("health-primary-grid").className).toContain("max-[339px]:grid-cols-1");
 
     expect(screen.getByTestId("button-health-primary-symptoms")).toHaveTextContent("My Symptoms");
     expect(screen.getByTestId("button-health-primary-medication")).toHaveTextContent("My Medication");
     expect(screen.getByTestId("button-health-primary-vitals")).toHaveTextContent("My Vitals");
     expect(screen.getByTestId("button-health-primary-health-plan")).toHaveTextContent("My Health Plan");
+    expect(screen.getByTestId("button-health-primary-symptoms-mobile-label")).toHaveTextContent("Symptoms");
+    expect(screen.getByTestId("button-health-primary-medication-mobile-label")).toHaveTextContent("Medication");
+    expect(screen.getByTestId("button-health-primary-vitals-mobile-label")).toHaveTextContent("Vitals");
+    expect(screen.getByTestId("button-health-primary-health-plan-mobile-label")).toHaveTextContent("Health Plan");
+    expect(screen.getByTestId("button-health-primary-medication-desktop-hint").className).toContain("hidden");
+    expect(screen.getByTestId("button-health-primary-medication-desktop-hint").className).toContain("sm:block");
 
     expect(screen.getByTestId("health-fast-help")).toHaveTextContent("Fast help");
+    expect(screen.getByTestId("health-fast-help")).toHaveTextContent("Need help now?");
     expect(screen.getByTestId("button-health-fast-reports")).toHaveTextContent("My Reports");
     expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveTextContent("Visual Health Scan");
     expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveAttribute("aria-expanded", "false");

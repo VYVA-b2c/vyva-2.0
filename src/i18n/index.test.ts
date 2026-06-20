@@ -167,6 +167,31 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps compact Health mobile labels localized", () => {
+    const expected = {
+      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent health summaries", "Take or upload an image", "Find the right expert"],
+      es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Toma o sube imagen", "Encuentra experto"],
+      fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Photo ou image", "Trouver le bon expert"],
+      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild aufnehmen", "Passenden Experten finden"],
+      it: ["Parla col medico", "Sintomi", "Farmaci", "Parametri", "Piano salute", "Serve aiuto?", "Riepiloghi recenti", "Scatta o carica immagine", "Trova l'esperto giusto"],
+      pt: ["Falar com medico", "Sintomas", "Medicacao", "Sinais vitais", "Plano saude", "Precisa de ajuda?", "Resumos recentes", "Tire ou carregue imagem", "Encontrar especialista"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.talkToDoctorMobile"),
+        translate(language as keyof typeof expected, "health.homeCards.symptoms.mobileLabel"),
+        translate(language as keyof typeof expected, "health.homeCards.medication.mobileLabel"),
+        translate(language as keyof typeof expected, "health.homeCards.vitals.mobileLabel"),
+        translate(language as keyof typeof expected, "health.homeCards.healthPlan.mobileLabel"),
+        translate(language as keyof typeof expected, "health.fastHelp.titleMobile"),
+        translate(language as keyof typeof expected, "health.fastHelp.reports.subMobile"),
+        translate(language as keyof typeof expected, "health.fastHelp.visualScan.subMobile"),
+        translate(language as keyof typeof expected, "health.fastHelp.specialist.subMobile"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps bottom navigation labels localized for supported account languages", () => {
     const expected = {
       en: "My Reports",

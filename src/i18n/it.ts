@@ -221,38 +221,51 @@ const it = {
   },
   health: {
     whatNow: "oppure esplora un tema",
+    talkToDoctorMobile: "Parla col medico",
     homeCards: {
       symptoms: {
         label: "I miei sintomi",
         hint: "Controlla come mi sento",
+        mobileLabel: "Sintomi",
+        mobileHint: "Come mi sento",
       },
       medication: {
         label: "I miei farmaci",
         hint: "Rivedi le medicine",
+        mobileLabel: "Farmaci",
+        mobileHint: "Le medicine",
       },
       vitals: {
         label: "I miei parametri",
         hint: "Polso, respiro e trend",
+        mobileLabel: "Parametri",
+        mobileHint: "Polso e trend",
       },
       healthPlan: {
         label: "Il mio piano salute",
         hint: "Check-in e piano di cura",
+        mobileLabel: "Piano salute",
+        mobileHint: "Check-in",
       },
     },
     fastHelp: {
       kicker: "Aiuto rapido",
       title: "Di cosa hai bisogno ora?",
+      titleMobile: "Serve aiuto?",
       reports: {
         label: "I miei report",
         sub: "Vedi riepiloghi salute e controlli recenti",
+        subMobile: "Riepiloghi recenti",
       },
       visualScan: {
         label: "Scansione visiva salute",
         sub: "Scatta o carica un'immagine da rivedere",
+        subMobile: "Scatta o carica immagine",
       },
       specialist: {
         label: "Trova uno specialista",
         sub: "Collegati all'esperto giusto",
+        subMobile: "Trova l'esperto giusto",
       },
     },
     scanWound: {
