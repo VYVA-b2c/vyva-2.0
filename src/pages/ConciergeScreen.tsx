@@ -384,10 +384,10 @@ function chatHistoryKey(locale: string) {
 }
 
 const PRIMARY_CONCIERGE_CARDS = [
-  { key: "shop", fallback: "Shop", Icon: ShoppingBasket, color: "#6B21A8", bg: "#F5F3FF", primary: true },
-  { key: "book", fallback: "Book", Icon: Calendar, color: "#0F766E", bg: "#F0FDFA", primary: false },
-  { key: "order", fallback: "Order", Icon: PackageCheck, color: "#1D4ED8", bg: "#EFF6FF", primary: false },
-  { key: "save", fallback: "Save", Icon: PiggyBank, color: "#B45309", bg: "#FFF7ED", primary: false },
+  { key: "shop", fallback: "Shop", Icon: ShoppingBasket, color: "#6B21A8", bg: "#F5F3FF" },
+  { key: "book", fallback: "Book", Icon: Calendar, color: "#0F766E", bg: "#F0FDFA" },
+  { key: "order", fallback: "Order", Icon: PackageCheck, color: "#1D4ED8", bg: "#EFF6FF" },
+  { key: "save", fallback: "Save", Icon: PiggyBank, color: "#B45309", bg: "#FFF7ED" },
 ] as const;
 
 const CONCIERGE_QUICK_ACTIONS = [
@@ -1996,25 +1996,21 @@ const ConciergeScreen = () => {
 
       <section className="order-[10] mt-5" data-testid="concierge-guided-hub">
         <div className="grid grid-cols-2 gap-3">
-          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, color, bg, primary }) => (
+          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, color, bg }) => (
             <button
               key={key}
               type="button"
               data-testid={`button-concierge-card-${key}`}
               onClick={() => handlePrimaryConciergeCard(key)}
-              className={`vyva-tap flex min-h-[96px] flex-col justify-between rounded-[22px] p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] transition active:scale-[0.98] ${
-                primary
-                  ? "bg-vyva-purple text-white shadow-[0_10px_24px_rgba(107,33,168,0.24)]"
-                  : "border border-[#EDE5DB] bg-white text-vyva-text-1"
-              }`}
+              className="vyva-tap flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left text-vyva-text-1 shadow-[0_8px_22px_rgba(63,45,35,0.06)] transition active:scale-[0.98]"
             >
               <span
-                className={`flex h-10 w-10 items-center justify-center rounded-[15px] ${primary ? "bg-white/16" : ""}`}
-                style={primary ? undefined : { background: bg }}
+                className="flex h-10 w-10 items-center justify-center rounded-[15px]"
+                style={{ background: bg }}
               >
-                <Icon size={22} style={{ color: primary ? "#FFFFFF" : color }} />
+                <Icon size={22} style={{ color }} />
               </span>
-              <span className={`font-body text-[15px] font-bold leading-tight ${primary ? "text-white" : "text-vyva-text-1"}`}>
+              <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">
                 {t(`concierge.primaryCards.${key}`, fallback)}
               </span>
             </button>

@@ -106,6 +106,8 @@ describe("ConciergeScreen action hub", () => {
     for (const label of ["Shop", "Book", "Order", "Save"]) {
       expect(screen.getByRole("button", { name: label })).toBeVisible();
     }
+    expect(screen.getByTestId("button-concierge-card-shop")).not.toHaveClass("bg-vyva-purple");
+    expect(screen.getByTestId("button-concierge-card-shop")).toHaveClass("bg-white");
     for (const label of ["Find the best deals", "Book a trip", "Research a company"]) {
       expect(screen.getByRole("button", { name: label })).toBeVisible();
     }
