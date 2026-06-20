@@ -171,20 +171,10 @@ describe("Activities service actions", () => {
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
   });
 
-  it("opens social rooms from the companionship tile", async () => {
+  it("does not render the old companionship tile on Activities", () => {
     renderActivities();
 
-    expect(screen.getByTestId("activities-companion-actions")).toHaveTextContent("Join a room");
-    expect(screen.getByTestId("activities-companion-actions")).toHaveTextContent("Find companions");
-
-    fireEvent.click(screen.getByTestId("button-activities-open-social-rooms"));
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms"));
-  });
-
-  it("opens companion matching from the companionship tile", async () => {
-    renderActivities();
-
-    fireEvent.click(screen.getByTestId("button-activities-open-companions"));
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/companions"));
+    expect(screen.queryByTestId("activities-companion-actions")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connect with others")).not.toBeInTheDocument();
   });
 });
