@@ -90,6 +90,7 @@ import HistoryScreen from "./pages/HistoryScreen";
 import SubscriptionSettings from "./pages/settings/SubscriptionSettings";
 import SettingsHome from "./pages/settings/SettingsHome";
 import AccountSettings from "./pages/settings/AccountSettings";
+import HealthDevicesSettings from "./pages/settings/HealthDevicesSettings";
 import NotificationsSettings from "./pages/settings/NotificationsSettings";
 import ScheduledSupportSettings from "./pages/settings/ScheduledSupportSettings";
 import CaregiverDashboardPage from "./pages/CaregiverDashboardPage";
@@ -407,6 +408,7 @@ const App = () => (
                   <Route path="/settings/subscription" element={<AppShell><SubscriptionSettings /></AppShell>} />
                   <Route path="/settings" element={<AppShell><SettingsHome /></AppShell>} />
                   <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
+                  <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />

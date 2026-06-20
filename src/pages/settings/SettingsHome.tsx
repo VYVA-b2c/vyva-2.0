@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
+  Bluetooth,
   CalendarClock,
   ChevronRight,
   CreditCard,
@@ -273,6 +274,9 @@ export default function SettingsHome() {
             onClick={() => navigate("/settings/scheduled-support")}
             data-testid="button-settings-scheduled-support"
           />
+        </Section>
+
+        <Section title={t("settings.home.sections.healthSetup", "Health setup")}>
           <Row
             icon={HeartPulse}
             iconBg="#FDECEC"
@@ -281,6 +285,15 @@ export default function SettingsHome() {
             sub={t("settings.home.rows.healthProfileSub")}
             onClick={() => navigate("/onboarding/profile")}
             data-testid="button-settings-health-profile"
+          />
+          <Row
+            icon={Bluetooth}
+            iconBg="#ECFDF5"
+            iconColor="#047857"
+            title={t("settings.home.rows.healthDevices", "Health devices")}
+            sub={t("settings.home.rows.healthDevicesSub", "Set up Bluetooth devices and capture options")}
+            onClick={() => navigate("/settings/health-devices")}
+            data-testid="button-settings-health-devices"
           />
         </Section>
 

@@ -1516,6 +1516,287 @@ function FaceScanModal({
   );
 }
 
+function AddReadingSheet({
+  selectedSignal,
+  onClose,
+  onCapture,
+  onFaceScan,
+  onConnectDevice,
+}: {
+  selectedSignal: VitalsSignalKey | null;
+  onClose: () => void;
+  onCapture: (mode: VitalsCaptureMode, signal?: VitalsSignalKey) => void;
+  onFaceScan: () => void;
+  onConnectDevice: () => void;
+}) {
+  const { t } = useTranslation();
+  const signalLabel = selectedSignal ? publicSignalLabel(selectedSignal) : null;
+  const captureWithSignal = (mode: VitalsCaptureMode) => {
+    onClose();
+    onCapture(mode, selectedSignal ?? undefined);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[88] flex items-end justify-center bg-black/40 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <section className="max-h-[88vh] w-full max-w-[560px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-7 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="add-reading-sheet">
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-display text-[27px] italic leading-tight text-vyva-text-1">
+              {t("statusVitals.addSheet.title", "Add a reading")}
+            </h2>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+              {signalLabel
+                ? t("statusVitals.addSheet.signalSubtitle", { defaultValue: "Choose how to add {{label}}.", label: signalLabel })
+                : t("statusVitals.addSheet.subtitle", "Choose the easiest way. VYVA saves only after you confirm.")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
+            aria-label={t("common.close", "Close")}
+            data-testid="button-close-add-reading-sheet"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onFaceScan();
+            }}
+            className="flex min-h-[70px] items-center gap-4 rounded-[22px] bg-[#6B21A8] p-4 text-left text-white shadow-[0_10px_24px_rgba(107,33,168,0.20)] active:scale-[0.98]"
+            data-testid="button-open-face-scan"
+          >
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/15">
+              <Video size={22} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-body text-[17px] font-black leading-tight">{t("statusVitals.faceScan.action", "Face scan")}</span>
+              <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-white/80">{t("statusVitals.faceScan.actionHint", "Heart, breathing, HRV")}</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onConnectDevice}
+            className="flex min-h-[66px] items-center gap-4 rounded-[20px] border border-[#CFEFE4] bg-[#ECFDF5] p-4 text-left active:scale-[0.98]"
+            data-testid="button-open-bluetooth-device"
+          >
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#047857]">
+              <Bluetooth size={21} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("settings.healthDevices.title", "Health devices")}</span>
+              <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{t("settings.healthDevices.addSheetHint", "Set up Bluetooth devices in Settings")}</span>
+            </span>
+          </button>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => captureWithSignal("voice")}
+              className="flex min-h-[62px] items-center justify-center gap-2 rounded-[18px] border border-[#FED7AA] bg-[#FFF7ED] px-3 font-body text-[14px] font-black text-vyva-text-1 active:scale-[0.98]"
+              data-testid="button-vitals-say-reading"
+            >
+              <Mic size={17} className="text-[#B45309]" />
+              {t("statusVitals.hub.say", "Say reading")}
+            </button>
+            <button
+              type="button"
+              onClick={() => captureWithSignal("photo")}
+              className="flex min-h-[62px] items-center justify-center gap-2 rounded-[18px] border border-[#BFDBFE] bg-[#EFF6FF] px-3 font-body text-[14px] font-black text-vyva-text-1 active:scale-[0.98]"
+              data-testid="button-vitals-snap-reading"
+            >
+              <Camera size={17} className="text-[#1D4ED8]" />
+              {t("statusVitals.hub.snapShort", "Scan")}
+            </button>
+            <button
+              type="button"
+              onClick={() => captureWithSignal("text")}
+              className="flex min-h-[62px] items-center justify-center gap-2 rounded-[18px] border border-[#DDD6FE] bg-[#F5F3FF] px-3 font-body text-[14px] font-black text-vyva-text-1 active:scale-[0.98]"
+              data-testid="button-log-reading"
+            >
+              <Keyboard size={17} className="text-[#6B21A8]" />
+              {t("statusVitals.logAction", "Type reading")}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ConnectDeviceSheet({
+  onClose,
+  onSelectDevice,
+  onCapture,
+}: {
+  onClose: () => void;
+  onSelectDevice: (device: VitalsDeviceCatalogItem) => void;
+  onCapture: (mode: VitalsCaptureMode, signal?: VitalsSignalKey) => void;
+}) {
+  const { t } = useTranslation();
+
+  const captureFallback = (mode: VitalsCaptureMode, signal?: VitalsSignalKey) => {
+    onClose();
+    onCapture(mode, signal);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[88] flex items-end justify-center bg-black/40 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <section className="max-h-[88vh] w-full max-w-[660px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-7 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="connect-health-devices">
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-display text-[27px] italic leading-tight text-vyva-text-1">
+              {t("statusVitals.devices.sheetTitle", "Connect device")}
+            </h2>
+            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+              {t("statusVitals.devices.sheetBody", "Try Bluetooth, or scan, say, or type the same reading.")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
+            aria-label={t("common.close", "Close")}
+            data-testid="button-close-device-sheet"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid gap-2">
+          {VITALS_DEVICE_CATALOG.map((device) => {
+            const Icon = DEVICE_ICON_BY_ID[device.id];
+            return (
+              <article
+                key={device.id}
+                className="rounded-[20px] border border-[#F0E7DE] bg-[#FFFCF8] p-3 shadow-[0_5px_14px_rgba(63,45,35,0.035)]"
+                data-testid={`device-card-${device.id}`}
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ color: device.accent, background: device.bg }}>
+                    <Icon size={19} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{device.label}</p>
+                    <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">{device.helper}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {device.signals.map((signal) => (
+                        <span key={signal} className="rounded-full px-2 py-0.5 font-body text-[10px] font-black" style={{ color: device.accent, background: device.bg }}>
+                          {publicSignalLabel(signal)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onSelectDevice(device);
+                    }}
+                    className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-[14px] font-body text-[12px] font-black text-white shadow-[0_7px_14px_rgba(107,33,168,0.12)] active:scale-[0.98]"
+                    style={{ background: device.accent }}
+                    data-testid={`button-device-bluetooth-${device.id}`}
+                  >
+                    <Bluetooth size={14} />
+                    {t("statusVitals.bluetooth.tryShort", "Bluetooth")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => captureFallback("photo")}
+                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#BFDBFE] bg-[#EFF6FF] font-body text-[12px] font-black text-[#1D4ED8]"
+                    data-testid={`button-device-photo-${device.id}`}
+                  >
+                    <Camera size={13} />
+                    {t("statusVitals.capture.photoShort", "Scan")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => captureFallback("voice", device.fallbackSignals[0])}
+                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#FED7AA] bg-[#FFF7ED] font-body text-[12px] font-black text-[#B45309]"
+                    data-testid={`button-device-voice-${device.id}`}
+                  >
+                    <Mic size={13} />
+                    {t("statusVitals.capture.voiceShort", "Say")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => captureFallback("text", device.fallbackSignals[0])}
+                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#DDD6FE] bg-white font-body text-[12px] font-black text-[#6B21A8]"
+                    data-testid={`button-device-type-${device.id}`}
+                  >
+                    <Keyboard size={13} />
+                    {t("statusVitals.capture.typeShort", "Type")}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CompactMetricRow({
+  metricKey,
+  summary,
+  t,
+  onAdd,
+}: {
+  metricKey: MetricType;
+  summary?: VitalsSummaryEntry;
+  t: (key: string, fallback: string) => string;
+  onAdd: (signal: VitalsSignalKey) => void;
+}) {
+  const meta = METRIC_META[metricKey];
+  const Icon = meta.Icon;
+  const hasData = summary?.has_data === true;
+  const displayValue = hasData ? summary?.latest_value ?? "--" : null;
+  const state = getMetricState(meta, summary?.latest_value ?? null);
+  const stateLabel =
+    state.tone === "steady"
+      ? t("statusVitals.status.steady", "Steady")
+      : state.tone === "review"
+        ? t("statusVitals.status.review", "Review")
+        : state.tone === "logged"
+          ? t("statusVitals.status.logged", "Logged")
+          : t("statusVitals.status.noData", "No data");
+
+  return (
+    <button
+      type="button"
+      onClick={() => onAdd(ENGINE_SIGNAL_BY_METRIC[metricKey] as VitalsSignalKey)}
+      className="flex min-h-[64px] w-full items-center gap-3 rounded-[18px] border border-[#EFE5DC] bg-white px-3 py-2 text-left active:scale-[0.99]"
+      data-testid={`compact-vital-${metricKey}`}
+    >
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ background: meta.soft }}>
+        <Icon size={18} style={{ color: meta.accent }} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[13px] font-bold leading-tight text-vyva-text-2">
+          {t(meta.labelKey, meta.fallbackLabel)}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[18px] font-black leading-tight text-vyva-text-1">
+          {displayValue ? `${displayValue} ${meta.unit}` : t("statusVitals.emptyMetric", "No reading")}
+        </span>
+      </span>
+      <span className="flex-shrink-0 rounded-full px-2.5 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
+        {stateLabel}
+      </span>
+    </button>
+  );
+}
+
 const SignosScreen = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -1524,6 +1805,9 @@ const SignosScreen = () => {
   const { profile } = useProfile();
   const [showScanModal, setShowScanModal] = useState(false);
   const [showFaceScanModal, setShowFaceScanModal] = useState(false);
+  const [showAddReadingSheet, setShowAddReadingSheet] = useState(false);
+  const [selectedSuggestedSignal, setSelectedSuggestedSignal] = useState<VitalsSignalKey | null>(null);
+  const [mobileWeeklyOpen, setMobileWeeklyOpen] = useState(false);
   const [bluetoothDevice, setBluetoothDevice] = useState<VitalsDeviceCatalogItem | null>(null);
   const [captureMode, setCaptureMode] = useState<VitalsCaptureMode | null>(null);
   const [captureSignal, setCaptureSignal] = useState<VitalsSignalKey | null>(null);
@@ -1553,7 +1837,6 @@ const SignosScreen = () => {
   const summary = vitalsData?.summary;
   const complianceDays = vitalsData?.compliance_days ?? (Array(7).fill(false) as boolean[]);
   const filledDays = complianceDays.filter(Boolean).length;
-  const supportedDevices = VITALS_DEVICE_CATALOG.length;
   const todaySignals = useMemo(() => new Set(
     (vitalsEngineData?.recent_readings ?? [])
       .filter((reading) => isTodayReading(reading.recorded_at))
@@ -1566,10 +1849,16 @@ const SignosScreen = () => {
       return !todaySignals.has(signal);
     }).slice(0, 4);
   }, [personalisationData?.conditions, todaySignals]);
+  const primarySuggestedSignals = suggestedSignals.slice(0, 3);
 
   const openCapture = (mode: VitalsCaptureMode, signal?: VitalsSignalKey) => {
+    setShowAddReadingSheet(false);
     setCaptureSignal(signal ?? null);
     setCaptureMode(mode);
+  };
+  const openAddReadingSheet = (signal?: VitalsSignalKey | null) => {
+    setSelectedSuggestedSignal(signal ?? null);
+    setShowAddReadingSheet(true);
   };
 
   const latestReadingAt = useMemo(() => {
@@ -1693,111 +1982,46 @@ const SignosScreen = () => {
         className="mb-3"
       />
 
-      <section className="rounded-[28px] border border-[#E8DED4] bg-white p-5 shadow-[0_14px_34px_rgba(63,45,35,0.06)] md:p-6" data-testid="vitals-guided-hub">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.18fr)_minmax(310px,0.82fr)] lg:items-stretch">
-          <div>
+      <section className="rounded-[26px] border border-[#E8DED4] bg-white p-4 shadow-[0_12px_30px_rgba(63,45,35,0.055)] sm:p-5 lg:p-6" data-testid="vitals-guided-hub">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.55fr)] lg:items-stretch">
+          <div className="min-w-0">
             <div className="flex items-start gap-3">
               <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
                 <Activity size={22} />
               </span>
               <div className="min-w-0">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
-                  {t("statusVitals.hub.eyebrow", "Add a reading")}
-                </p>
-                <h2 className="mt-1 font-display text-[30px] italic leading-tight text-vyva-text-1">
+                <h2 className="font-display text-[29px] italic leading-tight text-vyva-text-1">
                   {t("statusVitals.hub.primaryTitle", "Add a vital reading")}
                 </h2>
-                <p className="mt-2 max-w-[620px] font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
-                  {t("statusVitals.hub.primarySubtitle", "Pick the easiest method. VYVA reviews the number with you before saving it.")}
+                <p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">
+                  {latestReadingAt
+                    ? t("statusVitals.hub.latestInline", { defaultValue: "Latest update: {{time}}", time: latestText })
+                    : t("statusVitals.hub.todayMissingBody", "Start with one useful reading. You can add more later.")}
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setShowFaceScanModal(true)}
-                className="flex min-h-[96px] items-center gap-4 rounded-[22px] bg-[#6B21A8] p-4 text-left text-white shadow-[0_10px_24px_rgba(107,33,168,0.20)] active:scale-[0.98]"
-                data-testid="button-open-face-scan"
-              >
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/15">
-                  <Video size={22} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-body text-[17px] font-black leading-tight">{t("statusVitals.faceScan.action", "Face scan")}</span>
-                  <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-white/80">{t("statusVitals.faceScan.actionHint", "Heart, breathing, HRV")}</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setBluetoothDevice(VITALS_DEVICE_CATALOG[0])}
-                className="flex min-h-[96px] items-center gap-4 rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-4 text-left shadow-[0_8px_20px_rgba(63,45,35,0.04)] active:scale-[0.98]"
-                data-testid="button-open-bluetooth-device"
-              >
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-                  <Bluetooth size={22} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">{t("statusVitals.bluetooth.action", "Bluetooth device")}</span>
-                  <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{t("statusVitals.bluetooth.actionHint", "BP cuffs, oximeters, meters")}</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => openCapture("photo")}
-                className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-[#D8E7FF] bg-[#EFF6FF] p-4 text-left active:scale-[0.98]"
-                data-testid="button-vitals-snap-reading"
-              >
-                <Camera size={21} className="text-[#1D4ED8]" />
-                <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("statusVitals.hub.snap", "Scan device screen")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => openCapture("voice")}
-                className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-[#F5D7B8] bg-[#FFF7ED] p-4 text-left active:scale-[0.98]"
-                data-testid="button-vitals-say-reading"
-              >
-                <Mic size={21} className="text-[#B45309]" />
-                <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("statusVitals.hub.say", "Say reading")}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => openCapture("text")}
-                className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-[#EDE5DB] bg-[#FFFCF8] p-4 text-left active:scale-[0.98] sm:col-span-2"
-                data-testid="button-log-reading"
-              >
-                <Keyboard size={21} className="text-[#6B21A8]" />
-                <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("statusVitals.logAction", "Type reading")}</span>
-              </button>
-            </div>
-          </div>
+            <button
+              type="button"
+              onClick={() => openAddReadingSheet()}
+              className="mt-5 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#6B21A8] px-5 font-body text-[19px] font-black text-white shadow-[0_12px_28px_rgba(107,33,168,0.22)] active:scale-[0.98]"
+              data-testid="button-open-add-reading-sheet"
+            >
+              <Activity size={22} />
+              {t("statusVitals.hub.addReadingCta", "Add reading")}
+            </button>
 
-          <aside className="rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4" data-testid="vitals-today-prompts">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-text-2">
-                  {t("statusVitals.hub.todayTitle", "Today")}
-                </p>
-                <p className="mt-2 font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                  {latestReadingAt ? t("statusVitals.hub.todayLatest", "Latest reading saved") : t("statusVitals.hub.todayMissing", "No readings yet")}
-                </p>
-                <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
-                  {latestReadingAt ? latestText : t("statusVitals.hub.todayMissingBody", "Start with one useful reading. You can add more later.")}
-                </p>
-              </div>
-            </div>
-
-            {suggestedSignals.length > 0 && (
-              <div className="mt-5">
-                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-2">
+            {primarySuggestedSignals.length > 0 && (
+              <div className="mt-4" data-testid="vitals-today-prompts">
+                <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-vyva-text-2">
                   {t("statusVitals.hub.todayPrompt", "Useful to add")}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {suggestedSignals.map((signal) => (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {primarySuggestedSignals.map((signal) => (
                     <button
                       key={signal}
                       type="button"
-                      onClick={() => openCapture("text", signal)}
+                      onClick={() => openAddReadingSheet(signal)}
                       className="rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-[#6B21A8] active:scale-95"
                       data-testid={`button-suggested-vital-${signal}`}
                     >
@@ -1807,20 +2031,108 @@ const SignosScreen = () => {
                 </div>
               </div>
             )}
+          </div>
 
+          <aside className="hidden rounded-[22px] border border-[#EDE5DB] bg-[#FAF9F6] p-4 lg:block">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-text-2">
+              {t("statusVitals.hub.todayTitle", "Today")}
+            </p>
+            <p className="mt-2 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+              {latestReadingAt ? t("statusVitals.hub.todayLatest", "Latest reading saved") : t("statusVitals.hub.todayMissing", "No readings yet")}
+            </p>
+            <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+              {latestReadingAt ? latestText : t("statusVitals.hub.todayMissingBody", "Start with one useful reading. You can add more later.")}
+            </p>
             <button
               type="button"
-              onClick={() => openCapture("text")}
-              className="mt-5 flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] bg-white font-body text-[14px] font-black text-[#6B21A8] shadow-[inset_0_0_0_1px_#DDD6FE] active:scale-[0.98]"
+              onClick={() => navigate("/settings/health-devices")}
+              className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[15px] bg-white font-body text-[13px] font-black text-[#047857] shadow-[inset_0_0_0_1px_#CFEFE4] active:scale-[0.98]"
+              data-testid="button-manage-health-devices"
             >
-              <Keyboard size={15} />
-              {t("statusVitals.hub.addToday", "Add today's reading")}
+              <Bluetooth size={15} />
+              {t("settings.healthDevices.title", "Health devices")}
             </button>
           </aside>
         </div>
       </section>
 
-      <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)] lg:items-start" data-testid="vitals-snapshot-grid">
+      <section className="mt-4 grid gap-3 lg:hidden" data-testid="mobile-vitals-summary">
+        <section className="rounded-[22px] border border-[#EDE5DB] bg-white p-3 shadow-[0_6px_18px_rgba(63,45,35,0.045)]" data-testid="mobile-todays-readings">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.11em] text-vyva-text-2">
+                {t("statusVitals.mobile.todayReadings", "Today's readings")}
+              </p>
+              <p className="mt-0.5 font-body text-[13px] font-semibold text-vyva-text-2">
+                {latestText}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openAddReadingSheet()}
+              className="rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] font-black text-[#6B21A8]"
+              data-testid="button-mobile-add-reading"
+            >
+              {t("statusVitals.hub.addReadingCta", "Add reading")}
+            </button>
+          </div>
+          <div className="grid gap-2">
+            {(["hr", "rr", "bp"] as MetricType[]).map((key) => (
+              <CompactMetricRow
+                key={key}
+                metricKey={key}
+                summary={summary?.[key]}
+                t={t}
+                onAdd={openAddReadingSheet}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-[22px] border border-[#EDE5DB] bg-white p-3 shadow-[0_6px_18px_rgba(63,45,35,0.045)]" data-testid="mobile-weekly-rhythm">
+          <button
+            type="button"
+            onClick={() => setMobileWeeklyOpen((value) => !value)}
+            className="flex w-full items-center justify-between gap-3 text-left"
+            data-testid="button-mobile-weekly-toggle"
+          >
+            <span>
+              <span className="block font-body text-[12px] font-black uppercase tracking-[0.11em] text-vyva-text-2">
+                {t("statusVitals.weeklyRhythm", "Weekly rhythm")}
+              </span>
+              <span className="mt-0.5 block font-body text-[15px] font-black text-vyva-text-1">
+                {t("statusVitals.daysWithReadings", { defaultValue: "{{count}} of 7 days with readings", count: filledDays })}
+              </span>
+            </span>
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9] text-vyva-text-2">
+              {mobileWeeklyOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+            </span>
+          </button>
+          {mobileWeeklyOpen && (
+            <div className="mt-4 border-t border-[#EFE5DC] pt-4">
+              <div className="grid grid-cols-7 gap-2">
+                {complianceDays.map((done, index) => (
+                  <div key={`${index}-${done}`} className="flex flex-col items-center gap-1">
+                    <div
+                      className="h-7 w-full rounded-[9px]"
+                      style={{
+                        background: done ? "#6B21A8" : "#E8DED4",
+                        opacity: done ? 1 : 0.5,
+                      }}
+                    />
+                    <span className="font-body text-[10px] font-semibold text-vyva-text-2">{t(DAY_LABELS[index].key, DAY_LABELS[index].fallback)}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 rounded-[16px] bg-[#FAF9F6] px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
+              </p>
+            </div>
+          )}
+        </section>
+      </section>
+
+      <section className="mt-5 hidden gap-4 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)] lg:items-start" data-testid="vitals-snapshot-grid">
         <div className="grid gap-4">
           <section
             className="rounded-[26px] border border-[#E4D9CE] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.07)]"
@@ -1922,93 +2234,6 @@ const SignosScreen = () => {
         </section>
       </section>
 
-      <section className="mt-5 rounded-[26px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="connect-health-devices">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-purple">
-              {t("statusVitals.devices.connectTitle", "Devices")}
-            </p>
-            <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-              {t("statusVitals.devices.connectBody", "Use Bluetooth when it works. Scan, say, or type when it does not.")}
-            </p>
-          </div>
-          <span className="w-fit rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-bold text-[#047857]">
-            {supportedDevices} {t("statusVitals.devices.supported", "supported")}
-          </span>
-        </div>
-
-        <div className="mt-4 grid gap-2">
-          {VITALS_DEVICE_CATALOG.map((device) => {
-            const Icon = DEVICE_ICON_BY_ID[device.id];
-            return (
-              <article
-                key={device.id}
-                className="rounded-[20px] border border-[#F0E7DE] bg-[#FFFCF8] p-3 shadow-[0_5px_14px_rgba(63,45,35,0.035)]"
-                data-testid={`device-card-${device.id}`}
-              >
-                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.62fr)] lg:items-center">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ color: device.accent, background: device.bg }}>
-                      <Icon size={19} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{device.label}</p>
-                      <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">{device.helper}</p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {device.signals.map((signal) => (
-                          <span key={signal} className="rounded-full px-2 py-0.5 font-body text-[10px] font-black" style={{ color: device.accent, background: device.bg }}>
-                            {publicSignalLabel(signal)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <button
-                      type="button"
-                      onClick={() => setBluetoothDevice(device)}
-                      className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-[14px] font-body text-[12px] font-black text-white shadow-[0_7px_14px_rgba(107,33,168,0.12)] active:scale-[0.98]"
-                      style={{ background: device.accent }}
-                      data-testid={`button-device-bluetooth-${device.id}`}
-                    >
-                      <Bluetooth size={14} />
-                      {t("statusVitals.bluetooth.tryShort", "Bluetooth")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openCapture("photo")}
-                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#BFDBFE] bg-[#EFF6FF] font-body text-[12px] font-black text-[#1D4ED8]"
-                      data-testid={`button-device-photo-${device.id}`}
-                    >
-                      <Camera size={13} />
-                      {t("statusVitals.capture.photoShort", "Scan")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openCapture("voice", device.fallbackSignals[0])}
-                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#FED7AA] bg-[#FFF7ED] font-body text-[12px] font-black text-[#B45309]"
-                      data-testid={`button-device-voice-${device.id}`}
-                    >
-                      <Mic size={13} />
-                      {t("statusVitals.capture.voiceShort", "Say")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openCapture("text", device.fallbackSignals[0])}
-                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#DDD6FE] bg-white font-body text-[12px] font-black text-[#6B21A8]"
-                      data-testid={`button-device-type-${device.id}`}
-                    >
-                      <Keyboard size={13} />
-                      {t("statusVitals.capture.typeShort", "Type")}
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
-
       <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-sharing">
         <div className="mb-4 flex items-start gap-3">
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF]">
@@ -2046,6 +2271,18 @@ const SignosScreen = () => {
         </div>
       </section>
 
+      {showAddReadingSheet && (
+        <AddReadingSheet
+          selectedSignal={selectedSuggestedSignal}
+          onClose={() => setShowAddReadingSheet(false)}
+          onCapture={openCapture}
+          onFaceScan={() => setShowFaceScanModal(true)}
+          onConnectDevice={() => {
+            setShowAddReadingSheet(false);
+            navigate("/settings/health-devices");
+          }}
+        />
+      )}
       {showScanModal && <ScanModal onClose={() => setShowScanModal(false)} />}
       {showFaceScanModal && (
         <FaceScanModal

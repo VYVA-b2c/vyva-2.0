@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SettingsHome from "./SettingsHome";
 
@@ -68,5 +68,20 @@ describe("SettingsHome action rows", () => {
       title: "Opening email draft",
       description: "Support email copied: support@vyva.life",
     }));
+  });
+
+  it("opens Health devices from Settings", () => {
+    render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Routes>
+          <Route path="/settings" element={<SettingsHome />} />
+          <Route path="/settings/health-devices" element={<div data-testid="health-devices-route">Health devices</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId("button-settings-health-devices"));
+
+    expect(screen.getByTestId("health-devices-route")).toBeInTheDocument();
   });
 });
