@@ -1,10 +1,11 @@
-import { ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
   AlertTriangle,
+  Bluetooth,
   Calendar,
   Camera,
   Check,
@@ -21,21 +22,18 @@ import {
   Mail,
   Mic,
   Phone,
-  Plus,
-  RefreshCw,
   ScanLine,
+  Scale,
   Share2,
   ShieldCheck,
   Stethoscope,
+  Thermometer,
   UserPlus,
   Users,
-  Watch,
+  Video,
   Wind,
   X,
 } from "lucide-react";
-import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
-import VoiceHero from "@/components/VoiceHero";
-import VitalsTracker from "@/components/VitalsTracker";
 import VitalsScan from "@/components/VitalsScan";
 import {
   HealthWizardCard,
@@ -43,13 +41,18 @@ import {
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
-import { useAuth } from "@/contexts/AuthContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
+import { VITALS_DEVICE_CATALOG, type VitalsDeviceCatalogItem, type VitalsDeviceKind } from "@/lib/vitalsDeviceCatalog";
+import {
+  isWebBluetoothSupported,
+  readStandardBluetoothDevice,
+  type BluetoothCaptureState,
+} from "@/lib/vitalsBluetooth";
 import { vitalsEvidenceFor, type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
 import {
   VITALS_SIGNAL_CATALOG,
@@ -154,11 +157,17 @@ const DAY_LABELS = [
   { key: "statusVitals.days.sun", fallback: "S" },
 ];
 
-const DEVICE_ROWS = [
-  { id: "watch", Icon: Watch, labelKey: "statusVitals.deviceRows.smartwatch", fallbackLabel: "Smartwatch", model: "Connect later", connected: false },
-  { id: "bp-cuff", Icon: Activity, labelKey: "statusVitals.deviceRows.bloodPressureCuff", fallbackLabel: "Blood pressure cuff", model: "Connect later", connected: false },
-  { id: "stethoscope", Icon: Stethoscope, labelKey: "statusVitals.deviceRows.digitalStethoscope", fallbackLabel: "Digital stethoscope", model: "Connect later", connected: false },
-];
+const DEVICE_ICON_BY_ID: Record<VitalsDeviceKind, LucideIcon> = {
+  bp_cuff: Activity,
+  pulse_oximeter: Wind,
+  thermometer: Thermometer,
+  glucose_meter: Stethoscope,
+  weight_scale: Scale,
+  heart_monitor: Heart,
+};
+
+const FACE_SCAN_DURATION_MS = 20_000;
+const FACE_SCAN_FPS = 15;
 
 const VITALS_AUDIO_TYPES = [
   "audio/webm;codecs=opus",
@@ -184,6 +193,71 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.onload = () => resolve(String(reader.result ?? ""));
     reader.onerror = () => reject(reader.error ?? new Error("Could not read image"));
     reader.readAsDataURL(file);
+  });
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return window.btoa(binary);
+}
+
+function faceScanDurationMs() {
+  const testWindow = window as Window & { __VYVA_FACE_SCAN_TEST_DURATION_MS?: number };
+  return typeof testWindow.__VYVA_FACE_SCAN_TEST_DURATION_MS === "number"
+    ? Math.max(1, testWindow.__VYVA_FACE_SCAN_TEST_DURATION_MS)
+    : FACE_SCAN_DURATION_MS;
+}
+
+async function captureVitalLensPayload(video: HTMLVideoElement, canvas: HTMLCanvasElement): Promise<{ video: string; fps: number; duration_seconds: number }> {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Could not read camera frames.");
+
+  canvas.width = 40;
+  canvas.height = 40;
+  const durationMs = faceScanDurationMs();
+  const frameIntervalMs = 1000 / FACE_SCAN_FPS;
+  const chunks: Uint8Array[] = [];
+  const startedAt = performance.now();
+
+  return new Promise((resolve, reject) => {
+    const capture = () => {
+      try {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const image = context.getImageData(0, 0, canvas.width, canvas.height);
+        const rgb = new Uint8Array(canvas.width * canvas.height * 3);
+        for (let src = 0, dest = 0; src < image.data.length; src += 4) {
+          rgb[dest++] = image.data[src];
+          rgb[dest++] = image.data[src + 1];
+          rgb[dest++] = image.data[src + 2];
+        }
+        chunks.push(rgb);
+
+        if (performance.now() - startedAt >= durationMs) {
+          const totalBytes = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+          const payload = new Uint8Array(totalBytes);
+          let offset = 0;
+          for (const chunk of chunks) {
+            payload.set(chunk, offset);
+            offset += chunk.length;
+          }
+          resolve({
+            video: bytesToBase64(payload),
+            fps: FACE_SCAN_FPS,
+            duration_seconds: Math.round((durationMs / 1000) * 10) / 10,
+          });
+          return;
+        }
+        window.setTimeout(capture, frameIntervalMs);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    capture();
   });
 }
 
@@ -236,6 +310,19 @@ function proposedVitalsReadingCards(readings: ProposedVitalsReading[]): Proposed
   }
 
   return cards;
+}
+
+function readingsPayloadFromProposed(readings: ProposedVitalsReading[]) {
+  return readings.map((reading) => ({
+    signal_type: reading.signal_type,
+    value: reading.value,
+    source: reading.source,
+    capture_method: reading.capture_method,
+    context_tag: reading.context_tag,
+    unit: reading.unit,
+    recorded_at: reading.recorded_at,
+    source_ref: reading.source_ref,
+  }));
 }
 
 type VitalsStatusServiceActionKind =
@@ -347,14 +434,6 @@ export function vitalsStatusServiceActionsFor({
   });
 
   return actions;
-}
-
-type VitalsTrackerLanguage = "de" | "en" | "es" | "fr" | "it" | "pt";
-
-function vitalsTrackerLanguage(language?: string | null): VitalsTrackerLanguage {
-  const base = (language ?? "").split("-")[0]?.toLowerCase();
-  if (base === "de" || base === "en" || base === "es" || base === "fr" || base === "it" || base === "pt") return base;
-  return "en";
 }
 
 function parseNumericValue(value: string | null): number | null {
@@ -494,31 +573,29 @@ function MetricCard({
           <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: meta.soft }}>
             <Icon size={21} style={{ color: meta.accent }} />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 pt-0.5">
             <p className="font-body text-[13px] font-semibold text-vyva-text-2">
               {t(meta.labelKey, meta.fallbackLabel)}
             </p>
-            <p className="mt-1 font-body text-[28px] font-bold leading-none text-vyva-text-1">
-              {displayValue === "--" ? (
-                <span className="text-[17px] font-semibold text-vyva-text-2">{t("statusVitals.emptyMetric", "No reading")}</span>
-              ) : (
-                <>
-                  {displayValue}
-                  <span className="ml-1 text-[13px] font-semibold text-vyva-text-2">{meta.unit}</span>
-                </>
-              )}
-            </p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
-            {stateLabel}
-          </span>
-          {hasData && (
-            <span className="rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: source.color, background: source.bg }}>
-              {source.label}
-            </span>
+        <span className="flex-shrink-0 rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
+          {stateLabel}
+        </span>
+      </div>
+
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <p className="min-w-0 break-words font-body text-[30px] font-bold leading-none text-vyva-text-1">
+          {displayValue === "--" ? (
+            <span className="text-[17px] font-semibold text-vyva-text-2">{t("statusVitals.emptyMetric", "No reading")}</span>
+          ) : (
+            <>
+              {displayValue}
+              <span className="ml-1 whitespace-nowrap text-[13px] font-semibold text-vyva-text-2">{meta.unit}</span>
+            </>
           )}
+        </p>
+        <div className="flex flex-shrink-0 items-center gap-2">
           {hasTrend && (
             <button
               type="button"
@@ -532,6 +609,15 @@ function MetricCard({
           )}
         </div>
       </div>
+
+      {hasData && (
+        <div className="mt-3">
+          <span className="inline-flex max-w-full rounded-full px-3 py-1 font-body text-[11px] font-bold leading-tight" style={{ color: source.color, background: source.bg }}>
+            {source.label}
+          </span>
+        </div>
+      )}
+
       {expanded && hasTrend && (
         <div className="mt-4 border-t border-[#EFE5DC] pt-3">
           <div className="flex items-center justify-between">
@@ -839,15 +925,7 @@ function VitalsCaptureModal({
         method: "POST",
         credentials: "include",
         body: JSON.stringify({
-          readings: proposed.map((reading) => ({
-            signal_type: reading.signal_type,
-            value: reading.value,
-            source: reading.source,
-            capture_method: reading.capture_method,
-            context_tag: reading.context_tag,
-            unit: reading.unit,
-            recorded_at: reading.recorded_at,
-          })),
+          readings: readingsPayloadFromProposed(proposed),
         }),
       });
       if (!response.ok) throw new Error("save failed");
@@ -1010,14 +1088,443 @@ function VitalsCaptureModal({
   );
 }
 
+function BluetoothDeviceModal({
+  device,
+  onClose,
+  onFallback,
+}: {
+  device: VitalsDeviceCatalogItem;
+  onClose: () => void;
+  onFallback: (mode: VitalsCaptureMode, signal?: VitalsSignalKey) => void;
+}) {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [state, setState] = useState<BluetoothCaptureState>(isWebBluetoothSupported() ? "supported" : "unsupported");
+  const [result, setResult] = useState<VitalsParsingResult | null>(null);
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const proposed = useMemo(() => result?.proposed_readings ?? [], [result?.proposed_readings]);
+  const proposedCards = useMemo(() => proposedVitalsReadingCards(proposed), [proposed]);
+  const Icon = DEVICE_ICON_BY_ID[device.id];
+  const primarySignal = device.fallbackSignals[0];
+
+  const stateCopy: Record<BluetoothCaptureState, string> = {
+    supported: t("statusVitals.bluetooth.supported", "Ready to search nearby Bluetooth devices."),
+    unsupported: t("statusVitals.bluetooth.unsupported", "Bluetooth is not available in this browser. You can scan, say, or type the reading instead."),
+    searching: t("statusVitals.bluetooth.searching", "Searching for your device..."),
+    connected: t("statusVitals.bluetooth.connected", "Connected. Keep the device nearby."),
+    waiting: t("statusVitals.bluetooth.waiting", "Waiting for the measurement..."),
+    reading_found: t("statusVitals.bluetooth.readingFound", "Reading found."),
+    needs_confirmation: t("statusVitals.bluetooth.confirm", "Please confirm before saving."),
+    failed: t("statusVitals.bluetooth.failed", "Could not read this device. Use scan, voice, or type instead."),
+  };
+
+  const startBluetooth = useCallback(async () => {
+    setError("");
+    setResult(null);
+    try {
+      const readResult = await readStandardBluetoothDevice(device, setState);
+      setResult({
+        proposed_readings: readResult.readings,
+        needs_confirmation: true,
+        clarification_prompt: t("statusVitals.bluetooth.confirmPrompt", "Confirm these Bluetooth readings before VYVA saves them."),
+        transcript: readResult.deviceName,
+      });
+    } catch (err) {
+      setState(isWebBluetoothSupported() ? "failed" : "unsupported");
+      setError(err instanceof Error ? err.message : t("statusVitals.bluetooth.failed", "Could not read this device."));
+    }
+  }, [device, t]);
+
+  const saveReadings = useCallback(async () => {
+    if (!proposed.length) return;
+    setIsSaving(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/vitals-engine/readings", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({ readings: readingsPayloadFromProposed(proposed) }),
+      });
+      if (!response.ok) throw new Error("save failed");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals-engine/latest"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals-engine/latest", "hub-prompts"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] }),
+      ]);
+      window.dispatchEvent(new Event("vyva:vitals-updated"));
+      toast({
+        title: t("statusVitals.savedTitle", "Reading saved"),
+        description: t("statusVitals.bluetooth.saved", "Bluetooth reading added to your vitals."),
+      });
+      onClose();
+    } catch {
+      setError(t("statusVitals.saveErrorBody", "Please try again in a moment."));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [onClose, proposed, queryClient, t, toast]);
+
+  const fallback = (mode: VitalsCaptureMode) => {
+    onClose();
+    onFallback(mode, mode === "photo" ? undefined : primarySignal);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <section className="max-h-[92vh] w-full max-w-[620px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="bluetooth-device-modal">
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ color: device.accent, background: device.bg }}>
+              <Icon size={22} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-display text-[26px] italic leading-tight text-vyva-text-1">{device.label}</h2>
+              <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{device.helper}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
+            aria-label={t("common.close", "Close")}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#6B21A8]">
+              {state === "searching" || state === "waiting" ? <Loader2 size={18} className="animate-spin" /> : <Bluetooth size={18} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.11em] text-vyva-purple">
+                {t("statusVitals.bluetooth.title", "Bluetooth device")}
+              </p>
+              <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-1" data-testid={`bluetooth-state-${state}`}>
+                {stateCopy[state]}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={startBluetooth}
+            disabled={state === "searching" || state === "waiting" || state === "connected"}
+            className="vyva-primary-action mt-4 min-h-[58px] w-full text-[17px] disabled:opacity-60"
+            data-testid="button-start-bluetooth"
+          >
+            {state === "searching" || state === "waiting" ? <Loader2 size={18} className="animate-spin" /> : <Bluetooth size={18} />}
+            {t("statusVitals.bluetooth.try", "Try Bluetooth")}
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => fallback("photo")}
+            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[#BFDBFE] bg-[#EFF6FF] px-2 font-body text-[12px] font-black text-[#1D4ED8]"
+            data-testid="button-bluetooth-fallback-photo"
+          >
+            <Camera size={17} />
+            {t("statusVitals.capture.photoShort", "Scan")}
+          </button>
+          <button
+            type="button"
+            onClick={() => fallback("voice")}
+            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[#FED7AA] bg-[#FFF7ED] px-2 font-body text-[12px] font-black text-[#B45309]"
+            data-testid="button-bluetooth-fallback-voice"
+          >
+            <Mic size={17} />
+            {t("statusVitals.capture.voiceShort", "Say")}
+          </button>
+          <button
+            type="button"
+            onClick={() => fallback("text")}
+            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[#DDD6FE] bg-[#F5F3FF] px-2 font-body text-[12px] font-black text-[#6B21A8]"
+            data-testid="button-bluetooth-fallback-type"
+          >
+            <Keyboard size={17} />
+            {t("statusVitals.capture.typeShort", "Type")}
+          </button>
+        </div>
+
+        {result?.clarification_prompt && (
+          <p className="mt-4 rounded-[18px] border border-[#DDD6FE] bg-[#F5F3FF] px-4 py-3 font-body text-[14px] font-bold leading-snug text-[#6B21A8]">
+            {result.clarification_prompt}
+          </p>
+        )}
+
+        {proposed.length > 0 && (
+          <div className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4">
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
+              {t("statusVitals.capture.confirmTitle", "Confirm before saving")}
+            </p>
+            <div className="mt-3 grid gap-2">
+              {proposedCards.map((reading) => (
+                <div key={reading.key} className="flex items-start gap-3 rounded-[18px] bg-white px-4 py-3">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
+                    <Check size={16} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[17px] font-black leading-tight text-vyva-text-1">{reading.display}</p>
+                    <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                      {reading.explanation} {t("statusVitals.confidence.high", "High")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={saveReadings}
+              disabled={isSaving}
+              className="vyva-primary-action mt-4 min-h-[60px] w-full text-[18px] disabled:opacity-60"
+              data-testid="button-confirm-bluetooth-readings"
+            >
+              {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+              {isSaving ? t("statusVitals.saving", "Saving...") : t("statusVitals.capture.saveConfirmed", "Save confirmed readings")}
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <p className="mt-4 rounded-[18px] bg-[#FEF2F2] px-4 py-3 font-body text-[14px] font-bold text-[#B91C1C]">
+            {error}
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function FaceScanModal({
+  onClose,
+  onLocalScan,
+}: {
+  onClose: () => void;
+  onLocalScan: () => void;
+}) {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [status, setStatus] = useState<"idle" | "camera" | "scanning" | "reading" | "needs_confirmation" | "not_configured" | "failed">("idle");
+  const [result, setResult] = useState<VitalsParsingResult | null>(null);
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const proposed = useMemo(() => result?.proposed_readings ?? [], [result?.proposed_readings]);
+  const proposedCards = useMemo(() => proposedVitalsReadingCards(proposed), [proposed]);
+
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
+  const startScan = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus("failed");
+      setError(t("statusVitals.faceScan.unsupported", "Camera access is not available on this browser."));
+      return;
+    }
+
+    setError("");
+    setResult(null);
+    try {
+      setStatus("camera");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (!videoRef.current || !canvasRef.current) throw new Error("Camera preview is not ready.");
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setStatus("scanning");
+      const payload = await captureVitalLensPayload(videoRef.current, canvasRef.current);
+      stream.getTracks().forEach((track) => track.stop());
+      setStatus("reading");
+      const response = await apiFetch("/api/vitals-engine/face-scan", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("face scan failed");
+      const parsed = await response.json() as VitalsParsingResult;
+      setResult(parsed);
+      if (parsed.proposed_readings.length > 0) {
+        setStatus("needs_confirmation");
+      } else {
+        setStatus("not_configured");
+      }
+    } catch (err) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      setStatus("failed");
+      setError(err instanceof Error ? err.message : t("statusVitals.faceScan.failed", "Face scan did not complete."));
+    }
+  }, [t]);
+
+  const saveReadings = useCallback(async () => {
+    if (!proposed.length) return;
+    setIsSaving(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/vitals-engine/readings", {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({ readings: readingsPayloadFromProposed(proposed) }),
+      });
+      if (!response.ok) throw new Error("save failed");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals-engine/latest"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/vitals-engine/latest", "hub-prompts"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] }),
+      ]);
+      window.dispatchEvent(new Event("vyva:vitals-updated"));
+      toast({
+        title: t("statusVitals.savedTitle", "Reading saved"),
+        description: t("statusVitals.faceScan.saved", "Face scan estimate added to your vitals."),
+      });
+      onClose();
+    } catch {
+      setError(t("statusVitals.saveErrorBody", "Please try again in a moment."));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [onClose, proposed, queryClient, t, toast]);
+
+  const useLocalScan = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    onClose();
+    onLocalScan();
+  };
+
+  const statusText = {
+    idle: t("statusVitals.faceScan.idle", "Use your front camera for heart rate, breathing, and HRV estimates."),
+    camera: t("statusVitals.faceScan.camera", "Opening camera..."),
+    scanning: t("statusVitals.faceScan.scanning", "Hold still while VYVA captures a short face scan."),
+    reading: t("statusVitals.faceScan.reading", "Reading estimates securely..."),
+    needs_confirmation: t("statusVitals.faceScan.confirm", "Confirm before saving."),
+    not_configured: result?.clarification_prompt ?? t("statusVitals.faceScan.notConfigured", "VitalLens is not configured yet. You can use the local phone estimate instead."),
+    failed: t("statusVitals.faceScan.failed", "Face scan did not complete."),
+  }[status];
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
+      <section className="max-h-[92vh] w-full max-w-[620px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="face-scan-modal">
+        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
+              <Video size={22} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-display text-[26px] italic leading-tight text-vyva-text-1">
+                {t("statusVitals.faceScan.title", "Face scan")}
+              </h2>
+              <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                {t("statusVitals.faceScan.subtitle", "Camera estimates are for wellness trends and always need confirmation.")}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
+            aria-label={t("common.close", "Close")}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="overflow-hidden rounded-[26px] border border-[#EDE5DB] bg-[#151026]">
+          <video ref={videoRef} playsInline muted className="h-[260px] w-full object-cover" style={{ transform: "scaleX(-1)" }} />
+          <canvas ref={canvasRef} className="hidden" />
+        </div>
+
+        <p className="mt-4 rounded-[18px] border border-[#DDD6FE] bg-[#F5F3FF] px-4 py-3 font-body text-[14px] font-bold leading-snug text-[#6B21A8]" data-testid={`face-scan-status-${status}`}>
+          {statusText}
+        </p>
+
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={startScan}
+            disabled={status === "camera" || status === "scanning" || status === "reading"}
+            className="vyva-primary-action min-h-[60px] text-[17px] disabled:opacity-60"
+            data-testid="button-start-face-scan"
+          >
+            {status === "camera" || status === "scanning" || status === "reading" ? <Loader2 size={18} className="animate-spin" /> : <Video size={18} />}
+            {t("statusVitals.faceScan.start", "Start face scan")}
+          </button>
+          <button
+            type="button"
+            onClick={useLocalScan}
+            className="vyva-secondary-action min-h-[60px] rounded-full text-[17px]"
+            data-testid="button-use-local-phone-scan"
+          >
+            <ScanLine size={18} />
+            {t("statusVitals.faceScan.local", "Phone estimate")}
+          </button>
+        </div>
+
+        {proposed.length > 0 && (
+          <div className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4">
+            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
+              {t("statusVitals.capture.confirmTitle", "Confirm before saving")}
+            </p>
+            <div className="mt-3 grid gap-2">
+              {proposedCards.map((reading) => (
+                <div key={reading.key} className="flex items-start gap-3 rounded-[18px] bg-white px-4 py-3">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
+                    <Check size={16} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[17px] font-black leading-tight text-vyva-text-1">{reading.display}</p>
+                    <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                      {reading.explanation} {reading.confidence === "medium" ? t("statusVitals.confidence.medium", "Medium") : reading.confidence}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={saveReadings}
+              disabled={isSaving}
+              className="vyva-primary-action mt-4 min-h-[60px] w-full text-[18px] disabled:opacity-60"
+              data-testid="button-confirm-face-scan-readings"
+            >
+              {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+              {isSaving ? t("statusVitals.saving", "Saving...") : t("statusVitals.capture.saveConfirmed", "Save confirmed readings")}
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <p className="mt-4 rounded-[18px] bg-[#FEF2F2] px-4 py-3 font-body text-[14px] font-bold text-[#B91C1C]">
+            {error}
+          </p>
+        )}
+      </section>
+    </div>
+  );
+}
+
 const SignosScreen = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { language: appLanguage } = useLanguage();
   const { toast } = useToast();
-  const { user } = useAuth();
   const { profile } = useProfile();
   const [showScanModal, setShowScanModal] = useState(false);
+  const [showFaceScanModal, setShowFaceScanModal] = useState(false);
+  const [bluetoothDevice, setBluetoothDevice] = useState<VitalsDeviceCatalogItem | null>(null);
   const [captureMode, setCaptureMode] = useState<VitalsCaptureMode | null>(null);
   const [captureSignal, setCaptureSignal] = useState<VitalsSignalKey | null>(null);
   const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
@@ -1046,7 +1553,7 @@ const SignosScreen = () => {
   const summary = vitalsData?.summary;
   const complianceDays = vitalsData?.compliance_days ?? (Array(7).fill(false) as boolean[]);
   const filledDays = complianceDays.filter(Boolean).length;
-  const connectedDevices = DEVICE_ROWS.filter((device) => device.connected).length;
+  const supportedDevices = VITALS_DEVICE_CATALOG.length;
   const todaySignals = useMemo(() => new Set(
     (vitalsEngineData?.recent_readings ?? [])
       .filter((reading) => isTodayReading(reading.recorded_at))
@@ -1085,76 +1592,6 @@ const SignosScreen = () => {
       || voiceAction?.extractedSubject
       || "",
   );
-  const focusedMetricSummary = focusedMetric ? summary?.[focusedMetric] : undefined;
-  const voiceActionHighlights = [
-    ...(focusedMetric
-      ? [{
-          label: t("statusVitals.voiceMetric", "Metric"),
-          value: t(METRIC_META[focusedMetric].labelKey, METRIC_META[focusedMetric].fallbackLabel),
-          tone: "good" as const,
-        }]
-      : []),
-    ...(focusedMetricSummary?.latest_value
-      ? [{
-          label: t("statusVitals.voiceLatest", "Latest"),
-          value: `${focusedMetricSummary.latest_value} ${METRIC_META[focusedMetric!].unit}`,
-          tone: "neutral" as const,
-        }]
-      : []),
-    ...(latestReadingAt
-      ? [{
-          label: t("statusVitals.voiceLastScan", "Last scan"),
-          value: latestText,
-          tone: "neutral" as const,
-        }]
-      : []),
-  ];
-  const measurementModes = [
-    {
-      id: "phone",
-      Icon: ScanLine,
-      title: t("statusVitals.capabilities.phoneTitle", "Phone estimate"),
-      body: t("statusVitals.capabilities.phoneBody", "Camera-based pulse and breathing trend. Useful for a quick check, not a medical device reading."),
-      items: [
-        t("statusVitals.capabilities.pulse", "Pulse"),
-        t("statusVitals.capabilities.breathing", "Breathing"),
-      ],
-      color: "#6B21A8",
-      bg: "#F5F3FF",
-    },
-    {
-      id: "manual",
-      Icon: Plus,
-      title: t("statusVitals.capabilities.manualTitle", "Manual log"),
-      body: t("statusVitals.capabilities.manualBody", "Add numbers from a cuff, oximeter, thermometer, glucose meter, or how you feel today."),
-      items: [
-        t("statusVitals.capabilities.bp", "BP"),
-        t("statusVitals.capabilities.oxygen", "Oxygen"),
-        t("statusVitals.capabilities.temp", "Temp"),
-        t("statusVitals.capabilities.glucose", "Glucose"),
-        t("statusVitals.capabilities.pain", "Pain"),
-        t("statusVitals.capabilities.mood", "Mood"),
-        t("statusVitals.capabilities.energy", "Energy"),
-        t("statusVitals.capabilities.sleep", "Sleep"),
-        t("statusVitals.capabilities.medication", "Medication"),
-      ],
-      color: "#92400E",
-      bg: "#FEF3C7",
-    },
-    {
-      id: "device",
-      Icon: Watch,
-      title: t("statusVitals.capabilities.deviceTitle", "Device or clinical"),
-      body: t("statusVitals.capabilities.deviceBody", "Connected devices and clinical readings carry the strongest weight in VYVA's safety checks."),
-      items: [
-        t("statusVitals.capabilities.highConfidence", "Higher confidence"),
-        t("statusVitals.capabilities.safetyChecks", "Safety checks"),
-      ],
-      color: "#047857",
-      bg: "#D1FAE5",
-    },
-  ];
-
   const statusSummaryText = useMemo(() => {
     const lines = (["hr", "rr", "bp"] as MetricType[]).map((key) => {
       const meta = METRIC_META[key];
@@ -1247,260 +1684,213 @@ const SignosScreen = () => {
   };
 
   return (
-    <HealthWizardShell>
+    <HealthWizardShell contentClassName="max-w-[1180px] px-4 pb-40 sm:px-6 lg:px-8">
       <HealthWizardTopBar
-        title={t("statusVitals.title", "Status / Vitals")}
-        kicker={t("health.quickTiles.status.label", "Vitals")}
+        title={t("statusVitals.hub.pageTitle", "Vitals")}
+        kicker={t("statusVitals.hub.pageKicker", "Health")}
         onBack={() => navigate("/health")}
         backLabel={t("common.back", "Back")}
         className="mb-3"
       />
 
-      <VoiceHero
-        heroSurface="vitals"
-        sourceText={t("statusVitals.heroSource", "Status / Vitals")}
-        headline={t("statusVitals.heroHeadline", "Vitals are ready when you are")}
-        subtitle={latestReadingAt ? t("statusVitals.heroSubtitleWithLatest", { defaultValue: "Last reading: {{latest}}", latest: latestText }) : t("statusVitals.heroSubtitle", "Scan, log, and share your key health numbers.")}
-        contextHint="status vitals heart rate breathing blood pressure"
-        talkLabel={t("statusVitals.heroCta", "Ask about my vitals")}
-      >
-        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/15 pt-4">
+      <section className="rounded-[28px] border border-[#E8DED4] bg-white p-5 shadow-[0_14px_34px_rgba(63,45,35,0.06)] md:p-6" data-testid="vitals-guided-hub">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.18fr)_minmax(310px,0.82fr)] lg:items-stretch">
           <div>
-            <p className="font-body text-[18px] font-bold text-white">{metricsWithData}/3</p>
-            <p className="font-body text-[11px] leading-tight text-white/70">{t("statusVitals.heroMetrics", "metrics")}</p>
-          </div>
-          <div>
-            <p className="font-body text-[18px] font-bold text-white">{filledDays}/7</p>
-            <p className="font-body text-[11px] leading-tight text-white/70">{t("statusVitals.heroDays", "days")}</p>
-          </div>
-          <div>
-            <p className="font-body text-[18px] font-bold text-white">{connectedDevices}</p>
-            <p className="font-body text-[11px] leading-tight text-white/70">{t("statusVitals.heroDevices", "devices")}</p>
-          </div>
-        </div>
-      </VoiceHero>
-
-      <VoiceActionFulfillmentPanel
-        domain="health"
-        actionTypes={["health.vitals_review"]}
-        title={t("statusVitals.contextPanelTitle", "Vitals context ready")}
-        description={t("statusVitals.contextPanelDescription", "VYVA can use the latest readings, trend cards, and scan timing from this page.")}
-        highlights={voiceActionHighlights}
-        className="mt-4"
-      />
-
-      <section className="mt-5 rounded-[28px] border border-[#E8DED4] bg-white p-4 shadow-[0_12px_30px_rgba(63,45,35,0.07)]" data-testid="vitals-guided-hub">
-        <div className="flex items-start gap-3">
-          <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-vyva-purple">
-            <Activity size={22} />
-          </span>
-          <div className="min-w-0">
-            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
-              {t("statusVitals.hub.kicker", "Scan, say, snap, or type")}
-            </p>
-            <h2 className="mt-1 font-display text-[28px] italic leading-tight text-vyva-text-1">
-              {t("statusVitals.hub.title", "Add home vitals your way")}
-            </h2>
-            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-              {t("statusVitals.hub.subtitle", "VYVA reads the number, shows it back, and saves only after you confirm.")}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setShowScanModal(true)}
-            className="flex min-h-[96px] flex-col justify-between rounded-[22px] bg-[#6B21A8] p-4 text-left text-white shadow-[0_10px_24px_rgba(107,33,168,0.24)] active:scale-[0.98]"
-            data-testid="button-open-vitals-scan"
-          >
-            <ScanLine size={22} />
-            <span className="font-body text-[15px] font-bold leading-tight">{t("statusVitals.scanAction", "Phone estimate")}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => openCapture("voice")}
-            className="flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-[#FFF7ED] p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
-            data-testid="button-vitals-say-reading"
-          >
-            <Mic size={22} className="text-[#B45309]" />
-            <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">{t("statusVitals.hub.say", "Say reading")}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => openCapture("photo")}
-            className="flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-[#EFF6FF] p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
-            data-testid="button-vitals-snap-reading"
-          >
-            <Camera size={22} className="text-[#1D4ED8]" />
-            <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">{t("statusVitals.hub.snap", "Scan device")}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => openCapture("text")}
-            className="flex min-h-[96px] flex-col justify-between rounded-[22px] border border-[#EDE5DB] bg-white p-4 text-left shadow-[0_8px_22px_rgba(63,45,35,0.06)] active:scale-[0.98]"
-            data-testid="button-log-reading"
-          >
-            <Keyboard size={22} className="text-[#6B21A8]" />
-            <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-1">{t("statusVitals.logAction", "Type reading")}</span>
-          </button>
-        </div>
-
-        {suggestedSignals.length > 0 && (
-          <div className="mt-4 rounded-[22px] border border-[#EDE5DB] bg-[#FAF9F6] p-4" data-testid="vitals-today-prompts">
-            <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-2">
-              {t("statusVitals.hub.todayPrompt", "Useful to add today")}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {suggestedSignals.map((signal) => (
-                <button
-                  key={signal}
-                  type="button"
-                  onClick={() => openCapture("text", signal)}
-                  className="rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-[#6B21A8] active:scale-95"
-                  data-testid={`button-suggested-vital-${signal}`}
-                >
-                  {publicSignalLabel(signal)}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 grid gap-2">
-          {[
-            t("statusVitals.hub.evidencePhone", "Phone scan: pulse and breathing trend"),
-            t("statusVitals.hub.evidenceManual", "Voice, photo, or typed readings: confirm before saving"),
-            t("statusVitals.hub.evidenceDevice", "Connected devices: ready for the next phase"),
-          ].map((item) => (
-            <div key={item} className="flex items-center gap-3 rounded-[17px] bg-[#FAF9F6] px-3 py-2 font-body text-[13px] font-bold text-vyva-text-2">
-              <ShieldCheck size={15} className="text-[#047857]" />
-              <span>{item}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {user?.id && (
-        <div className="mt-5">
-          <VitalsTracker
-            userId={user.id}
-            userConditions={personalisationData?.conditions ?? []}
-            language={vitalsTrackerLanguage(appLanguage)}
-            country={profile?.country}
-            gpName={profile?.gpName}
-            gpPhone={profile?.gpPhone}
-            gpEmail={profile?.gpEmail}
-            caregiverContact={profile?.caregiverContact}
-          />
-        </div>
-      )}
-
-      <section
-        className="mt-5 rounded-[26px] border border-[#E4D9CE] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.07)]"
-        data-testid="card-general-status"
-      >
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: overallGood ? "#ECFDF5" : "#FFF7ED" }}>
-            {overallGood ? <CheckCircle2 size={23} style={{ color: "#047857" }} /> : <AlertTriangle size={23} style={{ color: "#B45309" }} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-body text-[13px] font-semibold text-vyva-text-2">
-                  {t("statusVitals.overallLabel", "Overall status")}
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+                <Activity size={22} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                  {t("statusVitals.hub.eyebrow", "Add a reading")}
                 </p>
-                <p className="mt-1 font-body text-[17px] font-bold leading-snug text-vyva-text-1">
-                  {overallGood
-                    ? t("statusVitals.overallGood", "Stable pattern this week")
-                    : t("statusVitals.overallNeedsData", "Add a reading to complete today")}
+                <h2 className="mt-1 font-display text-[30px] italic leading-tight text-vyva-text-1">
+                  {t("statusVitals.hub.primaryTitle", "Add a vital reading")}
+                </h2>
+                <p className="mt-2 max-w-[620px] font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2">
+                  {t("statusVitals.hub.primarySubtitle", "Pick the easiest method. VYVA reviews the number with you before saving it.")}
                 </p>
               </div>
-              <span
-                className="rounded-full px-3 py-1 font-body text-[11px] font-bold"
-                style={{
-                  background: overallGood ? "#D1FAE5" : "#FEF3C7",
-                  color: overallGood ? "#047857" : "#B45309",
-                }}
-              >
-                {overallGood ? t("health.statGood", "Good") : t("statusVitals.pending", "Pending")}
-              </span>
             </div>
-            <p className="mt-3 font-body text-[13px] leading-relaxed text-vyva-text-2">
-              {t("statusVitals.overallBody", "Latest update")}: {latestText}
-            </p>
-          </div>
-        </div>
-      </section>
 
-      <p className="mt-3 rounded-[20px] border border-[#EDE5DB] bg-white px-4 py-3 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
-        {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
-      </p>
-
-      <section className="mt-4 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="vitals-capabilities-guide">
-        <div className="mb-3 flex items-start gap-3">
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
-            <ShieldCheck size={20} />
-          </span>
-          <div className="min-w-0">
-            <p className="font-body text-[13px] font-extrabold uppercase tracking-[0.11em] text-vyva-purple">
-              {t("statusVitals.capabilities.title", "What VYVA can measure")}
-            </p>
-            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-              {t("statusVitals.capabilities.subtitle", "Different readings have different confidence. VYVA labels that before using them in assessments.")}
-            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setShowFaceScanModal(true)}
+                className="flex min-h-[96px] items-center gap-4 rounded-[22px] bg-[#6B21A8] p-4 text-left text-white shadow-[0_10px_24px_rgba(107,33,168,0.20)] active:scale-[0.98]"
+                data-testid="button-open-face-scan"
+              >
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/15">
+                  <Video size={22} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[17px] font-black leading-tight">{t("statusVitals.faceScan.action", "Face scan")}</span>
+                  <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-white/80">{t("statusVitals.faceScan.actionHint", "Heart, breathing, HRV")}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBluetoothDevice(VITALS_DEVICE_CATALOG[0])}
+                className="flex min-h-[96px] items-center gap-4 rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-4 text-left shadow-[0_8px_20px_rgba(63,45,35,0.04)] active:scale-[0.98]"
+                data-testid="button-open-bluetooth-device"
+              >
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
+                  <Bluetooth size={22} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">{t("statusVitals.bluetooth.action", "Bluetooth device")}</span>
+                  <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{t("statusVitals.bluetooth.actionHint", "BP cuffs, oximeters, meters")}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openCapture("photo")}
+                className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-[#D8E7FF] bg-[#EFF6FF] p-4 text-left active:scale-[0.98]"
+                data-testid="button-vitals-snap-reading"
+              >
+                <Camera size={21} className="text-[#1D4ED8]" />
+                <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("statusVitals.hub.snap", "Scan device screen")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openCapture("voice")}
+                className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-[#F5D7B8] bg-[#FFF7ED] p-4 text-left active:scale-[0.98]"
+                data-testid="button-vitals-say-reading"
+              >
+                <Mic size={21} className="text-[#B45309]" />
+                <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("statusVitals.hub.say", "Say reading")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openCapture("text")}
+                className="flex min-h-[76px] items-center gap-3 rounded-[20px] border border-[#EDE5DB] bg-[#FFFCF8] p-4 text-left active:scale-[0.98] sm:col-span-2"
+                data-testid="button-log-reading"
+              >
+                <Keyboard size={21} className="text-[#6B21A8]" />
+                <span className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("statusVitals.logAction", "Type reading")}</span>
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="grid gap-3">
-          {measurementModes.map(({ id, Icon, title, body, items, color, bg }) => (
-            <div key={id} className="flex items-start gap-3 border-t border-[#F0E7DE] pt-3 first:border-t-0 first:pt-0">
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ color, background: bg }}>
-                <Icon size={18} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[15px] font-extrabold leading-tight text-vyva-text-1">{title}</p>
-                <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">{body}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {items.map((item) => (
-                    <span key={item} className="rounded-full px-2.5 py-1 font-body text-[11px] font-bold" style={{ color, background: bg }}>
-                      {item}
-                    </span>
+
+          <aside className="rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4" data-testid="vitals-today-prompts">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-text-2">
+                  {t("statusVitals.hub.todayTitle", "Today")}
+                </p>
+                <p className="mt-2 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                  {latestReadingAt ? t("statusVitals.hub.todayLatest", "Latest reading saved") : t("statusVitals.hub.todayMissing", "No readings yet")}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+                  {latestReadingAt ? latestText : t("statusVitals.hub.todayMissingBody", "Start with one useful reading. You can add more later.")}
+                </p>
+              </div>
+            </div>
+
+            {suggestedSignals.length > 0 && (
+              <div className="mt-5">
+                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-2">
+                  {t("statusVitals.hub.todayPrompt", "Useful to add")}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {suggestedSignals.map((signal) => (
+                    <button
+                      key={signal}
+                      type="button"
+                      onClick={() => openCapture("text", signal)}
+                      className="rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-[#6B21A8] active:scale-95"
+                      data-testid={`button-suggested-vital-${signal}`}
+                    >
+                      {publicSignalLabel(signal)}
+                    </button>
                   ))}
                 </div>
               </div>
-            </div>
-          ))}
+            )}
+
+            <button
+              type="button"
+              onClick={() => openCapture("text")}
+              className="mt-5 flex min-h-[46px] w-full items-center justify-center gap-2 rounded-[16px] bg-white font-body text-[14px] font-black text-[#6B21A8] shadow-[inset_0_0_0_1px_#DDD6FE] active:scale-[0.98]"
+            >
+              <Keyboard size={15} />
+              {t("statusVitals.hub.addToday", "Add today's reading")}
+            </button>
+          </aside>
         </div>
       </section>
 
-      <HealthWizardSectionLabel
-        action={(
-          <button
-            type="button"
-            onClick={shareStatus}
-            className="flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[12px] font-bold text-[#6B21A8]"
-            data-testid="button-share-vitals-summary"
+      <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)] lg:items-start" data-testid="vitals-snapshot-grid">
+        <div className="grid gap-4">
+          <section
+            className="rounded-[26px] border border-[#E4D9CE] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.07)]"
+            data-testid="card-general-status"
           >
-            <Share2 size={14} />
-            {t("statusVitals.share", "Share")}
-          </button>
-        )}
-      >
-        {t("statusVitals.keyMetrics", "Key metrics")}
-      </HealthWizardSectionLabel>
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: overallGood ? "#ECFDF5" : "#FFF7ED" }}>
+                {overallGood ? <CheckCircle2 size={23} style={{ color: "#047857" }} /> : <AlertTriangle size={23} style={{ color: "#B45309" }} />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-body text-[13px] font-semibold text-vyva-text-2">
+                      {t("statusVitals.overallLabel", "Overall status")}
+                    </p>
+                    <p className="mt-1 font-body text-[17px] font-bold leading-snug text-vyva-text-1">
+                      {overallGood
+                        ? t("statusVitals.overallGood", "Stable pattern this week")
+                        : t("statusVitals.overallNeedsData", "Add a reading to complete today")}
+                    </p>
+                  </div>
+                  <span
+                    className="rounded-full px-3 py-1 font-body text-[11px] font-bold"
+                    style={{
+                      background: overallGood ? "#D1FAE5" : "#FEF3C7",
+                      color: overallGood ? "#047857" : "#B45309",
+                    }}
+                  >
+                    {overallGood ? t("health.statGood", "Good") : t("statusVitals.pending", "Pending")}
+                  </span>
+                </div>
+                <p className="mt-3 font-body text-[13px] leading-relaxed text-vyva-text-2">
+                  {t("statusVitals.overallBody", "Latest update")}: {latestText}
+                </p>
+              </div>
+            </div>
+          </section>
 
-      <div className="flex flex-col gap-3">
-        {isLoading
-          ? (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-              <div key={key} className="h-[112px] animate-pulse rounded-[24px] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]" />
-            ))
-          : (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-              <MetricCard key={key} metricKey={key} summary={summary?.[key]} t={t} highlighted={focusedMetric === key} />
-            ))}
-      </div>
+          <div>
+            <HealthWizardSectionLabel
+              className="mb-3 mt-0"
+              action={(
+                <button
+                  type="button"
+                  onClick={shareStatus}
+                  className="flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[12px] font-bold text-[#6B21A8]"
+                  data-testid="button-share-vitals-summary"
+                >
+                  <Share2 size={14} />
+                  {t("statusVitals.share", "Share")}
+                </button>
+              )}
+            >
+              {t("statusVitals.keyMetrics", "Key metrics")}
+            </HealthWizardSectionLabel>
 
-      <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-compliance">
-        <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="grid gap-3 xl:grid-cols-3">
+              {isLoading
+                ? (["hr", "rr", "bp"] as MetricType[]).map((key) => (
+                    <div key={key} className="h-[112px] animate-pulse rounded-[24px] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]" />
+                  ))
+                : (["hr", "rr", "bp"] as MetricType[]).map((key) => (
+                    <MetricCard key={key} metricKey={key} summary={summary?.[key]} t={t} highlighted={focusedMetric === key} />
+                  ))}
+            </div>
+          </div>
+        </div>
+
+        <section className="rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-compliance">
+          <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-text-2">
               {t("statusVitals.weeklyRhythm", "Weekly rhythm")}
@@ -1510,8 +1900,8 @@ const SignosScreen = () => {
             </p>
           </div>
           <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-body text-[12px] font-bold text-[#B45309]">{completionPct}%</span>
-        </div>
-        <div className="grid grid-cols-7 gap-2">
+          </div>
+          <div className="grid grid-cols-7 gap-2">
           {complianceDays.map((done, index) => (
             <div key={`${index}-${done}`} className="flex flex-col items-center gap-1">
               <div
@@ -1525,42 +1915,98 @@ const SignosScreen = () => {
               <span className="font-body text-[10px] font-semibold text-vyva-text-2">{t(DAY_LABELS[index].key, DAY_LABELS[index].fallback)}</span>
             </div>
           ))}
-        </div>
+          </div>
+          <p className="mt-4 rounded-[18px] bg-[#FAF9F6] px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+            {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
+          </p>
+        </section>
       </section>
 
-      <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
-        <div className="flex items-center justify-between px-4 pb-2 pt-4">
-          <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-text-2">
-            {t("statusVitals.devices", "Devices")}
-          </p>
-          <span className="font-body text-[12px] font-bold text-[#047857]">
-            {connectedDevices} {t("statusVitals.connected", "connected")}
+      <section className="mt-5 rounded-[26px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="connect-health-devices">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-purple">
+              {t("statusVitals.devices.connectTitle", "Devices")}
+            </p>
+            <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+              {t("statusVitals.devices.connectBody", "Use Bluetooth when it works. Scan, say, or type when it does not.")}
+            </p>
+          </div>
+          <span className="w-fit rounded-full bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-bold text-[#047857]">
+            {supportedDevices} {t("statusVitals.devices.supported", "supported")}
           </span>
         </div>
-        {DEVICE_ROWS.map((device, index) => {
-          const Icon = device.Icon;
-          return (
-            <div
-              key={device.id}
-              className={`flex items-center gap-3 px-4 py-3 ${index < DEVICE_ROWS.length - 1 ? "border-b border-[#F0E7DE]" : ""}`}
-              data-testid={`row-device-${device.id}`}
-            >
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F7F1E9]">
-                <Icon size={17} className="text-vyva-text-2" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[14px] font-bold leading-tight text-vyva-text-1">{t(device.labelKey, device.fallbackLabel)}</p>
-                <p className="font-body text-[12px] text-vyva-text-2">{device.model}</p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full" style={{ background: device.connected ? "#047857" : "#D1D5DB" }} />
-                <span className="font-body text-[11px] font-semibold" style={{ color: device.connected ? "#047857" : "#9CA3AF" }}>
-                  {device.connected ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline")}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+
+        <div className="mt-4 grid gap-2">
+          {VITALS_DEVICE_CATALOG.map((device) => {
+            const Icon = DEVICE_ICON_BY_ID[device.id];
+            return (
+              <article
+                key={device.id}
+                className="rounded-[20px] border border-[#F0E7DE] bg-[#FFFCF8] p-3 shadow-[0_5px_14px_rgba(63,45,35,0.035)]"
+                data-testid={`device-card-${device.id}`}
+              >
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.62fr)] lg:items-center">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]" style={{ color: device.accent, background: device.bg }}>
+                      <Icon size={19} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-body text-[15px] font-black leading-tight text-vyva-text-1">{device.label}</p>
+                      <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">{device.helper}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {device.signals.map((signal) => (
+                          <span key={signal} className="rounded-full px-2 py-0.5 font-body text-[10px] font-black" style={{ color: device.accent, background: device.bg }}>
+                            {publicSignalLabel(signal)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <button
+                      type="button"
+                      onClick={() => setBluetoothDevice(device)}
+                      className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-[14px] font-body text-[12px] font-black text-white shadow-[0_7px_14px_rgba(107,33,168,0.12)] active:scale-[0.98]"
+                      style={{ background: device.accent }}
+                      data-testid={`button-device-bluetooth-${device.id}`}
+                    >
+                      <Bluetooth size={14} />
+                      {t("statusVitals.bluetooth.tryShort", "Bluetooth")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openCapture("photo")}
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#BFDBFE] bg-[#EFF6FF] font-body text-[12px] font-black text-[#1D4ED8]"
+                      data-testid={`button-device-photo-${device.id}`}
+                    >
+                      <Camera size={13} />
+                      {t("statusVitals.capture.photoShort", "Scan")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openCapture("voice", device.fallbackSignals[0])}
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#FED7AA] bg-[#FFF7ED] font-body text-[12px] font-black text-[#B45309]"
+                      data-testid={`button-device-voice-${device.id}`}
+                    >
+                      <Mic size={13} />
+                      {t("statusVitals.capture.voiceShort", "Say")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openCapture("text", device.fallbackSignals[0])}
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#DDD6FE] bg-white font-body text-[12px] font-black text-[#6B21A8]"
+                      data-testid={`button-device-type-${device.id}`}
+                    >
+                      <Keyboard size={13} />
+                      {t("statusVitals.capture.typeShort", "Type")}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-sharing">
@@ -1601,6 +2047,19 @@ const SignosScreen = () => {
       </section>
 
       {showScanModal && <ScanModal onClose={() => setShowScanModal(false)} />}
+      {showFaceScanModal && (
+        <FaceScanModal
+          onClose={() => setShowFaceScanModal(false)}
+          onLocalScan={() => setShowScanModal(true)}
+        />
+      )}
+      {bluetoothDevice && (
+        <BluetoothDeviceModal
+          device={bluetoothDevice}
+          onClose={() => setBluetoothDevice(null)}
+          onFallback={openCapture}
+        />
+      )}
       {captureMode && (
         <VitalsCaptureModal
           mode={captureMode}

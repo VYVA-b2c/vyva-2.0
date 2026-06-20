@@ -28,7 +28,7 @@ import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
-type AppShellLayout = "compact" | "wide" | "fullscreen";
+type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
 const FULLSCREEN_ROUTE_PREFIXES = ["/memory-games/", "/social-rooms/morning-movement/exercises/", "/activities/relax-breathe"];
 const FULLSCREEN_ROUTES = [
@@ -62,6 +62,10 @@ const WIDE_ROUTES = [
 ];
 
 export function getAppShellLayout(pathname: string): AppShellLayout {
+  if (pathname === "/health/vitals") {
+    return "vitals";
+  }
+
   if (
     FULLSCREEN_ROUTES.includes(pathname) ||
     FULLSCREEN_ROUTE_PREFIXES.some((route) => pathname.startsWith(route))
@@ -298,8 +302,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   } = useVoiceActionContext();
   const appShellLayout = getAppShellLayout(location.pathname);
   const isFullScreen = appShellLayout === "fullscreen";
+  const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
-  const shellMaxWidthClassName = isFullScreen ? "max-w-none" : isWideRoute ? "max-w-[920px]" : "max-w-[520px]";
+  const shellMaxWidthClassName = isFullScreen
+    ? "max-w-none"
+    : isVitalsRoute
+      ? "max-w-[1180px]"
+      : isWideRoute
+        ? "max-w-[920px]"
+        : "max-w-[520px]";
   const voiceActionRouteMatches = activeVoiceAction
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
@@ -478,8 +489,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         data-layout={appShellLayout}
         className={`relative w-full ${shellMaxWidthClassName}`}
       >
-        {!isFullScreen && <StatusBar wide={isWideRoute} />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : "pt-[76px] pb-[128px]"}`}>
+        {!isFullScreen && <StatusBar wide={isWideRoute || isVitalsRoute} />}
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[76px] pb-[128px] lg:pb-10" : "pt-[76px] pb-[128px]"}`}>
           {showInlineVoiceAction && activeVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
@@ -491,9 +502,13 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           )}
           {children}
         </main>
-        {!isFullScreen && <BottomNav wide={isWideRoute} onSosClick={() => {
-          if (canUseService("sos", "/sos")) setSosOpen(true);
-        }} />}
+        {!isFullScreen && (
+          <div className={isVitalsRoute ? "lg:hidden" : ""}>
+            <BottomNav wide={isWideRoute || isVitalsRoute} onSosClick={() => {
+              if (canUseService("sos", "/sos")) setSosOpen(true);
+            }} />
+          </div>
+        )}
         {!isFullScreen && (
           <SosSheet
             open={sosOpen}
@@ -503,7 +518,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && <VoiceActionSimulator />}
+        {!isFullScreen && !isVitalsRoute && <VoiceActionSimulator />}
         {showVoiceDock && (
           <VoiceSessionDock
             isSpeaking={isSpeaking}

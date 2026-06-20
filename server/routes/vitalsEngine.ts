@@ -44,6 +44,7 @@ import {
   type VitalsSignalKey,
 } from "../../shared/vitalsSignalCatalog.js";
 import {
+  buildProposedVitalsReading,
   normalizeParsedReading,
   parseVitalsText,
   type ProposedVitalsReading,
@@ -91,6 +92,12 @@ const parseTextSchema = z.object({
 const scanDevicePhotoSchema = z.object({
   image: z.string().min(1),
   language: z.string().optional(),
+});
+
+const faceScanSchema = z.object({
+  video: z.string().min(1),
+  fps: z.coerce.number().min(1).max(120),
+  duration_seconds: z.coerce.number().min(0.1).max(180).optional(),
 });
 
 const analyseSchema = z.object({
@@ -219,6 +226,79 @@ function parsingResponseFromReadings(readings: ProposedVitalsReading[], transcri
     transcript,
     ...(clarification ? { clarification_prompt: clarification } : {}),
   };
+}
+
+function vitalLensMetric(body: unknown, keys: string[]): Record<string, unknown> | null {
+  const root = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const candidates = [
+    root.vitals,
+    (root.result as Record<string, unknown> | undefined)?.vitals,
+    (root.results as Record<string, unknown> | undefined)?.vitals,
+    root,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const record = candidate as Record<string, unknown>;
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === "number") return { value };
+      if (value && typeof value === "object") return value as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
+function metricNumber(metric: Record<string, unknown> | null): number | null {
+  if (!metric) return null;
+  const value = Number(metric.value ?? metric.estimate ?? metric.mean);
+  return Number.isFinite(value) ? value : null;
+}
+
+function metricConfidence(metric: Record<string, unknown> | null): "low" | "medium" {
+  const value = Number(metric?.confidence);
+  if (!Number.isFinite(value)) return "low";
+  return value >= 0.85 ? "medium" : "low";
+}
+
+function buildVitalLensReadings(body: unknown, durationSeconds?: number): ProposedVitalsReading[] {
+  const now = new Date();
+  const root = body && typeof body === "object" ? body as Record<string, unknown> : {};
+  const sourceRef = {
+    provider: "rouast_vitallens",
+    model: root.model ?? root.model_name ?? root.version ?? "vitallens",
+    duration_seconds: durationSeconds ?? null,
+    parser_version: "vyva-vitallens-face-scan-v1",
+  };
+  const readings: ProposedVitalsReading[] = [];
+  const add = (
+    metric: Record<string, unknown> | null,
+    signalType: VitalsSignalKey,
+    explanation: string,
+    contextTag: string,
+  ) => {
+    const value = metricNumber(metric);
+    if (value == null) return;
+    const reading = buildProposedVitalsReading(
+      signalType,
+      Math.round(value * 10) / 10,
+      explanation,
+      {
+        source: "phone_estimate",
+        captureMethod: "phone_camera",
+        confidence: metricConfidence(metric),
+        now,
+        contextTag,
+        sourceRef,
+      },
+    );
+    if (reading) readings.push(reading);
+  };
+
+  add(vitalLensMetric(body, ["heart_rate", "hr", "pulse"]), "resting_hr_bpm", "VitalLens face-scan heart-rate estimate.", "resting");
+  add(vitalLensMetric(body, ["respiratory_rate", "breathing_rate", "rr"]), "respiratory_rate", "VitalLens face-scan breathing estimate.", "resting");
+  add(vitalLensMetric(body, ["hrv_sdnn", "hrv_ms", "hrv_rmssd"]), "hrv_ms", "VitalLens face-scan HRV estimate.", "general");
+  return readings;
 }
 
 async function resolveProfileId(req: Request): Promise<string> {
@@ -810,6 +890,54 @@ router.post("/scan-device-photo", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[vitals-engine scan-device-photo]", err);
     return res.status(500).json({ error: "Failed to read device photo." });
+  }
+});
+
+router.post("/face-scan", async (req: Request, res: Response) => {
+  const parsed = faceScanSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const apiKey = process.env.VITALLENS_API_KEY ?? "";
+  if (!apiKey) {
+    return res.json(parsingResponseFromReadings(
+      [],
+      "",
+      "Face scan is not configured yet. You can use phone estimate, Bluetooth, voice, scan, or type instead.",
+    ));
+  }
+
+  try {
+    const apiBase = (process.env.VITALLENS_API_BASE || "https://api.rouast.com/vitallens-v3").replace(/\/+$/, "");
+    const upstream = await fetch(`${apiBase}/file`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        video: parsed.data.video,
+        fps: parsed.data.fps,
+        process_signals: "1",
+      }),
+    });
+
+    const body = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) {
+      console.error("[vitals-engine face-scan upstream]", upstream.status, body);
+      return res.status(502).json({ error: "Face scan service did not return a reading." });
+    }
+
+    const readings = buildVitalLensReadings(body, parsed.data.duration_seconds);
+    return res.json(parsingResponseFromReadings(
+      readings,
+      "",
+      readings.length
+        ? "Confirm these face-scan estimates before VYVA saves them."
+        : "Face scan completed, but no usable heart or breathing reading was found. Try better light and hold still.",
+    ));
+  } catch (err) {
+    console.error("[vitals-engine face-scan]", err);
+    return res.status(500).json({ error: "Failed to process face scan." });
   }
 });
 
