@@ -613,7 +613,6 @@ const en = {
       instructionAlt: "Follow the route: 1, A, 2, B, 3, C...",
       example: "Practice example - no scoring",
       tapInOrder: "Follow the path from 1.",
-      practiceExample: "Practice example",
       nextTarget: "Next point: {label}",
       stillThere: "Take your time. The next point is highlighted.",
       badgeNumeric: "Numbers only",
