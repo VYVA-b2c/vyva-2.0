@@ -1,4 +1,4 @@
-import { BookOpen, HeartHandshake, RefreshCw, Trophy, Users, type LucideIcon } from "lucide-react";
+import { BookOpen, ChevronRight, HeartHandshake, Trophy, Users, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -493,9 +493,10 @@ const SocialHub = () => {
                 onClick={showNextRooms}
                 aria-label={moreRoomsLabel}
                 title={moreRoomsLabel}
+                data-testid="button-social-rooms-next"
                 className="vyva-tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D8C8FB] bg-white text-[#6D28D9] shadow-[0_10px_22px_rgba(109,40,217,0.12)]"
               >
-                <RefreshCw size={19} strokeWidth={2.4} aria-hidden="true" />
+                <ChevronRight size={23} strokeWidth={2.6} aria-hidden="true" />
               </button>
             </div>
           )}
