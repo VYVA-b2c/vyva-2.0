@@ -703,11 +703,6 @@ const MedsScreen = () => {
       )}
 
       <section className="mt-6" data-testid="section-meds-primary-actions">
-        <SectionTitle
-          className="mb-3"
-          title={t("meds.quickAccess", "Medication")}
-          titleClassName="font-body text-[22px] font-extrabold not-italic"
-        />
         <ResponsiveGrid columns="two" gap="sm">
           {primaryActions.map((action) => (
             <ActionCard

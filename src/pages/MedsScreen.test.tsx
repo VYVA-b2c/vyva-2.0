@@ -192,6 +192,7 @@ describe("MedsScreen schedule actions", () => {
     expect(await screen.findByTestId("voice-hero")).toBeInTheDocument();
     expect(screen.queryByText("Today's Schedule")).not.toBeInTheDocument();
     expect(screen.queryByTestId("status-no-medications")).not.toBeInTheDocument();
+    expect(screen.queryByText("Medication")).not.toBeInTheDocument();
 
     expect(screen.getByTestId("button-meds-primary-reminders")).toHaveTextContent("Reminders");
     expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("Refills");
