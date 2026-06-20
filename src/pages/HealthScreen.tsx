@@ -2064,49 +2064,63 @@ const HealthScreen = () => {
         {specialistOpen && (
           <div
             id="health-specialist-panel"
-            className="mt-4 overflow-hidden rounded-[24px] border border-[#DDD6FE] bg-white p-[18px] shadow-[0_10px_24px_rgba(124,58,237,0.08)]"
+            className="mt-4 overflow-hidden rounded-[26px] border border-[#DDD6FE] bg-white p-[18px] shadow-[0_16px_34px_rgba(124,58,237,0.10)]"
             data-testid="section-health-specialist"
           >
-            <p className="font-body text-[15px] leading-relaxed text-vyva-text-2">
-              {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
-            </p>
-
-            <div className="flex items-center justify-between gap-2 pt-[12px] pb-[8px]">
-              <p className="font-body text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#7C3AED" }}>
-                {t("health.findSpecialist.suggestions", "Suggestions for you")}
-              </p>
-              <button
-                data-testid="button-refresh-specialist-examples"
-                type="button"
-                onClick={() => setSpecialistExamplePage((page) => page + 1)}
-                className="vyva-tap inline-flex items-center gap-1 rounded-full px-[10px] py-[6px] font-body text-[12px] font-semibold"
-                style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-              >
-                <RefreshCw size={13} />
-                {t("health.findSpecialist.more", "More")}
-              </button>
+            <div className="rounded-[22px] border border-[#E9D5FF] bg-[#FAF7FF] p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#7C3AED] shadow-[0_10px_22px_rgba(124,58,237,0.10)]">
+                  <UserSearch size={24} strokeWidth={2.4} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-body text-[20px] font-black leading-tight text-vyva-text-1">
+                    {t("health.findSpecialist.title", "Find a Specialist")}
+                  </span>
+                  <span className="mt-1 block font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                    {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
+                  </span>
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 pb-[10px]">
-              {specialistExamples.map((example) => (
+            <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
+                  {t("health.findSpecialist.suggestions", "Suggestions for you")}
+                </p>
                 <button
-                  key={example}
-                  data-testid={`chip-specialist-example-${example}`}
-                  onClick={() => setSpecialistCondition(example)}
-                  className="vyva-tap rounded-full px-[14px] py-[8px] font-body text-[14px] font-medium transition-colors"
-                  style={{ background: "#EDE9FE", color: "#7C3AED" }}
+                  data-testid="button-refresh-specialist-examples"
+                  type="button"
+                  onClick={() => setSpecialistExamplePage((page) => page + 1)}
+                  className="vyva-tap inline-flex min-h-[40px] items-center gap-1 rounded-full px-4 font-body text-[13px] font-black"
+                  style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
                 >
-                  {example}
+                  <RefreshCw size={14} strokeWidth={2.5} />
+                  {t("health.findSpecialist.more", "More")}
                 </button>
-              ))}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {specialistExamples.map((example) => (
+                  <button
+                    key={example}
+                    data-testid={`chip-specialist-example-${example}`}
+                    onClick={() => setSpecialistCondition(example)}
+                    className="vyva-tap rounded-full px-[14px] py-[9px] font-body text-[14px] font-bold transition-colors"
+                    style={{ background: "#EDE9FE", color: "#6D28D9" }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="mt-3 flex flex-col gap-3">
               <button
                 data-testid="button-specialist-voice-search"
                 onClick={specialistVoiceListening ? stopSpecialistVoice : startSpecialistVoice}
                 disabled={specialistMutation.isPending}
-                className={`vyva-tap flex w-full items-center justify-center gap-2 rounded-[18px] px-[14px] py-[13px] font-body text-[15px] font-semibold transition-all ${specialistVoiceListening ? "mic-pulse-listening" : ""}`}
+                className={`vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-[14px] py-[13px] font-body text-[15px] font-black transition-all ${specialistVoiceListening ? "mic-pulse-listening" : ""}`}
                 style={{
                   background: specialistVoiceListening ? "#ECFDF5" : "#F5F3FF",
                   color: specialistVoiceListening ? "#0A7C4E" : "#7C3AED",
@@ -2116,33 +2130,38 @@ const HealthScreen = () => {
                 {specialistVoiceListening ? <Square size={16} /> : <Mic size={16} />}
                 {specialistVoiceListening ? t("health.findSpecialist.listening", "Listening...") : t("health.findSpecialist.voiceSearch", "Search by voice")}
               </button>
-              <input
-                data-testid="input-specialist-condition"
-                value={specialistCondition}
-                onChange={(e) => setSpecialistCondition(e.target.value)}
-                placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
-                className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
-                style={{ border: "1px solid #DDD6FE", background: "#FFFFFF", color: "#2F2925" }}
-              />
-              <input
-                data-testid="input-specialist-location"
-                value={specialistLocation}
-                onChange={(e) => {
-                  setSpecialistLocationEdited(true);
-                  setSpecialistLocation(e.target.value);
-                }}
-                placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
-                className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
-                style={{ border: "1px solid #EDE5DB", background: "#FFFFFF", color: "#2F2925" }}
-              />
+              <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#DDD6FE] bg-white px-4">
+                <UserSearch size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
+                <input
+                  data-testid="input-specialist-condition"
+                  value={specialistCondition}
+                  onChange={(e) => setSpecialistCondition(e.target.value)}
+                  placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
+                  className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#A99BB5]"
+                />
+              </label>
+              <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#EDE5DB] bg-[#FFFCF8] px-4">
+                <MapPin size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#8A7A70]" aria-hidden="true" />
+                <input
+                  data-testid="input-specialist-location"
+                  value={specialistLocation}
+                  onChange={(e) => {
+                    setSpecialistLocationEdited(true);
+                    setSpecialistLocation(e.target.value);
+                  }}
+                  placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
+                  className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#B4A69C]"
+                />
+              </label>
               <button
                 data-testid="button-run-specialist-search"
                 onClick={() => runSpecialistSearch()}
                 disabled={specialistMutation.isPending}
-                className="vyva-primary-action w-full"
+                className="vyva-primary-action flex w-full items-center justify-center gap-2"
                 style={{ background: "#7C3AED", color: "#FFFFFF" }}
               >
-                {specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}
+                <span>{specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}</span>
+                <ChevronRight size={18} strokeWidth={2.6} aria-hidden="true" />
               </button>
             </div>
 
@@ -2517,43 +2536,59 @@ const HealthScreen = () => {
 
               {specialistOpen && (
                 <div className="px-[18px] pb-[16px]" style={{ borderTop: "1px solid #F5F3FF" }}>
-                  <p className="pt-[14px] font-body text-[15px] leading-relaxed text-vyva-text-2">
-                    {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
-                  </p>
-                  <div className="flex items-center justify-between gap-2 pt-[12px] pb-[8px]">
-                    <p className="font-body text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#7C3AED" }}>
-                      {t("health.findSpecialist.suggestions", "Suggestions for you")}
-                    </p>
-                    <button
-                      data-testid="button-refresh-specialist-examples"
-                      type="button"
-                      onClick={() => setSpecialistExamplePage((page) => page + 1)}
-                      className="vyva-tap inline-flex items-center gap-1 rounded-full px-[10px] py-[6px] font-body text-[12px] font-semibold"
-                      style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                    >
-                      <RefreshCw size={13} />
-                      {t("health.findSpecialist.more", "More")}
-                    </button>
+                  <div className="mt-[14px] rounded-[22px] border border-[#E9D5FF] bg-[#FAF7FF] p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#7C3AED] shadow-[0_10px_22px_rgba(124,58,237,0.10)]">
+                        <UserSearch size={24} strokeWidth={2.4} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-body text-[20px] font-black leading-tight text-vyva-text-1">
+                          {t("health.findSpecialist.title", "Find a Specialist")}
+                        </span>
+                        <span className="mt-1 block font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                          {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
+                        </span>
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 pb-[10px]">
-                    {specialistExamples.map((example) => (
+
+                  <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <p className="font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
+                        {t("health.findSpecialist.suggestions", "Suggestions for you")}
+                      </p>
                       <button
-                        key={example}
-                        data-testid={`chip-specialist-example-${example}`}
-                        onClick={() => setSpecialistCondition(example)}
-                        className="vyva-tap rounded-full px-[14px] py-[8px] font-body text-[14px] font-medium transition-colors"
-                        style={{ background: "#EDE9FE", color: "#7C3AED" }}
+                        data-testid="button-refresh-specialist-examples"
+                        type="button"
+                        onClick={() => setSpecialistExamplePage((page) => page + 1)}
+                        className="vyva-tap inline-flex min-h-[40px] items-center gap-1 rounded-full px-4 font-body text-[13px] font-black"
+                        style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
                       >
-                        {example}
+                        <RefreshCw size={14} strokeWidth={2.5} />
+                        {t("health.findSpecialist.more", "More")}
                       </button>
-                    ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {specialistExamples.map((example) => (
+                        <button
+                          key={example}
+                          data-testid={`chip-specialist-example-${example}`}
+                          onClick={() => setSpecialistCondition(example)}
+                          className="vyva-tap rounded-full px-[14px] py-[9px] font-body text-[14px] font-bold transition-colors"
+                          style={{ background: "#EDE9FE", color: "#6D28D9" }}
+                        >
+                          {example}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-2">
+
+                  <div className="mt-3 flex flex-col gap-3">
                     <button
                       data-testid="button-specialist-voice-search"
                       onClick={specialistVoiceListening ? stopSpecialistVoice : startSpecialistVoice}
                       disabled={specialistMutation.isPending}
-                      className={`vyva-tap flex w-full items-center justify-center gap-2 rounded-[18px] px-[14px] py-[13px] font-body text-[15px] font-semibold transition-all ${specialistVoiceListening ? "mic-pulse-listening" : ""}`}
+                      className={`vyva-tap flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] px-[14px] py-[13px] font-body text-[15px] font-black transition-all ${specialistVoiceListening ? "mic-pulse-listening" : ""}`}
                       style={{
                         background: specialistVoiceListening ? "#ECFDF5" : "#F5F3FF",
                         color: specialistVoiceListening ? "#0A7C4E" : "#7C3AED",
@@ -2563,33 +2598,38 @@ const HealthScreen = () => {
                       {specialistVoiceListening ? <Square size={16} /> : <Mic size={16} />}
                       {specialistVoiceListening ? t("health.findSpecialist.listening", "Listening...") : t("health.findSpecialist.voiceSearch", "Search by voice")}
                     </button>
-                    <input
-                      data-testid="input-specialist-condition"
-                      value={specialistCondition}
-                      onChange={(e) => setSpecialistCondition(e.target.value)}
-                      placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
-                      className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
-                      style={{ border: "1px solid #DDD6FE", background: "#FFFFFF", color: "#2F2925" }}
-                    />
-                    <input
-                      data-testid="input-specialist-location"
-                      value={specialistLocation}
-                      onChange={(e) => {
-                        setSpecialistLocationEdited(true);
-                        setSpecialistLocation(e.target.value);
-                      }}
-                      placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
-                      className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
-                      style={{ border: "1px solid #EDE5DB", background: "#FFFFFF", color: "#2F2925" }}
-                    />
+                    <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#DDD6FE] bg-white px-4">
+                      <UserSearch size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
+                      <input
+                        data-testid="input-specialist-condition"
+                        value={specialistCondition}
+                        onChange={(e) => setSpecialistCondition(e.target.value)}
+                        placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
+                        className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#A99BB5]"
+                      />
+                    </label>
+                    <label className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#EDE5DB] bg-[#FFFCF8] px-4">
+                      <MapPin size={20} strokeWidth={2.3} className="flex-shrink-0 text-[#8A7A70]" aria-hidden="true" />
+                      <input
+                        data-testid="input-specialist-location"
+                        value={specialistLocation}
+                        onChange={(e) => {
+                          setSpecialistLocationEdited(true);
+                          setSpecialistLocation(e.target.value);
+                        }}
+                        placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
+                        className="min-w-0 flex-1 bg-transparent py-[14px] font-body text-[16px] font-semibold text-vyva-text-1 outline-none placeholder:text-[#B4A69C]"
+                      />
+                    </label>
                     <button
                       data-testid="button-run-specialist-search"
                       onClick={() => runSpecialistSearch()}
                       disabled={specialistMutation.isPending}
-                      className="vyva-primary-action w-full"
+                      className="vyva-primary-action flex w-full items-center justify-center gap-2"
                       style={{ background: "#7C3AED", color: "#FFFFFF" }}
                     >
-                      {specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}
+                      <span>{specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}</span>
+                      <ChevronRight size={18} strokeWidth={2.6} aria-hidden="true" />
                     </button>
                   </div>
 
