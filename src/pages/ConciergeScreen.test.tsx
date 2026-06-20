@@ -94,21 +94,26 @@ afterEach(() => {
 });
 
 describe("ConciergeScreen action hub", () => {
-  it("renders the requested primary cards and quick actions", async () => {
+  it("renders the requested primary cards and fast help actions", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
     renderScreen();
 
     expect(await screen.findByTestId("concierge-guided-hub")).toBeVisible();
+    expect(screen.getByTestId("concierge-fast-help")).toBeVisible();
     expect(screen.getByTestId("voice-hero")).toHaveTextContent("What should VYVA prepare?");
     expect(screen.getByTestId("voice-hero")).toHaveTextContent("Services, trips, orders, and savings stay confirmation-first.");
     expect(screen.getByTestId("concierge-guided-hub")).not.toHaveTextContent("What should VYVA prepare?");
     for (const label of ["Shop", "Book", "Order", "Save"]) {
       expect(screen.getByRole("button", { name: label })).toBeVisible();
     }
-    for (const label of ["Find the best deals", "Book a trip", "Research a company"]) {
-      expect(screen.getByRole("button", { name: label })).toBeVisible();
-    }
+    expect(screen.getByTestId("button-concierge-card-shop")).not.toHaveClass("bg-vyva-purple");
+    expect(screen.getByTestId("button-concierge-card-shop")).toHaveClass("bg-white");
+    expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
+    expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("What do you need now?");
+    expect(screen.getByTestId("button-concierge-fast-doctor")).toHaveTextContent("Doctor help");
+    expect(screen.getByTestId("button-concierge-fast-appointment")).toHaveTextContent("Book appointment");
+    expect(screen.getByTestId("button-concierge-fast-ride")).toHaveTextContent("Book ride");
   });
 
   it("routes Shop and Order through the shopping helper", async () => {
@@ -131,7 +136,7 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
-  it("opens Book, Save, and best-deals flows in place", async () => {
+  it("opens Book, Save, and fast appointment flows in place", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
     renderScreen();
@@ -141,9 +146,8 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-concierge-card-save"));
     expect(screen.getByTestId("panel-offers-search")).toBeVisible();
 
-    fireEvent.click(screen.getByTestId("button-concierge-quick-findBestDeals"));
-    expect(screen.getByTestId("panel-offers-search")).toBeVisible();
-    expect(screen.getByTestId("input-offers-query")).toHaveValue("find the best deals on services and important purchases");
+    fireEvent.click(screen.getByTestId("button-concierge-fast-appointment"));
+    expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Schedule an appointment");
   });
 
   it("renders compact protected savings results with expandable proof and watch confirmation", async () => {
@@ -195,7 +199,7 @@ describe("ConciergeScreen action hub", () => {
     });
 
     renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-quick-findBestDeals"));
+    fireEvent.click(await screen.findByTestId("button-concierge-card-save"));
 
     expect(screen.getByTestId("panel-offers-search")).toBeVisible();
     expect(screen.getByTitle("No commissions")).toBeVisible();
@@ -227,20 +231,26 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("ask me to confirm");
   });
 
-  it("prepares trip and company research requests without booking or contacting", async () => {
+  it("routes doctor help and prepares ride requests without booking", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
-    renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-quick-bookTrip"));
-
-    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Help me plan a trip");
-    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("do not book or pay");
-
-    fireEvent.click(screen.getByTestId("button-concierge-quick-researchCompany"));
+    const firstRender = renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-doctor"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Help me research a company");
-      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Do not contact them or share details");
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/health/doctor");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"autoStartVoice\":true");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("Concierge doctor help request");
+    });
+    firstRender.unmount();
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-ride"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Safe transport ready");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("arrange safe transport");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("do not book anything");
     });
   });
 });
