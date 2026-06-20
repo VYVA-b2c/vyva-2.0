@@ -68,7 +68,6 @@ type SocialPrimaryCard = {
 };
 
 type SocialHubEntryCopy = {
-  primaryTitle: string;
   focusDescription: string;
   fastHelpKicker: string;
   fastHelpTitle: string;
@@ -113,7 +112,6 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
 
   if (language === "es") {
     return {
-      primaryTitle: "o explora un tema",
       focusDescription: "VYVA puede usar intereses, sala y estilo de conversacion para sugerir un buen lugar por donde empezar.",
       fastHelpKicker: "Ayuda rapida",
       fastHelpTitle: "Donde quieres entrar ahora?",
@@ -131,7 +129,6 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
 
   if (language === "de") {
     return {
-      primaryTitle: "oder Thema erkunden",
       focusDescription: "VYVA kann Interessen, Raumkontext und Gespraechsstil nutzen, um einen warmen Startpunkt vorzuschlagen.",
       fastHelpKicker: "Schnelle Hilfe",
       fastHelpTitle: "Wo moechtest du mitmachen?",
@@ -148,7 +145,6 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
   }
 
   return {
-    primaryTitle: "or explore a topic",
     focusDescription: "VYVA can use interests, room context, and conversation style to suggest one warm place to start.",
     fastHelpKicker: "Fast help",
     fastHelpTitle: "Where would you like to join in?",
@@ -630,13 +626,7 @@ const SocialHub = () => {
         className="mt-5"
       />
 
-      <section className="mt-[22px]" aria-labelledby="social-primary-title" data-testid="social-primary-cards">
-        <p
-          id="social-primary-title"
-          className="mb-3 font-body text-[13px] font-bold text-vyva-text-2"
-        >
-          {entryCopy.primaryTitle}
-        </p>
+      <section className="mt-[22px]" data-testid="social-primary-cards">
         <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           {entryCopy.cards.map((card) => (
             <SocialPrimaryCardView key={card.id} card={card} />

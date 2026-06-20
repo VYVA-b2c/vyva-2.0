@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { Bell, BookOpen, BrainCircuit, CheckCircle2, Clock3, Headphones, MessageCircle, Puzzle, Route, UserRoundPlus, Users, X, type LucideIcon } from "lucide-react";
+import { Bell, BookOpen, BrainCircuit, CheckCircle2, Clock3, Headphones, Puzzle, Route, X, type LucideIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
@@ -472,65 +472,6 @@ const ActivitiesScreen = () => {
               </button>
             );
           })}
-        </div>
-      </section>
-
-      <section
-        className="mt-[18px] rounded-[26px] border bg-[#FFFCF8] p-[16px_18px]"
-        style={{
-          borderColor: "#EDE2D1",
-          boxShadow: "0 2px 10px rgba(43,31,24,0.05)",
-        }}
-      >
-        <div className="flex items-center gap-4">
-          <div
-            className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px]"
-            style={{ background: "linear-gradient(135deg, #E6F0FF 0%, #F3F8FF 100%)" }}
-          >
-            <Users size={28} strokeWidth={2.5} style={{ color: "#2F66D0" }} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">{t("companions.activityTile")}</h3>
-            <p className="mt-2 font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">{t("companions.activityTileSubtitle")}</p>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="activities-companion-actions">
-          <button
-            type="button"
-            data-testid="button-activities-open-social-rooms"
-            onClick={() => navigate("/social-rooms")}
-            className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#BFDBFE] bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(47,102,208,0.08)]"
-          >
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#EFF6FF] text-[#2F66D0]">
-              <MessageCircle size={20} />
-            </span>
-            <span className="min-w-0">
-              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
-                {t("activities.joinSocialRoom", "Join a room")}
-              </span>
-              <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-                {t("activities.joinSocialRoomSub", "Start a friendly conversation now.")}
-              </span>
-            </span>
-          </button>
-          <button
-            type="button"
-            data-testid="button-activities-open-companions"
-            onClick={() => navigate("/companions")}
-            className="vyva-tap flex min-h-[58px] items-center gap-3 rounded-[18px] border border-[#D8B4FE] bg-white px-4 py-3 text-left shadow-[0_8px_20px_rgba(107,33,168,0.08)]"
-          >
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
-              <UserRoundPlus size={20} />
-            </span>
-            <span className="min-w-0">
-              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
-                {t("activities.findCompanions", "Find companions")}
-              </span>
-              <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-                {t("activities.findCompanionsSub", "Match around interests and routines.")}
-              </span>
-            </span>
-          </button>
         </div>
       </section>
     </div>
