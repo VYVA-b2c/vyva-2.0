@@ -183,4 +183,22 @@ describe("SymptomCheck report service actions", () => {
     expect(within(screen.getByTestId("report-all-steps")).getByText("Call a doctor if symptoms worsen")).toBeVisible();
     expect(within(screen.getByTestId("report-all-steps")).getByText("Write down any new symptoms")).toBeVisible();
   });
+
+  it("renders vital refinement as an action, not a passive note", () => {
+    renderReport({}, {
+      summaryOverride: {
+        chiefComplaint: "Blood pressure feels high",
+        symptoms: ["blood pressure"],
+        triageReasons: ["Blood pressure was mentioned."],
+      },
+    });
+
+    expect(screen.getByTestId("card-report-vital-refinement-note")).toHaveTextContent("Check blood pressure now");
+    expect(screen.getByTestId("button-report-vital-add-bloodPressure")).toHaveTextContent("Add reading");
+    expect(screen.queryByText("A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-report-vital-add-bloodPressure"));
+
+    expect(screen.getByPlaceholderText("120/80")).toBeVisible();
+  });
 });

@@ -473,6 +473,7 @@ const en = {
         noLatestReading: "No saved reading yet",
         latestReadingDetail: "{{display}} from {{source}}",
         noLatestReadingDetail: "Enter this reading manually to refine the assessment.",
+        addReading: "Add reading",
         latestSourceDevice: "device reading",
         latestSourceClinical: "clinical reading",
         latestSourcePhone: "phone estimate",

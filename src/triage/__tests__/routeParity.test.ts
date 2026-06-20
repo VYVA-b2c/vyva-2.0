@@ -435,6 +435,9 @@ describe("triage route outcome parity", () => {
     ]);
 
     expect(nextAdaptiveStage(incompleteFall)).toBe("trend");
+    expect(nextAdaptiveStage(wizard([
+      { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+    ], { refineRequested: true, vitals: { painScore: 6 } }))).toBe("complete");
 
     const refined = applyTriageSafetyFloor(baseSummary(), wizard([
       { id: "fever", label: "Fever", value: "I have a fever.", kind: "symptom" },

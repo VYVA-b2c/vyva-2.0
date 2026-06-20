@@ -288,6 +288,31 @@
   }
 }
 
+@keyframes triage-review-scan {
+  0% {
+    opacity: 0;
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  20% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(360%) skewX(-18deg);
+  }
+}
+
+@keyframes triage-review-dot {
+  0%, 100% {
+    opacity: 0.35;
+    transform: translateY(0) scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.12);
+  }
+}
+
 .landing-mic-ring {
   animation: landing-mic-ring 2.8s ease-in-out infinite;
 }
@@ -309,11 +334,21 @@
   animation: triage-review-pulse 2s ease-in-out infinite;
 }
 
+.triage-review-scan {
+  animation: triage-review-scan 2.6s ease-in-out infinite;
+}
+
+.triage-review-dot {
+  animation: triage-review-dot 1.05s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-mic-ring,
   .landing-mic-core,
   .landing-wave-bar,
-  .triage-review-pulse {
+  .triage-review-pulse,
+  .triage-review-scan,
+  .triage-review-dot {
     animation: none;
   }
 }

@@ -1934,28 +1934,8 @@ export function ReportScreen({
         ) : null}
 
         {vitalActions.length ? (
-          <section className="rounded-[24px] border border-[#DDD6FE] bg-[#FAF5FF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.06)]" data-testid="card-report-vital-refinement-note">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-sm">
-                <Activity size={21} />
-              </span>
-              <div className="min-w-0">
-                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
-                  {t("health.symptomCheck.report.vitalRefinementTitle", "Refine with a reading")}
-                </p>
-                <p className="mt-1 font-body text-[16px] font-bold leading-snug text-vyva-text-2">
-                  {t(
-                    "health.symptomCheck.report.vitalRefinementBody",
-                    "A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.",
-                  )}
-                </p>
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        <div className="grid grid-cols-1 gap-3">
-          {vitalActions.map((action) => {
+          <section className="grid grid-cols-1 gap-3" data-testid="card-report-vital-refinement-note">
+            {vitalActions.map((action) => {
             const open = openVitalKey === action.key;
             const value = vitalInputs[action.key] ?? "";
             const busy = refinementStatus.state === "saving" || refinementStatus.state === "refining";
@@ -1965,61 +1945,53 @@ export function ReportScreen({
               ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
               : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
             return (
-              <div key={action.key} className="min-w-0 overflow-hidden rounded-[26px] border-2 border-[#6B21A8] bg-white p-4 shadow-[0_14px_34px_rgba(107,33,168,0.16)]">
-                <div className="mb-4 flex items-start gap-3">
-                  <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-vyva-purple">
-                    <Activity size={28} />
+              <div key={action.key} className="min-w-0 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-[#FAF5FF] p-4 shadow-[0_10px_26px_rgba(107,33,168,0.08)]" data-testid={`card-report-vital-action-${action.key}`}>
+                <div className="flex items-start gap-3">
+                  <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-vyva-purple shadow-sm">
+                    <Activity size={23} />
                   </span>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
-                      {t("health.symptomCheck.report.actionNeeded", "Action now")}
+                      {t("health.symptomCheck.report.vitalRefinementTitle", "Refine with a reading")}
                     </p>
-                    <p className="mt-1 break-words font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
+                    <p className="mt-1 break-words font-body text-[19px] font-black leading-tight text-vyva-text-1 sm:text-[21px]">
                       {action.title}
                     </p>
-                    <p className="mt-1 break-words font-body text-[15px] font-bold leading-snug text-vyva-text-2 sm:text-[16px]">
+                    <p className="mt-1 break-words font-body text-[14px] font-bold leading-snug text-vyva-text-2 sm:text-[15px]">
                       {action.helper}
                     </p>
                   </div>
                 </div>
-                <div className="grid min-w-0 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!latestCandidate) return;
-                      setOpenVitalKey(action.key);
-                      setVitalInputs((current) => ({
-                        ...current,
-                        [action.key]: latestCandidate.value,
-                      }));
-                      setVitalInputError(null);
-                    }}
-                    disabled={busy || !latestCandidate}
-                    className={`vyva-tap flex min-h-[82px] w-full min-w-0 items-center justify-between rounded-[22px] px-5 text-left shadow-[0_12px_26px_rgba(107,33,168,0.12)] disabled:cursor-not-allowed ${
-                      latestCandidate
-                        ? "bg-[#6B21A8] text-white"
-                        : "border border-[#E8DED4] bg-[#FAF9F6] text-vyva-text-3"
-                    }`}
-                  >
-                    <span className="grid min-w-0 gap-1">
-                      <span className="min-w-0 font-body text-[18px] font-black leading-tight">
-                        {latestCandidate
-                          ? t("health.symptomCheck.report.useLatestReading", "Use latest saved reading")
-                          : t("health.symptomCheck.report.noLatestReading", "No saved reading yet")}
+                <div className={`mt-4 grid min-w-0 gap-2 ${latestCandidate ? "sm:grid-cols-2" : ""}`}>
+                  {latestCandidate ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenVitalKey(action.key);
+                        setVitalInputs((current) => ({
+                          ...current,
+                          [action.key]: latestCandidate.value,
+                        }));
+                        setVitalInputError(null);
+                      }}
+                      disabled={busy}
+                      data-testid={`button-report-vital-latest-${action.key}`}
+                      className="vyva-tap flex min-h-[62px] w-full min-w-0 items-center justify-between rounded-[20px] bg-[#6B21A8] px-4 text-left text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span className="grid min-w-0 gap-1">
+                        <span className="min-w-0 font-body text-[16px] font-black leading-tight">
+                          {t("health.symptomCheck.report.useLatestReading", "Use latest saved reading")}
+                        </span>
+                        <span className="min-w-0 font-body text-[13px] font-bold leading-snug text-white/82">
+                          {t("health.symptomCheck.report.latestReadingDetail", "{{display}} from {{source}}", {
+                            display: latestCandidate.display,
+                            source: latestSource,
+                          })}
+                        </span>
                       </span>
-                      <span className={`min-w-0 font-body text-[14px] font-bold leading-snug ${
-                        latestCandidate ? "text-white/82" : "text-vyva-text-3"
-                      }`}>
-                        {latestCandidate
-                          ? t("health.symptomCheck.report.latestReadingDetail", "{{display}} from {{source}}", {
-                              display: latestCandidate.display,
-                              source: latestSource,
-                            })
-                          : t("health.symptomCheck.report.noLatestReadingDetail", "Enter this reading manually to refine the assessment.")}
-                      </span>
-                    </span>
-                    <ChevronLeft size={22} className={`ml-3 flex-shrink-0 rotate-180 ${latestCandidate ? "" : "opacity-45"}`} />
-                  </button>
+                      <ChevronLeft size={20} className="ml-3 flex-shrink-0 rotate-180" />
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => {
@@ -2027,15 +1999,25 @@ export function ReportScreen({
                       setVitalInputError(null);
                     }}
                     disabled={busy}
-                    className="vyva-tap flex min-h-[76px] w-full min-w-0 items-center justify-between rounded-[22px] border border-[#E8DED4] bg-[#FAF9F6] px-5 text-left text-vyva-text-1"
+                    data-testid={`button-report-vital-add-${action.key}`}
+                    className={`vyva-tap flex min-h-[62px] w-full min-w-0 items-center justify-between rounded-[20px] px-4 text-left font-body font-black shadow-sm disabled:opacity-60 ${
+                      latestCandidate
+                        ? "border border-[#DDD6FE] bg-white text-vyva-purple"
+                        : "bg-[#6B21A8] text-white shadow-[0_10px_22px_rgba(107,33,168,0.16)]"
+                    }`}
                   >
-                    <span className="min-w-0 font-body text-[18px] font-black leading-tight">
-                      {t("health.symptomCheck.report.enterManualReading", "Enter manually")}
+                    <span className="min-w-0 text-[17px] leading-tight">
+                      {t("health.symptomCheck.report.addReading", "Add reading")}
                     </span>
-                    <ChevronLeft size={22} className="ml-3 flex-shrink-0 rotate-180 text-vyva-purple" />
+                    <ChevronLeft size={20} className={`ml-3 flex-shrink-0 rotate-180 ${latestCandidate ? "text-vyva-purple" : "text-white"}`} />
                   </button>
+                  {!latestCandidate ? (
+                    <p className="px-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2 sm:col-span-2">
+                      {t("health.symptomCheck.report.noLatestReadingDetail", "Enter this reading manually to refine the assessment.")}
+                    </p>
+                  ) : null}
                   {open ? (
-                    <div className="grid min-w-0 gap-3 overflow-hidden border-t border-[#EADFD5] pt-3">
+                    <div className="grid min-w-0 gap-3 overflow-hidden border-t border-[#DDD6FE] pt-3 sm:col-span-2">
                       <label className="flex min-h-[86px] w-full min-w-0 max-w-full items-end gap-2 overflow-hidden rounded-[24px] border-2 border-[#DDD6FE] bg-white px-4 py-2 sm:items-baseline sm:gap-3 sm:py-0">
                         <input
                           type="text"
@@ -2074,7 +2056,7 @@ export function ReportScreen({
             );
           })}
           {refinementStatus.message ? (
-            <div className={`col-span-1 rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
+            <div className={`rounded-[22px] border p-4 font-body text-[17px] font-black leading-snug ${
               refinementStatus.state === "error"
                 ? "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]"
                 : "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
@@ -2082,7 +2064,8 @@ export function ReportScreen({
               {refinementStatus.message}
             </div>
           ) : null}
-        </div>
+          </section>
+        ) : null}
 
         {isEmergency ? (
           <section className="rounded-[22px] border-2 border-[#DC2626] bg-[#FEF2F2] p-4 text-[#991B1B] shadow-[0_12px_30px_rgba(220,38,38,0.14)]" data-testid="card-report-emergency">

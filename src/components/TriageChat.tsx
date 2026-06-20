@@ -243,26 +243,33 @@ function TriageReviewPanel() {
 
   return (
     <section
-      className="rounded-[26px] border border-[#E8DED4] bg-white px-5 py-5 shadow-[0_14px_30px_rgba(63,45,35,0.08)]"
+      className="relative overflow-hidden rounded-[24px] border border-[#C4B5FD] bg-[linear-gradient(135deg,#3B0764_0%,#6B21A8_54%,#8B5CF6_100%)] px-5 py-4 text-white shadow-[0_18px_36px_rgba(91,18,160,0.18)]"
       data-testid="triage-review-panel"
       aria-live="polite"
       aria-label={t("health.symptomCheck.chat.reviewAria", "VYVA is reviewing your answers and preparing guidance")}
     >
-      <div className="flex items-center gap-3">
-        <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[19px] bg-vyva-purple text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]">
-          <span className="triage-review-pulse absolute inset-0 rounded-[19px] border-2 border-vyva-purple/25" aria-hidden="true" />
+      <span className="triage-review-scan absolute left-0 top-0 h-full w-1/3 bg-white/14" aria-hidden="true" />
+      <div className="relative flex items-center gap-4">
+        <div className="relative flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-full border border-white/24 bg-white/14 text-white shadow-[0_12px_26px_rgba(31,15,54,0.18)]">
+          <span className="triage-review-pulse absolute inset-[-6px] rounded-full border border-white/22" aria-hidden="true" />
           <Activity size={26} strokeWidth={2.4} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-body text-[11px] font-black uppercase tracking-[0.16em] text-vyva-purple">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.18em] text-white/72">
             {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
           </p>
           <h2
-            className="mt-1 min-h-[64px] font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:min-h-[66px] sm:text-[26px]"
+            className="mt-1 min-h-[58px] font-body text-[22px] font-black leading-tight text-white sm:min-h-[60px] sm:text-[25px]"
             data-testid="triage-review-headline"
           >
             {activeHeadline}
           </h2>
+          <div className="mt-2 flex items-center gap-2" aria-hidden="true">
+            <span className="triage-review-dot h-2 w-2 rounded-full bg-white/90" />
+            <span className="triage-review-dot h-2 w-2 rounded-full bg-white/90 [animation-delay:0.18s]" />
+            <span className="triage-review-dot h-2 w-2 rounded-full bg-white/90 [animation-delay:0.36s]" />
+            <span className="ml-1 h-px min-w-0 flex-1 bg-white/24" />
+          </div>
         </div>
       </div>
     </section>

@@ -474,6 +474,7 @@ const es = {
         noLatestReading: "Aun no hay lectura guardada",
         latestReadingDetail: "{{display}} desde {{source}}",
         noLatestReadingDetail: "Introduce esta lectura manualmente para refinar la evaluacion.",
+        addReading: "Anadir lectura",
         latestSourceDevice: "lectura de dispositivo",
         latestSourceClinical: "lectura clinica",
         latestSourcePhone: "estimacion del telefono",
