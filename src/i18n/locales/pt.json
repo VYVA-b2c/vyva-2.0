@@ -252,18 +252,18 @@
     },
     "fastHelp": {
       "kicker": "Ajuda rapida",
-      "title": "Do que precisa agora?",
+      "title": "O que quer que a VYVA faca?",
       "doctor": {
-        "label": "Ajuda medica",
-        "sub": "Falar sobre uma preocupacao de saude"
+        "label": "Falar com um medico real agora",
+        "sub": "Receba ajuda medica ao vivo."
       },
       "appointment": {
-        "label": "Marcar consulta",
-        "sub": "Preparar pedido para confirmar"
+        "label": "Marcar uma consulta",
+        "sub": "A VYVA organiza consigo."
       },
       "ride": {
-        "label": "Reservar transporte",
-        "sub": "Organizar transporte seguro"
+        "label": "Reservar o meu transporte",
+        "sub": "A VYVA organiza a sua viagem."
       },
       "doctorContext": "Pedido rapido de ajuda medica a partir do Inicio. Pergunte o que esta a acontecer e ajude a preparar o proximo passo seguro.",
       "appointmentPrefill": "Ajude-me a marcar uma consulta. Pergunte que tipo de consulta preciso e nao marque nada sem a minha confirmacao.",

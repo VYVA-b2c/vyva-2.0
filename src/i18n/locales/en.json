@@ -380,18 +380,18 @@
     },
     "fastHelp": {
       "kicker": "Fast help",
-      "title": "What do you need now?",
+      "title": "What would you like VYVA to do?",
       "doctor": {
-        "label": "Doctor help",
-        "sub": "Talk through a health concern"
+        "label": "Talk to a real doctor now",
+        "sub": "Get live medical help."
       },
       "appointment": {
-        "label": "Book appointment",
-        "sub": "Prepare a request to confirm"
+        "label": "Schedule an appointment",
+        "sub": "Let VYVA arrange it with you."
       },
       "ride": {
-        "label": "Book ride",
-        "sub": "Arrange safe transport"
+        "label": "Book my transport",
+        "sub": "Let VYVA arrange your ride."
       },
       "doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
       "appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
