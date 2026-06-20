@@ -1049,6 +1049,18 @@
       "Ich beantworte Ihre\nFragen zu Medikamenten",
       "Ich helfe Ihnen, Ihre\nGesundheitsroutine einzuhalten"
     ],
+    "quickAccess": "Medikamente",
+    "primary": {
+      "reminders": "Erinnerungen",
+      "remindersSub": "Heutigen Plan prufen und Medikamentenerinnerungen hinzufugen.",
+      "refills": "Nachfullungen",
+      "refillsSub": "Wiederholungsrezepte oder Lieferung vorbereiten.",
+      "interactions": "Wechselwirkungen",
+      "interactionsSub": "Medikamente und Erganzungen prufen.",
+      "adherence": "Adhaerenz",
+      "adherenceSub": "Fortschritt und verpasste Dosen ansehen."
+    },
+    "canHelpWith": "Ich kann Ihnen helfen mit",
     "takenToday": "{{taken}} von {{total}} heute genommen",
     "todaySchedule": "Heutiger Zeitplan",
     "dueTonight": "1 heute Abend fällig",
@@ -1598,6 +1610,42 @@
     "noRecs": "Tippen Sie auf Aktualisieren, um die Empfehlungen von heute zu sehen.",
     "refreshRecs": "Aktualisieren",
     "quickActions": "Schnellaktionen",
+    "hub": {
+      "kicker": "Concierge",
+      "title": "Was soll VYVA vorbereiten?",
+      "subtitle": "Services, Fahrten, Bestellungen und Sparen bleiben bestaetigungspflichtig."
+    },
+    "primaryCards": {
+      "shop": "Einkaufen",
+      "book": "Buchen",
+      "order": "Bestellen",
+      "save": "Sparen"
+    },
+    "quickPrompts": {
+      "findBestDeals": "Die besten Angebote finden",
+      "bookTrip": "Eine Reise buchen",
+      "researchCompany": "Ein Unternehmen recherchieren"
+    },
+    "fastHelp": {
+      "kicker": "Schnelle Hilfe",
+      "title": "Was brauchen Sie jetzt?",
+      "doctorContext": "Concierge-Anfrage fuer aerztliche Hilfe. Fragen Sie, was passiert, und helfen Sie, einen sicheren naechsten Schritt vorzubereiten.",
+      "ridePrefill": "Bitte helfen Sie mir, sicheren Transport zu organisieren. Fragen Sie nach Ziel und Zeit, bereiten Sie klare Optionen vor und buchen Sie nichts ohne meine Bestaetigung.",
+      "actions": {
+        "doctor": {
+          "label": "Arzthilfe",
+          "sub": "Ein Gesundheitsproblem besprechen"
+        },
+        "appointment": {
+          "label": "Termin buchen",
+          "sub": "Eine Anfrage zur Bestaetigung vorbereiten"
+        },
+        "ride": {
+          "label": "Fahrt buchen",
+          "sub": "Sicheren Transport organisieren"
+        }
+      }
+    },
     "chatTitle": "Mit VYVA chatten",
     "placeholder": "Fragen Sie mich alles — Fahrten, Angebote, Tipps…",
     "chatEmptyHint": "Nutzen Sie eine Schnellaktion oben oder geben Sie Ihre eigene Frage ein.",

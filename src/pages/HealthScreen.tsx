@@ -1164,6 +1164,7 @@ const HealthScreen = () => {
   } = useDoctorVoice();
 
   const [seeDoctorOpen,    setSeeDoctorOpen]    = useState(false);
+  const [visualScanOpen,   setVisualScanOpen]   = useState(false);
   const [specialistOpen,   setSpecialistOpen]   = useState(false);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
   const [specialistCondition, setSpecialistCondition] = useState("");
@@ -1221,11 +1222,6 @@ const HealthScreen = () => {
   });
   const { data: reportsSummary } = useQuery<ReportsSummary>({
     queryKey: ["/api/reports/summary"],
-    retry: false,
-    staleTime: 60 * 1000,
-  });
-  const { data: dailyCheckin } = useQuery<DailyCheckinToday>({
-    queryKey: ["/api/checkins/today"],
     retry: false,
     staleTime: 60 * 1000,
   });
@@ -1666,17 +1662,117 @@ const HealthScreen = () => {
       .finally(() => setWoundAnalyzing(false));
   };
 
-  const QUICK_TILES = [
-    { id: "sintomas",   Icon: HeartPulse,    iconBg: "#F5F3FF", iconColor: "#7C3AED", label: t("health.quickTiles.symptoms.label", "Symptoms"),    hint: t("health.quickTiles.symptoms.hint", "Check how I feel"), path: "/health/symptom-check", agentMessage: "I want to talk about my symptoms", action: () => guardPath("/health/symptom-check") },
-    { id: "medicacion", Icon: Pill,          iconBg: "#FDF4FF", iconColor: "#86198F", label: t("health.quickTiles.medication.label", "Medication"),  hint: t("health.quickTiles.medication.hint", "My pills"),     path: "/meds", agentMessage: "I want to review my medications", action: () => guardPath("/meds") },
-    { id: "signos",     Icon: Activity,      iconBg: "#FFF1F2", iconColor: "#BE123C", label: t("health.quickTiles.status.label", "Vitals"),      hint: t("health.quickTiles.status.hint", "Pulse, breathing, trends"),    path: "/health/vitals", agentMessage: "I want to check my health status", action: () => navigate("/health/vitals") },
-    { id: "historial",  Icon: ClipboardList, iconBg: "#EFF6FF", iconColor: "#1D4ED8", label: t("health.quickTiles.reports.label", "Reports"),    hint: t("health.quickTiles.reports.hint", "View summary"),      path: "/informes", agentMessage: "I want to see my health reports", action: () => navigate("/informes") },
+  const PRIMARY_CARDS = [
+    {
+      id: "symptoms",
+      Icon: HeartPulse,
+      iconBg: "linear-gradient(135deg, #FFE7E7 0%, #FFF7F2 100%)",
+      iconColor: "#E74C43",
+      glow: "rgba(231,76,67,0.12)",
+      label: t("health.homeCards.symptoms.label", "My Symptoms"),
+      hint: t("health.homeCards.symptoms.hint", "Check how I feel"),
+      path: "/health/symptom-check",
+      agentMessage: "I want to talk about my symptoms",
+      action: () => guardPath("/health/symptom-check"),
+    },
+    {
+      id: "medication",
+      Icon: Pill,
+      iconBg: "linear-gradient(135deg, #FDF4FF 0%, #FFF7FE 100%)",
+      iconColor: "#86198F",
+      glow: "rgba(134,25,143,0.11)",
+      label: t("health.homeCards.medication.label", "My Medication"),
+      hint: t("health.homeCards.medication.hint", "Review my medicines"),
+      path: "/meds",
+      agentMessage: "I want to review my medications",
+      action: () => guardPath("/meds"),
+    },
+    {
+      id: "vitals",
+      Icon: Activity,
+      iconBg: "linear-gradient(135deg, #ECFDF5 0%, #F3FFF9 100%)",
+      iconColor: "#149A63",
+      glow: "rgba(20,154,99,0.11)",
+      label: t("health.homeCards.vitals.label", "My Vitals"),
+      hint: t("health.homeCards.vitals.hint", "Pulse, breathing, trends"),
+      path: "/health/vitals",
+      agentMessage: "I want to check my health status",
+      action: () => navigate("/health/vitals"),
+    },
+    {
+      id: "health-plan",
+      Icon: Heart,
+      iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
+      iconColor: "#7C3AED",
+      glow: "rgba(124,58,237,0.13)",
+      label: t("health.homeCards.healthPlan.label", "My Health Plan"),
+      hint: t("health.homeCards.healthPlan.hint", "Check-ins and care plan"),
+      path: "/health/check-ins",
+      agentMessage: "I want to review my health plan",
+      action: () => navigate("/health/check-ins"),
+    },
   ];
 
-  const handleQuickTileClick = (tile: (typeof QUICK_TILES)[number]) => {
+  const handlePrimaryCardClick = (tile: (typeof PRIMARY_CARDS)[number]) => {
     sendDoctorUserMessage(tile.agentMessage);
     tile.action();
   };
+
+  const openVisualScan = () => {
+    setVisualScanOpen(true);
+    fileInputRef.current?.click();
+  };
+
+  const openSpecialistPanel = () => {
+    const shouldOpen = !specialistOpen;
+    setSpecialistOpen((value) => !value);
+    if (shouldOpen) {
+      window.setTimeout(() => {
+        document.getElementById("health-specialist-panel")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 80);
+    }
+  };
+
+  const FAST_HELP_ACTIONS = [
+    {
+      id: "reports",
+      Icon: ClipboardList,
+      iconBg: "#EEF6FF",
+      iconColor: "#2563EB",
+      border: "#BFDBFE",
+      shadow: "rgba(37,99,235,0.10)",
+      label: t("health.fastHelp.reports.label", "My Reports"),
+      sub: t("health.fastHelp.reports.sub", "View health summaries and recent checks"),
+      action: () => navigate("/informes"),
+    },
+    {
+      id: "visual-scan",
+      Icon: Camera,
+      iconBg: "#FFFBEB",
+      iconColor: "#C9890A",
+      border: "#FDE68A",
+      shadow: "rgba(201,137,10,0.10)",
+      label: t("health.fastHelp.visualScan.label", "Visual Health Scan"),
+      sub: t("health.fastHelp.visualScan.sub", "Take or upload an image for review"),
+      action: openVisualScan,
+    },
+    {
+      id: "specialist",
+      Icon: UserSearch,
+      iconBg: "#F5F3FF",
+      iconColor: "#7C3AED",
+      border: "#DDD6FE",
+      shadow: "rgba(124,58,237,0.10)",
+      label: t("health.fastHelp.specialist.label", "Find a Specialist"),
+      sub: t("health.fastHelp.specialist.sub", "Connect with the right expert"),
+      action: openSpecialistPanel,
+    },
+  ];
+
+  const showLegacyHealthSections = import.meta.env.MODE === "legacy-health-sections";
 
   const isSubscriptionLocked = (path?: string) => {
     if (!path) return false;
@@ -1714,34 +1810,8 @@ const HealthScreen = () => {
           }}
         />
 
-        <DailyCheckinCard
-          checkin={dailyCheckin}
-          t={t}
-          onPrimary={() => navigate(dailyCheckin?.status === "completed" ? "/health/check-ins" : "/health/check-in")}
-          onHistory={() => navigate("/health/check-ins")}
-        />
-
-        <button
-          onClick={() => navigate("/health/check-ins")}
-          className="hidden"
-          data-testid="button-health-checkin-history"
-        >
-          <span className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-vyva-purple">
-            <History size={28} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-body text-[19px] font-bold leading-tight text-vyva-text-1">
-              {t("health.wellbeingHistory.title", "Wellbeing history")}
-            </span>
-            <span className="mt-1 block font-body text-[15px] leading-snug text-vyva-text-2">
-              {t("health.wellbeingHistory.subtitle", "See your previous readings and recent patterns.")}
-            </span>
-          </span>
-          <ChevronRight size={22} className="flex-shrink-0 text-vyva-purple" />
-        </button>
-
         {/* ── 2. Acceso rápido (2×2 grid) ── */}
-        {latestTriage ? (
+        {showLegacyHealthSections && latestTriage ? (
           <section className="mt-[18px] rounded-[26px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]">
             <button
               type="button"
@@ -1806,27 +1876,35 @@ const HealthScreen = () => {
           </section>
         ) : null}
 
-        <div className="mt-[20px]">
-          <SectionTitle className="mb-3" title={t("health.quickAccess", "Quick access")} />
-          <ResponsiveGrid columns="two">
-            {QUICK_TILES.map((tile) => {
+        <div className="mt-[22px]">
+          <SectionTitle
+            className="mb-4"
+            title={t("health.whatNow", "or explore a topic")}
+            titleClassName="font-body text-[16px] font-semibold not-italic text-vyva-text-2"
+          />
+          <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
+            {PRIMARY_CARDS.map((tile) => {
               const locked = isSubscriptionLocked(tile.path);
               return (
                 <ActionCard
                   key={tile.id}
-                  data-testid={`button-health-quick-${tile.id}`}
-                  onClick={() => handleQuickTileClick(tile)}
+                  data-testid={`button-health-primary-${tile.id}`}
+                  onClick={() => handlePrimaryCardClick(tile)}
                   title={tile.label}
                   description={tile.hint}
                   icon={locked ? undefined : tile.Icon}
                   iconNode={locked ? <Lock size={28} aria-hidden="true" /> : undefined}
                   iconBg={tile.iconBg}
                   iconColor={tile.iconColor}
-                  align="center"
-                  size="large"
+                  size="standard"
+                  contentClassName="justify-start"
                   locked={locked}
+                  style={{
+                    borderColor: "#EDE2D1",
+                    boxShadow: `0 16px 34px ${tile.glow}, 0 2px 10px rgba(43,31,24,0.05)`,
+                  }}
                   badge={locked ? (
-                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2.5 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
                       <Lock size={12} strokeWidth={2.5} />
                       Plan
                     </span>
@@ -1839,7 +1917,330 @@ const HealthScreen = () => {
 
 
         {/* ── 3. Acciones rápidas ── */}
-        <div className="mt-[24px]">
+        <section
+          className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+          data-testid="health-fast-help"
+        >
+          <div className="mb-4">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+              {t("health.fastHelp.kicker", "Fast help")}
+            </p>
+            <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+              {t("health.fastHelp.title", "What do you need now?")}
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {FAST_HELP_ACTIONS.map((action) => {
+              const Icon = action.Icon;
+              return (
+                <button
+                  key={action.id}
+                  type="button"
+                  data-testid={`button-health-fast-${action.id}`}
+                  onClick={action.action}
+                  className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5"
+                  style={{
+                    borderColor: action.border,
+                    boxShadow: `0 10px 24px ${action.shadow}`,
+                  }}
+                >
+                  <span
+                    className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
+                    style={{ background: action.iconBg, color: action.iconColor }}
+                  >
+                    <Icon size={24} strokeWidth={2.4} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                      {action.label}
+                    </span>
+                    <span className="mt-1 block max-w-[28rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
+                      {action.sub}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {(visualScanOpen || woundResult) && (
+          <div
+            className="mt-4 overflow-hidden rounded-[24px] border border-[#FDE68A] bg-white shadow-[0_10px_24px_rgba(201,137,10,0.08)]"
+            data-testid="section-health-visual-scan"
+          >
+            <VisualHealthScanCardContent
+              t={t}
+              analyzing={woundAnalyzing}
+              onScan={() => fileInputRef.current?.click()}
+            />
+
+            {woundResult && (
+              <VisualScanResultPanel
+                result={woundResult}
+                t={t}
+                actions={visualScanActions}
+                onClose={() => setWoundResult(null)}
+              />
+            )}
+
+            <button
+              data-testid="button-toggle-scan-history"
+              onClick={() => setHistorialOpen((v) => !v)}
+              className="w-full flex items-center gap-2 px-[18px] py-[12px] transition-colors"
+              style={{ borderTop: "1px solid #F5EFE4" }}
+            >
+              <History size={14} style={{ color: "#C9890A" }} />
+              <span className="font-body text-[13px] font-medium flex-1 text-left" style={{ color: "#C9890A" }}>
+                {t("health.pastScans.viewHistory", "View history")}
+                {!pastScansLoading && pastScans.length > 0 && (
+                  <span
+                    className="ml-[6px] px-[7px] py-[1px] rounded-full font-body text-[11px] font-semibold"
+                    style={{ background: "#FEF3C7", color: "#92400E" }}
+                  >
+                    {pastScans.length}
+                  </span>
+                )}
+              </span>
+              <ChevronDown
+                size={14}
+                className="flex-shrink-0 transition-transform"
+                style={{ color: "#C9890A", transform: historialOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+              />
+            </button>
+
+            {historialOpen && (
+              <div className="px-[14px] pb-[14px]" style={{ borderTop: "1px solid #FEF3C7" }}>
+                {pastScansLoading ? (
+                  <div className="mt-[10px] h-[54px] rounded-[12px] bg-gray-100 animate-pulse" />
+                ) : pastScans.length === 0 ? (
+                  <p className="font-body text-[13px] text-vyva-text-2 text-center py-4">{t("health.pastScans.empty", "No saved scans yet")}</p>
+                ) : (
+                  <div className="pt-[10px] grid gap-[10px]">
+                    {pastScans.map((scan) => (
+                      <button
+                        key={scan.id}
+                        data-testid={`button-expand-scan-${scan.id}`}
+                        type="button"
+                        onClick={() => setFullScreenScan(scan)}
+                        className="vyva-tap flex w-full items-center gap-3 rounded-[14px] border border-[#E5E7EB] bg-[#F9FAFB] p-[12px] text-left"
+                      >
+                        {scan.image_data ? (
+                          <img src={scan.image_data} alt={scan.result_title} className="h-12 w-12 rounded-[10px] object-cover" />
+                        ) : null}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-body text-[13px] font-semibold text-vyva-text-1">{scan.result_title}</span>
+                          <span className="mt-1 block font-body text-[12px] text-vyva-text-2">
+                            {new Date(scan.scanned_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {specialistOpen && (
+          <div
+            id="health-specialist-panel"
+            className="mt-4 overflow-hidden rounded-[24px] border border-[#DDD6FE] bg-white p-[18px] shadow-[0_10px_24px_rgba(124,58,237,0.08)]"
+            data-testid="section-health-specialist"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-body text-[15px] leading-relaxed text-vyva-text-2">
+                {t("health.findSpecialist.intro", "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.")}
+              </p>
+              <button
+                data-testid="button-reset-specialist-search"
+                type="button"
+                onClick={resetSpecialistSearch}
+                className="vyva-tap flex-shrink-0 rounded-full px-[10px] py-[6px] font-body text-[12px] font-semibold"
+                style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
+              >
+                {t("health.findSpecialist.reset", "Reset")}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-[12px] pb-[8px]">
+              <p className="font-body text-[12px] font-semibold uppercase tracking-wide" style={{ color: "#7C3AED" }}>
+                {t("health.findSpecialist.suggestions", "Suggestions for you")}
+              </p>
+              <button
+                data-testid="button-refresh-specialist-examples"
+                type="button"
+                onClick={() => setSpecialistExamplePage((page) => page + 1)}
+                className="vyva-tap inline-flex items-center gap-1 rounded-full px-[10px] py-[6px] font-body text-[12px] font-semibold"
+                style={{ background: "#FFFFFF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
+              >
+                <RefreshCw size={13} />
+                {t("health.findSpecialist.more", "More")}
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pb-[10px]">
+              {specialistExamples.map((example) => (
+                <button
+                  key={example}
+                  data-testid={`chip-specialist-example-${example}`}
+                  onClick={() => setSpecialistCondition(example)}
+                  className="vyva-tap rounded-full px-[14px] py-[8px] font-body text-[14px] font-medium transition-colors"
+                  style={{ background: "#EDE9FE", color: "#7C3AED" }}
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <button
+                data-testid="button-specialist-voice-search"
+                onClick={specialistVoiceListening ? stopSpecialistVoice : startSpecialistVoice}
+                disabled={specialistMutation.isPending}
+                className={`vyva-tap flex w-full items-center justify-center gap-2 rounded-[18px] px-[14px] py-[13px] font-body text-[15px] font-semibold transition-all ${specialistVoiceListening ? "mic-pulse-listening" : ""}`}
+                style={{
+                  background: specialistVoiceListening ? "#ECFDF5" : "#F5F3FF",
+                  color: specialistVoiceListening ? "#0A7C4E" : "#7C3AED",
+                  border: specialistVoiceListening ? "1px solid #6EE7B7" : "1px solid #DDD6FE",
+                }}
+              >
+                {specialistVoiceListening ? <Square size={16} /> : <Mic size={16} />}
+                {specialistVoiceListening ? t("health.findSpecialist.listening", "Listening...") : t("health.findSpecialist.voiceSearch", "Search by voice")}
+              </button>
+              <input
+                data-testid="input-specialist-condition"
+                value={specialistCondition}
+                onChange={(e) => setSpecialistCondition(e.target.value)}
+                placeholder={t("health.findSpecialist.conditionPlaceholder", "e.g. knee pain, diabetes, memory...")}
+                className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
+                style={{ border: "1px solid #DDD6FE", background: "#FFFFFF", color: "#2F2925" }}
+              />
+              <input
+                data-testid="input-specialist-location"
+                value={specialistLocation}
+                onChange={(e) => {
+                  setSpecialistLocationEdited(true);
+                  setSpecialistLocation(e.target.value);
+                }}
+                placeholder={profileLocation || t("health.findSpecialist.locationPlaceholder", "City or area")}
+                className="w-full rounded-[16px] px-[16px] py-[13px] font-body text-[16px] outline-none"
+                style={{ border: "1px solid #EDE5DB", background: "#FFFFFF", color: "#2F2925" }}
+              />
+              <button
+                data-testid="button-run-specialist-search"
+                onClick={() => runSpecialistSearch()}
+                disabled={specialistMutation.isPending}
+                className="vyva-primary-action w-full"
+                style={{ background: "#7C3AED", color: "#FFFFFF" }}
+              >
+                {specialistMutation.isPending ? t("health.findSpecialist.searching", "Searching specialists...") : t("health.findSpecialist.searchButton", "Search specialists")}
+              </button>
+            </div>
+
+            {specialistResult && (
+              <div className="mt-[12px] flex flex-col gap-2">
+                <div className="rounded-[14px] px-[14px] py-[11px]" style={{ background: "#F5F3FF", border: "1px solid #DDD6FE" }}>
+                  <p className="font-body text-[12px] font-semibold" style={{ color: "#6D28D9" }}>
+                    {t("health.findSpecialist.recommendedSpecialties", "Recommended specialties")}
+                  </p>
+                  <p className="font-body text-[14px] font-semibold text-vyva-text-1">
+                    {specialistResult.matchedSpecialties.map((specialty) => displaySpecialtyText(specialty, specialistLanguage)).join(", ")}
+                  </p>
+                </div>
+
+                {specialistResult.providers.map((spec, i) => {
+                  const location = spec.address ?? spec.clinicName ?? specialistLocation;
+                  const providerActions = specialistProviderServiceActionsFor(spec);
+                  return (
+                    <div key={`${spec.name}-${i}`} className="rounded-[16px] px-[14px] py-[13px]" style={{ background: "#F9F6F2", border: "1px solid #EDE5DB" }}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-[40px] h-[40px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#EDE9FE" }}>
+                          <UserSearch size={17} style={{ color: "#7C3AED" }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-body text-[16px] font-semibold text-vyva-text-1 leading-tight">{spec.name}</p>
+                          <p className="font-body text-[13px] font-semibold mt-[2px]" style={{ color: "#7C3AED" }}>{displaySpecialty(spec, specialistLanguage)}</p>
+                          <p className="mt-2 font-body text-[13px] text-vyva-text-2 leading-snug">{location}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-[12px] grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {providerActions.map((action) => {
+                          if (action.kind === "call_provider" && action.href) {
+                            return (
+                              <a
+                                key={action.kind}
+                                href={action.href}
+                                data-testid={`button-specialist-call-provider-${i}`}
+                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                                style={{ background: "#7C3AED", color: "#FFFFFF" }}
+                              >
+                                <PhoneCall size={15} />
+                                {t("health.findSpecialist.call", "Call")}
+                              </a>
+                            );
+                          }
+                          if (action.kind === "book_appointment") {
+                            return (
+                              <button
+                                key={action.kind}
+                                type="button"
+                                data-testid={`button-specialist-book-appointment-${i}`}
+                                onClick={() => action.href ? window.open(action.href, "_blank", "noopener,noreferrer") : bookSpecialistMutation.mutate(spec)}
+                                disabled={bookSpecialistMutation.isPending}
+                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                                style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
+                              >
+                                <Calendar size={15} />
+                                {t("health.findSpecialist.bookAppointment", "Appointment")}
+                              </button>
+                            );
+                          }
+                          if (action.kind === "book_ride") {
+                            return (
+                              <button
+                                key={action.kind}
+                                type="button"
+                                data-testid={`button-specialist-book-ride-${i}`}
+                                onClick={() => navigate("/concierge", { state: specialistRideState(spec, specialistCondition, specialistLanguage) })}
+                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                                style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
+                              >
+                                <Car size={15} />
+                                {t("health.findSpecialist.bookRide", "Book ride")}
+                              </button>
+                            );
+                          }
+                          if (action.kind === "open_map" && action.href) {
+                            return (
+                              <button
+                                key={action.kind}
+                                type="button"
+                                data-testid={`button-map-specialist-${i}`}
+                                onClick={() => window.open(action.href!, "_blank", "noopener,noreferrer")}
+                                className="min-h-[48px] rounded-full font-body text-[14px] font-semibold flex items-center justify-center gap-2"
+                                style={{ background: "#F0FDF4", color: "#047857", border: "1px solid #BBF7D0" }}
+                              >
+                                <MapPin size={15} />
+                                {t("health.findSpecialist.map", "Map")}
+                              </button>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {showLegacyHealthSections ? <div className="mt-[24px]">
           <SectionTitle className="mb-3" title={t("health.quickActions", "Quick actions")} />
 
           <div className="flex flex-col gap-[10px]">
@@ -2384,7 +2785,7 @@ const HealthScreen = () => {
               )}
             </div>
           </div>
-        </div>
+        </div> : null}
 
       </div>
 

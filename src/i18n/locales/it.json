@@ -1165,6 +1165,18 @@
       "Risponderò alle tue\ndomande sui farmaci",
       "Posso aiutarti a mantenere\nla tua routine della salute"
     ],
+    "quickAccess": "Farmaci",
+    "primary": {
+      "reminders": "Promemoria",
+      "remindersSub": "Controlla il programma di oggi e aggiungi promemoria.",
+      "refills": "Rifornimenti",
+      "refillsSub": "Prepara ricette ripetute o consegne.",
+      "interactions": "Interazioni",
+      "interactionsSub": "Controlla farmaci e integratori.",
+      "adherence": "Aderenza",
+      "adherenceSub": "Vedi progressi e dosi saltate."
+    },
+    "canHelpWith": "Posso aiutarti con",
     "takenToday": "{{taken}} di {{total}} presi oggi",
     "todaySchedule": "Programma di oggi",
     "dueTonight": "1 previsto stasera",
@@ -1714,6 +1726,42 @@
     "noRecs": "Tocca Aggiorna per vedere i suggerimenti di oggi.",
     "refreshRecs": "Aggiorna",
     "quickActions": "Azioni rapide",
+    "hub": {
+      "kicker": "Concierge",
+      "title": "Cosa deve preparare VYVA?",
+      "subtitle": "Servizi, viaggi, ordini e risparmi restano da confermare."
+    },
+    "primaryCards": {
+      "shop": "Acquista",
+      "book": "Prenota",
+      "order": "Ordina",
+      "save": "Risparmia"
+    },
+    "quickPrompts": {
+      "findBestDeals": "Trova le migliori offerte",
+      "bookTrip": "Prenota un viaggio",
+      "researchCompany": "Cerca un'azienda"
+    },
+    "fastHelp": {
+      "kicker": "Aiuto rapido",
+      "title": "Di cosa hai bisogno ora?",
+      "doctorContext": "Richiesta di aiuto medico Concierge. Chiedi cosa sta succedendo e aiuta a preparare un prossimo passo sicuro.",
+      "ridePrefill": "Aiutami a organizzare un trasporto sicuro. Chiedi destinazione e orario, prepara opzioni chiare e non prenotare nulla senza la mia conferma.",
+      "actions": {
+        "doctor": {
+          "label": "Aiuto medico",
+          "sub": "Parla di un problema di salute"
+        },
+        "appointment": {
+          "label": "Prenota appuntamento",
+          "sub": "Prepara una richiesta da confermare"
+        },
+        "ride": {
+          "label": "Prenota corsa",
+          "sub": "Organizza un trasporto sicuro"
+        }
+      }
+    },
     "chatTitle": "Chatta con VYVA",
     "placeholder": "Chiedimi qualsiasi cosa — trasporti, offerte, consigli…",
     "chatEmptyHint": "Usa un'azione rapida sopra o scrivi la tua domanda.",

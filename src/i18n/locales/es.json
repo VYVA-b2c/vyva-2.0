@@ -1165,6 +1165,18 @@
       "Responderé tus preguntas\nsobre medicamentos",
       "Puedo ayudarte a mantener\ntu rutina de salud"
     ],
+    "quickAccess": "Medicacion",
+    "primary": {
+      "reminders": "Recordatorios",
+      "remindersSub": "Revisa el horario de hoy y anade recordatorios de medicacion.",
+      "refills": "Reposiciones",
+      "refillsSub": "Prepara recetas repetidas o entregas.",
+      "interactions": "Interacciones",
+      "interactionsSub": "Revisa medicinas y suplementos.",
+      "adherence": "Cumplimiento",
+      "adherenceSub": "Ve progreso y dosis omitidas."
+    },
+    "canHelpWith": "Te puedo ayudar con",
     "takenToday": "{{taken}} de {{total}} tomados hoy",
     "todaySchedule": "Horario de hoy",
     "dueTonight": "1 pendiente esta noche",

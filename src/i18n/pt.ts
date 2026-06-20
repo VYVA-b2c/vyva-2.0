@@ -169,11 +169,23 @@ const pt = {
       reviewNext: "Rever dose, reposicao ou interacao",
       pickMedication: "Escolha uma medicacao",
     },
+    quickAccess: "Medicacao",
+    primary: {
+      reminders: "Lembretes",
+      remindersSub: "Reveja o plano de hoje e adicione lembretes.",
+      refills: "Reposicoes",
+      refillsSub: "Prepare receitas repetidas ou entregas.",
+      interactions: "Interacoes",
+      interactionsSub: "Verifique medicamentos e suplementos.",
+      adherence: "Adesao",
+      adherenceSub: "Veja progresso e doses esquecidas.",
+    },
     scheduleSubtitle: "Reveja o que vence hoje e marque as doses tomadas.",
     remainingBadge_one: "{{count}} pendente",
     remainingBadge_other: "{{count}} pendentes",
     allTakenShort: "Feito",
     confirmRemaining: "Confirmar doses pendentes",
+    canHelpWith: "Posso ajudar com",
     supportTitle: "Ajuda com medicacao",
     supportSubtitle: "Verificacoes rapidas para reposicoes, interacoes e progresso.",
     medicationSummaryFallback: "a minha medicacao",
@@ -205,6 +217,41 @@ const pt = {
     },
   },
   health: {
+    whatNow: "ou explore um tema",
+    homeCards: {
+      symptoms: {
+        label: "Os meus sintomas",
+        hint: "Ver como me sinto",
+      },
+      medication: {
+        label: "A minha medicacao",
+        hint: "Rever os meus medicamentos",
+      },
+      vitals: {
+        label: "Os meus sinais vitais",
+        hint: "Pulso, respiracao e tendencias",
+      },
+      healthPlan: {
+        label: "O meu plano de saude",
+        hint: "Check-ins e plano de cuidados",
+      },
+    },
+    fastHelp: {
+      kicker: "Ajuda rapida",
+      title: "Do que precisa agora?",
+      reports: {
+        label: "Os meus relatorios",
+        sub: "Ver resumos de saude e controlos recentes",
+      },
+      visualScan: {
+        label: "Analise visual de saude",
+        sub: "Tire ou carregue uma imagem para rever",
+      },
+      specialist: {
+        label: "Encontrar especialista",
+        sub: "Ligue-se ao especialista certo",
+      },
+    },
     scanWound: {
       actions: {
         doctorHelp: "Ajuda medica",
