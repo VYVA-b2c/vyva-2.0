@@ -105,10 +105,23 @@ describe("Vitals Hub", () => {
 
     expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add a vital reading");
     expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Add reading");
-    expect(screen.getByTestId("mobile-todays-readings")).toBeInTheDocument();
+    expect(screen.getByTestId("latest-readings-section")).toHaveTextContent("Latest readings");
+    expect(screen.getByTestId("latest-readings-summary")).toHaveTextContent("No readings yet");
+    expect(screen.queryByText("Overall status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Weekly rhythm")).not.toBeInTheDocument();
+    expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("vitals-snapshot-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("compact-vitals-help")).toHaveTextContent("Need help with readings?");
     expect(screen.queryByTestId("button-vitals-say-reading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-vitals-snap-reading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("connect-health-devices")).not.toBeInTheDocument();
+  });
+
+  it("opens the add-reading sheet from a suggested vital chip", async () => {
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-suggested-vital-resting_hr_bpm"));
+    expect(await screen.findByTestId("add-reading-sheet")).toBeInTheDocument();
   });
 
   it("opens capture methods and sends device setup to Settings", async () => {
