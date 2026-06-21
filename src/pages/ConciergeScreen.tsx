@@ -1148,6 +1148,23 @@ function getExecutionChannel(item: ConciergePendingItem): string {
     : "";
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim()).map((entry) => entry.trim()) : [];
+}
+
+function getFormAutomationPlan(item: ConciergePendingItem): { adapterLabel: string | null; missingFields: string[]; nextStep: string | null } | null {
+  const plan = item.action_payload?.form_automation_plan;
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
+  const record = plan as Record<string, unknown>;
+  const adapterLabel = typeof record.adapter_label === "string" && record.adapter_label.trim() ? record.adapter_label.trim() : null;
+  const nextStep = typeof record.next_step === "string" && record.next_step.trim() ? record.next_step.trim() : null;
+  return {
+    adapterLabel,
+    missingFields: stringList(record.missing_fields),
+    nextStep,
+  };
+}
+
 function statusLabel(status: ConciergePendingItem["status"], locale = "es"): string {
   const es = locale.startsWith("es");
   switch (status) {
@@ -2249,6 +2266,7 @@ const ConciergeScreen = () => {
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
   const activeActionIsVyvaTask = activeActionExecutionChannel === "booking_url" || activeActionExecutionChannel === "manual";
+  const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
@@ -2765,6 +2783,28 @@ const ConciergeScreen = () => {
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
               {activeAction.action_summary}
             </p>
+
+            {activeActionIsVyvaTask && activeActionFormPlan && (
+              <div
+                className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
+                data-testid="panel-concierge-form-plan"
+              >
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#047857]">
+                  {activeActionFormPlan.adapterLabel
+                    ? (isSpanish ? `Sistema: ${activeActionFormPlan.adapterLabel}` : `System: ${activeActionFormPlan.adapterLabel}`)
+                    : (isSpanish ? "Formulario VYVA" : "VYVA form task")}
+                </p>
+                {activeActionFormPlan.missingFields.length > 0 ? (
+                  <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
+                    {isSpanish ? "Falta: " : "Needs: "}{activeActionFormPlan.missingFields.slice(0, 3).join(", ")}
+                  </p>
+                ) : activeActionFormPlan.nextStep ? (
+                  <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
+                    {activeActionFormPlan.nextStep}
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             <div className="mt-4 flex flex-wrap gap-2">
               {activeActionPhoneHref && (

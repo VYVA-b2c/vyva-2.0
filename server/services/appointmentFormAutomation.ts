@@ -59,6 +59,25 @@ type SafetyResult = {
 
 const FORM_AUTOMATION_TIMEOUT_MS = 12_000;
 
+type FormPlan = {
+  adapter: AppointmentFormAdapter;
+  adapter_label: string;
+  required_fields: string[];
+  available_fields: string[];
+  missing_fields: string[];
+  submit_policy: "safe_submit_only";
+  next_step: string;
+  prefilled_url?: string | null;
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "name",
+  contact: "phone or email",
+  reason: "reason",
+  preferred_time: "preferred date or time",
+  party_size: "number of guests",
+};
+
 function normalizeHost(rawHost: string): string {
   return rawHost.toLowerCase().replace(/^www\./, "");
 }
@@ -76,6 +95,134 @@ function contactEmail(profile: AppointmentFormProfile | null | undefined): strin
 
 function contactPhone(profile: AppointmentFormProfile | null | undefined): string | null {
   return profile?.phone?.trim() || null;
+}
+
+function profileName(profile: AppointmentFormProfile | null | undefined): string | null {
+  return profile?.preferred_name?.trim() || profile?.full_name?.trim() || null;
+}
+
+function preferencesRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function preferenceText(preferences: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = preferences[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return null;
+}
+
+function preferenceNumber(preferences: Record<string, unknown>, keys: string[], detail: string | null | undefined): number | null {
+  for (const key of keys) {
+    const value = preferences[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.round(value);
+    if (typeof value === "string") {
+      const parsed = parseInt(value, 10);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  }
+
+  const detailText = detail ?? "";
+  const numericMatch = detailText.match(/\b(?:for|para|party of|mesa para)\s+(\d{1,2})\b/i);
+  if (numericMatch) return parseInt(numericMatch[1], 10);
+  const wordMatch = detailText.match(/\b(two|three|four|five|six|dos|tres|cuatro|cinco|seis)\s+(?:people|guests|personas)\b/i);
+  if (!wordMatch) return null;
+  const map: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6 };
+  return map[wordMatch[1].toLowerCase()] ?? null;
+}
+
+function preferredTime(request: AppointmentRequest): string | null {
+  const preferences = preferencesRecord(request.preferences);
+  const explicit = preferenceText(preferences, [
+    "scheduled_for",
+    "preferred_datetime",
+    "requested_datetime",
+    "date_time",
+    "datetime",
+    "when",
+    "date",
+    "time",
+  ]);
+  if (explicit) return explicit;
+
+  const detail = request.reason_detail ?? "";
+  const phrase = detail.match(/\b(today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|miercoles|jueves|viernes|sabado|domingo)(?:\s+(?:morning|afternoon|evening|night|manana|tarde|noche))?\b/i);
+  if (phrase) return phrase[0];
+  const clock = detail.match(/\b(?:at|a las)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
+  return clock ? clock[0].trim() : null;
+}
+
+function restaurantPartySize(request: AppointmentRequest): number | null {
+  return preferenceNumber(preferencesRecord(request.preferences), ["party_size", "guests", "people", "covers"], request.reason_detail);
+}
+
+function adapterLabel(adapter: AppointmentFormAdapter) {
+  switch (adapter) {
+    case "calendly":
+      return "Calendly";
+    case "thefork":
+      return "TheFork";
+    case "opentable":
+      return "OpenTable";
+    default:
+      return adapter;
+  }
+}
+
+function buildPrefilledRestaurantUrl(rawUrl: string, request: AppointmentRequest): string | null {
+  const partySize = restaurantPartySize(request);
+  const time = preferredTime(request);
+  if (!partySize && !time) return null;
+  try {
+    const url = new URL(rawUrl);
+    if (partySize) {
+      url.searchParams.set(url.hostname.includes("opentable") ? "covers" : "partySize", String(partySize));
+    }
+    if (time) {
+      url.searchParams.set(url.hostname.includes("opentable") ? "dateTime" : "time", time);
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function buildFormPlan(input: AppointmentFormAutomationInput, adapter: AppointmentFormAdapter, rawUrl: string): FormPlan {
+  const hasName = Boolean(profileName(input.profile));
+  const hasContact = Boolean(contactEmail(input.profile) || contactPhone(input.profile));
+  const hasReason = Boolean(input.request.reason_detail?.trim());
+  const hasPreferredTime = Boolean(preferredTime(input.request));
+  const hasPartySize = adapter === "thefork" || adapter === "opentable" ? Boolean(restaurantPartySize(input.request)) : true;
+  const requiredKeys = adapter === "thefork" || adapter === "opentable"
+    ? ["name", "contact", "party_size", "preferred_time"]
+    : ["name", "contact", "reason", "preferred_time"];
+  const available = [
+    hasName ? "name" : null,
+    hasContact ? "contact" : null,
+    hasReason ? "reason" : null,
+    hasPreferredTime ? "preferred_time" : null,
+    hasPartySize ? "party_size" : null,
+  ].filter((value): value is string => Boolean(value));
+  const missing = requiredKeys.filter((key) => !available.includes(key));
+
+  const prefilledUrl = adapter === "thefork" || adapter === "opentable"
+    ? buildPrefilledRestaurantUrl(rawUrl, input.request)
+    : null;
+
+  return {
+    adapter,
+    adapter_label: adapterLabel(adapter),
+    required_fields: requiredKeys.map((key) => FIELD_LABELS[key] ?? key),
+    available_fields: available.map((key) => FIELD_LABELS[key] ?? key),
+    missing_fields: missing.map((key) => FIELD_LABELS[key] ?? key),
+    submit_policy: "safe_submit_only",
+    next_step: missing.length
+      ? `Collect ${missing.map((key) => FIELD_LABELS[key] ?? key).join(", ")} inside VYVA before using the external form.`
+      : "Use the supported booking page with the gathered details; only mark booked if the provider confirms a real date and time.",
+    prefilled_url: prefilledUrl,
+  };
 }
 
 export function detectAppointmentFormAdapter(rawUrl: string | null | undefined, snapshot: Record<string, unknown> = {}): AppointmentFormAdapter | null {
@@ -172,6 +319,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 }
 
 async function defaultBrowserRunner(input: BrowserRunnerInput): Promise<AppointmentFormAutomationResult> {
+  const formPlan = buildFormPlan(input, input.adapter, input.safeUrl.toString());
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   try {
@@ -187,7 +335,7 @@ async function defaultBrowserRunner(input: BrowserRunnerInput): Promise<Appointm
         booking_url: input.safeUrl.toString(),
         reason: pageBlock.reason,
         provider_name: input.providerName,
-        metadata: { block_code: pageBlock.code, checked_page: true },
+        metadata: { block_code: pageBlock.code, checked_page: true, form_plan: formPlan },
       };
     }
 
@@ -201,6 +349,7 @@ async function defaultBrowserRunner(input: BrowserRunnerInput): Promise<Appointm
         checked_page: true,
         parser_version: "forms-v1-safe-probe",
         adapter: input.adapter,
+        form_plan: formPlan,
       },
     };
   } finally {
@@ -245,13 +394,14 @@ export async function runAppointmentFormAutomation(
   });
 
   if (!safety.safe) {
+    const unsafePlan = safety.code === "missing_contact" ? buildFormPlan(input, adapter, bookingUrl) : null;
     return {
       status: safety.code === "missing_contact" ? "needs_operator" : "blocked",
       adapter,
       booking_url: bookingUrl,
       reason: safety.reason,
       provider_name: input.providerName,
-      metadata: { block_code: safety.code },
+      metadata: { block_code: safety.code, ...(unsafePlan ? { form_plan: unsafePlan } : {}) },
     };
   }
 
@@ -265,6 +415,21 @@ export async function runAppointmentFormAutomation(
       booking_url: bookingUrl,
       reason: "The booking form URL is not valid.",
       provider_name: input.providerName,
+    };
+  }
+
+  const formPlan = buildFormPlan(input, adapter, safeUrl.toString());
+  if (formPlan.missing_fields.length > 0) {
+    return {
+      status: "needs_operator",
+      adapter,
+      booking_url: safeUrl.toString(),
+      reason: formPlan.next_step,
+      provider_name: input.providerName,
+      metadata: {
+        form_plan: formPlan,
+        parser_version: "forms-v1",
+      },
     };
   }
 

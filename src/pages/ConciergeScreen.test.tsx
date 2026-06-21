@@ -694,4 +694,33 @@ describe("ConciergeScreen route prefill", () => {
     expect(callLink).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm and call");
   });
+
+  it("shows compact form plan details for VYVA-handled booking tasks", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "form-task-1",
+        use_case: "book_appointment",
+        provider_name: "The Good Table",
+        provider_phone: null,
+        action_summary: "VYVA will handle the booking form for The Good Table.",
+        action_payload: {
+          execution_channel: "booking_url",
+          booking_url: "https://www.thefork.es/restaurante/example",
+          form_automation_plan: {
+            adapter_label: "TheFork",
+            missing_fields: ["number of guests"],
+            next_step: "Collect number of guests inside VYVA before using the external form.",
+          },
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
+    expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs: number of guests");
+    expect(screen.getByText("VYVA is handling it")).toBeVisible();
+  });
 });

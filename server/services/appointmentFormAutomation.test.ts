@@ -98,6 +98,26 @@ describe("appointment form automation", () => {
     expect(result.reason).toContain("not one of the supported");
   });
 
+  it("returns an actionable form plan when supported forms need details first", async () => {
+    const runner = vi.fn();
+    const result = await runAppointmentFormAutomation({
+      userId: "user-1",
+      request,
+      option: optionFor("https://www.thefork.es/restaurante/example"),
+      bookingUrl: "https://www.thefork.es/restaurante/example",
+      providerName: "The Good Table",
+      profile: { full_name: "Karim Assad", email: "karim@example.com" },
+    }, { browserRunner: runner });
+
+    expect(result.status).toBe("needs_operator");
+    expect(runner).not.toHaveBeenCalled();
+    expect(result.metadata?.form_plan).toMatchObject({
+      adapter_label: "TheFork",
+      missing_fields: ["number of guests"],
+      submit_policy: "safe_submit_only",
+    });
+  });
+
   it("returns confirmed booking details from a supported mocked adapter", async () => {
     const runner = vi.fn(async () => ({
       status: "confirmed" as const,
@@ -114,11 +134,11 @@ describe("appointment form automation", () => {
 
     const result = await runAppointmentFormAutomation({
       userId: "user-1",
-      request,
+      request: { ...request, preferences: { party_size: 2 } },
       option: optionFor("https://www.opentable.com/r/example"),
       bookingUrl: "https://www.opentable.com/r/example",
       providerName: "The Good Table",
-      profile: { email: "karim@example.com", phone: "+34600111222" },
+      profile: { full_name: "Karim Assad", email: "karim@example.com", phone: "+34600111222" },
     }, { browserRunner: runner });
 
     expect(runner).toHaveBeenCalledOnce();

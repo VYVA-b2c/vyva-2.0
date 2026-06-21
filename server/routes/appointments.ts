@@ -767,6 +767,8 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             form_automation_status: formResult.status,
             form_automation_reason: formResult.reason,
             form_automation_adapter: formResult.adapter,
+            form_automation_plan: formResult.metadata?.form_plan ?? null,
+            form_automation_prefilled_url: (formResult.metadata?.form_plan as Record<string, unknown> | undefined)?.prefilled_url ?? null,
           },
           language: request.language,
           triggerSource: "agent_confirmed",
