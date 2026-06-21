@@ -1,20 +1,32 @@
-import { Brain, ChevronRight, Footprints, Route } from "lucide-react";
+import { Brain, ChevronRight, Footprints, Lightbulb, Route } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
 
 const attentionGames = [
   {
-    key: "dualTask",
+    titleKey: "brainGames.attentionBoosters.dualTask.title",
+    descriptionKey: "brainGames.attentionBoosters.dualTask.description",
+    badgeKey: "brainGames.attentionBoosters.dualTask.badge",
     route: "/dual-task-walk",
-    icon: "dual",
+    icon: Footprints,
     colors: { accent: "#6B21A8", bg: "#F5EEFF", border: "#D8C7F3" },
   },
   {
-    key: "rhythmTap",
+    titleKey: "brainGames.attentionBoosters.rhythmTap.title",
+    descriptionKey: "brainGames.attentionBoosters.rhythmTap.description",
+    badgeKey: "brainGames.attentionBoosters.rhythmTap.badge",
     route: "/attention-boosters/rhythm-tap",
-    icon: "rhythm",
+    icon: Route,
     colors: { accent: "#149A63", bg: "#ECFDF5", border: "#BDEFD3" },
+  },
+  {
+    titleKey: "games.curiousMinds.title",
+    descriptionKey: "games.curiousMinds.cardDescription",
+    badgeKey: "games.curiousMinds.cardBadge",
+    route: "/memory-games/curious-minds",
+    icon: Lightbulb,
+    colors: { accent: "#6B21A8", bg: "#F3E8FF", border: "#D8C7F3" },
   },
 ] as const;
 
@@ -37,16 +49,13 @@ export default function AttentionBoostersPage() {
 
       <ResponsiveGrid className="mt-5" columns="two">
         {attentionGames.map((game) => {
-          const Icon = game.icon === "dual" ? Footprints : Route;
-          const copyPath = `brainGames.attentionBoosters.${game.key}`;
-
           return (
             <ActionCard
               key={game.route}
               onClick={() => navigate(game.route)}
-              title={t(`${copyPath}.title`)}
-              description={t(`${copyPath}.description`)}
-              icon={Icon}
+              title={t(game.titleKey)}
+              description={t(game.descriptionKey)}
+              icon={game.icon}
               iconBg={game.colors.bg}
               iconColor={game.colors.accent}
               surface="white"
@@ -56,7 +65,7 @@ export default function AttentionBoostersPage() {
                   className="rounded-full px-3 py-1 font-body text-[12px] font-bold"
                   style={{ background: game.colors.bg, color: game.colors.accent }}
                 >
-                  {t(`${copyPath}.badge`)}
+                  {t(game.badgeKey)}
                 </span>
               )}
               trailing={(
