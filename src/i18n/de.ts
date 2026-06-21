@@ -828,9 +828,9 @@ const de = {
       playAgain: "Noch einmal",
       playAnotherGame: "Anderes Spiel",
     },
-    attentionBoosters: {
-      title: "Fokus und Aufmerksamkeit",
-      subtitle: "Wahle eine Ubung fur Fokus, Reaktion und Rhythmus.",
+      attentionBoosters: {
+        title: "Fokus und Aufmerksamkeit",
+        subtitle: "Wahle eine Ubung fur Fokus, Reaktion und Rhythmus.",
       dualTask: {
         title: "Doppelaufgabe",
         description: "Zahlen Sie ruckwarts und reagieren Sie gleichzeitig auf Symbole.",
@@ -839,13 +839,20 @@ const de = {
       rhythmTap: {
         title: "Sequenzen",
         description: "Merken Sie sich die Folge und tippen Sie sie ruhig nach.",
-        badge: "Fokus",
+          badge: "Fokus",
+        },
       },
-    },
-    executiveFunction: {
-      title: "Gehirntraining",
-      subtitle: "Uben Sie flexibles Denken, Planen und Regelwechsel.",
-      categorySort: {
+      senses: {
+        title: "Sinne scharfen",
+        subtitle: "Waehlen Sie eine Ubung fuer Zuordnung, Beobachtung und Erinnerung.",
+        association: {
+          badge: "Erstes Spiel",
+        },
+      },
+      executiveFunction: {
+        title: "Gehirntraining",
+        subtitle: "Uben Sie flexibles Denken, Planen und Regelwechsel.",
+        categorySort: {
         title: "Kategorien sortieren",
         description: "Sortieren Sie jede Karte, wenn die Regel zwischen Farbe, Form und Bedeutung wechselt.",
         badge: "Regeln",

@@ -1601,7 +1601,6 @@ export const MEMORY_GAME_ORDER: MemoryGameType[] = [
   "memory_match",
   "word_recall",
   "number_memory",
-  "association_memory",
 ];
 
 export const memoryGameRegistry: Record<MemoryGameType, MemoryGameDefinition> = {

@@ -129,10 +129,10 @@ const ActivitiesScreen = () => {
       id: "senses",
       icon: Headphones,
       label: t("activities.primary.senses", "Sharpen Senses"),
-      sub: t("activities.primary.sensesSub", "Reset with sound, breath, and calm attention."),
+      sub: t("activities.primary.sensesSub", "Practice association, observation, and recall."),
       color: "#0F766E",
       bg: "#CCFBF1",
-      to: "/activities/relax-breathe",
+      to: "/senses",
       testId: "button-activities-primary-senses",
     },
   ];

@@ -39,6 +39,7 @@ import FaceNameMatch from "./games/FaceNameMatch";
 import AttentionBoostersPage from "./games/AttentionBoostersPage";
 import ExecutiveFunctionPage from "./games/ExecutiveFunctionPage";
 import LanguageGamesPage from "./games/LanguageGamesPage";
+import SensesPage from "./games/SensesPage";
 import MemoryGamesPage from "./games/memory/MemoryGamesPage";
 import MemoryGameRunner from "./games/memory/MemoryGameRunner";
 import DualTaskWalk from "./games/DualTaskWalk";
@@ -489,6 +490,8 @@ const App = () => (
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
+                  <Route path="/senses" element={<AppShell><SensesPage /></AppShell>} />
+                  <Route path="/senses/association" element={<AppShell><MemoryGameRunner forcedGameType="association_memory" returnPath="/senses" /></AppShell>} />
                   <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
                   <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
                   <Route path="/executive-function/number-trails" element={<NumberTrailsRoute />} />
