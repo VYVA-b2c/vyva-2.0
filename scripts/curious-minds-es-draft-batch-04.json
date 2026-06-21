@@ -1,0 +1,166 @@
+{
+  "hooks": [
+    {
+      "fact_prompt": "¿Con qué parte del cuerpo crees que las mariposas prueban los alimentos?",
+      "fact_answer": "Sus patas tienen receptores que les ayudan a identificar plantas adecuadas para alimentarse o poner huevos.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Dónde crees que viaja más rápido el sonido: en el aire o en el agua?",
+      "fact_answer": "El sonido viaja más rápido en el agua porque sus moléculas están más juntas, lo que facilita la transmisión de las vibraciones.",
+      "category": "science",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que algunas flores cambian de color con el tiempo?",
+      "fact_answer": "Este cambio puede ayudar a los insectos a identificar qué flores tienen más néctar.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que a veces se nos pega un bostezo al ver bostezar a otro?",
+      "fact_answer": "Se ha observado un efecto parecido en varias especies, incluidos perros y chimpancés.",
+      "category": "body",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que explotan las palomitas de maíz al calentarse?",
+      "fact_answer": "Cada grano contiene agua en su interior. Al calentarse, el agua se convierte en vapor y hace que el grano reviente.",
+      "category": "food",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que algunos mapas antiguos incluían dibujos de seres fantásticos?",
+      "fact_answer": "Al representar zonas desconocidas, algunos cartógrafos añadían dibujos de seres fantásticos.",
+      "category": "history",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué objeto pequeño de oficina crees que apenas ha cambiado en más de cien años?",
+      "fact_answer": "El clip de papel tiene un diseño sencillo y eficaz, por eso sigue utilizándose de forma muy parecida hoy en día.",
+      "category": "everyday_objects",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que cada copo de nieve puede tener una estructura distinta?",
+      "fact_answer": "Aunque comparten patrones similares, cada copo se forma con pequeñas variaciones de temperatura y humedad que le dan una estructura propia.",
+      "category": "weather",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué crees que puede aparecer al mismo tiempo en un limonero: flores, frutos o ambas cosas?",
+      "fact_answer": "Es habitual ver en un mismo árbol limones maduros junto a nuevas flores.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué crees que pueden recordar los cuervos de las personas durante años?",
+      "fact_answer": "Estos inteligentes animales son capaces de reconocer y recordar rostros humanos durante años.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ],
+  "prompts": [
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos distintos se te ocurren para una mesa, además de apoyar cosas?",
+      "topic": "mesa",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si los bancos de los parques pudieran hablar, ¿qué historias crees que contarían?",
+      "topic": "bancos de parque que hablan",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una llave y una canción?",
+      "topic": "llave y canción",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos distintos se te ocurren para una cesta grande, además de llevar cosas?",
+      "topic": "cesta grande",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras crear una nueva tradición para los domingos, ¿cómo sería?",
+      "topic": "tradición de domingo",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común un reloj de cocina y una planta?",
+      "topic": "reloj de cocina y planta",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos distintos se te ocurren para una docena de globos, además de decorar?",
+      "topic": "globos",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "¿Cómo sería una cafetería diseñada para fomentar nuevas amistades?",
+      "topic": "cafetería para hacer amistades",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una receta y un mapa?",
+      "topic": "receta y mapa",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras añadir un nuevo sentido a las personas, ¿qué permitiría percibir?",
+      "topic": "nuevo sentido humano",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ]
+}

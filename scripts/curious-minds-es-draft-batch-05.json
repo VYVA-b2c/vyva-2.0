@@ -1,0 +1,166 @@
+{
+  "hooks": [
+    {
+      "fact_prompt": "¿Cómo crees que los castores pueden cambiar el curso de pequeños arroyos?",
+      "fact_answer": "Al construir presas con ramas y troncos, crean estanques que transforman su entorno.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que algunas naranjas maduras pueden verse algo verdosas?",
+      "fact_answer": "En climas cálidos, algunas naranjas maduras conservan tonos verdes porque la piel no siempre pierde toda la clorofila.",
+      "category": "food",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué crees que ocurre con las capas superficiales de la piel con el paso de las semanas?",
+      "fact_answer": "A lo largo de las semanas, las capas superficiales de la piel son reemplazadas por células nuevas.",
+      "category": "body",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cómo crees que algunas semillas pueden viajar largas distancias antes de germinar?",
+      "fact_answer": "Algunas semillas tienen formas ligeras o pequeñas alas naturales que les ayudan a dejarse llevar por el viento.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Desde cuándo crees que existen instrumentos parecidos al termómetro?",
+      "fact_answer": "Existen desde hace más de 400 años, aunque los primeros modelos eran muy diferentes de los que utilizamos hoy en día.",
+      "category": "history",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que una cuchara moderna tiene una forma tan práctica?",
+      "fact_answer": "Su forma actual combina siglos de pequeños cambios en comodidad, resistencia y facilidad de fabricación.",
+      "category": "everyday_objects",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿De dónde crees que sale parte del olor fresco después de una tormenta?",
+      "fact_answer": "Las descargas eléctricas pueden formar ozono y otros compuestos que aportan parte de ese aroma, junto con los olores que libera la lluvia al tocar el suelo.",
+      "category": "weather",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por dónde crees que parecería salir el Sol si estuvieras en Venus?",
+      "fact_answer": "En Venus, el Sol parecería salir por el oeste y ponerse por el este, porque el planeta gira en sentido contrario a la mayoría.",
+      "category": "science",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué animales tranquilos crees que pueden vivir más de cien años en algunas especies?",
+      "fact_answer": "Algunas tortugas destacan por su extraordinaria longevidad y pueden vivir más de cien años.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué dos tipos de conos crees que puede producir un mismo pino?",
+      "fact_answer": "Muchos pinos reúnen conos masculinos y femeninos en un único ejemplar.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ],
+  "prompts": [
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos creativos se te ocurren para una maleta antigua, además de viajar?",
+      "topic": "maleta antigua",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras diseñar un parque temático dedicado a recuerdos felices, ¿qué atracciones tendría?",
+      "topic": "parque de recuerdos felices",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una ventana y un libro?",
+      "topic": "ventana y libro",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántas cosas distintas podrías crear con una gran cantidad de botones?",
+      "topic": "botones",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "¿Cómo sería una calle donde cada vecino pudiera añadir algo especial para compartir con los demás?",
+      "topic": "calle compartida por vecinos",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una bicicleta y una receta de cocina?",
+      "topic": "bicicleta y receta de cocina",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos distintos se te ocurren para una alfombra, además de colocarla en el suelo?",
+      "topic": "alfombra",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras inventar una nueva forma de saludar, ¿cómo sería?",
+      "topic": "nueva forma de saludar",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una estación de tren y una colmena?",
+      "topic": "estación de tren y colmena",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si cada barrio tuviera una mascota simbólica, ¿cuál elegirías para el tuyo y por qué?",
+      "topic": "mascota simbólica del barrio",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ]
+}

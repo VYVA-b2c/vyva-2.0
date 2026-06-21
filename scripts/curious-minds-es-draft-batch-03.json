@@ -1,0 +1,166 @@
+{
+  "hooks": [
+    {
+      "fact_prompt": "¿Cómo crees que algunos caballitos de mar refuerzan el vínculo con su pareja cada día?",
+      "fact_answer": "Algunas especies realizan pequeños rituales diarios para reforzar el vínculo con su pareja.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué forma crees que tienen realmente las gotas de lluvia cuando caen?",
+      "fact_answer": "Las gotas pequeñas son casi esféricas y las grandes se parecen más a un panecillo aplastado.",
+      "category": "weather",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Para qué crees que sirven las pequeñas papilas de la lengua?",
+      "fact_answer": "Estas pequeñas estructuras ayudan a identificar distintos sabores en los alimentos.",
+      "category": "body",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cuánto crees que puede crecer el bambú en un solo día?",
+      "fact_answer": "Algunas especies de bambú están entre las plantas de crecimiento más rápido del mundo y pueden crecer más de medio metro en un solo día.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿De qué colores crees que eran comunes las zanahorias antes de que se popularizara la naranja?",
+      "fact_answer": "Antiguamente eran comunes las variedades moradas, blancas y amarillas.",
+      "category": "food",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cómo crees que se sujetaban las primeras gafas antes de tener patillas?",
+      "fact_answer": "Se sujetaban con la mano o se apoyaban sobre la nariz de formas muy diferentes a las actuales.",
+      "category": "history",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que una cremallera puede abrir y cerrar con tanta facilidad?",
+      "fact_answer": "Sus dientes, perfectamente alineados, permiten unir y separar tejidos de forma rápida y fiable.",
+      "category": "everyday_objects",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué crees que ocurre con el aire alrededor de un relámpago?",
+      "fact_answer": "Durante una descarga, el aire se calienta muchísimo por un instante, incluso más que la superficie del Sol.",
+      "category": "science",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cuántas bellotas crees que puede producir un roble maduro a lo largo de su vida?",
+      "fact_answer": "Un solo árbol maduro puede generar miles de bellotas durante décadas.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cómo crees que algunos delfines se reconocen dentro de su grupo?",
+      "fact_answer": "Cada delfín desarrolla sonidos distintivos, parecidos a una firma, que ayudan a identificarlo dentro del grupo.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ],
+  "prompts": [
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos distintos se te ocurren para una manta, además de abrigar?",
+      "topic": "manta",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras añadir una habitación especial a todas las casas, ¿qué función tendría?",
+      "topic": "habitación especial en casa",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una panadería y una biblioteca?",
+      "topic": "panadería y biblioteca",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántas cosas podrías construir o crear con diez pinzas de la ropa?",
+      "topic": "pinzas de la ropa",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "¿Cómo sería una plaza diseñada por niñas y niños? ¿Y una diseñada por vecinos que llevan décadas viviendo allí?",
+      "topic": "plaza diseñada por vecinos",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una maleta y una semilla?",
+      "topic": "maleta y semilla",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos distintos podría tener una cuchara, además de comer?",
+      "topic": "cuchara",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si las calles de tu barrio llevaran nombres elegidos por los vecinos, ¿qué nombres propondrías?",
+      "topic": "calles con nombres vecinales",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común cuidar un jardín y mantener una amistad?",
+      "topic": "jardín y amistad",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras inventar una fiesta dedicada a algo cotidiano, ¿qué celebrarías y cómo?",
+      "topic": "fiesta de lo cotidiano",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ]
+}
