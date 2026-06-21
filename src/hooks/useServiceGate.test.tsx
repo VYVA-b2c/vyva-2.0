@@ -87,6 +87,27 @@ function renderGate(path: string, body: ReadinessResponse) {
   );
 }
 
+function renderGateWhileReadinessLoads(path: string) {
+  vi.spyOn(global, "fetch").mockImplementation(() => new Promise(() => undefined));
+
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/"]}>
+        <TestButton path={path} />
+        <LocationSpy />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -127,6 +148,16 @@ describe("service readiness gates", () => {
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/activities");
+  });
+
+  it("allows service navigation while the readiness check is still loading", () => {
+    renderGateWhileReadinessLoads("/chat");
+
+    expect(screen.getByTestId("readiness-loaded")).toHaveTextContent("false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/chat");
   });
 
   it("redirects subscription-locked services to the plan screen", async () => {

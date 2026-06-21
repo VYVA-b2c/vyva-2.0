@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { ArrowRight, Loader2, LockKeyhole } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useServiceGate, type ServiceId } from "@/hooks/useServiceGate";
@@ -7,8 +7,6 @@ type ServiceGateRouteProps = {
   service: ServiceId;
   children: ReactNode;
 };
-
-export const SERVICE_GATE_LOADING_GRACE_MS = 2_500;
 
 function ServiceGateStatusPanel({
   isLoading,
@@ -74,22 +72,10 @@ function ServiceGateStatusPanel({
 const ServiceGateRoute = ({ service, children }: ServiceGateRouteProps) => {
   const location = useLocation();
   const { readiness, isLoading, canUseService } = useServiceGate();
-  const [loadingGraceExpired, setLoadingGraceExpired] = useState(false);
   const returnTo = `${location.pathname}${location.search}`;
   const serviceReadiness = readiness?.services?.[service];
   const firstMissingStep = serviceReadiness?.missing?.[0];
   const isBlocked = !!serviceReadiness && !serviceReadiness.ready && !!firstMissingStep;
-
-  useEffect(() => {
-    setLoadingGraceExpired(false);
-    if (!isLoading) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setLoadingGraceExpired(true);
-    }, SERVICE_GATE_LOADING_GRACE_MS);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isLoading, service, returnTo]);
 
   useEffect(() => {
     if (!isLoading && readiness && isBlocked) {
@@ -97,14 +83,14 @@ const ServiceGateRoute = ({ service, children }: ServiceGateRouteProps) => {
     }
   }, [canUseService, isBlocked, isLoading, readiness, returnTo, service]);
 
-  if (isLoading && loadingGraceExpired) {
+  if (isLoading) {
     return <>{children}</>;
   }
 
-  if (isLoading || isBlocked) {
+  if (isBlocked) {
     return (
       <ServiceGateStatusPanel
-        isLoading={isLoading}
+        isLoading={false}
         reason={firstMissingStep?.reason}
         section={firstMissingStep?.section}
         onContinue={() => canUseService(service, returnTo)}
