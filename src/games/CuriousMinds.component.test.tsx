@@ -3,42 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import CuriousMinds, { getDefaultCuriousMindsUserState } from "./CuriousMinds";
 
-const supabaseMock = vi.hoisted(() => {
-  const queue: Array<{ data: unknown; error: unknown }> = [];
-  const from = vi.fn(() => {
-    const query: Record<string, unknown> = {};
-    query.select = vi.fn(() => query);
-    query.eq = vi.fn(() => query);
-    query.gte = vi.fn(() => query);
-    query.lt = vi.fn(() => query);
-    query.order = vi.fn(() => query);
-    query.limit = vi.fn(() => query);
-    query.insert = vi.fn((payload) => {
-      query.payload = payload;
-      return query;
-    });
-    query.upsert = vi.fn((payload) => {
-      query.payload = payload;
-      return query;
-    });
-    query.single = vi.fn(() => Promise.resolve(queue.shift() ?? { data: query.payload, error: null }));
-    query.maybeSingle = vi.fn(() => Promise.resolve(queue.shift() ?? { data: null, error: null }));
-    query.then = (onfulfilled: (value: unknown) => unknown, onrejected?: (reason: unknown) => unknown) =>
-      Promise.resolve(queue.shift() ?? { data: [], error: null }).then(onfulfilled, onrejected);
-    return query;
-  });
+const apiFetchMock = vi.hoisted(() => vi.fn());
 
-  return { from, queue };
-});
-
-vi.mock("../lib/supabaseClient", () => ({
-  supabase: {
-    from: supabaseMock.from,
-  },
-}));
-
-vi.mock("./shared/brainCoachSessions", () => ({
-  recordCognitiveSession: vi.fn().mockResolvedValue({ persisted: true }),
+vi.mock("@/lib/queryClient", () => ({
+  apiFetch: apiFetchMock,
 }));
 
 vi.mock("@/games/memory/useSpeechRecognition", () => ({
@@ -53,39 +21,30 @@ vi.mock("@/games/memory/useSpeechRecognition", () => ({
 describe("Curious Minds component", () => {
   beforeEach(() => {
     setLanguage("en");
-    supabaseMock.queue.length = 0;
-    supabaseMock.from.mockClear();
+    apiFetchMock.mockReset();
     Object.defineProperty(window, "innerWidth", { writable: true, value: 768 });
   });
 
   it("loads reviewed hook and prompt content into the first input screen", async () => {
-    supabaseMock.queue.push(
-      { data: getDefaultCuriousMindsUserState("user-1"), error: null },
-      {
-        data: [{
-          id: "hook-1",
-          fact_prompt: "Why do flamingos often stand on one leg?",
-          fact_answer: "It helps them rest while using less energy.",
-          category: "animals",
-          language: "en",
-          is_active: true,
-        }],
-        error: null,
+    apiFetchMock.mockResolvedValue(new Response(JSON.stringify({
+      state: getDefaultCuriousMindsUserState("user-1"),
+      hook: {
+        id: "hook-1",
+        fact_prompt: "Why do flamingos often stand on one leg?",
+        fact_answer: "It helps them rest while using less energy.",
+        category: "animals",
+        language: "en",
+        is_active: true,
       },
-      {
-        data: [{
-          id: "prompt-1",
-          prompt_type: "alternate_uses",
-          prompt_text: "How many different uses can you think of for an umbrella, besides rain?",
-          topic: "umbrella",
-          language: "en",
-          is_active: true,
-        }],
-        error: null,
+      prompt: {
+        id: "prompt-1",
+        prompt_type: "alternate_uses",
+        prompt_text: "How many different uses can you think of for an umbrella, besides rain?",
+        topic: "umbrella",
+        language: "en",
+        is_active: true,
       },
-      { data: [], error: null },
-      { data: [], error: null },
-    );
+    }), { status: 200 }));
 
     render(<CuriousMinds userId="user-1" onExit={vi.fn()} />);
 

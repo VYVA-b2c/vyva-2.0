@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BrainCircuit, Check, Loader2, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
-import { supabase } from "../lib/supabaseClient";
+import { apiFetch } from "@/lib/queryClient";
 import DualInput from "./shared/DualInput";
-import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
 const BRAND = {
@@ -37,13 +36,6 @@ function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
-}
-
-function localDayBounds(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const end = new Date(start);
-  end.setDate(start.getDate() + 1);
-  return { start, end };
 }
 
 function chooseRandom(items, random = Math.random) {
@@ -135,7 +127,6 @@ export default function CuriousMinds({ userId, onExit }) {
   const screenRef = useLatestRef(screen);
   const hookRef = useLatestRef(hook);
   const promptRef = useLatestRef(prompt);
-  const userStateRef = useLatestRef(userState);
   const ideasRef = useLatestRef(ideas);
   const hookGuessTextRef = useLatestRef(hookGuessText);
   const hookGuessMethodRef = useLatestRef(hookGuessMethod);
@@ -151,88 +142,20 @@ export default function CuriousMinds({ userId, onExit }) {
     t("games.curiousMinds.encouragements.five", "Ah, I had not thought of that"),
   ], [t]);
 
-  const loadUserState = useCallback(async () => {
-    if (!userId) return getDefaultCuriousMindsUserState("");
-
-    const { data, error } = await supabase
-      .from("curious_minds_user_state")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (data) return data;
-    if (error) {
-      console.warn("Curious Minds could not load progress state.", error);
-    }
-
-    const fallback = getDefaultCuriousMindsUserState(userId);
-    const saved = await supabase
-      .from("curious_minds_user_state")
-      .upsert(fallback, { onConflict: "user_id" })
-      .select("*")
-      .single();
-
-    if (saved.data) return saved.data;
-    if (saved.error) {
-      console.warn("Curious Minds could not create progress state.", saved.error);
-    }
-    return fallback;
-  }, [userId]);
-
-  const loadActiveContentRows = useCallback(async (tableName) => {
-    const primary = await supabase
-      .from(tableName)
-      .select("*")
-      .eq("is_active", true)
-      .eq("language", gameLanguage);
-
-    if (primary.error) throw primary.error;
-    if ((primary.data ?? []).length > 0 || gameLanguage === "en") return primary.data ?? [];
-
-    const fallback = await supabase
-      .from(tableName)
-      .select("*")
-      .eq("is_active", true)
-      .eq("language", "en");
-
-    if (fallback.error) throw fallback.error;
-    return fallback.data ?? [];
-  }, [gameLanguage]);
-
   const loadTodaysContent = useCallback(async () => {
     if (!userId) throw new Error("Curious Minds needs a signed-in user.");
 
-    const { start, end } = localDayBounds();
-    const [todaySessions, historySessions, hooks, prompts] = await Promise.all([
-      supabase
-        .from("curious_minds_sessions")
-        .select("hook_id,prompt_id,played_at")
-        .eq("user_id", userId)
-        .gte("played_at", start.toISOString())
-        .lt("played_at", end.toISOString()),
-      supabase
-        .from("curious_minds_sessions")
-        .select("hook_id,prompt_id,played_at")
-        .eq("user_id", userId)
-        .order("played_at", { ascending: false })
-        .limit(500),
-      loadActiveContentRows("curious_minds_hooks"),
-      loadActiveContentRows("curious_minds_prompts"),
-    ]);
+    const response = await apiFetch(`/api/games/curious-minds/content?language=${encodeURIComponent(gameLanguage)}`);
+    const payload = await response.json().catch(() => ({}));
 
-    if (todaySessions.error) throw todaySessions.error;
-    if (historySessions.error) throw historySessions.error;
-
-    const selectedHook = pickCuriousMindsContent(hooks, todaySessions.data ?? [], historySessions.data ?? [], "hook_id");
-    const selectedPrompt = pickCuriousMindsContent(prompts, todaySessions.data ?? [], historySessions.data ?? [], "prompt_id");
-
-    if (!selectedHook || !selectedPrompt) {
-      throw new Error(t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
+    if (!response.ok) {
+      throw new Error(payload?.error ?? t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
     }
 
-    setHook(selectedHook);
-    setPrompt(selectedPrompt);
-  }, [loadActiveContentRows, t, userId]);
+    setHook(payload.hook);
+    setPrompt(payload.prompt);
+    setUserState(payload.state ?? getDefaultCuriousMindsUserState(userId));
+  }, [gameLanguage, t, userId]);
 
   const loadGame = useCallback(async () => {
     setScreen("loading");
@@ -242,16 +165,14 @@ export default function CuriousMinds({ userId, onExit }) {
     sessionSavedRef.current = false;
 
     try {
-      const state = await loadUserState();
       await loadTodaysContent();
-      setUserState(state);
       setScreen("hook");
     } catch (error) {
       console.warn("Curious Minds could not load.", error);
       setLoadError(error instanceof Error ? error.message : t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
       setScreen("error");
     }
-  }, [loadTodaysContent, loadUserState, t]);
+  }, [loadTodaysContent, t]);
 
   useEffect(() => {
     void loadGame();
@@ -264,66 +185,36 @@ export default function CuriousMinds({ userId, onExit }) {
     const currentHook = hookRef.current;
     const currentPrompt = promptRef.current;
     const currentIdeas = ideasRef.current;
-    const playedAt = new Date().toISOString();
     const durationSeconds = Math.max(0, Math.round((Date.now() - sessionStartRef.current) / 1000));
 
     const payload = {
-      user_id: userId,
-      played_at: playedAt,
-      hook_id: currentHook?.id ?? null,
-      hook_guess_text: hookGuessTextRef.current || null,
-      hook_guess_input_method: hookGuessMethodRef.current,
-      prompt_id: currentPrompt?.id ?? null,
-      ideas_generated: currentIdeas,
-      ideas_count: currentIdeas.length,
-      callback_attempted: callbackAttemptedRef.current,
-      callback_response_text: callbackTextRef.current || null,
-      callback_input_method: callbackMethodRef.current,
+      hookId: currentHook?.id ?? null,
+      hookGuessText: hookGuessTextRef.current || null,
+      hookGuessInputMethod: hookGuessMethodRef.current,
+      promptId: currentPrompt?.id ?? null,
+      ideasGenerated: currentIdeas,
+      callbackAttempted: callbackAttemptedRef.current,
+      callbackResponseText: callbackTextRef.current || null,
+      callbackInputMethod: callbackMethodRef.current,
       completed,
       abandoned,
-      duration_seconds: durationSeconds,
+      durationSeconds,
+      language: gameLanguage,
     };
 
-    const saved = await supabase
-      .from("curious_minds_sessions")
-      .insert(payload)
-      .select("*")
-      .single();
+    const response = await apiFetch("/api/games/curious-minds/sessions", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const saved = await response.json().catch(() => ({}));
 
-    if (saved.error) {
+    if (!response.ok) {
       sessionSavedRef.current = false;
-      throw saved.error;
+      throw new Error(saved?.error ?? "Curious Minds session could not be saved.");
     }
 
-    if (completed) {
-      await recordCognitiveSession({
-        userId,
-        activityType: "curious_minds",
-        domain: "divergent_thinking",
-        secondaryDomain: "attention",
-        difficulty: 1,
-        difficultyScale: "none",
-        completed: true,
-        abandoned: false,
-        score: Math.min(100, currentIdeas.length * 10),
-        accuracyPct: callbackAttemptedRef.current ? 100 : 0,
-        speedPct: null,
-        durationSeconds,
-        language: gameLanguage,
-        source: "curious_minds",
-        sourceTable: "curious_minds_sessions",
-        sourceSessionId: saved.data?.id ?? null,
-        metadata: {
-          hookId: currentHook?.id ?? null,
-          promptId: currentPrompt?.id ?? null,
-          promptType: currentPrompt?.prompt_type ?? null,
-          ideasCount: currentIdeas.length,
-          callbackAttempted: callbackAttemptedRef.current,
-        },
-      });
-    }
-
-    return saved.data ?? null;
+    if (saved.state) setUserState(saved.state);
+    return saved.session ?? null;
   }, [
     callbackAttemptedRef,
     callbackMethodRef,
@@ -336,32 +227,6 @@ export default function CuriousMinds({ userId, onExit }) {
     promptRef,
     userId,
   ]);
-
-  const updateUserState = useCallback(async () => {
-    const latestState = userId ? await loadUserState().catch(() => userStateRef.current) : userStateRef.current;
-    const next = {
-      ...getNextCuriousMindsStateAfterSession(latestState),
-      user_id: userId,
-    };
-
-    setUserState(next);
-    if (!userId) return next;
-
-    const saved = await supabase
-      .from("curious_minds_user_state")
-      .upsert(next, { onConflict: "user_id" })
-      .select("*")
-      .single();
-
-    if (saved.data) {
-      setUserState(saved.data);
-      return saved.data;
-    }
-    if (saved.error) {
-      console.warn("Curious Minds could not save progress state.", saved.error);
-    }
-    return next;
-  }, [loadUserState, userId, userStateRef]);
 
   const handleHookSubmit = (text, method) => {
     setHookGuessText(text);
@@ -400,7 +265,6 @@ export default function CuriousMinds({ userId, onExit }) {
     setSaveWarning("");
     try {
       await saveSession({ completed: true, abandoned: false });
-      await updateUserState();
     } catch (error) {
       console.warn("Curious Minds could not save the completed session.", error);
       setSaveWarning(t("games.curiousMinds.saveWarning", "Your session summary is shown here, but saving may need to be retried."));
