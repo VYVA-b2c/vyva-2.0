@@ -161,9 +161,10 @@ describe("ConciergeScreen action hub", () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).includes("/api/appointments/requests/request-1/confirm-attempt")) {
         return jsonResponse({
-          attempt: { id: "attempt-1", channel: "phone", status: "pending_confirmation" },
-          pending: { pendingId: "pending-1", status: "pending" },
+          attempt: { id: "attempt-1", channel: "phone", status: "calling" },
+          pending: { pendingId: "pending-1", status: "calling" },
           needs_booking_confirmation: true,
+          handled_by_vyva: true,
         });
       }
       if (String(url).includes("/api/appointments/requests")) {
@@ -208,6 +209,235 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests", expect.objectContaining({ method: "POST" }));
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-1/confirm-attempt", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("sends appointment email through VYVA before booking is saved", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.includes("/api/appointments/requests/request-email/confirm-attempt")) {
+        return jsonResponse({
+          attempt: { id: "attempt-email", channel: "email", status: "email_sent" },
+          communication: {
+            id: "comm-1",
+            channel: "email",
+            recipient: "clinic@example.com",
+            status: "sent",
+          },
+          needs_booking_confirmation: true,
+          handled_by_vyva: true,
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        return jsonResponse({
+          request: {
+            id: "request-email",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-email",
+            provider_id: "provider-email",
+            provider_source: "saved",
+            provider_snapshot: {
+              name: "Clinica Email",
+              email: "clinic@example.com",
+              address: "Calle Mayor 2",
+            },
+            match_reason: "Saved medical provider",
+            available_channels: ["email", "manual"],
+            rank: 1,
+            status: "recommended",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-book"));
+    fireEvent.click(screen.getByRole("button", { name: "Medical" }));
+
+    expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Email");
+    fireEvent.click(screen.getByTestId("button-appointment-channel-email"));
+
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(screen.getByText("VYVA sent the message. Save the appointment when they reply.")).toBeVisible();
+  });
+
+  it("shows VYVA-handled booking form status before booking is saved", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.includes("/api/appointments/requests/request-form/confirm-attempt")) {
+        return jsonResponse({
+          attempt: { id: "attempt-form", channel: "booking_url", status: "form_task_queued" },
+          form_task: {
+            status: "needs_operator",
+            booking_url: "https://calendly.com/clinic/consult",
+            pending_id: "pending-form",
+          },
+          pending: { pendingId: "pending-form", status: "queued" },
+          needs_booking_confirmation: true,
+          handled_by_vyva: true,
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        return jsonResponse({
+          request: {
+            id: "request-form",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-form",
+            provider_id: "provider-form",
+            provider_source: "saved",
+            provider_snapshot: {
+              name: "Clinica Form",
+              booking_url: "https://calendly.com/clinic/consult",
+              address: "Calle Mayor 3",
+            },
+            match_reason: "Saved medical provider",
+            available_channels: ["booking_url", "manual"],
+            rank: 1,
+            status: "recommended",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-book"));
+    fireEvent.click(screen.getByRole("button", { name: "Medical" }));
+
+    expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Form");
+    fireEvent.click(screen.getByTestId("button-appointment-channel-booking_url"));
+
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(screen.getByText("VYVA has the booking form task. Save the appointment once confirmed.")).toBeVisible();
+  });
+
+  it("discovers external appointment options inside the request flow", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.includes("/api/appointments/requests/request-2/discover-options")) {
+        return jsonResponse({
+          request: {
+            id: "request-2",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-google-1",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: {
+              source: "google_places",
+              name: "Marbella Dermatology Centre",
+              phone: "+34 600 222 333",
+              address: "Avenida Principal 2",
+              booking_url: "https://example.com/book",
+              maps_url: "https://maps.google.com/?q=marbella",
+            },
+            match_reason: "Found with Google Maps",
+            available_channels: ["booking_url", "phone", "manual"],
+            rank: 1,
+            status: "suggested",
+          }],
+          discovery: {
+            source: "google_places",
+            inserted_count: 1,
+          },
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        return jsonResponse({
+          request: {
+            id: "request-2",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-book"));
+    fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
+      target: { value: "dermatology" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Medical" }));
+
+    expect(await screen.findByText("No saved provider for this yet.")).toBeVisible();
+    fireEvent.click(screen.getByTestId("button-appointment-discover-options"));
+
+    expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Marbella Dermatology Centre");
+    expect(screen.getByTestId("button-appointment-channel-booking_url")).toHaveTextContent("VYVA fills form");
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-2/discover-options", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("shows reservation-system fallbacks when external provider discovery has no result", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.includes("/api/appointments/requests/request-3/discover-options")) {
+        return jsonResponse({
+          request: {
+            id: "request-3",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [],
+          discovery: {
+            source: "google_places",
+            fallback_reason: "no_google_results",
+            inserted_count: 0,
+            reservation_systems: [
+              { name: "Doctoralia", category: "medical_marketplace", url: "https://www.google.com/search?q=doctoralia" },
+              { name: "Top Doctors", category: "medical_marketplace", url: "https://www.google.com/search?q=topdoctors" },
+            ],
+          },
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        return jsonResponse({
+          request: {
+            id: "request-3",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-book"));
+    fireEvent.click(screen.getByRole("button", { name: "Medical" }));
+    fireEvent.click(await screen.findByTestId("button-appointment-discover-options"));
+
+    expect(await screen.findByTestId("panel-appointment-booking-sites")).toHaveTextContent("Doctoralia");
+    expect(screen.getByTestId("panel-appointment-booking-sites")).toHaveTextContent("Top Doctors");
   });
 
   it("renders compact protected savings results with expandable proof and watch confirmation", async () => {
@@ -463,5 +693,34 @@ describe("ConciergeScreen route prefill", () => {
     const callLink = await screen.findByRole("link", { name: "Call +34 612 345 678" });
     expect(callLink).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm and call");
+  });
+
+  it("shows compact form plan details for VYVA-handled booking tasks", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "form-task-1",
+        use_case: "book_appointment",
+        provider_name: "The Good Table",
+        provider_phone: null,
+        action_summary: "VYVA will handle the booking form for The Good Table.",
+        action_payload: {
+          execution_channel: "booking_url",
+          booking_url: "https://www.thefork.es/restaurante/example",
+          form_automation_plan: {
+            adapter_label: "TheFork",
+            missing_fields: ["number of guests"],
+            next_step: "Collect number of guests inside VYVA before using the external form.",
+          },
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
+    expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs: number of guests");
+    expect(screen.getByText("VYVA is handling it")).toBeVisible();
   });
 });

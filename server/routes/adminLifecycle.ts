@@ -553,12 +553,13 @@ type CommunicationsProviderChannel = "email" | "sms" | "whatsapp";
 
 function communicationsProviderConfig(channel: CommunicationsProviderChannel) {
   if (channel === "email") {
+    const hasResend = Boolean(process.env.RESEND_API_KEY?.trim());
     const hasSendGrid = Boolean(process.env.SENDGRID_API_KEY?.trim());
     const hasSmtp = Boolean(process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
     return {
-      provider: hasSendGrid ? "SendGrid" : hasSmtp ? "SMTP" : "Email",
-      configured: hasSendGrid || hasSmtp,
-      missing: hasSendGrid || hasSmtp ? null : "Set SENDGRID_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS.",
+      provider: hasResend ? "Resend" : hasSendGrid ? "SendGrid" : hasSmtp ? "SMTP" : "Email",
+      configured: hasResend || hasSendGrid || hasSmtp,
+      missing: hasResend || hasSendGrid || hasSmtp ? null : "Set RESEND_API_KEY, SENDGRID_API_KEY, or SMTP_HOST/SMTP_USER/SMTP_PASS.",
     };
   }
 
