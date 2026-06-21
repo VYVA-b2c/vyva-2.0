@@ -72,6 +72,7 @@ describe("MemoryGamesPage", () => {
     expect(choices).not.toBeNull();
 
     expect(within(choices as HTMLElement).queryByText("Visual memory")).not.toBeInTheDocument();
+    expect(within(choices as HTMLElement).queryByText("Curious Minds")).not.toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Remember Later")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Recall words")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Number memory")).toBeInTheDocument();
