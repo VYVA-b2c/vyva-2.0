@@ -8,7 +8,6 @@ import {
   Clock3,
   Grid2x2,
   Hash,
-  Lightbulb,
   Link2,
   NotebookPen,
   Route,
@@ -137,10 +136,6 @@ const MemoryGamesPage = () => {
     navigate("/memory-games/remember-later");
   };
 
-  const openCuriousMinds = () => {
-    navigate("/memory-games/curious-minds");
-  };
-
   return (
     <div className="px-[22px] pb-7">
       <button
@@ -239,33 +234,6 @@ const MemoryGamesPage = () => {
 
               <div className="mt-4 flex justify-end">
                 <ChevronRight size={24} style={{ color: "#B45309" }} />
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={openCuriousMinds}
-              className="min-h-[160px] rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F3E8FF] text-[#6B21A8]">
-                  <Lightbulb size={28} />
-                </div>
-
-                <div className="rounded-full bg-[#F3E8FF] px-3 py-1 text-[12px] font-bold text-[#6B21A8]">
-                  {t("games.curiousMinds.cardBadge", "New")}
-                </div>
-              </div>
-
-              <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
-                {t("games.curiousMinds.title", "Curious Minds")}
-              </h3>
-              <p className="mt-2 line-clamp-2 text-[16px] leading-[1.35] text-vyva-text-2">
-                {t("games.curiousMinds.cardDescription", "Wonder, share ideas, and remember a curious fact.")}
-              </p>
-
-              <div className="mt-4 flex justify-end">
-                <ChevronRight size={24} style={{ color: "#6B21A8" }} />
               </div>
             </button>
 
