@@ -1390,6 +1390,71 @@ export type InsertVyvaSignalReading = z.infer<typeof insertVyvaSignalReadingSche
 export type VyvaSignalReading = typeof vyvaSignalReadings.$inferSelect;
 
 // ============================================================
+// CURIOUS MINDS - divergent thinking game content + sessions
+// ============================================================
+
+export const curiousMindsHooks = pgTable("curious_minds_hooks", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  factPrompt:  text("fact_prompt").notNull(),
+  factAnswer:  text("fact_answer").notNull(),
+  category:    text("category").notNull(),
+  language:    text("language").notNull().default("es"),
+  source:      text("source").notNull().default("ai_generated"),
+  reviewedAt:  timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy:  text("reviewed_by"),
+  isActive:    boolean("is_active").notNull().default(false),
+  createdAt:   timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index("curious_minds_hooks_language_active_idx").on(t.language, t.isActive),
+]);
+
+export const curiousMindsPrompts = pgTable("curious_minds_prompts", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  promptType:  text("prompt_type").notNull(),
+  promptText:  text("prompt_text").notNull(),
+  topic:       text("topic").notNull(),
+  language:    text("language").notNull().default("es"),
+  source:      text("source").notNull().default("ai_generated"),
+  reviewedAt:  timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy:  text("reviewed_by"),
+  isActive:    boolean("is_active").notNull().default(false),
+  createdAt:   timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index("curious_minds_prompts_language_active_idx").on(t.language, t.isActive),
+]);
+
+export const curiousMindsSessions = pgTable("curious_minds_sessions", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  userId:               text("user_id").notNull(),
+  playedAt:             timestamp("played_at", { withTimezone: true }).defaultNow(),
+  hookId:               uuid("hook_id").references(() => curiousMindsHooks.id),
+  hookGuessText:        text("hook_guess_text"),
+  hookGuessInputMethod: text("hook_guess_input_method"),
+  promptId:             uuid("prompt_id").references(() => curiousMindsPrompts.id),
+  ideasGenerated:       jsonb("ideas_generated").notNull().default([]),
+  ideasCount:           integer("ideas_count").notNull().default(0),
+  callbackAttempted:    boolean("callback_attempted").notNull().default(false),
+  callbackResponseText: text("callback_response_text"),
+  callbackInputMethod:  text("callback_input_method"),
+  completed:            boolean("completed").notNull().default(false),
+  abandoned:            boolean("abandoned").notNull().default(false),
+  durationSeconds:      integer("duration_seconds"),
+}, (t) => [
+  index("curious_minds_sessions_user_played_idx").on(t.userId, t.playedAt.desc()),
+  index("curious_minds_sessions_user_hook_played_idx").on(t.userId, t.hookId, t.playedAt.desc()),
+  index("curious_minds_sessions_user_prompt_played_idx").on(t.userId, t.promptId, t.playedAt.desc()),
+]);
+
+export const curiousMindsUserState = pgTable("curious_minds_user_state", {
+  userId:         text("user_id").primaryKey(),
+  totalSessions:  integer("total_sessions").notNull().default(0),
+  lastPlayedAt:   timestamp("last_played_at", { withTimezone: true }),
+  streakDays:     integer("streak_days").notNull().default(0),
+  lastStreakDate: date("last_streak_date"),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ============================================================
 // NEW TABLE: cognitive_session_index - unified Brain Coach history
 // ============================================================
 

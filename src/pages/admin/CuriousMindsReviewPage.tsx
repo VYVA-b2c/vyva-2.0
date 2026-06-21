@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
-import { supabase } from "@/lib/supabaseClient";
+import { apiFetch } from "@/lib/queryClient";
 import AdminPageHeader from "./AdminPageHeader";
 
 type ReviewMode = "hooks" | "prompts";
@@ -46,13 +46,13 @@ export default function CuriousMindsReviewPage() {
   const config = useMemo(() => {
     if (mode === "hooks") {
       return {
-        table: "curious_minds_hooks",
+        type: "hooks",
         fields: HOOK_FIELDS,
         title: t("games.curiousMinds.admin.hooksTitle", "Curiosity hooks"),
       };
     }
     return {
-      table: "curious_minds_prompts",
+      type: "prompts",
       fields: PROMPT_FIELDS,
       title: t("games.curiousMinds.admin.promptsTitle", "Divergent prompts"),
     };
@@ -64,20 +64,16 @@ export default function CuriousMindsReviewPage() {
     setLoading(true);
     setError("");
 
-    const { data, error: loadError } = await supabase
-      .from(config.table)
-      .select("*")
-      .eq("is_active", false)
-      .order("created_at", { ascending: true })
-      .limit(200);
+    const response = await apiFetch(`/api/admin/curious-minds/review?type=${config.type}`);
+    const payload = await response.json().catch(() => ({}));
 
-    if (loadError) {
-      setError(loadError.message);
+    if (!response.ok) {
+      setError(payload?.error ?? "Could not load Curious Minds drafts.");
       setLoading(false);
       return;
     }
 
-    const pending = ((data ?? []) as DraftRow[]).filter((item) => !item.reviewed_at);
+    const pending = ((payload.items ?? []) as DraftRow[]).filter((item) => !item.reviewed_at);
     setItems(pending);
     setDraftsById(
       Object.fromEntries(
@@ -120,35 +116,35 @@ export default function CuriousMindsReviewPage() {
   const approveItem = async (item: DraftRow) => {
     if (!allChecksPassed(item.id)) return;
 
-    const { error: updateError } = await supabase
-      .from(config.table)
-      .update({
-        ...(draftsById[item.id] ?? {}),
-        is_active: true,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: user?.email ?? user?.id ?? "admin",
-      })
-      .eq("id", item.id);
+    const response = await apiFetch(`/api/admin/curious-minds/review/${config.type}/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        action: "approve",
+        values: draftsById[item.id] ?? {},
+        reviewer: user?.email ?? user?.id ?? "admin",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
 
-    if (updateError) {
-      setError(updateError.message);
+    if (!response.ok) {
+      setError(payload?.error ?? "Could not approve Curious Minds draft.");
       return;
     }
     setItems((current) => current.filter((candidate) => candidate.id !== item.id));
   };
 
   const rejectItem = async (item: DraftRow) => {
-    const { error: updateError } = await supabase
-      .from(config.table)
-      .update({
-        is_active: false,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: `rejected:${user?.email ?? user?.id ?? "admin"}`,
-      })
-      .eq("id", item.id);
+    const response = await apiFetch(`/api/admin/curious-minds/review/${config.type}/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        action: "reject",
+        reviewer: user?.email ?? user?.id ?? "admin",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
 
-    if (updateError) {
-      setError(updateError.message);
+    if (!response.ok) {
+      setError(payload?.error ?? "Could not reject Curious Minds draft.");
       return;
     }
     setItems((current) => current.filter((candidate) => candidate.id !== item.id));
