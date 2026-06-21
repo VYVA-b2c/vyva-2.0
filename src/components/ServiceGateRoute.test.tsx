@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import ServiceGateRoute from "./ServiceGateRoute";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import ServiceGateRoute, { SERVICE_GATE_LOADING_GRACE_MS } from "./ServiceGateRoute";
 import type { ReadinessResponse } from "@/hooks/useServiceGate";
 
 const useServiceGateMock = vi.fn();
@@ -56,6 +56,10 @@ describe("ServiceGateRoute", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows a visible loading panel instead of a blank page", () => {
     useServiceGateMock.mockReturnValue({
       readiness: undefined,
@@ -67,6 +71,26 @@ describe("ServiceGateRoute", () => {
 
     expect(screen.getByTestId("service-gate-status")).toHaveTextContent("Preparing this service");
     expect(screen.queryByTestId("doctor-page")).not.toBeInTheDocument();
+  });
+
+  it("opens the protected page when the access check takes too long", () => {
+    vi.useFakeTimers();
+    useServiceGateMock.mockReturnValue({
+      readiness: undefined,
+      isLoading: true,
+      canUseService: vi.fn(),
+    });
+
+    renderGate();
+
+    expect(screen.getByTestId("service-gate-status")).toHaveTextContent("Preparing this service");
+
+    act(() => {
+      vi.advanceTimersByTime(SERVICE_GATE_LOADING_GRACE_MS + 100);
+    });
+
+    expect(screen.getByTestId("doctor-page")).toHaveTextContent("Doctor page loaded");
+    expect(screen.queryByTestId("service-gate-status")).not.toBeInTheDocument();
   });
 
   it("shows setup guidance for blocked services and prepares the setup route", async () => {
