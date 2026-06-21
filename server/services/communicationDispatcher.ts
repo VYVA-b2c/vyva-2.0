@@ -32,6 +32,12 @@ type SendGridResponse = {
   errors?: Array<{ message?: string }>;
 };
 
+type ResendResponse = {
+  id?: string;
+  message?: string;
+  name?: string;
+};
+
 type EmailPayload = {
   subject: string;
   text: string;
@@ -151,6 +157,29 @@ function buildEmailPayload(item: Communication): EmailPayload {
   };
 }
 
+function resendApiKey() {
+  return process.env.RESEND_API_KEY?.trim() ?? "";
+}
+
+function resendFromAddress(fallbackFrom: string) {
+  return process.env.RESEND_FROM_EMAIL?.trim() || fallbackFrom;
+}
+
+function formatResendFrom(from: string) {
+  return from.includes("<") ? from : `VYVA <${from}>`;
+}
+
+export function buildResendEmailRequest(item: Communication, email: EmailPayload, from: string, replyTo: string | null, recipientName: string | null) {
+  return {
+    from: formatResendFrom(from),
+    to: [recipientName ? `${recipientName} <${item.recipient}>` : item.recipient],
+    subject: email.subject,
+    text: email.text,
+    ...(email.html ? { html: email.html } : {}),
+    ...(replyTo ? { reply_to: replyTo } : {}),
+  };
+}
+
 function twilioRequestUrl(accountSid: string, resource: "Messages" | "Calls") {
   return `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/${resource}.json`;
 }
@@ -210,21 +239,46 @@ async function sendWhatsapp(item: Communication) {
   return postTwilioForm("Messages", params);
 }
 
+async function sendResendEmail(item: Communication, email: EmailPayload, apiKey: string, from: string, replyTo: string | null, recipientName: string | null) {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(buildResendEmailRequest(item, email, from, replyTo, recipientName)),
+  });
+
+  const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => response.statusText) })) as ResendResponse;
+  if (!response.ok) {
+    const message = payload.message ?? payload.name ?? `Resend request failed with ${response.status}`;
+    throw new Error(message);
+  }
+
+  return { sid: payload.id ?? null, status: "sent" };
+}
+
 async function sendEmail(item: Communication) {
-  const apiKey = process.env.SENDGRID_API_KEY;
+  const sendGridApiKey = process.env.SENDGRID_API_KEY;
   const email = buildEmailPayload(item);
   const metadata = metadataRecord(item.metadata);
   const recipientName = signupInviteRecipientNameFromMetadata(metadata);
-  const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
+  const baseFrom = requireEmailFromAddress({ allowDevelopmentFallback: true });
+  const from = baseFrom;
   const replyTo = process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
 
-  if (!apiKey) {
+  const resendKey = resendApiKey();
+  if (resendKey && !email.attachments?.length) {
+    return sendResendEmail(item, email, resendKey, resendFromAddress(baseFrom), replyTo, recipientName);
+  }
+
+  if (!sendGridApiKey) {
     const host = process.env.SMTP_HOST;
     const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
     const user = process.env.SMTP_USER;
     const pass = process.env.SMTP_PASS;
     if (!host || !user || !pass) {
-      throw new Error("Email sender is not configured. Set SENDGRID_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS.");
+      throw new Error("Email sender is not configured. Set RESEND_API_KEY, SENDGRID_API_KEY, or SMTP_HOST/SMTP_USER/SMTP_PASS.");
     }
 
     const transport = nodemailer.createTransport({
@@ -260,7 +314,7 @@ async function sendEmail(item: Communication) {
   const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${sendGridApiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

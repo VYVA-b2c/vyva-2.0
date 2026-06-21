@@ -19,6 +19,15 @@ const quickReplies = [
   { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", icon: "help", tone: "green", kind: "red_flag" },
 ];
 
+const manyQuickReplies = [
+  { id: "answer-1", label: "First answer", value: "First answer.", icon: "help", tone: "green", kind: "choice" },
+  { id: "answer-2", label: "Second answer", value: "Second answer.", icon: "help", tone: "green", kind: "choice" },
+  { id: "answer-3", label: "Third answer", value: "Third answer.", icon: "help", tone: "green", kind: "choice" },
+  { id: "answer-4", label: "Fourth answer", value: "Fourth answer.", icon: "help", tone: "green", kind: "choice" },
+  { id: "answer-5", label: "Fifth answer", value: "Fifth answer.", icon: "help", tone: "green", kind: "choice" },
+  { id: "answer-6", label: "Sixth answer", value: "Sixth answer.", icon: "help", tone: "green", kind: "choice" },
+];
+
 function triageResponse(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -138,10 +147,14 @@ describe("TriageChat MediSearch follow-ups", () => {
     const followups = screen.getByTestId("triage-medical-followups");
     expect(primaryTiles.compareDocumentPosition(followups) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("Useful follow-up questions")).toBeInTheDocument();
-    expect(screen.getByText("Could caffeine make anxiety worse?")).toBeInTheDocument();
+    expect(screen.getByTestId("triage-medical-followup-0")).not.toBeVisible();
+
+    fireEvent.click(screen.getByText("Useful follow-up questions"));
+
+    expect(screen.getByText("Could caffeine make anxiety worse?")).toBeVisible();
   });
 
-  it("shows a confidence tracker and reusable vitals context", async () => {
+  it("shows simple question progress without the confidence tracker by default", async () => {
     apiFetchMock.mockResolvedValueOnce(triageResponse({
       role: "assistant",
       content: "How are you feeling now?",
@@ -155,22 +168,40 @@ describe("TriageChat MediSearch follow-ups", () => {
     renderTriageChat({ bpm: 72, respiratoryRate: 18 });
 
     await screen.findByText("How are you feeling now?", {}, { timeout: 5000 });
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Confidence level");
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("2/5");
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Getting started");
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Low");
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("One question at a time");
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Severity check");
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Symptoms");
-    expect(screen.getByTestId("triage-confidence-tracker")).toHaveTextContent("Safety check");
-    expect(screen.getByTestId("triage-confidence-signals")).toHaveTextContent("Now");
-    expect(screen.getByTestId("triage-confidence-signals")).toHaveTextContent("Next");
+    expect(screen.queryByTestId("triage-confidence-tracker")).not.toBeInTheDocument();
+    expect(screen.getByTestId("triage-question-progress")).toHaveTextContent("Question 1");
+    expect(screen.queryByText("Answer this question")).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-    expect(screen.getByRole("meter", { name: "Confidence level" })).toHaveAttribute("aria-valuenow", "2");
+    expect(screen.queryByRole("meter", { name: "Confidence level" })).not.toBeInTheDocument();
     expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("Using vitals already here");
     expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("72 bpm");
     expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("18 breaths/min");
     expect(screen.getByText("Choose the closest answer")).toBeInTheDocument();
+  });
+
+  it("shows only four answer buttons until More choices is opened", async () => {
+    apiFetchMock.mockResolvedValueOnce(triageResponse({
+      role: "assistant",
+      content: "Which one is closest?",
+      done: false,
+      quickReplies: manyQuickReplies,
+      wizardStage: "severity",
+      wizardStageLabel: "Severity check",
+      evidenceSources: [],
+    }));
+
+    renderTriageChat();
+
+    await screen.findByText("Which one is closest?");
+    expect(screen.getByRole("button", { name: "First answer" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Fourth answer" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Fifth answer" })).not.toBeVisible();
+    expect(screen.getByText("More choices")).toBeVisible();
+
+    fireEvent.click(screen.getByText("More choices"));
+
+    expect(screen.getByRole("button", { name: "Fifth answer" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Sixth answer" })).toBeVisible();
   });
 
   it("sends follow-up chips as free text without adding quickAnswers", async () => {
@@ -199,8 +230,10 @@ describe("TriageChat MediSearch follow-ups", () => {
     renderTriageChat();
 
     await waitFor(() => {
-      expect(screen.getByText("Could caffeine make anxiety worse?")).toBeInTheDocument();
+      expect(screen.getByTestId("triage-medical-followups")).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByText("Useful follow-up questions"));
 
     fireEvent.click(screen.getByTestId("triage-medical-followup-0"));
 
@@ -261,7 +294,9 @@ describe("TriageChat MediSearch follow-ups", () => {
       onDraftChange,
     });
 
-    expect(screen.getByTestId("triage-scan-card")).toBeInTheDocument();
+    expect(screen.getByTestId("triage-optional-scan")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Comprobacion opcional"));
+    expect(screen.getByTestId("triage-scan-card")).toBeVisible();
     expect(screen.getByText("Revisar pulso y respiracion")).toBeInTheDocument();
     expect(screen.getByText("Tu decides")).toBeInTheDocument();
     expect(screen.getByText("Ahora no")).toBeInTheDocument();

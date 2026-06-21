@@ -52,6 +52,7 @@ const MEMORY_ACTIVITY_TYPES = [
   "memory_match",
   "sequence_memory",
   "word_recall",
+  "remember_later",
   "number_memory",
   "routine_memory",
   "association_memory",

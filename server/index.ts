@@ -51,7 +51,9 @@ import {
   conciergeRecommendationsHandler,
 } from "./routes/concierge.js";
 import conciergeActionsRouter from "./routes/conciergeActions.js";
+import appointmentsRouter from "./routes/appointments.js";
 import conciergeShoppingRouter from "./routes/conciergeShopping.js";
+import transportRouter from "./routes/transport.js";
 import { woundScanHandler, woundScanHistoryHandler, woundScanDeleteHandler } from "./routes/woundScan.js";
 import { homeScanHandler, homeScanHistoryHandler, homeScanDeleteHandler } from "./routes/homeScan.js";
 import { scamCheckHandler, scamCheckHistoryHandler, scamCheckDeleteHandler } from "./routes/scamCheck.js";
@@ -59,6 +61,7 @@ import { allergiesVoiceParseHandler } from "./routes/allergiesVoiceParse.js";
 import { addressVoiceParseHandler } from "./routes/addressVoiceParse.js";
 import activityRouter from "./routes/activity.js";
 import profileRouter from "./routes/profile.js";
+import healthDevicesSettingsRouter from "./routes/healthDevicesSettings.js";
 import homePlanRouter from "./routes/homePlan.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
 import weatherRouter from "./routes/weather.js";
@@ -159,6 +162,8 @@ app.post("/api/concierge/recommendations/plan", authMiddleware, requireUser, req
 app.post("/api/concierge/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeRecommendationFeedbackHandler);
 app.use("/api/concierge/shopping", authMiddleware, requireUser, requireEntitlement("concierge"), conciergeShoppingRouter);
 app.use("/api/concierge/actions", conciergeActionsRouter);
+app.use("/api/appointments", appointmentsRouter);
+app.use("/api/transport", transportRouter);
 app.post("/api/allergies-voice-parse", allergiesVoiceParseHandler);
 app.post("/api/address-voice-parse", addressVoiceParseHandler);
 app.use("/api/intake", express.urlencoded({ extended: false }), intakeRouter);
@@ -176,6 +181,7 @@ app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
 app.use("/api/profile", authMiddleware, profileRouter);
+app.use("/api/settings/health-devices", authMiddleware, healthDevicesSettingsRouter);
 app.use("/api/home", authMiddleware, homePlanRouter);
 app.use("/api/weather", authMiddleware, weatherRouter);
 app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_check"), triageRouter);

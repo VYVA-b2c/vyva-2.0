@@ -52,6 +52,7 @@ function buildApp() {
 }
 
 const app = buildApp();
+const fetchMock = vi.fn();
 
 describe("Vitals Hub V1 parsing", () => {
   it("extracts common home readings from natural text", () => {
@@ -82,7 +83,10 @@ describe("Vitals Hub V1 parsing", () => {
 describe("Vitals Hub V1 routes", () => {
   beforeEach(() => {
     vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    vi.stubEnv("VITALLENS_API_KEY", "");
+    vi.stubGlobal("fetch", fetchMock);
     dbExecuteMock.mockReset();
+    fetchMock.mockReset();
     openAiCreateMock.mockReset();
     openAiToFileMock.mockReset();
     openAiTranscriptionCreateMock.mockReset();
@@ -151,6 +155,55 @@ describe("Vitals Hub V1 routes", () => {
     expect(dbExecuteMock).not.toHaveBeenCalled();
   });
 
+  it("returns a warm face-scan response when VitalLens is not configured", async () => {
+    const res = await request(app)
+      .post("/api/vitals-engine/face-scan")
+      .set("x-user-id", "11111111-1111-4111-8111-111111111111")
+      .send({ video: "AAAA", fps: 15, duration_seconds: 20 })
+      .expect(200);
+
+    expect(res.body.needs_confirmation).toBe(true);
+    expect(res.body.proposed_readings).toEqual([]);
+    expect(res.body.clarification_prompt).toMatch(/not configured/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(dbExecuteMock).not.toHaveBeenCalled();
+  });
+
+  it("maps VitalLens face-scan estimates to confirmation candidates only", async () => {
+    vi.stubEnv("VITALLENS_API_KEY", "test-vitallens-key");
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({
+      model: "vitallens-2.0",
+      vitals: {
+        heart_rate: { value: 70.2, confidence: 0.92 },
+        respiratory_rate: { value: 15.1, confidence: 0.88 },
+        hrv_sdnn: { value: 42.4, confidence: 0.91 },
+      },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    const res = await request(app)
+      .post("/api/vitals-engine/face-scan")
+      .set("x-user-id", "11111111-1111-4111-8111-111111111111")
+      .send({ video: "AAAA", fps: 15, duration_seconds: 20 })
+      .expect(200);
+
+    expect(fetchMock).toHaveBeenCalledWith("https://api.rouast.com/vitallens-v3/file", expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({ "x-api-key": "test-vitallens-key" }),
+    }));
+    expect(res.body.proposed_readings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        signal_type: "resting_hr_bpm",
+        value: 70.2,
+        source: "phone_estimate",
+        capture_method: "phone_camera",
+        source_ref: expect.objectContaining({ provider: "rouast_vitallens" }),
+      }),
+      expect.objectContaining({ signal_type: "respiratory_rate", value: 15.1 }),
+      expect.objectContaining({ signal_type: "hrv_ms", value: 42.4 }),
+    ]));
+    expect(dbExecuteMock).not.toHaveBeenCalled();
+  });
+
   it("bulk saves confirmed readings and rejects another user's target", async () => {
     const otherUser = "22222222-2222-4222-8222-222222222222";
     await request(app)
@@ -193,5 +246,28 @@ describe("Vitals Hub V1 routes", () => {
       .expect(400);
 
     expect(dbExecuteMock).not.toHaveBeenCalled();
+  });
+
+  it("saves confirmed Bluetooth readings with connected-device metadata", async () => {
+    dbExecuteMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "reading-ble", signal_type: "resting_hr_bpm", value: 72 }] });
+
+    const res = await request(app)
+      .post("/api/vitals-engine/readings")
+      .set("x-user-id", "11111111-1111-4111-8111-111111111111")
+      .send({
+        readings: [{
+          signal_type: "resting_hr_bpm",
+          value: 72,
+          source: "connected_device",
+          capture_method: "web_bluetooth",
+          source_ref: { provider: "web_bluetooth", device_name: "Test strap" },
+        }],
+      })
+      .expect(201);
+
+    expect(res.body.saved_count).toBe(1);
+    expect(dbExecuteMock).toHaveBeenCalledTimes(2);
   });
 });

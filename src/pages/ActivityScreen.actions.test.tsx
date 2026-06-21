@@ -130,7 +130,7 @@ describe("Activity safe-home service actions", () => {
     fireEvent.click(screen.getByTestId("button-activity-walking"));
 
     expect(screen.getByTestId("activity-support-actions")).toHaveTextContent("Need help going out?");
-    expect(screen.getByTestId("button-activity-book-ride")).toHaveTextContent("Book ride");
+    expect(screen.getByTestId("button-activity-book-ride")).toHaveTextContent("Find transport");
     expect(screen.getByTestId("button-activity-arrange-companion")).toHaveTextContent("Arrange companion");
   });
 

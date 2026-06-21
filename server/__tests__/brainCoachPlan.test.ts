@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBrainCoachDailyPlan,
   extractBrainCoachPreferences,
+  getBrainCoachActivityCatalog,
   type BrainCoachPlanEvent,
   type BrainCoachPlanSession,
 } from "../lib/brainCoachPlan.js";
@@ -31,6 +32,17 @@ function event(overrides: Partial<BrainCoachPlanEvent>): BrainCoachPlanEvent {
 }
 
 describe("Brain Coach daily plan", () => {
+  it("includes Remember Later in the activity catalog", () => {
+    expect(getBrainCoachActivityCatalog()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        activityType: "remember_later",
+        domain: "prospective_memory",
+        secondaryDomain: "attention",
+        route: "/memory-games/remember-later",
+      }),
+    ]));
+  });
+
   it("creates a short balanced plan for a new user", () => {
     const plan = buildBrainCoachDailyPlan({
       sessions: [],

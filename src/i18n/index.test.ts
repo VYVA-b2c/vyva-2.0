@@ -167,6 +167,31 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps compact Health mobile labels localized", () => {
+    const expected = {
+      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent health summaries", "Take or upload an image", "Find the right expert"],
+      es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Toma o sube imagen", "Encuentra experto"],
+      fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Photo ou image", "Trouver le bon expert"],
+      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild aufnehmen", "Passenden Experten finden"],
+      it: ["Parla col medico", "Sintomi", "Farmaci", "Parametri", "Piano salute", "Serve aiuto?", "Riepiloghi recenti", "Scatta o carica immagine", "Trova l'esperto giusto"],
+      pt: ["Falar com medico", "Sintomas", "Medicacao", "Sinais vitais", "Plano saude", "Precisa de ajuda?", "Resumos recentes", "Tire ou carregue imagem", "Encontrar especialista"],
+    } as const;
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect([
+        translate(language as keyof typeof expected, "health.talkToDoctorMobile"),
+        translate(language as keyof typeof expected, "health.homeCards.symptoms.mobileLabel"),
+        translate(language as keyof typeof expected, "health.homeCards.medication.mobileLabel"),
+        translate(language as keyof typeof expected, "health.homeCards.vitals.mobileLabel"),
+        translate(language as keyof typeof expected, "health.homeCards.healthPlan.mobileLabel"),
+        translate(language as keyof typeof expected, "health.fastHelp.titleMobile"),
+        translate(language as keyof typeof expected, "health.fastHelp.reports.subMobile"),
+        translate(language as keyof typeof expected, "health.fastHelp.visualScan.subMobile"),
+        translate(language as keyof typeof expected, "health.fastHelp.specialist.subMobile"),
+      ]).toEqual(labels);
+    }
+  });
+
   it("keeps bottom navigation labels localized for supported account languages", () => {
     const expected = {
       en: "My Reports",
@@ -263,12 +288,12 @@ describe("language persistence", () => {
 
   it("keeps reports overview service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Fast service access", "Review vitals", "Prepare refill", "Book ride"],
-      es: ["Acceso rapido a servicios", "Revisar constantes", "Preparar reposicion", "Reservar transporte"],
-      fr: ["Acces rapide aux services", "Voir constantes", "Renouvellement", "Transport"],
-      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfullung", "Fahrt buchen"],
-      it: ["Accesso rapido ai servizi", "Vedi parametri", "Rifornimento", "Prenota trasporto"],
-      pt: ["Acesso rapido a servicos", "Ver sinais vitais", "Preparar reposicao", "Reservar transporte"],
+      en: ["Fast service access", "Review vitals", "Prepare refill", "Find transport"],
+      es: ["Acceso rapido a servicios", "Revisar constantes", "Preparar reposicion", "Buscar transporte"],
+      fr: ["Acces rapide aux services", "Voir constantes", "Renouvellement", "Trouver transport"],
+      de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfullung", "Transport finden"],
+      it: ["Accesso rapido ai servizi", "Vedi parametri", "Rifornimento", "Trova trasporto"],
+      pt: ["Acesso rapido a servicos", "Ver sinais vitais", "Preparar reposicao", "Encontrar transporte"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -301,12 +326,12 @@ describe("language persistence", () => {
 
   it("keeps visual scan service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Doctor help", "Appointment", "Book ride"],
-      es: ["Ayuda medica", "Cita", "Reservar transporte"],
-      fr: ["Aide medecin", "Rendez-vous", "Reserver transport"],
-      de: ["Arzthilfe", "Termin", "Fahrt buchen"],
-      it: ["Aiuto medico", "Appuntamento", "Prenota trasporto"],
-      pt: ["Ajuda medica", "Consulta", "Reservar transporte"],
+      en: ["Doctor help", "Appointment", "Find transport"],
+      es: ["Ayuda medica", "Cita", "Buscar transporte"],
+      fr: ["Aide medecin", "Rendez-vous", "Trouver transport"],
+      de: ["Arzthilfe", "Termin", "Transport finden"],
+      it: ["Aiuto medico", "Appuntamento", "Trova trasporto"],
+      pt: ["Ajuda medica", "Consulta", "Encontrar transporte"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -320,12 +345,12 @@ describe("language persistence", () => {
 
   it("keeps doctor quick service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Fast service access", "Call {{name}}", "Book appointment", "Book transport"],
-      es: ["Acceso rapido a servicios", "Llamar a {{name}}", "Pedir cita", "Reservar transporte"],
-      fr: ["Acces rapide aux services", "Appeler {{name}}", "Prendre rendez-vous", "Reserver transport"],
-      de: ["Schneller Servicezugang", "{{name}} anrufen", "Termin buchen", "Fahrt buchen"],
-      it: ["Accesso rapido ai servizi", "Chiama {{name}}", "Prenota visita", "Prenota trasporto"],
-      pt: ["Acesso rapido a servicos", "Ligar a {{name}}", "Marcar consulta", "Reservar transporte"],
+      en: ["Fast service access", "Call {{name}}", "Book appointment", "Find transport"],
+      es: ["Acceso rapido a servicios", "Llamar a {{name}}", "Pedir cita", "Buscar transporte"],
+      fr: ["Acces rapide aux services", "Appeler {{name}}", "Prendre rendez-vous", "Trouver transport"],
+      de: ["Schneller Servicezugang", "{{name}} anrufen", "Termin buchen", "Transport finden"],
+      it: ["Accesso rapido ai servizi", "Chiama {{name}}", "Prenota visita", "Trova trasporto"],
+      pt: ["Acesso rapido a servicos", "Ligar a {{name}}", "Marcar consulta", "Encontrar transporte"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -340,12 +365,12 @@ describe("language persistence", () => {
 
   it("keeps health-home doctor access actions localized for supported account languages", () => {
     const expected = {
-      en: ["Doctor access", "Call GP", "Book appointment", "Book transport", "Add GP contact"],
-      es: ["Acceso medico", "Llamar al medico", "Pedir cita", "Reservar transporte", "Anadir contacto medico"],
-      fr: ["Acces medecin", "Appeler le medecin", "Prendre rendez-vous", "Reserver transport", "Ajouter contact medecin"],
-      de: ["Arztzugang", "Arzt anrufen", "Termin buchen", "Fahrt buchen", "Arztkontakt hinzufuegen"],
-      it: ["Accesso medico", "Chiama medico", "Prenota visita", "Prenota trasporto", "Aggiungi medico"],
-      pt: ["Acesso medico", "Ligar ao medico", "Marcar consulta", "Reservar transporte", "Adicionar medico"],
+      en: ["Doctor access", "Call GP", "Book appointment", "Find transport", "Add GP contact"],
+      es: ["Acceso medico", "Llamar al medico", "Pedir cita", "Buscar transporte", "Anadir contacto medico"],
+      fr: ["Acces medecin", "Appeler le medecin", "Prendre rendez-vous", "Trouver transport", "Ajouter contact medecin"],
+      de: ["Arztzugang", "Arzt anrufen", "Termin buchen", "Transport finden", "Arztkontakt hinzufuegen"],
+      it: ["Accesso medico", "Chiama medico", "Prenota visita", "Trova trasporto", "Aggiungi medico"],
+      pt: ["Acesso medico", "Ligar ao medico", "Marcar consulta", "Encontrar transporte", "Adicionar medico"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {
@@ -361,12 +386,12 @@ describe("language persistence", () => {
 
   it("keeps specialist service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Call", "Appointment", "Book ride", "Map", "Share", "Search specialists"],
-      es: ["Llamar", "Cita", "Reservar transporte", "Mapa", "Compartir", "Buscar especialistas"],
-      fr: ["Appeler", "Rendez-vous", "Reserver transport", "Carte", "Partager", "Rechercher specialistes"],
-      de: ["Anrufen", "Termin", "Fahrt buchen", "Karte", "Teilen", "Fachaerzte suchen"],
-      it: ["Chiama", "Appuntamento", "Prenota trasporto", "Mappa", "Condividi", "Cerca specialisti"],
-      pt: ["Ligar", "Consulta", "Reservar transporte", "Mapa", "Partilhar", "Pesquisar especialistas"],
+      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search specialists"],
+      es: ["Llamar", "Cita", "Buscar transporte", "Mapa", "Compartir", "Buscar especialistas"],
+      fr: ["Appeler", "Rendez-vous", "Trouver transport", "Carte", "Partager", "Rechercher specialistes"],
+      de: ["Anrufen", "Termin", "Transport finden", "Karte", "Teilen", "Fachaerzte suchen"],
+      it: ["Chiama", "Appuntamento", "Trova trasporto", "Mappa", "Condividi", "Cerca specialisti"],
+      pt: ["Ligar", "Consulta", "Encontrar transporte", "Mapa", "Partilhar", "Pesquisar especialistas"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {

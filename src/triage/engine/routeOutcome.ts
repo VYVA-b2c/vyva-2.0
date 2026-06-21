@@ -249,9 +249,9 @@ export function shouldCompleteFromRules(wizard: TriageWizardContext | undefined,
 
 export function nextAdaptiveStage(wizard: TriageWizardContext | undefined, healthMemory?: TriageHealthMemory): WizardStage {
   const answers = selectedAnswers(wizard);
+  if (wizard?.refineRequested) return "complete";
   if (!answers.some((answer) => answer.kind === "symptom")) return "symptom";
   if (!answers.some((answer) => answer.kind === "red_flag")) return "red_flag";
-  if (wizard?.refineRequested) return "complete";
   if (shouldCompleteFromRules(wizard, healthMemory)) return "complete";
 
   const ids = new Set(answers.map((answer) => answer.id));

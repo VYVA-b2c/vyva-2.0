@@ -367,7 +367,7 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
     call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
     email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
     doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
-    book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+    book_ride: t("health.symptomCheck.report.actions.bookRide", "Find transport"),
     schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
     online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
     request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
@@ -839,7 +839,7 @@ export function InformesMain() {
     const key = kind === "appointment" ? "informes.actions.vitalsAppointmentPrefill" : "informes.actions.vitalsRidePrefill";
     const fallback = kind === "appointment"
       ? "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking."
-      : "Please help me arrange safe transport for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.";
+      : "Please help me find safe transport options for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before contacting anyone.";
     navigate("/concierge", {
       state: {
         conciergePrefill: {
@@ -906,7 +906,7 @@ export function InformesMain() {
     call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
     email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
     doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
-    book_ride: t("health.symptomCheck.report.actions.bookRide", "Book ride"),
+    book_ride: t("health.symptomCheck.report.actions.bookRide", "Find transport"),
     schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
     online_order: t("health.symptomCheck.report.actions.onlineOrder", "Online order"),
     request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),
@@ -1261,7 +1261,7 @@ export function InformesMain() {
                           className={overviewActionClass}
                         >
                           <Car size={18} />
-                          <span>{t("informes.actions.bookRide", "Book ride")}</span>
+                          <span>{t("informes.actions.bookRide", "Find transport")}</span>
                         </button>
                       </>
                     ) : null}

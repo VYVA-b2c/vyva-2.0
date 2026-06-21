@@ -765,4 +765,55 @@ describe("triage route wizard questions", () => {
       }
     }
   });
+
+  it("refines a report even when the original wizard context has no structured safety answer", async () => {
+    const previousApiKey = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    try {
+      const res = await request(app())
+        .post("/api/triage/message")
+        .send({
+          locale: "en",
+          messages: [
+            { role: "user", content: "Headache and pain" },
+            {
+              role: "user",
+              content:
+                "New vital added after the first report: Rate pain now: 6/10. Refine the triage result with this new reading.",
+            },
+          ],
+          vitals: { painScore: 6 },
+          wizard: {
+            mode: "without_vitals",
+            refineRequested: true,
+            vitals: { painScore: 6 },
+            quickAnswers: [
+              { id: "pain", label: "Pain", value: "I have pain.", kind: "symptom" },
+            ],
+            previousSummary: {
+              chiefComplaint: "Headache and pain",
+              symptoms: ["Headache"],
+              urgency: "routine",
+              recommendations: ["Rest and monitor symptoms."],
+              disclaimer: "Information only.",
+              nextStepLabel: "Monitor at home",
+              nextStepLevel: "monitor",
+            },
+          },
+        })
+        .expect(200);
+
+      expect(res.body.done).toBe(true);
+      expect(res.body.wizardStage).toBe("complete");
+      expect(res.body.quickReplies).toEqual([]);
+      expect(res.body.summary.vitalsNotes).toContain("Pain score was 6/10.");
+    } finally {
+      if (previousApiKey === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previousApiKey;
+      }
+    }
+  });
 });

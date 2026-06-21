@@ -44,6 +44,7 @@ import MemoryGameRunner from "./games/memory/MemoryGameRunner";
 import DualTaskWalk from "./games/DualTaskWalk";
 import CategorySort from "./games/CategorySort";
 import NumberTrails from "./games/NumberTrails";
+import RememberLater from "./games/RememberLater";
 import ConciergeScreen from "./pages/ConciergeScreen";
 import ConciergeShoppingScreen from "./pages/ConciergeShoppingScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
@@ -90,6 +91,7 @@ import HistoryScreen from "./pages/HistoryScreen";
 import SubscriptionSettings from "./pages/settings/SubscriptionSettings";
 import SettingsHome from "./pages/settings/SettingsHome";
 import AccountSettings from "./pages/settings/AccountSettings";
+import HealthDevicesSettings from "./pages/settings/HealthDevicesSettings";
 import NotificationsSettings from "./pages/settings/NotificationsSettings";
 import ScheduledSupportSettings from "./pages/settings/ScheduledSupportSettings";
 import CaregiverDashboardPage from "./pages/CaregiverDashboardPage";
@@ -167,6 +169,29 @@ function FaceNameMatchRoute() {
     <FaceNameMatch
       userId={user?.id ?? ""}
       onExit={() => navigate("/memory-games")}
+    />
+  );
+}
+
+function RememberLaterRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <RememberLater
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/memory-games")}
+    />
+  );
+}
+
+function RememberLaterPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <RememberLater
+      userId=""
+      onExit={() => navigate("/login")}
     />
   );
 }
@@ -378,6 +403,9 @@ const App = () => (
                 <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
+                ) : null}
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
@@ -407,6 +435,7 @@ const App = () => (
                   <Route path="/settings/subscription" element={<AppShell><SubscriptionSettings /></AppShell>} />
                   <Route path="/settings" element={<AppShell><SettingsHome /></AppShell>} />
                   <Route path="/settings/account" element={<AppShell><AccountSettings /></AppShell>} />
+                  <Route path="/settings/health-devices" element={<AppShell><HealthDevicesSettings /></AppShell>} />
                   <Route path="/settings/notifications" element={<AppShell><NotificationsSettings /></AppShell>} />
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
@@ -438,6 +467,7 @@ const App = () => (
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
                   <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />
                   <Route path="/memory-games" element={<AppShell><MemoryGamesPage /></AppShell>} />
+                  <Route path="/memory-games/remember-later" element={<AppShell><RememberLaterRoute /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
                   <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen /></ServiceGateRoute></AppShell>} />

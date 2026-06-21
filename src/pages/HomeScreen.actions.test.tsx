@@ -44,11 +44,11 @@ const labels: Record<string, string> = {
   "home.fastHelp.doctor.sub": "Get live medical help.",
   "home.fastHelp.appointment.label": "Schedule an appointment",
   "home.fastHelp.appointment.sub": "Let VYVA arrange it with you.",
-  "home.fastHelp.ride.label": "Book my transport",
-  "home.fastHelp.ride.sub": "Let VYVA arrange your ride.",
+  "home.fastHelp.ride.label": "Find transport",
+  "home.fastHelp.ride.sub": "Compare safe ways to get there.",
   "home.fastHelp.doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
   "home.fastHelp.appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
-  "home.fastHelp.ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation.",
+  "home.fastHelp.ridePrefill": "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
   "meds.callGpNamed": "Call {{name}}",
   "meds.callGp": "Call GP",
   "meds.callGpSub": "Speak to your practice now.",
@@ -124,7 +124,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-emailGp")).toHaveAttribute("href", expect.stringContaining("VYVA%20symptom%20report"));
     expect(screen.getByTestId("button-home-fast-doctor")).toHaveTextContent("Talk to a real doctor now");
     expect(screen.getByTestId("button-home-fast-appointment")).toHaveTextContent("Schedule an appointment");
-    expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Book my transport");
+    expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Find transport");
   });
 
   it("opens doctor help with voice context from Home", () => {
@@ -159,7 +159,7 @@ describe("Home fast service actions", () => {
       state: {
         conciergePrefill: {
           kind: "ride",
-          message: "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation.",
+          message: "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
           source: "home_quick_action",
         },
       },

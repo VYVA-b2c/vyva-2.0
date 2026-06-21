@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
-import type { ReactNode } from "react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import SignosScreen from "./SignosScreen";
 import { apiFetch } from "@/lib/queryClient";
@@ -53,18 +52,6 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-vi.mock("@/components/VoiceHero", () => ({
-  default: ({ children }: { children?: ReactNode }) => <div data-testid="voice-hero">{children}</div>,
-}));
-
-vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
-  default: () => null,
-}));
-
-vi.mock("@/components/VitalsTracker", () => ({
-  default: () => <div data-testid="vitals-tracker" />,
-}));
-
 vi.mock("@/components/VitalsScan", () => ({
   default: () => <div data-testid="vitals-scan" />,
 }));
@@ -89,16 +76,126 @@ function renderScreen() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <SignosScreen />
+      <MemoryRouter initialEntries={["/health/vitals"]}>
+        <Routes>
+          <Route path="/health/vitals" element={<SignosScreen />} />
+          <Route path="/settings/health-devices" element={<div data-testid="health-devices-route">Health devices settings</div>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
+async function openAddReadingSheet() {
+  fireEvent.click(await screen.findByTestId("button-open-add-reading-sheet"));
+  return screen.findByTestId("add-reading-sheet");
+}
+
 describe("Vitals Hub", () => {
   afterEach(() => {
     apiFetchMock.mockReset();
+    vi.restoreAllMocks();
+    Object.defineProperty(navigator, "bluetooth", { configurable: true, value: undefined });
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: undefined });
+    delete (window as Window & { __VYVA_FACE_SCAN_TEST_DURATION_MS?: number }).__VYVA_FACE_SCAN_TEST_DURATION_MS;
+  });
+
+  it("renders a mobile-first hub with capture methods hidden by default", async () => {
+    renderScreen();
+
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add a vital reading");
+    expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Add reading");
+    expect(screen.getByTestId("mobile-todays-readings")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-vitals-say-reading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-vitals-snap-reading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("connect-health-devices")).not.toBeInTheDocument();
+  });
+
+  it("opens capture methods and sends device setup to Settings", async () => {
+    renderScreen();
+
+    await openAddReadingSheet();
+    expect(screen.getByTestId("button-vitals-say-reading")).toBeInTheDocument();
+    expect(screen.getByTestId("button-vitals-snap-reading")).toBeInTheDocument();
+    expect(screen.getByTestId("button-log-reading")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-open-bluetooth-device"));
+    expect(await screen.findByTestId("health-devices-route")).toBeInTheDocument();
+  });
+
+  it("confirms a mocked VitalLens face-scan result before saving", async () => {
+    (window as Window & { __VYVA_FACE_SCAN_TEST_DURATION_MS?: number }).__VYVA_FACE_SCAN_TEST_DURATION_MS = 1;
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn(async () => ({
+          getTracks: () => [{ stop: vi.fn() }],
+        })),
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value: vi.fn(async () => undefined),
+    });
+    const data = new Uint8ClampedArray(40 * 40 * 4).fill(120);
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: vi.fn(() => ({
+        drawImage: vi.fn(),
+        getImageData: vi.fn(() => ({ data })),
+      })),
+    });
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).includes("/api/vitals-engine/face-scan")) {
+        return new Response(JSON.stringify({
+          proposed_readings: [
+            {
+              signal_type: "resting_hr_bpm",
+              value: 70,
+              unit: "bpm",
+              context_tag: "resting",
+              recorded_at: "2026-06-20T10:00:00.000Z",
+              source: "phone_estimate",
+              capture_method: "phone_camera",
+              confidence: "medium",
+              explanation: "VitalLens face-scan heart-rate estimate.",
+              source_ref: { provider: "rouast_vitallens" },
+            },
+            {
+              signal_type: "respiratory_rate",
+              value: 15,
+              unit: "/min",
+              context_tag: "resting",
+              recorded_at: "2026-06-20T10:00:00.000Z",
+              source: "phone_estimate",
+              capture_method: "phone_camera",
+              confidence: "medium",
+              explanation: "VitalLens face-scan breathing estimate.",
+              source_ref: { provider: "rouast_vitallens" },
+            },
+          ],
+          needs_confirmation: true,
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (String(url).includes("/api/vitals-engine/readings")) {
+        return new Response(JSON.stringify({ saved_count: 2, readings: [] }), { status: 201, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    renderScreen();
+
+    await openAddReadingSheet();
+    fireEvent.click(screen.getByTestId("button-open-face-scan"));
+    fireEvent.click(await screen.findByTestId("button-start-face-scan"));
+
+    expect(await screen.findByText(/Pulse: 70 bpm/i)).toBeInTheDocument();
+    expect(screen.getByText(/Breathing: 15 \/min/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-confirm-face-scan-readings"));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith("/api/vitals-engine/readings", expect.objectContaining({
+      body: expect.stringContaining('"provider":"rouast_vitallens"'),
+    })));
   });
 
   it("lets the user type a reading, confirm parsed candidates, and save them", async () => {
@@ -152,7 +249,8 @@ describe("Vitals Hub", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Scan, say, snap, or type");
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add a vital reading");
+    await openAddReadingSheet();
     expect(screen.getByTestId("button-vitals-say-reading")).toBeInTheDocument();
     expect(screen.getByTestId("button-vitals-snap-reading")).toBeInTheDocument();
 

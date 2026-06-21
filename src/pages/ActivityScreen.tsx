@@ -776,7 +776,7 @@ const ActivityScreen = () => {
     const message = kind === "ride"
       ? t(
         "activity.ridePrefill",
-        "Please help me arrange safe transport for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
+        "Please help me find safe transport options for a {{duration}} minute {{activity}} activity. Ask me to confirm before contacting anyone.",
         { duration, activity: selectedLabel },
       )
       : t(
@@ -1245,10 +1245,10 @@ const ActivityScreen = () => {
                   </span>
                   <span className="min-w-0">
                     <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
-                      {t("activity.bookRide", "Book ride")}
+                      {t("activity.bookRide", "Find transport")}
                     </span>
                     <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-                      {t("activity.bookRideSub", "Arrange transport before you go.")}
+                      {t("activity.bookRideSub", "Compare safe ways to get there.")}
                     </span>
                   </span>
                 </button>

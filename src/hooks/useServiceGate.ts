@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useNavigate, type NavigateOptions } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { ApiError, apiFetch } from "@/lib/queryClient";
 
 export type ServiceId =
   | "medications"
@@ -37,6 +38,35 @@ export type ReadinessResponse = {
   profile: Record<string, boolean>;
   services: Record<ServiceId, ServiceReadiness>;
 };
+
+export const READINESS_CHECK_TIMEOUT_MS = 8_000;
+
+export async function fetchReadiness({ signal }: { signal?: AbortSignal }): Promise<ReadinessResponse> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), READINESS_CHECK_TIMEOUT_MS);
+  const forwardAbort = () => controller.abort();
+  signal?.addEventListener("abort", forwardAbort, { once: true });
+
+  try {
+    const response = await apiFetch("/api/profile/readiness", { signal: controller.signal });
+    let body: unknown = null;
+
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    if (!response.ok) {
+      throw new ApiError(response.status, response.statusText, body);
+    }
+
+    return body as ReadinessResponse;
+  } finally {
+    window.clearTimeout(timeoutId);
+    signal?.removeEventListener("abort", forwardAbort);
+  }
+}
 
 function withReturnTo(path: string, returnTo: string): string {
   const separator = path.includes("?") ? "&" : "?";
@@ -80,6 +110,7 @@ export function useServiceGate() {
   const { toast } = useToast();
   const readinessQuery = useQuery<ReadinessResponse>({
     queryKey: ["/api/profile/readiness"],
+    queryFn: fetchReadiness,
     staleTime: 30_000,
     retry: false,
   });

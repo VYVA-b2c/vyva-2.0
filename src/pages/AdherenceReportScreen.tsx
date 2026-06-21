@@ -375,8 +375,8 @@ const AdherenceReportScreen = () => {
     {
       id: "ride",
       icon: Car,
-      label: t("meds.adherenceService.ride", "Book ride"),
-      sub: t("meds.adherenceService.rideSub", "Arrange transport for a medication review or pharmacy pickup."),
+      label: t("meds.adherenceService.ride", "Find transport"),
+      sub: t("meds.adherenceService.rideSub", "Compare safe ways to get there."),
       color: "#1D4ED8",
       bg: "#EFF6FF",
       onClick: () => navigate("/concierge", {

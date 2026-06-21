@@ -71,6 +71,7 @@ describe("app shell route layout", () => {
     ["/", "wide"],
     ["/settings/account", "wide"],
     ["/health/symptom-check", "wide"],
+    ["/health/vitals", "vitals"],
     ["/social-rooms/music-room", "wide"],
     ["/companions", "wide"],
     ["/concierge/shopping", "wide"],

@@ -25,6 +25,11 @@ import {
   upsertProfileMembershipToleratingMissingColumns,
   upsertProfileToleratingMissingColumns,
 } from "../lib/profileWriteCompatibility.js";
+import {
+  syncProfileProvidersToUserProviders,
+  syncProvidersToUserProviders,
+  type ConsentProviderInput,
+} from "../services/providerSync.js";
 
 export const onboardingRouter = Router();
 
@@ -1767,6 +1772,13 @@ onboardingRouter.post("/section/:sectionId", async (req: Request, res: Response)
           .set({ has_gp_details: false, updated_at: new Date() })
           .where(eq(onboardingState.user_id, userId));
       }
+      await syncProfileProvidersToUserProviders(userId);
+    } else if (sectionId === "providers") {
+      await mergeSectionIntoConsent(userId, "providers", data);
+      const providers = Array.isArray(data.providers)
+        ? (data.providers as ConsentProviderInput[])
+        : [];
+      await syncProvidersToUserProviders(userId, providers);
     } else if (sectionId === "careteam") {
       const ct = data as {
         role: "family" | "carer" | "doctor";

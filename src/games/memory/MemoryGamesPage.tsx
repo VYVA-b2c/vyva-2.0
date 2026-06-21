@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Bell,
   BookOpen,
   Brain,
   ChevronRight,
@@ -119,14 +120,20 @@ const MemoryGamesPage = () => {
   }, [history, language, lastSession, recommendation, t]);
 
   const RecommendedIcon = recommendation ? getGameIcon(recommendation.gameType) : Sparkles;
-  const availableGameTypes = useMemo(
-    () => MEMORY_GAME_ORDER.filter((gameType) => gameType !== recommendation?.gameType),
-    [recommendation?.gameType],
-  );
+  const availableGameTypes = useMemo(() => {
+    if (loading) return [];
+    if (!recommendation) return MEMORY_GAME_ORDER;
+    return MEMORY_GAME_ORDER.filter((gameType) => gameType !== recommendation.gameType);
+  }, [loading, recommendation]);
   const hasLastSession = Boolean(summary.lastSessionLabel);
+  const showExerciseChoices = !loading && availableGameTypes.length > 0;
 
   const openPlan = (plan: Recommendation) => {
     navigate(`/memory-games/${plan.gameType}?level=${plan.level}&variant=${plan.variantId}`);
+  };
+
+  const openRememberLater = () => {
+    navigate("/memory-games/remember-later");
   };
 
   return (
@@ -198,52 +205,81 @@ const MemoryGamesPage = () => {
         </div>
       </button>
 
-      <section className="mt-7">
-        <h2 className="font-display text-[28px] leading-tight text-vyva-text-1">{t("memory.chooseAnother")}</h2>
+      {showExerciseChoices ? (
+        <section className="mt-7">
+          <h2 className="font-display text-[28px] leading-tight text-vyva-text-1">{t("memory.chooseAnother")}</h2>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {availableGameTypes.map((gameType) => {
-            const definition = memoryGameRegistry[gameType];
-            const plan = manualPlans[gameType];
-            const GameIcon = getGameIcon(gameType);
-
-            return (
-              <button
-                key={gameType}
-                onClick={() => plan && openPlan(plan)}
-                className="min-h-[160px] rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div
-                    className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-[20px]"
-                    style={{ background: definition.iconBg, color: definition.accentColor }}
-                  >
-                    <GameIcon size={28} />
-                  </div>
-
-                  <div
-                    className="rounded-full px-3 py-1 text-[12px] font-bold"
-                    style={{ background: definition.iconBg, color: definition.accentColor }}
-                  >
-                    {plan ? `${t("common.level")} ${plan.level}` : `${t("common.level")} 1`}
-                  </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={openRememberLater}
+              className="min-h-[160px] rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-[20px] bg-[#FEF3C7] text-[#B45309]">
+                  <Bell size={28} />
                 </div>
 
-                <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
-                  {getGameTitle(gameType, language)}
-                </h3>
-                <p className="mt-2 line-clamp-2 text-[16px] leading-[1.35] text-vyva-text-2">
-                  {t(definition.descriptionKey)}
-                </p>
-
-                <div className="mt-4 flex justify-end">
-                  <ChevronRight size={24} style={{ color: definition.accentColor }} />
+                <div className="rounded-full bg-[#FEF3C7] px-3 py-1 text-[12px] font-bold text-[#B45309]">
+                  {t("games.rememberLater.cardBadge", "New")}
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+              </div>
+
+              <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
+                {t("games.rememberLater.cardTitle", "Remember Later")}
+              </h3>
+              <p className="mt-2 line-clamp-2 text-[16px] leading-[1.35] text-vyva-text-2">
+                {t("games.rememberLater.cardDescription", "Remember a future action while you keep playing.")}
+              </p>
+
+              <div className="mt-4 flex justify-end">
+                <ChevronRight size={24} style={{ color: "#B45309" }} />
+              </div>
+            </button>
+
+            {availableGameTypes.map((gameType) => {
+              const definition = memoryGameRegistry[gameType];
+              const plan = manualPlans[gameType];
+              const GameIcon = getGameIcon(gameType);
+
+              return (
+                <button
+                  key={gameType}
+                  onClick={() => plan && openPlan(plan)}
+                  className="min-h-[160px] rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div
+                      className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-[20px]"
+                      style={{ background: definition.iconBg, color: definition.accentColor }}
+                    >
+                      <GameIcon size={28} />
+                    </div>
+
+                    <div
+                      className="rounded-full px-3 py-1 text-[12px] font-bold"
+                      style={{ background: definition.iconBg, color: definition.accentColor }}
+                    >
+                      {plan ? `${t("common.level")} ${plan.level}` : `${t("common.level")} 1`}
+                    </div>
+                  </div>
+
+                  <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
+                    {getGameTitle(gameType, language)}
+                  </h3>
+                  <p className="mt-2 line-clamp-2 text-[16px] leading-[1.35] text-vyva-text-2">
+                    {t(definition.descriptionKey)}
+                  </p>
+
+                  <div className="mt-4 flex justify-end">
+                    <ChevronRight size={24} style={{ color: definition.accentColor }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 };

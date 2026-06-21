@@ -45,6 +45,7 @@ interface VoiceHeroProps {
   showVoiceOverlay?: boolean;
   activeLabel?: string;
   connectingLabel?: string;
+  mobileTalkLabel?: string;
   voiceControls?: {
     status: "idle" | "connecting" | "connected";
     isSpeaking: boolean;
@@ -95,6 +96,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   showVoiceOverlay = false,
   activeLabel,
   connectingLabel,
+  mobileTalkLabel,
   voiceControls,
 }) => {
   const { t } = useTranslation();
@@ -215,11 +217,16 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           ? t("voiceHero.speaking")
           : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
+  const mobileStatusLabel = !isConnecting && !isActive && mobileTalkLabel ? mobileTalkLabel : statusLabel;
   const connectionLabel = browserOnline ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline");
   const connectionColor = browserOnline ? "#34D399" : "#EF4444";
   const connectionHalo = browserOnline ? "rgba(52,211,153,0.24)" : "rgba(239,68,68,0.20)";
   const connectionBorder = browserOnline ? "rgba(52,211,153,0.42)" : "rgba(239,68,68,0.36)";
   const isBrainHero = heroSurface === "brain";
+  const isHealthHero = heroSurface === "health";
+  const standardHeroHeadlineStyle = isHealthHero
+    ? { ...headlineClampStyle, overflowWrap: "normal" as const, wordBreak: "normal" as const }
+    : headlineClampStyle;
 
   const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {
     const hour = new Date().getHours();
@@ -350,11 +357,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         />
       )}
 
-      <div className="relative mt-[14px] overflow-hidden rounded-[28px] p-[24px_22px] hero-purple shadow-vyva-hero">
+      <div className={`relative mt-[14px] overflow-hidden rounded-[28px] p-[24px_22px] hero-purple shadow-vyva-hero ${isHealthHero ? "max-sm:mt-3 max-sm:rounded-[26px] max-sm:p-[18px_18px]" : ""}`}>
         <div className="absolute -right-[30px] -top-[30px] w-[130px] h-[130px] rounded-full pointer-events-none" style={{ background: "rgba(255,255,255,0.05)" }} />
 
         {/* Source row */}
-        <div className="flex items-center justify-between mb-4">
+        <div className={`flex items-center justify-between mb-4 ${isHealthHero ? "max-sm:mb-3" : ""}`}>
           {resolvedSourceText ? (
             <div className="flex min-w-0 items-center gap-2">
               <div className="w-[36px] h-[36px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.18)" }}>
@@ -391,9 +398,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         {/* Headline */}
         <h1
           className="min-w-0 font-display text-[28px] font-normal italic leading-[1.22] text-white"
-          style={headlineClampStyle}
+          style={standardHeroHeadlineStyle}
         >
-          {resolvedHeadline}
+          <span className={isHealthHero ? "max-sm:text-[24px] max-sm:leading-[1.12]" : ""}>{resolvedHeadline}</span>
         </h1>
         {resolvedSubtitle && (
           <p
@@ -412,7 +419,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           onClick={handleTalk}
           disabled={isConnecting}
           data-testid="button-voice-hero-talk"
-          className={`mt-4 flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+          className={`mt-4 flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isHealthHero ? "max-sm:mt-3 max-sm:min-h-[52px] max-sm:px-4 max-sm:py-3" : ""} ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
           style={{
             background: isActive ? "rgba(52,211,153,0.2)" : isBrainHero ? "#FFFFFF" : "rgba(255,255,255,0.13)",
             border: isActive ? "1px solid rgba(52,211,153,0.4)" : isBrainHero ? "none" : "1px solid rgba(255,255,255,0.18)",
@@ -425,10 +432,15 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             <Mic size={18} style={{ color: isBrainHero ? "#6B21A8" : "rgba(255,255,255,0.7)" }} />
           )}
           <span
-            className="min-w-0 max-w-full text-center font-body text-[17px] font-semibold leading-tight"
+            className={`min-w-0 max-w-full text-center font-body text-[17px] font-semibold leading-tight ${isHealthHero ? "max-sm:text-[16px] max-sm:font-extrabold" : ""}`}
             style={{ color: isActive ? "#FFFFFF" : isBrainHero ? "#6B21A8" : "#FFFFFF" }}
           >
-            {statusLabel}
+            {mobileTalkLabel ? (
+              <>
+                <span className="sm:hidden">{mobileStatusLabel}</span>
+                <span className="hidden sm:inline">{statusLabel}</span>
+              </>
+            ) : statusLabel}
           </span>
         </button>
       </div>

@@ -676,7 +676,7 @@ const RECOMMENDATION_CANDIDATES: RecommendationCandidate[] = [
       es: "Se basa en actividad reciente de Concierge.",
     },
     details: {
-      en: "If you often book rides, appointments, or pharmacy calls, VYVA can prepare the next one for confirmation.",
+      en: "If you often need transport, appointments, or pharmacy calls, VYVA can prepare the next one for confirmation.",
       es: "Si sueles pedir taxis, citas o llamadas a farmacia, VYVA puede preparar la siguiente para confirmarla.",
     },
     steps: {

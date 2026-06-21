@@ -5,6 +5,7 @@ import {
   AlertCircle,
   BookOpenCheck,
   CheckCircle,
+  ChevronDown,
   ClipboardList,
   HeartPulse,
   HelpCircle,
@@ -242,26 +243,33 @@ function TriageReviewPanel() {
 
   return (
     <section
-      className="rounded-[26px] border border-[#E8DED4] bg-white px-5 py-5 shadow-[0_14px_30px_rgba(63,45,35,0.08)]"
+      className="relative overflow-hidden rounded-[24px] border border-[#C4B5FD] bg-[linear-gradient(135deg,#3B0764_0%,#6B21A8_54%,#8B5CF6_100%)] px-5 py-4 text-white shadow-[0_18px_36px_rgba(91,18,160,0.18)]"
       data-testid="triage-review-panel"
       aria-live="polite"
       aria-label={t("health.symptomCheck.chat.reviewAria", "VYVA is reviewing your answers and preparing guidance")}
     >
-      <div className="flex items-center gap-3">
-        <div className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[19px] bg-vyva-purple text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)]">
-          <span className="triage-review-pulse absolute inset-0 rounded-[19px] border-2 border-vyva-purple/25" aria-hidden="true" />
+      <span className="triage-review-scan absolute left-0 top-0 h-full w-1/3 bg-white/14" aria-hidden="true" />
+      <div className="relative flex items-center gap-4">
+        <div className="relative flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-full border border-white/24 bg-white/14 text-white shadow-[0_12px_26px_rgba(31,15,54,0.18)]">
+          <span className="triage-review-pulse absolute inset-[-6px] rounded-full border border-white/22" aria-hidden="true" />
           <Activity size={26} strokeWidth={2.4} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-body text-[11px] font-black uppercase tracking-[0.16em] text-vyva-purple">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.18em] text-white/72">
             {t("health.symptomCheck.chat.reviewEyebrow", "VYVA is reviewing")}
           </p>
           <h2
-            className="mt-1 min-h-[64px] font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:min-h-[66px] sm:text-[26px]"
+            className="mt-1 min-h-[58px] font-body text-[22px] font-black leading-tight text-white sm:min-h-[60px] sm:text-[25px]"
             data-testid="triage-review-headline"
           >
             {activeHeadline}
           </h2>
+          <div className="mt-2 flex items-center gap-2" aria-hidden="true">
+            <span className="triage-review-dot h-2 w-2 rounded-full bg-white/90" />
+            <span className="triage-review-dot h-2 w-2 rounded-full bg-white/90 [animation-delay:0.18s]" />
+            <span className="triage-review-dot h-2 w-2 rounded-full bg-white/90 [animation-delay:0.36s]" />
+            <span className="ml-1 h-px min-w-0 flex-1 bg-white/24" />
+          </div>
         </div>
       </div>
     </section>
@@ -279,7 +287,7 @@ export default function TriageChat({
   resumePendingRequest = false,
   language,
   languageReady = true,
-  showProgressCard = true,
+  showProgressCard = false,
   onDraftChange,
   onVitalsScanned,
   onVoiceAutoStarted,
@@ -633,6 +641,9 @@ export default function TriageChat({
     localize: appT,
   });
   const answeredCount = selectedQuickAnswers.length;
+  const questionNumber = answeredCount + 1;
+  const visibleQuickAnswers = quickAnswers.slice(0, 4);
+  const extraQuickAnswers = quickAnswers.slice(4);
   const confidenceSignals = Math.min(5, Math.max(2, answeredCount + 2));
   const confidencePercent = confidenceSignals * 20;
   const confidenceValue = `${confidenceSignals}/5`;
@@ -847,8 +858,8 @@ export default function TriageChat({
 
           {showQuestion && (
             <HealthWizardCard className="px-5 py-5">
-              <p className="mb-2 font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
-                {t("health.symptomCheck.chat.answerThisQuestion", "Answer this question")}
+              <p data-testid="triage-question-progress" className="mb-2 font-body text-[14px] font-black text-vyva-text-2">
+                {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
               </p>
               <h2 className={`font-body text-[26px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
                 {latestQuestion}
@@ -867,24 +878,43 @@ export default function TriageChat({
           )}
 
           {evidenceSources && evidenceSources.length > 0 && (
-            <HealthWizardCard tone="blue" className="px-4 py-3">
-              <p className="font-body text-[13px] font-bold uppercase tracking-[0.12em] text-vyva-text-3">
-                {t("health.symptomCheck.chat.evidence", "Evidence checked")}
-              </p>
-              <p className="mt-1 font-body text-[16px] leading-snug text-vyva-text-2">
+            <details
+              data-testid="triage-evidence-details"
+              className="group rounded-[22px] border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-3 text-blue-900 shadow-[0_8px_20px_rgba(29,78,216,0.06)]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <span className="font-body text-[15px] font-black text-blue-900">
+                  {t("health.symptomCheck.chat.evidence", "Evidence checked")}
+                </span>
+                <ChevronDown size={18} className="flex-shrink-0 text-blue-700 transition-transform group-open:rotate-180" />
+              </summary>
+              <p className="mt-3 border-t border-[#BFDBFE] pt-3 font-body text-[16px] font-bold leading-snug text-blue-900">
                 {evidenceSources.slice(0, 2).map((source) => source.title).filter(Boolean).join(" - ")}
               </p>
-            </HealthWizardCard>
+            </details>
           )}
 
           {canAnswer && scanOffer && (
-            <TriageScanCard
-              offer={scanOffer}
-              language={activeLanguage}
-              onAccepted={(result) => void handleAcceptScan(result)}
-              onSkip={handleSkipScan}
-              onVitalsCaptured={onVitalsScanned}
-            />
+            <details
+              data-testid="triage-optional-scan"
+              className="group rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <span className="font-body text-[15px] font-black text-vyva-text-1">
+                  {t("health.symptomCheck.chat.optionalCheck", "Optional check")}
+                </span>
+                <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-4 border-t border-[#EADFD5] pt-4">
+                <TriageScanCard
+                  offer={scanOffer}
+                  language={activeLanguage}
+                  onAccepted={(result) => void handleAcceptScan(result)}
+                  onSkip={handleSkipScan}
+                  onVitalsCaptured={onVitalsScanned}
+                />
+              </div>
+            </details>
           )}
 
           {canAnswer && (
@@ -893,7 +923,7 @@ export default function TriageChat({
                 <CheckCircle className="h-4 w-4 text-teal-700" />
                 {t("health.symptomCheck.chat.chooseClosest", "Choose the closest answer")}
               </div>
-              {quickAnswers.map((quickAnswer) => {
+              {visibleQuickAnswers.map((quickAnswer) => {
                 const { label, value, Icon } = quickAnswer;
                 return (
                   <HealthWizardChoiceTile
@@ -904,16 +934,45 @@ export default function TriageChat({
                   />
                 );
               })}
+              {extraQuickAnswers.length ? (
+                <details
+                  data-testid="triage-more-choices"
+                  className="group rounded-[22px] border border-[#E8DED4] bg-white p-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]"
+                >
+                  <summary className="flex min-h-[54px] cursor-pointer list-none items-center justify-between gap-3 px-1">
+                    <span className="font-body text-[16px] font-black text-vyva-purple">
+                      {t("health.symptomCheck.chat.moreChoices", "More choices")}
+                    </span>
+                    <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="mt-2 grid gap-3 border-t border-[#EADFD5] pt-3">
+                    {extraQuickAnswers.map((quickAnswer) => {
+                      const { label, value, Icon } = quickAnswer;
+                      return (
+                        <HealthWizardChoiceTile
+                          key={label}
+                          onClick={() => void sendText(value, quickAnswer)}
+                          icon={<Icon size={24} />}
+                          title={label}
+                        />
+                      );
+                    })}
+                  </div>
+                </details>
+              ) : null}
             </div>
           )}
 
           {canShowMedicalFollowups && (
-            <HealthWizardCard tone="purple" className="grid gap-3 px-4 py-4" testId="triage-medical-followups">
-              <div className="flex items-center gap-3">
+            <details
+              data-testid="triage-medical-followups"
+              className="group rounded-[24px] border border-[#DDD6FE] bg-[#F5F3FF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.08)]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                 <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-[0_6px_16px_rgba(107,33,168,0.10)]">
                   <BookOpenCheck size={21} />
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
                     {t("health.symptomCheck.chat.followupTitle", "Useful follow-up questions")}
                   </p>
@@ -921,8 +980,9 @@ export default function TriageChat({
                     {t("health.symptomCheck.chat.followupSub", "Tap one if it matches what you want to ask next.")}
                   </p>
                 </div>
-              </div>
-              <div className="grid gap-2">
+                <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-4 grid gap-2 border-t border-[#DDD6FE] pt-4">
                 {medicalFollowups.map((question, index) => (
                   <button
                     key={`${question}-${index}`}
@@ -936,7 +996,7 @@ export default function TriageChat({
                   </button>
                 ))}
               </div>
-            </HealthWizardCard>
+            </details>
           )}
         </div>
       </div>
@@ -959,7 +1019,7 @@ export default function TriageChat({
               {t("health.symptomCheck.chat.listening")}
             </p>
           )}
-          <div className="flex items-center gap-3 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)]">
+          <div className="flex items-center gap-1.5 rounded-[30px] border border-[#E8DED4] bg-white p-2 shadow-[0_14px_34px_rgba(63,45,35,0.10)] sm:gap-3">
             <input
               ref={inputRef}
               type="text"
@@ -969,7 +1029,7 @@ export default function TriageChat({
               disabled={!languageReady || loading || animatingIdx !== null}
               placeholder={t("health.symptomCheck.chat.placeholder")}
               data-testid="input-triage-message"
-              className="min-w-0 flex-1 rounded-full px-4 py-[16px] font-body text-[20px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83]"
+              className="min-w-0 flex-1 rounded-full px-3 py-[15px] font-body text-[17px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83] sm:px-4 sm:py-[16px] sm:text-[20px]"
               style={{
                 background: "transparent",
               }}
@@ -979,7 +1039,7 @@ export default function TriageChat({
               disabled={!isListening && (!languageReady || loading || animatingIdx !== null)}
               data-testid="button-triage-voice"
               aria-label={t(isListening ? "health.symptomCheck.chat.voiceStop" : "health.symptomCheck.chat.voiceStart")}
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 sm:h-12 sm:w-12"
               style={{
                 background: isListening ? "#FEE2E2" : "hsl(var(--vyva-purple-light))",
                 color: isListening ? "#B91C1C" : "hsl(var(--vyva-purple))",
@@ -992,7 +1052,7 @@ export default function TriageChat({
               disabled={!input.trim() || !languageReady || loading || animatingIdx !== null}
               data-testid="button-triage-send"
               aria-label={t("health.symptomCheck.chat.send")}
-              className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all active:scale-95 disabled:opacity-40 sm:h-12 sm:w-12"
               style={{ background: "hsl(var(--vyva-purple))" }}
             >
               <Send size={18} className="text-white" />
