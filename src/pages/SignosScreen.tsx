@@ -4,16 +4,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
-  AlertTriangle,
   Bluetooth,
   Calendar,
   Camera,
   Check,
   Car,
-  CheckCircle2,
-  ChevronDown,
   ChevronLeft,
-  ChevronUp,
   ClipboardList,
   Heart,
   Keyboard,
@@ -24,12 +20,10 @@ import {
   Phone,
   ScanLine,
   Scale,
-  Share2,
   ShieldCheck,
   Stethoscope,
   Thermometer,
   UserPlus,
-  Users,
   Video,
   Wind,
   X,
@@ -37,13 +31,11 @@ import {
 import VitalsScan from "@/components/VitalsScan";
 import {
   HealthWizardCard,
-  HealthWizardSectionLabel,
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
-import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
@@ -53,7 +45,7 @@ import {
   readStandardBluetoothDevice,
   type BluetoothCaptureState,
 } from "@/lib/vitalsBluetooth";
-import { vitalsEvidenceFor, type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
+import { type VitalsSourceConfidence } from "../../shared/vitalsEvidence";
 import {
   VITALS_SIGNAL_CATALOG,
   promptSignalsForProfile,
@@ -146,16 +138,6 @@ const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
   rr: "respiratory_rate",
   bp: "bp_systolic",
 };
-
-const DAY_LABELS = [
-  { key: "statusVitals.days.mon", fallback: "M" },
-  { key: "statusVitals.days.tue", fallback: "T" },
-  { key: "statusVitals.days.wed", fallback: "W" },
-  { key: "statusVitals.days.thu", fallback: "T" },
-  { key: "statusVitals.days.fri", fallback: "F" },
-  { key: "statusVitals.days.sat", fallback: "S" },
-  { key: "statusVitals.days.sun", fallback: "S" },
-];
 
 const DEVICE_ICON_BY_ID: Record<VitalsDeviceKind, LucideIcon> = {
   bp_cuff: Activity,
@@ -442,18 +424,6 @@ function parseNumericValue(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function buildTrend(values: (string | null)[]): number[] {
-  return values.map((value) => parseNumericValue(value) ?? 0);
-}
-
-function focusedMetricFromVoice(value: string): MetricType | null {
-  const normalized = value.toLowerCase();
-  if (normalized.includes("blood") || normalized.includes("pressure") || normalized.includes("presion")) return "bp";
-  if (normalized.includes("resp") || normalized.includes("breath") || normalized.includes("rpm")) return "rr";
-  if (normalized.includes("heart") || normalized.includes("pulse") || normalized.includes("card") || normalized.includes("bpm")) return "hr";
-  return null;
-}
-
 function formatRecordedAt(iso: string | null, language: string): string {
   if (!iso) return "--";
   const date = new Date(iso);
@@ -477,160 +447,6 @@ function getMetricState(meta: MetricMeta, value: string | null) {
   if (!meta.range) return { tone: "logged", color: "#6B21A8", bg: "#F5F3FF" };
   if (numeric < meta.range.low || numeric > meta.range.high) return { tone: "review", color: "#B45309", bg: "#FEF3C7" };
   return { tone: "steady", color: "#047857", bg: "#D1FAE5" };
-}
-
-function confidenceLabel(confidence: VitalsSourceConfidence | null | undefined, t: (key: string, fallback: string) => string) {
-  if (confidence === "high") return t("statusVitals.confidence.high", "High");
-  if (confidence === "low") return t("statusVitals.confidence.low", "Low");
-  return t("statusVitals.confidence.medium", "Medium");
-}
-
-function sourceLabel(source: ReadingSource | null | undefined, fallback: string, t: (key: string, fallback: string) => string) {
-  if (source === "phone_estimate") return t("statusVitals.source.phoneEstimate", fallback);
-  if (source === "connected_device") return t("statusVitals.source.connectedDevice", fallback);
-  if (source === "clinical") return t("statusVitals.source.clinical", fallback);
-  return t("statusVitals.source.manual", fallback);
-}
-
-function sourceTone(summary: VitalsSummaryEntry | undefined, metricKey: MetricType, t: (key: string, fallback: string) => string) {
-  const source = summary?.latest_source;
-  const evidence = vitalsEvidenceFor(source, ENGINE_SIGNAL_BY_METRIC[metricKey]);
-  const confidence = summary?.latest_source_confidence ?? evidence.confidence;
-  const label = `${sourceLabel(source, summary?.latest_source_display_label ?? evidence.displayLabel, t)} - ${confidenceLabel(confidence, t)}`;
-  if (source === "phone_estimate") return { label, color: "#6B21A8", bg: "#F5F3FF" };
-  if (source === "connected_device") {
-    return { label, color: "#047857", bg: "#D1FAE5" };
-  }
-  if (source === "clinical") {
-    return { label, color: "#0369A1", bg: "#E0F2FE" };
-  }
-  return { label, color: "#92400E", bg: "#FEF3C7" };
-}
-
-function MiniTrend({ values, accent }: { values: number[]; accent: string }) {
-  const nonZeroValues = values.filter((value) => value > 0);
-  const max = Math.max(...nonZeroValues, 1);
-  const min = Math.min(...nonZeroValues, max);
-  const range = Math.max(max - min, 1);
-
-  return (
-    <div className="mt-4 flex h-[42px] items-end gap-[5px]" aria-hidden="true">
-      {values.map((value, index) => {
-        const hasValue = value > 0;
-        const height = hasValue ? Math.round(((value - min) / range) * 26) + 12 : 8;
-        return (
-          <div
-            key={`${value}-${index}`}
-            className="flex-1 rounded-full"
-            style={{
-              height,
-              background: hasValue ? accent : "#E8DED4",
-              opacity: index === values.length - 1 && hasValue ? 1 : 0.5,
-            }}
-          />
-        );
-      })}
-    </div>
-  );
-}
-
-function MetricCard({
-  metricKey,
-  summary,
-  t,
-  highlighted = false,
-}: {
-  metricKey: MetricType;
-  summary?: VitalsSummaryEntry;
-  t: (key: string, fallback: string) => string;
-  highlighted?: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const meta = METRIC_META[metricKey];
-  const trend = buildTrend(summary?.trend ?? Array(7).fill(null));
-  const hasData = summary?.has_data === true;
-  const displayValue = hasData ? summary?.latest_value ?? "--" : "--";
-  const hasTrend = trend.some((value) => value > 0);
-  const state = getMetricState(meta, summary?.latest_value ?? null);
-  const source = sourceTone(summary, metricKey, t);
-  const stateLabel =
-    state.tone === "steady"
-      ? t("statusVitals.status.steady", "Steady")
-      : state.tone === "review"
-      ? t("statusVitals.status.review", "Review")
-      : state.tone === "logged"
-      ? t("statusVitals.status.logged", "Logged")
-      : t("statusVitals.status.noData", "No data");
-  const Icon = meta.Icon;
-
-  return (
-    <HealthWizardCard
-      className={`p-4 ${highlighted ? "ring-2 ring-emerald-200" : ""}`}
-      testId={`card-vital-${metricKey}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: meta.soft }}>
-            <Icon size={21} style={{ color: meta.accent }} />
-          </div>
-          <div className="min-w-0 pt-0.5">
-            <p className="font-body text-[13px] font-semibold text-vyva-text-2">
-              {t(meta.labelKey, meta.fallbackLabel)}
-            </p>
-          </div>
-        </div>
-        <span className="flex-shrink-0 rounded-full px-3 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
-          {stateLabel}
-        </span>
-      </div>
-
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <p className="min-w-0 break-words font-body text-[30px] font-bold leading-none text-vyva-text-1">
-          {displayValue === "--" ? (
-            <span className="text-[17px] font-semibold text-vyva-text-2">{t("statusVitals.emptyMetric", "No reading")}</span>
-          ) : (
-            <>
-              {displayValue}
-              <span className="ml-1 whitespace-nowrap text-[13px] font-semibold text-vyva-text-2">{meta.unit}</span>
-            </>
-          )}
-        </p>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          {hasTrend && (
-            <button
-              type="button"
-              onClick={() => setExpanded((value) => !value)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F7F1E9] text-vyva-text-2 active:scale-95"
-              aria-label={expanded ? t("statusVitals.collapseTrend", "Hide trend") : t("statusVitals.expandTrend", "Show trend")}
-              data-testid={`button-metric-expand-${metricKey}`}
-            >
-              {expanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {hasData && (
-        <div className="mt-3">
-          <span className="inline-flex max-w-full rounded-full px-3 py-1 font-body text-[11px] font-bold leading-tight" style={{ color: source.color, background: source.bg }}>
-            {source.label}
-          </span>
-        </div>
-      )}
-
-      {expanded && hasTrend && (
-        <div className="mt-4 border-t border-[#EFE5DC] pt-3">
-          <div className="flex items-center justify-between">
-            <p className="font-body text-[12px] font-semibold uppercase tracking-[0.08em] text-vyva-text-2">
-              {t("statusVitals.sevenDayTrend", "7-day trend")}
-            </p>
-            <p className="font-body text-[12px] text-vyva-text-3">{t("statusVitals.latestRight", "Latest at right")}</p>
-          </div>
-          <MiniTrend values={trend} accent={meta.accent} />
-        </div>
-      )}
-    </HealthWizardCard>
-  );
 }
 
 function LogReadingModal({ onClose }: { onClose: () => void }) {
@@ -1790,8 +1606,14 @@ function CompactMetricRow({
           {displayValue ? `${displayValue} ${meta.unit}` : t("statusVitals.emptyMetric", "No reading")}
         </span>
       </span>
-      <span className="flex-shrink-0 rounded-full px-2.5 py-1 font-body text-[11px] font-bold" style={{ color: state.color, background: state.bg }}>
-        {stateLabel}
+      <span
+        className="flex-shrink-0 rounded-full px-2.5 py-1 font-body text-[11px] font-bold"
+        style={{
+          color: hasData ? state.color : "#6B21A8",
+          background: hasData ? state.bg : "#F5F3FF",
+        }}
+      >
+        {hasData ? stateLabel : t("statusVitals.addShort", "Add")}
       </span>
     </button>
   );
@@ -1807,16 +1629,11 @@ const SignosScreen = () => {
   const [showFaceScanModal, setShowFaceScanModal] = useState(false);
   const [showAddReadingSheet, setShowAddReadingSheet] = useState(false);
   const [selectedSuggestedSignal, setSelectedSuggestedSignal] = useState<VitalsSignalKey | null>(null);
-  const [mobileWeeklyOpen, setMobileWeeklyOpen] = useState(false);
   const [bluetoothDevice, setBluetoothDevice] = useState<VitalsDeviceCatalogItem | null>(null);
   const [captureMode, setCaptureMode] = useState<VitalsCaptureMode | null>(null);
   const [captureSignal, setCaptureSignal] = useState<VitalsSignalKey | null>(null);
-  const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
-    domain: "health",
-    actionTypes: ["health.vitals_review"],
-  });
 
-  const { data: vitalsData, isLoading } = useQuery<VitalsResponse>({
+  const { data: vitalsData } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
     retry: false,
   });
@@ -1835,8 +1652,6 @@ const SignosScreen = () => {
   });
 
   const summary = vitalsData?.summary;
-  const complianceDays = vitalsData?.compliance_days ?? (Array(7).fill(false) as boolean[]);
-  const filledDays = complianceDays.filter(Boolean).length;
   const todaySignals = useMemo(() => new Set(
     (vitalsEngineData?.recent_readings ?? [])
       .filter((reading) => isTodayReading(reading.recorded_at))
@@ -1869,18 +1684,9 @@ const SignosScreen = () => {
     return dates.sort().reverse()[0] ?? null;
   }, [summary]);
 
-  const metricsWithData = (["hr", "rr", "bp"] as MetricType[]).filter((key) => summary?.[key]?.has_data).length;
   const latestText = latestReadingAt
     ? formatRecordedAt(latestReadingAt, appLanguage)
     : t("statusVitals.noLatest", "No recent readings");
-  const completionPct = Math.round((filledDays / 7) * 100);
-  const overallGood = metricsWithData > 0 && filledDays >= 3;
-  const focusedMetric = focusedMetricFromVoice(
-    voicePayloadValue("vital_type")
-      || voicePayloadValue("trend_focus")
-      || voiceAction?.extractedSubject
-      || "",
-  );
   const statusSummaryText = useMemo(() => {
     const lines = (["hr", "rr", "bp"] as MetricType[]).map((key) => {
       const meta = METRIC_META[key];
@@ -1907,6 +1713,16 @@ const SignosScreen = () => {
       ridePrefill: t("statusVitals.actions.ridePrefill", "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking."),
     },
   }), [profile?.gpEmail, profile?.gpName, profile?.gpPhone, statusSummaryText, t]);
+  const compactStatusServiceActions = useMemo(() => {
+    const careActions = statusServiceActions.filter((action) => action.kind === "call_gp" || action.kind === "email_gp");
+    const doctorHelp = statusServiceActions.find((action) => action.kind === "doctor_help");
+    const ride = statusServiceActions.find((action) => action.kind === "book_ride");
+    const actions = careActions.length > 0 ? careActions.slice(0, 2) : doctorHelp ? [doctorHelp] : [];
+    if (ride && actions.length < 3) actions.push(ride);
+    return actions.slice(0, 3);
+  }, [statusServiceActions]);
+  const latestMetricKeys = ["hr", "rr", "bp"] as MetricType[];
+  const hasAnyLatestReading = latestMetricKeys.some((key) => summary?.[key]?.has_data === true);
 
   const statusServiceIcons: Record<VitalsStatusServiceActionKind, LucideIcon> = {
     call_gp: Phone,
@@ -2056,209 +1872,59 @@ const SignosScreen = () => {
         </div>
       </section>
 
-      <section className="mt-4 grid gap-3 lg:hidden" data-testid="mobile-vitals-summary">
-        <section className="rounded-[22px] border border-[#EDE5DB] bg-white p-3 shadow-[0_6px_18px_rgba(63,45,35,0.045)]" data-testid="mobile-todays-readings">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <p className="font-body text-[12px] font-black uppercase tracking-[0.11em] text-vyva-text-2">
-                {t("statusVitals.mobile.todayReadings", "Today's readings")}
-              </p>
-              <p className="mt-0.5 font-body text-[13px] font-semibold text-vyva-text-2">
-                {latestText}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => openAddReadingSheet()}
-              className="rounded-full bg-[#F5F3FF] px-3 py-2 font-body text-[12px] font-black text-[#6B21A8]"
-              data-testid="button-mobile-add-reading"
-            >
-              {t("statusVitals.hub.addReadingCta", "Add reading")}
-            </button>
+      <section className="mt-4 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.055)]" data-testid="latest-readings-section">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-body text-[20px] font-black leading-tight text-vyva-text-1">
+              {t("statusVitals.latestReadings", "Latest readings")}
+            </h2>
+            <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2" data-testid="latest-readings-summary">
+              {hasAnyLatestReading ? latestText : t("statusVitals.noLatestCalm", "No readings yet")}
+            </p>
           </div>
-          <div className="grid gap-2">
-            {(["hr", "rr", "bp"] as MetricType[]).map((key) => (
-              <CompactMetricRow
-                key={key}
-                metricKey={key}
-                summary={summary?.[key]}
-                t={t}
-                onAdd={openAddReadingSheet}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-[22px] border border-[#EDE5DB] bg-white p-3 shadow-[0_6px_18px_rgba(63,45,35,0.045)]" data-testid="mobile-weekly-rhythm">
           <button
             type="button"
-            onClick={() => setMobileWeeklyOpen((value) => !value)}
-            className="flex w-full items-center justify-between gap-3 text-left"
-            data-testid="button-mobile-weekly-toggle"
+            onClick={() => openAddReadingSheet()}
+            className="flex min-h-[40px] flex-shrink-0 items-center justify-center rounded-full bg-[#F5F3FF] px-4 font-body text-[13px] font-black text-[#6B21A8] active:scale-[0.98]"
+            data-testid="button-latest-add-reading"
           >
-            <span>
-              <span className="block font-body text-[12px] font-black uppercase tracking-[0.11em] text-vyva-text-2">
-                {t("statusVitals.weeklyRhythm", "Weekly rhythm")}
-              </span>
-              <span className="mt-0.5 block font-body text-[15px] font-black text-vyva-text-1">
-                {t("statusVitals.daysWithReadings", { defaultValue: "{{count}} of 7 days with readings", count: filledDays })}
-              </span>
-            </span>
-            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9] text-vyva-text-2">
-              {mobileWeeklyOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
-            </span>
+            {t("statusVitals.hub.addReadingCta", "Add reading")}
           </button>
-          {mobileWeeklyOpen && (
-            <div className="mt-4 border-t border-[#EFE5DC] pt-4">
-              <div className="grid grid-cols-7 gap-2">
-                {complianceDays.map((done, index) => (
-                  <div key={`${index}-${done}`} className="flex flex-col items-center gap-1">
-                    <div
-                      className="h-7 w-full rounded-[9px]"
-                      style={{
-                        background: done ? "#6B21A8" : "#E8DED4",
-                        opacity: done ? 1 : 0.5,
-                      }}
-                    />
-                    <span className="font-body text-[10px] font-semibold text-vyva-text-2">{t(DAY_LABELS[index].key, DAY_LABELS[index].fallback)}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-3 rounded-[16px] bg-[#FAF9F6] px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-                {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
-              </p>
-            </div>
-          )}
-        </section>
-      </section>
-
-      <section className="mt-5 hidden gap-4 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)] lg:items-start" data-testid="vitals-snapshot-grid">
-        <div className="grid gap-4">
-          <section
-            className="rounded-[26px] border border-[#E4D9CE] bg-white p-4 shadow-[0_10px_28px_rgba(63,45,35,0.07)]"
-            data-testid="card-general-status"
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: overallGood ? "#ECFDF5" : "#FFF7ED" }}>
-                {overallGood ? <CheckCircle2 size={23} style={{ color: "#047857" }} /> : <AlertTriangle size={23} style={{ color: "#B45309" }} />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-body text-[13px] font-semibold text-vyva-text-2">
-                      {t("statusVitals.overallLabel", "Overall status")}
-                    </p>
-                    <p className="mt-1 font-body text-[17px] font-bold leading-snug text-vyva-text-1">
-                      {overallGood
-                        ? t("statusVitals.overallGood", "Stable pattern this week")
-                        : t("statusVitals.overallNeedsData", "Add a reading to complete today")}
-                    </p>
-                  </div>
-                  <span
-                    className="rounded-full px-3 py-1 font-body text-[11px] font-bold"
-                    style={{
-                      background: overallGood ? "#D1FAE5" : "#FEF3C7",
-                      color: overallGood ? "#047857" : "#B45309",
-                    }}
-                  >
-                    {overallGood ? t("health.statGood", "Good") : t("statusVitals.pending", "Pending")}
-                  </span>
-                </div>
-                <p className="mt-3 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                  {t("statusVitals.overallBody", "Latest update")}: {latestText}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <div>
-            <HealthWizardSectionLabel
-              className="mb-3 mt-0"
-              action={(
-                <button
-                  type="button"
-                  onClick={shareStatus}
-                  className="flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[12px] font-bold text-[#6B21A8]"
-                  data-testid="button-share-vitals-summary"
-                >
-                  <Share2 size={14} />
-                  {t("statusVitals.share", "Share")}
-                </button>
-              )}
-            >
-              {t("statusVitals.keyMetrics", "Key metrics")}
-            </HealthWizardSectionLabel>
-
-            <div className="grid gap-3 xl:grid-cols-3">
-              {isLoading
-                ? (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-                    <div key={key} className="h-[112px] animate-pulse rounded-[24px] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]" />
-                  ))
-                : (["hr", "rr", "bp"] as MetricType[]).map((key) => (
-                    <MetricCard key={key} metricKey={key} summary={summary?.[key]} t={t} highlighted={focusedMetric === key} />
-                  ))}
-            </div>
-          </div>
         </div>
-
-        <section className="rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-compliance">
-          <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="font-body text-[13px] font-bold uppercase tracking-[0.11em] text-vyva-text-2">
-              {t("statusVitals.weeklyRhythm", "Weekly rhythm")}
-            </p>
-            <p className="mt-1 font-body text-[15px] font-bold text-vyva-text-1">
-              {t("statusVitals.daysWithReadings", { defaultValue: "{{count}} of 7 days with readings", count: filledDays })}
-            </p>
-          </div>
-          <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-body text-[12px] font-bold text-[#B45309]">{completionPct}%</span>
-          </div>
-          <div className="grid grid-cols-7 gap-2">
-          {complianceDays.map((done, index) => (
-            <div key={`${index}-${done}`} className="flex flex-col items-center gap-1">
-              <div
-                className="h-8 w-full rounded-[10px]"
-                style={{
-                  background: done ? "#6B21A8" : "#E8DED4",
-                  opacity: done ? 1 : 0.5,
-                }}
-                data-testid={`compliance-day-${index}`}
-              />
-              <span className="font-body text-[10px] font-semibold text-vyva-text-2">{t(DAY_LABELS[index].key, DAY_LABELS[index].fallback)}</span>
-            </div>
+        <div className="grid gap-2 lg:grid-cols-3">
+          {latestMetricKeys.map((key) => (
+            <CompactMetricRow
+              key={key}
+              metricKey={key}
+              summary={summary?.[key]}
+              t={t}
+              onAdd={openAddReadingSheet}
+            />
           ))}
-          </div>
-          <p className="mt-4 rounded-[18px] bg-[#FAF9F6] px-3 py-2 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-            {t("statusVitals.sourceNote", "Phone scans are estimates for trends. Device or manual readings are stronger evidence for VYVA.")}
-          </p>
-        </section>
+        </div>
       </section>
 
-      <section className="mt-5 rounded-[24px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.06)]" data-testid="card-sharing">
-        <div className="mb-4 flex items-start gap-3">
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF]">
-            <ShieldCheck size={21} style={{ color: "#6B21A8" }} />
+      <section className="mt-4 rounded-[22px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_24px_rgba(63,45,35,0.045)]" data-testid="compact-vitals-help">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-[#6B21A8]">
+              <ShieldCheck size={18} />
+            </span>
+            <h2 className="font-body text-[18px] font-black leading-tight text-vyva-text-1">
+              {t("statusVitals.helpTitle", "Need help with readings?")}
+            </h2>
           </div>
-          <div className="min-w-0">
-            <p className="font-body text-[15px] font-bold text-vyva-text-1">
-              {t("statusVitals.sharingTitle", "Share with care team")}
-            </p>
-            <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-              {t("statusVitals.sharingBody", "Copy a clean summary for a caregiver, doctor, or upcoming appointment.")}
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
             onClick={shareStatus}
-            className="vyva-secondary-action min-h-[52px] rounded-[16px] px-3 text-[14px]"
+            className="flex min-h-[38px] flex-shrink-0 items-center justify-center rounded-full border border-[#DDD6FE] bg-white px-3 font-body text-[12px] font-black text-[#6B21A8] active:scale-[0.98]"
             data-testid="button-share-care-team"
           >
-            <Users size={16} />
             {t("statusVitals.copySummary", "Copy")}
           </button>
-          {statusServiceActions.map(renderStatusServiceAction)}
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {compactStatusServiceActions.map(renderStatusServiceAction)}
         </div>
       </section>
 
