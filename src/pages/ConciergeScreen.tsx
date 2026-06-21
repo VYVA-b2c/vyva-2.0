@@ -100,14 +100,26 @@ interface AppointmentProviderOption {
 interface AppointmentAttemptResponse {
   attempt?: { id: string; channel: AppointmentChannel; status: string };
   pending?: { pendingId?: string; status?: string; message?: string } | null;
+  communication?: { id: string; channel: string; recipient: string; status: string; provider_message_id?: string | null; error?: string } | null;
+  form_task?: { status: string; booking_url?: string | null; pending_id?: string | null; scheduled_event_id?: string | null } | null;
+  scheduled_event?: { id: string; scheduled_for?: string; title?: string } | null;
   booking_url?: string | null;
   draft?: string | null;
+  handled_by_vyva?: boolean;
   needs_booking_confirmation?: boolean;
+}
+
+interface AppointmentDiscoveryMeta {
+  source?: string;
+  fallback_reason?: "google_places_not_configured" | "no_google_results" | "google_places_unavailable";
+  inserted_count?: number;
+  reservation_systems?: Array<{ name: string; category: string; url: string }>;
 }
 
 interface AppointmentRequestResponse {
   request: AppointmentRequestItem;
   options: AppointmentProviderOption[];
+  discovery?: AppointmentDiscoveryMeta;
 }
 
 type TransportAction =
@@ -571,6 +583,19 @@ async function createAppointmentRequest(params: {
   return await res.json() as AppointmentRequestResponse;
 }
 
+async function discoverAppointmentOptions(params: {
+  requestId: string;
+}): Promise<AppointmentRequestResponse> {
+  const res = await apiFetch(`/api/appointments/requests/${params.requestId}/discover-options`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not look for appointment options");
+  }
+  return await res.json() as AppointmentRequestResponse;
+}
+
 async function confirmAppointmentAttempt(params: {
   requestId: string;
   optionId: string;
@@ -1027,15 +1052,15 @@ function appointmentOptionName(option: AppointmentProviderOption | null | undefi
 function appointmentChannelLabel(channel: AppointmentChannel, isSpanish: boolean): string {
   switch (channel) {
     case "booking_url":
-      return isSpanish ? "Reserva online" : "Online booking";
+      return isSpanish ? "VYVA rellena formulario" : "VYVA fills form";
     case "phone":
-      return isSpanish ? "Llamada" : "Phone call";
+      return isSpanish ? "VYVA llama" : "VYVA calls";
     case "whatsapp":
-      return "WhatsApp";
+      return isSpanish ? "VYVA envia WhatsApp" : "VYVA sends WhatsApp";
     case "email":
-      return "Email";
+      return isSpanish ? "VYVA envia email" : "VYVA sends email";
     case "manual":
-      return isSpanish ? "Manual" : "Manual";
+      return isSpanish ? "VYVA gestiona" : "VYVA handles it";
     default:
       return channel;
   }
@@ -1114,6 +1139,12 @@ function offerCardKey(option: OfferOption): string {
 function getBookingUrl(item: ConciergePendingItem): string {
   return typeof item.action_payload?.booking_url === "string"
     ? item.action_payload.booking_url.trim()
+    : "";
+}
+
+function getExecutionChannel(item: ConciergePendingItem): string {
+  return typeof item.action_payload?.execution_channel === "string"
+    ? item.action_payload.execution_channel.trim()
     : "";
 }
 
@@ -1199,6 +1230,7 @@ const ConciergeScreen = () => {
   const [appointmentNote, setAppointmentNote] = useState("");
   const [appointmentRequest, setAppointmentRequest] = useState<AppointmentRequestItem | null>(null);
   const [appointmentOptions, setAppointmentOptions] = useState<AppointmentProviderOption[]>([]);
+  const [appointmentDiscovery, setAppointmentDiscovery] = useState<AppointmentDiscoveryMeta | null>(null);
   const [selectedAppointmentOptionId, setSelectedAppointmentOptionId] = useState<string | null>(null);
   const [selectedAppointmentChip, setSelectedAppointmentChip] = useState<(typeof APPOINTMENT_TYPE_CHIPS)[number] | null>(null);
   const [appointmentAttemptResult, setAppointmentAttemptResult] = useState<AppointmentAttemptResponse | null>(null);
@@ -1297,11 +1329,13 @@ const ConciergeScreen = () => {
       setAppointmentAttemptResult(null);
       setAppointmentRequest(null);
       setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
     },
     onSuccess: (result) => {
       setAppointmentRequest(result.request);
       setAppointmentOptions(result.options);
+      setAppointmentDiscovery(result.discovery ?? null);
       setSelectedAppointmentOptionId(result.options[0]?.id ?? null);
       setAppointmentNotice(result.options.length > 0
         ? (isSpanish ? "He encontrado un proveedor guardado para revisar primero." : "I found a saved provider to review first.")
@@ -1309,6 +1343,43 @@ const ConciergeScreen = () => {
     },
     onError: (error) => {
       setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido crear la solicitud." : "I could not create the request."));
+    },
+  });
+
+  const discoverAppointmentOptionsMutation = useMutation({
+    mutationFn: discoverAppointmentOptions,
+    onMutate: () => {
+      setAppointmentError(null);
+      setAppointmentNotice(null);
+    },
+    onSuccess: (result) => {
+      setAppointmentRequest(result.request);
+      setAppointmentOptions(result.options);
+      setAppointmentDiscovery(result.discovery ?? null);
+      setSelectedAppointmentOptionId((current) => {
+        if (current && result.options.some((option) => option.id === current)) return current;
+        return result.options[0]?.id ?? null;
+      });
+
+      const inserted = result.discovery?.inserted_count ?? 0;
+      if (inserted > 0) {
+        setAppointmentNotice(isSpanish
+          ? "He encontrado opciones. Elige una antes de contactar."
+          : "I found options. Choose one before contacting.");
+        return;
+      }
+      if (result.discovery?.fallback_reason === "google_places_not_configured") {
+        setAppointmentNotice(isSpanish
+          ? "La busqueda externa aun no esta configurada. Puedo prepararlo por chat."
+          : "External search is not configured yet. I can still prepare this in chat.");
+        return;
+      }
+      setAppointmentNotice(isSpanish
+        ? "No he encontrado una opcion clara. Puedo prepararlo por chat."
+        : "I did not find a clear option. I can still prepare this in chat.");
+    },
+    onError: (error) => {
+      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
     },
   });
 
@@ -1320,17 +1391,23 @@ const ConciergeScreen = () => {
     },
     onSuccess: async (result) => {
       setAppointmentAttemptResult(result);
-      if (result.booking_url) {
-        window.open(result.booking_url, "_blank", "noopener,noreferrer");
-        setAppointmentNotice(isSpanish ? "Pagina abierta. Cuando tengas hora, guardala aqui." : "Booking page opened. When you have a time, save it here.");
+      if (result.scheduled_event) {
+        setAppointmentNotice(isSpanish ? "VYVA ha confirmado y guardado la cita." : "VYVA confirmed and saved the appointment.");
+      } else if (result.pending?.status === "calling") {
+        setAppointmentNotice(isSpanish ? "VYVA esta llamando ahora. Guarda la cita cuando este confirmada." : "VYVA is calling now. Save the appointment once confirmed.");
+      } else if (result.communication?.status === "sent") {
+        setAppointmentNotice(isSpanish ? "VYVA ha enviado el mensaje. Guarda la cita cuando respondan." : "VYVA sent the message. Save the appointment when they reply.");
+      } else if (result.form_task) {
+        setAppointmentNotice(isSpanish ? "VYVA tiene la tarea del formulario. Guarda la cita cuando este confirmada." : "VYVA has the booking form task. Save the appointment once confirmed.");
       } else if (result.pending) {
-        setAppointmentNotice(isSpanish ? "Solicitud preparada en Ahora mismo para confirmar." : "Request prepared under Right now for confirmation.");
+        setAppointmentNotice(isSpanish ? "VYVA tiene esta gestion en Ahora mismo." : "VYVA is handling this under Right now.");
       } else if (result.draft) {
         setAppointmentNotice(isSpanish ? "Borrador preparado. Copialo o usalo antes de guardar la cita." : "Draft prepared. Copy or use it before saving the appointment.");
       } else {
         setAppointmentNotice(isSpanish ? "Siguiente paso preparado. Guarda la cita cuando este confirmada." : "Next step prepared. Save the appointment once it is confirmed.");
       }
       await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] });
     },
     onError: (error) => {
       setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar el contacto." : "I could not prepare the contact step."));
@@ -1347,6 +1424,7 @@ const ConciergeScreen = () => {
       setAppointmentNotice(isSpanish ? "Cita guardada en Scheduled Support." : "Appointment saved in Scheduled Support.");
       setAppointmentRequest(null);
       setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
       setAppointmentAttemptResult(null);
       setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
@@ -1717,9 +1795,15 @@ const ConciergeScreen = () => {
     setAppointmentNote("");
     setAppointmentRequest(null);
     setAppointmentOptions([]);
+    setAppointmentDiscovery(null);
     setAppointmentAttemptResult(null);
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     sendMessage(message, nextHistory);
+  }
+
+  function handleDiscoverAppointmentOptions() {
+    if (!appointmentRequest) return;
+    discoverAppointmentOptionsMutation.mutate({ requestId: appointmentRequest.id });
   }
 
   function handleAppointmentChannel(channel: AppointmentChannel) {
@@ -2163,6 +2247,8 @@ const ConciergeScreen = () => {
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
+  const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
+  const activeActionIsVyvaTask = activeActionExecutionChannel === "booking_url" || activeActionExecutionChannel === "manual";
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
@@ -2691,7 +2777,15 @@ const ConciergeScreen = () => {
                   {activeAction.provider_phone}
                 </a>
               )}
-              {!activeAction.provider_phone && activeActionBookingUrl && (
+              {!activeAction.provider_phone && activeActionBookingUrl && activeActionIsVyvaTask && (
+                <span
+                  className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                >
+                  <Calendar size={13} style={{ color: "#0A7C4E" }} />
+                  {isSpanish ? "Formulario guardado para VYVA" : "Form saved for VYVA"}
+                </span>
+              )}
+              {!activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && (
                 <a
                   href={activeActionBookingUrl}
                   target="_blank"
@@ -2706,17 +2800,24 @@ const ConciergeScreen = () => {
 
             {activeAction.status === "pending" && (
               <div className="mt-5 flex flex-wrap gap-2">
-                <Button
-                  data-testid={`button-concierge-confirm-${activeAction.id}`}
-                  onClick={() => confirmMutation.mutate(activeAction)}
-                  disabled={confirmMutation.isPending || cancelMutation.isPending}
-                  className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
-                >
-                  {!activeAction.provider_phone && activeActionBookingUrl ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
-                  {!activeAction.provider_phone && activeActionBookingUrl
-                    ? (isSpanish ? "Abrir reserva" : "Open booking")
-                    : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
-                </Button>
+                {activeActionIsVyvaTask ? (
+                  <span className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-[#F5F3FF] px-4 font-body text-[13px] font-black text-vyva-purple">
+                    <Sparkles size={15} className="mr-2" />
+                    {isSpanish ? "VYVA lo esta gestionando" : "VYVA is handling it"}
+                  </span>
+                ) : (
+                  <Button
+                    data-testid={`button-concierge-confirm-${activeAction.id}`}
+                    onClick={() => confirmMutation.mutate(activeAction)}
+                    disabled={confirmMutation.isPending || cancelMutation.isPending}
+                    className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
+                  >
+                    {!activeAction.provider_phone && activeActionBookingUrl ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
+                    {!activeAction.provider_phone && activeActionBookingUrl
+                      ? (isSpanish ? "Abrir reserva" : "Open booking")
+                      : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
+                  </Button>
+                )}
                 <Button
                   data-testid={`button-concierge-cancel-${activeAction.id}`}
                   onClick={() => cancelMutation.mutate(activeAction.id)}
@@ -2853,7 +2954,7 @@ const ConciergeScreen = () => {
               />
             </div>
 
-            {(appointmentNotice || appointmentError || createAppointmentMutation.isPending) && (
+            {(appointmentNotice || appointmentError || createAppointmentMutation.isPending || discoverAppointmentOptionsMutation.isPending) && (
               <div
                 className={`mt-3 rounded-[18px] px-4 py-3 font-body text-[13px] font-semibold ${
                   appointmentError ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-white text-[#0F766E]"
@@ -2861,6 +2962,8 @@ const ConciergeScreen = () => {
               >
                 {createAppointmentMutation.isPending
                   ? (isSpanish ? "Preparando solicitud..." : "Preparing request...")
+                  : discoverAppointmentOptionsMutation.isPending
+                    ? (isSpanish ? "Buscando opciones..." : "Looking for options...")
                   : appointmentError || appointmentNotice}
               </div>
             )}
@@ -2868,7 +2971,7 @@ const ConciergeScreen = () => {
             {appointmentRequest && appointmentOptions.length > 0 && (
               <div className="mt-3 rounded-[22px] border border-[#99F6E4] bg-white p-3" data-testid="panel-appointment-provider-options">
                 <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-                  {isSpanish ? "Proveedor guardado" : "Saved provider"}
+                  {isSpanish ? "Opciones" : "Provider options"}
                 </p>
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {appointmentOptions.map((option) => {
@@ -2897,7 +3000,7 @@ const ConciergeScreen = () => {
                 {selectedAppointmentOption && (
                   <div className="mt-3 rounded-[18px] bg-[#F8FFFC] p-3">
                     <p className="font-body text-[16px] font-black text-vyva-text-1">
-                      {isSpanish ? "Intentar primero con " : "Try first with "}{appointmentProviderName}
+                      {isSpanish ? "VYVA intentara con " : "VYVA will try "}{appointmentProviderName}
                     </p>
                     {appointmentSnapshotText(selectedAppointmentOption, "address") && (
                       <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-2">
@@ -2931,12 +3034,39 @@ const ConciergeScreen = () => {
                 </p>
                 <button
                   type="button"
-                  onClick={sendAppointmentToChat}
-                  disabled={chatLoading}
+                  onClick={handleDiscoverAppointmentOptions}
+                  disabled={discoverAppointmentOptionsMutation.isPending}
+                  data-testid="button-appointment-discover-options"
                   className="vyva-tap mt-3 inline-flex min-h-[46px] w-full items-center justify-center rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
                 >
+                  {discoverAppointmentOptionsMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
                   {isSpanish ? "Buscar opciones" : "Look for options"}
                 </button>
+                {appointmentNotice && appointmentOptions.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={sendAppointmentToChat}
+                    disabled={chatLoading}
+                    className="vyva-tap mt-2 inline-flex min-h-[42px] w-full items-center justify-center rounded-full border border-[#FCD34D] bg-white px-4 font-body text-[13px] font-black text-[#92400E] disabled:opacity-60"
+                  >
+                    {isSpanish ? "Prepararlo por chat" : "Prepare in chat"}
+                  </button>
+                )}
+                {appointmentDiscovery?.reservation_systems?.length && appointmentOptions.length === 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2" data-testid="panel-appointment-booking-sites">
+                    {appointmentDiscovery.reservation_systems.slice(0, 3).map((system) => (
+                      <a
+                        key={`${system.name}-${system.url}`}
+                        href={system.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="vyva-tap inline-flex min-h-[38px] items-center justify-center rounded-full border border-[#FCD34D] bg-white px-3 font-body text-[12px] font-black text-[#92400E]"
+                      >
+                        {system.name}
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -2951,7 +3081,7 @@ const ConciergeScreen = () => {
               </div>
             )}
 
-            {appointmentAttemptResult && appointmentRequest && (
+            {appointmentAttemptResult && appointmentRequest && !appointmentAttemptResult.scheduled_event && (
               <div className="mt-3 rounded-[20px] border border-[#BBF7D0] bg-white p-4" data-testid="panel-appointment-mark-booked">
                 <p className="font-body text-[15px] font-black text-vyva-text-1">
                   {isSpanish ? "Cuando este confirmada" : "When it is confirmed"}
@@ -2992,10 +3122,12 @@ const ConciergeScreen = () => {
             {appointmentRequest && appointmentOptions.length > 0 && (
               <button
                 type="button"
-                onClick={sendAppointmentToChat}
-                disabled={chatLoading}
+                onClick={handleDiscoverAppointmentOptions}
+                disabled={discoverAppointmentOptionsMutation.isPending}
+                data-testid="button-appointment-discover-more-options"
                 className="vyva-tap mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[14px] font-black text-[#0F766E] disabled:opacity-60"
               >
+                {discoverAppointmentOptionsMutation.isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
                 {isSpanish ? "Buscar otras opciones" : "Look for other options"}
               </button>
             )}
