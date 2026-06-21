@@ -800,9 +800,9 @@ const fr = {
       playAgain: "Rejouer",
       playAnotherGame: "Jouer a un autre jeu",
     },
-    attentionBoosters: {
-      title: "Concentration et attention",
-      subtitle: "Choisissez un exercice pour travailler concentration, reaction et rythme.",
+      attentionBoosters: {
+        title: "Concentration et attention",
+        subtitle: "Choisissez un exercice pour travailler concentration, reaction et rythme.",
       dualTask: {
         title: "Double Tache",
         description: "Comptez a rebours tout en reagissant aux symboles.",
@@ -811,13 +811,20 @@ const fr = {
       rhythmTap: {
         title: "Séquences",
         description: "Regardez la sequence puis touchez les cases dans le meme ordre.",
-        badge: "Focus",
+          badge: "Focus",
+        },
       },
-    },
-    executiveFunction: {
-      title: "Entrainement cerebral",
-      subtitle: "Travaillez la pensee flexible, la planification et les changements de regles.",
-      categorySort: {
+      senses: {
+        title: "Affiner les sens",
+        subtitle: "Choisissez un exercice pour associer, observer et se rappeler.",
+        association: {
+          badge: "Premier jeu",
+        },
+      },
+      executiveFunction: {
+        title: "Entrainement cerebral",
+        subtitle: "Travaillez la pensee flexible, la planification et les changements de regles.",
+        categorySort: {
         title: "Tri de categories",
         description: "Triez chaque carte lorsque la regle change entre couleur, forme et sens.",
         badge: "Regles",

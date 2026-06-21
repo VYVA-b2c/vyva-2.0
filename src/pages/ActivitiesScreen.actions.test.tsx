@@ -98,6 +98,7 @@ function renderActivities() {
         <Route path="/activity" element={<LocationProbe />} />
         <Route path="/memory-games" element={<LocationProbe />} />
         <Route path="/attention-boosters" element={<LocationProbe />} />
+        <Route path="/senses" element={<LocationProbe />} />
         <Route path="/executive-function" element={<LocationProbe />} />
         <Route path="/language" element={<LocationProbe />} />
         <Route path="/activities/relax-breathe" element={<LocationProbe />} />
@@ -144,6 +145,14 @@ describe("Activities service actions", () => {
     fireEvent.click(screen.getByTestId("button-activities-primary-memory"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
+  });
+
+  it("routes the Sharpen Senses primary card to the senses hub", async () => {
+    renderActivities();
+
+    fireEvent.click(screen.getByTestId("button-activities-primary-senses"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/senses"));
   });
 
   it("routes the Relax & Breathe quick action to the dedicated page", async () => {

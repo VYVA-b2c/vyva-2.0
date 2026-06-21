@@ -886,9 +886,9 @@ const es = {
       playAgain: "Volver a jugar",
       playAnotherGame: "Jugar otro juego",
     },
-    attentionBoosters: {
-      title: "Enfoque y atencion",
-      subtitle: "Elige un ejercicio para concentrarte, reaccionar y mantener el ritmo.",
+      attentionBoosters: {
+        title: "Enfoque y atencion",
+        subtitle: "Elige un ejercicio para concentrarte, reaccionar y mantener el ritmo.",
       dualTask: {
         title: "Doble Tarea",
         description: "Cuenta hacia atras mientras reaccionas a los simbolos.",
@@ -897,13 +897,20 @@ const es = {
       rhythmTap: {
         title: "Secuencias",
         description: "Mira la secuencia y toca las fichas en el mismo orden.",
-        badge: "Atencion",
+          badge: "Atencion",
+        },
       },
-    },
-    executiveFunction: {
-      title: "Entrenamiento mental",
-      subtitle: "Practica pensamiento flexible, planificacion y cambio de reglas.",
-      categorySort: {
+      senses: {
+        title: "Afinar sentidos",
+        subtitle: "Elige un ejercicio para asociar, observar y recordar.",
+        association: {
+          badge: "Primer juego",
+        },
+      },
+      executiveFunction: {
+        title: "Entrenamiento mental",
+        subtitle: "Practica pensamiento flexible, planificacion y cambio de reglas.",
+        categorySort: {
         title: "Clasifica y Ordena",
         description: "Ordena cada tarjeta cuando la regla cambia entre color, forma y significado.",
         badge: "Reglas",

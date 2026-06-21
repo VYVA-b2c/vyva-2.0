@@ -550,7 +550,7 @@ const en = {
       intelligence: "Boost Intelligence",
       intelligenceSub: "Challenge logic, planning, and problem solving.",
       senses: "Sharpen Senses",
-      sensesSub: "Reset with sound, breath, and calm attention.",
+      sensesSub: "Practice association, observation, and recall.",
     },
     chooseActivity: "Choose an activity",
     trivia: "Focus & Attention",
@@ -904,9 +904,9 @@ const en = {
       playAgain: "Play again",
       playAnotherGame: "Play another game",
     },
-    attentionBoosters: {
-      title: "Focus & Attention",
-      subtitle: "Choose an exercise for focus, reaction, and rhythm.",
+      attentionBoosters: {
+        title: "Focus & Attention",
+        subtitle: "Choose an exercise for focus, reaction, and rhythm.",
       dualTask: {
         title: "Dual Task Walk",
         description: "Count backwards while reacting to matching symbols.",
@@ -915,13 +915,20 @@ const en = {
       rhythmTap: {
         title: "Sequences",
         description: "Watch the pattern and tap the tiles in the same order.",
-        badge: "Focus",
+          badge: "Focus",
+        },
       },
-    },
-    executiveFunction: {
-      title: "Brain Training",
-      subtitle: "Practice flexible thinking, planning, and switching rules.",
-      categorySort: {
+      senses: {
+        title: "Sharpen Senses",
+        subtitle: "Choose an exercise for association, observation, and recall.",
+        association: {
+          badge: "First game",
+        },
+      },
+      executiveFunction: {
+        title: "Brain Training",
+        subtitle: "Practice flexible thinking, planning, and switching rules.",
+        categorySort: {
         title: "Category Sort",
         description: "Sort each card as the rule changes from colour to shape and meaning.",
         badge: "Rules",
