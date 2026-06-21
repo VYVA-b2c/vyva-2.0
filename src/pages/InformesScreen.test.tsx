@@ -142,6 +142,14 @@ describe("Informes report detail actions", () => {
     expect(screen.getByTestId("button-latest-report-service-schedule_appointment")).toBeInTheDocument();
   });
 
+  it("uses a wider responsive layout on the reports overview", async () => {
+    renderMain({});
+
+    expect(await screen.findByTestId("reports-overview-shell")).toHaveClass("max-w-[1180px]");
+    expect(screen.getByTestId("reports-latest-grid")).toHaveClass("lg:grid-cols-2", "xl:grid-cols-3");
+    expect(screen.getByTestId("reports-trends-grid")).toHaveClass("lg:grid-cols-2");
+  });
+
   it("opens concierge from the reports overview with saved report context", async () => {
     renderMain({
       country: "ES",

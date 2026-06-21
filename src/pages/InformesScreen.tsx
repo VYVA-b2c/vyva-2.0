@@ -998,7 +998,10 @@ export function InformesMain() {
   }
 
   return (
-    <HealthWizardShell contentClassName="pb-10">
+    <HealthWizardShell
+      testId="reports-overview-shell"
+      contentClassName="max-w-[1180px] px-4 pb-36 sm:px-6 lg:px-8 lg:pb-16"
+    >
       <HealthWizardTopBar
         title={t("informes.subtitle")}
         kicker={t("informes.title")}
@@ -1021,7 +1024,7 @@ export function InformesMain() {
       />
 
       {summaryLoading && (
-        <div className="flex flex-col gap-4">
+        <div className="grid gap-4 lg:grid-cols-3">
           {[0, 1, 2].map((item) => (
             <div key={item} className="h-32 animate-pulse rounded-[24px] bg-white shadow-[0_8px_24px_rgba(63,45,35,0.06)]" />
           ))}
@@ -1066,7 +1069,7 @@ export function InformesMain() {
 
           <SectionLabel>{t("informes.latestReports")}</SectionLabel>
 
-          <div className="flex flex-col gap-3">
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3" data-testid="reports-latest-grid">
             {summary.latestTriage ? (
               <section
                 data-testid="card-symptom-report"
@@ -1089,8 +1092,8 @@ export function InformesMain() {
                 <p className="line-clamp-2 font-body text-[14px] leading-relaxed text-vyva-text-2">
                   {summary.latestTriage.ai_summary || summary.latestTriage.chief_complaint}
                 </p>
-                <div className="mt-4 flex items-center justify-between pr-24">
-                  <div className="flex items-center gap-3">
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
                     {summary.latestTriage.bpm != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.bpm} bpm</span>}
                     {summary.latestTriage.respiratory_rate != null && <span className="font-body text-[12px] font-bold text-vyva-text-2">{summary.latestTriage.respiratory_rate} breaths/min</span>}
                   </div>
@@ -1375,42 +1378,44 @@ export function InformesMain() {
 
           <SectionLabel>{t("informes.trends.title")}</SectionLabel>
 
-          {!hasBpmHistory && !hasRespHistory && (
-            <section className={`${cardShell} p-5 text-center`} data-testid="trends-empty-state">
-              <TrendingUp className="mx-auto" size={28} style={{ color: "#A78BFA" }} />
-              <p className="mt-2 font-body text-[14px] leading-relaxed text-vyva-text-2">{t("informes.trends.empty")}</p>
-            </section>
-          )}
+          <div className="grid gap-4 lg:grid-cols-2" data-testid="reports-trends-grid">
+            {!hasBpmHistory && !hasRespHistory && (
+              <section className={`${cardShell} p-5 text-center lg:col-span-2`} data-testid="trends-empty-state">
+                <TrendingUp className="mx-auto" size={28} style={{ color: "#A78BFA" }} />
+                <p className="mt-2 font-body text-[14px] leading-relaxed text-vyva-text-2">{t("informes.trends.empty")}</p>
+              </section>
+            )}
 
-          {hasBpmHistory && (
-            <section className={`${cardShell} mb-3 p-5`} data-testid="chart-heart-rate">
-              <div className="mb-3 flex items-center gap-2">
-                <Heart size={16} style={{ color: "#BE123C" }} />
-                <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.heartRate")}</p>
-                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: bpmValues.length })}</span>
-              </div>
-              <LineChart values={bpmValues} color="#BE123C" />
-              <div className="mt-2 flex items-center justify-between">
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...bpmValues)} bpm</span>
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...bpmValues)} bpm</span>
-              </div>
-            </section>
-          )}
+            {hasBpmHistory && (
+              <section className={`${cardShell} p-5`} data-testid="chart-heart-rate">
+                <div className="mb-3 flex items-center gap-2">
+                  <Heart size={16} style={{ color: "#BE123C" }} />
+                  <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.heartRate")}</p>
+                  <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: bpmValues.length })}</span>
+                </div>
+                <LineChart values={bpmValues} color="#BE123C" />
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...bpmValues)} bpm</span>
+                  <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...bpmValues)} bpm</span>
+                </div>
+              </section>
+            )}
 
-          {hasRespHistory && (
-            <section className={`${cardShell} p-5`} data-testid="chart-respiratory-rate">
-              <div className="mb-3 flex items-center gap-2">
-                <Wind size={16} style={{ color: "#0369A1" }} />
-                <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.respiratoryRate")}</p>
-                <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: respValues.length })}</span>
-              </div>
-              <LineChart values={respValues} color="#0369A1" />
-              <div className="mt-2 flex items-center justify-between">
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respValues)} breaths/min</span>
-                <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respValues)} breaths/min</span>
-              </div>
-            </section>
-          )}
+            {hasRespHistory && (
+              <section className={`${cardShell} p-5`} data-testid="chart-respiratory-rate">
+                <div className="mb-3 flex items-center gap-2">
+                  <Wind size={16} style={{ color: "#0369A1" }} />
+                  <p className="font-body text-[15px] font-bold text-vyva-text-1">{t("informes.trends.respiratoryRate")}</p>
+                  <span className="ml-auto font-body text-[12px] text-vyva-text-2">{t("informes.trends.readings", { count: respValues.length })}</span>
+                </div>
+                <LineChart values={respValues} color="#0369A1" />
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.min")}: {Math.min(...respValues)} breaths/min</span>
+                  <span className="font-body text-[12px] text-vyva-text-2">{t("informes.trends.max")}: {Math.max(...respValues)} breaths/min</span>
+                </div>
+              </section>
+            )}
+          </div>
 
           <section className="mt-5 rounded-[22px] border border-[#D1FAE5] bg-[#ECFDF5] p-4">
             <div className="flex items-start gap-3">

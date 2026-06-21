@@ -6,9 +6,10 @@ type HealthWizardShellProps = {
   children: ReactNode;
   className?: string;
   contentClassName?: string;
+  testId?: string;
 };
 
-export function HealthWizardShell({ children, className, contentClassName }: HealthWizardShellProps) {
+export function HealthWizardShell({ children, className, contentClassName, testId }: HealthWizardShellProps) {
   return (
     <div
       className={cn(
@@ -16,7 +17,7 @@ export function HealthWizardShell({ children, className, contentClassName }: Hea
         className,
       )}
     >
-      <div className={cn("mx-auto w-full max-w-[560px] px-[18px] pb-36 pt-1", contentClassName)}>
+      <div data-testid={testId} className={cn("mx-auto w-full max-w-[560px] px-[18px] pb-36 pt-1", contentClassName)}>
         {children}
       </div>
     </div>
