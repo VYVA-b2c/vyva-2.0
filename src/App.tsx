@@ -215,7 +215,7 @@ function CuriousMindsPreviewRoute() {
 
   return (
     <CuriousMinds
-      userId=""
+      userId="dev-user"
       onExit={() => navigate("/login")}
     />
   );

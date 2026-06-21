@@ -28,7 +28,7 @@ create table if not exists public.curious_minds_prompts (
 
 create table if not exists public.curious_minds_sessions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id text not null,
   played_at timestamptz default now(),
 
   hook_id uuid references public.curious_minds_hooks(id),
@@ -49,59 +49,13 @@ create table if not exists public.curious_minds_sessions (
 );
 
 create table if not exists public.curious_minds_user_state (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  user_id text primary key,
   total_sessions integer not null default 0,
   last_played_at timestamptz,
   streak_days integer not null default 0,
   last_streak_date date,
   updated_at timestamptz default now()
 );
-
-alter table public.curious_minds_sessions enable row level security;
-alter table public.curious_minds_user_state enable row level security;
-alter table public.curious_minds_hooks enable row level security;
-alter table public.curious_minds_prompts enable row level security;
-
-drop policy if exists curious_minds_sessions_user_all on public.curious_minds_sessions;
-create policy curious_minds_sessions_user_all on public.curious_minds_sessions
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
-drop policy if exists curious_minds_state_user_all on public.curious_minds_user_state;
-create policy curious_minds_state_user_all on public.curious_minds_user_state
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
-
-drop policy if exists curious_minds_hooks_active_read on public.curious_minds_hooks;
-create policy curious_minds_hooks_active_read on public.curious_minds_hooks
-  for select using (auth.role() = 'authenticated' and is_active = true);
-
-drop policy if exists curious_minds_prompts_active_read on public.curious_minds_prompts;
-create policy curious_minds_prompts_active_read on public.curious_minds_prompts
-  for select using (auth.role() = 'authenticated' and is_active = true);
-
-create or replace function public.is_curious_minds_admin()
-returns boolean
-language sql
-stable
-as $$
-  select coalesce(
-    auth.jwt() -> 'app_metadata' ->> 'role' = 'admin'
-    or auth.jwt() -> 'app_metadata' ->> 'vyva_role' = 'admin'
-    or auth.jwt() -> 'user_metadata' ->> 'role' = 'admin',
-    false
-  );
-$$;
-
-drop policy if exists curious_minds_hooks_admin_all on public.curious_minds_hooks;
-create policy curious_minds_hooks_admin_all on public.curious_minds_hooks
-  for all using (public.is_curious_minds_admin())
-  with check (public.is_curious_minds_admin());
-
-drop policy if exists curious_minds_prompts_admin_all on public.curious_minds_prompts;
-create policy curious_minds_prompts_admin_all on public.curious_minds_prompts
-  for all using (public.is_curious_minds_admin())
-  with check (public.is_curious_minds_admin());
 
 create index if not exists curious_minds_sessions_user_played_idx
   on public.curious_minds_sessions (user_id, played_at desc);
