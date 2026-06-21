@@ -118,7 +118,7 @@ export function useServiceGate() {
   const canUseService = useCallback(
     (serviceId: ServiceId, returnTo: string): boolean => {
       if (!readinessQuery.data) {
-        return !readinessQuery.isLoading;
+        return true;
       }
 
       const service = readinessQuery.data?.services?.[serviceId];
