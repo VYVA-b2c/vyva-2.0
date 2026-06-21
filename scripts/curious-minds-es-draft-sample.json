@@ -1,0 +1,166 @@
+{
+  "hooks": [
+    {
+      "fact_prompt": "¿Por qué crees que los girasoles jóvenes se van girando durante el día?",
+      "fact_answer": "Cuando son jóvenes, los girasoles orientan sus flores siguiendo el movimiento del sol de este a oeste.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que un pulpo necesita tres corazones?",
+      "fact_answer": "Dos corazones bombean sangre a las branquias y el tercero la envía al resto del cuerpo.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cuántos olores diferentes crees que puede distinguir la nariz humana?",
+      "fact_answer": "El olfato humano es mucho más preciso de lo que solemos imaginar y reconoce una enorme variedad de aromas.",
+      "category": "body",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que los arcoíris aparecen en dirección opuesta al sol?",
+      "fact_answer": "Para ver un arcoíris, el sol debe estar a tu espalda mientras la lluvia cae delante de ti.",
+      "category": "weather",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que la miel puede conservarse durante tanto tiempo?",
+      "fact_answer": "Gracias a su composición natural, la miel se mantiene en buen estado durante muchísimo tiempo si se almacena correctamente.",
+      "category": "food",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué número crees que no usaban los romanos en su sistema de numeración?",
+      "fact_answer": "El sistema de numeración romano funcionaba sin necesidad del número cero tal como lo conocemos hoy.",
+      "category": "history",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Qué objeto cotidiano dirías que ya existía hace más de 3.000 años?",
+      "fact_answer": "Las primeras versiones de las tijeras aparecieron en la antigüedad y han evolucionado muy poco en su función básica.",
+      "category": "everyday_objects",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cuánto crees que tarda la luz del Sol en llegar hasta la Tierra?",
+      "fact_answer": "Aunque viaja a una velocidad enorme, la luz solar necesita aproximadamente 8 minutos y 20 segundos para alcanzarnos.",
+      "category": "science",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Por qué crees que algunas semillas pueden esperar años antes de germinar?",
+      "fact_answer": "Ciertas semillas permanecen inactivas durante mucho tiempo hasta que encuentran las condiciones adecuadas para crecer.",
+      "category": "nature",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "fact_prompt": "¿Cómo crees que se reconocen los pingüinos entre miles de compañeros?",
+      "fact_answer": "En colonias con miles de individuos, los pingüinos identifican a su pareja o a sus crías mediante sonidos únicos.",
+      "category": "animals",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ],
+  "prompts": [
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántos usos distintos se te ocurren para una silla, además de sentarse?",
+      "topic": "silla",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "¿Cómo crees que cambiarían nuestras rutinas si los días duraran 30 horas en lugar de 24?",
+      "topic": "días de 30 horas",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común un paraguas y una biblioteca?",
+      "topic": "paraguas y biblioteca",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Cuántas maneras distintas se te ocurren para aprovechar una caja de cartón vacía?",
+      "topic": "caja de cartón",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras añadir una nueva estación del año, ¿cómo sería y qué tendría de especial?",
+      "topic": "nueva estación del año",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué tienen en común una receta de cocina y un viaje?",
+      "topic": "receta de cocina y viaje",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "alternate_uses",
+      "prompt_text": "¿Qué usos originales podría tener una linterna durante el día?",
+      "topic": "linterna",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si los animales pudieran asistir a clases, ¿qué asignaturas crees que les interesarían más?",
+      "topic": "animales en clase",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "connections",
+      "prompt_text": "¿Qué conexión inesperada podrías encontrar entre un reloj y un jardín?",
+      "topic": "reloj y jardín",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    },
+    {
+      "prompt_type": "what_if",
+      "prompt_text": "Si pudieras diseñar una plaza perfecta para reunir a vecinos y amigos, ¿qué incluirías?",
+      "topic": "plaza vecinal",
+      "language": "es",
+      "source": "ai_generated",
+      "is_active": false
+    }
+  ]
+}

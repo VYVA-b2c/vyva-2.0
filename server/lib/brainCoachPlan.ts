@@ -122,6 +122,14 @@ const ACTIVITY_CATALOG: ActivityCandidate[] = [
     estimatedDurationMinutes: 5,
   },
   {
+    activityType: "curious_minds",
+    title: "Curious Minds",
+    domain: "divergent_thinking",
+    secondaryDomain: "attention",
+    route: "/memory-games/curious-minds",
+    estimatedDurationMinutes: 5,
+  },
+  {
     activityType: "story_recall",
     title: "Story Recall",
     domain: "language",

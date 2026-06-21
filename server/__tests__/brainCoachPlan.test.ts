@@ -43,6 +43,17 @@ describe("Brain Coach daily plan", () => {
     ]));
   });
 
+  it("includes Curious Minds in the activity catalog", () => {
+    expect(getBrainCoachActivityCatalog()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        activityType: "curious_minds",
+        domain: "divergent_thinking",
+        secondaryDomain: "attention",
+        route: "/memory-games/curious-minds",
+      }),
+    ]));
+  });
+
   it("creates a short balanced plan for a new user", () => {
     const plan = buildBrainCoachDailyPlan({
       sessions: [],

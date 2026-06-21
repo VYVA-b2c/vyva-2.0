@@ -45,6 +45,7 @@ import DualTaskWalk from "./games/DualTaskWalk";
 import CategorySort from "./games/CategorySort";
 import NumberTrails from "./games/NumberTrails";
 import RememberLater from "./games/RememberLater";
+import CuriousMinds from "./games/CuriousMinds";
 import ConciergeScreen from "./pages/ConciergeScreen";
 import ConciergeShoppingScreen from "./pages/ConciergeShoppingScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
@@ -108,6 +109,7 @@ const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage")
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
+const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 
 const SECTION_MAP: Record<string, React.ComponentType> = {
   allergies: AllergiesSection,
@@ -190,6 +192,29 @@ function RememberLaterPreviewRoute() {
 
   return (
     <RememberLater
+      userId=""
+      onExit={() => navigate("/login")}
+    />
+  );
+}
+
+function CuriousMindsRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <CuriousMinds
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/memory-games")}
+    />
+  );
+}
+
+function CuriousMindsPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <CuriousMinds
       userId=""
       onExit={() => navigate("/login")}
     />
@@ -406,6 +431,9 @@ const App = () => (
                 {import.meta.env.DEV ? (
                   <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
                 ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/curious-minds" element={<CuriousMindsPreviewRoute />} />
+                ) : null}
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
@@ -415,6 +443,7 @@ const App = () => (
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
                   <Route element={<OnboardingGuard />}>
@@ -468,6 +497,7 @@ const App = () => (
                   <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />
                   <Route path="/memory-games" element={<AppShell><MemoryGamesPage /></AppShell>} />
                   <Route path="/memory-games/remember-later" element={<AppShell><RememberLaterRoute /></AppShell>} />
+                  <Route path="/memory-games/curious-minds" element={<AppShell><CuriousMindsRoute /></AppShell>} />
                   <Route path="/memory-games/:gameType" element={<AppShell><MemoryGameRunner /></AppShell>} />
                   <Route path="/dual-task-walk" element={<DualTaskWalkRoute />} />
                   <Route path="/concierge" element={<AppShell><ServiceGateRoute service="concierge"><ConciergeScreen /></ServiceGateRoute></AppShell>} />
