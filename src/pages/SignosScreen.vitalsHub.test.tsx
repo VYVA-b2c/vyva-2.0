@@ -111,6 +111,7 @@ describe("Vitals Hub", () => {
     expect(screen.queryByText("Weekly rhythm")).not.toBeInTheDocument();
     expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
     expect(screen.queryByTestId("vitals-snapshot-grid")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-manage-health-devices")).not.toBeInTheDocument();
     expect(screen.getByTestId("compact-vitals-help")).toHaveTextContent("Need help with readings?");
     expect(screen.queryByTestId("button-vitals-say-reading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-vitals-snap-reading")).not.toBeInTheDocument();
