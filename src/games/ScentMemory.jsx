@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Flower2, Loader2, RefreshCw } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
+import foodImage from "@/assets/scent-memory/food.jpg";
+import breadImage from "@/assets/scent-memory/fresh-bread.jpg";
+import homeImage from "@/assets/scent-memory/home.jpg";
+import natureImage from "@/assets/scent-memory/nature.jpg";
+import occasionImage from "@/assets/scent-memory/occasion.jpg";
+import placeImage from "@/assets/scent-memory/place.jpg";
+import seasonImage from "@/assets/scent-memory/season.jpg";
 import { apiFetch } from "@/lib/queryClient";
 import DualInput from "./shared/DualInput";
 import { normalizeGameLanguage } from "./shared/language";
@@ -25,6 +32,28 @@ const DEFAULT_STREAK_STATE = {
   last_streak_date: null,
   last_played_at: null,
 };
+
+const SCENT_VISUAL_IMAGES = {
+  bread: breadImage,
+  food: foodImage,
+  nature: natureImage,
+  home: homeImage,
+  season: seasonImage,
+  place: placeImage,
+  occasion: occasionImage,
+};
+
+const SCENT_VISUAL_DEFAULTS = {
+  bread: "Warm from the oven.",
+  food: "A familiar kitchen smell.",
+  nature: "Fresh air, leaves, and flowers.",
+  home: "A smell from home.",
+  season: "A scent from a season.",
+  place: "A place you can almost visit again.",
+  occasion: "A scent from a special day.",
+};
+
+const BREAD_TERMS = ["bread", "sourdough", "loaf", "oven", "bakery", "baked", "pan", "brot", "pain", "pane", "pao"];
 
 const FALLBACK_PROMPTS = {
   es: {
@@ -98,6 +127,29 @@ function fallbackPromptFor(language) {
   return FALLBACK_PROMPTS[normalized] ?? FALLBACK_PROMPTS.es;
 }
 
+function normalizeScentText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function getScentVisualKey(prompt) {
+  const searchable = normalizeScentText(`${prompt?.scent_name ?? ""} ${prompt?.scent_description ?? ""}`);
+  if (BREAD_TERMS.some((term) => searchable.includes(term))) return "bread";
+  return SCENT_VISUAL_IMAGES[prompt?.category] ? prompt.category : "home";
+}
+
+function getScentVisual(prompt, t) {
+  const key = getScentVisualKey(prompt);
+  const scent = prompt?.scent_name ?? t("games.scentMemory.scentFallback", "this scent");
+  return {
+    image: SCENT_VISUAL_IMAGES[key] ?? homeImage,
+    cue: t(`games.scentMemory.visualCues.${key}`, SCENT_VISUAL_DEFAULTS[key] ?? SCENT_VISUAL_DEFAULTS.home),
+    alt: t("games.scentMemory.visualAlt", "{scent} visual cue", { scent }),
+  };
+}
+
 export default function ScentMemory({ userId, onExit }) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
@@ -117,6 +169,7 @@ export default function ScentMemory({ userId, onExit }) {
   const responseTextRef = useLatestRef(responseText);
 
   const fallbackState = useMemo(() => getDefaultScentMemoryUserState(userId || "local"), [userId]);
+  const scentVisual = useMemo(() => getScentVisual(prompt, t), [prompt, t]);
 
   const loadTodaysPrompt = useCallback(async () => {
     if (!userId) {
@@ -308,28 +361,48 @@ export default function ScentMemory({ userId, onExit }) {
 
         {screen === "scent" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="mx-auto flex h-[96px] w-[96px] items-center justify-center rounded-[28px]" style={{ background: BRAND.softGold, color: BRAND.gold }}>
+            <div className="mx-auto flex h-[82px] w-[82px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softGold, color: BRAND.gold }}>
               <Flower2 size={54} strokeWidth={2.4} aria-hidden="true" />
             </div>
-            <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.scentMemory.title", "Scent Memory")}</h1>
-            <p className="mt-3 text-[26px] font-black" style={{ color: BRAND.muted }}>
-              {t("games.scentMemory.intro", "Close your eyes for a moment.")}
+            <h1 className="mt-5 font-display text-[38px] leading-tight">{t("games.scentMemory.title", "Scent Memory")}</h1>
+            <p className="mt-2 text-[24px] font-black" style={{ color: BRAND.muted }}>
+              {t("games.scentMemory.intro", "Look, then remember.")}
             </p>
 
-            <div className="mt-7 rounded-[26px] border px-5 py-6" style={{ background: "#FFFCF8", borderColor: "#F3D9B7" }}>
-              <p className="text-[34px] font-black leading-tight" style={{ color: BRAND.purple }}>
-                {prompt?.scent_name}
-              </p>
-              <p className="mx-auto mt-5 max-w-[660px] text-[27px] font-bold leading-snug" style={{ color: BRAND.ink }}>
-                {prompt?.scent_description}
-              </p>
+            <div className="mt-6 rounded-[26px] border p-4" style={{ background: "#FFFCF8", borderColor: "#F3D9B7" }}>
+              <div className="relative overflow-hidden rounded-[22px] bg-[#F7EFE7]">
+                <img
+                  src={scentVisual.image}
+                  alt={scentVisual.alt}
+                  className="h-[250px] w-full object-cover sm:h-[300px]"
+                />
+                <div className="absolute inset-x-4 bottom-4 flex justify-start">
+                  <span className="inline-flex max-w-full flex-wrap items-baseline gap-x-2 gap-y-1 rounded-full bg-white/95 px-5 py-3 text-left leading-tight shadow-vyva-card">
+                    <span className="text-[24px] font-black sm:text-[28px]" style={{ color: BRAND.purple }}>
+                      {prompt?.scent_name}
+                    </span>
+                    <span aria-hidden="true" className="hidden text-[18px] font-black sm:inline" style={{ color: "#C084FC" }}>
+                      /
+                    </span>
+                    <span className="text-[18px] font-black sm:text-[20px]" style={{ color: "#92400E" }}>
+                      {scentVisual.cue}
+                    </span>
+                  </span>
+                </div>
+              </div>
 
               <div
-                className={`mx-auto mt-6 max-w-[660px] transition-all duration-700 ${questionRevealed ? "opacity-100 translate-y-0" : "pointer-events-none translate-y-2 opacity-0"}`}
+                className={`mx-auto mt-5 max-w-[660px] transition-all duration-700 ${questionRevealed ? "opacity-100 translate-y-0" : "pointer-events-none translate-y-2 opacity-0"}`}
                 aria-live="polite"
               >
-                <p className="text-[28px] font-black leading-tight" style={{ color: BRAND.teal }}>
-                  {prompt?.guiding_question}
+                <p className="sr-only">
+                  {prompt?.scent_description} {prompt?.guiding_question}
+                </p>
+                <p className="text-[30px] font-black leading-tight" style={{ color: BRAND.teal }}>
+                  {t("games.scentMemory.memoryQuestion", "What comes back?")}
+                </p>
+                <p className="mt-2 text-[20px] font-bold" style={{ color: BRAND.muted }}>
+                  {t("games.scentMemory.memoryHint", "A place, a person, or a small habit.")}
                 </p>
                 <div className="mt-5">
                   <DualInput

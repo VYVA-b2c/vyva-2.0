@@ -58,4 +58,19 @@ describe("SensesPage", () => {
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/senses/scent-memory");
   });
+
+  it("opens Breath Garden from the Sharpen Senses hub", () => {
+    render(
+      <MemoryRouter initialEntries={["/senses"]}>
+        <Routes>
+          <Route path="/senses" element={<SensesPage />} />
+          <Route path="/senses/breath-garden" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Breath Garden/i }));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/senses/breath-garden");
+  });
 });

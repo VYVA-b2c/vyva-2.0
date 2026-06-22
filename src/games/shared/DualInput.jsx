@@ -67,7 +67,7 @@ export default function DualInput({
 
   return (
     <form className="w-full" onSubmit={handleSubmit}>
-      <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_72px]">
         <label className="min-w-0">
           <span className="sr-only">{placeholder}</span>
           <textarea
@@ -76,7 +76,7 @@ export default function DualInput({
             disabled={disabled}
             placeholder={placeholder}
             rows={2}
-            className="min-h-[72px] w-full resize-y rounded-[22px] border-2 border-[#E7D8F3] bg-white px-5 py-4 font-body text-[22px] font-semibold leading-snug text-[#2B2233] outline-none placeholder:text-[#9B8AA3] focus:border-[#6B21A8] focus:ring-4 focus:ring-purple-100 disabled:bg-[#F5F0EA]"
+            className="min-h-[96px] w-full resize-y rounded-[22px] border-2 border-[#E7D8F3] bg-white px-5 py-4 font-body text-[22px] font-semibold leading-snug text-[#2B2233] outline-none placeholder:text-[#9B8AA3] focus:border-[#6B21A8] focus:ring-4 focus:ring-purple-100 disabled:bg-[#F5F0EA] sm:min-h-[72px]"
           />
         </label>
 
@@ -86,7 +86,7 @@ export default function DualInput({
           disabled={disabled || !isSupported}
           aria-label={isSupported ? dictateLabel : voiceUnavailableLabel}
           title={isSupported ? dictateLabel : voiceUnavailableLabel}
-          className="flex h-[72px] w-[72px] items-center justify-center rounded-[22px] text-white shadow-vyva-card transition-transform active:scale-[0.98] disabled:opacity-50"
+          className="flex h-[72px] w-[72px] items-center justify-center justify-self-center rounded-[22px] text-white shadow-vyva-card transition-transform active:scale-[0.98] disabled:opacity-50 sm:justify-self-auto"
           style={{ background: isListening ? "#0F766E" : "#F59E0B" }}
         >
           <Mic size={30} strokeWidth={2.5} aria-hidden="true" />
