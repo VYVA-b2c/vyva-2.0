@@ -55,6 +55,11 @@ export type DailyCheckinTodayStatus = {
     overall_state: string | null;
     highlight: string | null;
   } | null;
+  trend: {
+    streak_days: number;
+    best_streak: number;
+    total_checkins: number;
+  };
   no_response: {
     overdue: boolean;
     minutes_overdue: number | null;
@@ -251,6 +256,36 @@ async function latestCheckinForDay(userId: string, dayStart: Date, dayEnd: Date)
     overall_state: string | null;
     highlight: string | null;
   } | undefined;
+}
+
+async function checkinTrendForUser(userId: string): Promise<DailyCheckinTodayStatus["trend"]> {
+  try {
+    const result = await pool.query(
+      `select streak_days, best_streak, total_checkins
+       from checkin_trend_state
+       where user_id = $1
+       limit 1`,
+      [userId],
+    );
+    const row = result.rows[0] as {
+      streak_days?: number | string | null;
+      best_streak?: number | string | null;
+      total_checkins?: number | string | null;
+    } | undefined;
+
+    return {
+      streak_days: Number(row?.streak_days ?? 0) || 0,
+      best_streak: Number(row?.best_streak ?? 0) || 0,
+      total_checkins: Number(row?.total_checkins ?? 0) || 0,
+    };
+  } catch (error) {
+    console.warn("[daily-checkin-monitor] trend could not be loaded:", error);
+    return {
+      streak_days: 0,
+      best_streak: 0,
+      total_checkins: 0,
+    };
+  }
 }
 
 async function recentNoResponseAlert(userId: string, dayStart: Date): Promise<DailyCheckinAlert | null> {
@@ -485,6 +520,7 @@ export async function getDailyCheckinTodayStatus(
     graceMinutes: DAILY_CHECKIN_GRACE_MINUTES,
   });
   const latest = await latestCheckinForDay(userId, provisional.day_start, provisional.day_end).catch(() => undefined);
+  const trend = await checkinTrendForUser(userId);
   const status = evaluateDailyCheckinSchedule({
     now,
     timezone,
@@ -545,6 +581,7 @@ export async function getDailyCheckinTodayStatus(
       overall_state: latest.overall_state,
       highlight: latest.highlight,
     } : null,
+    trend,
     no_response: {
       overdue: status.state === "overdue",
       minutes_overdue: status.minutes_overdue,

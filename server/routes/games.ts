@@ -1667,6 +1667,23 @@ export async function brainCoachProgressHandler(req: Request, res: Response) {
   }
 }
 
+export async function loadBrainCoachProgressForUser(userId: string, options: { limit?: number; days?: number } = {}) {
+  const { db, cognitiveSessionIndex, and, desc, eq, gte } = await loadCognitiveSessionDb();
+  const conditions = [eq(cognitiveSessionIndex.userId, userId)];
+  if (typeof options.days === "number" && options.days > 0) {
+    conditions.push(gte(cognitiveSessionIndex.playedAt, new Date(Date.now() - options.days * 24 * 60 * 60 * 1000)));
+  }
+
+  const rows = await db
+    .select()
+    .from(cognitiveSessionIndex)
+    .where(and(...conditions))
+    .orderBy(desc(cognitiveSessionIndex.playedAt))
+    .limit(options.limit ?? 500);
+
+  return buildBrainCoachProgress(rows);
+}
+
 export async function brainCoachDailyPlanHandler(req: Request, res: Response) {
   try {
     const ctx = await loadCognitiveSessionDb();
