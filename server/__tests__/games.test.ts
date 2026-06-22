@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import gamesRouter, { buildBrainCoachProgress, calculateBrainCoachStreak, latestCaregiverNudge } from "../routes/games.js";
+import gamesRouter, { buildBrainCoachProgress, calculateBrainCoachStreak, latestCaregiverNudge, pickScentMemoryPrompt } from "../routes/games.js";
 import { authMiddleware, requireUser } from "../middleware/auth.js";
 
 function buildApp() {
@@ -78,6 +78,25 @@ describe("brain game API routes", () => {
 
     expect(res.headers["content-type"]).toContain("audio/mpeg");
     expect(Buffer.from(res.body)).toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  it("selects an unused Scent Memory prompt today before falling back to least recently used", () => {
+    const rows = [
+      { id: "bread" },
+      { id: "garden" },
+    ];
+
+    expect(pickScentMemoryPrompt(rows, [{ promptId: "bread" }], [], () => 0)?.id).toBe("garden");
+
+    expect(pickScentMemoryPrompt(
+      rows,
+      [{ promptId: "bread" }, { promptId: "garden" }],
+      [
+        { promptId: "bread", playedAt: "2026-06-20T10:00:00.000Z" },
+        { promptId: "garden", playedAt: "2026-06-19T10:00:00.000Z" },
+      ],
+      () => 0,
+    )?.id).toBe("garden");
   });
 
   it("calculates real Brain Coach streaks from completed session dates", () => {

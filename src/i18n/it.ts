@@ -730,6 +730,21 @@ const it = {
     comprehension_memory: "Comprensione e richiamo",
   },
   games: {
+    scentMemory: {
+      preparing: "Preparazione di un ricordo...",
+      title: "Memoria dei sensi",
+      cardTitle: "Memoria dei sensi",
+      cardDescription: "Richiama un profumo familiare e il ricordo che porta con se.",
+      intro: "Chiudi gli occhi per un momento.",
+      placeholder: "Raccontami cio che ricordi...",
+      thanksForSharing: "Grazie per aver condiviso questo.",
+      gentleReflection: "Un ricordo da tenere vicino.",
+      skipReflection: "Alcuni ricordi arrivano piano. Va bene cosi.",
+      streakLabel: "{n} giorni di ricordi",
+      contentUnavailable: "Non ci sono ancora contenuti revisionati per Memoria dei sensi.",
+      tryAgain: "Riprova",
+      saveWarning: "Il tuo ricordo appare qui, ma il salvataggio potrebbe dover essere riprovato.",
+    },
     numberTrails: {
       preparing: "Preparazione del percorso...",
       practiceNote: "Useremo un percorso di pratica.",
@@ -817,6 +832,9 @@ const it = {
       senses: {
         title: "Affina i sensi",
         subtitle: "Scegli un esercizio per associare, osservare e ricordare.",
+        scentMemory: {
+          badge: "Ricordo quotidiano",
+        },
         association: {
           badge: "Primo gioco",
         },

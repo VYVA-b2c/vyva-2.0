@@ -53,6 +53,7 @@ const MEMORY_ACTIVITY_TYPES = [
   "sequence_memory",
   "word_recall",
   "remember_later",
+  "scent_memory",
   "number_memory",
   "routine_memory",
   "association_memory",
@@ -125,6 +126,18 @@ const curiousMindsSessionSchema = z.object({
   callbackAttempted: z.boolean().optional().default(false),
   callbackResponseText: z.string().trim().max(1000).nullable().optional(),
   callbackInputMethod: curiousMindInputMethodSchema,
+  completed: z.boolean().optional().default(false),
+  abandoned: z.boolean().optional().default(false),
+  durationSeconds: z.number().int().min(0).max(24 * 60 * 60).nullable().optional(),
+  language: z.string().trim().min(2).max(12).optional().default("es"),
+});
+
+const scentMemoryInputMethodSchema = z.enum(["voice", "typed"]).nullable().optional();
+
+const scentMemorySessionSchema = z.object({
+  promptId: z.string().uuid().nullable().optional(),
+  responseText: z.string().trim().max(4000).nullable().optional(),
+  responseInputMethod: scentMemoryInputMethodSchema,
   completed: z.boolean().optional().default(false),
   abandoned: z.boolean().optional().default(false),
   durationSeconds: z.number().int().min(0).max(24 * 60 * 60).nullable().optional(),
@@ -552,6 +565,9 @@ async function loadCognitiveSessionDb() {
       curiousMindsPrompts,
       curiousMindsSessions,
       curiousMindsUserState,
+      scentMemoryPrompts,
+      scentMemorySessions,
+      scentMemoryUserState,
     },
     { and, asc, desc, eq, gte, inArray, lt },
   ] = await Promise.all([
@@ -571,6 +587,9 @@ async function loadCognitiveSessionDb() {
     curiousMindsPrompts,
     curiousMindsSessions,
     curiousMindsUserState,
+    scentMemoryPrompts,
+    scentMemorySessions,
+    scentMemoryUserState,
     and,
     asc,
     desc,
@@ -898,6 +917,273 @@ async function loadCuriousMindsActiveRows(ctx: CognitiveSessionDb, tableName: "h
     .from(table)
     .where(eq(table.isActive, true))
     .limit(500);
+}
+
+function normalizeScentMemoryState(row: unknown, userId: string) {
+  const value = row && typeof row === "object" ? row as Record<string, unknown> : {};
+  return {
+    user_id: userId,
+    total_sessions: toNumber(value.totalSessions, 0),
+    last_played_at: toIsoDate(value.lastPlayedAt),
+    streak_days: toNumber(value.streakDays, 0),
+    last_streak_date: typeof value.lastStreakDate === "string" ? value.lastStreakDate : value.lastStreakDate instanceof Date ? todayDateKey(value.lastStreakDate) : null,
+    updated_at: toIsoDate(value.updatedAt) ?? new Date().toISOString(),
+  };
+}
+
+function nextScentMemoryState(previousState: ReturnType<typeof normalizeScentMemoryState>, now = new Date()) {
+  const today = todayDateKey(now);
+  const yesterday = todayDateKey(addCalendarDays(now, -1));
+  const lastStreakDate = previousState.last_streak_date;
+  const streakDays =
+    lastStreakDate === today
+      ? Math.max(1, Number(previousState.streak_days ?? 1))
+      : lastStreakDate === yesterday
+        ? Number(previousState.streak_days ?? 0) + 1
+        : 1;
+
+  return {
+    user_id: previousState.user_id,
+    total_sessions: Number(previousState.total_sessions ?? 0) + 1,
+    last_played_at: now.toISOString(),
+    streak_days: streakDays,
+    last_streak_date: today,
+    updated_at: now.toISOString(),
+  };
+}
+
+async function getOrCreateScentMemoryState(ctx: CognitiveSessionDb, userId: string) {
+  const { db, scentMemoryUserState, eq } = ctx;
+  const [existing] = await db
+    .select()
+    .from(scentMemoryUserState)
+    .where(eq(scentMemoryUserState.userId, userId))
+    .limit(1);
+
+  if (existing) return normalizeScentMemoryState(existing, userId);
+
+  const [created] = await db
+    .insert(scentMemoryUserState)
+    .values({ userId, updatedAt: new Date() })
+    .onConflictDoNothing()
+    .returning();
+
+  return normalizeScentMemoryState(created, userId);
+}
+
+export function pickScentMemoryPrompt<T extends { id: string }>(
+  rows: T[],
+  todaySessions: unknown[],
+  historySessions: unknown[],
+  random = Math.random,
+) {
+  const usedToday = new Set(
+    todaySessions
+      .map((session) => recordValue(session, "promptId"))
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
+  const unusedToday = rows.filter((row) => !usedToday.has(row.id));
+  if (unusedToday.length > 0) return unusedToday[Math.floor(random() * unusedToday.length)] ?? null;
+
+  const lastPlayed = new Map<string, string>();
+  historySessions.forEach((session) => {
+    const contentId = recordValue(session, "promptId");
+    if (typeof contentId !== "string" || !contentId || lastPlayed.has(contentId)) return;
+    lastPlayed.set(contentId, toIsoDate(recordValue(session, "playedAt")) ?? "");
+  });
+
+  return [...rows].sort((a, b) => {
+    const aPlayed = lastPlayed.get(a.id) ?? "";
+    const bPlayed = lastPlayed.get(b.id) ?? "";
+    return aPlayed.localeCompare(bPlayed);
+  })[0] ?? null;
+}
+
+function serializeScentMemoryPrompt(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    scent_name: row.scentName,
+    scent_description: row.scentDescription,
+    guiding_question: row.guidingQuestion,
+    category: row.category,
+    language: row.language,
+    source: row.source,
+    reviewed_at: toIsoDate(row.reviewedAt),
+    reviewed_by: row.reviewedBy ?? null,
+    rejected: Boolean(row.rejected),
+    is_active: Boolean(row.isActive),
+    created_at: toIsoDate(row.createdAt),
+  };
+}
+
+async function loadScentMemoryActiveRows(ctx: CognitiveSessionDb, requestedLanguage: string) {
+  const { db, scentMemoryPrompts, and, eq } = ctx;
+  const normalizedLanguage = normalizeGameLanguage(requestedLanguage);
+  const languageCandidates = Array.from(new Set([normalizedLanguage, "es", "en"]));
+
+  for (const language of languageCandidates) {
+    const rows = await db
+      .select()
+      .from(scentMemoryPrompts)
+      .where(and(
+        eq(scentMemoryPrompts.isActive, true),
+        eq(scentMemoryPrompts.rejected, false),
+        eq(scentMemoryPrompts.language, language),
+      ))
+      .limit(500);
+    if (rows.length > 0) return rows;
+  }
+
+  return db
+    .select()
+    .from(scentMemoryPrompts)
+    .where(and(
+      eq(scentMemoryPrompts.isActive, true),
+      eq(scentMemoryPrompts.rejected, false),
+    ))
+    .limit(500);
+}
+
+export async function scentMemoryContentHandler(req: Request, res: Response) {
+  const language = typeof req.query.language === "string" ? req.query.language : "es";
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, scentMemorySessions, and, desc, eq, gte, lt } = ctx;
+    const userId = req.user!.id;
+    const { start, end } = localDayBounds();
+
+    const [state, todaySessions, historySessions, prompts] = await Promise.all([
+      getOrCreateScentMemoryState(ctx, userId),
+      db
+        .select()
+        .from(scentMemorySessions)
+        .where(and(
+          eq(scentMemorySessions.userId, userId),
+          gte(scentMemorySessions.playedAt, start),
+          lt(scentMemorySessions.playedAt, end),
+        )),
+      db
+        .select()
+        .from(scentMemorySessions)
+        .where(eq(scentMemorySessions.userId, userId))
+        .orderBy(desc(scentMemorySessions.playedAt))
+        .limit(500),
+      loadScentMemoryActiveRows(ctx, language),
+    ]);
+
+    const selectedPrompt = pickScentMemoryPrompt(prompts as Array<{ id: string }>, todaySessions, historySessions);
+
+    if (!selectedPrompt) {
+      return res.status(404).json({ error: "There is no reviewed Scent Memory content available yet." });
+    }
+
+    return res.json({
+      state,
+      prompt: serializeScentMemoryPrompt(selectedPrompt as Record<string, unknown>),
+    });
+  } catch (error) {
+    console.error("[games] Scent Memory content failed:", error);
+    return res.status(500).json({ error: "Scent Memory content could not be loaded." });
+  }
+}
+
+export async function scentMemorySessionHandler(req: Request, res: Response) {
+  const parsed = scentMemorySessionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Scent Memory session request." });
+  }
+
+  const data = parsed.data;
+  const userId = req.user!.id;
+  const now = new Date();
+  const hasResponse = Boolean(data.responseText?.trim());
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, scentMemorySessions, scentMemoryUserState, cognitiveSessionIndex } = ctx;
+    const [session] = await db
+      .insert(scentMemorySessions)
+      .values({
+        userId,
+        playedAt: now,
+        promptId: data.promptId ?? null,
+        responseText: data.responseText || null,
+        responseInputMethod: data.responseInputMethod ?? null,
+        completed: data.completed,
+        abandoned: data.abandoned,
+        durationSeconds: data.durationSeconds ?? null,
+      })
+      .returning();
+
+    let nextState: ReturnType<typeof normalizeScentMemoryState> | null = null;
+    if (data.completed) {
+      const previousState = await getOrCreateScentMemoryState(ctx, userId);
+      nextState = nextScentMemoryState(previousState, now);
+      const [savedState] = await db
+        .insert(scentMemoryUserState)
+        .values({
+          userId,
+          totalSessions: nextState.total_sessions,
+          lastPlayedAt: now,
+          streakDays: nextState.streak_days,
+          lastStreakDate: nextState.last_streak_date,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: scentMemoryUserState.userId,
+          set: {
+            totalSessions: nextState.total_sessions,
+            lastPlayedAt: now,
+            streakDays: nextState.streak_days,
+            lastStreakDate: nextState.last_streak_date,
+            updatedAt: now,
+          },
+        })
+        .returning();
+      nextState = normalizeScentMemoryState(savedState, userId);
+
+      const [indexedSession] = await db
+        .insert(cognitiveSessionIndex)
+        .values({
+          userId,
+          activityType: "scent_memory",
+          domain: "episodic_memory",
+          secondaryDomain: null,
+          difficulty: 1,
+          difficultyScale: "none",
+          completed: true,
+          abandoned: false,
+          score: hasResponse ? 100 : 0,
+          accuracyPct: hasResponse ? 100 : 0,
+          speedPct: null,
+          durationSeconds: data.durationSeconds ?? 0,
+          playedAt: now,
+          language: normalizeGameLanguage(data.language),
+          source: "scent_memory",
+          sourceTable: "scent_memory_sessions",
+          sourceSessionId: session?.id ?? null,
+          metadata: {
+            promptId: data.promptId ?? null,
+            responseProvided: hasResponse,
+            responseInputMethod: data.responseInputMethod ?? null,
+          },
+        })
+        .returning();
+
+      await syncSessionToDailyPlan(ctx, userId, indexedSession).catch((error) => {
+        console.warn("[games] Scent Memory daily plan sync failed:", error);
+      });
+    }
+
+    return res.status(201).json({
+      session,
+      state: nextState ?? await getOrCreateScentMemoryState(ctx, userId),
+    });
+  } catch (error) {
+    console.error("[games] Scent Memory session save failed:", error);
+    return res.status(500).json({ error: "Scent Memory session could not be saved." });
+  }
 }
 
 export async function curiousMindsContentHandler(req: Request, res: Response) {
@@ -1469,6 +1755,8 @@ export async function brainCoachCaregiverSummaryHandler(req: Request, res: Respo
 const router = Router();
 router.get("/curious-minds/content", curiousMindsContentHandler);
 router.post("/curious-minds/sessions", curiousMindsSessionHandler);
+router.get("/scent-memory/content", scentMemoryContentHandler);
+router.post("/scent-memory/sessions", scentMemorySessionHandler);
 router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);

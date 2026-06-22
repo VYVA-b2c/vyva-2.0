@@ -28,4 +28,19 @@ describe("SensesPage", () => {
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/senses/association");
   });
+
+  it("opens Scent Memory from the Sharpen Senses hub", () => {
+    render(
+      <MemoryRouter initialEntries={["/senses"]}>
+        <Routes>
+          <Route path="/senses" element={<SensesPage />} />
+          <Route path="/senses/scent-memory" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Scent Memory/i }));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/senses/scent-memory");
+  });
 });

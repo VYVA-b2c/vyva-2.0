@@ -1,9 +1,17 @@
-import { ChevronRight, Headphones, Link2 } from "lucide-react";
+import { ChevronRight, Flower2, Headphones, Link2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
 
 const sensesGames = [
+  {
+    route: "/senses/scent-memory",
+    titleKey: "games.scentMemory.cardTitle",
+    descriptionKey: "games.scentMemory.cardDescription",
+    badgeKey: "brainGames.senses.scentMemory.badge",
+    Icon: Flower2,
+    colors: { accent: "#B45309", bg: "#FFF7ED", border: "#FED7AA" },
+  },
   {
     route: "/senses/association",
     titleKey: "memoryGames.associationMemory.title",

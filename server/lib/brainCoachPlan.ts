@@ -130,6 +130,13 @@ const ACTIVITY_CATALOG: ActivityCandidate[] = [
     estimatedDurationMinutes: 5,
   },
   {
+    activityType: "scent_memory",
+    title: "Scent Memory",
+    domain: "episodic_memory",
+    route: "/senses/scent-memory",
+    estimatedDurationMinutes: 4,
+  },
+  {
     activityType: "story_recall",
     title: "Story Recall",
     domain: "language",

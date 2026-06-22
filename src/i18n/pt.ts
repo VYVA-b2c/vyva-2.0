@@ -730,6 +730,21 @@ const pt = {
     comprehension_memory: "Compreensao e recordacao",
   },
   games: {
+    scentMemory: {
+      preparing: "A preparar uma memoria...",
+      title: "Memoria dos sentidos",
+      cardTitle: "Memoria dos sentidos",
+      cardDescription: "Recorde um cheiro familiar e a memoria que ele traz.",
+      intro: "Feche os olhos por um momento.",
+      placeholder: "Conte-me o que recorda...",
+      thanksForSharing: "Obrigado por partilhar isso.",
+      gentleReflection: "Uma memoria para guardar por perto.",
+      skipReflection: "Algumas memorias chegam devagar. Esta tudo bem.",
+      streakLabel: "{n} dias a recordar",
+      contentUnavailable: "Ainda nao ha conteudo revisto para Memoria dos sentidos.",
+      tryAgain: "Tentar novamente",
+      saveWarning: "A sua memoria aparece aqui, mas talvez seja preciso tentar guardar novamente.",
+    },
     numberTrails: {
       preparing: "A preparar o percurso...",
       practiceNote: "Vamos usar um percurso de pratica.",
@@ -817,6 +832,9 @@ const pt = {
       senses: {
         title: "Agucar sentidos",
         subtitle: "Escolha um exercicio para associar, observar e recordar.",
+        scentMemory: {
+          badge: "Memoria diaria",
+        },
         association: {
           badge: "Primeiro jogo",
         },

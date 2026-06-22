@@ -730,6 +730,21 @@ const fr = {
     comprehension_memory: "Comprehension et rappel",
   },
   games: {
+    scentMemory: {
+      preparing: "Preparation d'un souvenir...",
+      title: "Memoire des sens",
+      cardTitle: "Memoire des sens",
+      cardDescription: "Retrouvez une odeur familiere et le souvenir qu'elle apporte.",
+      intro: "Fermez les yeux un instant.",
+      placeholder: "Racontez-moi ce dont vous vous souvenez...",
+      thanksForSharing: "Merci d'avoir partage cela.",
+      gentleReflection: "Un souvenir a garder pres de soi.",
+      skipReflection: "Certains souvenirs arrivent doucement. C'est tres bien.",
+      streakLabel: "{n} jours de souvenir",
+      contentUnavailable: "Aucun contenu verifie pour Memoire des sens n'est encore disponible.",
+      tryAgain: "Reessayer",
+      saveWarning: "Votre souvenir apparait ici, mais l'enregistrement devra peut-etre etre reessaye.",
+    },
     numberTrails: {
       preparing: "Preparation du parcours...",
       practiceNote: "Nous utiliserons un parcours d'entrainement.",
@@ -817,6 +832,9 @@ const fr = {
       senses: {
         title: "Affiner les sens",
         subtitle: "Choisissez un exercice pour associer, observer et se rappeler.",
+        scentMemory: {
+          badge: "Souvenir du jour",
+        },
         association: {
           badge: "Premier jeu",
         },

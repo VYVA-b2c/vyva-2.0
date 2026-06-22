@@ -2,10 +2,10 @@ import { Router, type Request, type Response } from "express";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
-import { curiousMindsHooks, curiousMindsPrompts } from "../../shared/schema.js";
+import { curiousMindsHooks, curiousMindsPrompts, scentMemoryPrompts } from "../../shared/schema.js";
 
 const reviewQuerySchema = z.object({
-  type: z.enum(["hooks", "prompts"]).default("hooks"),
+  type: z.enum(["hooks", "prompts", "scent"]).default("hooks"),
 });
 
 const reviewPatchSchema = z.object({
@@ -48,6 +48,23 @@ function serializePrompt(row: typeof curiousMindsPrompts.$inferSelect) {
   };
 }
 
+function serializeScentPrompt(row: typeof scentMemoryPrompts.$inferSelect) {
+  return {
+    id: row.id,
+    scent_name: row.scentName,
+    scent_description: row.scentDescription,
+    guiding_question: row.guidingQuestion,
+    category: row.category,
+    language: row.language,
+    source: row.source,
+    reviewed_at: row.reviewedAt?.toISOString() ?? null,
+    reviewed_by: row.reviewedBy,
+    rejected: row.rejected,
+    is_active: row.isActive,
+    created_at: row.createdAt?.toISOString() ?? null,
+  };
+}
+
 const router = Router();
 
 router.get("/review", async (req: Request, res: Response) => {
@@ -67,13 +84,23 @@ router.get("/review", async (req: Request, res: Response) => {
       return res.json({ items: rows.map(serializeHook) });
     }
 
+    if (parsed.data.type === "prompts") {
+      const rows = await db
+        .select()
+        .from(curiousMindsPrompts)
+        .where(and(eq(curiousMindsPrompts.isActive, false), isNull(curiousMindsPrompts.reviewedAt)))
+        .orderBy(asc(curiousMindsPrompts.createdAt))
+        .limit(200);
+      return res.json({ items: rows.map(serializePrompt) });
+    }
+
     const rows = await db
       .select()
-      .from(curiousMindsPrompts)
-      .where(and(eq(curiousMindsPrompts.isActive, false), isNull(curiousMindsPrompts.reviewedAt)))
-      .orderBy(asc(curiousMindsPrompts.createdAt))
+      .from(scentMemoryPrompts)
+      .where(and(eq(scentMemoryPrompts.isActive, false), eq(scentMemoryPrompts.rejected, false), isNull(scentMemoryPrompts.reviewedAt)))
+      .orderBy(asc(scentMemoryPrompts.createdAt))
       .limit(200);
-    return res.json({ items: rows.map(serializePrompt) });
+    return res.json({ items: rows.map(serializeScentPrompt) });
   } catch (error) {
     console.error("[admin] Curious Minds review load failed:", error);
     return res.status(500).json({ error: "Curious Minds drafts could not be loaded." });
@@ -82,7 +109,7 @@ router.get("/review", async (req: Request, res: Response) => {
 
 router.patch("/review/:type/:id", async (req: Request, res: Response) => {
   const type = req.params.type;
-  if (type !== "hooks" && type !== "prompts") {
+  if (type !== "hooks" && type !== "prompts" && type !== "scent") {
     return res.status(400).json({ error: "Invalid Curious Minds content type." });
   }
 
@@ -119,27 +146,54 @@ router.patch("/review/:type/:id", async (req: Request, res: Response) => {
       return res.json({ item: serializeHook(row) });
     }
 
+    if (type === "prompts") {
+      const patch = parsed.data.action === "approve"
+        ? {
+            promptText: parsed.data.values.prompt_text,
+            topic: parsed.data.values.topic,
+            isActive: true,
+            reviewedAt: now,
+            reviewedBy: reviewer,
+          }
+        : {
+            isActive: false,
+            reviewedAt: now,
+            reviewedBy: `rejected:${reviewer}`,
+          };
+
+      const [row] = await db
+        .update(curiousMindsPrompts)
+        .set(patch)
+        .where(eq(curiousMindsPrompts.id, req.params.id))
+        .returning();
+      if (!row) return res.status(404).json({ error: "Curious Minds prompt was not found." });
+      return res.json({ item: serializePrompt(row) });
+    }
+
     const patch = parsed.data.action === "approve"
       ? {
-          promptText: parsed.data.values.prompt_text,
-          topic: parsed.data.values.topic,
+          scentName: parsed.data.values.scent_name,
+          scentDescription: parsed.data.values.scent_description,
+          guidingQuestion: parsed.data.values.guiding_question,
           isActive: true,
+          rejected: false,
           reviewedAt: now,
           reviewedBy: reviewer,
         }
       : {
           isActive: false,
+          rejected: true,
           reviewedAt: now,
           reviewedBy: `rejected:${reviewer}`,
         };
 
     const [row] = await db
-      .update(curiousMindsPrompts)
+      .update(scentMemoryPrompts)
       .set(patch)
-      .where(eq(curiousMindsPrompts.id, req.params.id))
+      .where(eq(scentMemoryPrompts.id, req.params.id))
       .returning();
-    if (!row) return res.status(404).json({ error: "Curious Minds prompt was not found." });
-    return res.json({ item: serializePrompt(row) });
+    if (!row) return res.status(404).json({ error: "Scent Memory prompt was not found." });
+    return res.json({ item: serializeScentPrompt(row) });
   } catch (error) {
     console.error("[admin] Curious Minds review update failed:", error);
     return res.status(500).json({ error: "Curious Minds draft could not be updated." });

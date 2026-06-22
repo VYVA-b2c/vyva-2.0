@@ -47,6 +47,7 @@ import CategorySort from "./games/CategorySort";
 import NumberTrails from "./games/NumberTrails";
 import RememberLater from "./games/RememberLater";
 import CuriousMinds from "./games/CuriousMinds";
+import ScentMemory from "./games/ScentMemory";
 import ConciergeScreen from "./pages/ConciergeScreen";
 import ConciergeShoppingScreen from "./pages/ConciergeShoppingScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
@@ -217,6 +218,29 @@ function CuriousMindsPreviewRoute() {
   return (
     <CuriousMinds
       userId="dev-user"
+      onExit={() => navigate("/login")}
+    />
+  );
+}
+
+function ScentMemoryRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <ScentMemory
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/senses")}
+    />
+  );
+}
+
+function ScentMemoryPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <ScentMemory
+      userId=""
       onExit={() => navigate("/login")}
     />
   );
@@ -435,6 +459,9 @@ const App = () => (
                 {import.meta.env.DEV ? (
                   <Route path="/dev/curious-minds" element={<CuriousMindsPreviewRoute />} />
                 ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
+                ) : null}
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
@@ -492,6 +519,7 @@ const App = () => (
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
                   <Route path="/senses" element={<AppShell><SensesPage /></AppShell>} />
                   <Route path="/senses/association" element={<AppShell><MemoryGameRunner forcedGameType="association_memory" returnPath="/senses" /></AppShell>} />
+                  <Route path="/senses/scent-memory" element={<ScentMemoryRoute />} />
                   <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
                   <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
                   <Route path="/executive-function/number-trails" element={<NumberTrailsRoute />} />

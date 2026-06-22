@@ -1455,6 +1455,51 @@ export const curiousMindsUserState = pgTable("curious_minds_user_state", {
 });
 
 // ============================================================
+// SCENT MEMORY - imagined sensory recall content + sessions
+// ============================================================
+
+export const scentMemoryPrompts = pgTable("scent_memory_prompts", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  scentName:         text("scent_name").notNull(),
+  scentDescription:  text("scent_description").notNull(),
+  guidingQuestion:   text("guiding_question").notNull(),
+  category:          text("category").notNull(),
+  language:          text("language").notNull().default("es"),
+  source:            text("source").notNull().default("ai_generated"),
+  reviewedAt:        timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy:        text("reviewed_by"),
+  rejected:          boolean("rejected").notNull().default(false),
+  isActive:          boolean("is_active").notNull().default(false),
+  createdAt:         timestamp("created_at", { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index("scent_memory_prompts_language_active_idx").on(t.language, t.isActive),
+]);
+
+export const scentMemorySessions = pgTable("scent_memory_sessions", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  userId:              text("user_id").notNull(),
+  playedAt:            timestamp("played_at", { withTimezone: true }).defaultNow(),
+  promptId:            uuid("prompt_id").references(() => scentMemoryPrompts.id),
+  responseText:        text("response_text"),
+  responseInputMethod: text("response_input_method"),
+  completed:           boolean("completed").notNull().default(false),
+  abandoned:           boolean("abandoned").notNull().default(false),
+  durationSeconds:     integer("duration_seconds"),
+}, (t) => [
+  index("scent_memory_sessions_user_played_idx").on(t.userId, t.playedAt.desc()),
+  index("scent_memory_sessions_user_prompt_played_idx").on(t.userId, t.promptId, t.playedAt.desc()),
+]);
+
+export const scentMemoryUserState = pgTable("scent_memory_user_state", {
+  userId:         text("user_id").primaryKey(),
+  totalSessions:  integer("total_sessions").notNull().default(0),
+  lastPlayedAt:   timestamp("last_played_at", { withTimezone: true }),
+  streakDays:     integer("streak_days").notNull().default(0),
+  lastStreakDate: date("last_streak_date"),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ============================================================
 // NEW TABLE: cognitive_session_index - unified Brain Coach history
 // ============================================================
 
