@@ -1799,76 +1799,51 @@ const SignosScreen = () => {
       />
 
       <section className="rounded-[26px] border border-[#E8DED4] bg-white p-4 shadow-[0_12px_30px_rgba(63,45,35,0.055)] sm:p-5 lg:p-6" data-testid="vitals-guided-hub">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.55fr)] lg:items-stretch">
-          <div className="min-w-0">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
-                <Activity size={22} />
-              </span>
-              <div className="min-w-0">
-                <h2 className="font-display text-[29px] italic leading-tight text-vyva-text-1">
-                  {t("statusVitals.hub.primaryTitle", "Add a vital reading")}
-                </h2>
-                <p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">
-                  {latestReadingAt
-                    ? t("statusVitals.hub.latestInline", { defaultValue: "Latest update: {{time}}", time: latestText })
-                    : t("statusVitals.hub.todayMissingBody", "Start with one useful reading. You can add more later.")}
-                </p>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => openAddReadingSheet()}
-              className="mt-5 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#6B21A8] px-5 font-body text-[19px] font-black text-white shadow-[0_12px_28px_rgba(107,33,168,0.22)] active:scale-[0.98]"
-              data-testid="button-open-add-reading-sheet"
-            >
+        <div className="min-w-0">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
               <Activity size={22} />
-              {t("statusVitals.hub.addReadingCta", "Add reading")}
-            </button>
-
-            {primarySuggestedSignals.length > 0 && (
-              <div className="mt-4" data-testid="vitals-today-prompts">
-                <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-vyva-text-2">
-                  {t("statusVitals.hub.todayPrompt", "Useful to add")}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {primarySuggestedSignals.map((signal) => (
-                    <button
-                      key={signal}
-                      type="button"
-                      onClick={() => openAddReadingSheet(signal)}
-                      className="rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-[#6B21A8] active:scale-95"
-                      data-testid={`button-suggested-vital-${signal}`}
-                    >
-                      {publicSignalLabel(signal)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-display text-[29px] italic leading-tight text-vyva-text-1">
+                {t("statusVitals.hub.primaryTitle", "Add a vital reading")}
+              </h2>
+              <p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">
+                {t("statusVitals.hub.todayMissingBody", "Start with one useful reading. You can add more later.")}
+              </p>
+            </div>
           </div>
 
-          <aside className="hidden rounded-[22px] border border-[#EDE5DB] bg-[#FAF9F6] p-4 lg:block">
-            <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-text-2">
-              {t("statusVitals.hub.todayTitle", "Today")}
-            </p>
-            <p className="mt-2 font-body text-[18px] font-black leading-tight text-vyva-text-1">
-              {latestReadingAt ? t("statusVitals.hub.todayLatest", "Latest reading saved") : t("statusVitals.hub.todayMissing", "No readings yet")}
-            </p>
-            <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
-              {latestReadingAt ? latestText : t("statusVitals.hub.todayMissingBody", "Start with one useful reading. You can add more later.")}
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/settings/health-devices")}
-              className="mt-5 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[15px] bg-white font-body text-[13px] font-black text-[#047857] shadow-[inset_0_0_0_1px_#CFEFE4] active:scale-[0.98]"
-              data-testid="button-manage-health-devices"
-            >
-              <Bluetooth size={15} />
-              {t("settings.healthDevices.title", "Health devices")}
-            </button>
-          </aside>
+          <button
+            type="button"
+            onClick={() => openAddReadingSheet()}
+            className="mt-5 flex min-h-[64px] w-full items-center justify-center gap-3 rounded-[22px] bg-[#6B21A8] px-5 font-body text-[19px] font-black text-white shadow-[0_12px_28px_rgba(107,33,168,0.22)] active:scale-[0.98]"
+            data-testid="button-open-add-reading-sheet"
+          >
+            <Activity size={22} />
+            {t("statusVitals.hub.addReadingCta", "Add reading")}
+          </button>
+
+          {primarySuggestedSignals.length > 0 && (
+            <div className="mt-4" data-testid="vitals-today-prompts">
+              <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-vyva-text-2">
+                {t("statusVitals.hub.todayPrompt", "Useful to add")}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {primarySuggestedSignals.map((signal) => (
+                  <button
+                    key={signal}
+                    type="button"
+                    onClick={() => openAddReadingSheet(signal)}
+                    className="rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-[#6B21A8] active:scale-95"
+                    data-testid={`button-suggested-vital-${signal}`}
+                  >
+                    {publicSignalLabel(signal)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
