@@ -1,4 +1,4 @@
-import { ChevronRight, Flower2, Headphones, Link2 } from "lucide-react";
+import { ChevronRight, Flower2, Headphones, Link2, Waves } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
@@ -11,6 +11,14 @@ const sensesGames = [
     badgeKey: "brainGames.senses.scentMemory.badge",
     Icon: Flower2,
     colors: { accent: "#B45309", bg: "#FFF7ED", border: "#FED7AA" },
+  },
+  {
+    route: "/senses/listen-closely",
+    titleKey: "games.listenClosely.title",
+    descriptionKey: "games.listenClosely.cardDescription",
+    badgeKey: "games.listenClosely.cardBadge",
+    Icon: Waves,
+    colors: { accent: "#0F766E", bg: "#CCFBF1", border: "#99F6E4" },
   },
   {
     route: "/senses/association",

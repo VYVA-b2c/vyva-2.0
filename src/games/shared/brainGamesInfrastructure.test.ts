@@ -7,6 +7,7 @@ import dualTaskSource from "../DualTaskWalk.jsx?raw";
 import executiveFunctionSource from "../ExecutiveFunctionPage.tsx?raw";
 import faceNameSource from "../FaceNameMatch.jsx?raw";
 import languageGamesSource from "../LanguageGamesPage.tsx?raw";
+import listenCloselySource from "../ListenClosely.jsx?raw";
 import numberTrailsSource from "../NumberTrails.jsx?raw";
 import rememberLaterSource from "../RememberLater.jsx?raw";
 import scentMemorySource from "../ScentMemory.jsx?raw";
@@ -26,6 +27,12 @@ const requiredKeys = [
   "brainGames.executiveFunction.numberTrails.title",
   "games.numberTrails.title",
   "games.numberTrails.nextTarget",
+  "games.listenClosely.title",
+  "games.listenClosely.cardDescription",
+  "games.listenClosely.instructionFind",
+  "games.listenClosely.instructionCompare",
+  "games.listenClosely.resultGood",
+  "games.listenClosely.sounds.chime",
   "games.rememberLater.title",
   "games.rememberLater.intentionEvent",
   "games.rememberLater.rules.number_even",
@@ -60,7 +67,7 @@ describe("brain game shared infrastructure", () => {
   });
 
   it("keeps current games off local copy dictionaries", () => {
-    [attentionBoostersSource, categorySortSource, dualTaskSource, executiveFunctionSource, faceNameSource, languageGamesSource, numberTrailsSource, rememberLaterSource, scentMemorySource, spatialNavigatorSource, storyRecallSource].forEach((source) => {
+    [attentionBoostersSource, categorySortSource, dualTaskSource, executiveFunctionSource, faceNameSource, languageGamesSource, listenCloselySource, numberTrailsSource, rememberLaterSource, scentMemorySource, spatialNavigatorSource, storyRecallSource].forEach((source) => {
       expect(source).not.toContain("const COPY =");
       expect(source).not.toContain("const TEXT =");
       expect(source).not.toContain("COPY[");
