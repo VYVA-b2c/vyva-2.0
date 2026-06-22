@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Headphones, Loader2, Play, RotateCcw, Volume2, Waves } from "lucide-react";
+import { ArrowLeft, Check, Headphones, Loader2, Play, Volume2, Waves } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { supabase } from "../lib/supabaseClient";
@@ -42,12 +42,6 @@ function localDayBounds(date = new Date()) {
 function soundLabel(t, sound) {
   if (!sound) return "";
   return t(`games.listenClosely.sounds.${sound}`, sound.replaceAll("_", " "));
-}
-
-function modeInstruction(t, mode) {
-  if (mode === "count_compare") return t("games.listenClosely.instructionCompare", "Listen to both sounds. At the end, choose which one happened more.");
-  if (mode === "oddball") return t("games.listenClosely.instructionOddball", "Tap when the special target sound appears among the other sounds.");
-  return t("games.listenClosely.instructionFind", "Tap whenever you hear the target sound.");
 }
 
 function useLatestRef(value) {
@@ -385,6 +379,9 @@ export default function ListenClosely({ userId, onExit }) {
     const context = await getAudioContext();
     if (!context || !normalizedSoundscape) return;
     playListenCloselySound(context, normalizedSoundscape.target_sound_character, context.currentTime + 0.04, { volume: 0.28 });
+    if (normalizedSoundscape.mode === "count_compare" && normalizedSoundscape.second_target_sound_character) {
+      playListenCloselySound(context, normalizedSoundscape.second_target_sound_character, context.currentTime + 0.72, { volume: 0.28 });
+    }
   }, [getAudioContext, normalizedSoundscape]);
 
   const startSession = useCallback(async () => {
@@ -465,6 +462,9 @@ export default function ListenClosely({ userId, onExit }) {
     : normalizedSoundscape?.mode === "oddball"
       ? t("games.listenClosely.modeOddball", "Odd sound")
       : t("games.listenClosely.modeFind", "Find it");
+  const introInstruction = normalizedSoundscape?.mode === "oddball"
+    ? t("games.listenClosely.tapSpecialShort", "Tap only for this sound.")
+    : t("games.listenClosely.tapTargetShort", "Tap when you hear it.");
 
   if (screen === "loading") {
     return (
@@ -502,7 +502,7 @@ export default function ListenClosely({ userId, onExit }) {
             </div>
             <h1 className="mt-5 font-display text-[46px] font-bold leading-[1.05]">{t("games.listenClosely.title", "Listen Closely")}</h1>
             <p className="mt-3 text-[26px] font-semibold leading-[1.3]" style={{ color: BRAND.muted }}>
-              {t("games.listenClosely.subtitle", "A gentle sound game for calm focus.")}
+              {t("games.listenClosely.introShort", "Listen, then choose.")}
             </p>
 
             <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -515,18 +515,42 @@ export default function ListenClosely({ userId, onExit }) {
             </div>
 
             <div className="mt-6 rounded-[8px] border p-5" style={{ borderColor: BRAND.border, background: "#FFFCF7" }}>
-              <p className="text-[20px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
-                {t("games.listenClosely.listenFor", "Listen for")}
-              </p>
-              <p className="mt-2 font-display text-[38px] font-bold leading-tight" style={{ color: BRAND.purple }}>
-                {targetLabel}
-              </p>
-              <p className="mx-auto mt-3 max-w-[560px] text-[24px] font-semibold leading-[1.35]" style={{ color: BRAND.ink }}>
-                {modeInstruction(t, normalizedSoundscape.mode)}
-              </p>
+              {isCompareMode ? (
+                <>
+                  <p className="text-[20px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
+                    {t("games.listenClosely.taskLabel", "Your task")}
+                  </p>
+                  <p className="mt-2 font-display text-[38px] font-bold leading-tight" style={{ color: BRAND.teal }}>
+                    {t("games.listenClosely.whichMore", "Which sound happened more?")}
+                  </p>
+                  <div className="mx-auto mt-4 grid max-w-[560px] gap-3 sm:grid-cols-2">
+                    {[targetLabel, secondTargetLabel].map((label) => (
+                      <div key={label} className="rounded-[8px] border-2 bg-white px-4 py-4 text-[28px] font-black leading-tight shadow-sm" style={{ borderColor: BRAND.border, color: BRAND.purple }}>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[20px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
+                    {t("games.listenClosely.listenFor", "Listen for")}
+                  </p>
+                  <p className="mt-2 font-display text-[38px] font-bold leading-tight" style={{ color: BRAND.purple }}>
+                    {targetLabel}
+                  </p>
+                  <p className="mx-auto mt-3 max-w-[560px] text-[24px] font-semibold leading-[1.25]" style={{ color: BRAND.ink }}>
+                    {introInstruction}
+                  </p>
+                </>
+              )}
             </div>
 
-            {loadNote && <p className="mt-4 text-[22px] font-semibold" style={{ color: BRAND.muted }}>{loadNote}</p>}
+            {loadNote && (
+              <p className="mx-auto mt-4 inline-flex rounded-full px-4 py-2 text-[18px] font-extrabold" style={{ background: BRAND.tealPale, color: BRAND.teal }}>
+                {t("games.listenClosely.practiceLabel", "Practice round")}
+              </p>
+            )}
             {audioWarning && <p className="mt-4 text-[20px] font-semibold" style={{ color: "#92400E" }}>{audioWarning}</p>}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-[0.8fr_1.2fr]">
@@ -538,7 +562,9 @@ export default function ListenClosely({ userId, onExit }) {
                 style={{ borderColor: BRAND.border, color: BRAND.purple }}
               >
                 <Volume2 size={28} />
-                {t("games.listenClosely.sampleTarget", "Hear target")}
+                {isCompareMode
+                  ? t("games.listenClosely.sampleSounds", "Hear sounds")
+                  : t("games.listenClosely.sampleTarget", "Hear target")}
               </button>
               <button
                 type="button"
@@ -658,6 +684,19 @@ export default function ListenClosely({ userId, onExit }) {
   const score = sessionResult?.score ?? 0;
   const accuracy = Math.round(sessionResult?.accuracy_pct ?? 0);
   const progress = Math.max(0, Math.min(100, ((resultState.consecutive_wins ?? 0) / 3) * 100));
+  const completedTier = Number(sessionResult?.difficulty_tier ?? resultState.current_tier ?? 1);
+  const resultTier = Number(resultState.current_tier ?? completedTier);
+  const levelUnlocked = resultTier > completedTier;
+  const nextTier = Math.min(10, resultTier + 1);
+  const winsRemaining = Math.max(0, 3 - Number(resultState.consecutive_wins ?? 0));
+  const progressHint = levelUnlocked
+    ? t("games.listenClosely.levelReady", "Level {level} is ready.", { level: resultTier })
+    : resultIsGood
+      ? t("games.listenClosely.levelProgressHint", "{n} more good rounds to unlock Level {level}.", { n: winsRemaining, level: nextTier })
+      : t("games.listenClosely.levelPracticeHint", "Try another round when you are ready.");
+  const continueLabel = levelUnlocked
+    ? t("games.listenClosely.startLevel", "Start Level {level}", { level: resultTier })
+    : t("games.listenClosely.nextRound", "Next round");
 
   return (
     <main className="min-h-screen px-5 pb-8 pt-5" style={{ background: BRAND.bg, color: BRAND.ink }}>
@@ -697,6 +736,9 @@ export default function ListenClosely({ userId, onExit }) {
             <div className="mt-3">
               <ProgressBar value={progress} />
             </div>
+            <p className="mt-3 text-[20px] font-bold leading-snug" style={{ color: BRAND.muted }}>
+              {progressHint}
+            </p>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -707,8 +749,8 @@ export default function ListenClosely({ userId, onExit }) {
               className="flex min-h-[72px] items-center justify-center gap-3 rounded-full border-2 bg-white px-6 text-[23px] font-extrabold disabled:opacity-60"
               style={{ borderColor: BRAND.border, color: BRAND.purple }}
             >
-              <RotateCcw size={26} />
-              {t("games.listenClosely.playAgain", "Play again")}
+              <Play size={26} fill="currentColor" />
+              {continueLabel}
             </button>
             <button
               type="button"
