@@ -876,6 +876,10 @@
     "doneToday": "Wedi'i wneud heddiw",
     "streakThisWeek": "Eich cyfres yr wythnos hon",
     "dayStreak": "diwrnod yn olynol",
+    "progressSummary": "Cynnydd Brain Coach",
+    "progressStreak": "{{count}} diwrnod yn olynol",
+    "progressStart": "Dechreuwch gyda gweithgaredd byr",
+    "doneTodayShort": "Wedi'i wneud heddiw",
     "dayAbbreviations": [
       "Ll",
       "Ma",

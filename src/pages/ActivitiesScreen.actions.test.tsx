@@ -39,6 +39,9 @@ const labels: Record<string, string> = {
   "brain.headline": "Brain coach",
   "brain.subtitle": "Keep your mind sharp",
   "brain.streakThisWeek": "Streak this week",
+  "brain.progressSummary": "Brain Coach progress",
+  "brain.progressStreak": "2 day streak",
+  "brain.progressStart": "Start with one short activity",
   "activities.primaryTitle": "Choose your focus",
   "activities.libraryTitle": "Choose an activity",
   "activities.primary.memory": "Strengthen Memory",
@@ -116,11 +119,12 @@ describe("Activities service actions", () => {
   it("renders the health-style primary cards and reordered activity library", () => {
     renderActivities();
 
-    const streakCard = screen.getByTestId("brain-coach-weekly-streak");
+    const progressSummary = screen.getByTestId("brain-coach-progress-summary");
     const primarySection = screen.getByTestId("section-activities-primary-actions");
-    expect(streakCard).toHaveTextContent("Streak this week");
-    expect(screen.queryByText("Start with one short activity")).not.toBeInTheDocument();
-    expect(streakCard.compareDocumentPosition(primarySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId("brain-coach-weekly-streak")).not.toBeInTheDocument();
+    expect(progressSummary).toHaveTextContent("Brain Coach progress");
+    expect(progressSummary).toHaveTextContent("2 day streak");
+    expect(progressSummary.compareDocumentPosition(primarySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     expect(screen.getByText("Choose your focus")).toBeInTheDocument();
     expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");

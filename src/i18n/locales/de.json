@@ -1235,6 +1235,10 @@
     "doneToday": "Heute erledigt",
     "streakThisWeek": "Ihre Serie diese Woche",
     "dayStreak": "Tage in Folge",
+    "progressSummary": "Brain Coach Fortschritt",
+    "progressStreak": "{{count}} Tage in Folge",
+    "progressStart": "Mit einer kurzen Aktivitaet starten",
+    "doneTodayShort": "Heute erledigt",
     "dayAbbreviations": [
       "Mo",
       "Di",
