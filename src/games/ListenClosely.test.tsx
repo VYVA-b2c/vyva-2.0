@@ -25,14 +25,17 @@ describe("Listen Closely", () => {
     render(<ListenClosely userId="" onExit={onExit} />);
 
     expect(await screen.findByRole("heading", { name: "Listen Closely" })).toBeInTheDocument();
-    expect(screen.getByText("A gentle sound game for calm focus.")).toBeInTheDocument();
-    expect(screen.getByText("Listen for")).toBeInTheDocument();
+    expect(screen.getByText("Listen, then choose.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Which sound happened more\?|Listen for/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Listen to both sounds. At the end, choose which one happened more.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toHaveClass("min-h-[72px]");
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
 
     expect(
-      await screen.findByText(/Tap when you hear it\.|Just listen\./),
+      await screen.findByText(/Tap when you hear it\.|Just listen\.|Listen to both sounds/),
     ).toBeInTheDocument();
   });
 
