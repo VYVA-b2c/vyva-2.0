@@ -1355,6 +1355,10 @@
     "doneToday": "Done today",
     "streakThisWeek": "Your streak this week",
     "dayStreak": "day streak",
+    "progressSummary": "Brain Coach progress",
+    "progressStreak": "{{count}} day streak",
+    "progressStart": "Start with one short activity",
+    "doneTodayShort": "Today done",
     "dayAbbreviations": [
       "M",
       "T",

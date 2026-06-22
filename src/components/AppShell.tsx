@@ -7,6 +7,7 @@ import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceActionCard from "./VoiceActionCard";
 import VoiceActionSimulator from "./VoiceActionSimulator";
+import MotivationMilestoneProvider from "./MotivationMilestoneProvider";
 import { useProfile } from "@/contexts/ProfileContext";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import {
@@ -316,6 +317,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
   const showVoiceDock = status === "connected" || isConnecting || voiceSessionPhase === "transferring";
+  const suppressMilestonePopup = isFullScreen ||
+    sosOpen ||
+    showVoiceDock ||
+    location.pathname === "/sos" ||
+    location.pathname.startsWith("/health/symptom") ||
+    location.pathname.startsWith("/triage");
   const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
   const { data: onboardingState, isLoading: sosContactLoading } = useQuery<OnboardingStateResponse>({
     queryKey: ["/api/onboarding/state"],
@@ -482,7 +489,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   }, [dismissActiveAction, location.pathname]);
 
   return (
-    <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
+    <MotivationMilestoneProvider disabled={suppressMilestonePopup}>
+      <div className="flex min-h-screen justify-center bg-[radial-gradient(circle_at_top,#fffaf2_0%,#f7f1e9_42%,#f4efe8_100%)]">
       <div
         ref={toastSurfaceRef}
         data-testid="app-shell"
@@ -531,7 +539,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           />
         )}
       </div>
-    </div>
+      </div>
+    </MotivationMilestoneProvider>
   );
 };
 

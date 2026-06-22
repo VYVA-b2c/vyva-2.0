@@ -1235,6 +1235,10 @@
     "doneToday": "Feito hoje",
     "streakThisWeek": "A sua série esta semana",
     "dayStreak": "dias seguidos",
+    "progressSummary": "Progresso Brain Coach",
+    "progressStreak": "{{count}} dias seguidos",
+    "progressStart": "Comece com uma atividade curta",
+    "doneTodayShort": "Feito hoje",
     "dayAbbreviations": [
       "S",
       "T",

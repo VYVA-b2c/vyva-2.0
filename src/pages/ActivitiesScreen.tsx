@@ -76,12 +76,8 @@ const ActivitiesScreen = () => {
     queryKey: ["/api/games/daily-plan"],
     retry: false,
   });
-  const todayIndex = new Date().getDay();
-  const mappedToday = todayIndex === 0 ? 6 : todayIndex - 1;
-  const days = ["M", "T", "W", "T", "F", "S", "S"];
   const streak = brainCoachProgress?.summary?.streakDays ?? 0;
   const completedTodayCount = brainCoachProgress?.today?.completedCount ?? 0;
-  const previousCompletedDays = Math.max(0, streak - (completedTodayCount > 0 ? 1 : 0));
   const caregiverNudge = dailyPlan?.caregiverNudge ?? null;
   const visibleCaregiverNudge = caregiverNudge?.status === "dismissed" ? null : caregiverNudge;
 
@@ -308,42 +304,27 @@ const ActivitiesScreen = () => {
       )}
 
       <section
-        className="mt-[18px] rounded-[26px] border bg-[#FFF9F1] p-4"
-        style={{
-          borderColor: "#EDE2D1",
-          boxShadow: "0 2px 10px rgba(43,31,24,0.05)",
-        }}
-        data-testid="brain-coach-weekly-streak"
+        className="mt-[14px] flex items-center gap-3 rounded-[22px] border border-[#EDE2D1] bg-[#FFFCF8] px-4 py-3"
+        data-testid="brain-coach-progress-summary"
       >
-        <div className="flex flex-col gap-4 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
-          <div>
-            <p className="font-body text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple">{t("brain.streakThisWeek")}</p>
-            <p className="mt-1 font-display text-[30px] leading-none text-vyva-text-1">{streak}</p>
-          </div>
-          <div className="grid w-full grid-cols-7 gap-[5px] min-[430px]:flex min-[430px]:w-auto min-[430px]:gap-[6px]">
-            {days.map((d, i) => {
-              const daysAgo = mappedToday - i;
-              const completed = daysAgo > 0 && daysAgo <= previousCompletedDays;
-              const isToday = i === mappedToday;
-              const completedToday = isToday && completedTodayCount > 0;
-              return (
-                <div
-                  key={i}
-                  className="flex h-8 min-w-0 items-center justify-center rounded-[10px] text-[12px] font-medium min-[430px]:h-[34px] min-[430px]:w-[34px]"
-                  style={
-                    completed || completedToday
-                      ? { background: "#6B21A8", color: "#FFFFFF", boxShadow: "0 8px 18px rgba(107,33,168,0.16)" }
-                      : isToday
-                        ? { background: "#FFFFFF", color: "#6B21A8", border: "2px solid #6B21A8" }
-                        : { background: "#FFFFFF", color: "#B5A89F", border: "1px solid #EFE4D5" }
-                  }
-                >
-                  {d}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
+          <BrainCircuit size={20} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+            {t("brain.progressSummary", "Brain Coach progress")}
+          </span>
+          <span className="mt-0.5 block truncate font-body text-[15px] font-extrabold text-vyva-text-1">
+            {streak > 0
+              ? t("brain.progressStreak", "{{count}} day streak", { count: streak })
+              : t("brain.progressStart", "Start with one short activity")}
+          </span>
+        </span>
+        {completedTodayCount > 0 && (
+          <span className="shrink-0 rounded-full bg-[#D1FAE5] px-3 py-1 font-body text-[12px] font-black text-[#047857]">
+            {t("brain.doneTodayShort", "Today done")}
+          </span>
+        )}
       </section>
 
       <section className="mt-[18px]" data-testid="section-activities-primary-actions">
