@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { translate } from "@/i18n";
 import type { LanguageCode } from "@/i18n/languages";
 import attentionBoostersSource from "../AttentionBoostersPage.tsx?raw";
+import breathGardenSource from "../BreathGarden.jsx?raw";
 import categorySortSource from "../CategorySort.jsx?raw";
 import dualTaskSource from "../DualTaskWalk.jsx?raw";
 import executiveFunctionSource from "../ExecutiveFunctionPage.tsx?raw";
@@ -39,6 +40,10 @@ const requiredKeys = [
   "games.scentMemory.title",
   "games.scentMemory.placeholder",
   "brainGames.senses.scentMemory.badge",
+  "games.breathGarden.title",
+  "games.breathGarden.tapPrompt",
+  "brainGames.senses.breathGarden.badge",
+  "cognitiveDomains.arousal_regulation",
   "brainGames.language.title",
   "brainGames.language.storyRecall.ariaLabel",
   "brainGames.faceName.title",
@@ -67,7 +72,7 @@ describe("brain game shared infrastructure", () => {
   });
 
   it("keeps current games off local copy dictionaries", () => {
-    [attentionBoostersSource, categorySortSource, dualTaskSource, executiveFunctionSource, faceNameSource, languageGamesSource, listenCloselySource, numberTrailsSource, rememberLaterSource, scentMemorySource, spatialNavigatorSource, storyRecallSource].forEach((source) => {
+    [attentionBoostersSource, breathGardenSource, categorySortSource, dualTaskSource, executiveFunctionSource, faceNameSource, languageGamesSource, listenCloselySource, numberTrailsSource, rememberLaterSource, scentMemorySource, spatialNavigatorSource, storyRecallSource].forEach((source) => {
       expect(source).not.toContain("const COPY =");
       expect(source).not.toContain("const TEXT =");
       expect(source).not.toContain("COPY[");

@@ -137,6 +137,13 @@ const ACTIVITY_CATALOG: ActivityCandidate[] = [
     estimatedDurationMinutes: 4,
   },
   {
+    activityType: "breath_garden",
+    title: "Breath Garden",
+    domain: "arousal_regulation",
+    route: "/senses/breath-garden",
+    estimatedDurationMinutes: 4,
+  },
+  {
     activityType: "story_recall",
     title: "Story Recall",
     domain: "language",

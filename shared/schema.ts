@@ -1477,7 +1477,7 @@ export const scentMemoryPrompts = pgTable("scent_memory_prompts", {
 
 export const scentMemorySessions = pgTable("scent_memory_sessions", {
   id:                  uuid("id").primaryKey().defaultRandom(),
-  userId:              text("user_id").notNull(),
+  userId:              uuid("user_id").notNull(),
   playedAt:            timestamp("played_at", { withTimezone: true }).defaultNow(),
   promptId:            uuid("prompt_id").references(() => scentMemoryPrompts.id),
   responseText:        text("response_text"),
@@ -1491,11 +1491,104 @@ export const scentMemorySessions = pgTable("scent_memory_sessions", {
 ]);
 
 export const scentMemoryUserState = pgTable("scent_memory_user_state", {
-  userId:         text("user_id").primaryKey(),
+  userId:         uuid("user_id").primaryKey(),
   totalSessions:  integer("total_sessions").notNull().default(0),
   lastPlayedAt:   timestamp("last_played_at", { withTimezone: true }),
   streakDays:     integer("streak_days").notNull().default(0),
   lastStreakDate: date("last_streak_date"),
+  updatedAt:      timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// ============================================================
+// LISTEN CLOSELY - sound attention sessions
+// ============================================================
+
+export const listenCloselySoundscapes = pgTable("listen_closely_soundscapes", {
+  id:                         uuid("id").primaryKey().defaultRandom(),
+  mode:                       text("mode").notNull(),
+  difficultyTier:             integer("difficulty_tier").notNull(),
+  durationSeconds:            integer("duration_seconds").notNull(),
+  ambientLayer:               jsonb("ambient_layer").notNull().default({}),
+  targetSoundCharacter:       text("target_sound_character").notNull(),
+  targetEventTimes:           jsonb("target_event_times").notNull(),
+  distractorEvents:           jsonb("distractor_events").notNull().default([]),
+  oddballIntroTimeMs:         integer("oddball_intro_time_ms"),
+  secondTargetSoundCharacter: text("second_target_sound_character"),
+  secondTargetEventTimes:     jsonb("second_target_event_times"),
+  responseWindowMs:           integer("response_window_ms").notNull(),
+  isActive:                   boolean("is_active").notNull().default(true),
+  createdAt:                  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("listen_closely_soundscapes_tier_active_idx").on(t.difficultyTier, t.isActive),
+]);
+
+export const listenCloselySessions = pgTable("listen_closely_sessions", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  userId:               uuid("user_id").notNull(),
+  playedAt:             timestamp("played_at", { withTimezone: true }).notNull().defaultNow(),
+  soundscapeId:         uuid("soundscape_id").references(() => listenCloselySoundscapes.id),
+  difficultyTier:       integer("difficulty_tier").notNull(),
+  mode:                 text("mode").notNull(),
+  targetTotal:          integer("target_total").notNull().default(0),
+  hits:                 integer("hits").notNull().default(0),
+  misses:               integer("misses").notNull().default(0),
+  falsePositives:       integer("false_positives").notNull().default(0),
+  avgReactionTimeMs:    integer("avg_reaction_time_ms"),
+  accuracyPct:          numeric("accuracy_pct", { precision: 5, scale: 2 }),
+  userComparisonChoice: text("user_comparison_choice"),
+  comparisonCorrect:    boolean("comparison_correct"),
+  score:                integer("score").notNull().default(0),
+  completed:            boolean("completed").notNull().default(false),
+  abandoned:            boolean("abandoned").notNull().default(false),
+  durationSeconds:      integer("duration_seconds"),
+}, (t) => [
+  index("listen_closely_sessions_user_played_idx").on(t.userId, t.playedAt.desc()),
+  index("listen_closely_sessions_user_soundscape_played_idx").on(t.userId, t.soundscapeId, t.playedAt.desc()),
+]);
+
+export const listenCloselyUserState = pgTable("listen_closely_user_state", {
+  userId:            uuid("user_id").primaryKey(),
+  currentTier:       integer("current_tier").notNull().default(1),
+  sessionsAtTier:    integer("sessions_at_tier").notNull().default(0),
+  consecutiveWins:   integer("consecutive_wins").notNull().default(0),
+  consecutiveLosses: integer("consecutive_losses").notNull().default(0),
+  totalSessions:     integer("total_sessions").notNull().default(0),
+  bestScore:         integer("best_score").notNull().default(0),
+  lastPlayedAt:      timestamp("last_played_at", { withTimezone: true }),
+  streakDays:        integer("streak_days").notNull().default(0),
+  lastStreakDate:    date("last_streak_date"),
+  updatedAt:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ============================================================
+// BREATH GARDEN - arousal regulation sessions
+// ============================================================
+
+export const breathGardenSessions = pgTable("breath_garden_sessions", {
+  id:                       uuid("id").primaryKey().defaultRandom(),
+  userId:                   uuid("user_id").notNull(),
+  playedAt:                 timestamp("played_at", { withTimezone: true }).defaultNow(),
+  breathTaps:               jsonb("breath_taps").notNull().default([]),
+  sessionDurationSeconds:   integer("session_duration_seconds").notNull(),
+  breathCycleCount:         integer("breath_cycle_count").notNull().default(0),
+  avgBreathCycleSeconds:    numeric("avg_breath_cycle_seconds", { precision: 5, scale: 2 }),
+  breathConsistencyIndex:   numeric("breath_consistency_index", { precision: 5, scale: 2 }),
+  finalPaceBreathsPerMin:   numeric("final_pace_breaths_per_min", { precision: 4, scale: 1 }),
+  gardenTheme:              text("garden_theme").notNull().default("garden"),
+  bloomLevelReached:        integer("bloom_level_reached").notNull().default(1),
+  completed:                boolean("completed").notNull().default(false),
+  abandoned:                boolean("abandoned").notNull().default(false),
+}, (t) => [
+  index("breath_garden_sessions_user_played_idx").on(t.userId, t.playedAt.desc()),
+]);
+
+export const breathGardenUserState = pgTable("breath_garden_user_state", {
+  userId:         uuid("user_id").primaryKey(),
+  totalSessions:  integer("total_sessions").notNull().default(0),
+  lastPlayedAt:   timestamp("last_played_at", { withTimezone: true }),
+  streakDays:     integer("streak_days").notNull().default(0),
+  lastStreakDate: date("last_streak_date"),
+  preferredTheme: text("preferred_theme").default("garden"),
   updatedAt:      timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 

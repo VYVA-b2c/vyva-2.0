@@ -144,6 +144,27 @@ const scentMemorySessionSchema = z.object({
   language: z.string().trim().min(2).max(12).optional().default("es"),
 });
 
+const breathGardenThemeSchema = z.enum(["garden", "tide", "stars", "ripples"]);
+
+const breathGardenTapSchema = z.object({
+  timestamp_ms: z.number().int().min(0).max(24 * 60 * 60 * 1000),
+  phase: z.enum(["inhale_peak", "exhale_peak"]),
+});
+
+const breathGardenSessionSchema = z.object({
+  breathTaps: z.array(breathGardenTapSchema).max(1000).optional().default([]),
+  sessionDurationSeconds: z.number().int().min(0).max(24 * 60 * 60),
+  breathCycleCount: z.number().int().min(0).max(1000).optional().default(0),
+  avgBreathCycleSeconds: z.number().min(0).max(3600).nullable().optional(),
+  breathConsistencyIndex: z.number().min(0).max(100).nullable().optional(),
+  finalPaceBreathsPerMin: z.number().min(0).max(200).nullable().optional(),
+  gardenTheme: breathGardenThemeSchema.optional().default("garden"),
+  bloomLevelReached: z.number().int().min(1).max(5).optional().default(1),
+  completed: z.boolean().optional().default(false),
+  abandoned: z.boolean().optional().default(false),
+  language: z.string().trim().min(2).max(12).optional().default("es"),
+});
+
 function isCaregiverNudgeVisibilityEvent(eventType: string): eventType is Extract<BrainCoachPlanEventType, "caregiver_nudge_read" | "caregiver_nudge_dismissed"> {
   return eventType === "caregiver_nudge_read" || eventType === "caregiver_nudge_dismissed";
 }
@@ -568,6 +589,8 @@ async function loadCognitiveSessionDb() {
       scentMemoryPrompts,
       scentMemorySessions,
       scentMemoryUserState,
+      breathGardenSessions,
+      breathGardenUserState,
     },
     { and, asc, desc, eq, gte, inArray, lt },
   ] = await Promise.all([
@@ -590,6 +613,8 @@ async function loadCognitiveSessionDb() {
     scentMemoryPrompts,
     scentMemorySessions,
     scentMemoryUserState,
+    breathGardenSessions,
+    breathGardenUserState,
     and,
     asc,
     desc,
@@ -1186,6 +1211,193 @@ export async function scentMemorySessionHandler(req: Request, res: Response) {
   }
 }
 
+function normalizeBreathGardenState(row: unknown, userId: string) {
+  const value = row && typeof row === "object" ? row as Record<string, unknown> : {};
+  const preferredTheme = stringValue(value.preferredTheme) ?? "garden";
+  return {
+    user_id: userId,
+    total_sessions: toNumber(value.totalSessions, 0),
+    last_played_at: toIsoDate(value.lastPlayedAt),
+    streak_days: toNumber(value.streakDays, 0),
+    last_streak_date: typeof value.lastStreakDate === "string" ? value.lastStreakDate : value.lastStreakDate instanceof Date ? todayDateKey(value.lastStreakDate) : null,
+    preferred_theme: ["garden", "tide", "stars", "ripples"].includes(preferredTheme) ? preferredTheme : "garden",
+    updated_at: toIsoDate(value.updatedAt) ?? new Date().toISOString(),
+  };
+}
+
+function nextBreathGardenState(
+  previousState: ReturnType<typeof normalizeBreathGardenState>,
+  preferredTheme: string,
+  now = new Date(),
+) {
+  const today = todayDateKey(now);
+  const yesterday = todayDateKey(addCalendarDays(now, -1));
+  const lastStreakDate = previousState.last_streak_date;
+  const streakDays =
+    lastStreakDate === today
+      ? Math.max(1, Number(previousState.streak_days ?? 1))
+      : lastStreakDate === yesterday
+        ? Number(previousState.streak_days ?? 0) + 1
+        : 1;
+
+  return {
+    user_id: previousState.user_id,
+    total_sessions: Number(previousState.total_sessions ?? 0) + 1,
+    last_played_at: now.toISOString(),
+    streak_days: streakDays,
+    last_streak_date: today,
+    preferred_theme: preferredTheme,
+    updated_at: now.toISOString(),
+  };
+}
+
+async function getOrCreateBreathGardenState(ctx: CognitiveSessionDb, userId: string) {
+  const { db, breathGardenUserState, eq } = ctx;
+  const [existing] = await db
+    .select()
+    .from(breathGardenUserState)
+    .where(eq(breathGardenUserState.userId, userId))
+    .limit(1);
+
+  if (existing) return normalizeBreathGardenState(existing, userId);
+
+  const [created] = await db
+    .insert(breathGardenUserState)
+    .values({ userId, preferredTheme: "garden", updatedAt: new Date() })
+    .onConflictDoNothing()
+    .returning();
+
+  return normalizeBreathGardenState(created, userId);
+}
+
+export async function breathGardenStateHandler(req: Request, res: Response) {
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const state = await getOrCreateBreathGardenState(ctx, req.user!.id);
+    return res.json({ state });
+  } catch (error) {
+    console.error("[games] Breath Garden state failed:", error);
+    return res.status(500).json({ error: "Breath Garden state could not be loaded." });
+  }
+}
+
+export async function breathGardenSessionHandler(req: Request, res: Response) {
+  const parsed = breathGardenSessionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Breath Garden session request." });
+  }
+
+  const data = parsed.data;
+  const userId = req.user!.id;
+  const now = new Date();
+  const consistency = data.breathConsistencyIndex ?? 0;
+  const avgCycle = data.avgBreathCycleSeconds ?? 0;
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, breathGardenSessions, breathGardenUserState, cognitiveSessionIndex } = ctx;
+    const [session] = await db
+      .insert(breathGardenSessions)
+      .values({
+        userId,
+        playedAt: now,
+        breathTaps: data.breathTaps,
+        sessionDurationSeconds: data.sessionDurationSeconds,
+        breathCycleCount: data.breathCycleCount,
+        avgBreathCycleSeconds: data.avgBreathCycleSeconds ?? null,
+        breathConsistencyIndex: data.breathConsistencyIndex ?? null,
+        finalPaceBreathsPerMin: data.finalPaceBreathsPerMin ?? null,
+        gardenTheme: data.gardenTheme,
+        bloomLevelReached: data.bloomLevelReached,
+        completed: data.completed,
+        abandoned: data.abandoned,
+      })
+      .returning();
+
+    let nextState: ReturnType<typeof normalizeBreathGardenState> | null = null;
+    const previousState = await getOrCreateBreathGardenState(ctx, userId);
+
+    if (data.completed) {
+      nextState = nextBreathGardenState(previousState, data.gardenTheme, now);
+    } else {
+      nextState = {
+        ...previousState,
+        preferred_theme: data.gardenTheme,
+        updated_at: now.toISOString(),
+      };
+    }
+
+    const [savedState] = await db
+      .insert(breathGardenUserState)
+      .values({
+        userId,
+        totalSessions: nextState.total_sessions,
+        lastPlayedAt: data.completed ? now : previousState.last_played_at ? new Date(previousState.last_played_at) : null,
+        streakDays: nextState.streak_days,
+        lastStreakDate: nextState.last_streak_date,
+        preferredTheme: data.gardenTheme,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: breathGardenUserState.userId,
+        set: {
+          totalSessions: nextState.total_sessions,
+          lastPlayedAt: data.completed ? now : previousState.last_played_at ? new Date(previousState.last_played_at) : null,
+          streakDays: nextState.streak_days,
+          lastStreakDate: nextState.last_streak_date,
+          preferredTheme: data.gardenTheme,
+          updatedAt: now,
+        },
+      })
+      .returning();
+    nextState = normalizeBreathGardenState(savedState, userId);
+
+    if (data.completed) {
+      const [indexedSession] = await db
+        .insert(cognitiveSessionIndex)
+        .values({
+          userId,
+          activityType: "breath_garden",
+          domain: "arousal_regulation",
+          secondaryDomain: null,
+          difficulty: 1,
+          difficultyScale: "none",
+          completed: true,
+          abandoned: false,
+          score: Math.round(consistency),
+          accuracyPct: null,
+          speedPct: Math.min(100, Math.round(avgCycle * 10)),
+          durationSeconds: data.sessionDurationSeconds,
+          playedAt: now,
+          language: normalizeGameLanguage(data.language),
+          source: "breath_garden",
+          sourceTable: "breath_garden_sessions",
+          sourceSessionId: session?.id ?? null,
+          metadata: {
+            gardenTheme: data.gardenTheme,
+            breathCycleCount: data.breathCycleCount,
+            avgBreathCycleSeconds: data.avgBreathCycleSeconds ?? null,
+            finalPaceBreathsPerMin: data.finalPaceBreathsPerMin ?? null,
+            bloomLevelReached: data.bloomLevelReached,
+          },
+        })
+        .returning();
+
+      await syncSessionToDailyPlan(ctx, userId, indexedSession).catch((error) => {
+        console.warn("[games] Breath Garden daily plan sync failed:", error);
+      });
+    }
+
+    return res.status(201).json({
+      session,
+      state: nextState,
+    });
+  } catch (error) {
+    console.error("[games] Breath Garden session save failed:", error);
+    return res.status(500).json({ error: "Breath Garden session could not be saved." });
+  }
+}
+
 export async function curiousMindsContentHandler(req: Request, res: Response) {
   const language = typeof req.query.language === "string" ? req.query.language : "es";
 
@@ -1757,6 +1969,8 @@ router.get("/curious-minds/content", curiousMindsContentHandler);
 router.post("/curious-minds/sessions", curiousMindsSessionHandler);
 router.get("/scent-memory/content", scentMemoryContentHandler);
 router.post("/scent-memory/sessions", scentMemorySessionHandler);
+router.get("/breath-garden/state", breathGardenStateHandler);
+router.post("/breath-garden/sessions", breathGardenSessionHandler);
 router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);

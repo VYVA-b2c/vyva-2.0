@@ -1,16 +1,16 @@
-import { ChevronRight, Flower2, Headphones, Link2, Waves } from "lucide-react";
+import { ChevronRight, Flower2, Headphones, Leaf, Link2, Waves } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
 
 const sensesGames = [
   {
-    route: "/senses/scent-memory",
-    titleKey: "games.scentMemory.cardTitle",
-    descriptionKey: "games.scentMemory.cardDescription",
-    badgeKey: "brainGames.senses.scentMemory.badge",
-    Icon: Flower2,
-    colors: { accent: "#B45309", bg: "#FFF7ED", border: "#FED7AA" },
+    route: "/senses/breath-garden",
+    titleKey: "games.breathGarden.cardTitle",
+    descriptionKey: "games.breathGarden.cardDescription",
+    badgeKey: "brainGames.senses.breathGarden.badge",
+    Icon: Leaf,
+    colors: { accent: "#0F766E", bg: "#DDF7F1", border: "#99F6E4" },
   },
   {
     route: "/senses/listen-closely",
@@ -19,6 +19,14 @@ const sensesGames = [
     badgeKey: "games.listenClosely.cardBadge",
     Icon: Waves,
     colors: { accent: "#0F766E", bg: "#CCFBF1", border: "#99F6E4" },
+  },
+  {
+    route: "/senses/scent-memory",
+    titleKey: "games.scentMemory.cardTitle",
+    descriptionKey: "games.scentMemory.cardDescription",
+    badgeKey: "brainGames.senses.scentMemory.badge",
+    Icon: Flower2,
+    colors: { accent: "#B45309", bg: "#FFF7ED", border: "#FED7AA" },
   },
   {
     route: "/senses/association",

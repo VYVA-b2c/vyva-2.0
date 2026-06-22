@@ -68,6 +68,8 @@ describe("ScentMemory component", () => {
     await flushPromises();
 
     expect(screen.getByText("fresh bread")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "fresh bread visual cue" })).toBeInTheDocument();
+    expect(screen.getByText("Warm from the oven.")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Tell me what you remember...")).toBeDisabled();
 
     act(() => {
