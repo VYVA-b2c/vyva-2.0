@@ -101,4 +101,24 @@ describe("VoiceHero status dot", () => {
 
     expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, undefined);
   });
+
+  it("starts the main VYVA agent when Home provides the main slug", () => {
+    render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
+        autoStartListening
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, {
+      agentSlug: "main-vyva",
+      dynamicVariables: { app_entrypoint: "home_open" },
+      autoStartListening: true,
+    });
+  });
 });
