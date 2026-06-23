@@ -505,6 +505,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "shop",
     fallback: "Shop",
+    mobileFallback: "Shop",
     Icon: ShoppingBasket,
     iconColor: "#7C3AED",
     iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
@@ -513,6 +514,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "book",
     fallback: "Book",
+    mobileFallback: "Book",
     Icon: Calendar,
     iconColor: "#149A63",
     iconBg: "linear-gradient(135deg, #DDF8EA 0%, #F1FBF5 100%)",
@@ -521,6 +523,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "order",
     fallback: "Order",
+    mobileFallback: "Order",
     Icon: PackageCheck,
     iconColor: "#2F66D0",
     iconBg: "linear-gradient(135deg, #E6F0FF 0%, #F3F8FF 100%)",
@@ -529,6 +532,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "save",
     fallback: "Save",
+    mobileFallback: "Save",
     Icon: PiggyBank,
     iconColor: "#B45309",
     iconBg: "linear-gradient(135deg, #FFF1D6 0%, #FFF7ED 100%)",
@@ -541,6 +545,8 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
     key: "home-service",
     fallbackTitle: "Find home service",
     fallbackSubtitle: "Plumber, repairs, cleaning",
+    mobileFallbackTitle: "Home help",
+    mobileFallbackSubtitle: "Trusted repair help",
     Icon: Wrench,
     color: "#B45309",
     bg: "#FFF7ED",
@@ -551,6 +557,8 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
     key: "appointment",
     fallbackTitle: "Book appointment",
     fallbackSubtitle: "Prepare a request to confirm",
+    mobileFallbackTitle: "Appointment",
+    mobileFallbackSubtitle: "Prepare request",
     Icon: Calendar,
     color: "#6B21A8",
     bg: "#F5F3FF",
@@ -561,6 +569,8 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
     key: "ride",
     fallbackTitle: "Find transport",
     fallbackSubtitle: "Compare safe ways to get there",
+    mobileFallbackTitle: "Transport",
+    mobileFallbackSubtitle: "Safe options",
     Icon: Car,
     color: "#047857",
     bg: "#ECFDF5",
@@ -1133,6 +1143,21 @@ function appointmentMissionStatusLabel(status: AppointmentMissionState["status"]
   return isSpanish ? labels[status].es : labels[status].en;
 }
 
+function appointmentMissionShortStep(status: AppointmentMissionState["status"], isSpanish: boolean): string {
+  const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
+    collecting_details: { en: "Choose a type.", es: "Elige un tipo." },
+    selecting_provider: { en: "Pick a provider.", es: "Elige proveedor." },
+    awaiting_confirmation: { en: "Review before contact.", es: "Revisa antes de contactar." },
+    contacting_provider: { en: "Live call in progress.", es: "Llamada en curso." },
+    form_in_progress: { en: "Form prepared for approval.", es: "Formulario listo para aprobar." },
+    awaiting_provider_reply: { en: "Waiting for the provider.", es: "Esperando respuesta." },
+    awaiting_user_save: { en: "Save once confirmed.", es: "Guarda al confirmar." },
+    booked: { en: "Confirmed and saved.", es: "Confirmada y guardada." },
+    stopped: { en: "Stopped by you.", es: "Detenida por ti." },
+  };
+  return isSpanish ? labels[status].es : labels[status].en;
+}
+
 function isAppointmentMissionStatus(value: unknown): value is AppointmentMissionState["status"] {
   return typeof value === "string" && [
     "collecting_details",
@@ -1381,6 +1406,7 @@ const ConciergeScreen = () => {
   const billInputRef = useRef<HTMLInputElement>(null);
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
+  const appointmentPanelRef = useRef<HTMLDivElement>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
@@ -1708,11 +1734,11 @@ const ConciergeScreen = () => {
     : (isSpanish ? "Programar una cita" : "Schedule an appointment");
   const appointmentPanelSubtitle = isHomeServiceAppointment
     ? (isSpanish
-      ? "Fontaneria, reparaciones, limpieza y mantenimiento con confirmacion previa."
-      : "Plumber, repairs, cleaning, and maintenance stay confirmation-first.")
+      ? "VYVA busca opciones y pide permiso antes de contactar."
+      : "VYVA finds options and asks before contacting.")
     : (isSpanish
-      ? "VYVA usa tu perfil primero, propone opciones si hace falta, y no reserva nada sin confirmarlo contigo."
-      : "VYVA uses your profile first, suggests options if needed, and never books without confirming with you.");
+      ? "Elige tipo de cita. VYVA prepara el siguiente paso."
+      : "Choose a type. VYVA prepares the next step.");
   const appointmentDetailLabel = isHomeServiceAppointment
     ? (isSpanish ? "Que ha pasado?" : "What happened?")
     : (isSpanish ? "Detalle opcional" : "Optional detail");
@@ -1938,6 +1964,11 @@ const ConciergeScreen = () => {
     setAppointmentOpen(true);
     setOffersOpen(false);
     setAppointmentError(null);
+    window.setTimeout(() => {
+      if (typeof appointmentPanelRef.current?.scrollIntoView === "function") {
+        appointmentPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 80);
   }
 
   function prepareRideRequest() {
@@ -3301,14 +3332,20 @@ const ConciergeScreen = () => {
         )}
       </section>
 
-      <section className="order-[10] mt-[22px]" data-testid="concierge-guided-hub">
-        <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
-          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, iconColor, iconBg, glow }) => (
+      <section className="order-[10] mt-[22px] flex flex-col" data-testid="concierge-guided-hub">
+        <ResponsiveGrid columns="two" gap="sm" className="order-1 min-[340px]:grid-cols-2">
+          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, mobileFallback, Icon, iconColor, iconBg, glow }) => (
             <ActionCard
               key={key}
               data-testid={`button-concierge-card-${key}`}
+              aria-label={t(`concierge.primaryCards.${key}`, fallback)}
               onClick={() => handlePrimaryConciergeCard(key)}
-              title={t(`concierge.primaryCards.${key}`, fallback)}
+              title={
+                <>
+                  <span className="sm:hidden">{t(`concierge.primaryCards.${key}.mobile`, mobileFallback)}</span>
+                  <span className="hidden sm:inline">{t(`concierge.primaryCards.${key}`, fallback)}</span>
+                </>
+              }
               icon={Icon}
               iconBg={iconBg}
               iconColor={iconColor}
@@ -3324,7 +3361,7 @@ const ConciergeScreen = () => {
         </ResponsiveGrid>
 
         <section
-          className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+          className="order-3 mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
           data-testid="concierge-fast-help"
         >
           <div className="mb-4">
@@ -3332,15 +3369,17 @@ const ConciergeScreen = () => {
               {t("concierge.fastHelp.kicker", "Fast help")}
             </p>
             <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-              {t("concierge.fastHelp.title", "What do you need now?")}
+              <span className="sm:hidden">{t("concierge.fastHelp.titleMobile", "Need help now?")}</span>
+              <span className="hidden sm:inline">{t("concierge.fastHelp.title", "What do you need now?")}</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 gap-3">
-            {CONCIERGE_FAST_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, Icon, color, bg, border, shadow }) => (
+            {CONCIERGE_FAST_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, mobileFallbackTitle, mobileFallbackSubtitle, Icon, color, bg, border, shadow }) => (
               <button
                 key={key}
                 type="button"
                 data-testid={`button-concierge-fast-${key}`}
+                aria-label={t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
                 onClick={() => handleFastHelpAction(key)}
                 className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.98]"
                 style={{ borderColor: border, boxShadow: `0 10px 24px ${shadow}` }}
@@ -3350,10 +3389,12 @@ const ConciergeScreen = () => {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    {t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
+                    <span className="sm:hidden">{t(`concierge.fastHelp.actions.${key}.mobileLabel`, mobileFallbackTitle)}</span>
+                    <span className="hidden sm:inline">{t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}</span>
                   </span>
                   <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {t(`concierge.fastHelp.actions.${key}.sub`, fallbackSubtitle)}
+                    <span className="sm:hidden">{t(`concierge.fastHelp.actions.${key}.mobileSub`, mobileFallbackSubtitle)}</span>
+                    <span className="hidden sm:inline">{t(`concierge.fastHelp.actions.${key}.sub`, fallbackSubtitle)}</span>
                   </span>
                 </span>
               </button>
@@ -3363,7 +3404,8 @@ const ConciergeScreen = () => {
 
         {appointmentOpen && (
           <div
-            className={`mt-4 rounded-[26px] border p-4 ${
+            ref={appointmentPanelRef}
+            className={`order-2 mt-4 rounded-[26px] border p-4 ${
               isHomeServiceAppointment
                 ? "border-[#FED7AA] bg-[#FFF7ED]"
                 : "border-[#99F6E4] bg-[#F0FDFA]"
@@ -3433,7 +3475,7 @@ const ConciergeScreen = () => {
                       {appointmentMissionStatusLabel(activeAppointmentMission.status, isSpanish)}
                     </h3>
                     <p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">
-                      {activeAppointmentMission.current_step}
+                      {appointmentMissionShortStep(activeAppointmentMission.status, isSpanish)}
                     </p>
                   </div>
                   <span className="inline-flex min-h-[34px] flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] px-3 font-body text-[12px] font-black text-[#047857]">
@@ -3478,10 +3520,10 @@ const ConciergeScreen = () => {
                   </div>
                 </div>
 
-                <div className="mt-3 rounded-[16px] border border-[#D6F5DF] bg-[#FFFCF8] p-3">
-                  <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                <details className="mt-3 rounded-[16px] border border-[#D6F5DF] bg-[#FFFCF8] p-3">
+                  <summary className="cursor-pointer list-none font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
                     {isSpanish ? "Registro de actividad" : "Activity log"}
-                  </p>
+                  </summary>
                   <ul className="mt-2 space-y-1.5">
                     {activeAppointmentMission.activity_log.slice(-4).map((entry, index) => (
                       <li key={`${entry}-${index}`} className="flex gap-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
@@ -3490,7 +3532,7 @@ const ConciergeScreen = () => {
                       </li>
                     ))}
                   </ul>
-                </div>
+                </details>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <button
