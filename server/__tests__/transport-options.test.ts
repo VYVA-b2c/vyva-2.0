@@ -63,9 +63,34 @@ describe("transport options resolver", () => {
       expect.objectContaining({
         kind: "ride_app",
         providerName: "FREENOW",
-        actions: ["open_url"],
+        actions: ["start_concierge_action"],
       }),
     ]));
+  });
+
+  it("treats saved trusted drivers as transport help", async () => {
+    const result = await resolveTransportOptions("user-1", {
+      destination: { address: "Clinica Centro, Madrid" },
+      requestedTime: "17:00",
+    }, deps({
+      loadSavedProviders: vi.fn(async () => [{
+        id: "provider-driver",
+        name: "Ana trusted driver",
+        phone: "+34 600 333 444",
+        address: "Marbella",
+        maps_url: null,
+        notes: "Family driver for medical appointments",
+        category: "trusted_driver",
+      }]),
+    }));
+
+    expect(result.options[0]).toMatchObject({
+      kind: "caregiver",
+      label: "Ana trusted driver",
+      phone: "+34 600 333 444",
+      actions: ["call_phone", "start_concierge_action"],
+    });
+    expect(result.options[0].description).toContain("trusted driver");
   });
 
   it("falls back to manual Concierge help in an unknown market", async () => {

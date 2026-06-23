@@ -49,7 +49,12 @@ interface ChatMessage {
 type ConciergeRoutePrefill = {
   kind: "ride" | "appointment" | "home_care_quote" | "task";
   message: string;
-  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "scheduled_event";
+  scheduledEventId?: string;
+  appointmentRequestId?: string;
+  destinationName?: string;
+  destinationAddress?: string;
+  scheduledFor?: string;
 };
 
 type ConciergeLocationState = {
@@ -152,6 +157,22 @@ interface TransportOptionsResponse {
   options: TransportOption[];
   fallbackReason?: string;
   disclaimers: string[];
+}
+
+interface RideRequestItem {
+  id: string;
+  status: string;
+}
+
+interface RideRequestResponse extends TransportOptionsResponse {
+  ride_request: RideRequestItem;
+  suggested_pickup_time?: string | null;
+}
+
+interface RideConfirmResponse {
+  ride_request?: RideRequestItem;
+  pending?: { pendingId?: string; status?: string; message?: string };
+  handled_by_vyva?: boolean;
 }
 
 type ConciergeActionListResponse<T> = { items?: T[] };
@@ -688,39 +709,46 @@ async function prepareTransportConciergeAction(params: {
   requestedTime: string;
   mobilityNeeds: string[];
   locale: string;
-}) {
-  const summaryParts = [
-    params.option.providerName || params.option.label,
-    params.destinationAddress.trim() ? `to ${params.destinationAddress.trim()}` : "",
-    params.requestedTime.trim() ? `at ${params.requestedTime.trim()}` : "",
-  ].filter(Boolean);
-
-  const res = await apiFetch("/api/concierge/actions/trigger", {
+  scheduledEventId?: string;
+  appointmentRequestId?: string;
+}): Promise<RideConfirmResponse> {
+  const createRes = await apiFetch("/api/transport/ride-requests", {
     method: "POST",
     body: JSON.stringify({
-      use_case: "book_ride",
-      provider_name: params.option.providerName || params.option.label,
-      provider_phone: params.option.phone ?? null,
-      found_externally: params.option.kind !== "saved_provider",
-      action_summary: `Transport option prepared: ${summaryParts.join(" ") || params.option.label}.`,
-      action_payload: {
-        pickup_address: params.pickupAddress.trim(),
-        destination_address: params.destinationAddress.trim(),
-        requested_time: params.requestedTime.trim() || "now",
-        mobility_needs: params.mobilityNeeds,
-        option_kind: params.option.kind,
-        provider_url: params.option.url,
-      },
+      pickup: params.pickupAddress.trim() ? { address: params.pickupAddress.trim() } : undefined,
+      destination: params.destinationAddress.trim() ? { address: params.destinationAddress.trim() } : undefined,
+      requestedTime: params.requestedTime.trim() || "now",
+      purpose: "medical",
+      mobilityNeeds: params.mobilityNeeds,
       language: params.locale,
-      trigger_source: "user_request",
-      auto_start: false,
+      scheduledEventId: params.scheduledEventId,
+      appointmentRequestId: params.appointmentRequestId,
+      source: params.scheduledEventId ? "scheduled_event" : params.appointmentRequestId ? "appointment" : "concierge",
     }),
   });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "Could not prepare transport request");
+  if (!createRes.ok) {
+    const data = (await createRes.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not prepare ride request");
   }
-  return await res.json() as { pendingId?: string; status?: string; message?: string };
+
+  const created = await createRes.json() as RideRequestResponse;
+  if (!created.ride_request?.id) {
+    throw new Error("Could not prepare ride request");
+  }
+
+  const confirmRes = await apiFetch(`/api/transport/ride-requests/${created.ride_request.id}/confirm`, {
+    method: "POST",
+    body: JSON.stringify({
+      optionId: params.option.id,
+      option: params.option,
+      autoStart: false,
+    }),
+  });
+  if (!confirmRes.ok) {
+    const data = (await confirmRes.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not confirm ride request");
+  }
+  return await confirmRes.json() as RideConfirmResponse;
 }
 
 async function searchOffers(query: string, locale: string, documentContext?: BillDocumentAnalysis): Promise<OffersSearchResponse> {
@@ -1496,6 +1524,8 @@ const ConciergeScreen = () => {
       requestedTime: transportTime,
       mobilityNeeds: transportMobilityNeeds,
       locale,
+      scheduledEventId: routePrefill?.kind === "ride" ? routePrefill.scheduledEventId : undefined,
+      appointmentRequestId: routePrefill?.kind === "ride" ? routePrefill.appointmentRequestId : undefined,
     }),
     onMutate: () => {
       setTransportError(null);
@@ -1525,8 +1555,8 @@ const ConciergeScreen = () => {
     },
     onSuccess: async () => {
       setTransportNotice(isSpanish
-        ? "Solicitud preparada. Confirma antes de que VYVA contacte con nadie."
-        : "Transport request prepared. Confirm before VYVA contacts anyone.");
+        ? "VYVA tiene la solicitud y preparara el siguiente paso."
+        : "VYVA has the ride request and will prepare the next step.");
       await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
     onError: (error) => {
@@ -1591,10 +1621,13 @@ const ConciergeScreen = () => {
     setAppointmentNote((current) => current.trim() ? current : message);
     if (prefill.kind === "ride") {
       setTransportPickup((current) => current.trim() ? current : savedTransportPickupLabel);
+      setTransportDestination((current) => current.trim()
+        ? current
+        : [prefill.destinationName, prefill.destinationAddress].filter(Boolean).join(", "));
       setTransportResult(null);
       setTransportError(null);
       setTransportNotice(null);
-      setTransportTime("now");
+      setTransportTime(prefill.scheduledFor ?? "now");
       setTransportDetailsOpen(false);
     }
 
@@ -2295,21 +2328,21 @@ const ConciergeScreen = () => {
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
         title: routePrefill.kind === "ride"
-          ? (isSpanish ? "Opciones de transporte" : "Transport options")
+          ? (isSpanish ? "Organizar transporte" : "Arrange a ride")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
               : (isSpanish ? "Solicitud preparada" : "Request ready"),
         detail: routePrefill.kind === "ride"
-          ? (isSpanish ? "Compara formas seguras. Confirmas primero." : "Compare safe ways. You confirm first.")
+          ? (isSpanish ? "VYVA usa conductores guardados primero. Tu confirmas antes de contactar." : "VYVA checks saved drivers first. You confirm before anyone is contacted.")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
               : (isSpanish ? "VYVA prepara opciones y te pide confirmar antes de actuar." : "VYVA prepares options and asks you to confirm before acting."),
         primaryLabel: routePrefill.kind === "ride"
-          ? (isSpanish ? "Buscar transporte" : "Find ride options")
+          ? (isSpanish ? "Organizar transporte" : "Arrange ride")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
             : routePrefill.kind === "home_care_quote"
@@ -2554,7 +2587,7 @@ const ConciergeScreen = () => {
                     className="vyva-tap inline-flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(4,120,87,0.22)] disabled:opacity-60"
                   >
                     {transportOptionsMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-                    {isSpanish ? "Comparar viajes seguros" : "Compare safe rides"}
+                    {isSpanish ? "Organizar transporte" : "Arrange ride"}
                   </button>
                   <button
                     type="button"
@@ -2595,7 +2628,6 @@ const ConciergeScreen = () => {
                   </p>
                 ) : null}
                 {transportResult.options.map((option) => {
-                  const href = phoneHref(option.phone);
                   const canPrepare = option.actions.includes("start_concierge_action");
                   return (
                     <article
@@ -2605,7 +2637,7 @@ const ConciergeScreen = () => {
                     >
                       <div className="flex items-start gap-3">
                         <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-                          {option.kind === "ride_app" ? <ExternalLink size={20} /> : <Car size={20} />}
+                          {option.kind === "caregiver" ? <ShieldCheck size={20} /> : <Car size={20} />}
                         </span>
                         <span className="min-w-0 flex-1">
                           <strong className="block font-body text-[17px] font-black leading-tight text-vyva-text-1">
@@ -2617,28 +2649,6 @@ const ConciergeScreen = () => {
                         </span>
                       </div>
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                        {option.url ? (
-                          <a
-                            href={option.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            data-testid={`link-transport-open-${option.id}`}
-                            className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full border border-[#BBF7D0] bg-white px-4 font-body text-[15px] font-black text-[#047857]"
-                          >
-                            <ExternalLink size={16} />
-                            {isSpanish ? "Abrir opcion" : "Open option"}
-                          </a>
-                        ) : null}
-                        {href ? (
-                          <a
-                            href={href}
-                            data-testid={`link-transport-call-${option.id}`}
-                            className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full border border-[#BFDBFE] bg-white px-4 font-body text-[15px] font-black text-[#2563EB]"
-                          >
-                            <PhoneCall size={16} />
-                            {isSpanish ? "Llamar" : "Call"}
-                          </a>
-                        ) : null}
                         {canPrepare ? (
                           <button
                             type="button"
@@ -2648,7 +2658,7 @@ const ConciergeScreen = () => {
                             className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
                           >
                             {prepareTransportMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <CircleCheck size={16} />}
-                            {isSpanish ? "Preparar con VYVA" : "Prepare with VYVA"}
+                            {isSpanish ? "Pedir a VYVA que lo organice" : "Ask VYVA to arrange it"}
                           </button>
                         ) : null}
                       </div>

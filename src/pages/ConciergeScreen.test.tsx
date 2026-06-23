@@ -538,8 +538,8 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(await screen.findByTestId("button-concierge-fast-ride"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
-      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Compare safe ways");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Arrange a ride");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("VYVA checks saved drivers first");
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Nothing is booked");
     });
   });
@@ -564,14 +564,28 @@ describe("ConciergeScreen action hub", () => {
           disclaimers: ["Neutral", "Confirm price", "No ride is booked or requested until you confirm the next step."],
         });
       }
-      if (String(url).includes("/api/concierge/actions/trigger")) {
+      if (String(url).includes("/api/transport/ride-requests/ride-request-1/confirm")) {
         expect(init?.method).toBe("POST");
         const body = JSON.parse(String(init?.body));
-        expect(body.use_case).toBe("book_ride");
-        expect(body.auto_start).toBe(false);
-        expect(body.provider_name).toBe("Radio Taxi");
-        expect(body.provider_phone).toBe("+34 612 345 678");
-        return jsonResponse({ pendingId: "transport-1", status: "pending" });
+        expect(body.autoStart).toBe(false);
+        expect(body.option.providerName).toBe("Radio Taxi");
+        expect(body.option.phone).toBe("+34 612 345 678");
+        return jsonResponse({
+          ride_request: { id: "ride-request-1", status: "vyva_task_ready" },
+          pending: { pendingId: "transport-1", status: "pending" },
+          handled_by_vyva: true,
+        });
+      }
+      if (String(url).includes("/api/transport/ride-requests")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.destination.address).toBe("Heart Clinic Madrid");
+        return jsonResponse({
+          ride_request: { id: "ride-request-1", status: "needs_confirmation" },
+          market: { countryCode: "ES", city: "Madrid" },
+          options: [],
+          disclaimers: [],
+        });
       }
       return jsonResponse({ items: [] });
     });
@@ -585,16 +599,19 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-transport-find-options"));
 
     expect(await screen.findByTestId("card-transport-option-local-taxi-radio-taxi")).toHaveTextContent("Radio Taxi");
-    expect(screen.getByTestId("link-transport-call-local-taxi-radio-taxi")).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.queryByTestId("link-transport-call-local-taxi-radio-taxi")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-transport-prepare-local-taxi-radio-taxi"));
 
     await waitFor(() => {
-      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/transport/ride-requests", expect.objectContaining({
+        method: "POST",
+      }));
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/transport/ride-requests/ride-request-1/confirm", expect.objectContaining({
         method: "POST",
       }));
     });
-    expect(await screen.findByText("Transport request prepared. Confirm before VYVA contacts anyone.")).toBeVisible();
+    expect(await screen.findByText("VYVA has the ride request and will prepare the next step.")).toBeVisible();
   });
 });
 

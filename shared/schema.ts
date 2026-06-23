@@ -2127,6 +2127,32 @@ export const insertAppointmentAttemptSchema = createInsertSchema(appointmentAtte
 export type InsertAppointmentAttempt = z.infer<typeof insertAppointmentAttemptSchema>;
 export type AppointmentAttempt = typeof appointmentAttempts.$inferSelect;
 
+export const rideRequests = pgTable("ride_requests", {
+  id:                     uuid("id").primaryKey().defaultRandom(),
+  user_id:                text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  scheduled_event_id:     uuid("scheduled_event_id").references(() => scheduledEvents.id, { onDelete: "set null" }),
+  appointment_request_id: uuid("appointment_request_id").references(() => appointmentRequests.id, { onDelete: "set null" }),
+  selected_provider_id:   uuid("selected_provider_id").references(() => userProviders.id, { onDelete: "set null" }),
+  linked_pending_id:      uuid("linked_pending_id").references(() => conciergePending.id, { onDelete: "set null" }),
+  status:                 text("status").notNull().default("draft"),
+  pickup:                 jsonb("pickup").notNull().default({}),
+  destination:            jsonb("destination").notNull().default({}),
+  requested_time:         text("requested_time"),
+  pickup_time:            timestamp("pickup_time", { withTimezone: true }),
+  mobility_needs:         text("mobility_needs").array().notNull().default([]),
+  provider_snapshot:      jsonb("provider_snapshot").notNull().default({}),
+  plan_summary:           text("plan_summary"),
+  source:                 text("source").notNull().default("concierge"),
+  metadata:               jsonb("metadata").notNull().default({}),
+  language:               text("language").notNull().default("es"),
+  created_at:             timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:             timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertRideRequestSchema = createInsertSchema(rideRequests).omit({ id: true, created_at: true, updated_at: true });
+export type InsertRideRequest = z.infer<typeof insertRideRequestSchema>;
+export type RideRequest = typeof rideRequests.$inferSelect;
+
 export const conciergeReminders = pgTable("concierge_reminders", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   user_id:             text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
@@ -2465,6 +2491,7 @@ export const schema = {
   appointmentRequests,
   appointmentProviderOptions,
   appointmentAttempts,
+  rideRequests,
   conciergeReminders,
   utilityReviewRuns,
   conciergeRecommendationFeedback,

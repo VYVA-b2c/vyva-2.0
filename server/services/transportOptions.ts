@@ -220,18 +220,28 @@ function rideAppsForMarket(market: TransportMarket, request: TransportOptionsReq
       description: "Use the provider app or website. Availability depends on your exact pickup area.",
       providerName: config.providerName,
       url: appUrl(config, request, pickupLabel, destinationLabel),
-      actions: ["open_url"],
+      actions: ["start_concierge_action"],
     }));
 }
 
 function savedProviderOption(provider: SavedTransportProvider): TransportOption {
+  const providerKind = /driver|caregiver|carer|volunteer|family|friend|conductor|chofer|chauffeur/i.test([
+    provider.category,
+    provider.name,
+    provider.notes,
+  ].filter(Boolean).join(" "))
+    ? "caregiver"
+    : "saved_provider";
+
   return {
     id: `saved-${provider.id}`,
-    kind: "saved_provider",
+    kind: providerKind,
     label: provider.name,
-    description: provider.address
-      ? `Saved transport provider near ${provider.address}.`
-      : "Saved trusted transport provider.",
+    description: providerKind === "caregiver"
+      ? "Saved trusted driver or helper. VYVA can ask them before anything is arranged."
+      : provider.address
+        ? `Saved transport provider near ${provider.address}.`
+        : "Saved trusted transport provider.",
     providerName: provider.name,
     phone: provider.phone ?? undefined,
     url: provider.maps_url ?? undefined,
@@ -287,10 +297,28 @@ async function defaultLoadSavedProviders(userId: string): Promise<SavedTransport
       where user_id = $1
         and is_active is true
         and (
-          lower(category) in ('taxi', 'transport', 'ride', 'taxi_stand')
+          lower(category) in (
+            'taxi',
+            'transport',
+            'ride',
+            'taxi_stand',
+            'driver',
+            'trusted_driver',
+            'family_driver',
+            'caregiver',
+            'carer',
+            'volunteer',
+            'red_cross_transport'
+          )
           or lower(name) like '%taxi%'
+          or lower(name) like '%driver%'
+          or lower(name) like '%transport%'
+          or lower(name) like '%volunteer%'
           or lower(coalesce(notes, '')) like '%taxi%'
           or lower(coalesce(notes, '')) like '%transport%'
+          or lower(coalesce(notes, '')) like '%driver%'
+          or lower(coalesce(notes, '')) like '%volunteer%'
+          or lower(coalesce(notes, '')) like '%red cross%'
         )
       order by is_primary desc, use_count desc, last_used_at desc nulls last, created_at desc nulls last
       limit 3

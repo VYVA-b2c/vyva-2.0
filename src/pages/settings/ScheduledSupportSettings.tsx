@@ -5,6 +5,7 @@ import {
   BellRing,
   Brain,
   CalendarClock,
+  Car,
   CheckCircle2,
   Clock,
   History,
@@ -72,6 +73,7 @@ type ScheduledEvent = {
   created_at?: string;
   updated_at?: string;
   read_only?: boolean;
+  metadata?: Record<string, unknown> | null;
 };
 
 const dayOptions = [
@@ -208,7 +210,22 @@ function SectionTitle({ title, subtitle, count, color = "purple" }: { title: str
   );
 }
 
-function ScheduledEventCard({ event }: { event: ScheduledEvent }) {
+function metadataText(event: ScheduledEvent, key: string): string {
+  const value = event.metadata?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function canArrangeRideForEvent(event: ScheduledEvent): boolean {
+  const text = [event.event_type, event.title, event.description, metadataText(event, "provider_name")]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return Boolean(event.scheduled_for) && /\b(appointment|clinic|doctor|gp|medical|health|pharmacy|hospital|cita|medico|salud)\b/.test(text);
+}
+
+function ScheduledEventCard({ event, onArrangeRide }: { event: ScheduledEvent; onArrangeRide: (event: ScheduledEvent) => void }) {
+  const canArrangeRide = canArrangeRideForEvent(event);
+
   return (
     <article className={cardClassName}>
       <div className="flex items-start gap-4">
@@ -242,6 +259,16 @@ function ScheduledEventCard({ event }: { event: ScheduledEvent }) {
           <strong className="text-right text-vyva-text-1">{event.recurrence === "none" ? "Does not repeat" : event.recurrence}</strong>
         </div>
       </div>
+      {canArrangeRide ? (
+        <button
+          type="button"
+          onClick={() => onArrangeRide(event)}
+          className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-[#087443] px-4 text-[16px] font-black text-white shadow-[0_14px_30px_rgba(8,116,67,0.18)]"
+        >
+          <Car size={18} />
+          Arrange ride
+        </button>
+      ) : null}
     </article>
   );
 }
@@ -535,6 +562,30 @@ export default function ScheduledSupportSettings() {
   const logs = logsQuery.data?.logs ?? [];
   const adminEditAllowed = schedules.some((schedule) => schedule.admin_edit_allowed);
 
+  function arrangeRideForEvent(event: ScheduledEvent) {
+    const providerName = metadataText(event, "provider_name");
+    const location = metadataText(event, "location") || metadataText(event, "address") || metadataText(event, "destination_address");
+    const destination = [providerName, location].filter(Boolean).join(", ") || event.title;
+    navigate("/concierge", {
+      state: {
+        conciergePrefill: {
+          kind: "ride",
+          source: "scheduled_event",
+          scheduledEventId: event.id,
+          destinationName: providerName || event.title,
+          destinationAddress: location || undefined,
+          scheduledFor: event.scheduled_for ?? undefined,
+          message: [
+            `Please arrange transport for ${event.title}.`,
+            event.scheduled_for ? `Appointment time: ${event.scheduled_for}.` : "",
+            destination ? `Destination: ${destination}.` : "",
+            "Use saved drivers or trusted transport first. Ask me before contacting anyone.",
+          ].filter(Boolean).join("\n"),
+        },
+      },
+    });
+  }
+
   const saveMutation = useMutation({
     mutationFn: async (schedule: Schedule) => {
       const response = await apiFetch(`/api/schedules/${schedule.id}`, {
@@ -649,7 +700,7 @@ export default function ScheduledSupportSettings() {
           ) : scheduledEvents.length === 0 ? (
             <EmptyState>No one-off events are scheduled.</EmptyState>
           ) : (
-            scheduledEvents.map((event) => <ScheduledEventCard key={event.id} event={event} />)
+            scheduledEvents.map((event) => <ScheduledEventCard key={event.id} event={event} onArrangeRide={arrangeRideForEvent} />)
           )}
         </section>
 
