@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Mic, MicOff, PhoneOff } from "lucide-react";
@@ -17,6 +17,21 @@ interface VoiceCallOverlayProps {
   onMicToggle?: (muted: boolean) => void;
 }
 
+const WORD_DISPLAY_MS = 360;
+const LONG_WORD_DISPLAY_MAX_MS = 560;
+const WORD_FADE_MS = 90;
+
+function transcriptWords(text: string) {
+  return text.trim().split(/\s+/).filter(Boolean);
+}
+
+function wordDisplayDurationMs(word: string) {
+  return Math.min(
+    LONG_WORD_DISPLAY_MAX_MS,
+    WORD_DISPLAY_MS + Math.max(0, word.length - 10) * 20,
+  );
+}
+
 const VoiceCallOverlay = ({
   isSpeaking,
   isConnecting,
@@ -28,22 +43,39 @@ const VoiceCallOverlay = ({
   onMicToggle,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
-  const [visibleEntry, setVisibleEntry] = useState<TranscriptEntry | null>(null);
-  const [fade, setFade] = useState(true);
+  const [visibleWordIndex, setVisibleWordIndex] = useState(0);
+  const [wordVisible, setWordVisible] = useState(true);
 
   const latestEntry = transcript.length > 0 ? transcript[transcript.length - 1] : null;
+  const latestVyvaEntry = latestEntry?.from === "vyva" ? latestEntry : null;
+  const words = useMemo(
+    () => transcriptWords(latestVyvaEntry?.text ?? ""),
+    [latestVyvaEntry?.text, latestVyvaEntry?.timestamp],
+  );
+  const visibleWord = words[visibleWordIndex] ?? null;
 
   useEffect(() => {
-    if (!latestEntry) return;
-    if (latestEntry === visibleEntry) return;
+    setVisibleWordIndex(0);
+    setWordVisible(true);
+  }, [latestVyvaEntry?.text, latestVyvaEntry?.timestamp]);
 
-    setFade(false);
-    const timer = setTimeout(() => {
-      setVisibleEntry(latestEntry);
-      setFade(true);
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [latestEntry, visibleEntry]);
+  useEffect(() => {
+    if (!latestVyvaEntry || visibleWordIndex >= words.length - 1) return;
+
+    let fadeTimer: number | undefined;
+    const advanceTimer = window.setTimeout(() => {
+      setWordVisible(false);
+      fadeTimer = window.setTimeout(() => {
+        setVisibleWordIndex(visibleWordIndex + 1);
+        setWordVisible(true);
+      }, WORD_FADE_MS);
+    }, wordDisplayDurationMs(words[visibleWordIndex] ?? ""));
+
+    return () => {
+      window.clearTimeout(advanceTimer);
+      if (fadeTimer !== undefined) window.clearTimeout(fadeTimer);
+    };
+  }, [latestVyvaEntry, visibleWordIndex, words]);
 
   const fallbackStatusLabel = isConnecting
     ? t("voiceHero.connecting")
@@ -53,13 +85,7 @@ const VoiceCallOverlay = ({
   const statusLabel = voiceSessionPhase ? voiceSessionPhaseLabel(voiceSessionPhase) : fallbackStatusLabel;
   const canToggleMic = Boolean(onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
   const emptyTranscriptLabel = isConnecting ? t("voiceHero.connecting") : t("voiceHero.listening");
-
-  const speakerLabel =
-    visibleEntry?.from === "user"
-      ? t("voiceHero.you")
-      : visibleEntry?.from === "vyva"
-      ? "VYVA"
-      : null;
+  const speakerLabel = visibleWord ? "VYVA" : null;
 
   const overlay = (
     <div
@@ -161,7 +187,7 @@ const VoiceCallOverlay = ({
               letterSpacing: "0.04em",
               fontWeight: 500,
               transition: "opacity 0.18s ease",
-              opacity: fade ? 1 : 0,
+              opacity: wordVisible ? 1 : 0,
             }}
           >
             {speakerLabel}
@@ -173,19 +199,20 @@ const VoiceCallOverlay = ({
           className="font-display"
           style={{
             color: "rgba(255,255,255,0.95)",
-            fontSize: 32,
-            lineHeight: 1.35,
+            fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : 32,
+            lineHeight: visibleWord ? 0.95 : 1.35,
             textAlign: "center",
-            maxWidth: 320,
-            fontWeight: 400,
-            fontStyle: "italic",
-            transition: "opacity 0.18s ease, transform 0.18s ease",
-            opacity: fade ? 1 : 0,
-            transform: fade ? "translateY(0)" : "translateY(8px)",
-          minHeight: 48,
+            maxWidth: visibleWord ? "90vw" : 320,
+            fontWeight: visibleWord ? 700 : 400,
+            fontStyle: visibleWord ? "normal" : "italic",
+            overflowWrap: "anywhere",
+            transition: "opacity 0.16s ease, transform 0.16s ease",
+            opacity: wordVisible ? 1 : 0,
+            transform: wordVisible ? "scale(1) translateY(0)" : "scale(0.94) translateY(10px)",
+            minHeight: visibleWord ? "clamp(70px, 18vw, 130px)" : 48,
           }}
         >
-          {visibleEntry?.text ?? emptyTranscriptLabel}
+          {visibleWord ?? emptyTranscriptLabel}
         </p>
 
         {activeAction && (
