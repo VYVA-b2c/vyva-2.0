@@ -332,9 +332,16 @@ export async function discoverAppointmentProviderOptions(input: {
           ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanText(place.name) || "provider")}&query_place_id=${place.place_id}`
           : null);
         const bookingUrl = website;
+        const sourcePriority = [
+          website ? "official_website" : null,
+          "google_places",
+          reservationSystems.length > 0 ? "trusted_directories" : null,
+          "manual",
+        ].filter(Boolean);
         const snapshot: Record<string, unknown> = {
           source: "google_places",
-          source_label: "Google Maps",
+          source_label: website ? "Official website via Google Maps" : "Google Maps",
+          source_priority: sourcePriority,
           place_id: place.place_id ?? null,
           name: cleanText(place.name) || "Provider",
           address: cleanText(place.formatted_address) || location,

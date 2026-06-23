@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { authMiddleware, requireUser } from "../middleware/auth.js";
@@ -35,6 +35,12 @@ import {
   runAppointmentFormAutomation,
   type AppointmentFormAutomationResult,
 } from "../services/appointmentFormAutomation.js";
+import {
+  missionStateFor,
+  normalizeAppointmentChannel,
+  orderAppointmentChannels,
+  providerMetadataWithBookingSuccess,
+} from "../services/appointmentMission.js";
 
 const router = Router();
 
@@ -222,6 +228,12 @@ async function createScheduledAppointmentFromRequest(input: {
   notes?: string | null;
   sourceMetadata?: Record<string, unknown>;
 }) {
+  const savedProviderId = await saveSuccessfulAppointmentProvider({
+    userId: input.userId,
+    request: input.request,
+    selectedOption: input.selectedOption,
+    channel: input.request.selected_channel,
+  });
   const providerName = input.providerName || optionName(input.selectedOption);
   const title = input.title || `${appointmentTypeLabel(input.request.appointment_type)} with ${providerName}`;
 
@@ -244,7 +256,7 @@ async function createScheduledAppointmentFromRequest(input: {
         provider_name: providerName,
         location: input.location ?? null,
         selected_channel: input.request.selected_channel,
-        selected_provider_id: input.request.selected_provider_id,
+        selected_provider_id: savedProviderId ?? input.request.selected_provider_id,
         ...input.sourceMetadata,
       },
       created_by: input.userId,
@@ -256,6 +268,7 @@ async function createScheduledAppointmentFromRequest(input: {
     .update(appointmentRequests)
     .set({
       status: "booked",
+      selected_provider_id: savedProviderId ?? input.request.selected_provider_id,
       linked_scheduled_event_id: event.id,
       updated_at: new Date(),
     })
@@ -263,6 +276,137 @@ async function createScheduledAppointmentFromRequest(input: {
     .returning();
 
   return { request: updatedRequest, scheduled_event: event };
+}
+
+function categoryForAppointmentType(type: string): string {
+  switch (type) {
+    case "medical":
+      return "clinic";
+    case "personal-care":
+      return "beauty_salon";
+    case "government":
+      return "government";
+    case "home-service":
+      return "home_service";
+    case "social":
+      return "restaurant";
+    default:
+      return "other";
+  }
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+async function saveSuccessfulAppointmentProvider(input: {
+  userId: string;
+  request: AppointmentRequest;
+  selectedOption: AppointmentProviderOption | null;
+  channel?: string | null;
+}): Promise<string | null> {
+  if (!input.selectedOption) return null;
+
+  const snapshot = recordValue(input.selectedOption.provider_snapshot);
+  const channel = normalizeAppointmentChannel(input.channel) ?? "manual";
+  const nextMetadata = providerMetadataWithBookingSuccess({
+    metadata: recordValue(snapshot.metadata),
+    channel,
+    request: input.request,
+  });
+
+  if (input.selectedOption.provider_id) {
+    const [updated] = await db
+      .update(userProviders)
+      .set({
+        metadata: nextMetadata,
+        last_used_at: new Date(),
+        use_count: sql`${userProviders.use_count} + 1`,
+        updated_at: new Date(),
+      })
+      .where(and(eq(userProviders.id, input.selectedOption.provider_id), eq(userProviders.user_id, input.userId)))
+      .returning();
+    return updated?.id ?? input.selectedOption.provider_id;
+  }
+
+  const name = snapshotText(snapshot, "name");
+  if (!name) return null;
+
+  const placeId = snapshotText(snapshot, "place_id");
+  const phone = snapshotText(snapshot, "phone");
+  const address = snapshotText(snapshot, "address");
+  const existingProviders = await db
+    .select()
+    .from(userProviders)
+    .where(eq(userProviders.user_id, input.userId));
+  const match = existingProviders.find((provider) => {
+    if (placeId && provider.place_id === placeId) return true;
+    const samePhone = phone && provider.phone && normalizeForMatch(provider.phone) === normalizeForMatch(phone);
+    const sameName = normalizeForMatch(provider.name) === normalizeForMatch(name);
+    const sameAddress = address && provider.address && normalizeForMatch(provider.address) === normalizeForMatch(address);
+    return Boolean(sameName && (samePhone || sameAddress));
+  });
+
+  if (match) {
+    const [updated] = await db
+      .update(userProviders)
+      .set({
+        booking_url: snapshotText(snapshot, "booking_url") ?? match.booking_url,
+        website_url: snapshotText(snapshot, "website_url") ?? match.website_url,
+        maps_url: snapshotText(snapshot, "maps_url") ?? match.maps_url,
+        phone: phone ?? match.phone,
+        email: snapshotText(snapshot, "email") ?? match.email,
+        whatsapp: snapshotText(snapshot, "whatsapp") ?? match.whatsapp,
+        metadata: { ...recordValue(match.metadata), ...nextMetadata },
+        last_used_at: new Date(),
+        use_count: sql`${userProviders.use_count} + 1`,
+        updated_at: new Date(),
+      })
+      .where(eq(userProviders.id, match.id))
+      .returning();
+    return updated?.id ?? match.id;
+  }
+
+  const [inserted] = await db
+    .insert(userProviders)
+    .values({
+      user_id: input.userId,
+      category: snapshotText(snapshot, "category") ?? categoryForAppointmentType(input.request.appointment_type),
+      name,
+      phone,
+      address,
+      place_id: placeId,
+      maps_url: snapshotText(snapshot, "maps_url"),
+      website_url: snapshotText(snapshot, "website_url"),
+      booking_url: snapshotText(snapshot, "booking_url"),
+      email: snapshotText(snapshot, "email"),
+      whatsapp: snapshotText(snapshot, "whatsapp"),
+      contact_name: snapshotText(snapshot, "contact_name"),
+      contact_role: snapshotText(snapshot, "contact_role"),
+      notes: snapshotText(snapshot, "notes"),
+      metadata: {
+        ...nextMetadata,
+        source: "appointment_success",
+        original_provider_source: input.selectedOption.provider_source,
+      },
+      is_primary: false,
+      is_active: true,
+      last_used_at: new Date(),
+      use_count: 1,
+      language: input.request.language ?? "es",
+    })
+    .returning();
+
+  if (inserted?.id) {
+    await db
+      .update(appointmentProviderOptions)
+      .set({ provider_id: inserted.id, updated_at: new Date() })
+      .where(eq(appointmentProviderOptions.id, input.selectedOption.id));
+  }
+
+  return inserted?.id ?? null;
 }
 
 async function loadOptionForRequest(optionId: string, requestId: string, userId: string): Promise<AppointmentProviderOption | null> {
@@ -288,7 +432,13 @@ async function loadOptionsForRequest(requestId: string, userId: string): Promise
     ));
 }
 
-async function savedProviderOptions(userId: string, requestId: string, appointmentType: string, detail: string) {
+async function savedProviderOptions(
+  userId: string,
+  requestId: string,
+  appointmentType: string,
+  detail: string,
+  requestPreferences: Record<string, unknown>,
+) {
   const providers = await db
     .select()
     .from(userProviders)
@@ -302,17 +452,29 @@ async function savedProviderOptions(userId: string, requestId: string, appointme
     .filter((item) => item.score > 0 || providers.length <= 3)
     .sort((a, b) => b.score - a.score)
     .slice(0, 5)
-    .map((item, index) => ({
-      request_id: requestId,
-      user_id: userId,
-      provider_id: item.provider.id,
-      provider_source: "saved",
-      provider_snapshot: providerSnapshot(item.provider),
-      match_reason: matchReason(item.provider, appointmentType, item.score),
-      available_channels: channelsForProvider(item.provider),
-      rank: index + 1,
-      status: index === 0 ? "recommended" : "suggested",
-    }));
+    .map((item, index) => {
+      const snapshot = providerSnapshot(item.provider);
+      const ordered = orderAppointmentChannels({
+        channels: channelsForProvider(item.provider),
+        providerSnapshot: snapshot,
+        requestPreferences,
+      });
+      return {
+        request_id: requestId,
+        user_id: userId,
+        provider_id: item.provider.id,
+        provider_source: "saved",
+        provider_snapshot: {
+          ...snapshot,
+          provider_preference_snapshot: ordered.preferenceSnapshot,
+          preferred_channel: ordered.preferredChannel,
+        },
+        match_reason: matchReason(item.provider, appointmentType, item.score),
+        available_channels: ordered.channels,
+        rank: index + 1,
+        status: index === 0 ? "recommended" : "suggested",
+      };
+    });
 }
 
 function appointmentMessage(channel: AppointmentChannel, option: AppointmentProviderOption, request: AppointmentRequest) {
@@ -359,10 +521,20 @@ router.get("/context", async (req: Request, res: Response) => {
     ]);
 
     return res.json({
-      providers: providers.map((provider) => ({
-        ...provider,
-        available_channels: channelsForProvider(provider),
-      })),
+      providers: providers.map((provider) => {
+        const snapshot = providerSnapshot(provider);
+        const ordered = orderAppointmentChannels({
+          channels: channelsForProvider(provider),
+          providerSnapshot: snapshot,
+          requestPreferences: {},
+        });
+        return {
+          ...provider,
+          available_channels: ordered.channels,
+          preferred_channel: ordered.preferredChannel,
+          provider_preference_snapshot: ordered.preferenceSnapshot,
+        };
+      }),
       recent_requests: recentRequests,
       sync,
     });
@@ -396,7 +568,13 @@ router.post("/requests", async (req: Request, res: Response) => {
       })
       .returning();
 
-    const candidates = await savedProviderOptions(userId, request.id, parsed.data.appointment_type, parsed.data.detail);
+    const candidates = await savedProviderOptions(
+      userId,
+      request.id,
+      parsed.data.appointment_type,
+      parsed.data.detail,
+      parsed.data.preferences,
+    );
     const options = candidates.length > 0
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
       : [];
@@ -408,7 +586,12 @@ router.post("/requests", async (req: Request, res: Response) => {
       .where(eq(appointmentRequests.id, request.id))
       .returning();
 
-    return res.status(201).json({ request: updatedRequest ?? request, options });
+    const responseRequest = updatedRequest ?? request;
+    return res.status(201).json({
+      request: responseRequest,
+      options,
+      mission: missionStateFor({ request: responseRequest, options }),
+    });
   } catch (err) {
     console.error("[appointments POST /requests]", err);
     return res.status(500).json({ error: "Could not create appointment request" });
@@ -440,7 +623,11 @@ router.post("/requests/:id/options", async (req: Request, res: Response) => {
     }
 
     const snapshot = provider ? providerSnapshot(provider) : parsed.data.provider_snapshot;
-    const channels = parsed.data.available_channels ?? (provider ? channelsForProvider(provider) : ["manual"]);
+    const ordered = orderAppointmentChannels({
+      channels: parsed.data.available_channels ?? (provider ? channelsForProvider(provider) : ["manual"]),
+      providerSnapshot: snapshot,
+      requestPreferences: recordValue(request.preferences),
+    });
     const [option] = await db
       .insert(appointmentProviderOptions)
       .values({
@@ -448,9 +635,13 @@ router.post("/requests/:id/options", async (req: Request, res: Response) => {
         user_id: userId,
         provider_id: provider?.id ?? null,
         provider_source: parsed.data.provider_source,
-        provider_snapshot: snapshot,
+        provider_snapshot: {
+          ...snapshot,
+          provider_preference_snapshot: ordered.preferenceSnapshot,
+          preferred_channel: ordered.preferredChannel,
+        },
         match_reason: parsed.data.match_reason ?? (provider ? "Saved provider" : "Manual option"),
-        available_channels: channels,
+        available_channels: ordered.channels,
         rank: parsed.data.rank,
         status: parsed.data.select ? "selected" : "suggested",
       })
@@ -468,7 +659,13 @@ router.post("/requests/:id/options", async (req: Request, res: Response) => {
         .where(eq(appointmentRequests.id, request.id));
     }
 
-    return res.status(201).json({ option });
+    const nextRequest = parsed.data.select
+      ? { ...request, status: "provider_selected", selected_provider_id: provider?.id ?? null, selected_provider_option_id: option.id }
+      : request;
+    return res.status(201).json({
+      option,
+      mission: missionStateFor({ request: nextRequest as AppointmentRequest, options: [option], selectedOption: option }),
+    });
   } catch (err) {
     console.error("[appointments POST /requests/:id/options]", err);
     return res.status(500).json({ error: "Could not add appointment option" });
@@ -507,17 +704,28 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
         existingIdentities.add(identity);
         return true;
       })
-      .map((option, index) => ({
-        request_id: request.id,
-        user_id: userId,
-        provider_id: null,
-        provider_source: option.provider_source,
-        provider_snapshot: option.provider_snapshot,
-        match_reason: option.match_reason,
-        available_channels: option.available_channels,
-        rank: nextRank + index,
-        status: option.status,
-      }));
+      .map((option, index) => {
+        const ordered = orderAppointmentChannels({
+          channels: option.available_channels,
+          providerSnapshot: option.provider_snapshot,
+          requestPreferences: recordValue(request.preferences),
+        });
+        return {
+          request_id: request.id,
+          user_id: userId,
+          provider_id: null,
+          provider_source: option.provider_source,
+          provider_snapshot: {
+            ...option.provider_snapshot,
+            provider_preference_snapshot: ordered.preferenceSnapshot,
+            preferred_channel: ordered.preferredChannel,
+          },
+          match_reason: option.match_reason,
+          available_channels: ordered.channels,
+          rank: nextRank + index,
+          status: option.status,
+        };
+      });
 
     const insertedOptions = candidates.length > 0
       ? await db.insert(appointmentProviderOptions).values(candidates).returning()
@@ -530,9 +738,11 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       .where(eq(appointmentRequests.id, request.id))
       .returning();
 
+    const responseRequest = updatedRequest ?? request;
     return res.json({
-      request: updatedRequest ?? request,
+      request: responseRequest,
       options: allOptions,
+      mission: missionStateFor({ request: responseRequest, options: allOptions }),
       discovery: {
         source: discovery.source,
         fallback_reason: discovery.fallback_reason,
@@ -574,6 +784,17 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
     const bookingUrl = snapshotText(snapshot, "booking_url");
     const channel = parsed.data.channel;
     const communicationRecipient = appointmentChannelRecipient(channel, snapshot);
+    const preferenceSnapshot = orderAppointmentChannels({
+      channels: option.available_channels as AppointmentChannel[],
+      providerSnapshot: snapshot,
+      requestPreferences: recordValue(request.preferences),
+    }).preferenceSnapshot;
+    const userControlState = {
+      listening: channel === "phone",
+      muted: false,
+      stopped: false,
+      awaiting_confirmation: true,
+    };
 
     if (channel === "phone" && !providerPhone) {
       return res.status(400).json({ error: "This provider does not have a phone number" });
@@ -622,6 +843,10 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            mission_status: "contacting_provider",
+            preferred_channel: channel,
+            provider_preference_snapshot: preferenceSnapshot,
+            user_control_state: userControlState,
             execution_channel: "phone",
             reason: request.reason_detail,
             booking_url: bookingUrl,
@@ -679,6 +904,8 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_type: request.appointment_type,
             provider_name: providerName,
             provider_snapshot: snapshot,
+            preferred_channel: channel,
+            provider_preference_snapshot: preferenceSnapshot,
           },
         })
         .returning();
@@ -760,6 +987,10 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
             appointment_option_id: option.id,
             appointment_attempt_id: attempt.id,
             appointment_type: request.appointment_type,
+            mission_status: "form_in_progress",
+            preferred_channel: channel,
+            provider_preference_snapshot: preferenceSnapshot,
+            user_control_state,
             execution_channel: "booking_url",
             reason: request.reason_detail,
             booking_url: bookingUrl,
@@ -811,6 +1042,10 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
           appointment_option_id: option.id,
           appointment_attempt_id: attempt.id,
           appointment_type: request.appointment_type,
+          mission_status: "awaiting_user_save",
+          preferred_channel: channel,
+          provider_preference_snapshot: preferenceSnapshot,
+          user_control_state,
           execution_channel: "manual",
           reason: request.reason_detail,
           booking_url: bookingUrl,
@@ -848,6 +1083,35 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       })
       .where(eq(appointmentRequests.id, request.id));
 
+    const mission = missionStateFor({
+      request: {
+        ...request,
+        status: bookedFromForm ? "booked" : channel === "email" || channel === "whatsapp" ? "contacted" : "attempt_ready",
+        selected_provider_id: option.provider_id,
+        selected_provider_option_id: option.id,
+        selected_channel: channel,
+        linked_pending_id: pending?.pendingId ?? request.linked_pending_id,
+        linked_scheduled_event_id: bookedFromForm?.scheduled_event.id ?? request.linked_scheduled_event_id,
+      } as AppointmentRequest,
+      options: [option],
+      selectedOption: option,
+      attemptStatus: communication?.status === "sent"
+        ? `${channel}_sent`
+        : pending?.status === "calling"
+          ? "calling"
+          : bookedFromForm
+            ? "form_confirmed"
+            : formTask
+              ? formTask.status
+              : pending
+                ? "task_queued"
+                : attempt.status,
+      pendingStatus: pending?.status ?? null,
+      communicationStatus: communication?.status ?? null,
+      formTaskStatus: formTask?.status ?? null,
+      scheduledEventId: bookedFromForm?.scheduled_event.id ?? null,
+    });
+
     return res.status(201).json({
       attempt: {
         ...attempt,
@@ -871,6 +1135,7 @@ router.post("/requests/:id/confirm-attempt", async (req: Request, res: Response)
       draft: null,
       handled_by_vyva: true,
       needs_booking_confirmation: true,
+      mission,
     });
   } catch (err) {
     console.error("[appointments POST /requests/:id/confirm-attempt]", err);
@@ -912,7 +1177,15 @@ router.post("/requests/:id/mark-booked", async (req: Request, res: Response) => 
       notes: parsed.data.notes ?? null,
     });
 
-    return res.status(201).json(booked);
+    return res.status(201).json({
+      ...booked,
+      mission: missionStateFor({
+        request: booked.request ?? request,
+        options: selectedOption ? [selectedOption] : [],
+        selectedOption,
+        scheduledEventId: booked.scheduled_event?.id ?? null,
+      }),
+    });
   } catch (err) {
     console.error("[appointments POST /requests/:id/mark-booked]", err);
     return res.status(500).json({ error: "Could not save confirmed appointment" });
