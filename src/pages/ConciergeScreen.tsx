@@ -1756,8 +1756,8 @@ const ConciergeScreen = () => {
     : (isSpanish ? "No hay proveedor guardado para esto." : "No saved provider for this yet.");
   const noSavedProviderBody = isHomeServiceAppointment
     ? (isSpanish
-      ? "Busca opciones fiables cercanas en un toque."
-      : "Search trusted nearby options in one tap.")
+      ? "VYVA puede buscar opciones fiables cerca antes de contactar con nadie."
+      : "VYVA can search trusted nearby options before anyone is contacted.")
     : null;
   const appointmentDiscoverLabel = isHomeServiceAppointment
     ? (isSpanish ? "Buscar opciones fiables" : "Find trusted options")
@@ -3453,18 +3453,21 @@ const ConciergeScreen = () => {
                 className="mt-4 rounded-[20px] border border-[#F6D7AE] bg-white px-4 py-3"
                 data-testid="panel-appointment-home-service-summary"
               >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FFF7ED] text-[#B45309]">
-                    <ShieldCheck size={18} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-body text-[14px] font-black leading-tight text-vyva-text-1">
-                      {isSpanish ? "Tu eliges antes de contactar." : "You choose before anyone is contacted."}
-                    </p>
-                    <p className="mt-0.5 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-                      {isSpanish ? "Lista guardada primero. Fuentes verificables despues." : "Saved list first. Verified sources next."}
-                    </p>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { Icon: CircleCheck, label: isSpanish ? "Perfil revisado" : "Saved list checked", tone: "#047857", bg: "#ECFDF5" },
+                    { Icon: Search, label: isSpanish ? "Busqueda fiable" : "Trusted search", tone: "#B45309", bg: "#FFF7ED" },
+                    { Icon: ShieldCheck, label: isSpanish ? "Tu confirmas" : "You confirm", tone: "#6B21A8", bg: "#F5F3FF" },
+                  ].map(({ Icon, label, tone, bg }) => (
+                    <div key={label} className="inline-flex min-h-[42px] flex-1 basis-[150px] items-center gap-2 rounded-full border border-[#F3E6D8] bg-[#FFFCF8] px-3">
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: bg, color: tone }}>
+                        <Icon size={16} />
+                      </span>
+                      <span className="font-body text-[13px] font-black leading-tight text-vyva-text-1">
+                        {label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

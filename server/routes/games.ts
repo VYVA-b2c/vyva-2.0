@@ -53,6 +53,7 @@ const MEMORY_ACTIVITY_TYPES = [
   "sequence_memory",
   "word_recall",
   "remember_later",
+  "scent_memory",
   "number_memory",
   "routine_memory",
   "association_memory",
@@ -107,6 +108,61 @@ const dailyPlanEventSchema = z.object({
       path: ["planItemId"],
     });
   }
+});
+
+const curiousMindInputMethodSchema = z.enum(["voice", "typed"]).nullable().optional();
+
+const curiousMindsIdeaSchema = z.object({
+  text: z.string().trim().min(1).max(500),
+  input_method: z.enum(["voice", "typed"]),
+});
+
+const curiousMindsSessionSchema = z.object({
+  hookId: z.string().uuid().nullable().optional(),
+  hookGuessText: z.string().trim().max(1000).nullable().optional(),
+  hookGuessInputMethod: curiousMindInputMethodSchema,
+  promptId: z.string().uuid().nullable().optional(),
+  ideasGenerated: z.array(curiousMindsIdeaSchema).max(100).optional().default([]),
+  callbackAttempted: z.boolean().optional().default(false),
+  callbackResponseText: z.string().trim().max(1000).nullable().optional(),
+  callbackInputMethod: curiousMindInputMethodSchema,
+  completed: z.boolean().optional().default(false),
+  abandoned: z.boolean().optional().default(false),
+  durationSeconds: z.number().int().min(0).max(24 * 60 * 60).nullable().optional(),
+  language: z.string().trim().min(2).max(12).optional().default("es"),
+});
+
+const scentMemoryInputMethodSchema = z.enum(["voice", "typed"]).nullable().optional();
+
+const scentMemorySessionSchema = z.object({
+  promptId: z.string().uuid().nullable().optional(),
+  responseText: z.string().trim().max(4000).nullable().optional(),
+  responseInputMethod: scentMemoryInputMethodSchema,
+  completed: z.boolean().optional().default(false),
+  abandoned: z.boolean().optional().default(false),
+  durationSeconds: z.number().int().min(0).max(24 * 60 * 60).nullable().optional(),
+  language: z.string().trim().min(2).max(12).optional().default("es"),
+});
+
+const breathGardenThemeSchema = z.enum(["garden", "tide", "stars", "ripples"]);
+
+const breathGardenTapSchema = z.object({
+  timestamp_ms: z.number().int().min(0).max(24 * 60 * 60 * 1000),
+  phase: z.enum(["inhale_peak", "exhale_peak"]),
+});
+
+const breathGardenSessionSchema = z.object({
+  breathTaps: z.array(breathGardenTapSchema).max(1000).optional().default([]),
+  sessionDurationSeconds: z.number().int().min(0).max(24 * 60 * 60),
+  breathCycleCount: z.number().int().min(0).max(1000).optional().default(0),
+  avgBreathCycleSeconds: z.number().min(0).max(3600).nullable().optional(),
+  breathConsistencyIndex: z.number().min(0).max(100).nullable().optional(),
+  finalPaceBreathsPerMin: z.number().min(0).max(200).nullable().optional(),
+  gardenTheme: breathGardenThemeSchema.optional().default("garden"),
+  bloomLevelReached: z.number().int().min(1).max(5).optional().default(1),
+  completed: z.boolean().optional().default(false),
+  abandoned: z.boolean().optional().default(false),
+  language: z.string().trim().min(2).max(12).optional().default("es"),
 });
 
 function isCaregiverNudgeVisibilityEvent(eventType: string): eventType is Extract<BrainCoachPlanEventType, "caregiver_nudge_read" | "caregiver_nudge_dismissed"> {
@@ -526,8 +582,17 @@ async function loadCognitiveSessionDb() {
       cognitiveDailyPlanItems,
       cognitiveDailyPlanEvents,
       cognitiveCaregiverSettings,
+      curiousMindsHooks,
+      curiousMindsPrompts,
+      curiousMindsSessions,
+      curiousMindsUserState,
+      scentMemoryPrompts,
+      scentMemorySessions,
+      scentMemoryUserState,
+      breathGardenSessions,
+      breathGardenUserState,
     },
-    { and, asc, desc, eq, gte, inArray },
+    { and, asc, desc, eq, gte, inArray, lt },
   ] = await Promise.all([
     import("../db.js"),
     import("../../shared/schema.js"),
@@ -541,12 +606,22 @@ async function loadCognitiveSessionDb() {
     cognitiveDailyPlanItems,
     cognitiveDailyPlanEvents,
     cognitiveCaregiverSettings,
+    curiousMindsHooks,
+    curiousMindsPrompts,
+    curiousMindsSessions,
+    curiousMindsUserState,
+    scentMemoryPrompts,
+    scentMemorySessions,
+    scentMemoryUserState,
+    breathGardenSessions,
+    breathGardenUserState,
     and,
     asc,
     desc,
     eq,
     gte,
     inArray,
+    lt,
   };
 }
 
@@ -715,6 +790,764 @@ async function syncSessionToDailyPlan(ctx: CognitiveSessionDb, userId: string, s
 
   const items = await selectPlanItems(ctx, plan.id);
   await syncPersistedPlanCompletion(ctx, plan, items, [session]);
+}
+
+function localDayBounds(date = new Date()) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = new Date(start);
+  end.setDate(start.getDate() + 1);
+  return { start, end };
+}
+
+function todayDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addCalendarDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function normalizeCuriousMindsState(row: unknown, userId: string) {
+  const value = row && typeof row === "object" ? row as Record<string, unknown> : {};
+  return {
+    user_id: userId,
+    total_sessions: toNumber(value.totalSessions, 0),
+    last_played_at: toIsoDate(value.lastPlayedAt),
+    streak_days: toNumber(value.streakDays, 0),
+    last_streak_date: typeof value.lastStreakDate === "string" ? value.lastStreakDate : value.lastStreakDate instanceof Date ? todayDateKey(value.lastStreakDate) : null,
+    updated_at: toIsoDate(value.updatedAt) ?? new Date().toISOString(),
+  };
+}
+
+function nextCuriousMindsState(previousState: ReturnType<typeof normalizeCuriousMindsState>, now = new Date()) {
+  const today = todayDateKey(now);
+  const yesterday = todayDateKey(addCalendarDays(now, -1));
+  const lastStreakDate = previousState.last_streak_date;
+  const streakDays =
+    lastStreakDate === today
+      ? Math.max(1, Number(previousState.streak_days ?? 1))
+      : lastStreakDate === yesterday
+        ? Number(previousState.streak_days ?? 0) + 1
+        : 1;
+
+  return {
+    user_id: previousState.user_id,
+    total_sessions: Number(previousState.total_sessions ?? 0) + 1,
+    last_played_at: now.toISOString(),
+    streak_days: streakDays,
+    last_streak_date: today,
+    updated_at: now.toISOString(),
+  };
+}
+
+async function getOrCreateCuriousMindsState(ctx: CognitiveSessionDb, userId: string) {
+  const { db, curiousMindsUserState, eq } = ctx;
+  const [existing] = await db
+    .select()
+    .from(curiousMindsUserState)
+    .where(eq(curiousMindsUserState.userId, userId))
+    .limit(1);
+
+  if (existing) return normalizeCuriousMindsState(existing, userId);
+
+  const [created] = await db
+    .insert(curiousMindsUserState)
+    .values({ userId, updatedAt: new Date() })
+    .onConflictDoNothing()
+    .returning();
+
+  return normalizeCuriousMindsState(created, userId);
+}
+
+function pickCuriousMindsContent<T extends { id: string }>(
+  rows: T[],
+  todaySessions: unknown[],
+  historySessions: unknown[],
+  fieldName: "hookId" | "promptId",
+) {
+  const usedToday = new Set(
+    todaySessions
+      .map((session) => recordValue(session, fieldName))
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
+  const unusedToday = rows.filter((row) => !usedToday.has(row.id));
+  if (unusedToday.length > 0) return unusedToday[Math.floor(Math.random() * unusedToday.length)] ?? null;
+
+  const lastPlayed = new Map<string, string>();
+  historySessions.forEach((session) => {
+    const contentId = recordValue(session, fieldName);
+    if (typeof contentId !== "string" || !contentId || lastPlayed.has(contentId)) return;
+    lastPlayed.set(contentId, toIsoDate(recordValue(session, "playedAt")) ?? "");
+  });
+
+  return [...rows].sort((a, b) => {
+    const aPlayed = lastPlayed.get(a.id) ?? "";
+    const bPlayed = lastPlayed.get(b.id) ?? "";
+    return aPlayed.localeCompare(bPlayed);
+  })[0] ?? null;
+}
+
+function serializeCuriousMindsHook(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    fact_prompt: row.factPrompt,
+    fact_answer: row.factAnswer,
+    category: row.category,
+    language: row.language,
+    source: row.source,
+    reviewed_at: toIsoDate(row.reviewedAt),
+    reviewed_by: row.reviewedBy ?? null,
+    is_active: Boolean(row.isActive),
+    created_at: toIsoDate(row.createdAt),
+  };
+}
+
+function serializeCuriousMindsPrompt(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    prompt_type: row.promptType,
+    prompt_text: row.promptText,
+    topic: row.topic,
+    language: row.language,
+    source: row.source,
+    reviewed_at: toIsoDate(row.reviewedAt),
+    reviewed_by: row.reviewedBy ?? null,
+    is_active: Boolean(row.isActive),
+    created_at: toIsoDate(row.createdAt),
+  };
+}
+
+async function loadCuriousMindsActiveRows(ctx: CognitiveSessionDb, tableName: "hooks" | "prompts", requestedLanguage: string) {
+  const { db, curiousMindsHooks, curiousMindsPrompts, and, eq } = ctx;
+  const normalizedLanguage = normalizeGameLanguage(requestedLanguage);
+  const languageCandidates = Array.from(new Set([normalizedLanguage, "es", "en"]));
+  const table = tableName === "hooks" ? curiousMindsHooks : curiousMindsPrompts;
+
+  for (const language of languageCandidates) {
+    const rows = await db
+      .select()
+      .from(table)
+      .where(and(eq(table.isActive, true), eq(table.language, language)))
+      .limit(500);
+    if (rows.length > 0) return rows;
+  }
+
+  return db
+    .select()
+    .from(table)
+    .where(eq(table.isActive, true))
+    .limit(500);
+}
+
+function normalizeScentMemoryState(row: unknown, userId: string) {
+  const value = row && typeof row === "object" ? row as Record<string, unknown> : {};
+  return {
+    user_id: userId,
+    total_sessions: toNumber(value.totalSessions, 0),
+    last_played_at: toIsoDate(value.lastPlayedAt),
+    streak_days: toNumber(value.streakDays, 0),
+    last_streak_date: typeof value.lastStreakDate === "string" ? value.lastStreakDate : value.lastStreakDate instanceof Date ? todayDateKey(value.lastStreakDate) : null,
+    updated_at: toIsoDate(value.updatedAt) ?? new Date().toISOString(),
+  };
+}
+
+function nextScentMemoryState(previousState: ReturnType<typeof normalizeScentMemoryState>, now = new Date()) {
+  const today = todayDateKey(now);
+  const yesterday = todayDateKey(addCalendarDays(now, -1));
+  const lastStreakDate = previousState.last_streak_date;
+  const streakDays =
+    lastStreakDate === today
+      ? Math.max(1, Number(previousState.streak_days ?? 1))
+      : lastStreakDate === yesterday
+        ? Number(previousState.streak_days ?? 0) + 1
+        : 1;
+
+  return {
+    user_id: previousState.user_id,
+    total_sessions: Number(previousState.total_sessions ?? 0) + 1,
+    last_played_at: now.toISOString(),
+    streak_days: streakDays,
+    last_streak_date: today,
+    updated_at: now.toISOString(),
+  };
+}
+
+async function getOrCreateScentMemoryState(ctx: CognitiveSessionDb, userId: string) {
+  const { db, scentMemoryUserState, eq } = ctx;
+  const [existing] = await db
+    .select()
+    .from(scentMemoryUserState)
+    .where(eq(scentMemoryUserState.userId, userId))
+    .limit(1);
+
+  if (existing) return normalizeScentMemoryState(existing, userId);
+
+  const [created] = await db
+    .insert(scentMemoryUserState)
+    .values({ userId, updatedAt: new Date() })
+    .onConflictDoNothing()
+    .returning();
+
+  return normalizeScentMemoryState(created, userId);
+}
+
+export function pickScentMemoryPrompt<T extends { id: string }>(
+  rows: T[],
+  todaySessions: unknown[],
+  historySessions: unknown[],
+  random = Math.random,
+) {
+  const usedToday = new Set(
+    todaySessions
+      .map((session) => recordValue(session, "promptId"))
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
+  const unusedToday = rows.filter((row) => !usedToday.has(row.id));
+  if (unusedToday.length > 0) return unusedToday[Math.floor(random() * unusedToday.length)] ?? null;
+
+  const lastPlayed = new Map<string, string>();
+  historySessions.forEach((session) => {
+    const contentId = recordValue(session, "promptId");
+    if (typeof contentId !== "string" || !contentId || lastPlayed.has(contentId)) return;
+    lastPlayed.set(contentId, toIsoDate(recordValue(session, "playedAt")) ?? "");
+  });
+
+  return [...rows].sort((a, b) => {
+    const aPlayed = lastPlayed.get(a.id) ?? "";
+    const bPlayed = lastPlayed.get(b.id) ?? "";
+    return aPlayed.localeCompare(bPlayed);
+  })[0] ?? null;
+}
+
+function serializeScentMemoryPrompt(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    scent_name: row.scentName,
+    scent_description: row.scentDescription,
+    guiding_question: row.guidingQuestion,
+    category: row.category,
+    language: row.language,
+    source: row.source,
+    reviewed_at: toIsoDate(row.reviewedAt),
+    reviewed_by: row.reviewedBy ?? null,
+    rejected: Boolean(row.rejected),
+    is_active: Boolean(row.isActive),
+    created_at: toIsoDate(row.createdAt),
+  };
+}
+
+async function loadScentMemoryActiveRows(ctx: CognitiveSessionDb, requestedLanguage: string) {
+  const { db, scentMemoryPrompts, and, eq } = ctx;
+  const normalizedLanguage = normalizeGameLanguage(requestedLanguage);
+  const languageCandidates = Array.from(new Set([normalizedLanguage, "es", "en"]));
+
+  for (const language of languageCandidates) {
+    const rows = await db
+      .select()
+      .from(scentMemoryPrompts)
+      .where(and(
+        eq(scentMemoryPrompts.isActive, true),
+        eq(scentMemoryPrompts.rejected, false),
+        eq(scentMemoryPrompts.language, language),
+      ))
+      .limit(500);
+    if (rows.length > 0) return rows;
+  }
+
+  return db
+    .select()
+    .from(scentMemoryPrompts)
+    .where(and(
+      eq(scentMemoryPrompts.isActive, true),
+      eq(scentMemoryPrompts.rejected, false),
+    ))
+    .limit(500);
+}
+
+export async function scentMemoryContentHandler(req: Request, res: Response) {
+  const language = typeof req.query.language === "string" ? req.query.language : "es";
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, scentMemorySessions, and, desc, eq, gte, lt } = ctx;
+    const userId = req.user!.id;
+    const { start, end } = localDayBounds();
+
+    const [state, todaySessions, historySessions, prompts] = await Promise.all([
+      getOrCreateScentMemoryState(ctx, userId),
+      db
+        .select()
+        .from(scentMemorySessions)
+        .where(and(
+          eq(scentMemorySessions.userId, userId),
+          gte(scentMemorySessions.playedAt, start),
+          lt(scentMemorySessions.playedAt, end),
+        )),
+      db
+        .select()
+        .from(scentMemorySessions)
+        .where(eq(scentMemorySessions.userId, userId))
+        .orderBy(desc(scentMemorySessions.playedAt))
+        .limit(500),
+      loadScentMemoryActiveRows(ctx, language),
+    ]);
+
+    const selectedPrompt = pickScentMemoryPrompt(prompts as Array<{ id: string }>, todaySessions, historySessions);
+
+    if (!selectedPrompt) {
+      return res.status(404).json({ error: "There is no reviewed Scent Memory content available yet." });
+    }
+
+    return res.json({
+      state,
+      prompt: serializeScentMemoryPrompt(selectedPrompt as Record<string, unknown>),
+    });
+  } catch (error) {
+    console.error("[games] Scent Memory content failed:", error);
+    return res.status(500).json({ error: "Scent Memory content could not be loaded." });
+  }
+}
+
+export async function scentMemorySessionHandler(req: Request, res: Response) {
+  const parsed = scentMemorySessionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Scent Memory session request." });
+  }
+
+  const data = parsed.data;
+  const userId = req.user!.id;
+  const now = new Date();
+  const hasResponse = Boolean(data.responseText?.trim());
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, scentMemorySessions, scentMemoryUserState, cognitiveSessionIndex } = ctx;
+    const [session] = await db
+      .insert(scentMemorySessions)
+      .values({
+        userId,
+        playedAt: now,
+        promptId: data.promptId ?? null,
+        responseText: data.responseText || null,
+        responseInputMethod: data.responseInputMethod ?? null,
+        completed: data.completed,
+        abandoned: data.abandoned,
+        durationSeconds: data.durationSeconds ?? null,
+      })
+      .returning();
+
+    let nextState: ReturnType<typeof normalizeScentMemoryState> | null = null;
+    if (data.completed) {
+      const previousState = await getOrCreateScentMemoryState(ctx, userId);
+      nextState = nextScentMemoryState(previousState, now);
+      const [savedState] = await db
+        .insert(scentMemoryUserState)
+        .values({
+          userId,
+          totalSessions: nextState.total_sessions,
+          lastPlayedAt: now,
+          streakDays: nextState.streak_days,
+          lastStreakDate: nextState.last_streak_date,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: scentMemoryUserState.userId,
+          set: {
+            totalSessions: nextState.total_sessions,
+            lastPlayedAt: now,
+            streakDays: nextState.streak_days,
+            lastStreakDate: nextState.last_streak_date,
+            updatedAt: now,
+          },
+        })
+        .returning();
+      nextState = normalizeScentMemoryState(savedState, userId);
+
+      const [indexedSession] = await db
+        .insert(cognitiveSessionIndex)
+        .values({
+          userId,
+          activityType: "scent_memory",
+          domain: "episodic_memory",
+          secondaryDomain: null,
+          difficulty: 1,
+          difficultyScale: "none",
+          completed: true,
+          abandoned: false,
+          score: hasResponse ? 100 : 0,
+          accuracyPct: hasResponse ? 100 : 0,
+          speedPct: null,
+          durationSeconds: data.durationSeconds ?? 0,
+          playedAt: now,
+          language: normalizeGameLanguage(data.language),
+          source: "scent_memory",
+          sourceTable: "scent_memory_sessions",
+          sourceSessionId: session?.id ?? null,
+          metadata: {
+            promptId: data.promptId ?? null,
+            responseProvided: hasResponse,
+            responseInputMethod: data.responseInputMethod ?? null,
+          },
+        })
+        .returning();
+
+      await syncSessionToDailyPlan(ctx, userId, indexedSession).catch((error) => {
+        console.warn("[games] Scent Memory daily plan sync failed:", error);
+      });
+    }
+
+    return res.status(201).json({
+      session,
+      state: nextState ?? await getOrCreateScentMemoryState(ctx, userId),
+    });
+  } catch (error) {
+    console.error("[games] Scent Memory session save failed:", error);
+    return res.status(500).json({ error: "Scent Memory session could not be saved." });
+  }
+}
+
+function normalizeBreathGardenState(row: unknown, userId: string) {
+  const value = row && typeof row === "object" ? row as Record<string, unknown> : {};
+  const preferredTheme = stringValue(value.preferredTheme) ?? "garden";
+  return {
+    user_id: userId,
+    total_sessions: toNumber(value.totalSessions, 0),
+    last_played_at: toIsoDate(value.lastPlayedAt),
+    streak_days: toNumber(value.streakDays, 0),
+    last_streak_date: typeof value.lastStreakDate === "string" ? value.lastStreakDate : value.lastStreakDate instanceof Date ? todayDateKey(value.lastStreakDate) : null,
+    preferred_theme: ["garden", "tide", "stars", "ripples"].includes(preferredTheme) ? preferredTheme : "garden",
+    updated_at: toIsoDate(value.updatedAt) ?? new Date().toISOString(),
+  };
+}
+
+function nextBreathGardenState(
+  previousState: ReturnType<typeof normalizeBreathGardenState>,
+  preferredTheme: string,
+  now = new Date(),
+) {
+  const today = todayDateKey(now);
+  const yesterday = todayDateKey(addCalendarDays(now, -1));
+  const lastStreakDate = previousState.last_streak_date;
+  const streakDays =
+    lastStreakDate === today
+      ? Math.max(1, Number(previousState.streak_days ?? 1))
+      : lastStreakDate === yesterday
+        ? Number(previousState.streak_days ?? 0) + 1
+        : 1;
+
+  return {
+    user_id: previousState.user_id,
+    total_sessions: Number(previousState.total_sessions ?? 0) + 1,
+    last_played_at: now.toISOString(),
+    streak_days: streakDays,
+    last_streak_date: today,
+    preferred_theme: preferredTheme,
+    updated_at: now.toISOString(),
+  };
+}
+
+async function getOrCreateBreathGardenState(ctx: CognitiveSessionDb, userId: string) {
+  const { db, breathGardenUserState, eq } = ctx;
+  const [existing] = await db
+    .select()
+    .from(breathGardenUserState)
+    .where(eq(breathGardenUserState.userId, userId))
+    .limit(1);
+
+  if (existing) return normalizeBreathGardenState(existing, userId);
+
+  const [created] = await db
+    .insert(breathGardenUserState)
+    .values({ userId, preferredTheme: "garden", updatedAt: new Date() })
+    .onConflictDoNothing()
+    .returning();
+
+  return normalizeBreathGardenState(created, userId);
+}
+
+export async function breathGardenStateHandler(req: Request, res: Response) {
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const state = await getOrCreateBreathGardenState(ctx, req.user!.id);
+    return res.json({ state });
+  } catch (error) {
+    console.error("[games] Breath Garden state failed:", error);
+    return res.status(500).json({ error: "Breath Garden state could not be loaded." });
+  }
+}
+
+export async function breathGardenSessionHandler(req: Request, res: Response) {
+  const parsed = breathGardenSessionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Breath Garden session request." });
+  }
+
+  const data = parsed.data;
+  const userId = req.user!.id;
+  const now = new Date();
+  const consistency = data.breathConsistencyIndex ?? 0;
+  const avgCycle = data.avgBreathCycleSeconds ?? 0;
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, breathGardenSessions, breathGardenUserState, cognitiveSessionIndex } = ctx;
+    const [session] = await db
+      .insert(breathGardenSessions)
+      .values({
+        userId,
+        playedAt: now,
+        breathTaps: data.breathTaps,
+        sessionDurationSeconds: data.sessionDurationSeconds,
+        breathCycleCount: data.breathCycleCount,
+        avgBreathCycleSeconds: data.avgBreathCycleSeconds ?? null,
+        breathConsistencyIndex: data.breathConsistencyIndex ?? null,
+        finalPaceBreathsPerMin: data.finalPaceBreathsPerMin ?? null,
+        gardenTheme: data.gardenTheme,
+        bloomLevelReached: data.bloomLevelReached,
+        completed: data.completed,
+        abandoned: data.abandoned,
+      })
+      .returning();
+
+    let nextState: ReturnType<typeof normalizeBreathGardenState> | null = null;
+    const previousState = await getOrCreateBreathGardenState(ctx, userId);
+
+    if (data.completed) {
+      nextState = nextBreathGardenState(previousState, data.gardenTheme, now);
+    } else {
+      nextState = {
+        ...previousState,
+        preferred_theme: data.gardenTheme,
+        updated_at: now.toISOString(),
+      };
+    }
+
+    const [savedState] = await db
+      .insert(breathGardenUserState)
+      .values({
+        userId,
+        totalSessions: nextState.total_sessions,
+        lastPlayedAt: data.completed ? now : previousState.last_played_at ? new Date(previousState.last_played_at) : null,
+        streakDays: nextState.streak_days,
+        lastStreakDate: nextState.last_streak_date,
+        preferredTheme: data.gardenTheme,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: breathGardenUserState.userId,
+        set: {
+          totalSessions: nextState.total_sessions,
+          lastPlayedAt: data.completed ? now : previousState.last_played_at ? new Date(previousState.last_played_at) : null,
+          streakDays: nextState.streak_days,
+          lastStreakDate: nextState.last_streak_date,
+          preferredTheme: data.gardenTheme,
+          updatedAt: now,
+        },
+      })
+      .returning();
+    nextState = normalizeBreathGardenState(savedState, userId);
+
+    if (data.completed) {
+      const [indexedSession] = await db
+        .insert(cognitiveSessionIndex)
+        .values({
+          userId,
+          activityType: "breath_garden",
+          domain: "arousal_regulation",
+          secondaryDomain: null,
+          difficulty: 1,
+          difficultyScale: "none",
+          completed: true,
+          abandoned: false,
+          score: Math.round(consistency),
+          accuracyPct: null,
+          speedPct: Math.min(100, Math.round(avgCycle * 10)),
+          durationSeconds: data.sessionDurationSeconds,
+          playedAt: now,
+          language: normalizeGameLanguage(data.language),
+          source: "breath_garden",
+          sourceTable: "breath_garden_sessions",
+          sourceSessionId: session?.id ?? null,
+          metadata: {
+            gardenTheme: data.gardenTheme,
+            breathCycleCount: data.breathCycleCount,
+            avgBreathCycleSeconds: data.avgBreathCycleSeconds ?? null,
+            finalPaceBreathsPerMin: data.finalPaceBreathsPerMin ?? null,
+            bloomLevelReached: data.bloomLevelReached,
+          },
+        })
+        .returning();
+
+      await syncSessionToDailyPlan(ctx, userId, indexedSession).catch((error) => {
+        console.warn("[games] Breath Garden daily plan sync failed:", error);
+      });
+    }
+
+    return res.status(201).json({
+      session,
+      state: nextState,
+    });
+  } catch (error) {
+    console.error("[games] Breath Garden session save failed:", error);
+    return res.status(500).json({ error: "Breath Garden session could not be saved." });
+  }
+}
+
+export async function curiousMindsContentHandler(req: Request, res: Response) {
+  const language = typeof req.query.language === "string" ? req.query.language : "es";
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, curiousMindsSessions, and, desc, eq, gte, lt } = ctx;
+    const userId = req.user!.id;
+    const { start, end } = localDayBounds();
+
+    const [state, todaySessions, historySessions, hooks, prompts] = await Promise.all([
+      getOrCreateCuriousMindsState(ctx, userId),
+      db
+        .select()
+        .from(curiousMindsSessions)
+        .where(and(
+          eq(curiousMindsSessions.userId, userId),
+          gte(curiousMindsSessions.playedAt, start),
+          lt(curiousMindsSessions.playedAt, end),
+        )),
+      db
+        .select()
+        .from(curiousMindsSessions)
+        .where(eq(curiousMindsSessions.userId, userId))
+        .orderBy(desc(curiousMindsSessions.playedAt))
+        .limit(500),
+      loadCuriousMindsActiveRows(ctx, "hooks", language),
+      loadCuriousMindsActiveRows(ctx, "prompts", language),
+    ]);
+
+    const selectedHook = pickCuriousMindsContent(hooks as Array<{ id: string }>, todaySessions, historySessions, "hookId");
+    const selectedPrompt = pickCuriousMindsContent(prompts as Array<{ id: string }>, todaySessions, historySessions, "promptId");
+
+    if (!selectedHook || !selectedPrompt) {
+      return res.status(404).json({ error: "There is no reviewed Curious Minds content available yet." });
+    }
+
+    return res.json({
+      state,
+      hook: serializeCuriousMindsHook(selectedHook as Record<string, unknown>),
+      prompt: serializeCuriousMindsPrompt(selectedPrompt as Record<string, unknown>),
+    });
+  } catch (error) {
+    console.error("[games] Curious Minds content failed:", error);
+    return res.status(500).json({ error: "Curious Minds content could not be loaded." });
+  }
+}
+
+export async function curiousMindsSessionHandler(req: Request, res: Response) {
+  const parsed = curiousMindsSessionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Curious Minds session request." });
+  }
+
+  const data = parsed.data;
+  const userId = req.user!.id;
+  const now = new Date();
+  const ideasCount = data.ideasGenerated.length;
+
+  try {
+    const ctx = await loadCognitiveSessionDb();
+    const { db, curiousMindsSessions, curiousMindsUserState, cognitiveSessionIndex, eq } = ctx;
+    const [session] = await db
+      .insert(curiousMindsSessions)
+      .values({
+        userId,
+        playedAt: now,
+        hookId: data.hookId ?? null,
+        hookGuessText: data.hookGuessText || null,
+        hookGuessInputMethod: data.hookGuessInputMethod ?? null,
+        promptId: data.promptId ?? null,
+        ideasGenerated: data.ideasGenerated,
+        ideasCount,
+        callbackAttempted: data.callbackAttempted,
+        callbackResponseText: data.callbackResponseText || null,
+        callbackInputMethod: data.callbackInputMethod ?? null,
+        completed: data.completed,
+        abandoned: data.abandoned,
+        durationSeconds: data.durationSeconds ?? null,
+      })
+      .returning();
+
+    let nextState: ReturnType<typeof normalizeCuriousMindsState> | null = null;
+    if (data.completed) {
+      const previousState = await getOrCreateCuriousMindsState(ctx, userId);
+      nextState = nextCuriousMindsState(previousState, now);
+      const [savedState] = await db
+        .insert(curiousMindsUserState)
+        .values({
+          userId,
+          totalSessions: nextState.total_sessions,
+          lastPlayedAt: now,
+          streakDays: nextState.streak_days,
+          lastStreakDate: nextState.last_streak_date,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: curiousMindsUserState.userId,
+          set: {
+            totalSessions: nextState.total_sessions,
+            lastPlayedAt: now,
+            streakDays: nextState.streak_days,
+            lastStreakDate: nextState.last_streak_date,
+            updatedAt: now,
+          },
+        })
+        .returning();
+      nextState = normalizeCuriousMindsState(savedState, userId);
+
+      const [indexedSession] = await db
+        .insert(cognitiveSessionIndex)
+        .values({
+          userId,
+          activityType: "curious_minds",
+          domain: "divergent_thinking",
+          secondaryDomain: "attention",
+          difficulty: 1,
+          difficultyScale: "none",
+          completed: true,
+          abandoned: false,
+          score: Math.min(100, ideasCount * 10),
+          accuracyPct: data.callbackAttempted ? 100 : 0,
+          speedPct: null,
+          durationSeconds: data.durationSeconds ?? 0,
+          playedAt: now,
+          language: normalizeGameLanguage(data.language),
+          source: "curious_minds",
+          sourceTable: "curious_minds_sessions",
+          sourceSessionId: session?.id ?? null,
+          metadata: {
+            hookId: data.hookId ?? null,
+            promptId: data.promptId ?? null,
+            ideasCount,
+            callbackAttempted: data.callbackAttempted,
+          },
+        })
+        .returning();
+
+      await syncSessionToDailyPlan(ctx, userId, indexedSession).catch((error) => {
+        console.warn("[games] Curious Minds daily plan sync failed:", error);
+      });
+    }
+
+    return res.status(201).json({
+      session,
+      state: nextState ?? await getOrCreateCuriousMindsState(ctx, userId),
+    });
+  } catch (error) {
+    console.error("[games] Curious Minds session save failed:", error);
+    return res.status(500).json({ error: "Curious Minds session could not be saved." });
+  }
 }
 
 export async function createCognitiveSessionHandler(req: Request, res: Response) {
@@ -1149,6 +1982,12 @@ export async function brainCoachCaregiverSummaryHandler(req: Request, res: Respo
 }
 
 const router = Router();
+router.get("/curious-minds/content", curiousMindsContentHandler);
+router.post("/curious-minds/sessions", curiousMindsSessionHandler);
+router.get("/scent-memory/content", scentMemoryContentHandler);
+router.post("/scent-memory/sessions", scentMemorySessionHandler);
+router.get("/breath-garden/state", breathGardenStateHandler);
+router.post("/breath-garden/sessions", breathGardenSessionHandler);
 router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);

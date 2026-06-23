@@ -42,6 +42,7 @@ vi.mock("@/components/VoiceHero", () => ({
     onChatClick?: () => void;
     showVoiceOverlay?: boolean;
     talkLabel?: string;
+    voiceAgentSlug?: string;
     voiceDynamicVariables?: Record<string, string | number | boolean>;
   }) => {
     voiceHeroMock(props);
@@ -52,6 +53,7 @@ vi.mock("@/components/VoiceHero", () => ({
         data-auto-start={String(Boolean(props.autoStartVoice))}
         data-auto-listening={String(Boolean(props.autoStartListening))}
         data-context={props.contextHint ?? ""}
+        data-agent-slug={props.voiceAgentSlug ?? ""}
         data-app-entrypoint={String(props.voiceDynamicVariables?.app_entrypoint ?? "")}
       >
         <button type="button" data-testid="button-voice-hero-talk">
@@ -175,6 +177,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-start", "false");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-listening", "true");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-context", "app_open");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-agent-slug", "main-vyva");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-app-entrypoint", "home_open");
 
     fireEvent.click(screen.getByTestId("button-home-type-instead"));

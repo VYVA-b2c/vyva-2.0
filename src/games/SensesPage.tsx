@@ -1,61 +1,70 @@
-import { Brain, ChevronRight, Footprints, Lightbulb, Route } from "lucide-react";
+import { ChevronRight, Flower2, Headphones, Leaf, Link2, Waves } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
 
-const attentionGames = [
+const sensesGames = [
   {
-    titleKey: "brainGames.attentionBoosters.dualTask.title",
-    descriptionKey: "brainGames.attentionBoosters.dualTask.description",
-    badgeKey: "brainGames.attentionBoosters.dualTask.badge",
-    route: "/dual-task-walk",
-    icon: Footprints,
-    colors: { accent: "#6B21A8", bg: "#F5EEFF", border: "#D8C7F3" },
+    route: "/senses/breath-garden",
+    titleKey: "games.breathGarden.cardTitle",
+    descriptionKey: "games.breathGarden.cardDescription",
+    badgeKey: "brainGames.senses.breathGarden.badge",
+    Icon: Leaf,
+    colors: { accent: "#0F766E", bg: "#DDF7F1", border: "#99F6E4" },
   },
   {
-    titleKey: "brainGames.attentionBoosters.rhythmTap.title",
-    descriptionKey: "brainGames.attentionBoosters.rhythmTap.description",
-    badgeKey: "brainGames.attentionBoosters.rhythmTap.badge",
-    route: "/attention-boosters/rhythm-tap",
-    icon: Route,
-    colors: { accent: "#149A63", bg: "#ECFDF5", border: "#BDEFD3" },
+    route: "/senses/listen-closely",
+    titleKey: "games.listenClosely.title",
+    descriptionKey: "games.listenClosely.cardDescription",
+    badgeKey: "games.listenClosely.cardBadge",
+    Icon: Waves,
+    colors: { accent: "#0F766E", bg: "#CCFBF1", border: "#99F6E4" },
   },
   {
-    titleKey: "games.curiousMinds.title",
-    descriptionKey: "games.curiousMinds.cardDescription",
-    badgeKey: "games.curiousMinds.cardBadge",
-    route: "/memory-games/curious-minds",
-    icon: Lightbulb,
-    colors: { accent: "#6B21A8", bg: "#F3E8FF", border: "#D8C7F3" },
+    route: "/senses/scent-memory",
+    titleKey: "games.scentMemory.cardTitle",
+    descriptionKey: "games.scentMemory.cardDescription",
+    badgeKey: "brainGames.senses.scentMemory.badge",
+    Icon: Flower2,
+    colors: { accent: "#B45309", bg: "#FFF7ED", border: "#FED7AA" },
+  },
+  {
+    route: "/senses/association",
+    titleKey: "memoryGames.associationMemory.title",
+    descriptionKey: "memoryGames.associationMemory.description",
+    badgeKey: "brainGames.senses.association.badge",
+    Icon: Link2,
+    colors: { accent: "#BE185D", bg: "#FFF1F2", border: "#FBCFE8" },
   },
 ] as const;
 
-export default function AttentionBoostersPage() {
+export default function SensesPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const title = t("brainGames.attentionBoosters.title");
 
   return (
     <div className="vyva-page">
       <PageHeader
         className="pt-2"
-        title={title}
-        subtitle={t("brainGames.attentionBoosters.subtitle")}
-        icon={Brain}
-        iconColor="#7C3AED"
+        title={t("brainGames.senses.title")}
+        subtitle={t("brainGames.senses.subtitle")}
+        icon={Headphones}
+        iconColor="#0F766E"
         backLabel={t("common.back")}
         backTo="/activities"
       />
 
       <ResponsiveGrid className="mt-5" columns="two">
-        {attentionGames.map((game) => {
+        {sensesGames.map((game) => {
+          const Icon = game.Icon;
+
           return (
             <ActionCard
               key={game.route}
               onClick={() => navigate(game.route)}
               title={t(game.titleKey)}
               description={t(game.descriptionKey)}
-              icon={game.icon}
+              icon={Icon}
               iconBg={game.colors.bg}
               iconColor={game.colors.accent}
               surface="white"

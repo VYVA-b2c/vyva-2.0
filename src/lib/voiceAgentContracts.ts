@@ -56,6 +56,7 @@ export const VOICE_AGENT_CONTRACTS: VoiceAgentContract[] = [
     id: "main_vyva",
     name: "Main VYVA",
     domain: "companion",
+    agentSlug: "main-vyva",
     entrypoints: ["home_open", "app_open", "manual_talk_button"],
     planIds: ["main_vyva_first_welcome_tour", "main_vyva_returning_app_open"],
     startsFrom: ["Home voice hero", "App-open prompt-first CTA", "Global VYVA talk controls"],
