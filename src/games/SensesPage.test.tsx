@@ -29,19 +29,16 @@ describe("SensesPage", () => {
     expect(screen.getByTestId("current-route")).toHaveTextContent("/senses/listen-closely");
   });
 
-  it("opens Association from the Sharpen Senses hub", () => {
+  it("keeps Association out of the Sharpen Senses hub", () => {
     render(
       <MemoryRouter initialEntries={["/senses"]}>
         <Routes>
           <Route path="/senses" element={<SensesPage />} />
-          <Route path="/senses/association" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Association/i }));
-
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/senses/association");
+    expect(screen.queryByRole("button", { name: /Association/i })).not.toBeInTheDocument();
   });
 
   it("opens Scent Memory from the Sharpen Senses hub", () => {

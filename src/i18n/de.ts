@@ -964,7 +964,7 @@ const de = {
       },
       senses: {
         title: "Sinne scharfen",
-        subtitle: "Waehlen Sie eine Ubung fuer Zuordnung, Beobachtung und Erinnerung.",
+        subtitle: "Waehlen Sie eine Uebung fuer Klang, Atem und Sinneserinnerung.",
         scentMemory: {
           badge: "Taegliche Erinnerung",
         },

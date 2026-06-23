@@ -1,4 +1,4 @@
-import { ChevronRight, Flower2, Headphones, Leaf, Link2, Waves } from "lucide-react";
+import { ChevronRight, Flower2, Headphones, Leaf, Waves } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
@@ -27,14 +27,6 @@ const sensesGames = [
     badgeKey: "brainGames.senses.scentMemory.badge",
     Icon: Flower2,
     colors: { accent: "#B45309", bg: "#FFF7ED", border: "#FED7AA" },
-  },
-  {
-    route: "/senses/association",
-    titleKey: "memoryGames.associationMemory.title",
-    descriptionKey: "memoryGames.associationMemory.description",
-    badgeKey: "brainGames.senses.association.badge",
-    Icon: Link2,
-    colors: { accent: "#BE185D", bg: "#FFF1F2", border: "#FBCFE8" },
   },
 ] as const;
 

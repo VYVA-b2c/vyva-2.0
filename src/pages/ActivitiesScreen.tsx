@@ -120,7 +120,7 @@ const ActivitiesScreen = () => {
     {
       id: "intelligence",
       icon: Puzzle,
-      label: t("activities.primary.intelligence", "Boost Intelligence"),
+      label: t("activities.primary.intelligence", "Improve Thinking"),
       sub: t("activities.primary.intelligenceSub", "Challenge logic, planning, and problem solving."),
       mobileLabel: t("activities.primary.intelligenceMobile", "Logic"),
       mobileSub: t("activities.primary.intelligenceSubMobile", "Problem solving"),

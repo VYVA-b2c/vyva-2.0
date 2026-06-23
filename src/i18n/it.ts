@@ -929,7 +929,7 @@ const it = {
       },
       senses: {
         title: "Affina i sensi",
-        subtitle: "Scegli un esercizio per associare, osservare e ricordare.",
+        subtitle: "Scegli un esercizio di suono, respiro e ricordo sensoriale.",
         scentMemory: {
           badge: "Ricordo quotidiano",
         },

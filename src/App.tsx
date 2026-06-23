@@ -572,7 +572,7 @@ const App = () => (
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
                   <Route path="/senses" element={<AppShell><SensesPage /></AppShell>} />
-                  <Route path="/senses/association" element={<AppShell><MemoryGameRunner forcedGameType="association_memory" returnPath="/senses" /></AppShell>} />
+                  <Route path="/senses/association" element={<Navigate to="/memory-games/association_memory" replace />} />
                   <Route path="/senses/scent-memory" element={<ScentMemoryRoute />} />
                   <Route path="/senses/listen-closely" element={<ListenCloselyRoute />} />
                   <Route path="/senses/breath-garden" element={<BreathGardenRoute />} />

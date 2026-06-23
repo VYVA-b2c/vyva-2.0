@@ -53,7 +53,7 @@ const labels: Record<string, string> = {
   "activities.primary.memorySub": "Practice recall, matching, and daily routines.",
   "activities.primary.reflexes": "Train Reflexes",
   "activities.primary.reflexesSub": "Build faster focus and response.",
-  "activities.primary.intelligence": "Boost Intelligence",
+  "activities.primary.intelligence": "Improve Thinking",
   "activities.primary.intelligenceSub": "Challenge logic, planning, and problem solving.",
   "activities.primary.senses": "Sharpen Senses",
   "activities.primary.sensesSub": "Reset with sound, breath, and calm attention.",
@@ -140,7 +140,7 @@ describe("Activities service actions", () => {
     }));
     expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");
     expect(screen.getByTestId("button-activities-primary-reflexes")).toHaveTextContent("Train Reflexes");
-    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Boost Intelligence");
+    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Improve Thinking");
     expect(screen.getByTestId("button-activities-primary-senses")).toHaveTextContent("Sharpen Senses");
 
     const quickActions = screen.getByTestId("activities-quick-actions");

@@ -547,10 +547,10 @@ const en = {
       memorySub: "Practice recall, matching, and daily routines.",
       reflexes: "Train Reflexes",
       reflexesSub: "Build faster focus and response.",
-      intelligence: "Boost Intelligence",
+      intelligence: "Improve Thinking",
       intelligenceSub: "Challenge logic, planning, and problem solving.",
       senses: "Sharpen Senses",
-      sensesSub: "Practice association, observation, and recall.",
+      sensesSub: "Practice sound, breath, and sensory recall.",
     },
     chooseActivity: "Choose an activity",
     trivia: "Focus & Attention",
@@ -1040,7 +1040,7 @@ const en = {
       },
       senses: {
         title: "Sharpen Senses",
-        subtitle: "Choose an exercise for association, observation, and recall.",
+        subtitle: "Choose an exercise for sound, breath, and sensory recall.",
         scentMemory: {
           badge: "Daily memory",
         },

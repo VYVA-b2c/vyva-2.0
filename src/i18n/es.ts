@@ -1022,7 +1022,7 @@ const es = {
       },
       senses: {
         title: "Afinar sentidos",
-        subtitle: "Elige un ejercicio para asociar, observar y recordar.",
+        subtitle: "Elige un ejercicio de sonido, respiracion y recuerdo sensorial.",
         scentMemory: {
           badge: "Recuerdo diario",
         },
