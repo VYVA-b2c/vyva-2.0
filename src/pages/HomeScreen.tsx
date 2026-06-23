@@ -366,6 +366,7 @@ const HomeScreen = () => {
         }
         weatherData={weatherData}
         contextHint="app_open"
+        voiceAgentSlug="main-vyva"
         voiceDynamicVariables={{ app_entrypoint: "home_open" }}
         autoStartListening
         showVoiceOverlay
