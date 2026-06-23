@@ -1506,6 +1506,12 @@ const ConciergeScreen = () => {
   }, [appointmentOptions, selectedAppointmentOptionId]);
 
   const appointmentProviderName = appointmentOptionName(selectedAppointmentOption, isSpanish);
+  const appointmentProviderAddress = appointmentSnapshotText(selectedAppointmentOption, "address");
+  const appointmentProviderTrustNote = selectedAppointmentOption?.provider_source === "saved"
+    ? (isSpanish ? "Guardado en tu perfil" : "Saved in your profile")
+    : selectedAppointmentOption?.provider_source === "external"
+      ? (isSpanish ? "Encontrado en fuentes verificables" : "Found from verifiable sources")
+      : (isSpanish ? "Preparado para revisar" : "Prepared for review");
   const activeAppointmentMission = useMemo(() => (
     appointmentMission ?? appointmentMissionFallback({
       request: appointmentRequest,
@@ -1734,8 +1740,8 @@ const ConciergeScreen = () => {
     : (isSpanish ? "Programar una cita" : "Schedule an appointment");
   const appointmentPanelSubtitle = isHomeServiceAppointment
     ? (isSpanish
-      ? "VYVA busca opciones y pide permiso antes de contactar."
-      : "VYVA finds options and asks before contacting.")
+      ? "Explica el problema. VYVA organiza el siguiente paso."
+      : "Describe the problem. VYVA organizes the next step.")
     : (isSpanish
       ? "Elige tipo de cita. VYVA prepara el siguiente paso."
       : "Choose a type. VYVA prepares the next step.");
@@ -1750,8 +1756,8 @@ const ConciergeScreen = () => {
     : (isSpanish ? "No hay proveedor guardado para esto." : "No saved provider for this yet.");
   const noSavedProviderBody = isHomeServiceAppointment
     ? (isSpanish
-      ? "VYVA puede buscar opciones fiables cerca antes de contactar con nadie."
-      : "VYVA can search trusted nearby options before anyone is contacted.")
+      ? "Busca opciones fiables cercanas en un toque."
+      : "Search trusted nearby options in one tap.")
     : null;
   const appointmentDiscoverLabel = isHomeServiceAppointment
     ? (isSpanish ? "Buscar opciones fiables" : "Find trusted options")
@@ -1765,6 +1771,7 @@ const ConciergeScreen = () => {
     || discoverAppointmentOptionsMutation.isPending
     || (appointmentNotice && !(isHomeServiceWithoutProvider && !appointmentDiscovery)),
   );
+  const showAppointmentMissionCard = !isHomeServiceAppointment || Boolean(appointmentAttemptResult);
 
   useEffect(() => {
     if (pendingActions.length === 0) {
@@ -1965,8 +1972,10 @@ const ConciergeScreen = () => {
     setOffersOpen(false);
     setAppointmentError(null);
     window.setTimeout(() => {
-      if (typeof appointmentPanelRef.current?.scrollIntoView === "function") {
-        appointmentPanelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const isTestDom = window.navigator.userAgent.toLowerCase().includes("jsdom");
+      if (!isTestDom && appointmentPanelRef.current && typeof window.scrollTo === "function") {
+        const panelTop = appointmentPanelRef.current.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({ top: Math.max(0, panelTop - 92), behavior: "smooth" });
       }
     }, 80);
   }
@@ -3432,36 +3441,35 @@ const ConciergeScreen = () => {
               <button
                 type="button"
                 onClick={() => setAppointmentOpen(false)}
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white font-body text-[15px] text-vyva-text-2"
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-vyva-text-2"
                 aria-label={isSpanish ? "Cerrar" : "Close"}
               >
-                x
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
 
-            {isHomeServiceWithoutProvider ? (
+            {isHomeServiceAppointment && (
               <div
-                className="mt-4 rounded-[22px] border border-[#FED7AA] bg-white p-3"
+                className="mt-4 rounded-[20px] border border-[#F6D7AE] bg-white px-4 py-3"
                 data-testid="panel-appointment-home-service-summary"
               >
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { Icon: CircleCheck, label: isSpanish ? "Perfil revisado" : "Saved list checked", tone: "#047857", bg: "#ECFDF5" },
-                    { Icon: Search, label: isSpanish ? "Busqueda fiable" : "Trusted search", tone: "#B45309", bg: "#FFF7ED" },
-                    { Icon: ShieldCheck, label: isSpanish ? "Tu confirmas" : "You confirm", tone: "#6B21A8", bg: "#F5F3FF" },
-                  ].map(({ Icon, label, tone, bg }) => (
-                    <div key={label} className="inline-flex min-h-[42px] flex-1 basis-[150px] items-center gap-2 rounded-full border border-[#F3E6D8] bg-[#FFFCF8] px-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: bg, color: tone }}>
-                        <Icon size={16} />
-                      </span>
-                      <span className="font-body text-[13px] font-black leading-tight text-vyva-text-1">
-                        {label}
-                      </span>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FFF7ED] text-[#B45309]">
+                    <ShieldCheck size={18} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-body text-[14px] font-black leading-tight text-vyva-text-1">
+                      {isSpanish ? "Tu eliges antes de contactar." : "You choose before anyone is contacted."}
+                    </p>
+                    <p className="mt-0.5 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                      {isSpanish ? "Lista guardada primero. Fuentes verificables despues." : "Saved list first. Verified sources next."}
+                    </p>
+                  </div>
                 </div>
               </div>
-            ) : (
+            )}
+
+            {showAppointmentMissionCard && (
               <div
                 className="mt-4 rounded-[22px] border border-[#99F6E4] bg-white p-4"
                 data-testid="panel-appointment-mission"
@@ -3664,45 +3672,35 @@ const ConciergeScreen = () => {
             )}
 
             {appointmentRequest && appointmentOptions.length > 0 && (
-              <div className="mt-3 rounded-[22px] border border-[#99F6E4] bg-white p-3" data-testid="panel-appointment-provider-options">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-                  {isSpanish ? "Opciones" : "Provider options"}
-                </p>
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {appointmentOptions.map((option) => {
-                    const isSelected = option.id === selectedAppointmentOption?.id;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setSelectedAppointmentOptionId(option.id)}
-                        data-testid={`button-appointment-option-${testIdSlug(appointmentOptionName(option, isSpanish))}`}
-                        className={`vyva-tap rounded-[17px] border px-3 py-3 text-left font-body ${
-                          isSelected ? "border-vyva-purple bg-[#F5F3FF]" : "border-[#E8DED4] bg-[#FFFCF8]"
-                        }`}
-                      >
-                        <span className="block text-[15px] font-black text-vyva-text-1">
-                          {appointmentOptionName(option, isSpanish)}
-                        </span>
-                        <span className="mt-1 block text-[12px] font-semibold text-vyva-text-2">
-                          {option.match_reason || (isSpanish ? "Desde Settings" : "From Settings")}
-                        </span>
-                      </button>
-                    );
-                  })}
+              <div className="mt-3 rounded-[24px] border border-[#99F6E4] bg-white p-4" data-testid="panel-appointment-provider-options">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#0F766E]">
+                    <ShieldCheck size={22} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                      {isSpanish ? "Opcion recomendada" : "Recommended option"}
+                    </p>
+                    <h3 className="mt-1 font-body text-[19px] font-black leading-tight text-vyva-text-1">
+                      {appointmentProviderName}
+                    </h3>
+                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                      {selectedAppointmentOption?.match_reason || appointmentProviderTrustNote}
+                    </p>
+                    {appointmentProviderAddress && (
+                      <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-3">
+                        {appointmentProviderAddress}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {selectedAppointmentOption && (
-                  <div className="mt-3 rounded-[18px] bg-[#F8FFFC] p-3">
-                    <p className="font-body text-[16px] font-black text-vyva-text-1">
-                      {isSpanish ? "VYVA intentara con " : "VYVA will try "}{appointmentProviderName}
+                  <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                    <p className="font-body text-[13px] font-black leading-snug text-vyva-text-1">
+                      {isSpanish ? "Elige como quieres que VYVA lo prepare." : "Choose how VYVA should prepare this."}
                     </p>
-                    {appointmentSnapshotText(selectedAppointmentOption, "address") && (
-                      <p className="mt-1 font-body text-[13px] font-semibold text-vyva-text-2">
-                        {appointmentSnapshotText(selectedAppointmentOption, "address")}
-                      </p>
-                    )}
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
                       {selectedAppointmentOption.available_channels.map((channel) => (
                         <button
                           key={channel}
@@ -3710,7 +3708,7 @@ const ConciergeScreen = () => {
                           onClick={() => handleAppointmentChannel(channel)}
                           disabled={confirmAppointmentMutation.isPending}
                           data-testid={`button-appointment-channel-${channel}`}
-                          className="vyva-tap inline-flex min-h-[42px] items-center justify-center rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[13px] font-black text-[#0F766E] disabled:opacity-60"
+                          className="vyva-tap inline-flex min-h-[42px] items-center justify-center rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white disabled:opacity-60"
                         >
                           {confirmAppointmentMutation.isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
                           {appointmentChannelLabel(channel, isSpanish)}
@@ -3719,19 +3717,55 @@ const ConciergeScreen = () => {
                     </div>
                   </div>
                 )}
+
+                {appointmentOptions.length > 1 && (
+                  <details className="mt-3 rounded-[16px] border border-[#D6F5DF] bg-[#F8FFFC] p-3">
+                    <summary className="cursor-pointer list-none font-body text-[12px] font-black text-[#0F766E]">
+                      {isSpanish ? "Ver otras opciones" : "See other options"}
+                    </summary>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {appointmentOptions.map((option) => {
+                        const isSelected = option.id === selectedAppointmentOption?.id;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setSelectedAppointmentOptionId(option.id)}
+                            data-testid={`button-appointment-option-${testIdSlug(appointmentOptionName(option, isSpanish))}`}
+                            className={`vyva-tap rounded-[14px] border px-3 py-2 text-left font-body ${
+                              isSelected ? "border-vyva-purple bg-[#F5F3FF]" : "border-[#E8DED4] bg-white"
+                            }`}
+                          >
+                            <span className="block text-[13px] font-black text-vyva-text-1">
+                              {appointmentOptionName(option, isSpanish)}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] font-semibold text-vyva-text-2">
+                              {option.match_reason || (isSpanish ? "Fuente revisable" : "Reviewable source")}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
               </div>
             )}
 
             {appointmentRequest && appointmentOptions.length === 0 && (
               <div className="mt-3 rounded-[20px] border border-[#FCD34D] bg-[#FFFBEB] p-4">
-                <p className="font-body text-[15px] font-black text-vyva-text-1">
-                  {noSavedProviderTitle}
-                </p>
-                {noSavedProviderBody && (
-                  <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
-                    {noSavedProviderBody}
-                  </p>
-                )}
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B45309]">
+                    <Search size={17} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[15px] font-black text-vyva-text-1">
+                      {noSavedProviderTitle}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                      {noSavedProviderBody || (isSpanish ? "VYVA puede buscar opciones antes de contactar." : "VYVA can look for options before contacting anyone.")}
+                    </p>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={handleDiscoverAppointmentOptions}
