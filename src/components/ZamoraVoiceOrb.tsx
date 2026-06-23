@@ -40,82 +40,82 @@ const BASE_CANVAS_SIZE = 112;
 const BASE_CONTAINER_SIZE = 188;
 const BASE_RING_SIZES = [188, 158, 128] as const;
 const IDLE_RING_OPACITY = {
-  dark: [0.18, 0.35, 0.55],
-  light: [0.12, 0.22, 0.38],
+  dark: [0.08, 0.13, 0.2],
+  light: [0.07, 0.11, 0.17],
 };
 
 const ORB_STATES: Record<ZamoraOrbState, OrbConfig> = {
   idle: {
     blobs: [
-      { r: 54, spd: 0.00055, ox: 22, oy: 16, ph: 0, c: [107, 33, 168], po: 0, a: 0.55 },
-      { r: 44, spd: 0.00085, ox: 28, oy: 20, ph: 2.1, c: [139, 92, 246], po: 1.2, a: 0.5 },
-      { r: 38, spd: 0.0007, ox: 18, oy: 22, ph: 4.2, c: [192, 132, 252], po: 2.4, a: 0.45 },
-      { r: 30, spd: 0.001, ox: 30, oy: 18, ph: 1, c: [245, 158, 11], po: 0.6, a: 0.5 },
-      { r: 24, spd: 0.00115, ox: 24, oy: 26, ph: 3.5, c: [139, 92, 246], po: 1.8, a: 0.4 },
-      { r: 36, spd: 0.00065, ox: 16, oy: 14, ph: 5.1, c: [107, 33, 168], po: 3, a: 0.55 },
-      { r: 20, spd: 0.0016, ox: 26, oy: 22, ph: 1.2, c: [245, 158, 11], po: 0.3, a: 0.45 },
-      { r: 80, spd: 0.00025, ox: 8, oy: 6, ph: 2.4, c: [40, 10, 90], po: 4, a: 0.6 },
+      { r: 58, spd: 0.00045, ox: 18, oy: 14, ph: 0, c: [183, 148, 246], po: 0, a: 0.46 },
+      { r: 48, spd: 0.00068, ox: 22, oy: 16, ph: 2.1, c: [244, 114, 182], po: 1.2, a: 0.3 },
+      { r: 42, spd: 0.00058, ox: 16, oy: 18, ph: 4.2, c: [221, 214, 254], po: 2.4, a: 0.38 },
+      { r: 30, spd: 0.00076, ox: 22, oy: 16, ph: 1, c: [125, 211, 252], po: 0.6, a: 0.22 },
+      { r: 26, spd: 0.00088, ox: 18, oy: 20, ph: 3.5, c: [253, 186, 116], po: 1.8, a: 0.2 },
+      { r: 38, spd: 0.0005, ox: 14, oy: 12, ph: 5.1, c: [167, 139, 250], po: 3, a: 0.38 },
+      { r: 24, spd: 0.00092, ox: 20, oy: 18, ph: 1.2, c: [251, 207, 232], po: 0.3, a: 0.26 },
+      { r: 82, spd: 0.00018, ox: 6, oy: 5, ph: 2.4, c: [88, 28, 135], po: 4, a: 0.24 },
     ],
-    bgi: [18, 6, 38],
-    bgo: [6, 2, 16],
-    rim: [139, 92, 246],
-    rim2: [245, 158, 11],
-    rimA: 0.38,
-    pAmt: 0.14,
-    pSpd: 0.0018,
-    shA: 0.15,
-    ringCol: "#7C3AED",
-    ringDur: 3.2,
-    ringOp: [0.18, 0.35, 0.55],
+    bgi: [128, 92, 224],
+    bgo: [62, 31, 118],
+    rim: [221, 214, 254],
+    rim2: [251, 207, 232],
+    rimA: 0.2,
+    pAmt: 0.09,
+    pSpd: 0.0013,
+    shA: 0.34,
+    ringCol: "#DDD6FE",
+    ringDur: 3.8,
+    ringOp: [0.08, 0.13, 0.2],
     scale: 1,
   },
   listening: {
     blobs: [
-      { r: 62, spd: 0.0013, ox: 10, oy: 8, ph: 0, c: [107, 33, 168], po: 0, a: 0.55 },
-      { r: 50, spd: 0.0019, ox: 16, oy: 14, ph: 1.2, c: [168, 85, 247], po: 0.8, a: 0.5 },
-      { r: 42, spd: 0.0015, ox: 24, oy: 18, ph: 2.8, c: [124, 58, 237], po: 1.6, a: 0.48 },
-      { r: 32, spd: 0.0021, ox: 30, oy: 22, ph: 4, c: [216, 180, 254], po: 2.4, a: 0.44 },
-      { r: 26, spd: 0.0017, ox: 20, oy: 26, ph: 5.2, c: [245, 158, 11], po: 3.2, a: 0.36 },
-      { r: 48, spd: 0.00105, ox: 12, oy: 10, ph: 3.6, c: [139, 92, 246], po: 0.4, a: 0.5 },
-      { r: 18, spd: 0.0024, ox: 30, oy: 14, ph: 1, c: [251, 191, 36], po: 1.2, a: 0.46 },
-      { r: 62, spd: 0.0007, ox: 6, oy: 8, ph: 5.2, c: [62, 18, 118], po: 4.4, a: 0.52 },
+      { r: 64, spd: 0.00085, ox: 9, oy: 8, ph: 0, c: [183, 148, 246], po: 0, a: 0.46 },
+      { r: 52, spd: 0.00108, ox: 13, oy: 12, ph: 1.2, c: [216, 180, 254], po: 0.8, a: 0.38 },
+      { r: 44, spd: 0.00095, ox: 18, oy: 14, ph: 2.8, c: [244, 114, 182], po: 1.6, a: 0.28 },
+      { r: 34, spd: 0.00118, ox: 22, oy: 17, ph: 4, c: [221, 214, 254], po: 2.4, a: 0.36 },
+      { r: 28, spd: 0.00102, ox: 16, oy: 20, ph: 5.2, c: [253, 186, 116], po: 3.2, a: 0.2 },
+      { r: 50, spd: 0.0007, ox: 10, oy: 9, ph: 3.6, c: [167, 139, 250], po: 0.4, a: 0.36 },
+      { r: 22, spd: 0.00135, ox: 22, oy: 12, ph: 1, c: [125, 211, 252], po: 1.2, a: 0.22 },
+      { r: 68, spd: 0.00042, ox: 5, oy: 6, ph: 5.2, c: [96, 52, 160], po: 4.4, a: 0.24 },
     ],
-    bgi: [24, 8, 48],
-    bgo: [8, 4, 20],
-    rim: [168, 85, 247],
-    rim2: [245, 158, 11],
-    rimA: 0.48,
-    pAmt: 0.2,
-    pSpd: 0.003,
-    shA: 0.22,
-    ringCol: "#A855F7",
-    ringDur: 1.1,
-    ringOp: [0.24, 0.42, 0.62],
-    scale: 1.02,
+    bgi: [148, 108, 232],
+    bgo: [76, 38, 146],
+    rim: [221, 214, 254],
+    rim2: [244, 114, 182],
+    rimA: 0.24,
+    pAmt: 0.12,
+    pSpd: 0.002,
+    shA: 0.36,
+    ringCol: "#DDD6FE",
+    ringDur: 1.9,
+    ringOp: [0.1, 0.16, 0.24],
+    scale: 1.01,
   },
   speaking: {
     blobs: [
-      { r: 70, spd: 0.00095, ox: 8, oy: 6, ph: 0, c: [245, 158, 11], po: 0, a: 0.6 },
-      { r: 56, spd: 0.00145, ox: 18, oy: 12, ph: 1.5, c: [251, 191, 36], po: 0.7, a: 0.55 },
-      { r: 46, spd: 0.00115, ox: 26, oy: 20, ph: 3, c: [180, 83, 9], po: 1.4, a: 0.52 },
-      { r: 36, spd: 0.00175, ox: 32, oy: 16, ph: 4.5, c: [252, 211, 77], po: 2.1, a: 0.5 },
-      { r: 28, spd: 0.00135, ox: 22, oy: 28, ph: 6, c: [245, 158, 11], po: 2.8, a: 0.48 },
-      { r: 52, spd: 0.00085, ox: 14, oy: 10, ph: 2, c: [251, 191, 36], po: 0.3, a: 0.55 },
-      { r: 22, spd: 0.002, ox: 26, oy: 22, ph: 1, c: [255, 220, 80], po: 1, a: 0.65 },
-      { r: 84, spd: 0.00022, ox: 6, oy: 4, ph: 3, c: [120, 40, 0], po: 5, a: 0.58 },
+      { r: 70, spd: 0.00072, ox: 8, oy: 6, ph: 0, c: [244, 114, 182], po: 0, a: 0.42 },
+      { r: 56, spd: 0.00098, ox: 14, oy: 11, ph: 1.5, c: [251, 207, 232], po: 0.7, a: 0.34 },
+      { r: 46, spd: 0.00088, ox: 20, oy: 15, ph: 3, c: [253, 186, 116], po: 1.4, a: 0.22 },
+      { r: 38, spd: 0.00108, ox: 23, oy: 14, ph: 4.5, c: [221, 214, 254], po: 2.1, a: 0.36 },
+      { r: 30, spd: 0.00094, ox: 17, oy: 21, ph: 6, c: [216, 180, 254], po: 2.8, a: 0.34 },
+      { r: 52, spd: 0.00062, ox: 12, oy: 9, ph: 2, c: [192, 132, 252], po: 0.3, a: 0.34 },
+      { r: 24, spd: 0.0012, ox: 20, oy: 17, ph: 1, c: [255, 228, 230], po: 1, a: 0.34 },
+      { r: 82, spd: 0.0002, ox: 5, oy: 4, ph: 3, c: [96, 52, 160], po: 5, a: 0.22 },
     ],
-    bgi: [22, 10, 2],
-    bgo: [8, 4, 1],
-    rim: [245, 158, 11],
-    rim2: [255, 220, 80],
-    rimA: 0.52,
-    pAmt: 0.3,
-    pSpd: 0.0048,
-    shA: 0.26,
-    ringCol: "#B45309",
-    ringDur: 0.75,
-    ringOp: [0.3, 0.52, 0.76],
-    scale: 1.08,
+    bgi: [170, 106, 226],
+    bgo: [86, 38, 154],
+    rim: [251, 207, 232],
+    rim2: [253, 186, 116],
+    rimA: 0.28,
+    pAmt: 0.16,
+    pSpd: 0.0028,
+    shA: 0.4,
+    ringCol: "#F0ABFC",
+    ringDur: 1.45,
+    ringOp: [0.14, 0.23, 0.34],
+    scale: 1.035,
   },
 };
 
@@ -142,26 +142,26 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.clip();
 
-  const bg = ctx.createRadialGradient(cx, cy - 20, 4, cx, cy, radius);
+  const bg = ctx.createRadialGradient(cx - radius * 0.12, cy - radius * 0.18, 4, cx, cy, radius);
   bg.addColorStop(0, rgba(b.bgi, 1));
-  bg.addColorStop(0.45, rgba(b.bgi.map((v, i) => (v * 1.3 + b.bgo[i]) / 2), 1));
+  bg.addColorStop(0.48, rgba(b.bgi.map((v, i) => (v * 1.35 + b.bgo[i]) / 2.35), 1));
   bg.addColorStop(1, rgba(b.bgo, 1));
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
   const body = ctx.createRadialGradient(cx - radius * 0.16, cy - radius * 0.2, 3, cx, cy, radius);
-  body.addColorStop(0, rgba([255, 255, 255], Math.max(0.24, b.shA)));
-  body.addColorStop(0.22, rgba(b.bgi, 0.98));
-  body.addColorStop(0.68, rgba(mix(b.bgi, b.rim, 0.3), 0.98));
-  body.addColorStop(1, rgba(mix(b.bgo, b.rim2, 0.18), 1));
+  body.addColorStop(0, rgba([255, 255, 255], Math.max(0.26, b.shA * 0.85)));
+  body.addColorStop(0.28, rgba(b.bgi, 0.96));
+  body.addColorStop(0.72, rgba(mix(b.bgi, b.rim, 0.2), 0.96));
+  body.addColorStop(1, rgba(mix(b.bgo, b.rim2, 0.1), 0.98));
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fillStyle = body;
   ctx.fill();
 
   const anchor = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.78);
-  anchor.addColorStop(0, rgba(mix(b.bgi, b.rim, 0.45), 0.34));
-  anchor.addColorStop(0.42, rgba(mix(b.bgi, b.rim, 0.28), 0.22));
+  anchor.addColorStop(0, rgba(mix(b.bgi, b.rim, 0.45), 0.18));
+  anchor.addColorStop(0.42, rgba(mix(b.bgi, b.rim, 0.28), 0.12));
   anchor.addColorStop(1, rgba(b.bgo, 0));
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
@@ -173,19 +173,19 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
     const angle2 = ts * blob.spd * 0.61 + blob.ph * 1.3;
     const pulse = 1 + b.pAmt * Math.sin(ts * b.pSpd + blob.po);
     const blobRadius = blob.r * pulse;
-    const rawBx = cx + (Math.cos(angle) * blob.ox + Math.cos(angle2) * blob.ox * 0.3) * 0.58;
-    const rawBy = cy + (Math.sin(angle * 0.71) * blob.oy + Math.sin(angle2 * 0.5) * blob.oy * 0.3) * 0.58;
+    const rawBx = cx + (Math.cos(angle) * blob.ox + Math.cos(angle2) * blob.ox * 0.3) * 0.42;
+    const rawBy = cy + (Math.sin(angle * 0.71) * blob.oy + Math.sin(angle2 * 0.5) * blob.oy * 0.3) * 0.42;
     const dx = rawBx - cx;
     const dy = rawBy - cy;
     const distance = Math.hypot(dx, dy);
-    const safeDistance = Math.min(Math.max(0, radius - blobRadius * 0.68 - 3), radius * 0.3);
+    const safeDistance = Math.min(Math.max(0, radius - blobRadius * 0.72 - 3), radius * 0.24);
     const safeScale = distance > safeDistance && distance > 0 ? safeDistance / distance : 1;
     const bx = cx + dx * safeScale;
     const by = cy + dy * safeScale;
     const gradient = ctx.createRadialGradient(bx, by, 0, bx, by, blobRadius);
-    gradient.addColorStop(0, rgba(blob.c, blob.a));
-    gradient.addColorStop(0.25, rgba(blob.c, blob.a * 0.7));
-    gradient.addColorStop(0.6, rgba(blob.c, blob.a * 0.25));
+    gradient.addColorStop(0, rgba(blob.c, blob.a * 0.82));
+    gradient.addColorStop(0.35, rgba(blob.c, blob.a * 0.45));
+    gradient.addColorStop(0.72, rgba(blob.c, blob.a * 0.14));
     gradient.addColorStop(1, rgba(blob.c, 0));
     ctx.beginPath();
     ctx.arc(bx, by, blobRadius, 0, Math.PI * 2);
@@ -193,21 +193,21 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
     ctx.fill();
   });
 
-  const shineX = cx + Math.cos(ts * 0.00045) * 20;
-  const shineY = cy - 30 + Math.sin(ts * 0.00032) * 14;
-  const shine = ctx.createRadialGradient(shineX, shineY, 0, shineX, shineY, 42);
-  shine.addColorStop(0, rgba([255, 255, 255], b.shA));
+  const shineX = cx - radius * 0.22 + Math.cos(ts * 0.00028) * 6;
+  const shineY = cy - radius * 0.24 + Math.sin(ts * 0.00022) * 5;
+  const shine = ctx.createRadialGradient(shineX, shineY, 0, shineX, shineY, radius * 0.4);
+  shine.addColorStop(0, rgba([255, 255, 255], b.shA * 0.75));
   shine.addColorStop(1, rgba([255, 255, 255], 0));
   ctx.beginPath();
-  ctx.arc(shineX, shineY, 42, 0, Math.PI * 2);
+  ctx.arc(shineX, shineY, radius * 0.4, 0, Math.PI * 2);
   ctx.fillStyle = shine;
   ctx.fill();
 
   const rim = ctx.createRadialGradient(cx, cy, radius * 0.52, cx, cy, radius);
   rim.addColorStop(0, rgba(b.rim, 0));
-  rim.addColorStop(0.7, rgba(b.rim, b.rimA * 0.15));
-  rim.addColorStop(0.88, rgba(b.rim, b.rimA * 0.5));
-  rim.addColorStop(1, rgba(b.rim2, b.rimA * 0.8));
+  rim.addColorStop(0.72, rgba(b.rim, b.rimA * 0.08));
+  rim.addColorStop(0.9, rgba(b.rim, b.rimA * 0.18));
+  rim.addColorStop(1, rgba(b.rim2, b.rimA * 0.28));
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fillStyle = rim;
@@ -216,7 +216,7 @@ function drawFrame(ts: number, b: OrbConfig, ctx: CanvasRenderingContext2D, widt
   const vignette = ctx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius);
   vignette.addColorStop(0, rgba([0, 0, 0], 0));
   vignette.addColorStop(0.75, rgba([0, 0, 0], 0));
-  vignette.addColorStop(1, rgba([0, 0, 0], 0.35));
+  vignette.addColorStop(1, rgba([0, 0, 0], 0.14));
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.fillStyle = vignette;
@@ -408,8 +408,8 @@ export default function ZamoraVoiceOrb({
           width: canvasDisplaySize,
           height: canvasDisplaySize,
           borderRadius: 999,
-          boxShadow: "0 22px 56px -18px rgba(124,58,237,0.7)",
-          animation: "zamoraOrbFloat 4s ease-in-out infinite",
+          boxShadow: "0 18px 48px -18px rgba(221,214,254,0.76), 0 0 30px rgba(244,114,182,0.14)",
+          animation: "zamoraOrbFloat 5.6s ease-in-out infinite",
           transformOrigin: "center",
         }}
       />
@@ -417,11 +417,11 @@ export default function ZamoraVoiceOrb({
         {`
           @keyframes zamoraRingPulse {
             0%, 100% { transform: scale(1); opacity: var(--base-opacity); }
-            50% { transform: scale(1.025); opacity: calc(var(--base-opacity) * 1.8); }
+            50% { transform: scale(1.015); opacity: calc(var(--base-opacity) * 1.35); }
           }
           @keyframes zamoraOrbFloat {
             0%, 100% { transform: scale(var(--orb-scale)) translateY(0px); }
-            50% { transform: scale(var(--orb-scale)) translateY(-4px); }
+            50% { transform: scale(var(--orb-scale)) translateY(-2px); }
           }
           @media (prefers-reduced-motion: reduce) {
             [data-testid="${testId}"] span,

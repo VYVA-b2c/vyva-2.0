@@ -160,15 +160,15 @@ const VoiceCallOverlay = ({
 
         <p
           data-testid="text-call-transcript"
-          className="font-display"
+          className={visibleWord ? "font-display" : "font-body"}
           style={{
-            color: "rgba(255,255,255,0.95)",
-            fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : 32,
+            color: visibleWord ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.86)",
+            fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : 30,
             lineHeight: visibleWord ? 0.95 : 1.35,
             textAlign: "center",
             maxWidth: visibleWord ? "90vw" : 320,
-            fontWeight: visibleWord ? 700 : 400,
-            fontStyle: visibleWord ? "normal" : "italic",
+            fontWeight: visibleWord ? 700 : 500,
+            fontStyle: "normal",
             overflowWrap: "anywhere",
             transition: "opacity 0.16s ease, transform 0.16s ease",
             opacity: wordVisible ? 1 : 0,
