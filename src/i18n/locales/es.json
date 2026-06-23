@@ -1734,8 +1734,8 @@
   },
   "concierge": {
     "voiceSource": "Conserje",
-    "headline": "Que debe preparar VYVA?",
-    "subtitle": "Servicios, viajes, pedidos y ahorro siempre con confirmacion previa.",
+    "headline": "Que necesitas que se haga?",
+    "subtitle": "VYVA compara opciones y pregunta antes de reservar, pedir o contactar con nadie.",
     "forYouToday": "Para ti hoy",
     "loadingRecs": "Buscando las mejores sugerencias para ti…",
     "noRecs": "Pulsa Actualizar para ver las sugerencias de hoy.",
@@ -1743,14 +1743,46 @@
     "quickActions": "Acciones rápidas",
     "hub": {
       "kicker": "Conserje",
-      "title": "Que debe preparar VYVA?",
-      "subtitle": "Servicios, viajes, pedidos y ahorro siempre con confirmacion previa."
+      "title": "Que necesitas que se haga?",
+      "subtitle": "VYVA compara opciones y pregunta antes de reservar, pedir o contactar con nadie."
     },
     "primaryCards": {
-      "shop": "Comprar",
-      "book": "Reservar",
-      "order": "Pedir",
-      "save": "Ahorrar"
+      "service": {
+        "label": "Buscar un servicio",
+        "mobile": "Servicio",
+        "sub": "Fontanero, reparaciones, limpieza, cuidados",
+        "mobileSub": "Reparaciones y cuidados"
+      },
+      "ride": {
+        "label": "Reservar transporte",
+        "mobile": "Transporte",
+        "sub": "Taxi, transporte medico, volver a casa",
+        "mobileSub": "Taxi o traslado"
+      },
+      "delivery": {
+        "label": "Pedir a domicilio",
+        "mobile": "Domicilio",
+        "sub": "Compra, farmacia, comida, esenciales",
+        "mobileSub": "Comida y esenciales"
+      },
+      "appointment": {
+        "label": "Reservar cita",
+        "mobile": "Cita",
+        "sub": "Medico, peluqueria, tramite, restaurante",
+        "mobileSub": "Medico, salon, tramite"
+      },
+      "trip": {
+        "label": "Planear un viaje",
+        "mobile": "Viaje",
+        "sub": "Viajes, visitas, rutas, recordatorios",
+        "mobileSub": "Viajes y visitas"
+      },
+      "events": {
+        "label": "Buscar eventos",
+        "mobile": "Eventos",
+        "sub": "Actividades, clases, salidas cercanas",
+        "mobileSub": "Actividades cerca"
+      }
     },
     "quickPrompts": {
       "findBestDeals": "Encontrar mejores ofertas",
@@ -1774,6 +1806,29 @@
         "ride": {
           "label": "Reservar transporte",
           "sub": "Organizar traslado seguro"
+        }
+      }
+    },
+    "moreHelp": {
+      "kicker": "Mas ayuda Concierge",
+      "title": "Otras cosas que VYVA puede preparar",
+      "titleMobile": "Otras gestiones",
+      "actions": {
+        "compare-save": {
+          "label": "Comparar y ahorrar",
+          "sub": "Facturas, ofertas, planes"
+        },
+        "paperwork": {
+          "label": "Ayuda con papeles",
+          "sub": "Formularios, cartas, documentos"
+        },
+        "message": {
+          "label": "Enviar un mensaje",
+          "sub": "Borrador, revision, confirmacion"
+        },
+        "offer": {
+          "label": "Revisar una oferta",
+          "sub": "Precio, confianza, condiciones"
         }
       }
     },
