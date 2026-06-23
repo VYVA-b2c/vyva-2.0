@@ -103,25 +103,45 @@ describe("Vitals Hub", () => {
   it("renders a mobile-first hub with capture methods hidden by default", async () => {
     renderScreen();
 
-    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add a vital reading");
-    expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Add reading");
-    expect(screen.getByTestId("latest-readings-section")).toHaveTextContent("Latest readings");
-    expect(screen.getByTestId("latest-readings-summary")).toHaveTextContent("No readings yet");
+    expect(await screen.findByText("My Health Plan")).toBeInTheDocument();
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("VYVA's focus today");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Add your blood pressure");
+    expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Add blood pressure");
+    expect(screen.queryByText("Good afternoon.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your plan gets clearer with every health signal.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Today's Health Plan")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plan confidence")).not.toBeInTheDocument();
+    expect(screen.queryByText("5 of 8 signals ready")).not.toBeInTheDocument();
+    expect(screen.getByTestId("health-snapshot-section")).toHaveTextContent("Your health snapshot");
+    expect(screen.getByTestId("health-snapshot-section")).toHaveTextContent("Energy");
+    expect(screen.getByTestId("health-snapshot-section")).toHaveTextContent("Routine");
+    expect(screen.getByTestId("gentle-plan-section")).toHaveTextContent("Today's next steps");
+    expect(screen.getByTestId("gentle-plan-section")).toHaveTextContent("Recommended");
+    expect(screen.getByTestId("vyva-insight-section")).toHaveTextContent("VYVA insight");
+    expect(screen.getByTestId("vyva-insight-section")).toHaveTextContent("Your energy looks a little lower than usual.");
+    expect(screen.getByTestId("signals-powering-plan-section")).toHaveTextContent("Signals powering your plan");
+    expect(screen.getByTestId("signals-powering-plan-section")).toHaveTextContent("Blood pressure");
+    expect(screen.getByTestId("latest-readings-summary")).toHaveTextContent("Fresh signals help VYVA personalise your plan.");
     expect(screen.queryByText("Overall status")).not.toBeInTheDocument();
     expect(screen.queryByText("Weekly rhythm")).not.toBeInTheDocument();
     expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
+    expect(screen.queryByText("Latest readings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Silver Scout Report")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gold Confidence")).not.toBeInTheDocument();
+    expect(screen.queryByText("VYVA's Watchlist")).not.toBeInTheDocument();
     expect(screen.queryByTestId("vitals-snapshot-grid")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-manage-health-devices")).not.toBeInTheDocument();
-    expect(screen.getByTestId("compact-vitals-help")).toHaveTextContent("Need help with readings?");
+    expect(screen.getByTestId("compact-vitals-help")).toHaveTextContent("Need help completing your plan?");
+    expect(screen.getByTestId("compact-vitals-help")).toHaveTextContent("Ask VYVA to guide me");
     expect(screen.queryByTestId("button-vitals-say-reading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-vitals-snap-reading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("connect-health-devices")).not.toBeInTheDocument();
   });
 
-  it("opens the add-reading sheet from a suggested vital chip", async () => {
+  it("opens the add-reading sheet from the primary blood pressure action", async () => {
     renderScreen();
 
-    fireEvent.click(await screen.findByTestId("button-suggested-vital-resting_hr_bpm"));
+    fireEvent.click(await screen.findByTestId("button-open-add-reading-sheet"));
     expect(await screen.findByTestId("add-reading-sheet")).toBeInTheDocument();
   });
 
@@ -263,7 +283,7 @@ describe("Vitals Hub", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add a vital reading");
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add your blood pressure");
     await openAddReadingSheet();
     expect(screen.getByTestId("button-vitals-say-reading")).toBeInTheDocument();
     expect(screen.getByTestId("button-vitals-snap-reading")).toBeInTheDocument();
