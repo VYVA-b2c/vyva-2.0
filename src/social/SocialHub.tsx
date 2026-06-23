@@ -609,7 +609,8 @@ const SocialHub = () => {
           headline={copy.chooseRoom}
           subtitle={copy.chooseRoomSubtitle}
           contextHint="social rooms"
-          autoStartVoice={autoStartVoice ? "social" : false}
+          voiceAgentSlug="companion"
+          autoStartVoice={autoStartVoice ? "companion" : false}
           showVoiceOverlay={false}
           activeLabel={t("voiceHero.endCall", "Pause listening")}
         />

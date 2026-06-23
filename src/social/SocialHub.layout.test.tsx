@@ -5,6 +5,7 @@ import SocialHub from "./SocialHub";
 import type { SocialHubResponse, SocialRoom } from "./types";
 
 const queryMock = vi.hoisted(() => vi.fn());
+const voiceHeroMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -25,7 +26,10 @@ vi.mock("@/i18n", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: () => <div data-testid="voice-hero" />,
+  default: (props: { autoStartVoice?: boolean | string; voiceAgentSlug?: string }) => {
+    voiceHeroMock(props);
+    return <div data-testid="voice-hero" />;
+  },
 }));
 
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
@@ -100,6 +104,7 @@ function renderSocialHub() {
 describe("SocialHub home-style layout", () => {
   beforeEach(() => {
     queryMock.mockReset();
+    voiceHeroMock.mockClear();
     queryMock.mockReturnValue({
       data: hubResponse,
       isLoading: false,
@@ -116,6 +121,10 @@ describe("SocialHub home-style layout", () => {
     renderSocialHub();
 
     expect(screen.getByTestId("voice-hero")).toBeInTheDocument();
+    expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
+      autoStartVoice: false,
+      voiceAgentSlug: "companion",
+    }));
 
     const primaryCards = screen.getByTestId("social-primary-cards");
     expect(within(primaryCards).getByText("Match")).toBeInTheDocument();

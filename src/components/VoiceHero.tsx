@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Mic, MessageCircle, X } from "lucide-react";
+import { Keyboard, Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
@@ -36,8 +36,10 @@ interface VoiceHeroProps {
   subtitle?: React.ReactNode;
   children?: React.ReactNode;
   contextHint?: string;
+  voiceAgentSlug?: string;
   voiceDynamicVariables?: Record<string, string | number | boolean>;
   talkLabel?: string;
+  chatLabel?: string;
   onTalkClick?: () => void;
   onChatClick?: () => void;
   weatherData?: WeatherData | null;
@@ -88,8 +90,10 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   subtitle,
   children,
   contextHint,
+  voiceAgentSlug,
   voiceDynamicVariables,
   talkLabel,
+  chatLabel,
   onTalkClick,
   onChatClick,
   weatherData,
@@ -173,8 +177,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     void startVoice(
       resolvedContextHint,
       undefined,
-      voiceDynamicVariables || autoStartListening
+      voiceAgentSlug || voiceDynamicVariables || autoStartListening
         ? {
+            ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
             ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
             ...(autoStartListening ? { autoStartListening: true } : {}),
           }
@@ -187,6 +192,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     internalStatus,
     resolvedContextHint,
     startVoice,
+    voiceAgentSlug,
     voiceDynamicVariables,
     voiceControls,
   ]);
@@ -211,8 +217,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
       startVoice(
         resolvedContextHint,
         undefined,
-        voiceDynamicVariables || autoStartListening
+        voiceAgentSlug || voiceDynamicVariables || autoStartListening
           ? {
+              ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
               ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
               ...(autoStartListening ? { autoStartListening: true } : {}),
             }
@@ -335,6 +342,18 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                   {statusLabel}
                 </span>
               </button>
+              {onChatClick && (
+                <button
+                  type="button"
+                  onClick={onChatClick}
+                  data-testid="button-home-type-instead"
+                  className="relative z-10 mt-3 inline-flex min-h-[44px] w-fit max-w-full items-center gap-2 rounded-full bg-white/14 px-4 py-2 font-body text-[15px] font-extrabold leading-tight text-white transition active:scale-95"
+                  style={{ border: "1px solid rgba(255,255,255,0.22)" }}
+                >
+                  <Keyboard size={17} strokeWidth={2.5} />
+                  <span className="min-w-0 break-words">{chatLabel ?? t("voiceHero.typeInstead", "Type instead")}</span>
+                </button>
+              )}
             </div>
           </div>
 

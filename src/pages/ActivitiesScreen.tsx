@@ -259,7 +259,8 @@ const ActivitiesScreen = () => {
         headline={<>{t("brain.headline")}</>}
         subtitle={t("brain.subtitle", { streak })}
         contextHint="brain training"
-        autoStartVoice={autoStartVoice ? "brain" : false}
+        voiceAgentSlug="brain-coach"
+        autoStartVoice={autoStartVoice ? "brain-coach" : false}
         showVoiceOverlay={false}
         activeLabel={t("voiceHero.endCall", "Pause listening")}
       />

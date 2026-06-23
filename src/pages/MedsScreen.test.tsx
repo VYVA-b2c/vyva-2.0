@@ -47,6 +47,7 @@ const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
   toast: vi.fn(),
   navigate: vi.fn(),
+  voiceHero: vi.fn(),
 }));
 
 vi.mock("@/lib/queryClient", async () => {
@@ -93,7 +94,10 @@ vi.mock("@/hooks/useVoiceActionFulfillment", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: () => <div data-testid="voice-hero" />,
+  default: (props: { voiceAgentSlug?: string }) => {
+    mocks.voiceHero(props);
+    return <div data-testid="voice-hero" />;
+  },
 }));
 
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
@@ -190,6 +194,9 @@ describe("MedsScreen schedule actions", () => {
     renderMedsScreen();
 
     expect(await screen.findByTestId("voice-hero")).toBeInTheDocument();
+    expect(mocks.voiceHero).toHaveBeenCalledWith(expect.objectContaining({
+      voiceAgentSlug: "meds",
+    }));
     expect(screen.queryByText("Today's Schedule")).not.toBeInTheDocument();
     expect(screen.queryByTestId("status-no-medications")).not.toBeInTheDocument();
     expect(screen.queryByText("Medication")).not.toBeInTheDocument();
