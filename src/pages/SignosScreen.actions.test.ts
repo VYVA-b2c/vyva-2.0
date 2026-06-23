@@ -8,7 +8,7 @@ const labels = {
   doctorHelp: "Doctor help",
   addDoctor: "Add doctor",
   appointment: "Book appointment",
-  ride: "Find transport",
+  ride: "Arrange ride",
   appointmentPrefill: "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking.",
   ridePrefill: "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before contacting anyone.",
 };

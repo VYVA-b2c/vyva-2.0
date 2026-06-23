@@ -543,28 +543,14 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
   },
   {
     key: "ride",
-    fallbackTitle: "Find transport",
-    fallbackSubtitle: "Compare safe ways to get there",
+    fallbackTitle: "Arrange ride",
+    fallbackSubtitle: "VYVA asks before contacting anyone",
     Icon: Car,
     color: "#047857",
     bg: "#ECFDF5",
     border: "#BBF7D0",
     shadow: "rgba(4,120,87,0.10)",
   },
-] as const;
-
-const TRANSPORT_DESTINATION_HINTS = [
-  { value: "Doctor or clinic", en: "Doctor", es: "Medico" },
-  { value: "Pharmacy", en: "Pharmacy", es: "Farmacia" },
-  { value: "Hospital", en: "Hospital", es: "Hospital" },
-  { value: "Return home", en: "Back home", es: "Volver a casa" },
-] as const;
-
-const TRANSPORT_TIME_HINTS = [
-  { value: "now", en: "Now", es: "Ahora" },
-  { value: "today", en: "Today", es: "Hoy" },
-  { value: "tomorrow morning", en: "Tomorrow morning", es: "Manana por la manana" },
-  { value: "for my appointment time", en: "For appointment", es: "Para mi cita" },
 ] as const;
 
 const TRANSPORT_MOBILITY_NEEDS = [
@@ -677,33 +663,7 @@ async function markAppointmentBooked(params: {
   return await res.json() as { scheduled_event?: unknown };
 }
 
-async function fetchTransportOptions(params: {
-  pickupAddress: string;
-  destinationAddress: string;
-  requestedTime: string;
-  mobilityNeeds: string[];
-  locale: string;
-}): Promise<TransportOptionsResponse> {
-  const res = await apiFetch("/api/transport/options", {
-    method: "POST",
-    body: JSON.stringify({
-      pickup: params.pickupAddress.trim() ? { address: params.pickupAddress.trim() } : undefined,
-      destination: params.destinationAddress.trim() ? { address: params.destinationAddress.trim() } : undefined,
-      requestedTime: params.requestedTime.trim() || "now",
-      purpose: "medical",
-      mobilityNeeds: params.mobilityNeeds,
-      language: params.locale,
-    }),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? `Request failed: ${res.status}`);
-  }
-  return await res.json() as TransportOptionsResponse;
-}
-
-async function prepareTransportConciergeAction(params: {
-  option: TransportOption;
+async function arrangeTransportRide(params: {
   pickupAddress: string;
   destinationAddress: string;
   requestedTime: string;
@@ -735,12 +695,13 @@ async function prepareTransportConciergeAction(params: {
   if (!created.ride_request?.id) {
     throw new Error("Could not prepare ride request");
   }
+  const option = created.options.find((entry) => entry.actions.includes("start_concierge_action")) ?? created.options[0];
 
   const confirmRes = await apiFetch(`/api/transport/ride-requests/${created.ride_request.id}/confirm`, {
     method: "POST",
     body: JSON.stringify({
-      optionId: params.option.id,
-      option: params.option,
+      optionId: option?.id,
+      option,
       autoStart: false,
     }),
   });
@@ -1307,7 +1268,6 @@ const ConciergeScreen = () => {
   const [transportTime, setTransportTime] = useState("now");
   const [transportMobilityNeeds, setTransportMobilityNeeds] = useState<string[]>([]);
   const [transportDetailsOpen, setTransportDetailsOpen] = useState(false);
-  const [transportResult, setTransportResult] = useState<TransportOptionsResponse | null>(null);
   const [transportError, setTransportError] = useState<string | null>(null);
   const [transportNotice, setTransportNotice] = useState<string | null>(null);
   const [offersOpen, setOffersOpen] = useState(false);
@@ -1517,8 +1477,8 @@ const ConciergeScreen = () => {
     },
   });
 
-  const transportOptionsMutation = useMutation({
-    mutationFn: () => fetchTransportOptions({
+  const arrangeTransportMutation = useMutation({
+    mutationFn: () => arrangeTransportRide({
       pickupAddress: transportPickup,
       destinationAddress: transportDestination,
       requestedTime: transportTime,
@@ -1526,28 +1486,6 @@ const ConciergeScreen = () => {
       locale,
       scheduledEventId: routePrefill?.kind === "ride" ? routePrefill.scheduledEventId : undefined,
       appointmentRequestId: routePrefill?.kind === "ride" ? routePrefill.appointmentRequestId : undefined,
-    }),
-    onMutate: () => {
-      setTransportError(null);
-      setTransportNotice(null);
-      setTransportResult(null);
-    },
-    onSuccess: (result) => {
-      setTransportResult(result);
-    },
-    onError: (error) => {
-      setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido buscar transporte." : "I could not find transport options."));
-    },
-  });
-
-  const prepareTransportMutation = useMutation({
-    mutationFn: (option: TransportOption) => prepareTransportConciergeAction({
-      option,
-      pickupAddress: transportPickup,
-      destinationAddress: transportDestination,
-      requestedTime: transportTime,
-      mobilityNeeds: transportMobilityNeeds,
-      locale,
     }),
     onMutate: () => {
       setTransportError(null);
@@ -1624,7 +1562,6 @@ const ConciergeScreen = () => {
       setTransportDestination((current) => current.trim()
         ? current
         : [prefill.destinationName, prefill.destinationAddress].filter(Boolean).join(", "));
-      setTransportResult(null);
       setTransportError(null);
       setTransportNotice(null);
       setTransportTime(prefill.scheduledFor ?? "now");
@@ -1777,7 +1714,6 @@ const ConciergeScreen = () => {
     setTransportPickup(savedTransportPickupLabel);
     setTransportDestination("");
     setTransportMobilityNeeds([]);
-    setTransportResult(null);
     setTransportError(null);
     setTransportNotice(null);
     setTransportTime("now");
@@ -2385,30 +2321,30 @@ const ConciergeScreen = () => {
 
       {routePrefill?.kind === "ride" && routePrefillMeta && (
         <section
-          className="relative z-20 order-[15] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#BBF7D0] bg-white"
-          style={{ boxShadow: "0 18px 42px rgba(4,120,87,0.14)" }}
+          className="relative z-20 order-[15] mt-4 scroll-mt-[88px] overflow-hidden rounded-[26px] border border-[#CDEBDD] bg-[#FFFCF8]"
+          style={{ boxShadow: "0 16px 38px rgba(8,116,67,0.10)" }}
           data-testid="panel-concierge-route-prefill"
         >
-          <div className="bg-[linear-gradient(135deg,#0F9F6E_0%,#047857_100%)] p-4 text-white" data-testid="panel-concierge-transport">
+          <div className="bg-[#FFFCF8] p-4 text-vyva-text-1" data-testid="panel-concierge-transport">
             <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/18 text-white shadow-sm">
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#ECFDF5] text-[#087443] shadow-sm">
                 <Car size={23} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#BBF7D0]">
-                  {isSpanish ? "Transporte" : "Transport"}
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#087443]">
+                  {isSpanish ? "Transporte" : "Ride help"}
                 </p>
                 <h2 className="mt-1 font-body text-[23px] font-black leading-tight">
                   {routePrefillMeta.title}
                 </h2>
-                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
+                <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
                   {routePrefillMeta.detail}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setRoutePrefill(null)}
-                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#E8DED4] bg-white text-vyva-text-2"
                 aria-label={isSpanish ? "Cerrar" : "Close"}
               >
                 <X size={17} />
@@ -2418,45 +2354,7 @@ const ConciergeScreen = () => {
           <div className="space-y-3 p-4 lg:p-5">
             <div className="relative z-10 overflow-hidden rounded-[24px] border border-[#BBF7D0] bg-[#FFFCF8]">
               <div className="p-4 lg:p-5">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-                    <ShieldCheck size={21} />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-body text-[19px] font-black leading-tight text-vyva-text-1">
-                      {isSpanish ? "Solo dime a donde vas." : "Where are you going?"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-[18px] border border-[#BBF7D0] bg-[#F0FDF4] p-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="min-w-0 font-body text-[14px] font-black leading-snug text-vyva-text-1">
-                      <span className="text-[#047857]">{isSpanish ? "Desde" : "From"}:</span>{" "}
-                      <span className="truncate">{transportPickup.trim() || savedTransportPickupLabel}</span>
-                      <span className="px-2 text-[#047857]">•</span>
-                      <span className="text-[#047857]">{isSpanish ? "Hora" : "When"}:</span>{" "}
-                      <span>{transportTime.trim() || (isSpanish ? "ahora" : "now")}</span>
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setTransportDetailsOpen((open) => !open)}
-                      className="vyva-tap inline-flex min-h-[40px] flex-shrink-0 items-center justify-center gap-2 rounded-full border border-[#BBF7D0] bg-white px-4 font-body text-[13px] font-black text-[#047857]"
-                    >
-                      {transportDetailsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      {transportDetailsOpen
-                        ? (isSpanish ? "Ocultar" : "Hide")
-                        : (isSpanish ? "Cambiar" : "Change")}
-                    </button>
-                  </div>
-                  {transportMobilityNeeds.length > 0 && !transportDetailsOpen ? (
-                    <p className="mt-2 font-body text-[12px] font-black text-[#047857]">
-                      {isSpanish ? "Ayuda: " : "Help: "}{transportMobilityNeeds.join(", ")}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="mt-4">
+                <div>
                   <label className="block">
                     <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
                       {isSpanish ? "Destino" : "Destination"}
@@ -2469,23 +2367,52 @@ const ConciergeScreen = () => {
                       className="min-h-[56px] rounded-[18px] border-[#D6F5DF] bg-white font-body text-[17px] font-semibold shadow-sm"
                     />
                   </label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {TRANSPORT_DESTINATION_HINTS.map((hint) => (
-                      <button
-                        key={hint.value}
-                        type="button"
-                        onClick={() => setTransportDestination(hint.value)}
-                        className="vyva-tap min-h-[38px] rounded-full border border-[#BBF7D0] bg-white px-3 font-body text-[12px] font-black text-[#047857]"
-                      >
-                        {isSpanish ? hint.es : hint.en}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
+                <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_116px] sm:items-end">
+                  <label className="block">
+                    <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                      {isSpanish ? "Hora" : "When"}
+                    </span>
+                    <Input
+                      value={transportTime}
+                      onChange={(event) => setTransportTime(event.target.value)}
+                      placeholder={isSpanish ? "ahora, manana..." : "now, tomorrow..."}
+                      data-testid="input-transport-time"
+                      className="min-h-[54px] rounded-[18px] border-[#D6F5DF] bg-white font-body text-[17px] font-semibold shadow-sm"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setTransportTime("now")}
+                    className="vyva-tap inline-flex min-h-[54px] items-center justify-center rounded-[18px] border border-[#BBF7D0] bg-[#ECFDF5] px-4 font-body text-[15px] font-black text-[#047857]"
+                  >
+                    {isSpanish ? "Ahora" : "Now"}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setTransportDetailsOpen((open) => !open)}
+                  className="vyva-tap mt-3 flex w-full items-center justify-between gap-3 rounded-[18px] border border-[#E8DED4] bg-white px-4 py-3 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-body text-[14px] font-black text-vyva-text-1">
+                      {isSpanish ? "Recogida y ayuda" : "Pickup and help"}
+                    </span>
+                    <span className="mt-1 block truncate font-body text-[12px] font-bold text-vyva-text-2">
+                      {transportPickup.trim() || savedTransportPickupLabel}
+                      {transportMobilityNeeds.length > 0 ? ` - ${transportMobilityNeeds.join(", ")}` : ""}
+                    </span>
+                  </span>
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FFFCF8] text-[#047857]">
+                    {transportDetailsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </span>
+                </button>
+
                 {transportDetailsOpen ? (
-                  <div className="mt-4 rounded-[20px] border border-[#E8DED4] bg-white p-3">
-                    <div className="grid gap-3 md:grid-cols-2">
+                  <div className="mt-3 rounded-[20px] border border-[#E8DED4] bg-white p-3">
+                    <div className="grid gap-3">
                       <label className="block">
                         <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
                           {isSpanish ? "Recogida" : "Pickup"}
@@ -2507,40 +2434,6 @@ const ConciergeScreen = () => {
                           </button>
                         </div>
                       </label>
-
-                      <div>
-                        <label className="block">
-                          <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                            {isSpanish ? "Hora" : "When"}
-                          </span>
-                          <Input
-                            value={transportTime}
-                            onChange={(event) => setTransportTime(event.target.value)}
-                            placeholder={isSpanish ? "ahora, manana..." : "now, tomorrow..."}
-                            data-testid="input-transport-time"
-                            className="min-h-[50px] rounded-[16px] border-[#E8DED4] bg-[#FFFCF8] font-body text-[16px] font-semibold"
-                          />
-                        </label>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {TRANSPORT_TIME_HINTS.map((hint) => {
-                            const selected = transportTime.trim().toLowerCase() === hint.value.toLowerCase();
-                            return (
-                              <button
-                                key={hint.value}
-                                type="button"
-                                onClick={() => setTransportTime(hint.value)}
-                                className={`vyva-tap min-h-[36px] rounded-full border px-3 font-body text-[12px] font-black ${
-                                  selected
-                                    ? "border-[#047857] bg-[#ECFDF5] text-[#047857]"
-                                    : "border-[#E8DED4] bg-white text-vyva-text-2"
-                                }`}
-                              >
-                                {isSpanish ? hint.es : hint.en}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
                     </div>
 
                     <div className="mt-3 border-t border-[#F0E6DB] pt-3">
@@ -2581,13 +2474,13 @@ const ConciergeScreen = () => {
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <button
                     type="button"
-                    onClick={() => transportOptionsMutation.mutate()}
-                    disabled={transportOptionsMutation.isPending}
+                    onClick={() => arrangeTransportMutation.mutate()}
+                    disabled={arrangeTransportMutation.isPending}
                     data-testid="button-transport-find-options"
                     className="vyva-tap inline-flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(4,120,87,0.22)] disabled:opacity-60"
                   >
-                    {transportOptionsMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-                    {isSpanish ? "Organizar transporte" : "Arrange ride"}
+                    {arrangeTransportMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <CircleCheck size={18} />}
+                    {isSpanish ? "Pedir a VYVA que lo organice" : "Ask VYVA to arrange it"}
                   </button>
                   <button
                     type="button"
@@ -2601,11 +2494,9 @@ const ConciergeScreen = () => {
                     {isSpanish ? "Usar chat" : "Use chat"}
                   </button>
                 </div>
-                {!transportResult ? (
-                  <p className="mt-3 rounded-full bg-[#ECFDF5] px-4 py-2 text-center font-body text-[12px] font-black text-[#047857]">
-                    {isSpanish ? "Nada se reserva ni se contacta sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
-                  </p>
-                ) : null}
+                <p className="mt-3 rounded-full bg-[#ECFDF5] px-4 py-2 text-center font-body text-[12px] font-black text-[#047857]">
+                  {isSpanish ? "VYVA pregunta antes de contactar o reservar." : "VYVA asks before contacting or booking."}
+                </p>
               </div>
             </div>
 
@@ -2620,56 +2511,6 @@ const ConciergeScreen = () => {
               </p>
             ) : null}
 
-            {transportResult ? (
-              <div className="mt-4 space-y-3" data-testid="transport-options-list">
-                {transportResult.fallbackReason ? (
-                  <p className="rounded-[18px] bg-[#FFF7ED] px-3 py-2 font-body text-[13px] font-bold text-[#9A3412]">
-                    {isSpanish ? "Si falta algun dato, VYVA aun puede preparar una opcion manual." : "If a detail is missing, VYVA can still prepare a manual option."}
-                  </p>
-                ) : null}
-                {transportResult.options.map((option) => {
-                  const canPrepare = option.actions.includes("start_concierge_action");
-                  return (
-                    <article
-                      key={option.id}
-                      data-testid={`card-transport-option-${option.id}`}
-                      className="rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-4"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-                          {option.kind === "caregiver" ? <ShieldCheck size={20} /> : <Car size={20} />}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <strong className="block font-body text-[17px] font-black leading-tight text-vyva-text-1">
-                            {option.label}
-                          </strong>
-                          <span className="mt-1 block font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                            {option.description}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                        {canPrepare ? (
-                          <button
-                            type="button"
-                            onClick={() => prepareTransportMutation.mutate(option)}
-                            disabled={prepareTransportMutation.isPending}
-                            data-testid={`button-transport-prepare-${option.id}`}
-                            className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
-                          >
-                            {prepareTransportMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <CircleCheck size={16} />}
-                            {isSpanish ? "Pedir a VYVA que lo organice" : "Ask VYVA to arrange it"}
-                          </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  );
-                })}
-                <p className="rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
-                  {transportResult.disclaimers[2] ?? (isSpanish ? "Nada se reserva sin tu confirmacion." : "Nothing is booked without your confirmation.")}
-                </p>
-              </div>
-            ) : null}
           </div>
         </section>
       )}

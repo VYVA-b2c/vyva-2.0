@@ -123,7 +123,7 @@ describe("VisualScanResultPanel", () => {
           { kind: "email_gp", label: "Email GP", Icon: vi.fn(() => null), href: "mailto:gp@example.com" },
           { kind: "doctor_help", label: "Doctor help", Icon: vi.fn(() => null), onClick: doctorHelp },
           { kind: "schedule_appointment", label: "Appointment", Icon: vi.fn(() => null), onClick: appointment },
-          { kind: "book_ride", label: "Find transport", Icon: vi.fn(() => null), onClick: ride },
+          { kind: "book_ride", label: "Arrange ride", Icon: vi.fn(() => null), onClick: ride },
         ]}
         result={{
           severity: "Moderate",

@@ -65,8 +65,8 @@ const labels = {
   email_gpSub: "Send the health context.",
   book_appointment: "Book appointment",
   book_appointmentSub: "VYVA prepares the request.",
-  book_ride: "Find transport",
-  book_rideSub: "Compare safe ways to get there.",
+  book_ride: "Arrange ride",
+  book_rideSub: "VYVA can arrange the ride.",
   add_gp_contact: "Add GP contact",
   add_gp_contactSub: "Save phone or email first.",
 };

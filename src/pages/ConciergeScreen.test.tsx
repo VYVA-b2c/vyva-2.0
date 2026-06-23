@@ -120,7 +120,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("What do you need now?");
     expect(screen.getByTestId("button-concierge-fast-doctor")).toHaveTextContent("Find a trusted provider");
     expect(screen.getByTestId("button-concierge-fast-appointment")).toHaveTextContent("Book appointment");
-    expect(screen.getByTestId("button-concierge-fast-ride")).toHaveTextContent("Find transport");
+    expect(screen.getByTestId("button-concierge-fast-ride")).toHaveTextContent("Arrange ride");
   });
 
   it("routes Shop and Order through the shopping helper", async () => {
@@ -540,11 +540,11 @@ describe("ConciergeScreen action hub", () => {
     await waitFor(() => {
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Arrange a ride");
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("VYVA checks saved drivers first");
-      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Nothing is booked");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("VYVA asks before contacting or booking");
     });
   });
 
-  it("finds transport options and prepares a provider without starting a booking", async () => {
+  it("arranges transport with VYVA without showing a provider marketplace", async () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/transport/options")) {
         expect(init?.method).toBe("POST");
@@ -583,7 +583,15 @@ describe("ConciergeScreen action hub", () => {
         return jsonResponse({
           ride_request: { id: "ride-request-1", status: "needs_confirmation" },
           market: { countryCode: "ES", city: "Madrid" },
-          options: [],
+          options: [{
+            id: "local-taxi-radio-taxi",
+            kind: "local_taxi",
+            label: "Radio Taxi",
+            description: "Trusted local taxi provider.",
+            providerName: "Radio Taxi",
+            phone: "+34 612 345 678",
+            actions: ["call_phone", "start_concierge_action"],
+          }],
           disclaimers: [],
         });
       }
@@ -597,11 +605,6 @@ describe("ConciergeScreen action hub", () => {
       target: { value: "Heart Clinic Madrid" },
     });
     fireEvent.click(screen.getByTestId("button-transport-find-options"));
-
-    expect(await screen.findByTestId("card-transport-option-local-taxi-radio-taxi")).toHaveTextContent("Radio Taxi");
-    expect(screen.queryByTestId("link-transport-call-local-taxi-radio-taxi")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("button-transport-prepare-local-taxi-radio-taxi"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/transport/ride-requests", expect.objectContaining({

@@ -288,7 +288,7 @@ describe("language persistence", () => {
 
   it("keeps reports overview service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Fast service access", "Review vitals", "Prepare refill", "Find transport"],
+      en: ["Fast service access", "Review vitals", "Prepare refill", "Arrange ride"],
       es: ["Acceso rapido a servicios", "Revisar constantes", "Preparar reposicion", "Buscar transporte"],
       fr: ["Acces rapide aux services", "Voir constantes", "Renouvellement", "Trouver transport"],
       de: ["Schneller Servicezugang", "Vitalwerte ansehen", "Nachfullung", "Transport finden"],
@@ -326,7 +326,7 @@ describe("language persistence", () => {
 
   it("keeps visual scan service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Doctor help", "Appointment", "Find transport"],
+      en: ["Doctor help", "Appointment", "Arrange ride"],
       es: ["Ayuda medica", "Cita", "Buscar transporte"],
       fr: ["Aide medecin", "Rendez-vous", "Trouver transport"],
       de: ["Arzthilfe", "Termin", "Transport finden"],
@@ -345,7 +345,7 @@ describe("language persistence", () => {
 
   it("keeps doctor quick service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Fast service access", "Call {{name}}", "Book appointment", "Find transport"],
+      en: ["Fast service access", "Call {{name}}", "Book appointment", "Arrange ride"],
       es: ["Acceso rapido a servicios", "Llamar a {{name}}", "Pedir cita", "Buscar transporte"],
       fr: ["Acces rapide aux services", "Appeler {{name}}", "Prendre rendez-vous", "Trouver transport"],
       de: ["Schneller Servicezugang", "{{name}} anrufen", "Termin buchen", "Transport finden"],
@@ -365,7 +365,7 @@ describe("language persistence", () => {
 
   it("keeps health-home doctor access actions localized for supported account languages", () => {
     const expected = {
-      en: ["Doctor access", "Call GP", "Book appointment", "Find transport", "Add GP contact"],
+      en: ["Doctor access", "Call GP", "Book appointment", "Arrange ride", "Add GP contact"],
       es: ["Acceso medico", "Llamar al medico", "Pedir cita", "Buscar transporte", "Anadir contacto medico"],
       fr: ["Acces medecin", "Appeler le medecin", "Prendre rendez-vous", "Trouver transport", "Ajouter contact medecin"],
       de: ["Arztzugang", "Arzt anrufen", "Termin buchen", "Transport finden", "Arztkontakt hinzufuegen"],
@@ -386,7 +386,7 @@ describe("language persistence", () => {
 
   it("keeps specialist service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search specialists"],
+      en: ["Call", "Appointment", "Arrange ride", "Map", "Share", "Search specialists"],
       es: ["Llamar", "Cita", "Buscar transporte", "Mapa", "Compartir", "Buscar especialistas"],
       fr: ["Appeler", "Rendez-vous", "Trouver transport", "Carte", "Partager", "Rechercher specialistes"],
       de: ["Anrufen", "Termin", "Transport finden", "Karte", "Teilen", "Fachaerzte suchen"],

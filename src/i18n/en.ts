@@ -217,8 +217,8 @@ const en = {
       appointment: "Medication appointment",
       appointmentSub: "VYVA prepares the appointment request for you to confirm.",
       appointmentPrefill: "Please help me schedule a medication review appointment. Medication report: {{summary}}. Needs attention: {{attention}}. Ask me to confirm before booking anything.",
-      ride: "Find transport",
-      rideSub: "Compare safe ways to get there.",
+      ride: "Arrange ride",
+      rideSub: "VYVA can arrange the ride.",
       doctorNoteTitle: "VYVA medication adherence report",
     },
   },
@@ -275,13 +275,13 @@ const en = {
       actions: {
         doctorHelp: "Doctor help",
         appointment: "Appointment",
-        ride: "Find transport",
+        ride: "Arrange ride",
       },
     },
     seeDoctor: {
       actions: {
-        bookTransport: "Find transport",
-        bookTransportSub: "Compare safe ways to get there.",
+        bookTransport: "Arrange ride",
+        bookTransportSub: "VYVA can arrange the ride.",
         ridePrefill: "Please help me find safe transport options for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
       },
     },
@@ -382,14 +382,14 @@ const en = {
         emailGpSub: "Send the health context.",
         bookAppointment: "Book appointment",
         bookAppointmentSub: "VYVA prepares the request.",
-        bookRide: "Find transport",
-        bookRideSub: "Compare safe ways to get there.",
+        bookRide: "Arrange ride",
+        bookRideSub: "VYVA can arrange the ride.",
         addGp: "Add GP contact",
         addGpSub: "Save phone or email first.",
       },
     },
     findSpecialist: {
-      bookRide: "Find transport",
+      bookRide: "Arrange ride",
     },
     symptomCheck: {
       intro: {
@@ -525,7 +525,7 @@ const en = {
           callGp: "Call GP",
           emailGp: "Email GP",
           doctorHelp: "Doctor help",
-          bookRide: "Find transport",
+          bookRide: "Arrange ride",
           scheduleAppointment: "Appointment",
           onlineOrder: "Get support package",
           requestQuote: "Request quote",
@@ -1275,8 +1275,8 @@ const en = {
   home: {
     fastHelp: {
       ride: {
-        label: "Find transport",
-        sub: "Compare safe ways to get there.",
+        label: "Arrange ride",
+        sub: "VYVA can arrange the ride.",
       },
       ridePrefill: "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
     },
@@ -1286,20 +1286,20 @@ const en = {
       ridePrefill: "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
       actions: {
         ride: {
-          label: "Find transport",
-          sub: "Compare safe ways to get there",
+          label: "Arrange ride",
+          sub: "VYVA can arrange the ride",
         },
       },
     },
   },
   activity: {
-    bookRide: "Find transport",
-    bookRideSub: "Compare safe ways to get there.",
+    bookRide: "Arrange ride",
+    bookRideSub: "VYVA can arrange the ride.",
     ridePrefill: "Please help me find safe transport options for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
   },
   statusVitals: {
     actions: {
-      ride: "Find transport",
+      ride: "Arrange ride",
       ridePrefill: "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking.",
     },
   },
@@ -1309,7 +1309,7 @@ const en = {
       reviewVitals: "Review vitals",
       doctorHelp: "Doctor help",
       bookAppointment: "Appointment",
-      bookRide: "Find transport",
+      bookRide: "Arrange ride",
       reviewMeds: "Review meds",
       prepareRefill: "Prepare refill",
       vitalsContext: "Latest VYVA vitals: pulse {{bpm}} bpm{{resp}}. Please help me decide the safest next step.",

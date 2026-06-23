@@ -1245,10 +1245,10 @@ const ActivityScreen = () => {
                   </span>
                   <span className="min-w-0">
                     <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
-                      {t("activity.bookRide", "Find transport")}
+                      {t("activity.bookRide", "Arrange ride")}
                     </span>
                     <span className="block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
-                      {t("activity.bookRideSub", "Compare safe ways to get there.")}
+                      {t("activity.bookRideSub", "VYVA can arrange the ride.")}
                     </span>
                   </span>
                 </button>

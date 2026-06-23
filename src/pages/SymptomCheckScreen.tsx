@@ -1522,7 +1522,7 @@ export function ReportScreen({
     call_gp: t("health.symptomCheck.report.actions.callGp", "Call GP"),
     email_gp: t("health.symptomCheck.report.actions.emailGp", "Email GP"),
     doctor_help: t("health.symptomCheck.report.actions.doctorHelp", "Doctor help"),
-    book_ride: t("health.symptomCheck.report.actions.bookRide", "Find transport"),
+    book_ride: t("health.symptomCheck.report.actions.bookRide", "Arrange ride"),
     schedule_appointment: t("health.symptomCheck.report.actions.scheduleAppointment", "Appointment"),
     online_order: t("health.symptomCheck.report.actions.onlineOrder", "Get support package"),
     request_quote: t("health.symptomCheck.report.actions.requestQuote", "Request quote"),

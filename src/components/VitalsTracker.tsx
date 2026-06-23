@@ -195,7 +195,7 @@ const COPY = {
     doctorHelp: "Doctor help",
     addDoctor: "Add doctor",
     appointment: "Book appointment",
-    ride: "Find transport",
+    ride: "Arrange ride",
     shareSummary: "Share summary",
     sourceEstimated: "Estimated",
     sourceManual: "Manual",

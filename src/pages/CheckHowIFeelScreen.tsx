@@ -313,7 +313,7 @@ const CHECKIN_TEXT = {
     appActions: {
       care: ["Seek medical attention", "If things worsen, or there is chest pain, breathlessness, or confusion, do not wait."],
       appointment: ["Book care appointment", "VYVA prepares the request with today's reading so you can confirm before booking."],
-      ride: ["Find transport", "Compare safe ways to get there if you decide to go."],
+      ride: ["Arrange ride", "VYVA can arrange transport if you decide to go."],
       order: ["Order delivery", "Prepare grocery or pharmacy delivery and confirm before ordering or paying."],
       quote: ["Request home help", "Request a quote for companion or home support, always with confirmation."],
       symptom: ["Do a symptom check", "VYVA guides you with clear questions and helps decide the next step."],

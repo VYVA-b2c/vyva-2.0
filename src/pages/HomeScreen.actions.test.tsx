@@ -44,8 +44,8 @@ const labels: Record<string, string> = {
   "home.fastHelp.doctor.sub": "Get live medical help.",
   "home.fastHelp.appointment.label": "Schedule an appointment",
   "home.fastHelp.appointment.sub": "Let VYVA arrange it with you.",
-  "home.fastHelp.ride.label": "Find transport",
-  "home.fastHelp.ride.sub": "Compare safe ways to get there.",
+  "home.fastHelp.ride.label": "Arrange ride",
+  "home.fastHelp.ride.sub": "VYVA can arrange the ride.",
   "home.fastHelp.doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
   "home.fastHelp.appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
   "home.fastHelp.ridePrefill": "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
@@ -124,7 +124,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-emailGp")).toHaveAttribute("href", expect.stringContaining("VYVA%20symptom%20report"));
     expect(screen.getByTestId("button-home-fast-doctor")).toHaveTextContent("Talk to a real doctor now");
     expect(screen.getByTestId("button-home-fast-appointment")).toHaveTextContent("Schedule an appointment");
-    expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Find transport");
+    expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Arrange ride");
   });
 
   it("opens doctor help with voice context from Home", () => {

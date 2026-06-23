@@ -217,7 +217,7 @@ const pt = {
       appointmentSub: "A VYVA prepara o pedido de consulta para confirmar.",
       appointmentPrefill: "Ajude-me a marcar uma consulta de revisao da medicacao. Relatorio: {{summary}}. Precisa de atencao: {{attention}}. Peca-me confirmacao antes de reservar.",
       ride: "Encontrar transporte",
-      rideSub: "Comparar formas seguras de chegar.",
+      rideSub: "A VYVA pode organizar a viagem.",
       doctorNoteTitle: "Relatorio VYVA de adesao a medicacao",
     },
   },
@@ -280,7 +280,7 @@ const pt = {
     seeDoctor: {
       actions: {
         bookTransport: "Encontrar transporte",
-        bookTransportSub: "Comparar formas seguras de chegar.",
+        bookTransportSub: "A VYVA pode organizar a viagem.",
         ridePrefill: "Ajude-me a encontrar opcoes de transporte seguro para uma consulta medica. Peca a minha confirmacao antes de reservar.\n\n{{context}}",
       },
     },
@@ -382,7 +382,7 @@ const pt = {
         bookAppointment: "Marcar consulta",
         bookAppointmentSub: "A VYVA prepara o pedido.",
         bookRide: "Encontrar transporte",
-        bookRideSub: "Comparar formas seguras de chegar.",
+        bookRideSub: "A VYVA pode organizar a viagem.",
         addGp: "Adicionar medico",
         addGpSub: "Guarde telefone ou email primeiro.",
       },
@@ -1107,7 +1107,7 @@ const pt = {
     fastHelp: {
       ride: {
         label: "Encontrar transporte",
-        sub: "Comparar formas seguras de chegar.",
+        sub: "A VYVA pode organizar a viagem.",
       },
       ridePrefill: "Ajude-me a encontrar opcoes de transporte seguro. Pergunte destino e horario, e nao reserve nada sem a minha confirmacao.",
     },
@@ -1118,14 +1118,14 @@ const pt = {
       actions: {
         ride: {
           label: "Encontrar transporte",
-          sub: "Comparar formas seguras de chegar",
+          sub: "A VYVA pode organizar a viagem",
         },
       },
     },
   },
   activity: {
     bookRide: "Encontrar transporte",
-    bookRideSub: "Comparar formas seguras de chegar.",
+    bookRideSub: "A VYVA pode organizar a viagem.",
     ridePrefill: "Ajude-me a encontrar opcoes de transporte seguro para uma atividade {{activity}} de {{duration}} minutos. Peca a minha confirmacao antes de reservar qualquer coisa.",
   },
   statusVitals: {

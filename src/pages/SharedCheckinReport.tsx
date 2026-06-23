@@ -135,8 +135,8 @@ export function sharedCheckinServiceActionsFor(result: SharedCheckinResult, name
     });
     actions.push({
       key: "ride",
-      label: isSpanish ? "Buscar transporte" : "Find transport",
-      description: isSpanish ? "Comparar opciones seguras si hace falta." : "Compare safe transport options if needed.",
+      label: isSpanish ? "Organizar transporte" : "Arrange ride",
+      description: isSpanish ? "VYVA puede organizar transporte si hace falta." : "VYVA can arrange transport if needed.",
       to: "/concierge",
       state: {
         conciergePrefill: {
