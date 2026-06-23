@@ -305,6 +305,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
+  const isChatTypeMode =
+    location.pathname === "/chat" && new URLSearchParams(location.search).get("mode") !== "voice";
   const shellMaxWidthClassName = isFullScreen
     ? "max-w-none"
     : isVitalsRoute
@@ -316,7 +318,8 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
-  const showVoiceDock = status === "connected" || isConnecting || voiceSessionPhase === "transferring";
+  const showVoiceDock =
+    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring");
   const suppressMilestonePopup = isFullScreen ||
     sosOpen ||
     showVoiceDock ||

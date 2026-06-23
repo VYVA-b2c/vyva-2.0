@@ -4,6 +4,7 @@ import HomeScreen from "./HomeScreen";
 
 const guardPathMock = vi.fn();
 const queryMock = vi.fn();
+const voiceHeroMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -33,11 +34,24 @@ vi.mock("@/hooks/useServiceGate", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: () => <div data-testid="voice-hero" />,
+  default: (props: { showVoiceOverlay?: boolean; autoStartVoice?: boolean | string }) => {
+    voiceHeroMock(props);
+    return (
+      <div
+        data-testid="voice-hero"
+        data-overlay={String(Boolean(props.showVoiceOverlay))}
+        data-auto-start={String(Boolean(props.autoStartVoice))}
+      />
+    );
+  },
 }));
 
 const labels: Record<string, string> = {
   "home.whatNow": "or explore a topic",
+  "home.mode.label": "Choose how to talk with VYVA",
+  "home.mode.type": "Type",
+  "home.mode.voice": "Voice",
+  "home.mode.voiceCta": "Start voice chat",
   "home.fastHelp.kicker": "Fast help",
   "home.fastHelp.title": "What would you like VYVA to do?",
   "home.fastHelp.doctor.label": "Talk to a real doctor now",
@@ -87,6 +101,7 @@ describe("Home fast service actions", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    voiceHeroMock.mockClear();
     window.localStorage.clear();
     window.sessionStorage.clear();
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -125,6 +140,24 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-doctor")).toHaveTextContent("Talk to a real doctor now");
     expect(screen.getByTestId("button-home-fast-appointment")).toHaveTextContent("Schedule an appointment");
     expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Find transport");
+  });
+
+  it("lets the user choose type or voice mode from Home", () => {
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("home-mode-toggle")).toHaveTextContent("Type");
+    expect(screen.getByTestId("button-home-mode-type")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-overlay", "false");
+
+    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
+
+    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-overlay", "true");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-start", "true");
+
+    fireEvent.click(screen.getByTestId("button-home-mode-type"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/chat?mode=type");
   });
 
   it("opens doctor help with voice context from Home", () => {

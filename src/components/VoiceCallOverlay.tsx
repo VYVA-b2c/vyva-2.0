@@ -52,6 +52,7 @@ const VoiceCallOverlay = ({
     : t("voiceHero.listening");
   const statusLabel = voiceSessionPhase ? voiceSessionPhaseLabel(voiceSessionPhase) : fallbackStatusLabel;
   const canToggleMic = Boolean(onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
+  const emptyTranscriptLabel = isConnecting ? t("voiceHero.connecting") : t("voiceHero.listening");
 
   const speakerLabel =
     visibleEntry?.from === "user"
@@ -88,10 +89,68 @@ const VoiceCallOverlay = ({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          gap: 12,
-          paddingBottom: 180,
+          gap: 18,
+          paddingBottom: 150,
         }}
       >
+        <div
+          data-testid="voice-mode-orb"
+          aria-hidden="true"
+          style={{
+            position: "relative",
+            width: 148,
+            height: 148,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 8,
+          }}
+        >
+          <span
+            className={isSpeaking ? "vyva-ring-1-speak" : "vyva-ring-1-listen"}
+            style={{
+              position: "absolute",
+              inset: -34,
+              borderRadius: "50%",
+              border: "1px solid rgba(255,255,255,0.11)",
+              background: "radial-gradient(circle, rgba(255,255,255,0.08), transparent 58%)",
+            }}
+          />
+          <span
+            className={isSpeaking ? "vyva-ring-2-speak" : "vyva-ring-2-listen"}
+            style={{
+              position: "absolute",
+              inset: -16,
+              borderRadius: "50%",
+              border: "1px solid rgba(216,180,254,0.24)",
+            }}
+          />
+          <div
+            className={isSpeaking ? "vyva-dot-speak" : "vyva-dot-listen"}
+            style={{
+              position: "relative",
+              width: 148,
+              height: 148,
+              borderRadius: "50%",
+              background: isSpeaking
+                ? "radial-gradient(circle at 38% 30%, rgba(255,255,255,0.42), rgba(216,180,254,0.2) 32%, rgba(124,58,237,0.34) 64%, rgba(45,10,94,0.72) 100%)"
+                : "radial-gradient(circle at 38% 30%, rgba(255,255,255,0.34), rgba(196,181,253,0.22) 34%, rgba(107,33,168,0.42) 66%, rgba(26,0,64,0.76) 100%)",
+              border: "1.5px solid rgba(255,255,255,0.26)",
+              boxShadow: "0 0 44px rgba(168,85,247,0.42), 0 0 96px rgba(107,33,168,0.42), inset 0 0 36px rgba(255,255,255,0.12)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <span
+              className="font-display"
+              style={{ color: "rgba(255,255,255,0.9)", fontSize: 46, lineHeight: 1, fontStyle: "italic" }}
+            >
+              V
+            </span>
+          </div>
+        </div>
+
         {speakerLabel && (
           <span
             data-testid="text-call-speaker"
@@ -123,10 +182,10 @@ const VoiceCallOverlay = ({
             transition: "opacity 0.18s ease, transform 0.18s ease",
             opacity: fade ? 1 : 0,
             transform: fade ? "translateY(0)" : "translateY(8px)",
-            minHeight: 48,
+          minHeight: 48,
           }}
         >
-          {visibleEntry?.text ?? ""}
+          {visibleEntry?.text ?? emptyTranscriptLabel}
         </p>
 
         {activeAction && (
