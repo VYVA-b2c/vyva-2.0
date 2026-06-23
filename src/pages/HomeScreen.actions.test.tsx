@@ -34,14 +34,35 @@ vi.mock("@/hooks/useServiceGate", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: (props: { showVoiceOverlay?: boolean; autoStartVoice?: boolean | string }) => {
+  default: (props: {
+    autoStartListening?: boolean;
+    autoStartVoice?: boolean | string;
+    chatLabel?: string;
+    contextHint?: string;
+    onChatClick?: () => void;
+    showVoiceOverlay?: boolean;
+    talkLabel?: string;
+    voiceDynamicVariables?: Record<string, string | number | boolean>;
+  }) => {
     voiceHeroMock(props);
     return (
       <div
         data-testid="voice-hero"
         data-overlay={String(Boolean(props.showVoiceOverlay))}
         data-auto-start={String(Boolean(props.autoStartVoice))}
-      />
+        data-auto-listening={String(Boolean(props.autoStartListening))}
+        data-context={props.contextHint ?? ""}
+        data-app-entrypoint={String(props.voiceDynamicVariables?.app_entrypoint ?? "")}
+      >
+        <button type="button" data-testid="button-voice-hero-talk">
+          {props.talkLabel}
+        </button>
+        {props.onChatClick && (
+          <button type="button" data-testid="button-home-type-instead" onClick={props.onChatClick}>
+            {props.chatLabel}
+          </button>
+        )}
+      </div>
     );
   },
 }));
@@ -50,8 +71,9 @@ const labels: Record<string, string> = {
   "home.whatNow": "or explore a topic",
   "home.mode.label": "Choose how to talk with VYVA",
   "home.mode.type": "Type",
+  "home.mode.typeInstead": "Type instead",
   "home.mode.voice": "Voice",
-  "home.mode.voiceCta": "Start voice chat",
+  "home.mode.voiceCta": "Talk to VYVA",
   "home.fastHelp.kicker": "Fast help",
   "home.fastHelp.title": "What would you like VYVA to do?",
   "home.fastHelp.doctor.label": "Talk to a real doctor now",
@@ -142,20 +164,20 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Find transport");
   });
 
-  it("lets the user choose type or voice mode from Home", () => {
+  it("uses one Home voice CTA and keeps type as a secondary escape hatch", () => {
     render(<HomeScreen />);
 
-    expect(screen.getByTestId("home-mode-toggle")).toHaveTextContent("Type");
-    expect(screen.getByTestId("button-home-mode-type")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-overlay", "false");
-
-    fireEvent.click(screen.getByTestId("button-home-mode-voice"));
-
-    expect(screen.getByTestId("button-home-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("home-mode-toggle")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-voice-hero-talk")).toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-home-type-instead")).toHaveTextContent("Type instead");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-overlay", "true");
-    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-start", "true");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-start", "false");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-listening", "true");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-context", "app_open");
+    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-app-entrypoint", "home_open");
 
-    fireEvent.click(screen.getByTestId("button-home-mode-type"));
+    fireEvent.click(screen.getByTestId("button-home-type-instead"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/chat?mode=type");
   });

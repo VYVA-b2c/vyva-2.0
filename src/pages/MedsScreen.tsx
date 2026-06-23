@@ -643,6 +643,7 @@ const MedsScreen = () => {
         headline={<span style={{ opacity: headlineVisible ? 1 : 0, transition: "opacity 0.28s ease, transform 0.28s ease", display: "inline-block", transform: headlineVisible ? "translateY(0)" : "translateY(6px)" }}>{currentHeadline}</span>}
         subtitle={todayData && displayMeds.length === 0 ? t("meds.noMedsScheduled") : t("meds.takenToday", { taken: totalTakenDoseCount, total: totalScheduledDoseCount })}
         contextHint="medication reminder"
+        voiceAgentSlug="meds"
       >
         <div className="w-full h-[6px] rounded-full mt-3" style={{ background: "rgba(255,255,255,0.15)" }}>
           <div className="h-full rounded-full transition-all" style={{ width: `${progressPercent}%`, background: "#34D399" }} />

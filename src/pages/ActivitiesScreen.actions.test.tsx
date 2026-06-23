@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ActivitiesScreen from "./ActivitiesScreen";
 
+const voiceHeroMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
@@ -27,7 +29,10 @@ vi.mock("@/hooks/useRouteVoiceAutoStart", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: ({ children }: { children?: ReactNode }) => <div data-testid="voice-hero">{children}</div>,
+  default: (props: { autoStartVoice?: boolean | string; children?: ReactNode; voiceAgentSlug?: string }) => {
+    voiceHeroMock(props);
+    return <div data-testid="voice-hero">{props.children}</div>;
+  },
 }));
 
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
@@ -115,6 +120,7 @@ function renderActivities() {
 describe("Activities service actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    voiceHeroMock.mockClear();
   });
 
   it("renders the health-style primary cards and reordered activity library", () => {
@@ -128,6 +134,10 @@ describe("Activities service actions", () => {
     expect(progressSummary.compareDocumentPosition(primarySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     expect(screen.getByText("Choose your focus")).toBeInTheDocument();
+    expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
+      autoStartVoice: false,
+      voiceAgentSlug: "brain-coach",
+    }));
     expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");
     expect(screen.getByTestId("button-activities-primary-reflexes")).toHaveTextContent("Train Reflexes");
     expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Boost Intelligence");

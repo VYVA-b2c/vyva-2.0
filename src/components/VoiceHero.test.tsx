@@ -1,5 +1,5 @@
 import { act } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import VoiceHero from "./VoiceHero";
 
 const voiceMocks = vi.hoisted(() => ({
@@ -66,5 +66,39 @@ describe("VoiceHero status dot", () => {
     const statusDot = screen.getByTestId("voice-hero-status-dot");
     expect(statusDot).toHaveAttribute("title", "Offline");
     expect(statusDot.querySelector("span")).toHaveStyle({ background: "#EF4444" });
+  });
+
+  it("passes a specialist agent slug when starting voice from the CTA", () => {
+    render(<VoiceHero headline="Brain coach" contextHint="brain training" voiceAgentSlug="brain-coach" />);
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("brain training", undefined, {
+      agentSlug: "brain-coach",
+    });
+  });
+
+  it("does not start or show the call overlay just because Home configured tapped voice mode", () => {
+    render(
+      <VoiceHero
+        headline="Good morning"
+        weatherData={null}
+        contextHint="app_open"
+        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
+        autoStartListening
+        showVoiceOverlay
+      />,
+    );
+
+    expect(voiceMocks.startVoice).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
+  it("keeps the existing start payload when no agent slug is provided", () => {
+    render(<VoiceHero headline="Good evening" contextHint="app_open" />);
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, undefined);
   });
 });

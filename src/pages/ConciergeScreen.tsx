@@ -2594,6 +2594,7 @@ const ConciergeScreen = () => {
         headline={t("concierge.headline", "What should VYVA prepare?")}
         subtitle={t("concierge.subtitle", "Services, trips, orders, and savings stay confirmation-first.")}
         contextHint="concierge services trips orders savings"
+        voiceAgentSlug="concierge"
         autoStartVoice={autoStartVoice ? "concierge" : false}
         showVoiceOverlay={false}
         activeLabel={t("voiceHero.endCall", "Pause listening")}

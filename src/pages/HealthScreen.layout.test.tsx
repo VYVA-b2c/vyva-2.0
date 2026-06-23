@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   stopDoctorVoice: vi.fn(),
   sendDoctorUserMessage: vi.fn(),
+  voiceHero: vi.fn(),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -70,9 +71,10 @@ vi.mock("@/hooks/use-toast", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: ({ mobileTalkLabel }: { mobileTalkLabel?: string }) => (
-    <div data-testid="voice-hero" data-mobile-talk-label={mobileTalkLabel ?? ""} />
-  ),
+  default: (props: { mobileTalkLabel?: string; voiceAgentSlug?: string }) => {
+    mocks.voiceHero(props);
+    return <div data-testid="voice-hero" data-mobile-talk-label={props.mobileTalkLabel ?? ""} />;
+  },
 }));
 
 function renderHealthScreen() {
@@ -124,6 +126,9 @@ describe("HealthScreen home-style layout", () => {
 
     expect(screen.getByTestId("voice-hero")).toBeInTheDocument();
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-mobile-talk-label", "Talk to doctor");
+    expect(mocks.voiceHero).toHaveBeenCalledWith(expect.objectContaining({
+      voiceAgentSlug: "health",
+    }));
     expect(screen.queryByTestId("daily-checkin-status-card")).not.toBeInTheDocument();
 
     expect(screen.getByTestId("health-primary-grid").className).toContain("grid-cols-2");

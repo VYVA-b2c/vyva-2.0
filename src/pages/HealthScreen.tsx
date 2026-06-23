@@ -1803,6 +1803,7 @@ const HealthScreen = () => {
           heroSurface="health"
           headline={headlineText}
           contextHint="health symptoms"
+          voiceAgentSlug="health"
           talkLabel={t("health.talkToDoctor", "Connect with a real doctor")}
           mobileTalkLabel={t("health.talkToDoctorMobile", "Talk to doctor")}
           onTalkClick={() => {

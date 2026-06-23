@@ -6,18 +6,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeScreen from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
 
+const voiceHeroMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/lib/queryClient", () => ({
   apiFetch: vi.fn(),
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: ({ sourceText, headline, subtitle }: { sourceText?: ReactNode; headline?: ReactNode; subtitle?: ReactNode }) => (
-    <div data-testid="voice-hero">
-      <span>{sourceText}</span>
-      <span>{headline}</span>
-      <span>{subtitle}</span>
-    </div>
-  ),
+  default: (props: { autoStartVoice?: boolean | string; sourceText?: ReactNode; headline?: ReactNode; subtitle?: ReactNode; voiceAgentSlug?: string }) => {
+    voiceHeroMock(props);
+    return (
+      <div data-testid="voice-hero">
+        <span>{props.sourceText}</span>
+        <span>{props.headline}</span>
+        <span>{props.subtitle}</span>
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
@@ -90,6 +95,7 @@ function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initi
 
 afterEach(() => {
   apiFetchMock.mockReset();
+  voiceHeroMock.mockClear();
   vi.restoreAllMocks();
   localStorage.clear();
 });
@@ -104,6 +110,10 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("concierge-fast-help")).toBeVisible();
     expect(screen.getByTestId("voice-hero")).toHaveTextContent("What should VYVA prepare?");
     expect(screen.getByTestId("voice-hero")).toHaveTextContent("Services, trips, orders, and savings stay confirmation-first.");
+    expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
+      autoStartVoice: false,
+      voiceAgentSlug: "concierge",
+    }));
     expect(screen.getByTestId("concierge-guided-hub")).not.toHaveTextContent("What should VYVA prepare?");
     for (const label of ["Shop", "Book", "Order", "Save"]) {
       expect(screen.getByRole("button", { name: label })).toBeVisible();
