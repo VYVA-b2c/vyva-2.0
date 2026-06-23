@@ -29,6 +29,8 @@ type HomeFastAction = {
   tone: "call" | "email" | "doctor" | "appointment" | "ride";
   label: string;
   sub: string;
+  mobileLabel?: string;
+  mobileSub?: string;
   href?: string;
 };
 
@@ -82,6 +84,19 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
   { id: "appointment", icon: Calendar, tone: "appointment" },
   { id: "ride", icon: Car, tone: "ride" },
 ];
+
+const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
+  health: { title: "Health", subtitle: "Symptoms and care" },
+  cognitive: { title: "Brain", subtitle: "Memory and calm" },
+  social: { title: "Community", subtitle: "Rooms and chats" },
+  concierge: { title: "Concierge", subtitle: "Help and errands" },
+};
+
+const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { label: string; sub: string }> = {
+  doctor: { label: "Doctor help", sub: "Talk through a concern" },
+  appointment: { label: "Appointment", sub: "Prepare a request" },
+  ride: { label: "Find transport", sub: "Compare safe options" },
+};
 
 const SECTION_VOICE_AUTO_START_OPTIONS: NavigateOptions = {
   state: { [SECTION_VOICE_AUTO_START_KEY]: true },
@@ -318,6 +333,8 @@ const HomeScreen = () => {
           tone: "call" as const,
           label: gpName ? t("meds.callGpNamed", "Call {{name}}", { name: gpName }) : t("meds.callGp", "Call GP"),
           sub: t("meds.callGpSub", "Speak to your practice now."),
+          mobileLabel: t("meds.callGpMobile", "Call GP"),
+          mobileSub: t("meds.callGpSubMobile", "Speak now"),
           href: gpPhoneHref,
         }]
       : []),
@@ -328,6 +345,8 @@ const HomeScreen = () => {
           tone: "email" as const,
           label: t("meds.emailGp", "Email GP"),
           sub: t("meds.emailGpSub", "Open an email with context filled in."),
+          mobileLabel: t("meds.emailGpMobile", "Email GP"),
+          mobileSub: t("meds.emailGpSubMobile", "Send context"),
           href: gpEmailHref,
         }]
       : []),
@@ -335,6 +354,8 @@ const HomeScreen = () => {
       ...action,
       label: t(`home.fastHelp.${action.id}.label`),
       sub: t(`home.fastHelp.${action.id}.sub`),
+      mobileLabel: t(`home.fastHelp.${action.id}.mobileLabel`, HOME_FAST_ACTION_MOBILE_COPY[action.id].label),
+      mobileSub: t(`home.fastHelp.${action.id}.mobileSub`, HOME_FAST_ACTION_MOBILE_COPY[action.id].sub),
     })),
   ];
 
@@ -411,8 +432,26 @@ const HomeScreen = () => {
                 data-testid={`card-home-agent-${card.id}`}
                 aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
                 onClick={() => handleAgentCardOpen(card)}
-                title={t(`home.voiceCards.${card.id}.title`)}
-                description={t(`home.voiceCards.${card.id}.subtitle`)}
+                title={
+                  <>
+                    <span className="sm:hidden">
+                      {t(`home.voiceCards.${card.id}.mobileTitle`, HOME_AGENT_MOBILE_COPY[card.id].title)}
+                    </span>
+                    <span className="hidden sm:inline">
+                      {t(`home.voiceCards.${card.id}.title`)}
+                    </span>
+                  </>
+                }
+                description={
+                  <>
+                    <span className="sm:hidden">
+                      {t(`home.voiceCards.${card.id}.mobileSubtitle`, HOME_AGENT_MOBILE_COPY[card.id].subtitle)}
+                    </span>
+                    <span className="hidden sm:inline">
+                      {t(`home.voiceCards.${card.id}.subtitle`)}
+                    </span>
+                  </>
+                }
                 icon={Icon}
                 iconBg={theme.iconBg}
                 iconColor={theme.iconColor}
@@ -444,7 +483,8 @@ const HomeScreen = () => {
             {t("home.fastHelp.kicker", "Fast help")}
           </p>
           <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-            {t("home.fastHelp.title", "What do you need now?")}
+            <span className="sm:hidden">{t("home.fastHelp.titleMobile", "Need help now?")}</span>
+            <span className="hidden sm:inline">{t("home.fastHelp.title", "What do you need now?")}</span>
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-3">
@@ -461,10 +501,12 @@ const HomeScreen = () => {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    {action.label}
+                    <span className="sm:hidden">{action.mobileLabel ?? action.label}</span>
+                    <span className="hidden sm:inline">{action.label}</span>
                   </span>
                   <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {action.sub}
+                    <span className="sm:hidden">{action.mobileSub ?? action.sub}</span>
+                    <span className="hidden sm:inline">{action.sub}</span>
                   </span>
                 </span>
               </>
@@ -481,6 +523,7 @@ const HomeScreen = () => {
                   key={action.id}
                   data-testid={`button-home-fast-${action.id}`}
                   href={action.href}
+                  aria-label={action.label}
                   className={className}
                   style={style}
                 >
@@ -494,6 +537,7 @@ const HomeScreen = () => {
                 key={action.id}
                 type="button"
                 data-testid={`button-home-fast-${action.id}`}
+                aria-label={action.label}
                 onClick={() => handleFastActionOpen(action)}
                 className={className}
                 style={style}

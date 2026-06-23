@@ -61,6 +61,7 @@ type SocialPrimaryCard = {
   id: "match" | "socialise" | "share" | "participate";
   title: string;
   description: string;
+  mobileDescription: string;
   Icon: LucideIcon;
   iconBg: string;
   iconColor: string;
@@ -71,6 +72,7 @@ type SocialHubEntryCopy = {
   focusDescription: string;
   fastHelpKicker: string;
   fastHelpTitle: string;
+  fastHelpTitleMobile: string;
   cards: SocialPrimaryCard[];
 };
 
@@ -115,6 +117,7 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
       focusDescription: "VYVA puede usar intereses, sala y estilo de conversacion para sugerir un buen lugar por donde empezar.",
       fastHelpKicker: "Ayuda rapida",
       fastHelpTitle: "Donde quieres entrar ahora?",
+      fastHelpTitleMobile: "Entrar ahora",
       cards: baseCards.map((card) => ({
         ...card,
         description: {
@@ -122,6 +125,12 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           socialise: "Explora las salas abiertas.",
           share: "Comparte un recuerdo o una idea.",
           participate: "Unete a una actividad compartida.",
+        }[card.id],
+        mobileDescription: {
+          match: "Buena conexion",
+          socialise: "Salas abiertas",
+          share: "Comparte algo",
+          participate: "Unete",
         }[card.id],
       })),
     };
@@ -132,6 +141,7 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
       focusDescription: "VYVA kann Interessen, Raumkontext und Gespraechsstil nutzen, um einen warmen Startpunkt vorzuschlagen.",
       fastHelpKicker: "Schnelle Hilfe",
       fastHelpTitle: "Wo moechtest du mitmachen?",
+      fastHelpTitleMobile: "Jetzt mitmachen",
       cards: baseCards.map((card) => ({
         ...card,
         description: {
@@ -139,6 +149,12 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           socialise: "Entdecke offene Raeume.",
           share: "Teile eine Erinnerung oder Idee.",
           participate: "Mach bei einer gemeinsamen Aktivitaet mit.",
+        }[card.id],
+        mobileDescription: {
+          match: "Nette Verbindung",
+          socialise: "Offene Raeume",
+          share: "Etwas teilen",
+          participate: "Mitmachen",
         }[card.id],
       })),
     };
@@ -148,6 +164,7 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
     focusDescription: "VYVA can use interests, room context, and conversation style to suggest one warm place to start.",
     fastHelpKicker: "Fast help",
     fastHelpTitle: "Where would you like to join in?",
+    fastHelpTitleMobile: "Join a room",
     cards: baseCards.map((card) => ({
       ...card,
       description: {
@@ -156,6 +173,12 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
         share: "Share a memory, song, or thought.",
         participate: "Join a game, chat, or shared activity.",
       }[card.id],
+      mobileDescription: {
+        match: "Find someone kind",
+        socialise: "Open rooms",
+        share: "Share a memory",
+        participate: "Join in",
+      }[card.id],
     })),
   };
 }
@@ -163,6 +186,7 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
 type FastHelpRoomCopy = {
   title: string;
   subtitle: string;
+  mobileSubtitle: string;
   Icon: LucideIcon;
   iconBg: string;
   iconColor: string;
@@ -235,11 +259,13 @@ function orderFastHelpRooms(rooms: SocialRoom[]) {
 function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHelpRoomCopy {
   const fallbackName = isTogetherRoom(room.slug) ? room.name : getRoomPickerName(room.slug, language, room.name);
   const subtitle = room.contentTitle || room.topic;
+  const mobileSubtitle = room.name || fallbackName || room.topic;
 
   if (room.slug === "kitchen-table") {
     return {
       title: "Cook Something Simple",
       subtitle,
+      mobileSubtitle,
       Icon: ChefHat,
       ...FAST_HELP_THEMES.amber,
     };
@@ -249,6 +275,7 @@ function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHe
     return {
       title: "Bring a Song",
       subtitle,
+      mobileSubtitle,
       Icon: Music2,
       ...FAST_HELP_THEMES.purple,
     };
@@ -258,6 +285,7 @@ function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHe
     return {
       title: "Grow Something Together",
       subtitle,
+      mobileSubtitle,
       Icon: Leaf,
       ...FAST_HELP_THEMES.green,
     };
@@ -267,6 +295,7 @@ function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHe
     return {
       title: "Find a Reading Corner",
       subtitle,
+      mobileSubtitle,
       Icon: BookOpen,
       ...FAST_HELP_THEMES.blue,
     };
@@ -276,6 +305,7 @@ function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHe
     return {
       title: "Play a Light Game",
       subtitle,
+      mobileSubtitle,
       Icon: Gamepad2,
       ...FAST_HELP_THEMES.amber,
     };
@@ -285,6 +315,7 @@ function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHe
     return {
       title: "Move Gently Together",
       subtitle,
+      mobileSubtitle,
       Icon: Footprints,
       ...FAST_HELP_THEMES.teal,
     };
@@ -293,6 +324,7 @@ function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHe
   return {
     title: `Join ${fallbackName}`,
     subtitle,
+    mobileSubtitle,
     Icon: MessageCircleHeart,
     ...FAST_HELP_THEMES.rose,
   };
@@ -321,7 +353,8 @@ function SocialPrimaryCardView({ card }: SocialPrimaryCardViewProps) {
         {card.title}
       </h2>
       <p className="mt-1 max-w-[18rem] font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-        {card.description}
+        <span className="sm:hidden">{card.mobileDescription}</span>
+        <span className="hidden sm:inline">{card.description}</span>
       </p>
     </article>
   );
@@ -341,6 +374,7 @@ function FastHelpRoomRow({ room, language, onSelect }: FastHelpRoomRowProps) {
     <button
       type="button"
       data-testid={`button-social-fast-help-${room.slug}`}
+      aria-label={roomCopy.title}
       onClick={() => onSelect(room)}
       className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
       style={{
@@ -359,7 +393,8 @@ function FastHelpRoomRow({ room, language, onSelect }: FastHelpRoomRowProps) {
           {roomCopy.title}
         </span>
         <span className="mt-1 block max-w-[26rem] overflow-hidden break-words font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-          {roomCopy.subtitle}
+          <span className="sm:hidden">{roomCopy.mobileSubtitle}</span>
+          <span className="hidden sm:inline">{roomCopy.subtitle}</span>
         </span>
       </span>
       <span className="hidden shrink-0 items-center gap-1 rounded-full bg-[#FBF7F0] px-3 py-1.5 font-body text-[12px] font-bold text-vyva-text-2 sm:inline-flex">
@@ -645,7 +680,8 @@ const SocialHub = () => {
               {entryCopy.fastHelpKicker}
             </p>
             <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-              {entryCopy.fastHelpTitle}
+              <span className="sm:hidden">{entryCopy.fastHelpTitleMobile}</span>
+              <span className="hidden sm:inline">{entryCopy.fastHelpTitle}</span>
             </h2>
           </div>
 

@@ -86,6 +86,8 @@ const ActivitiesScreen = () => {
     icon: LucideIcon;
     label: string;
     sub: string;
+    mobileLabel: string;
+    mobileSub: string;
     color: string;
     bg: string;
     to: string;
@@ -96,6 +98,8 @@ const ActivitiesScreen = () => {
       icon: BrainCircuit,
       label: t("activities.primary.memory", "Strengthen Memory"),
       sub: t("activities.primary.memorySub", "Practice recall, matching, and daily routines."),
+      mobileLabel: t("activities.primary.memoryMobile", "Memory"),
+      mobileSub: t("activities.primary.memorySubMobile", "Recall practice"),
       color: "#7C3AED",
       bg: "#F5F3FF",
       to: "/memory-games",
@@ -106,6 +110,8 @@ const ActivitiesScreen = () => {
       icon: Route,
       label: t("activities.primary.reflexes", "Train Reflexes"),
       sub: t("activities.primary.reflexesSub", "Build faster focus and response."),
+      mobileLabel: t("activities.primary.reflexesMobile", "Reflexes"),
+      mobileSub: t("activities.primary.reflexesSubMobile", "Quick response"),
       color: "#0A7C4E",
       bg: "#ECFDF5",
       to: "/attention-boosters",
@@ -116,6 +122,8 @@ const ActivitiesScreen = () => {
       icon: Puzzle,
       label: t("activities.primary.intelligence", "Boost Intelligence"),
       sub: t("activities.primary.intelligenceSub", "Challenge logic, planning, and problem solving."),
+      mobileLabel: t("activities.primary.intelligenceMobile", "Logic"),
+      mobileSub: t("activities.primary.intelligenceSubMobile", "Problem solving"),
       color: "#C9890A",
       bg: "#FEF3C7",
       to: "/executive-function",
@@ -126,6 +134,8 @@ const ActivitiesScreen = () => {
       icon: Headphones,
       label: t("activities.primary.senses", "Sharpen Senses"),
       sub: t("activities.primary.sensesSub", "Practice association, observation, and recall."),
+      mobileLabel: t("activities.primary.sensesMobile", "Senses"),
+      mobileSub: t("activities.primary.sensesSubMobile", "Sound focus"),
       color: "#0F766E",
       bg: "#CCFBF1",
       to: "/senses",
@@ -138,6 +148,8 @@ const ActivitiesScreen = () => {
     icon: LucideIcon;
     label: string;
     sub: string;
+    mobileLabel: string;
+    mobileSub: string;
     to: string;
     iconBg: string;
     iconColor: string;
@@ -150,6 +162,8 @@ const ActivitiesScreen = () => {
       icon: Headphones,
       label: t("activities.quick.relax", "Relax & Breathe"),
       sub: t("activities.quick.relaxSub", "Take a calm guided pause."),
+      mobileLabel: t("activities.quick.relaxMobile", "Relax"),
+      mobileSub: t("activities.quick.relaxSubMobile", "Calm pause"),
       to: "/activities/relax-breathe",
       iconBg: "#CCFBF1",
       iconColor: "#0F766E",
@@ -162,6 +176,8 @@ const ActivitiesScreen = () => {
       icon: BookOpen,
       label: t("activities.quick.learn", "Learn Something New"),
       sub: t("activities.quick.learnSub", "Try words, language, and recall."),
+      mobileLabel: t("activities.quick.learnMobile", "Learn"),
+      mobileSub: t("activities.quick.learnSubMobile", "Words and recall"),
       to: "/language",
       iconBg: "#F5F3FF",
       iconColor: "#7C3AED",
@@ -174,6 +190,8 @@ const ActivitiesScreen = () => {
       icon: BrainCircuit,
       label: t("activities.quick.play", "Play a Brain Game"),
       sub: t("activities.quick.playSub", "Practice memory and focus."),
+      mobileLabel: t("activities.quick.playMobile", "Play"),
+      mobileSub: t("activities.quick.playSubMobile", "Brain games"),
       to: "/memory-games",
       iconBg: "#EFF6FF",
       iconColor: "#2563EB",
@@ -338,11 +356,22 @@ const ActivitiesScreen = () => {
             <ActionCard
               key={action.id}
               data-testid={action.testId}
+              aria-label={action.label}
               icon={action.icon}
               iconBg={action.bg}
               iconColor={action.color}
-              title={action.label}
-              description={action.sub}
+              title={
+                <>
+                  <span className="sm:hidden">{action.mobileLabel}</span>
+                  <span className="hidden sm:inline">{action.label}</span>
+                </>
+              }
+              description={
+                <>
+                  <span className="sm:hidden">{action.mobileSub}</span>
+                  <span className="hidden sm:inline">{action.sub}</span>
+                </>
+              }
               size="large"
               surface="white"
               onClick={() => navigate(action.to)}
@@ -418,7 +447,8 @@ const ActivitiesScreen = () => {
             {t("activities.quick.kicker", "Brain Coach")}
           </p>
           <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-            {t("activities.libraryTitle", "Choose an activity")}
+            <span className="sm:hidden">{t("activities.libraryTitleMobile", "Pick one")}</span>
+            <span className="hidden sm:inline">{t("activities.libraryTitle", "Choose an activity")}</span>
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-3">
@@ -429,6 +459,7 @@ const ActivitiesScreen = () => {
                 key={action.id}
                 type="button"
                 data-testid={action.testId}
+                aria-label={action.label}
                 onClick={() => navigate(action.to)}
                 className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5"
                 style={{
@@ -444,10 +475,12 @@ const ActivitiesScreen = () => {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    {action.label}
+                    <span className="sm:hidden">{action.mobileLabel}</span>
+                    <span className="hidden sm:inline">{action.label}</span>
                   </span>
                   <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {action.sub}
+                    <span className="sm:hidden">{action.mobileSub}</span>
+                    <span className="hidden sm:inline">{action.sub}</span>
                   </span>
                 </span>
               </button>

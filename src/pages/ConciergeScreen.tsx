@@ -505,6 +505,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "shop",
     fallback: "Shop",
+    mobileFallback: "Shop",
     Icon: ShoppingBasket,
     iconColor: "#7C3AED",
     iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
@@ -513,6 +514,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "book",
     fallback: "Book",
+    mobileFallback: "Book",
     Icon: Calendar,
     iconColor: "#149A63",
     iconBg: "linear-gradient(135deg, #DDF8EA 0%, #F1FBF5 100%)",
@@ -521,6 +523,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "order",
     fallback: "Order",
+    mobileFallback: "Order",
     Icon: PackageCheck,
     iconColor: "#2F66D0",
     iconBg: "linear-gradient(135deg, #E6F0FF 0%, #F3F8FF 100%)",
@@ -529,6 +532,7 @@ const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "save",
     fallback: "Save",
+    mobileFallback: "Save",
     Icon: PiggyBank,
     iconColor: "#B45309",
     iconBg: "linear-gradient(135deg, #FFF1D6 0%, #FFF7ED 100%)",
@@ -541,6 +545,8 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
     key: "home-service",
     fallbackTitle: "Find home service",
     fallbackSubtitle: "Plumber, repairs, cleaning",
+    mobileFallbackTitle: "Home help",
+    mobileFallbackSubtitle: "Trusted repair help",
     Icon: Wrench,
     color: "#B45309",
     bg: "#FFF7ED",
@@ -551,6 +557,8 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
     key: "appointment",
     fallbackTitle: "Book appointment",
     fallbackSubtitle: "Prepare a request to confirm",
+    mobileFallbackTitle: "Appointment",
+    mobileFallbackSubtitle: "Prepare request",
     Icon: Calendar,
     color: "#6B21A8",
     bg: "#F5F3FF",
@@ -561,6 +569,8 @@ const CONCIERGE_FAST_HELP_ACTIONS = [
     key: "ride",
     fallbackTitle: "Find transport",
     fallbackSubtitle: "Compare safe ways to get there",
+    mobileFallbackTitle: "Transport",
+    mobileFallbackSubtitle: "Safe options",
     Icon: Car,
     color: "#047857",
     bg: "#ECFDF5",
@@ -3302,12 +3312,18 @@ const ConciergeScreen = () => {
 
       <section className="order-[10] mt-[22px]" data-testid="concierge-guided-hub">
         <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
-          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, Icon, iconColor, iconBg, glow }) => (
+          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, mobileFallback, Icon, iconColor, iconBg, glow }) => (
             <ActionCard
               key={key}
               data-testid={`button-concierge-card-${key}`}
+              aria-label={t(`concierge.primaryCards.${key}`, fallback)}
               onClick={() => handlePrimaryConciergeCard(key)}
-              title={t(`concierge.primaryCards.${key}`, fallback)}
+              title={
+                <>
+                  <span className="sm:hidden">{t(`concierge.primaryCards.${key}.mobile`, mobileFallback)}</span>
+                  <span className="hidden sm:inline">{t(`concierge.primaryCards.${key}`, fallback)}</span>
+                </>
+              }
               icon={Icon}
               iconBg={iconBg}
               iconColor={iconColor}
@@ -3331,15 +3347,17 @@ const ConciergeScreen = () => {
               {t("concierge.fastHelp.kicker", "Fast help")}
             </p>
             <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-              {t("concierge.fastHelp.title", "What do you need now?")}
+              <span className="sm:hidden">{t("concierge.fastHelp.titleMobile", "Need help now?")}</span>
+              <span className="hidden sm:inline">{t("concierge.fastHelp.title", "What do you need now?")}</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 gap-3">
-            {CONCIERGE_FAST_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, Icon, color, bg, border, shadow }) => (
+            {CONCIERGE_FAST_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, mobileFallbackTitle, mobileFallbackSubtitle, Icon, color, bg, border, shadow }) => (
               <button
                 key={key}
                 type="button"
                 data-testid={`button-concierge-fast-${key}`}
+                aria-label={t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
                 onClick={() => handleFastHelpAction(key)}
                 className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.98]"
                 style={{ borderColor: border, boxShadow: `0 10px 24px ${shadow}` }}
@@ -3349,10 +3367,12 @@ const ConciergeScreen = () => {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    {t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
+                    <span className="sm:hidden">{t(`concierge.fastHelp.actions.${key}.mobileLabel`, mobileFallbackTitle)}</span>
+                    <span className="hidden sm:inline">{t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}</span>
                   </span>
                   <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {t(`concierge.fastHelp.actions.${key}.sub`, fallbackSubtitle)}
+                    <span className="sm:hidden">{t(`concierge.fastHelp.actions.${key}.mobileSub`, mobileFallbackSubtitle)}</span>
+                    <span className="hidden sm:inline">{t(`concierge.fastHelp.actions.${key}.sub`, fallbackSubtitle)}</span>
                   </span>
                 </span>
               </button>
