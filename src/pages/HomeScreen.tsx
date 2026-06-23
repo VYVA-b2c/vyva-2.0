@@ -278,11 +278,6 @@ const HomeScreen = () => {
     guardPath(path, options);
   };
 
-  const handleTypeInstead = () => {
-    incrementChatNavigationCount();
-    guardPath("/chat?mode=type");
-  };
-
   const handleAgentCardOpen = (card: HomeAgentCard) => {
     if (card.id === "health") {
       handleNavigate(card.path);
@@ -371,8 +366,6 @@ const HomeScreen = () => {
         autoStartListening
         showVoiceOverlay
         talkLabel={t("home.mode.voiceCta", "Talk to VYVA")}
-        chatLabel={t("home.mode.typeInstead", "Type instead")}
-        onChatClick={handleTypeInstead}
       />
 
       <div className="mt-[22px]">

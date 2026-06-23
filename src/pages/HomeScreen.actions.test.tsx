@@ -73,7 +73,6 @@ const labels: Record<string, string> = {
   "home.whatNow": "or explore a topic",
   "home.mode.label": "Choose how to talk with VYVA",
   "home.mode.type": "Type",
-  "home.mode.typeInstead": "Type instead",
   "home.mode.voice": "Voice",
   "home.mode.voiceCta": "Talk to VYVA",
   "home.fastHelp.kicker": "Fast help",
@@ -166,23 +165,19 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Find transport");
   });
 
-  it("uses one Home voice CTA and keeps type as a secondary escape hatch", () => {
+  it("uses one Home voice CTA without the secondary type button", () => {
     render(<HomeScreen />);
 
     expect(screen.queryByTestId("home-mode-toggle")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-mode-voice")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-voice-hero-talk")).toHaveTextContent("Talk to VYVA");
-    expect(screen.getByTestId("button-home-type-instead")).toHaveTextContent("Type instead");
+    expect(screen.queryByTestId("button-home-type-instead")).not.toBeInTheDocument();
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-overlay", "true");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-start", "false");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-auto-listening", "true");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-context", "app_open");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-agent-slug", "main-vyva");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-app-entrypoint", "home_open");
-
-    fireEvent.click(screen.getByTestId("button-home-type-instead"));
-
-    expect(guardPathMock).toHaveBeenCalledWith("/chat?mode=type");
   });
 
   it("opens doctor help with voice context from Home", () => {
