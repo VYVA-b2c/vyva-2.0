@@ -57,6 +57,7 @@ function LocationProbe() {
   return (
     <>
       <span data-testid="location-path">{location.pathname}</span>
+      <span data-testid="location-search">{location.search}</span>
       <span data-testid="route-state">{JSON.stringify(location.state)}</span>
     </>
   );
@@ -118,7 +119,7 @@ describe("ConciergeScreen action hub", () => {
     }
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("What do you need now?");
-    expect(screen.getByTestId("button-concierge-fast-doctor")).toHaveTextContent("Find a trusted provider");
+    expect(screen.getByTestId("button-concierge-fast-home-service")).toHaveTextContent("Find home service");
     expect(screen.getByTestId("button-concierge-fast-appointment")).toHaveTextContent("Book appointment");
     expect(screen.getByTestId("button-concierge-fast-ride")).toHaveTextContent("Find transport");
   });
@@ -149,6 +150,10 @@ describe("ConciergeScreen action hub", () => {
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-book"));
     expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Schedule an appointment");
+    expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("Appointment mission");
+    for (const label of ["Medical", "Personal care", "Government", "Home service", "Social or restaurant"]) {
+      expect(screen.getByRole("button", { name: label })).toBeVisible();
+    }
 
     fireEvent.click(screen.getByTestId("button-concierge-card-save"));
     expect(screen.getByTestId("panel-offers-search")).toBeVisible();
@@ -204,9 +209,13 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Lopez");
+    expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("VYVA calls");
     fireEvent.click(screen.getByTestId("button-appointment-channel-phone"));
 
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(screen.getByTestId("panel-appointment-live-controls")).toHaveTextContent("VYVA is calling");
+    fireEvent.click(screen.getByTestId("button-appointment-call-mute"));
+    expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("Muted");
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests", expect.objectContaining({ method: "POST" }));
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-1/confirm-attempt", expect.objectContaining({ method: "POST" }));
   });
@@ -321,6 +330,20 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
     expect(screen.getByText("VYVA has the booking form task. Save the appointment once confirmed.")).toBeVisible();
+  });
+
+  it("updates the active appointment mission from user voice or chat edits", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-book"));
+    fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
+      target: { value: "Prefer Tuesday morning and ask about wheelchair access" },
+    });
+    fireEvent.click(screen.getByTestId("button-appointment-apply-edit"));
+
+    expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("User edit: Prefer Tuesday morning");
+    expect(screen.getByDisplayValue("Prefer Tuesday morning and ask about wheelchair access")).toBeVisible();
   });
 
   it("discovers external appointment options inside the request flow", async () => {
@@ -521,17 +544,40 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("ask me to confirm");
   });
 
-  it("routes doctor help and prepares ride requests without booking", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+  it("prepares home service help and still prepares ride requests without booking", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/appointments/requests")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.appointment_type).toBe("home-service");
+        expect(body.detail.toLowerCase()).toContain("plumber");
+        expect(body.detail).toContain("ask me before contacting or booking");
+        return jsonResponse({
+          request: {
+            id: "request-home-service",
+            appointment_type: "home-service",
+            reason_detail: body.detail,
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
 
     const firstRender = renderScreen();
-    fireEvent.click(await screen.findByTestId("button-concierge-fast-doctor"));
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-home-service"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("location-path")).toHaveTextContent("/health/doctor");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("\"autoStartVoice\":true");
-      expect(screen.getByTestId("route-state")).toHaveTextContent("Concierge doctor help request");
-    });
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Find home service");
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("Saved list checked");
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("You confirm");
+    expect(screen.getByDisplayValue(/plumber or home repair needed/i)).toBeVisible();
+    expect(await screen.findByText("No saved plumber yet")).toBeVisible();
+    expect(screen.getByText("VYVA can search trusted nearby options before anyone is contacted.")).toBeVisible();
+    expect(screen.getByTestId("button-appointment-discover-options")).toHaveTextContent("Find trusted options");
     firstRender.unmount();
 
     renderScreen();
@@ -704,6 +750,8 @@ describe("ConciergeScreen route prefill", () => {
         provider_phone: null,
         action_summary: "VYVA will handle the booking form for The Good Table.",
         action_payload: {
+          mission_status: "form_in_progress",
+          preferred_channel: "booking_url",
           execution_channel: "booking_url",
           booking_url: "https://www.thefork.es/restaurante/example",
           form_automation_plan: {
@@ -719,6 +767,8 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
+    expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
+    expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA fills form");
     expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs: number of guests");
     expect(screen.getByText("VYVA is handling it")).toBeVisible();

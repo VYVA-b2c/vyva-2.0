@@ -7,7 +7,7 @@ import {
   Loader2,
   Car,
   Calendar,
-  Stethoscope,
+  Wrench,
   Search,
   Tag,
   Plus,
@@ -30,6 +30,9 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Volume2,
+  VolumeX,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,6 +110,7 @@ interface AppointmentAttemptResponse {
   draft?: string | null;
   handled_by_vyva?: boolean;
   needs_booking_confirmation?: boolean;
+  mission?: AppointmentMissionState;
 }
 
 interface AppointmentDiscoveryMeta {
@@ -116,10 +120,38 @@ interface AppointmentDiscoveryMeta {
   reservation_systems?: Array<{ name: string; category: string; url: string }>;
 }
 
+interface AppointmentMissionState {
+  status:
+    | "collecting_details"
+    | "selecting_provider"
+    | "awaiting_confirmation"
+    | "contacting_provider"
+    | "form_in_progress"
+    | "awaiting_provider_reply"
+    | "awaiting_user_save"
+    | "booked"
+    | "stopped";
+  current_step: string;
+  preferred_channel: AppointmentChannel | null;
+  provider_preference_snapshot?: {
+    preferred_booking_method?: AppointmentChannel | null;
+    booking_preferences?: Record<string, unknown>;
+    source?: "provider" | "user_default" | "fallback";
+  };
+  user_control_state?: {
+    listening: boolean;
+    muted: boolean;
+    stopped: boolean;
+    awaiting_confirmation: boolean;
+  };
+  activity_log: string[];
+}
+
 interface AppointmentRequestResponse {
   request: AppointmentRequestItem;
   options: AppointmentProviderOption[];
   discovery?: AppointmentDiscoveryMeta;
+  mission?: AppointmentMissionState;
 }
 
 type TransportAction =
@@ -459,6 +491,11 @@ const APPOINTMENT_TYPE_CHIPS = [
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
 const CHAT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+const HOME_SERVICE_FAST_HELP = {
+  es: "Necesito un fontanero o reparacion en casa. Busca opciones fiables cerca y preguntame antes de contactar o reservar.",
+  en: "Plumber or home repair needed. Find trusted nearby options and ask me before contacting or booking.",
+} as const;
+
 function chatHistoryKey(locale: string) {
   const lang = locale.split("-")[0].toLowerCase();
   return `${CHAT_HISTORY_BASE}_${lang}`;
@@ -501,14 +538,14 @@ const PRIMARY_CONCIERGE_CARDS = [
 
 const CONCIERGE_FAST_HELP_ACTIONS = [
   {
-    key: "doctor",
-    fallbackTitle: "Find a trusted provider",
-    fallbackSubtitle: "Get help choosing the right care",
-    Icon: Stethoscope,
-    color: "#2563EB",
-    bg: "#EEF6FF",
-    border: "#BFDBFE",
-    shadow: "rgba(37,99,235,0.10)",
+    key: "home-service",
+    fallbackTitle: "Find home service",
+    fallbackSubtitle: "Plumber, repairs, cleaning",
+    Icon: Wrench,
+    color: "#B45309",
+    bg: "#FFF7ED",
+    border: "#FED7AA",
+    shadow: "rgba(180,83,9,0.10)",
   },
   {
     key: "appointment",
@@ -637,7 +674,7 @@ async function markAppointmentBooked(params: {
   providerName?: string;
   location?: string;
   notes?: string;
-}): Promise<{ scheduled_event?: unknown }> {
+}): Promise<{ scheduled_event?: unknown; mission?: AppointmentMissionState }> {
   const scheduledDate = new Date(params.scheduledFor);
   const res = await apiFetch(`/api/appointments/requests/${params.requestId}/mark-booked`, {
     method: "POST",
@@ -653,7 +690,7 @@ async function markAppointmentBooked(params: {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Could not save appointment");
   }
-  return await res.json() as { scheduled_event?: unknown };
+  return await res.json() as { scheduled_event?: unknown; mission?: AppointmentMissionState };
 }
 
 async function fetchTransportOptions(params: {
@@ -1081,6 +1118,93 @@ function appointmentChannelLabel(channel: AppointmentChannel, isSpanish: boolean
   }
 }
 
+function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
+  const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
+    collecting_details: { en: "Collecting details", es: "Recogiendo detalles" },
+    selecting_provider: { en: "Finding provider", es: "Buscando proveedor" },
+    awaiting_confirmation: { en: "Ready to confirm", es: "Listo para confirmar" },
+    contacting_provider: { en: "Calling now", es: "Llamando ahora" },
+    form_in_progress: { en: "Form in progress", es: "Formulario en curso" },
+    awaiting_provider_reply: { en: "Waiting for reply", es: "Esperando respuesta" },
+    awaiting_user_save: { en: "Waiting to save", es: "Pendiente de guardar" },
+    booked: { en: "Booked", es: "Reservada" },
+    stopped: { en: "Stopped", es: "Detenida" },
+  };
+  return isSpanish ? labels[status].es : labels[status].en;
+}
+
+function isAppointmentMissionStatus(value: unknown): value is AppointmentMissionState["status"] {
+  return typeof value === "string" && [
+    "collecting_details",
+    "selecting_provider",
+    "awaiting_confirmation",
+    "contacting_provider",
+    "form_in_progress",
+    "awaiting_provider_reply",
+    "awaiting_user_save",
+    "booked",
+    "stopped",
+  ].includes(value);
+}
+
+function appointmentMissionFallback(input: {
+  request: AppointmentRequestItem | null;
+  options: AppointmentProviderOption[];
+  selectedOption: AppointmentProviderOption | null;
+  controlMode: "listening" | "muted" | "stopped";
+  isSpanish: boolean;
+}): AppointmentMissionState {
+  const hasOptions = input.options.length > 0;
+  const option = input.selectedOption ?? input.options[0] ?? null;
+  const preferredChannel = (option?.provider_snapshot?.preferred_channel as AppointmentChannel | undefined)
+    ?? option?.available_channels?.[0]
+    ?? null;
+  const providerPreference = option?.provider_snapshot?.provider_preference_snapshot;
+  const status: AppointmentMissionState["status"] = input.controlMode === "stopped"
+    ? "stopped"
+    : input.request?.status === "booked"
+      ? "booked"
+      : hasOptions
+        ? "awaiting_confirmation"
+        : input.request
+          ? "selecting_provider"
+          : "collecting_details";
+  const step = status === "collecting_details"
+    ? (input.isSpanish ? "Elige el tipo de cita y anade cualquier detalle." : "Choose the appointment type and add any detail.")
+    : status === "selecting_provider"
+      ? (input.isSpanish ? "VYVA buscara proveedores guardados, webs oficiales y mapas." : "VYVA will check saved providers, official websites, and maps.")
+      : status === "awaiting_confirmation"
+        ? (input.isSpanish ? "Revisa el proveedor y confirma como debe contactar VYVA." : "Review the provider and confirm how VYVA should contact them.")
+        : status === "booked"
+          ? (input.isSpanish ? "La cita esta confirmada y guardada." : "The appointment is confirmed and saved.")
+          : (input.isSpanish ? "La gestion esta detenida." : "The mission is stopped.");
+
+  return {
+    status,
+    current_step: step,
+    preferred_channel: preferredChannel,
+    provider_preference_snapshot: providerPreference && typeof providerPreference === "object"
+      ? providerPreference as AppointmentMissionState["provider_preference_snapshot"]
+      : { preferred_booking_method: preferredChannel, booking_preferences: {}, source: "fallback" },
+    user_control_state: {
+      listening: input.controlMode === "listening",
+      muted: input.controlMode === "muted",
+      stopped: input.controlMode === "stopped",
+      awaiting_confirmation: status !== "booked",
+    },
+    activity_log: [
+      input.request?.reason_detail
+        ? (input.isSpanish ? "Objetivo de la cita guardado." : "Appointment goal captured.")
+        : (input.isSpanish ? "VYVA esta lista para organizar la cita." : "VYVA is ready to organize the appointment."),
+      hasOptions
+        ? option?.provider_source === "saved"
+          ? (input.isSpanish ? "Proveedor habitual encontrado primero." : "Usual provider found first.")
+          : (input.isSpanish ? "Proveedor nuevo encontrado en fuentes verificables." : "New provider found from verifiable sources.")
+        : (input.isSpanish ? "Aun no hay proveedor seleccionado." : "No provider selected yet."),
+    ],
+  };
+}
+
 function offerProtectionFallback(isSpanish: boolean): OfferProtectionSummary {
   return isSpanish
     ? {
@@ -1266,6 +1390,8 @@ const ConciergeScreen = () => {
   const [selectedAppointmentOptionId, setSelectedAppointmentOptionId] = useState<string | null>(null);
   const [selectedAppointmentChip, setSelectedAppointmentChip] = useState<(typeof APPOINTMENT_TYPE_CHIPS)[number] | null>(null);
   const [appointmentAttemptResult, setAppointmentAttemptResult] = useState<AppointmentAttemptResponse | null>(null);
+  const [appointmentMission, setAppointmentMission] = useState<AppointmentMissionState | null>(null);
+  const [appointmentControlMode, setAppointmentControlMode] = useState<"listening" | "muted" | "stopped">("listening");
   const [appointmentNotice, setAppointmentNotice] = useState<string | null>(null);
   const [appointmentError, setAppointmentError] = useState<string | null>(null);
   const [appointmentBookedForm, setAppointmentBookedForm] = useState({
@@ -1354,6 +1480,15 @@ const ConciergeScreen = () => {
   }, [appointmentOptions, selectedAppointmentOptionId]);
 
   const appointmentProviderName = appointmentOptionName(selectedAppointmentOption, isSpanish);
+  const activeAppointmentMission = useMemo(() => (
+    appointmentMission ?? appointmentMissionFallback({
+      request: appointmentRequest,
+      options: appointmentOptions,
+      selectedOption: selectedAppointmentOption,
+      controlMode: appointmentControlMode,
+      isSpanish,
+    })
+  ), [appointmentControlMode, appointmentMission, appointmentOptions, appointmentRequest, isSpanish, selectedAppointmentOption]);
 
   const createAppointmentMutation = useMutation({
     mutationFn: createAppointmentRequest,
@@ -1365,15 +1500,27 @@ const ConciergeScreen = () => {
       setAppointmentOptions([]);
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
+      setAppointmentMission(null);
+      setAppointmentControlMode("listening");
     },
     onSuccess: (result) => {
       setAppointmentRequest(result.request);
       setAppointmentOptions(result.options);
       setAppointmentDiscovery(result.discovery ?? null);
       setSelectedAppointmentOptionId(result.options[0]?.id ?? null);
+      setAppointmentMission(result.mission ?? appointmentMissionFallback({
+        request: result.request,
+        options: result.options,
+        selectedOption: result.options[0] ?? null,
+        controlMode: "listening",
+        isSpanish,
+      }));
+      const isHomeServiceRequest = result.request.appointment_type === "home-service";
       setAppointmentNotice(result.options.length > 0
         ? (isSpanish ? "He encontrado un proveedor guardado para revisar primero." : "I found a saved provider to review first.")
-        : (isSpanish ? "No veo un proveedor guardado para esto. Puedo buscar opciones." : "I do not see a saved provider for this yet. I can look for options."));
+        : isHomeServiceRequest
+          ? (isSpanish ? "Aun no hay proveedor guardado. Puedo buscar opciones fiables." : "No saved provider yet. I can look for trusted options.")
+          : (isSpanish ? "No veo un proveedor guardado para esto. Puedo buscar opciones." : "I do not see a saved provider for this yet. I can look for options."));
     },
     onError: (error) => {
       setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido crear la solicitud." : "I could not create the request."));
@@ -1390,6 +1537,13 @@ const ConciergeScreen = () => {
       setAppointmentRequest(result.request);
       setAppointmentOptions(result.options);
       setAppointmentDiscovery(result.discovery ?? null);
+      setAppointmentMission(result.mission ?? appointmentMissionFallback({
+        request: result.request,
+        options: result.options,
+        selectedOption: result.options[0] ?? null,
+        controlMode: appointmentControlMode,
+        isSpanish,
+      }));
       setSelectedAppointmentOptionId((current) => {
         if (current && result.options.some((option) => option.id === current)) return current;
         return result.options[0]?.id ?? null;
@@ -1425,6 +1579,16 @@ const ConciergeScreen = () => {
     },
     onSuccess: async (result) => {
       setAppointmentAttemptResult(result);
+      if (result.pending?.status === "calling") {
+        setAppointmentControlMode("listening");
+      }
+      setAppointmentMission(result.mission ?? appointmentMissionFallback({
+        request: appointmentRequest,
+        options: appointmentOptions,
+        selectedOption: selectedAppointmentOption,
+        controlMode: result.pending?.status === "calling" ? "listening" : appointmentControlMode,
+        isSpanish,
+      }));
       if (result.scheduled_event) {
         setAppointmentNotice(isSpanish ? "VYVA ha confirmado y guardado la cita." : "VYVA confirmed and saved the appointment.");
       } else if (result.pending?.status === "calling") {
@@ -1454,8 +1618,9 @@ const ConciergeScreen = () => {
       setAppointmentError(null);
       setAppointmentNotice(null);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setAppointmentNotice(isSpanish ? "Cita guardada en Scheduled Support." : "Appointment saved in Scheduled Support.");
+      setAppointmentMission(result.mission ?? null);
       setAppointmentRequest(null);
       setAppointmentOptions([]);
       setAppointmentDiscovery(null);
@@ -1533,6 +1698,47 @@ const ConciergeScreen = () => {
       setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la solicitud." : "I could not prepare the request."));
     },
   });
+
+  const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
+  const isHomeServiceAppointment = appointmentIntentType === "home-service";
+  const isHomeServiceWithoutProvider = isHomeServiceAppointment && appointmentOptions.length === 0 && !appointmentAttemptResult;
+  const AppointmentPanelIcon = isHomeServiceAppointment ? Wrench : Calendar;
+  const appointmentPanelTitle = isHomeServiceAppointment
+    ? (isSpanish ? "Buscar servicio en casa" : "Find home service")
+    : (isSpanish ? "Programar una cita" : "Schedule an appointment");
+  const appointmentPanelSubtitle = isHomeServiceAppointment
+    ? (isSpanish
+      ? "Fontaneria, reparaciones, limpieza y mantenimiento con confirmacion previa."
+      : "Plumber, repairs, cleaning, and maintenance stay confirmation-first.")
+    : (isSpanish
+      ? "VYVA usa tu perfil primero, propone opciones si hace falta, y no reserva nada sin confirmarlo contigo."
+      : "VYVA uses your profile first, suggests options if needed, and never books without confirming with you.");
+  const appointmentDetailLabel = isHomeServiceAppointment
+    ? (isSpanish ? "Que ha pasado?" : "What happened?")
+    : (isSpanish ? "Detalle opcional" : "Optional detail");
+  const appointmentDetailPlaceholder = isHomeServiceAppointment
+    ? (isSpanish ? "Ej. fuga bajo el fregadero, atasco, sin agua caliente" : "E.g. leaking sink, blocked toilet, no hot water")
+    : (isSpanish ? "Ej. dermatologia, martes por la manana, WhatsApp si se puede" : "E.g. dermatology, Tuesday morning, WhatsApp if possible");
+  const noSavedProviderTitle = isHomeServiceAppointment
+    ? (isSpanish ? "Aun no hay proveedor guardado" : "No saved plumber yet")
+    : (isSpanish ? "No hay proveedor guardado para esto." : "No saved provider for this yet.");
+  const noSavedProviderBody = isHomeServiceAppointment
+    ? (isSpanish
+      ? "VYVA puede buscar opciones fiables cerca antes de contactar con nadie."
+      : "VYVA can search trusted nearby options before anyone is contacted.")
+    : null;
+  const appointmentDiscoverLabel = isHomeServiceAppointment
+    ? (isSpanish ? "Buscar opciones fiables" : "Find trusted options")
+    : (isSpanish ? "Buscar opciones" : "Look for options");
+  const appointmentPrepareLabel = isHomeServiceAppointment
+    ? (isSpanish ? "Preparar mensaje" : "Prepare message")
+    : (isSpanish ? "Prepararlo por chat" : "Prepare in chat");
+  const showAppointmentStatusMessage = Boolean(
+    appointmentError
+    || createAppointmentMutation.isPending
+    || discoverAppointmentOptionsMutation.isPending
+    || (appointmentNotice && !(isHomeServiceWithoutProvider && !appointmentDiscovery)),
+  );
 
   useEffect(() => {
     if (pendingActions.length === 0) {
@@ -1789,15 +1995,17 @@ const ConciergeScreen = () => {
   }
 
   function handleFastHelpAction(key: (typeof CONCIERGE_FAST_HELP_ACTIONS)[number]["key"]) {
-    if (key === "doctor") {
-      navigate("/health/doctor", {
-        state: {
-          autoStartVoice: true,
-          latestSymptomReport: t(
-            "concierge.fastHelp.doctorContext",
-            "Concierge doctor help request. Ask what is happening and help prepare a safe next step.",
-          ),
-        },
+    if (key === "home-service") {
+      const homeServiceChip = APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0];
+      const detail = isSpanish ? HOME_SERVICE_FAST_HELP.es : HOME_SERVICE_FAST_HELP.en;
+      openAppointmentAssistant();
+      setAppointmentNote(detail);
+      setSelectedAppointmentChip(homeServiceChip);
+      createAppointmentMutation.mutate({
+        appointmentType: homeServiceChip.key,
+        detail,
+        routePrefillSource: "home_quick_action",
+        locale,
       });
       return;
     }
@@ -1838,6 +2046,7 @@ const ConciergeScreen = () => {
     setAppointmentOptions([]);
     setAppointmentDiscovery(null);
     setAppointmentAttemptResult(null);
+    setAppointmentMission(null);
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     sendMessage(message, nextHistory);
   }
@@ -1854,6 +2063,49 @@ const ConciergeScreen = () => {
       optionId: selectedAppointmentOption.id,
       channel,
     });
+  }
+
+  function appendAppointmentMissionActivity(entry: string) {
+    setAppointmentMission((current) => {
+      const base = current ?? activeAppointmentMission;
+      return {
+        ...base,
+        current_step: entry,
+        activity_log: [...base.activity_log, entry].slice(-6),
+      };
+    });
+  }
+
+  function handleAppointmentMissionEdit() {
+    const note = appointmentNote.trim();
+    if (!note) return;
+    appendAppointmentMissionActivity(isSpanish ? `Edicion del usuario: ${note}` : `User edit: ${note}`);
+    setInput(note);
+    setAppointmentNotice(isSpanish
+      ? "He actualizado la mision. Puedes seguir hablando o confirmar el siguiente paso."
+      : "I updated the mission. You can keep talking or confirm the next step.");
+  }
+
+  function handleAppointmentMissionQuestion() {
+    const question = isSpanish
+      ? "Dime en que punto esta esta cita y que necesitas de mi antes de actuar."
+      : "Tell me where this appointment stands and what you need from me before acting.";
+    setInput(question);
+    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function handleAppointmentControl(mode: "listening" | "muted" | "stopped") {
+    setAppointmentControlMode(mode);
+    const entry = mode === "muted"
+      ? (isSpanish ? "Usuario silencio la llamada, VYVA sigue gestionando." : "User muted the call while VYVA keeps organizing.")
+      : mode === "stopped"
+        ? (isSpanish ? "Usuario detuvo la gestion activa." : "User stopped the active mission.")
+        : (isSpanish ? "Usuario esta escuchando la llamada." : "User is listening to the call.");
+    appendAppointmentMissionActivity(entry);
+    const pendingId = appointmentAttemptResult?.pending?.pendingId || appointmentAttemptResult?.form_task?.pending_id;
+    if (mode === "stopped" && pendingId) {
+      cancelMutation.mutate(pendingId);
+    }
   }
 
   function handleMarkAppointmentBooked() {
@@ -2291,6 +2543,13 @@ const ConciergeScreen = () => {
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
   const activeActionIsVyvaTask = activeActionExecutionChannel === "booking_url" || activeActionExecutionChannel === "manual";
   const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
+  const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
+  const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
+    ? activeAction.action_payload.mission_status
+    : null;
+  const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
+    ? activeAction.action_payload.preferred_channel as AppointmentChannel
+    : null;
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
@@ -2903,6 +3162,55 @@ const ConciergeScreen = () => {
               {activeAction.action_summary}
             </p>
 
+            {activeActionIsAppointment && (
+              <div
+                className="mt-3 rounded-[18px] border border-[#D8B4FE] bg-[#F5F3FF] px-3 py-2"
+                data-testid="panel-concierge-appointment-mission"
+              >
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
+                  {isSpanish ? "Mision de cita" : "Appointment mission"}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
+                  {activeActionMissionStatus
+                    ? appointmentMissionStatusLabel(activeActionMissionStatus, isSpanish)
+                    : activeAction.status === "calling"
+                      ? (isSpanish ? "Llamando ahora" : "Calling now")
+                      : (isSpanish ? "Pendiente de confirmacion" : "Pending confirmation")}
+                  {activeActionPreferredChannel
+                    ? ` - ${appointmentChannelLabel(activeActionPreferredChannel, isSpanish)}`
+                    : ""}
+                </p>
+                {activeAction.status === "calling" && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAppointmentControlMode("listening")}
+                      className="vyva-tap inline-flex min-h-[36px] items-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple"
+                    >
+                      <Volume2 size={13} />
+                      {isSpanish ? "Escuchar" : "Listen"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAppointmentControlMode("muted")}
+                      className="vyva-tap inline-flex min-h-[36px] items-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple"
+                    >
+                      <VolumeX size={13} />
+                      {isSpanish ? "Silenciar" : "Mute"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cancelMutation.mutate(activeAction.id)}
+                      className="vyva-tap inline-flex min-h-[36px] items-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-[#B91C1C]"
+                    >
+                      <Square size={13} />
+                      {isSpanish ? "Detener" : "Stop"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeActionIsVyvaTask && activeActionFormPlan && (
               <div
                 className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
@@ -3054,22 +3362,28 @@ const ConciergeScreen = () => {
 
         {appointmentOpen && (
           <div
-            className="mt-4 rounded-[26px] border border-[#99F6E4] bg-[#F0FDFA] p-4"
-            style={{ boxShadow: "0 12px 32px rgba(15,118,110,0.12)" }}
+            className={`mt-4 rounded-[26px] border p-4 ${
+              isHomeServiceAppointment
+                ? "border-[#FED7AA] bg-[#FFF7ED]"
+                : "border-[#99F6E4] bg-[#F0FDFA]"
+            }`}
+            style={{
+              boxShadow: isHomeServiceAppointment
+                ? "0 12px 32px rgba(180,83,9,0.12)"
+                : "0 12px 32px rgba(15,118,110,0.12)",
+            }}
             data-testid="panel-appointment-assistant"
           >
             <div className="flex items-start gap-3">
               <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-white">
-                <Calendar size={21} style={{ color: "#0F766E" }} />
+                <AppointmentPanelIcon size={21} style={{ color: isHomeServiceAppointment ? "#B45309" : "#0F766E" }} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-body text-[18px] font-semibold leading-tight text-vyva-text-1">
-                  {isSpanish ? "Programar una cita" : "Schedule an appointment"}
+                  {appointmentPanelTitle}
                 </p>
                 <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                  {isSpanish
-                    ? "VYVA usa tu perfil primero, propone opciones si hace falta, y no reserva nada sin confirmarlo contigo."
-                    : "VYVA uses your profile first, suggests options if needed, and never books without confirming with you."}
+                  {appointmentPanelSubtitle}
                 </p>
               </div>
               <button
@@ -3082,38 +3396,217 @@ const ConciergeScreen = () => {
               </button>
             </div>
 
-            <div className="mt-4 rounded-[20px] bg-white/75 p-3">
-              <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-[#0F766E]">
-                {isSpanish ? "Que tipo de cita necesitas?" : "What kind of appointment?"}
-              </p>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {APPOINTMENT_TYPE_CHIPS.map((chip) => (
-                  <button
-                    key={chip.key}
-                    type="button"
-                    onClick={() => startAppointmentFlow(chip)}
-                    disabled={chatLoading || createAppointmentMutation.isPending}
-                    className="vyva-tap rounded-[17px] border border-[#99F6E4] bg-white px-3 py-3 text-left font-body text-[14px] font-semibold leading-tight text-vyva-text-1 disabled:opacity-60"
-                  >
-                    {isSpanish ? chip.es : chip.en}
-                  </button>
-                ))}
+            {isHomeServiceWithoutProvider ? (
+              <div
+                className="mt-4 rounded-[22px] border border-[#FED7AA] bg-white p-3"
+                data-testid="panel-appointment-home-service-summary"
+              >
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { Icon: CircleCheck, label: isSpanish ? "Perfil revisado" : "Saved list checked", tone: "#047857", bg: "#ECFDF5" },
+                    { Icon: Search, label: isSpanish ? "Busqueda fiable" : "Trusted search", tone: "#B45309", bg: "#FFF7ED" },
+                    { Icon: ShieldCheck, label: isSpanish ? "Tu confirmas" : "You confirm", tone: "#6B21A8", bg: "#F5F3FF" },
+                  ].map(({ Icon, label, tone, bg }) => (
+                    <div key={label} className="inline-flex min-h-[42px] flex-1 basis-[150px] items-center gap-2 rounded-full border border-[#F3E6D8] bg-[#FFFCF8] px-3">
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: bg, color: tone }}>
+                        <Icon size={16} />
+                      </span>
+                      <span className="font-body text-[13px] font-black leading-tight text-vyva-text-1">
+                        {label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div
+                className="mt-4 rounded-[22px] border border-[#99F6E4] bg-white p-4"
+                data-testid="panel-appointment-mission"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                      {isSpanish ? "Mision de cita" : "Appointment mission"}
+                    </p>
+                    <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                      {appointmentMissionStatusLabel(activeAppointmentMission.status, isSpanish)}
+                    </h3>
+                    <p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">
+                      {activeAppointmentMission.current_step}
+                    </p>
+                  </div>
+                  <span className="inline-flex min-h-[34px] flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] px-3 font-body text-[12px] font-black text-[#047857]">
+                    {activeAppointmentMission.preferred_channel
+                      ? appointmentChannelLabel(activeAppointmentMission.preferred_channel, isSpanish)
+                      : (isSpanish ? "Metodo por elegir" : "Method to choose")}
+                  </span>
+                </div>
 
-            <div className="mt-3 rounded-[20px] bg-white/75 p-3">
-              <label className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-text-2">
-                {isSpanish ? "Detalle opcional" : "Optional detail"}
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-[16px] bg-[#F8FFFC] p-3">
+                    <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                      {isSpanish ? "Proveedor" : "Provider"}
+                    </p>
+                    <p className="mt-1 truncate font-body text-[13px] font-black text-vyva-text-1">
+                      {selectedAppointmentOption ? appointmentProviderName : (isSpanish ? "Por elegir" : "To choose")}
+                    </p>
+                  </div>
+                  <div className="rounded-[16px] bg-[#F8FFFC] p-3">
+                    <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                      {isSpanish ? "Preferencia" : "Preference"}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-black text-vyva-text-1">
+                      {activeAppointmentMission.provider_preference_snapshot?.source === "provider"
+                        ? (isSpanish ? "Del proveedor habitual" : "From usual provider")
+                        : activeAppointmentMission.provider_preference_snapshot?.source === "user_default"
+                          ? (isSpanish ? "Del perfil" : "From profile")
+                          : (isSpanish ? "Mejor metodo disponible" : "Best available method")}
+                    </p>
+                  </div>
+                  <div className="rounded-[16px] bg-[#F8FFFC] p-3">
+                    <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                      {isSpanish ? "Control" : "Control"}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-black text-vyva-text-1">
+                      {appointmentControlMode === "muted"
+                        ? (isSpanish ? "Silenciado" : "Muted")
+                        : appointmentControlMode === "stopped"
+                          ? (isSpanish ? "Detenido" : "Stopped")
+                          : (isSpanish ? "Escuchando" : "Listening")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-[16px] border border-[#D6F5DF] bg-[#FFFCF8] p-3">
+                  <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                    {isSpanish ? "Registro de actividad" : "Activity log"}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {activeAppointmentMission.activity_log.slice(-4).map((entry, index) => (
+                      <li key={`${entry}-${index}`} className="flex gap-2 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                        <span className="mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[#0F766E]" />
+                        <span>{entry}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <button
+                    type="button"
+                    onClick={handleAppointmentMissionEdit}
+                    data-testid="button-appointment-apply-edit"
+                    className="vyva-tap inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[13px] font-black text-[#0F766E]"
+                  >
+                    <PencilLine size={15} />
+                    {isSpanish ? "Aplicar detalle" : "Apply edit"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAppointmentMissionQuestion}
+                    data-testid="button-appointment-ask-status"
+                    className="vyva-tap inline-flex min-h-[42px] items-center justify-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[13px] font-black text-white"
+                  >
+                    <Mic size={15} />
+                    {isSpanish ? "Preguntar estado" : "Ask status"}
+                  </button>
+                </div>
+
+                {(appointmentAttemptResult?.pending?.status === "calling" || activeAppointmentMission.status === "contacting_provider") && (
+                  <div
+                    className="mt-3 rounded-[18px] border border-[#D8B4FE] bg-[#F5F3FF] p-3"
+                    data-testid="panel-appointment-live-controls"
+                  >
+                    <p className="font-body text-[13px] font-black text-vyva-text-1">
+                      {isSpanish ? "VYVA esta llamando. Puedes seguir, silenciar o detener." : "VYVA is calling. You can follow, mute, or stop."}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAppointmentControl("listening")}
+                        data-testid="button-appointment-call-listen"
+                        className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple"
+                      >
+                        <Volume2 size={14} />
+                        {isSpanish ? "Escuchar" : "Listen"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAppointmentControl("muted")}
+                        data-testid="button-appointment-call-mute"
+                        className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-vyva-purple"
+                      >
+                        <VolumeX size={14} />
+                        {isSpanish ? "Silenciar" : "Mute"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAppointmentControl("stopped")}
+                        data-testid="button-appointment-call-stop"
+                        className="vyva-tap inline-flex min-h-[40px] items-center gap-2 rounded-full bg-white px-3 font-body text-[12px] font-black text-[#B91C1C]"
+                      >
+                        <Square size={14} />
+                        {isSpanish ? "Detener" : "Stop"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isHomeServiceAppointment && (
+              <div className="mt-4 rounded-[20px] bg-white/75 p-3">
+                  <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-[#0F766E]">
+                    {isSpanish ? "Que tipo de cita necesitas?" : "What kind of appointment?"}
+                  </p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {APPOINTMENT_TYPE_CHIPS.map((chip) => {
+                      const isSelectedAppointmentChip = appointmentIntentType === chip.key;
+                      return (
+                        <button
+                          key={chip.key}
+                          type="button"
+                          onClick={() => startAppointmentFlow(chip)}
+                          disabled={chatLoading || createAppointmentMutation.isPending}
+                          className={`vyva-tap rounded-[17px] border px-3 py-3 text-left font-body text-[14px] font-semibold leading-tight disabled:opacity-60 ${
+                            isSelectedAppointmentChip
+                              ? "border-vyva-purple bg-[#F5F3FF] text-vyva-purple"
+                              : "border-[#99F6E4] bg-white text-vyva-text-1"
+                          }`}
+                        >
+                          {isSpanish ? chip.es : chip.en}
+                        </button>
+                      );
+                    })}
+                  </div>
+              </div>
+            )}
+
+            <div className={`mt-3 rounded-[20px] p-3 ${isHomeServiceAppointment ? "border border-[#FED7AA] bg-white" : "bg-white/75"}`}>
+              <label className={`font-body text-[12px] font-black uppercase tracking-[0.12em] ${
+                isHomeServiceAppointment ? "text-[#B45309]" : "text-vyva-text-2"
+              }`}>
+                {appointmentDetailLabel}
               </label>
-              <Input
-                value={appointmentNote}
-                onChange={(e) => setAppointmentNote(e.target.value)}
-                placeholder={isSpanish ? "Ej. dermatologia, martes por la manana, WhatsApp si se puede" : "E.g. dermatology, Tuesday morning, WhatsApp if possible"}
-                className="mt-2 min-h-[50px] rounded-[18px] border-vyva-border bg-white font-body text-[15px]"
-              />
+              {isHomeServiceAppointment ? (
+                <textarea
+                  value={appointmentNote}
+                  onChange={(e) => setAppointmentNote(e.target.value)}
+                  placeholder={appointmentDetailPlaceholder}
+                  rows={3}
+                  className="mt-2 min-h-[88px] w-full resize-none rounded-[18px] border border-vyva-border bg-white px-3 py-3 font-body text-[15px] font-medium leading-relaxed text-vyva-text-1 outline-none focus:ring-2 focus:ring-vyva-purple/20"
+                />
+              ) : (
+                <Input
+                  value={appointmentNote}
+                  onChange={(e) => setAppointmentNote(e.target.value)}
+                  placeholder={appointmentDetailPlaceholder}
+                  className="mt-2 min-h-[50px] rounded-[18px] border-vyva-border bg-white font-body text-[15px]"
+                />
+              )}
             </div>
 
-            {(appointmentNotice || appointmentError || createAppointmentMutation.isPending || discoverAppointmentOptionsMutation.isPending) && (
+            {showAppointmentStatusMessage && (
               <div
                 className={`mt-3 rounded-[18px] px-4 py-3 font-body text-[13px] font-semibold ${
                   appointmentError ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-white text-[#0F766E]"
@@ -3189,8 +3682,13 @@ const ConciergeScreen = () => {
             {appointmentRequest && appointmentOptions.length === 0 && (
               <div className="mt-3 rounded-[20px] border border-[#FCD34D] bg-[#FFFBEB] p-4">
                 <p className="font-body text-[15px] font-black text-vyva-text-1">
-                  {isSpanish ? "No hay proveedor guardado para esto." : "No saved provider for this yet."}
+                  {noSavedProviderTitle}
                 </p>
+                {noSavedProviderBody && (
+                  <p className="mt-1 font-body text-[13px] font-semibold leading-relaxed text-vyva-text-2">
+                    {noSavedProviderBody}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={handleDiscoverAppointmentOptions}
@@ -3199,16 +3697,16 @@ const ConciergeScreen = () => {
                   className="vyva-tap mt-3 inline-flex min-h-[46px] w-full items-center justify-center rounded-full bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
                 >
                   {discoverAppointmentOptionsMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
-                  {isSpanish ? "Buscar opciones" : "Look for options"}
+                  {appointmentDiscoverLabel}
                 </button>
-                {appointmentNotice && appointmentOptions.length === 0 && (
+                {appointmentNotice && appointmentOptions.length === 0 && (!isHomeServiceWithoutProvider || appointmentDiscovery) && (
                   <button
                     type="button"
                     onClick={sendAppointmentToChat}
                     disabled={chatLoading}
                     className="vyva-tap mt-2 inline-flex min-h-[42px] w-full items-center justify-center rounded-full border border-[#FCD34D] bg-white px-4 font-body text-[13px] font-black text-[#92400E] disabled:opacity-60"
                   >
-                    {isSpanish ? "Prepararlo por chat" : "Prepare in chat"}
+                    {appointmentPrepareLabel}
                   </button>
                 )}
                 {appointmentDiscovery?.reservation_systems?.length && appointmentOptions.length === 0 ? (
