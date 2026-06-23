@@ -173,9 +173,10 @@ describe("ConciergeShoppingScreen", () => {
     expect(body).toMatchObject({
       needText: "Hydration support with easy delivery",
       category: "groceries",
-      priorities: ["delivery", "simplicity"],
       packageId: "hydration_support",
     });
+    expect(body.priorities).toEqual(expect.arrayContaining(["delivery", "simplicity", "accessibility"]));
+    expect(body.constraints).toEqual(expect.arrayContaining(["easy-open packaging and simple instructions"]));
   });
 
   it("renders backend support packages when the API provides them", async () => {
@@ -313,5 +314,32 @@ describe("ConciergeShoppingScreen", () => {
 
     expect(screen.getByLabelText("What do you need help choosing?")).toHaveValue("Safer bathroom at night");
     expect(screen.queryByText("I do not have enough detail")).not.toBeInTheDocument();
+  });
+
+  it("flags suspicious seller details and prepares a trusted review", async () => {
+    mockShoppingApi();
+    renderScreen();
+
+    fireEvent.click(screen.getByRole("button", { name: /Check product/ }));
+    fireEvent.change(screen.getByLabelText("Product, label, message, or website"), {
+      target: { value: "Seller asks me to pay by gift card for a discounted blood pressure monitor." },
+    });
+    fireEvent.change(screen.getByLabelText("Price"), {
+      target: { value: "180" },
+    });
+    fireEvent.change(screen.getByLabelText("Seller or website"), {
+      target: { value: "unknown seller" },
+    });
+    fireEvent.click(screen.getByTestId("button-shopping-safety-check"));
+
+    expect(screen.getByTestId("shopping-safety-result")).toHaveTextContent("Ask someone you trust");
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask trusted person" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/concierge");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("\"kind\":\"shopping_review\"");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("gift card");
+    });
   });
 });
