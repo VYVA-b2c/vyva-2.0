@@ -1,5 +1,5 @@
 import { act } from "react";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
 
@@ -16,6 +16,37 @@ const baseProps = {
   onEnd: vi.fn(),
 };
 
+const canvasGradientMock = {
+  addColorStop: vi.fn(),
+};
+
+const canvasContextMock = {
+  clearRect: vi.fn(),
+  save: vi.fn(),
+  beginPath: vi.fn(),
+  arc: vi.fn(),
+  clip: vi.fn(),
+  createRadialGradient: vi.fn(() => canvasGradientMock),
+  fillRect: vi.fn(),
+  fill: vi.fn(),
+  restore: vi.fn(),
+  setTransform: vi.fn(),
+};
+
+const canvasMocks = [
+  canvasGradientMock.addColorStop,
+  canvasContextMock.clearRect,
+  canvasContextMock.save,
+  canvasContextMock.beginPath,
+  canvasContextMock.arc,
+  canvasContextMock.clip,
+  canvasContextMock.createRadialGradient,
+  canvasContextMock.fillRect,
+  canvasContextMock.fill,
+  canvasContextMock.restore,
+  canvasContextMock.setTransform,
+];
+
 function renderOverlay(transcript: TranscriptEntry[], props: Partial<typeof baseProps> = {}) {
   return render(
     <VoiceCallOverlay
@@ -27,12 +58,65 @@ function renderOverlay(transcript: TranscriptEntry[], props: Partial<typeof base
 }
 
 describe("VoiceCallOverlay word transcript", () => {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  const originalRequestAnimationFrame = window.requestAnimationFrame;
+  const originalCancelAnimationFrame = window.cancelAnimationFrame;
+  const originalResizeObserver = window.ResizeObserver;
+
+  beforeAll(() => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: vi.fn(() => canvasContextMock),
+    });
+    Object.defineProperty(window, "requestAnimationFrame", {
+      configurable: true,
+      writable: true,
+      value: vi.fn((callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 16)),
+    });
+    Object.defineProperty(window, "cancelAnimationFrame", {
+      configurable: true,
+      writable: true,
+      value: vi.fn((timerId: number) => window.clearTimeout(timerId)),
+    });
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: class ResizeObserverMock {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      },
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: originalGetContext,
+    });
+    Object.defineProperty(window, "requestAnimationFrame", {
+      configurable: true,
+      writable: true,
+      value: originalRequestAnimationFrame,
+    });
+    Object.defineProperty(window, "cancelAnimationFrame", {
+      configurable: true,
+      writable: true,
+      value: originalCancelAnimationFrame,
+    });
+    Object.defineProperty(window, "ResizeObserver", {
+      configurable: true,
+      value: originalResizeObserver,
+    });
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     baseProps.onEnd.mockClear();
+    canvasMocks.forEach((mock) => mock.mockClear());
   });
 
   afterEach(() => {
+    cleanup();
     vi.clearAllTimers();
     vi.useRealTimers();
   });
@@ -41,6 +125,8 @@ describe("VoiceCallOverlay word transcript", () => {
     renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Hello");
+    expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-indicator-zamora-orb")).toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(450);
