@@ -125,6 +125,8 @@ describe("VoiceCallOverlay word transcript", () => {
     renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Hello");
+    expect(screen.getByTestId("text-call-transcript")).toHaveClass("font-body");
+    expect(screen.getByTestId("text-call-transcript")).not.toHaveClass("font-display");
     expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
     expect(screen.getByTestId("voice-indicator-zamora-orb")).toBeInTheDocument();
 

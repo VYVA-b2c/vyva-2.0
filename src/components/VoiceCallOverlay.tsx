@@ -160,7 +160,7 @@ const VoiceCallOverlay = ({
 
         <p
           data-testid="text-call-transcript"
-          className={visibleWord ? "font-display" : "font-body"}
+          className="font-body"
           style={{
             color: visibleWord ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.86)",
             fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : 30,
