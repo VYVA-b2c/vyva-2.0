@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Brain, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
+import { Heart, Brain, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, Keyboard, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
@@ -31,6 +31,8 @@ type HomeFastAction = {
   sub: string;
   href?: string;
 };
+
+type ConversationMode = "type" | "voice";
 
 const COORDS_WEATHER_CACHE_KEY = "vyva_coords_weather_cache";
 const COORDS_WEATHER_TTL_MS = 30 * 60 * 1000;
@@ -154,6 +156,8 @@ const HomeScreen = () => {
   const { guardPath, readiness } = useServiceGate();
   const { t } = useTranslation();
   const { firstName: profileFirstName, profile } = useProfile();
+  const [conversationMode, setConversationMode] = useState<ConversationMode>("type");
+  const [voiceStartRequestId, setVoiceStartRequestId] = useState(0);
 
   const firstName = profileFirstName || "";
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -262,6 +266,17 @@ const HomeScreen = () => {
     guardPath(path, options);
   };
 
+  const handleTypeModeSelect = () => {
+    setConversationMode("type");
+    incrementChatNavigationCount();
+    guardPath("/chat?mode=type");
+  };
+
+  const handleVoiceModeSelect = () => {
+    setConversationMode("voice");
+    setVoiceStartRequestId((current) => current + 1);
+  };
+
   const handleAgentCardOpen = (card: HomeAgentCard) => {
     if (card.id === "health") {
       handleNavigate(card.path);
@@ -340,8 +355,49 @@ const HomeScreen = () => {
         weatherData={weatherData}
         contextHint="app_open"
         voiceDynamicVariables={{ app_entrypoint: "home_open" }}
-        onChatClick={() => handleNavigate("/chat")}
+        autoStartVoice={conversationMode === "voice" && voiceStartRequestId > 0 ? `home-voice-mode-${voiceStartRequestId}` : false}
+        autoStartListening={conversationMode === "voice"}
+        showVoiceOverlay={conversationMode === "voice"}
+        talkLabel={t("home.mode.voiceCta", "Start voice chat")}
+        onChatClick={handleTypeModeSelect}
       />
+
+      <section
+        className="mt-[16px] rounded-[26px] border border-[#EDE2D1] bg-white p-2 shadow-[0_12px_28px_rgba(60,38,20,0.07)]"
+        aria-label={t("home.mode.label", "Choose how to talk with VYVA")}
+        data-testid="home-mode-toggle"
+      >
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="button-home-mode-type"
+            aria-pressed={conversationMode === "type"}
+            onClick={handleTypeModeSelect}
+            className={`vyva-tap flex min-h-[64px] items-center justify-center gap-2 rounded-[21px] px-3 font-body text-[16px] font-black transition ${
+              conversationMode === "type"
+                ? "bg-[#F7F0FF] text-vyva-purple shadow-[0_10px_24px_rgba(107,33,168,0.12)]"
+                : "bg-[#FFFCF8] text-vyva-text-2"
+            }`}
+          >
+            <Keyboard size={19} strokeWidth={2.5} />
+            <span>{t("home.mode.type", "Type")}</span>
+          </button>
+          <button
+            type="button"
+            data-testid="button-home-mode-voice"
+            aria-pressed={conversationMode === "voice"}
+            onClick={handleVoiceModeSelect}
+            className={`vyva-tap flex min-h-[64px] items-center justify-center gap-2 rounded-[21px] px-3 font-body text-[16px] font-black transition ${
+              conversationMode === "voice"
+                ? "bg-[linear-gradient(135deg,#3D0D82,#7C3AED)] text-white shadow-[0_14px_30px_rgba(107,33,168,0.24)]"
+                : "bg-[#FFFCF8] text-vyva-text-2"
+            }`}
+          >
+            <Mic size={19} strokeWidth={2.5} />
+            <span>{t("home.mode.voice", "Voice")}</span>
+          </button>
+        </div>
+      </section>
 
       <div className="mt-[22px]">
         <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">

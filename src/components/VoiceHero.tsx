@@ -42,6 +42,7 @@ interface VoiceHeroProps {
   onChatClick?: () => void;
   weatherData?: WeatherData | null;
   autoStartVoice?: boolean | string;
+  autoStartListening?: boolean;
   showVoiceOverlay?: boolean;
   activeLabel?: string;
   connectingLabel?: string;
@@ -93,6 +94,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   onChatClick,
   weatherData,
   autoStartVoice,
+  autoStartListening = false,
   showVoiceOverlay = false,
   activeLabel,
   connectingLabel,
@@ -171,9 +173,15 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     void startVoice(
       resolvedContextHint,
       undefined,
-      voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : undefined,
+      voiceDynamicVariables || autoStartListening
+        ? {
+            ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
+            ...(autoStartListening ? { autoStartListening: true } : {}),
+          }
+        : undefined,
     );
   }, [
+    autoStartListening,
     autoStartKey,
     internalIsConnecting,
     internalStatus,
@@ -203,7 +211,12 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
       startVoice(
         resolvedContextHint,
         undefined,
-        voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : undefined,
+        voiceDynamicVariables || autoStartListening
+          ? {
+              ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
+              ...(autoStartListening ? { autoStartListening: true } : {}),
+            }
+          : undefined,
       );
     }
   };
