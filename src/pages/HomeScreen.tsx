@@ -275,6 +275,9 @@ const HomeScreen = () => {
     }
     return t(`home.greeting.${period}.withoutName.${variant}`);
   }, [firstName, timeGreetingKey, t]);
+  const mobileGreetingText = firstName
+    ? t("home.greeting.mobile.withName", "Hello, {{name}}", { name: firstName })
+    : t("home.greeting.mobile.withoutName", "Hello");
 
   const handleNavigate = (path: string, options?: NavigateOptions) => {
     if (path === "/chat") incrementChatNavigationCount();
@@ -371,7 +374,10 @@ const HomeScreen = () => {
       <VoiceHero
         heroSurface="home"
         headline={
-          <span className="block">{greetingText}</span>
+          <>
+            <span className="block sm:hidden">{mobileGreetingText}</span>
+            <span className="hidden sm:block">{greetingText}</span>
+          </>
         }
         weatherData={weatherData}
         contextHint="app_open"
@@ -380,6 +386,7 @@ const HomeScreen = () => {
         autoStartListening={conversationMode === "voice"}
         showVoiceOverlay={conversationMode === "voice"}
         talkLabel={t("home.mode.voiceCta", "Start voice chat")}
+        mobileTalkLabel={t("home.mode.voiceCtaMobile", "Talk")}
         onChatClick={handleTypeModeSelect}
       />
 
@@ -444,9 +451,7 @@ const HomeScreen = () => {
                 }
                 description={
                   <>
-                    <span className="sm:hidden">
-                      {t(`home.voiceCards.${card.id}.mobileSubtitle`, HOME_AGENT_MOBILE_COPY[card.id].subtitle)}
-                    </span>
+                    <span className="sr-only sm:hidden">{t(`home.voiceCards.${card.id}.mobileSubtitle`, HOME_AGENT_MOBILE_COPY[card.id].subtitle)}</span>
                     <span className="hidden sm:inline">
                       {t(`home.voiceCards.${card.id}.subtitle`)}
                     </span>
@@ -456,7 +461,8 @@ const HomeScreen = () => {
                 iconBg={theme.iconBg}
                 iconColor={theme.iconColor}
                 size="standard"
-                contentClassName="justify-start"
+                className="max-sm:min-h-[132px] max-sm:px-3 max-sm:py-3"
+                contentClassName="justify-start max-sm:gap-3"
                 locked={locked}
                 style={{
                   borderColor: "#EDE2D1",
@@ -475,7 +481,7 @@ const HomeScreen = () => {
       </div>
 
       <section
-        className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
+        className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)] max-sm:p-4"
         data-testid="home-fast-help"
       >
         <div className="mb-4">
@@ -511,7 +517,7 @@ const HomeScreen = () => {
                 </span>
               </>
             );
-            const className = "vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5";
+            const className = "vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 max-sm:min-h-[72px] max-sm:gap-3 max-sm:px-3 max-sm:py-3";
             const style = {
               borderColor: theme.border,
               boxShadow: `0 10px 24px ${theme.shadow}`,

@@ -332,7 +332,12 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                   className="min-w-0 max-w-full whitespace-nowrap text-left font-body text-[clamp(17px,4.8vw,20px)] font-extrabold leading-tight"
                   style={{ color: isActive ? "#ffffff" : "#6B21A8" }}
                 >
-                  {statusLabel}
+                  {mobileTalkLabel ? (
+                    <>
+                      <span className="sm:hidden">{mobileStatusLabel}</span>
+                      <span className="hidden sm:inline">{statusLabel}</span>
+                    </>
+                  ) : statusLabel}
                 </span>
               </button>
             </div>
