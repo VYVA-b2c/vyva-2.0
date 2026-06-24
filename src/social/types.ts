@@ -660,6 +660,49 @@ export type ParticipationEvent = {
   checkStatus?: "none" | "requested" | "checking" | "checked" | string;
 };
 
+export type AdminParticipationEvent = {
+  id: string;
+  eventKey: string;
+  titleEs: string;
+  titleDe: string;
+  titleEn: string;
+  summaryEs: string;
+  summaryDe: string;
+  summaryEn: string;
+  descriptionEs: string;
+  descriptionDe: string;
+  descriptionEn: string;
+  format: ParticipationEventFormat;
+  locationLabel: string;
+  city?: string | null;
+  countryCode?: string | null;
+  timeLabelEs: string;
+  timeLabelDe: string;
+  timeLabelEn: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  costLabelEs: string;
+  costLabelDe: string;
+  costLabelEn: string;
+  languageCodes: string[];
+  tags: string[];
+  interestTags: string[];
+  accessibilityTags: string[];
+  helperActions: ParticipationHelperAction[];
+  source: "curated" | "admin" | "concierge_checked" | string;
+  sourceUrl?: string | null;
+  status: "active" | "draft" | "hidden" | "archived" | string;
+  isCurated: boolean;
+  needsLiveCheck: boolean;
+  safetyStatus: "approved" | "needs_review" | "hidden" | string;
+  metadata?: Record<string, unknown>;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  responseCounts: ParticipationEventResponseCounts;
+  checkRequestCount: number;
+};
+
 export type ParticipationEventRecommendation = ParticipationEvent & {
   score: number;
 };
