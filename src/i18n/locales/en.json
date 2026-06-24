@@ -361,11 +361,11 @@
         "openLabel": "Open wellbeing"
       },
       "cognitive": {
-        "title": "My mind",
-        "subtitle": "Focus, memory and calm",
-        "bubble": "A little time with me keeps your mind active.",
-        "micLabel": "Start a mental exercise",
-        "openLabel": "Open agile mind"
+        "title": "Activities",
+        "subtitle": "Events, classes and gentle plans",
+        "bubble": "I can find safe things to do that fit your interests.",
+        "micLabel": "Find activities",
+        "openLabel": "Open activities"
       },
       "social": {
         "title": "My Community",
@@ -1760,8 +1760,8 @@
         "mobileSub": "Taxi or transport"
       },
       "delivery": {
-        "label": "Order Delivery",
-        "mobile": "Delivery",
+        "label": "Place Order",
+        "mobile": "Order",
         "sub": "Groceries, pharmacy, food, essentials",
         "mobileSub": "Food and essentials"
       },
@@ -1770,18 +1770,6 @@
         "mobile": "Appointment",
         "sub": "Doctor, salon, government, restaurant",
         "mobileSub": "Doctor, salon, office"
-      },
-      "trip": {
-        "label": "Plan a Trip",
-        "mobile": "Trip",
-        "sub": "Travel, visits, routes, reminders",
-        "mobileSub": "Travel and visits"
-      },
-      "events": {
-        "label": "Find Events",
-        "mobile": "Events",
-        "sub": "Activities, classes, local outings",
-        "mobileSub": "Activities nearby"
       }
     },
     "quickPrompts": {
@@ -1795,17 +1783,40 @@
       "doctorContext": "Concierge doctor help request. Ask what is happening and help prepare a safe next step.",
       "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
       "actions": {
-        "doctor": {
-          "label": "Find a trusted provider",
-          "sub": "Get help choosing the right care"
+        "legal-advice": {
+          "label": "Get legal advice",
+          "sub": "Understand options before acting",
+          "mobileSub": "Know your options"
         },
-        "appointment": {
-          "label": "Book appointment",
-          "sub": "Prepare a request to confirm"
+        "trip": {
+          "label": "Plan me a trip",
+          "sub": "Routes, timing, visits, reminders",
+          "mobileSub": "Routes and reminders"
         },
-        "ride": {
-          "label": "Book ride",
-          "sub": "Arrange safe transport"
+        "care": {
+          "label": "Find the best care for me",
+          "sub": "Compare safe care and support",
+          "mobileSub": "Care and support"
+        },
+        "form": {
+          "label": "Fill a form",
+          "sub": "Prepare answers, stop before submit",
+          "mobileSub": "Prepare answers"
+        },
+        "research": {
+          "label": "Research a topic",
+          "sub": "Summarize sources and next steps",
+          "mobileSub": "Sources and steps"
+        },
+        "best-deal": {
+          "label": "Find the best deal",
+          "sub": "Compare price, trust, and fit",
+          "mobileSub": "Compare options"
+        },
+        "age-at-home": {
+          "label": "Age in grace at home",
+          "sub": "Plan safer home support",
+          "mobileSub": "Safer home support"
         }
       }
     },

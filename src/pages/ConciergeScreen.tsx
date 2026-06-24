@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,9 +11,7 @@ import {
   Search,
   Tag,
   Map,
-  Ticket,
   FileText,
-  MessageSquare,
   Sparkles,
   BellRing,
   Eye,
@@ -35,6 +33,9 @@ import {
   Volume2,
   VolumeX,
   Square,
+  Scale,
+  HeartHandshake,
+  Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -557,9 +558,9 @@ const PRIMARY_CONCIERGE_CARDS = [
   },
   {
     key: "delivery",
-    fallback: "Order Delivery",
+    fallback: "Place Order",
     descriptionFallback: "Groceries, pharmacy, food, essentials",
-    mobileFallback: "Delivery",
+    mobileFallback: "Order",
     mobileDescriptionFallback: "Food and essentials",
     Icon: PackageCheck,
     iconColor: "#2F66D0",
@@ -577,70 +578,86 @@ const PRIMARY_CONCIERGE_CARDS = [
     iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
     glow: "rgba(124,58,237,0.13)",
   },
-  {
-    key: "trip",
-    fallback: "Plan a Trip",
-    descriptionFallback: "Travel, visits, routes, reminders",
-    mobileFallback: "Trip",
-    mobileDescriptionFallback: "Travel and visits",
-    Icon: Map,
-    iconColor: "#0F766E",
-    iconBg: "linear-gradient(135deg, #CCFBF1 0%, #F0FDFA 100%)",
-    glow: "rgba(15,118,110,0.12)",
-  },
-  {
-    key: "events",
-    fallback: "Find Events",
-    descriptionFallback: "Activities, classes, local outings",
-    mobileFallback: "Events",
-    mobileDescriptionFallback: "Activities nearby",
-    Icon: Ticket,
-    iconColor: "#BE185D",
-    iconBg: "linear-gradient(135deg, #FCE7F3 0%, #FFF1F8 100%)",
-    glow: "rgba(190,24,93,0.11)",
-  },
 ] as const;
 
-const MORE_CONCIERGE_HELP_ACTIONS = [
+const CONCIERGE_FAST_HELP_ACTIONS = [
   {
-    key: "compare-save",
-    fallbackTitle: "Compare & Save",
-    fallbackSubtitle: "Bills, offers, plans",
-    Icon: PiggyBank,
-    color: "#B45309",
-    bg: "#FFF7ED",
-    border: "#FED7AA",
-    shadow: "rgba(180,83,9,0.10)",
-  },
-  {
-    key: "paperwork",
-    fallbackTitle: "Help with Paperwork",
-    fallbackSubtitle: "Forms, letters, documents",
-    Icon: FileText,
+    key: "legal-advice",
+    fallbackTitle: "Get legal advice",
+    fallbackSubtitle: "Understand options before acting",
+    mobileFallbackSubtitle: "Know your options",
+    Icon: Scale,
     color: "#6B21A8",
     bg: "#F5F3FF",
     border: "#D8B4FE",
     shadow: "rgba(107,33,168,0.10)",
   },
   {
-    key: "message",
-    fallbackTitle: "Send a Message",
-    fallbackSubtitle: "Draft, review, confirm",
-    Icon: MessageSquare,
+    key: "trip",
+    fallbackTitle: "Plan me a trip",
+    fallbackSubtitle: "Routes, timing, visits, reminders",
+    mobileFallbackSubtitle: "Routes and reminders",
+    Icon: Map,
+    iconColor: "#0F766E",
+    color: "#0F766E",
+    bg: "#CCFBF1",
+    border: "#99F6E4",
+    shadow: "rgba(15,118,110,0.10)",
+  },
+  {
+    key: "care",
+    fallbackTitle: "Find the best care for me",
+    fallbackSubtitle: "Compare safe care and support",
+    mobileFallbackSubtitle: "Care and support",
+    Icon: HeartHandshake,
     color: "#047857",
     bg: "#ECFDF5",
     border: "#BBF7D0",
     shadow: "rgba(4,120,87,0.10)",
   },
   {
-    key: "offer",
-    fallbackTitle: "Check an Offer",
-    fallbackSubtitle: "Price, trust, conditions",
-    Icon: Tag,
+    key: "form",
+    fallbackTitle: "Fill a form",
+    fallbackSubtitle: "Prepare answers, stop before submit",
+    mobileFallbackSubtitle: "Prepare answers",
+    Icon: FileText,
+    color: "#B45309",
+    bg: "#FFF7ED",
+    border: "#FED7AA",
+    shadow: "rgba(180,83,9,0.10)",
+  },
+  {
+    key: "research",
+    fallbackTitle: "Research a topic",
+    fallbackSubtitle: "Summarize sources and next steps",
+    mobileFallbackSubtitle: "Sources and steps",
+    Icon: Search,
     color: "#2F66D0",
     bg: "#EFF6FF",
     border: "#BFDBFE",
     shadow: "rgba(47,102,208,0.10)",
+  },
+  {
+    key: "best-deal",
+    fallbackTitle: "Find the best deal",
+    fallbackSubtitle: "Compare price, trust, and fit",
+    mobileFallbackSubtitle: "Compare options",
+    Icon: Tag,
+    color: "#BE185D",
+    bg: "#FCE7F3",
+    border: "#FBCFE8",
+    shadow: "rgba(190,24,93,0.10)",
+  },
+  {
+    key: "age-at-home",
+    fallbackTitle: "Age in grace at home",
+    fallbackSubtitle: "Plan safer home support",
+    mobileFallbackSubtitle: "Safer home support",
+    Icon: Home,
+    color: "#0F766E",
+    bg: "#F0FDFA",
+    border: "#99F6E4",
+    shadow: "rgba(15,118,110,0.10)",
   },
 ] as const;
 
@@ -1080,7 +1097,7 @@ function utilityTypeLabel(type: UtilityType, es: boolean): string {
 
 function formatEuro(amount: number | null, es: boolean): string {
   if (amount == null) return es ? "No disponible" : "Not available";
-  return `${amount.toLocaleString(es ? "es-ES" : "en-GB", { maximumFractionDigits: 2 })} â‚¬`;
+  return `${amount.toLocaleString(es ? "es-ES" : "en-GB", { maximumFractionDigits: 2 })} €`;
 }
 
 function fieldValue(value: string | number | boolean | null | undefined, fallback: string): string {
@@ -2256,40 +2273,49 @@ const ConciergeScreen = () => {
       openAppointmentAssistant();
       return;
     }
+  }
+
+  function handleFastHelpAction(key: (typeof CONCIERGE_FAST_HELP_ACTIONS)[number]["key"]) {
+    if (key === "legal-advice") {
+      prepareConciergeRequest(isSpanish
+        ? "Ayudame a entender mis opciones legales. Resume los puntos importantes, prepara preguntas o documentos, y no contactes ni envies nada sin mi confirmacion."
+        : "Help me understand my legal options. Summarize what matters, prepare questions or documents, and do not contact or send anything without my confirmation.");
+      return;
+    }
     if (key === "trip") {
       prepareConciergeRequest(isSpanish
         ? "Ayudame a planear un viaje o visita. Compara rutas, horarios, transporte, recordatorios y necesidades practicas. No reserves ni contactes con nadie sin mi confirmacion."
         : "Help me plan a trip or visit. Compare routes, timing, transport, reminders, and practical needs. Do not book or contact anyone without my confirmation.");
       return;
     }
-    if (key === "events") {
+    if (key === "care") {
       prepareConciergeRequest(isSpanish
-        ? "Ayudame a encontrar eventos, clases o actividades cercanas. Prioriza accesibilidad, horarios faciles y transporte si hace falta. No reserves nada sin mi confirmacion."
-        : "Help me find nearby events, classes, or activities. Prioritize accessibility, easy timing, and transport if needed. Do not book anything without my confirmation.");
-    }
-  }
-
-  function handleMoreConciergeHelpAction(key: (typeof MORE_CONCIERGE_HELP_ACTIONS)[number]["key"]) {
-    if (key === "compare-save") {
-      openSavingsPanel();
+        ? "Ayudame a encontrar la mejor atencion para mi. Compara proveedores, seguridad, accesibilidad, precio y cercania. No contactes ni reserves nada sin mi confirmacion."
+        : "Help me find the best care for me. Compare providers, safety, accessibility, price, and distance. Do not contact or book anything without my confirmation.");
       return;
     }
-    if (key === "paperwork") {
+    if (key === "form") {
       prepareConciergeRequest(isSpanish
-        ? "Ayudame con un formulario, carta o documento. Resume lo importante, prepara los pasos y no envies ni compartas datos sin mi confirmacion."
-        : "Help me with a form, letter, or document. Summarize what matters, prepare the steps, and do not send or share details without my confirmation.");
+        ? "Ayudame a rellenar un formulario. Prepara respuestas, marca lo que falte y deten antes de enviar para que yo confirme."
+        : "Help me fill a form. Prepare answers, flag anything missing, and stop before submitting so I can confirm.");
       return;
     }
-    if (key === "message") {
+    if (key === "research") {
       prepareConciergeRequest(isSpanish
-        ? "Ayudame a redactar o enviar un mensaje. Prepara un borrador claro y pideme confirmacion antes de enviarlo."
-        : "Help me draft or send a message. Prepare a clear draft and ask me to confirm before sending it.");
+        ? "Ayudame a investigar un tema. Resume fuentes fiables, riesgos, opciones y proximos pasos. Preguntame antes de actuar."
+        : "Help me research a topic. Summarize reliable sources, risks, options, and next steps. Ask before taking action.");
       return;
     }
-    if (key === "offer") {
+    if (key === "best-deal") {
       openSavingsPanel(isSpanish
-        ? "revisar una oferta, presupuesto o empresa antes de decidir"
-        : "review an offer, quote, or company before I decide");
+        ? "encontrar la mejor oferta comparando precio, confianza y condiciones"
+        : "find the best deal by comparing price, trust, and conditions");
+      return;
+    }
+    if (key === "age-at-home") {
+      prepareConciergeRequest(isSpanish
+        ? "Ayudame a crear un plan para vivir en casa con mas seguridad y dignidad. Revisa apoyo, adaptaciones, cuidados, transporte y tareas. No contactes con nadie sin mi confirmacion."
+        : "Help me create a plan to age in grace at home. Review support, home adaptations, care, transport, and tasks. Do not contact anyone without my confirmation.");
     }
   }
 
@@ -2949,7 +2975,7 @@ const ConciergeScreen = () => {
                     <p className="min-w-0 font-body text-[14px] font-black leading-snug text-vyva-text-1">
                       <span className="text-[#047857]">{isSpanish ? "Desde" : "From"}:</span>{" "}
                       <span className="truncate">{transportPickup.trim() || savedTransportPickupLabel}</span>
-                      <span className="px-2 text-[#047857]">â€¢</span>
+                      <span className="px-2 text-[#047857]">•</span>
                       <span className="text-[#047857]">{isSpanish ? "Hora" : "When"}:</span>{" "}
                       <span>{transportTime.trim() || (isSpanish ? "ahora" : "now")}</span>
                     </p>
@@ -3590,7 +3616,7 @@ const ConciergeScreen = () => {
       </section>
 
       <section className="order-[10] mt-[22px] flex flex-col" data-testid="concierge-guided-hub">
-        <ResponsiveGrid columns="three" gap="sm" className="order-1 min-[340px]:grid-cols-2 lg:grid-cols-3">
+        <ResponsiveGrid columns="two" gap="sm" className="order-1 min-[340px]:grid-cols-2">
           {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, descriptionFallback, mobileFallback, mobileDescriptionFallback, Icon, iconColor, iconBg, glow }) => (
             <ActionCard
               key={key}
@@ -3624,38 +3650,41 @@ const ConciergeScreen = () => {
         </ResponsiveGrid>
 
         <section
-          className="order-3 mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
-          data-testid="concierge-more-help"
+          className="order-3 mt-4 rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] p-4 shadow-[0_14px_32px_rgba(60,38,20,0.07)] sm:mt-[18px] sm:rounded-[28px] sm:p-5"
+          data-testid="concierge-fast-help"
         >
           <div className="mb-4">
             <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-              {t("concierge.moreHelp.kicker", "More Concierge help")}
+              {t("concierge.fastHelp.kicker", "Fast help")}
             </p>
-            <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
-              <span className="sm:hidden">{t("concierge.moreHelp.titleMobile", "Other tasks")}</span>
-              <span className="hidden sm:inline">{t("concierge.moreHelp.title", "Other things VYVA can prepare")}</span>
+            <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
+              <span className="sm:hidden">{t("concierge.fastHelp.titleMobile", "Need help now?")}</span>
+              <span className="hidden sm:inline">{t("concierge.fastHelp.title", "What do you need now?")}</span>
             </h2>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {MORE_CONCIERGE_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, Icon, color, bg, border, shadow }) => (
+          <div className="grid grid-cols-1 gap-3">
+            {CONCIERGE_FAST_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, mobileFallbackSubtitle, Icon, color, bg, border, shadow }) => (
               <button
                 key={key}
                 type="button"
-                data-testid={`button-concierge-more-${key}`}
-                aria-label={t(`concierge.moreHelp.actions.${key}.label`, fallbackTitle)}
-                onClick={() => handleMoreConciergeHelpAction(key)}
-                className="vyva-tap flex min-h-[76px] w-full items-center gap-3 rounded-[20px] border bg-white px-3 py-3 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.98]"
+                data-testid={`button-concierge-fast-${key}`}
+                aria-label={t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
+                onClick={() => handleFastHelpAction(key)}
+                className="vyva-tap flex min-h-[76px] w-full items-center gap-3 rounded-[20px] border bg-white px-3 py-3 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.98] sm:min-h-[86px] sm:gap-4 sm:rounded-[22px] sm:px-4 sm:py-4"
                 style={{ borderColor: border, boxShadow: `0 10px 24px ${shadow}` }}
               >
-                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px]" style={{ background: bg, color }}>
-                  <Icon size={21} strokeWidth={2.4} />
+                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] sm:h-14 sm:w-14 sm:rounded-[18px]" style={{ background: bg, color }}>
+                  <Icon size={22} strokeWidth={2.4} className="sm:h-6 sm:w-6" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
-                    {t(`concierge.moreHelp.actions.${key}.label`, fallbackTitle)}
+                  <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1 sm:text-[18px]">
+                    {t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
                   </span>
-                  <span className="mt-1 block font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-                    {t(`concierge.moreHelp.actions.${key}.sub`, fallbackSubtitle)}
+                  <span className="mt-1 block max-w-[28rem] font-body text-[13px] font-semibold leading-snug text-vyva-text-2 sm:hidden">
+                    {t(`concierge.fastHelp.actions.${key}.mobileSub`, mobileFallbackSubtitle)}
+                  </span>
+                  <span className="mt-1 hidden max-w-[28rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2 sm:block">
+                    {t(`concierge.fastHelp.actions.${key}.sub`, fallbackSubtitle)}
                   </span>
                 </span>
               </button>
@@ -4353,7 +4382,7 @@ const ConciergeScreen = () => {
                   </p>
                   <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
                     {isSpanish
-                      ? "Empiece con luz y gas en EspaÃ±a. VYVA normaliza los datos y compara opciones oficiales u orientativas."
+                      ? "Empiece con luz y gas en España. VYVA normaliza los datos y compara opciones oficiales u orientativas."
                       : "Start with electricity and gas in Spain. VYVA normalizes the details and compares official or fallback options."}
                   </p>
                 </div>
@@ -4534,7 +4563,7 @@ const ConciergeScreen = () => {
                       {postcodeMissing && (
                         <p className="mt-2 font-body text-[11px] leading-snug text-[#9A3412]">
                           {isSpanish
-                            ? "No aparece de forma fiable en la factura. EscrÃ­balo para comparar opciones de su zona."
+                            ? "No aparece de forma fiable en la factura. Escríbalo para comparar opciones de su zona."
                             : "It was not found reliably on the bill. Enter it to compare options in your area."}
                         </p>
                       )}
@@ -4583,7 +4612,7 @@ const ConciergeScreen = () => {
                       <p className="font-body text-[11px] font-semibold uppercase tracking-[0.10em] text-vyva-text-2">
                         {isSpanish ? "Importe total / mensual" : "Total / monthly amount"}
                       </p>
-                      <Input value={fieldValue(utilityNormalized.total_cost, "")} onChange={(e) => updateUtilityNormalizedField("total_cost", e.target.value)} placeholder="â‚¬" className="mt-1 h-[38px] rounded-[12px] border-vyva-border bg-white font-body text-[14px]" />
+                      <Input value={fieldValue(utilityNormalized.total_cost, "")} onChange={(e) => updateUtilityNormalizedField("total_cost", e.target.value)} placeholder="€" className="mt-1 h-[38px] rounded-[12px] border-vyva-border bg-white font-body text-[14px]" />
                     </div>
                   </div>
 
