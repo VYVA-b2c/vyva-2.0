@@ -53,7 +53,7 @@ const labels: Record<string, string> = {
   "activities.primary.memorySub": "Practice recall, matching, and daily routines.",
   "activities.primary.reflexes": "Train Reflexes",
   "activities.primary.reflexesSub": "Build faster focus and response.",
-  "activities.primary.intelligence": "Boost Intelligence",
+  "activities.primary.intelligence": "Improve Thinking",
   "activities.primary.intelligenceSub": "Challenge logic, planning, and problem solving.",
   "activities.primary.senses": "Sharpen Senses",
   "activities.primary.sensesSub": "Reset with sound, breath, and calm attention.",
@@ -106,6 +106,7 @@ function renderActivities() {
         <Route path="/activity" element={<LocationProbe />} />
         <Route path="/memory-games" element={<LocationProbe />} />
         <Route path="/attention-boosters" element={<LocationProbe />} />
+        <Route path="/senses" element={<LocationProbe />} />
         <Route path="/executive-function" element={<LocationProbe />} />
         <Route path="/language" element={<LocationProbe />} />
         <Route path="/activities/relax-breathe" element={<LocationProbe />} />
@@ -139,7 +140,7 @@ describe("Activities service actions", () => {
     }));
     expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");
     expect(screen.getByTestId("button-activities-primary-reflexes")).toHaveTextContent("Train Reflexes");
-    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Boost Intelligence");
+    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Improve Thinking");
     expect(screen.getByTestId("button-activities-primary-senses")).toHaveTextContent("Sharpen Senses");
 
     const quickActions = screen.getByTestId("activities-quick-actions");
@@ -158,6 +159,14 @@ describe("Activities service actions", () => {
     fireEvent.click(screen.getByTestId("button-activities-primary-memory"));
 
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
+  });
+
+  it("routes the Sharpen Senses primary card to the senses hub", async () => {
+    renderActivities();
+
+    fireEvent.click(screen.getByTestId("button-activities-primary-senses"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/senses"));
   });
 
   it("routes the Relax & Breathe quick action to the dedicated page", async () => {

@@ -663,7 +663,9 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
 
     expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Find home service");
-    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("VYVA prepares the job.");
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("Saved list checked");
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("Trusted search");
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("You confirm");
     expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("Find trusted options");
     expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
 

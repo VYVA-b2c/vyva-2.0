@@ -1,13 +1,22 @@
-import { BookOpen, ChevronRight, Type } from "lucide-react";
+import { ChevronRight, Lightbulb, Type } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { ActionCard, PageHeader, ResponsiveGrid } from "@/components/vyva-ui";
 
-const languageGames = [
+const learningActivities = [
   {
-    key: "storyRecall",
-    route: "/memory-games/story_recall",
-    colors: { accent: "#92400E", bg: "#FEF3C7", border: "#F2DCA5" },
+    key: "curiousMinds",
+    route: "/memory-games/curious-minds",
+    titleKey: "games.curiousMinds.title",
+    titleFallback: "Curious Minds",
+    descriptionKey: "games.curiousMinds.cardDescription",
+    descriptionFallback: "Wonder, share ideas, and remember a curious fact.",
+    badgeKey: "games.curiousMinds.cardBadge",
+    badgeFallback: "New",
+    ariaLabelKey: "brainGames.language.curiousMinds.ariaLabel",
+    ariaLabelFallback: "Open Curious Minds",
+    icon: Lightbulb,
+    colors: { accent: "#6B21A8", bg: "#F3E8FF", border: "#D8B4FE" },
   },
 ] as const;
 
@@ -29,24 +38,24 @@ export default function LanguageGamesPage() {
       />
 
       <ResponsiveGrid className="mt-5" columns="two">
-        {languageGames.map((game) => (
+        {learningActivities.map((game) => (
           <ActionCard
             key={game.route}
             onClick={() => navigate(game.route)}
-            title={t("memoryGames.storyRecall.title")}
-            description={t("memoryGames.storyRecall.description")}
-            icon={BookOpen}
+            title={t(game.titleKey, game.titleFallback)}
+            description={t(game.descriptionKey, game.descriptionFallback)}
+            icon={game.icon}
             iconBg={game.colors.bg}
             iconColor={game.colors.accent}
             surface="white"
             style={{ borderColor: game.colors.border }}
-            aria-label={t("brainGames.language.storyRecall.ariaLabel")}
+            aria-label={t(game.ariaLabelKey, game.ariaLabelFallback)}
             badge={(
               <span
                 className="rounded-full px-3 py-1 font-body text-[12px] font-bold"
                 style={{ background: game.colors.bg, color: game.colors.accent }}
               >
-                {t("brainGames.language.storyRecall.badge")}
+                {t(game.badgeKey, game.badgeFallback)}
               </span>
             )}
             trailing={(

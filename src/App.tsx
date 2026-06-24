@@ -39,6 +39,7 @@ import FaceNameMatch from "./games/FaceNameMatch";
 import AttentionBoostersPage from "./games/AttentionBoostersPage";
 import ExecutiveFunctionPage from "./games/ExecutiveFunctionPage";
 import LanguageGamesPage from "./games/LanguageGamesPage";
+import SensesPage from "./games/SensesPage";
 import MemoryGamesPage from "./games/memory/MemoryGamesPage";
 import MemoryGameRunner from "./games/memory/MemoryGameRunner";
 import DualTaskWalk from "./games/DualTaskWalk";
@@ -46,6 +47,9 @@ import CategorySort from "./games/CategorySort";
 import NumberTrails from "./games/NumberTrails";
 import RememberLater from "./games/RememberLater";
 import CuriousMinds from "./games/CuriousMinds";
+import ScentMemory from "./games/ScentMemory";
+import ListenClosely from "./games/ListenClosely";
+import BreathGarden from "./games/BreathGarden";
 import ConciergeScreen from "./pages/ConciergeScreen";
 import ConciergeShoppingScreen from "./pages/ConciergeShoppingScreen";
 import SafeHomeScreen from "./pages/SafeHomeScreen";
@@ -215,6 +219,75 @@ function CuriousMindsPreviewRoute() {
 
   return (
     <CuriousMinds
+      userId="dev-user"
+      onExit={() => navigate("/login")}
+    />
+  );
+}
+
+function ScentMemoryRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <ScentMemory
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/senses")}
+    />
+  );
+}
+
+function ListenCloselyRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <ListenClosely
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/senses")}
+    />
+  );
+}
+
+function BreathGardenRoute() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  return (
+    <BreathGarden
+      userId={user?.id ?? ""}
+      onExit={() => navigate("/senses")}
+    />
+  );
+}
+
+function ScentMemoryPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <ScentMemory
+      userId=""
+      onExit={() => navigate("/login")}
+    />
+  );
+}
+
+function ListenCloselyPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <ListenClosely
+      userId=""
+      onExit={() => navigate("/login")}
+    />
+  );
+}
+
+function BreathGardenPreviewRoute() {
+  const navigate = useNavigate();
+
+  return (
+    <BreathGarden
       userId=""
       onExit={() => navigate("/login")}
     />
@@ -434,6 +507,15 @@ const App = () => (
                 {import.meta.env.DEV ? (
                   <Route path="/dev/curious-minds" element={<CuriousMindsPreviewRoute />} />
                 ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/scent-memory" element={<ScentMemoryPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/listen-closely" element={<ListenCloselyPreviewRoute />} />
+                ) : null}
+                {import.meta.env.DEV ? (
+                  <Route path="/dev/breath-garden" element={<BreathGardenPreviewRoute />} />
+                ) : null}
                 <Route path="/admin/proxy-pending" element={<AdminRoute><ProxyPendingPage /></AdminRoute>} />
                 <Route path="/admin/lifecycle" element={<AdminRoute><LifecycleAdminPage /></AdminRoute>} />
                 <Route path="/admin/activity" element={<AdminRoute><AdminActivityPage /></AdminRoute>} />
@@ -489,6 +571,11 @@ const App = () => (
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
+                  <Route path="/senses" element={<AppShell><SensesPage /></AppShell>} />
+                  <Route path="/senses/association" element={<Navigate to="/memory-games/association_memory" replace />} />
+                  <Route path="/senses/scent-memory" element={<ScentMemoryRoute />} />
+                  <Route path="/senses/listen-closely" element={<ListenCloselyRoute />} />
+                  <Route path="/senses/breath-garden" element={<BreathGardenRoute />} />
                   <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
                   <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
                   <Route path="/executive-function/number-trails" element={<NumberTrailsRoute />} />

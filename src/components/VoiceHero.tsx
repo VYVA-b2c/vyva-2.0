@@ -148,10 +148,12 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
       ? "voice-hero-auto-start"
       : null;
   const [browserOnline, setBrowserOnline] = useState(readBrowserOnline);
+  const [focusedVoiceOverlayRequested, setFocusedVoiceOverlayRequested] = useState(false);
   const autoStartedRef = useRef<string | null>(null);
+  const focusedOverlaySawLiveSessionRef = useRef(false);
 
   const isActive = voiceStatus === "connected";
-  const showOverlay = shouldShowOverlay && (isActive || isConnecting);
+  const showOverlay = (shouldShowOverlay || focusedVoiceOverlayRequested) && (isActive || isConnecting);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -197,6 +199,27 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     voiceControls,
   ]);
 
+  useEffect(() => {
+    if (!focusedVoiceOverlayRequested) return;
+
+    if (isActive || isConnecting) {
+      focusedOverlaySawLiveSessionRef.current = true;
+      return;
+    }
+
+    if (focusedOverlaySawLiveSessionRef.current) {
+      focusedOverlaySawLiveSessionRef.current = false;
+      setFocusedVoiceOverlayRequested(false);
+      return;
+    }
+
+    const clearPendingOverlay = window.setTimeout(() => {
+      setFocusedVoiceOverlayRequested(false);
+    }, 5000);
+
+    return () => window.clearTimeout(clearPendingOverlay);
+  }, [focusedVoiceOverlayRequested, isActive, isConnecting]);
+
   const handleTalk = () => {
     if (!isActive && dynamicHero) {
       recordHeroEvent({
@@ -210,21 +233,26 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     }
 
     if (isActive) {
+      setFocusedVoiceOverlayRequested(false);
       stopVoice();
     } else if (onTalkClick) {
+      setFocusedVoiceOverlayRequested(true);
       onTalkClick();
     } else {
-      startVoice(
+      setFocusedVoiceOverlayRequested(true);
+      void Promise.resolve(startVoice(
         resolvedContextHint,
         undefined,
         voiceAgentSlug || voiceDynamicVariables || autoStartListening
           ? {
               ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
               ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
-              ...(autoStartListening ? { autoStartListening: true } : {}),
-            }
-          : undefined,
-      );
+            ...(autoStartListening ? { autoStartListening: true } : {}),
+          }
+        : undefined,
+      )).catch(() => {
+        setFocusedVoiceOverlayRequested(false);
+      });
     }
   };
 

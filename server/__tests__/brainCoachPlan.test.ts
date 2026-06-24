@@ -54,6 +54,26 @@ describe("Brain Coach daily plan", () => {
     ]));
   });
 
+  it("includes Scent Memory in the activity catalog", () => {
+    expect(getBrainCoachActivityCatalog()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        activityType: "scent_memory",
+        domain: "episodic_memory",
+        route: "/senses/scent-memory",
+      }),
+    ]));
+  });
+
+  it("includes Breath Garden in the activity catalog", () => {
+    expect(getBrainCoachActivityCatalog()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        activityType: "breath_garden",
+        domain: "arousal_regulation",
+        route: "/senses/breath-garden",
+      }),
+    ]));
+  });
+
   it("creates a short balanced plan for a new user", () => {
     const plan = buildBrainCoachDailyPlan({
       sessions: [],

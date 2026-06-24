@@ -32,6 +32,10 @@ vi.mock("@/hooks/useHeroMessage", () => ({
   useHeroMessage: () => undefined,
 }));
 
+vi.mock("@/components/VoiceCallOverlay", () => ({
+  default: () => <div data-testid="voice-call-overlay" />,
+}));
+
 function setNavigatorOnline(online: boolean) {
   Object.defineProperty(window.navigator, "onLine", {
     configurable: true,
@@ -100,5 +104,83 @@ describe("VoiceHero status dot", () => {
     fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
 
     expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, undefined);
+  });
+
+  it("starts the main VYVA agent when Home provides the main slug", () => {
+    render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
+        autoStartListening
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, {
+      agentSlug: "main-vyva",
+      dynamicVariables: { app_entrypoint: "home_open" },
+      autoStartListening: true,
+    });
+  });
+
+  it("keeps an existing active voice session out of the full overlay when this hero was not tapped", () => {
+    render(
+      <VoiceHero
+        headline="Concierge"
+        showVoiceOverlay={false}
+        voiceControls={{
+          status: "connected",
+          isSpeaking: false,
+          isConnecting: false,
+          transcript: [],
+          onEnd: voiceMocks.stopVoice,
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
+  it("opens the full overlay after the user chooses voice from any hero", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+    };
+    const { rerender } = render(
+      <VoiceHero
+        headline="Concierge"
+        contextHint="concierge"
+        voiceAgentSlug="concierge"
+        showVoiceOverlay={false}
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("concierge", undefined, {
+      agentSlug: "concierge",
+    });
+
+    rerender(
+      <VoiceHero
+        headline="Concierge"
+        contextHint="concierge"
+        voiceAgentSlug="concierge"
+        showVoiceOverlay={false}
+        voiceControls={{
+          ...baseVoiceControls,
+          status: "connecting",
+          isConnecting: true,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument();
   });
 });

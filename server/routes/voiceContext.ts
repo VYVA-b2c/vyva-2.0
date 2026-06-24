@@ -29,6 +29,7 @@ function resolveDomain(body: Record<string, unknown>): VoiceContextDomain {
 
   const agentSlug = typeof body.agent_slug === "string" ? normalizeSlug(body.agent_slug) : "";
   const roomSlug = typeof body.room_slug === "string" ? normalizeSlug(body.room_slug) : "";
+  if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
   if (agentSlug === "doctor" || agentSlug === "medical-doctor") return "doctor";
   if (agentSlug === "health" || agentSlug === "health-assistant") return "health";
   if (agentSlug === "meds" || agentSlug === "medication" || agentSlug === "medications") return "meds";

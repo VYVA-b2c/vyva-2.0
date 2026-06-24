@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
-import { supabase } from "@/lib/supabaseClient";
+import { apiFetch } from "@/lib/queryClient";
 import AdminPageHeader from "./AdminPageHeader";
 
-type ReviewMode = "hooks" | "prompts";
+type ReviewMode = "hooks" | "prompts" | "scent";
 
 type DraftRow = {
   id: string;
@@ -18,6 +18,9 @@ type DraftRow = {
   fact_answer?: string;
   prompt_text?: string;
   topic?: string;
+  scent_name?: string;
+  scent_description?: string;
+  guiding_question?: string;
 };
 
 const CHECKLIST = [
@@ -29,9 +32,11 @@ const CHECKLIST = [
 ] as const;
 
 const PROMPT_ONLY_CHECKS = ["openEnded"] as const;
+const SCENT_ONLY_CHECKS = ["lowDistressScent", "openMemoryQuestion"] as const;
 
 const HOOK_FIELDS = ["fact_prompt", "fact_answer"] as const;
 const PROMPT_FIELDS = ["prompt_text", "topic"] as const;
+const SCENT_FIELDS = ["scent_name", "scent_description", "guiding_question"] as const;
 
 export default function CuriousMindsReviewPage() {
   const { user } = useAuth();
@@ -46,38 +51,45 @@ export default function CuriousMindsReviewPage() {
   const config = useMemo(() => {
     if (mode === "hooks") {
       return {
-        table: "curious_minds_hooks",
+        type: "hooks",
         fields: HOOK_FIELDS,
         title: t("games.curiousMinds.admin.hooksTitle", "Curiosity hooks"),
       };
     }
+    if (mode === "prompts") {
+      return {
+        type: "prompts",
+        fields: PROMPT_FIELDS,
+        title: t("games.curiousMinds.admin.promptsTitle", "Divergent prompts"),
+      };
+    }
     return {
-      table: "curious_minds_prompts",
-      fields: PROMPT_FIELDS,
-      title: t("games.curiousMinds.admin.promptsTitle", "Divergent prompts"),
+      type: "scent",
+      fields: SCENT_FIELDS,
+      title: t("games.curiousMinds.admin.scentTitle", "Scent Memory prompts"),
     };
   }, [mode, t]);
 
-  const visibleChecklist = mode === "hooks" ? CHECKLIST : [...CHECKLIST, ...PROMPT_ONLY_CHECKS];
+  const visibleChecklist = mode === "hooks"
+    ? CHECKLIST
+    : mode === "prompts"
+      ? [...CHECKLIST, ...PROMPT_ONLY_CHECKS]
+      : [...CHECKLIST, ...SCENT_ONLY_CHECKS];
 
   const loadItems = useCallback(async () => {
     setLoading(true);
     setError("");
 
-    const { data, error: loadError } = await supabase
-      .from(config.table)
-      .select("*")
-      .eq("is_active", false)
-      .order("created_at", { ascending: true })
-      .limit(200);
+    const response = await apiFetch(`/api/admin/curious-minds/review?type=${config.type}`);
+    const payload = await response.json().catch(() => ({}));
 
-    if (loadError) {
-      setError(loadError.message);
+    if (!response.ok) {
+      setError(payload?.error ?? "Could not load Curious Minds drafts.");
       setLoading(false);
       return;
     }
 
-    const pending = ((data ?? []) as DraftRow[]).filter((item) => !item.reviewed_at);
+    const pending = ((payload.items ?? []) as DraftRow[]).filter((item) => !item.reviewed_at);
     setItems(pending);
     setDraftsById(
       Object.fromEntries(
@@ -120,35 +132,35 @@ export default function CuriousMindsReviewPage() {
   const approveItem = async (item: DraftRow) => {
     if (!allChecksPassed(item.id)) return;
 
-    const { error: updateError } = await supabase
-      .from(config.table)
-      .update({
-        ...(draftsById[item.id] ?? {}),
-        is_active: true,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: user?.email ?? user?.id ?? "admin",
-      })
-      .eq("id", item.id);
+    const response = await apiFetch(`/api/admin/curious-minds/review/${config.type}/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        action: "approve",
+        values: draftsById[item.id] ?? {},
+        reviewer: user?.email ?? user?.id ?? "admin",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
 
-    if (updateError) {
-      setError(updateError.message);
+    if (!response.ok) {
+      setError(payload?.error ?? "Could not approve Curious Minds draft.");
       return;
     }
     setItems((current) => current.filter((candidate) => candidate.id !== item.id));
   };
 
   const rejectItem = async (item: DraftRow) => {
-    const { error: updateError } = await supabase
-      .from(config.table)
-      .update({
-        is_active: false,
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: `rejected:${user?.email ?? user?.id ?? "admin"}`,
-      })
-      .eq("id", item.id);
+    const response = await apiFetch(`/api/admin/curious-minds/review/${config.type}/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        action: "reject",
+        reviewer: user?.email ?? user?.id ?? "admin",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
 
-    if (updateError) {
-      setError(updateError.message);
+    if (!response.ok) {
+      setError(payload?.error ?? "Could not reject Curious Minds draft.");
       return;
     }
     setItems((current) => current.filter((candidate) => candidate.id !== item.id));
@@ -187,6 +199,13 @@ export default function CuriousMindsReviewPage() {
               </button>
               <button
                 type="button"
+                onClick={() => setMode("scent")}
+                className={`min-h-[52px] rounded-2xl px-5 text-sm font-black ${mode === "scent" ? "bg-purple-700 text-white" : "border border-[#eadfd5] bg-white text-[#2f2135]"}`}
+              >
+                {t("games.curiousMinds.admin.scentTab", "Scent Memory")}
+              </button>
+              <button
+                type="button"
                 onClick={() => void loadItems()}
                 className="inline-flex min-h-[52px] items-center gap-2 rounded-2xl border border-[#eadfd5] bg-white px-5 text-sm font-black text-purple-700"
               >
@@ -219,7 +238,7 @@ export default function CuriousMindsReviewPage() {
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full bg-[#F3E8FF] px-3 py-1 text-xs font-black text-purple-700">{item.language}</span>
                 <span className="rounded-full bg-[#FFF7ED] px-3 py-1 text-xs font-black text-[#92400E]">
-                  {mode === "hooks" ? item.category : item.prompt_type}
+                  {mode === "hooks" ? item.category : mode === "scent" ? item.category : item.prompt_type}
                 </span>
                 {item.created_at ? <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-bold text-[#64748B]">{new Date(item.created_at).toLocaleDateString()}</span> : null}
               </div>

@@ -6,8 +6,14 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
 const HOOKS_PER_CATEGORY = Number(process.env.HOOKS_PER_CATEGORY || 25);
 const PROMPTS_PER_TYPE = Number(process.env.PROMPTS_PER_TYPE || 50);
+const SCENT_PROMPTS_PER_CATEGORY = Number(process.env.SCENT_PROMPTS_PER_CATEGORY || 25);
 const LANGUAGES = (process.env.LANGUAGES || "es,de,en").split(",").map((item) => item.trim()).filter(Boolean);
 const DRY_RUN = process.env.DRY_RUN === "true";
+const CLI_OPTIONS = parseArgs(process.argv.slice(2));
+const TARGET = String(CLI_OPTIONS.target || process.env.CONTENT_TARGET || "curious");
+const REQUESTED_LANGUAGE = CLI_OPTIONS.language ? String(CLI_OPTIONS.language) : "";
+const REQUESTED_CATEGORY = CLI_OPTIONS.category ? String(CLI_OPTIONS.category) : "";
+const REQUESTED_COUNT = CLI_OPTIONS.count ? Number(CLI_OPTIONS.count) : null;
 
 const CATEGORIES = [
   "nature",
@@ -21,17 +27,24 @@ const CATEGORIES = [
 ];
 
 const PROMPT_TYPES = ["alternate_uses", "what_if", "connections"];
+const SCENT_CATEGORIES = ["food", "nature", "home", "season", "place", "occasion"];
 
 const LANGUAGE_LABELS = {
   es: "Spanish",
   de: "German",
   en: "English",
+  fr: "French",
+  it: "Italian",
+  pt: "Portuguese",
 };
 
 const CULTURAL_NOTES = {
   es: "Write for Spanish-speaking seniors, culturally natural for Spain - not a direct translation from English.",
   de: "Write for German-speaking seniors, culturally natural for Germany - not a direct translation from English.",
   en: "Write naturally in English for English-speaking seniors.",
+  fr: "Write for French-speaking seniors, culturally natural in French - not a direct translation from English.",
+  it: "Write for Italian-speaking seniors, culturally natural in Italian - not a direct translation from English.",
+  pt: "Write for Portuguese-speaking seniors, culturally natural in Portuguese - not a direct translation from English.",
 };
 
 const PROMPT_LANGUAGE_PATTERNS = {
@@ -51,6 +64,15 @@ const PROMPT_LANGUAGE_PATTERNS = {
     connections: "\"What do [thing 1] and [thing 2] have in common?\"",
   },
 };
+
+function parseArgs(args) {
+  return args.reduce((options, arg) => {
+    const match = /^--([^=]+)=(.*)$/.exec(arg);
+    if (!match) return options;
+    options[match[1]] = match[2];
+    return options;
+  }, {});
+}
 
 function requireEnv(name, value) {
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -158,6 +180,32 @@ Respond ONLY with a JSON object, no markdown, no explanation:
   return callOpenAI(prompt, 3500);
 }
 
+async function generateScentPromptsBatch(language, category, count = 10) {
+  const languageLabel = LANGUAGE_LABELS[language] || language;
+  const culturalNote = CULTURAL_NOTES[language] || CULTURAL_NOTES.en;
+
+  const prompt = `Generate ${count} "imagined scent" prompts in ${languageLabel} for a cognitive wellness app used by seniors aged 65+. ${culturalNote}
+
+Category: ${category}
+
+Each item needs:
+- "scent_name": a short familiar smell, e.g. "fresh bread" or "rain on hot pavement"
+- "scent_description": 1-2 warm, sensory sentences inviting the user to close their eyes and imagine the smell vividly
+- "guiding_question": one gentle, open question inviting a personal memory or association
+
+Rules:
+- NEVER choose a scent likely to be associated with illness, hospitals, smoke/fire, death, or distress.
+- Choose warm or neutral associations: food, nature, home, seasons, places, occasions.
+- Tone: warm, unhurried, sensory, inviting - never clinical or quiz-like.
+- The guiding_question must never presume a specific kind of memory, relationship, or life event.
+- Avoid grief-adjacent, medical, political, religious, or frightening material.
+
+Respond ONLY with a JSON object, no markdown, no explanation:
+{"items":[{"scent_name":"...","scent_description":"...","guiding_question":"..."}]}`;
+
+  return callOpenAI(prompt, 3500);
+}
+
 async function insertRows(table, rows) {
   if (!rows.length) return;
   if (DRY_RUN) {
@@ -213,6 +261,21 @@ function buildPromptRows(items, language, promptType) {
     .filter((item) => item.prompt_text && item.topic);
 }
 
+function buildScentRows(items, language, category) {
+  return items
+    .map((item) => ({
+      scent_name: cleanText(item.scent_name),
+      scent_description: cleanText(item.scent_description),
+      guiding_question: cleanText(item.guiding_question),
+      category,
+      language,
+      source: "ai_generated",
+      rejected: false,
+      is_active: false,
+    }))
+    .filter((item) => item.scent_name && item.scent_description && item.guiding_question);
+}
+
 async function main() {
   requireEnv("OPENAI_API_KEY", OPENAI_API_KEY);
   if (!DRY_RUN) {
@@ -220,10 +283,43 @@ async function main() {
     requireEnv("SUPABASE_SERVICE_ROLE_KEY", SUPABASE_SERVICE_ROLE_KEY);
   }
 
-  console.log(`Generating Curious Minds drafts with ${OPENAI_MODEL}`);
-  console.log(`Languages: ${LANGUAGES.join(", ")}`);
+  if (TARGET !== "curious" && TARGET !== "scent") {
+    throw new Error(`Unknown target "${TARGET}". Use --target=curious or --target=scent.`);
+  }
 
-  for (const language of LANGUAGES) {
+  const languagesToRun = REQUESTED_LANGUAGE ? [REQUESTED_LANGUAGE] : LANGUAGES;
+
+  if (TARGET === "scent") {
+    const categoriesToRun = REQUESTED_CATEGORY ? [REQUESTED_CATEGORY] : SCENT_CATEGORIES;
+    const count = REQUESTED_COUNT ?? SCENT_PROMPTS_PER_CATEGORY;
+
+    categoriesToRun.forEach((category) => {
+      if (!SCENT_CATEGORIES.includes(category)) {
+        throw new Error(`Unknown scent category "${category}". Use one of: ${SCENT_CATEGORIES.join(", ")}`);
+      }
+    });
+
+    console.log(`Generating Scent Memory drafts with ${OPENAI_MODEL}`);
+    console.log(`Languages: ${languagesToRun.join(", ")}`);
+    console.log(`Categories: ${categoriesToRun.join(", ")}`);
+
+    for (const language of languagesToRun) {
+      for (const category of categoriesToRun) {
+        console.log(`Generating scent prompts: ${language}/${category}`);
+        const rows = buildScentRows(await generateScentPromptsBatch(language, category, count), language, category);
+        await insertRows("scent_memory_prompts", rows);
+        console.log(`Inserted draft scent prompts: ${rows.length}`);
+      }
+    }
+
+    console.log("Scent Memory draft generation complete. All rows are inactive until reviewed.");
+    return;
+  }
+
+  console.log(`Generating Curious Minds drafts with ${OPENAI_MODEL}`);
+  console.log(`Languages: ${languagesToRun.join(", ")}`);
+
+  for (const language of languagesToRun) {
     for (const category of CATEGORIES) {
       console.log(`Generating hooks: ${language}/${category}`);
       const rows = buildHookRows(await generateHooksBatch(language, category, HOOKS_PER_CATEGORY), language, category);
