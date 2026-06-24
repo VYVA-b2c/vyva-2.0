@@ -232,6 +232,46 @@ describe("Onboarding journey — end-to-end", () => {
     expect(res.body).toMatchObject({ ok: true, section: "medications" });
   });
 
+  it("POST /section/medications saves for text profile ids", async () => {
+    const externalUserId = `external-profile-${randomUUID()}`;
+    await cleanupUser(externalUserId);
+
+    try {
+      await request(app)
+        .post("/api/onboarding/basics")
+        .set("x-user-id", externalUserId)
+        .send({
+          full_name: "External Profile",
+          preferred_name: "External",
+          date_of_birth: "1950-01-15",
+          language: "en",
+        })
+        .expect(200);
+
+      const res = await request(app)
+        .post("/api/onboarding/section/medications")
+        .set("x-user-id", externalUserId)
+        .send({
+          medications: [
+            { medication_name: "Metformin", dosage: "500mg", frequency: "once_daily" },
+          ],
+        })
+        .expect(200);
+
+      expect(res.body).toMatchObject({ ok: true, section: "medications" });
+
+      const [medication] = await db
+        .select({ medication_name: userMedications.medication_name })
+        .from(userMedications)
+        .where(eq(userMedications.user_id, externalUserId))
+        .limit(1);
+
+      expect(medication?.medication_name).toBe("Metformin");
+    } finally {
+      await cleanupUser(externalUserId);
+    }
+  });
+
   it("POST /section/medications persists no current medications without service medication rows", async () => {
     const res = await request(app)
       .post("/api/onboarding/section/medications")
