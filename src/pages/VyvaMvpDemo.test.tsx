@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   VyvaCaregiverSeniorDetail,
   VyvaSeniorHome,
+  VyvaSeniorMyWeek,
   VyvaSeniorWeeklyCheckIn,
   vyvaUiHasBannedTerms,
 } from "./VyvaMvpDemo";
@@ -121,7 +122,7 @@ const caregiverDetail = {
   consentMessage: "Sharing consent is not enabled.",
 };
 
-function renderRoute(path: string, element: React.ReactNode, queryMap: Record<string, unknown>) {
+function renderRoute(path: string, element: React.ReactNode, queryMap: Record<string, unknown | (() => unknown)>) {
   const client = new QueryClient({
     defaultOptions: {
       queries: {
@@ -129,7 +130,8 @@ function renderRoute(path: string, element: React.ReactNode, queryMap: Record<st
         queryFn: ({ queryKey }) => {
           const url = String(queryKey[0]);
           if (!(url in queryMap)) throw new Error(`No mock response for ${url}`);
-          return Promise.resolve(queryMap[url]);
+          const value = queryMap[url];
+          return Promise.resolve(typeof value === "function" ? value() : value);
         },
       },
     },
@@ -140,7 +142,7 @@ function renderRoute(path: string, element: React.ReactNode, queryMap: Record<st
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path={path.replace("maria", ":seniorKey").replace("john-profile", ":seniorId").replace("ana", ":caregiverKey")} element={element} />
-          <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<div>My Week route</div>} />
+          <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
           <Route path="/vyva-demo/senior/:seniorKey" element={<div>Senior home route</div>} />
         </Routes>
       </MemoryRouter>
@@ -196,6 +198,61 @@ describe("VYVA MVP demo UI", () => {
       "/api/vyva-demo/senior/maria/weekly/submit",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("refreshes My Week after weekly check-in submission", async () => {
+    const updatedMyWeek = {
+      steady: [{
+        id: "insight-steady",
+        type: "stable_week",
+        domain: "global_wellbeing",
+        title: "Steady morning routine",
+        summary: "Morning routine looked close to Maria's usual pattern.",
+        severity: "POSITIVE",
+        confidence: 0.8,
+      }],
+      changed: [],
+      recommendations: [{
+        id: "rec-updated",
+        domain: "routine",
+        title: "Keep the morning routine",
+        body: "Repeat the same simple morning rhythm tomorrow.",
+        actionType: "repeat_routine",
+      }],
+      shareEnabled: true,
+    };
+    let myWeek = {
+      steady: [],
+      changed: [],
+      recommendations: [],
+      shareEnabled: true,
+    };
+
+    vi.mocked(apiFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        myWeek = updatedMyWeek;
+        return { myWeek: updatedMyWeek };
+      },
+    } as Response);
+
+    renderRoute("/vyva-demo/senior/maria/weekly", <VyvaSeniorWeeklyCheckIn />, {
+      "/api/vyva-demo/senior/maria/weekly/start": weeklyQuestions,
+      "/api/vyva-demo/senior/maria/my-week": () => myWeek,
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: /start weekly check-in/i }));
+    fireEvent.click(screen.getByRole("button", { name: /about the same/i }));
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    fireEvent.change(screen.getByPlaceholderText(/voice note/i), { target: { value: "The mornings felt steady." } });
+    fireEvent.click(screen.getByRole("button", { name: /complete/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: /view my week/i }));
+
+    expect(await screen.findByText("Steady morning routine")).toBeInTheDocument();
+    expect(screen.getByText("Keep the morning routine")).toBeInTheDocument();
+    expect(screen.queryByText(/0\.8|80%/i)).not.toBeInTheDocument();
   });
 
   it("hides private caregiver details when sharing consent is off", async () => {

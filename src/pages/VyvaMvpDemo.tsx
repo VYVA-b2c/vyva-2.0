@@ -203,6 +203,13 @@ function severityClass(severity: string) {
   return "bg-[#eef8f4] text-[#27624b] border-[#b9dfcf]";
 }
 
+function concernStatus(severity: string) {
+  if (severity === "ATTENTION" || severity === "URGENT") return "Attention recommended";
+  if (severity === "WATCH") return "Change noticed";
+  if (severity === "NEUTRAL") return "No clear change";
+  return "Steady";
+}
+
 function DemoShell({ children, tone = "senior" }: { children: React.ReactNode; tone?: "senior" | "caregiver" }) {
   return (
     <main className={tone === "senior" ? "min-h-screen bg-[#f7f3ee] text-[#2c2430]" : "min-h-screen bg-[#f4f6f8] text-[#25303a]"}>
@@ -254,8 +261,8 @@ function SafetyFooter() {
 
 function TopNav({ label, backTo }: { label: string; backTo?: string }) {
   return (
-    <div className="mb-5 flex items-center justify-between">
-      <div className="flex items-center gap-3">
+    <div className="mb-5 flex min-w-0 items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
         {backTo ? (
           <Button asChild variant="ghost" className="h-11 w-11 rounded-full p-0" aria-label="Back">
             <Link to={backTo}>
@@ -267,7 +274,7 @@ function TopNav({ label, backTo }: { label: string; backTo?: string }) {
           {VYVA_UI_COPY.appName}
         </Link>
       </div>
-      <span className="rounded-full border border-[#ddd1e9] bg-white px-3 py-1 text-sm font-semibold text-[#5e4f6e]">{label}</span>
+      <span className="max-w-[52vw] truncate rounded-full border border-[#ddd1e9] bg-white px-3 py-1 text-right text-sm font-semibold text-[#5e4f6e]">{label}</span>
     </div>
   );
 }
