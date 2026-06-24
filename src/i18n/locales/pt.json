@@ -1633,25 +1633,25 @@
       "save": "Poupar",
       "service": {
         "label": "Encontrar servico",
-        "mobile": "Servico",
+        "mobile": "Ajuda",
         "sub": "Canalizador, reparacoes, limpeza, cuidados",
         "mobileSub": "Reparacoes e cuidados"
       },
       "ride": {
         "label": "Reservar transporte",
-        "mobile": "Transporte",
+        "mobile": "Taxi",
         "sub": "Taxi, transporte medico, voltar para casa",
         "mobileSub": "Taxi ou transporte"
       },
       "delivery": {
         "label": "Fazer encomenda",
-        "mobile": "Encomenda",
+        "mobile": "Pedido",
         "sub": "Mercearia, farmacia, comida, essenciais",
         "mobileSub": "Comida e essenciais"
       },
       "appointment": {
         "label": "Marcar consulta",
-        "mobile": "Consulta",
+        "mobile": "Visita",
         "sub": "Medico, salao, servicos publicos, restaurante",
         "mobileSub": "Medico, salao, servicos"
       }

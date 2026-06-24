@@ -1749,7 +1749,7 @@
     "primaryCards": {
       "service": {
         "label": "Find a Service",
-        "mobile": "Service",
+        "mobile": "Help",
         "sub": "Plumber, repairs, cleaning, care",
         "mobileSub": "Repairs and care"
       },
@@ -1767,7 +1767,7 @@
       },
       "appointment": {
         "label": "Book Appointment",
-        "mobile": "Appointment",
+        "mobile": "Schedule",
         "sub": "Doctor, salon, government, restaurant",
         "mobileSub": "Doctor, salon, office"
       }

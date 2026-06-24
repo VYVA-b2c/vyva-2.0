@@ -1633,7 +1633,7 @@
       "save": "Economiser",
       "service": {
         "label": "Trouver un service",
-        "mobile": "Service",
+        "mobile": "Aide",
         "sub": "Plomberie, reparations, menage, aide",
         "mobileSub": "Reparations et aide"
       },
@@ -1645,13 +1645,13 @@
       },
       "delivery": {
         "label": "Passer commande",
-        "mobile": "Commande",
+        "mobile": "Repas",
         "sub": "Courses, pharmacie, repas, essentiels",
         "mobileSub": "Repas et essentiels"
       },
       "appointment": {
         "label": "Prendre rendez-vous",
-        "mobile": "Rendez-vous",
+        "mobile": "RDV",
         "sub": "Medecin, salon, administration, restaurant",
         "mobileSub": "Medecin, salon, bureau"
       }
