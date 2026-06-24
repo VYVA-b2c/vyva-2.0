@@ -55,6 +55,19 @@ function renderWordRecall() {
   );
 }
 
+function renderRhythmTap() {
+  return render(
+    <MemoryRouter initialEntries={["/attention-boosters/rhythm-tap?level=1&variant=sequence_memory-l1-v1"]}>
+      <Routes>
+        <Route
+          path="/attention-boosters/rhythm-tap"
+          element={<MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" />}
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 describe("MemoryGameRunner word recall", () => {
   beforeEach(() => {
     setLanguage("fr");
@@ -65,6 +78,7 @@ describe("MemoryGameRunner word recall", () => {
     vi.mocked(saveGameResult).mockReset();
     vi.mocked(saveGameResult).mockReturnValue(new Promise<void>(() => undefined));
     window.scrollTo = vi.fn();
+    window.localStorage.clear();
   });
 
   it("advances after Continue even when result persistence is still pending", async () => {
@@ -88,5 +102,21 @@ describe("MemoryGameRunner word recall", () => {
       variantId: "word_recall-l1-v1",
       language: "fr",
     }));
+  });
+
+  it("shows Rhythm Tap instructions once and reopens them from the icon", async () => {
+    setLanguage("en");
+    renderRhythmTap();
+
+    expect(await screen.findByRole("heading", { name: "How it works" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+
+    expect(window.localStorage.getItem("sequenceMemory:tutorialSeen:v1:user-1")).toBe("true");
+    expect(await screen.findByRole("button", { name: "Instructions" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Instructions" }));
+
+    expect(await screen.findByRole("heading", { name: "How it works" })).toBeInTheDocument();
   });
 });
