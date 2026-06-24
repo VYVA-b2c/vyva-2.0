@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Flower2, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Check, Flower2, Info, Loader2, MessageCircle, RefreshCw } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import foodImage from "@/assets/scent-memory/food.jpg";
@@ -25,6 +25,30 @@ const BRAND = {
   teal: "#0F766E",
   tealPale: "#DDF7F1",
 };
+
+const SCENT_MEMORY_TUTORIAL_KEY = "scentMemory:tutorialSeen:v1";
+
+function tutorialStorageKey(userId) {
+  return userId ? `${SCENT_MEMORY_TUTORIAL_KEY}:${userId}` : SCENT_MEMORY_TUTORIAL_KEY;
+}
+
+function readScentMemoryTutorialSeen(userId) {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(tutorialStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeScentMemoryTutorialSeen(userId) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(tutorialStorageKey(userId), "true");
+  } catch {
+    // Tutorial persistence is helpful but should never block the reflection.
+  }
+}
 
 const DEFAULT_STREAK_STATE = {
   total_sessions: 0,
@@ -150,6 +174,18 @@ function getScentVisual(prompt, t) {
   };
 }
 
+function ScentTutorialVisual({ visual }) {
+  return (
+    <div className="relative mx-auto h-[160px] w-full max-w-[560px] overflow-hidden rounded-[24px] border sm:h-[260px] sm:rounded-[34px]" style={{ borderColor: "#F3D9B7", background: BRAND.softGold }}>
+      <img src={visual.image} alt="" aria-hidden="true" className="h-full w-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#2B2233]/45 via-transparent to-white/10" />
+      <div className="absolute bottom-3 left-3 right-3 rounded-full bg-white/95 px-4 py-2 text-[18px] font-black leading-tight shadow-vyva-card sm:bottom-4 sm:left-4 sm:right-4 sm:px-5 sm:py-3 sm:text-[23px]" style={{ color: BRAND.purple }}>
+        {visual.cue}
+      </div>
+    </div>
+  );
+}
+
 export default function ScentMemory({ userId, onExit }) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
@@ -200,13 +236,13 @@ export default function ScentMemory({ userId, onExit }) {
 
     try {
       await loadTodaysPrompt();
-      setScreen("scent");
+      setScreen(readScentMemoryTutorialSeen(userId) ? "scent" : "tutorial");
     } catch (error) {
       console.warn("Scent Memory could not load.", error);
       setLoadError(error instanceof Error ? error.message : t("games.scentMemory.contentUnavailable", "There is no reviewed Scent Memory content available yet."));
       setScreen("error");
     }
-  }, [loadTodaysPrompt, t]);
+  }, [loadTodaysPrompt, t, userId]);
 
   useEffect(() => {
     void loadGame();
@@ -214,10 +250,10 @@ export default function ScentMemory({ userId, onExit }) {
 
   useEffect(() => {
     if (screen !== "scent") return undefined;
-    setQuestionRevealed(false);
+    if (questionRevealed) return undefined;
     const timeout = window.setTimeout(() => setQuestionRevealed(true), 3000);
     return () => window.clearTimeout(timeout);
-  }, [screen, prompt?.id]);
+  }, [questionRevealed, screen, prompt?.id]);
 
   const saveSession = useCallback(async ({ completed, abandoned, text, method }) => {
     if (sessionSavedRef.current) return null;
@@ -292,6 +328,15 @@ export default function ScentMemory({ userId, onExit }) {
     void completeSession("", null);
   };
 
+  const closeTutorial = () => {
+    writeScentMemoryTutorialSeen(userId);
+    setScreen("scent");
+  };
+
+  const openInstructions = () => {
+    setScreen("tutorial");
+  };
+
   const exitGame = async () => {
     if (screenRef.current === "scent") {
       setSaving(true);
@@ -359,8 +404,63 @@ export default function ScentMemory({ userId, onExit }) {
           </section>
         ) : null}
 
+        {screen === "tutorial" ? (
+          <section className="mt-4 rounded-[28px] border bg-white p-3 text-center shadow-vyva-card sm:mt-6 sm:p-6" style={{ borderColor: BRAND.border }}>
+            <ScentTutorialVisual visual={scentVisual} />
+            <h1 className="mt-4 font-display text-[31px] leading-tight sm:mt-6 sm:text-[42px]">{t("games.scentMemory.title", "Scent Memory")}</h1>
+            <p className="mt-2 text-[21px] font-black leading-tight sm:text-[27px]" style={{ color: BRAND.muted }}>
+              {t("games.scentMemory.tutorialSubtitle", "Look. Remember. Share if you want.")}
+            </p>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
+              {[
+                { label: t("games.scentMemory.tutorialLook", "Look"), Icon: Flower2 },
+                { label: t("games.scentMemory.tutorialRemember", "Remember"), Icon: Check },
+                { label: t("games.scentMemory.tutorialShare", "Share or skip"), Icon: MessageCircle },
+              ].map(({ label, Icon }) => (
+                <div key={label} className="min-h-[82px] rounded-[18px] px-2 py-2 sm:min-h-[108px] sm:rounded-[22px] sm:py-4" style={{ background: BRAND.softGold, color: BRAND.gold }}>
+                  <Icon className="mx-auto" size={26} aria-hidden="true" />
+                  <span className="mt-2 block text-[13px] font-black leading-tight sm:mt-3 sm:text-[17px]">{label}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="mx-auto mt-3 max-w-[560px] text-[17px] font-bold leading-snug sm:mt-5 sm:text-[21px]" style={{ color: BRAND.muted }}>
+              {t("games.scentMemory.tutorialPace", "There is no right answer. A small memory is enough.")}
+            </p>
+
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="mt-3 min-h-[60px] w-full rounded-full px-6 text-[22px] font-black text-white shadow-vyva-card sm:mt-6 sm:min-h-[76px] sm:text-[25px]"
+              style={{ background: BRAND.purple }}
+            >
+              {t("games.scentMemory.tutorialUnderstand", "I understand")}
+            </button>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="mt-2 min-h-[48px] rounded-full px-5 text-[19px] font-extrabold underline underline-offset-4 sm:mt-3 sm:min-h-[58px] sm:text-[21px]"
+              style={{ color: BRAND.purple }}
+            >
+              {t("common.skip", "Skip")}
+            </button>
+          </section>
+        ) : null}
+
         {screen === "scent" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={openInstructions}
+                className="inline-flex min-h-[52px] items-center gap-2 rounded-full border bg-white px-4 text-[18px] font-extrabold"
+                style={{ borderColor: BRAND.border, color: BRAND.purple }}
+              >
+                <Info size={22} aria-hidden="true" />
+                {t("games.scentMemory.instructions", "Instructions")}
+              </button>
+            </div>
             <div className="mx-auto flex h-[82px] w-[82px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softGold, color: BRAND.gold }}>
               <Flower2 size={54} strokeWidth={2.4} aria-hidden="true" />
             </div>
