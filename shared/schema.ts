@@ -472,13 +472,12 @@ export type CheckinTrendState = typeof checkinTrendState.$inferSelect;
 
 export const userMedications = pgTable("user_medications", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  user_id:         uuid("user_id").notNull(),
+  user_id:         text("user_id").notNull(),
   medication_name: text("medication_name").notNull(),
   dosage:          text("dosage"),
   frequency:       text("frequency"),
   scheduled_times: text("scheduled_times").array(),
   active:          boolean("active").notNull().default(true),
-  is_active:       boolean("is_active").notNull().default(true),
   added_by:        text("added_by").notNull().default("user"),
   created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
