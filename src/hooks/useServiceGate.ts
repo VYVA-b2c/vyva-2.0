@@ -136,7 +136,7 @@ export function useServiceGate() {
       navigate(withReturnTo(firstMissing.path, returnTo));
       return false;
     },
-    [navigate, readinessQuery.data, readinessQuery.isLoading, toast],
+    [navigate, readinessQuery.data, toast],
   );
 
   const guardPath = useCallback(

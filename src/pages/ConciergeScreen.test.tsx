@@ -590,7 +590,15 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("collects plumber intake, stores app origin, and automatically searches when no saved provider exists", async () => {
-    let createdBody: Record<string, any> | null = null;
+    type HomeServiceRequestBody = {
+      appointment_type?: string;
+      detail?: string;
+      preferences?: {
+        service_intake?: Record<string, unknown>;
+        [key: string]: unknown;
+      };
+    };
+    let createdBody: HomeServiceRequestBody | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.includes("/api/appointments/requests/request-home-service/discover-options")) {
@@ -625,7 +633,7 @@ describe("ConciergeScreen action hub", () => {
       }
       if (target.endsWith("/api/appointments/requests")) {
         expect(init?.method).toBe("POST");
-        const body = JSON.parse(String(init?.body));
+        const body = JSON.parse(String(init?.body)) as HomeServiceRequestBody;
         createdBody = body;
         expect(body.appointment_type).toBe("home-service");
         expect(body.detail).toContain("Plumber needed");
