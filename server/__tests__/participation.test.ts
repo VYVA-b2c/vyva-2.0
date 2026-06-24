@@ -22,7 +22,16 @@ function buildProtectedAdminApp() {
 const socialApp = buildSocialApp();
 const adminApp = buildProtectedAdminApp();
 
-function eventIdsFromPulse(body: any): string[] {
+type PulseEventSummary = { id: string };
+
+type PulseResponseBody = {
+  pulse: {
+    featuredEvent: PulseEventSummary;
+    recommendations: PulseEventSummary[];
+  };
+};
+
+function eventIdsFromPulse(body: PulseResponseBody): string[] {
   return [
     body.pulse.featuredEvent.id,
     ...body.pulse.recommendations.map((event: { id: string }) => event.id),

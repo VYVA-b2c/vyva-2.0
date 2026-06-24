@@ -57,7 +57,7 @@ const VoiceCallOverlay = ({
   const latestVyvaEntry = latestEntry?.from === "vyva" ? latestEntry : null;
   const words = useMemo(
     () => transcriptWords(latestVyvaEntry?.text ?? ""),
-    [latestVyvaEntry?.text, latestVyvaEntry?.timestamp],
+    [latestVyvaEntry?.text],
   );
   const visibleWord = words[visibleWordIndex] ?? null;
 
