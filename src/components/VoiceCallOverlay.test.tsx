@@ -1,5 +1,5 @@
-import { act } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, type ComponentProps } from "react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
 
@@ -47,7 +47,7 @@ const canvasMocks = [
   canvasContextMock.setTransform,
 ];
 
-function renderOverlay(transcript: TranscriptEntry[], props: Partial<typeof baseProps> = {}) {
+function renderOverlay(transcript: TranscriptEntry[], props: Partial<ComponentProps<typeof VoiceCallOverlay>> = {}) {
   return render(
     <VoiceCallOverlay
       {...baseProps}
@@ -178,5 +178,21 @@ describe("VoiceCallOverlay word transcript", () => {
       maxWidth: "90vw",
       overflowWrap: "anywhere",
     });
+  });
+
+  it("keeps the purple screen in an error state with retry available", () => {
+    const onRetry = vi.fn();
+    renderOverlay([], {
+      connectionError: "Missing ElevenLabs API key",
+      onRetry,
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice couldn't connect");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("Something stopped the voice from starting. Try again in a moment.");
+    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Needs attention");
+
+    fireEvent.click(screen.getByTestId("button-retry-call"));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

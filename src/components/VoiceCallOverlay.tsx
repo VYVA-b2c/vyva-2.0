@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Mic, MicOff, PhoneOff } from "lucide-react";
+import { RotateCcw, Mic, MicOff, PhoneOff } from "lucide-react";
 import { TranscriptEntry } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
@@ -16,6 +16,8 @@ interface VoiceCallOverlayProps {
   voiceSessionPhase?: VoiceSessionPhase;
   isMicMuted?: boolean;
   onMicToggle?: (muted: boolean) => void;
+  connectionError?: string | null;
+  onRetry?: () => void;
 }
 
 const WORD_DISPLAY_MS = 360;
@@ -48,6 +50,8 @@ const VoiceCallOverlay = ({
   voiceSessionPhase,
   isMicMuted = false,
   onMicToggle,
+  connectionError,
+  onRetry,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const [visibleWordIndex, setVisibleWordIndex] = useState(0);
@@ -89,11 +93,20 @@ const VoiceCallOverlay = ({
     : isSpeaking
     ? t("voiceHero.speaking")
     : t("voiceHero.listening");
-  const statusLabel = voiceSessionPhase ? voiceSessionPhaseLabel(voiceSessionPhase) : fallbackStatusLabel;
-  const canToggleMic = Boolean(onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
-  const emptyTranscriptLabel = isConnecting ? t("voiceHero.connecting") : t("voiceHero.listening");
+  const hasConnectionError = Boolean(connectionError);
+  const statusLabel = hasConnectionError
+    ? t("voiceHero.connectionNeedsAttention", "Needs attention")
+    : voiceSessionPhase
+    ? voiceSessionPhaseLabel(voiceSessionPhase)
+    : fallbackStatusLabel;
+  const canToggleMic = Boolean(!hasConnectionError && onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
+  const emptyTranscriptLabel = hasConnectionError
+    ? t("voiceHero.connectionError", "Voice couldn't connect")
+    : isConnecting
+    ? t("voiceHero.connecting")
+    : t("voiceHero.listening");
   const speakerLabel = visibleWord ? "VYVA" : null;
-  const currentOrbState = orbState(isSpeaking, isConnecting);
+  const currentOrbState = hasConnectionError ? "idle" : orbState(isSpeaking, isConnecting);
 
   const overlay = (
     <div
@@ -163,11 +176,11 @@ const VoiceCallOverlay = ({
           className="font-body"
           style={{
             color: visibleWord ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.86)",
-            fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : 30,
+            fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : hasConnectionError ? "clamp(34px, 9vw, 56px)" : 30,
             lineHeight: visibleWord ? 0.95 : 1.35,
             textAlign: "center",
-            maxWidth: visibleWord ? "90vw" : 320,
-            fontWeight: visibleWord ? 700 : 500,
+            maxWidth: visibleWord ? "90vw" : hasConnectionError ? "min(86vw, 520px)" : 320,
+            fontWeight: visibleWord ? 700 : hasConnectionError ? 700 : 500,
             fontStyle: "normal",
             overflowWrap: "anywhere",
             transition: "opacity 0.16s ease, transform 0.16s ease",
@@ -178,6 +191,24 @@ const VoiceCallOverlay = ({
         >
           {visibleWord ?? emptyTranscriptLabel}
         </p>
+
+        {hasConnectionError && (
+          <p
+            data-testid="text-call-error-detail"
+            className="font-body"
+            style={{
+              maxWidth: "min(86vw, 460px)",
+              margin: "0 auto",
+              color: "rgba(255,255,255,0.68)",
+              fontSize: 16,
+              lineHeight: 1.45,
+              textAlign: "center",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.")}
+          </p>
+        )}
 
         {activeAction && (
           <div
@@ -280,6 +311,34 @@ const VoiceCallOverlay = ({
         </span>
 
         <div style={{ display: "flex", gap: 12, width: "min(100%, 360px)", justifyContent: "center" }}>
+          {hasConnectionError && onRetry && (
+            <button
+              data-testid="button-retry-call"
+              onClick={onRetry}
+              className="font-body"
+              style={{
+                minHeight: 52,
+                minWidth: 132,
+                background: "rgba(255,255,255,0.18)",
+                border: "1px solid rgba(255,255,255,0.26)",
+                borderRadius: 100,
+                color: "white",
+                fontSize: 15,
+                fontWeight: 700,
+                padding: "12px 20px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <RotateCcw size={18} />
+              {t("voiceHero.retryCall", "Try again")}
+            </button>
+          )}
+
           {canToggleMic && (
             <button
               data-testid="button-toggle-call-mic"

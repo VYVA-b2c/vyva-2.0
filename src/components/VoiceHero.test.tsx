@@ -33,7 +33,15 @@ vi.mock("@/hooks/useHeroMessage", () => ({
 }));
 
 vi.mock("@/components/VoiceCallOverlay", () => ({
-  default: () => <div data-testid="voice-call-overlay" />,
+  default: ({ connectionError, onRetry }: { connectionError?: string | null; onRetry?: () => void }) => (
+    <div data-testid="voice-call-overlay" data-error={connectionError ?? ""}>
+      {onRetry && (
+        <button type="button" data-testid="button-retry-call" onClick={onRetry}>
+          Try again
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 function setNavigatorOnline(online: boolean) {
@@ -182,5 +190,71 @@ describe("VoiceHero status dot", () => {
     );
 
     expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument();
+  });
+
+  it("keeps the focused overlay open when the voice connection fails", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+    };
+    const { rerender } = render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay={false}
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    rerender(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay={false}
+        voiceControls={{
+          ...baseVoiceControls,
+          lastError: "Missing ElevenLabs API key",
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("voice-call-overlay")).toHaveAttribute("data-error", "Missing ElevenLabs API key");
+  });
+
+  it("retries the same voice start payload from the error overlay", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+      lastError: "Missing ElevenLabs API key",
+    };
+    render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
+        autoStartListening
+        showVoiceOverlay
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-retry-call"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, {
+      agentSlug: "main-vyva",
+      dynamicVariables: { app_entrypoint: "home_open" },
+      autoStartListening: true,
+    });
   });
 });

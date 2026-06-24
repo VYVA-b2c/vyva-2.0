@@ -61,6 +61,7 @@ interface VoiceHeroProps {
     voiceSessionPhase?: VoiceSessionPhase;
     isMicMuted?: boolean;
     onMicToggle?: (muted: boolean) => void;
+    lastError?: string | null;
   };
 }
 
@@ -117,6 +118,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     voiceSessionPhase: internalVoiceSessionPhase,
     isMicMuted: internalIsMicMuted,
     setMicrophoneMuted: internalSetMicrophoneMuted,
+    lastError: internalLastError,
   } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
@@ -141,6 +143,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const voiceSessionPhase = voiceControls?.voiceSessionPhase ?? internalVoiceSessionPhase;
   const isMicMuted = voiceControls?.isMicMuted ?? internalIsMicMuted;
   const onMicToggle = voiceControls?.onMicToggle ?? internalSetMicrophoneMuted;
+  const lastError = voiceControls?.lastError ?? internalLastError;
   const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
   const autoStartKey = typeof autoStartVoice === "string"
     ? autoStartVoice
@@ -153,7 +156,19 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const focusedOverlaySawLiveSessionRef = useRef(false);
 
   const isActive = voiceStatus === "connected";
-  const showOverlay = (shouldShowOverlay || focusedVoiceOverlayRequested) && (isActive || isConnecting);
+  const hasConnectionError = Boolean(lastError && !isActive && !isConnecting);
+  const showOverlay = (shouldShowOverlay || focusedVoiceOverlayRequested) && (isActive || isConnecting || hasConnectionError);
+
+  const voiceStartOptions = useMemo(
+    () => voiceAgentSlug || voiceDynamicVariables || autoStartListening
+      ? {
+          ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
+          ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
+          ...(autoStartListening ? { autoStartListening: true } : {}),
+        }
+      : undefined,
+    [autoStartListening, voiceAgentSlug, voiceDynamicVariables],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -179,30 +194,22 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     void startVoice(
       resolvedContextHint,
       undefined,
-      voiceAgentSlug || voiceDynamicVariables || autoStartListening
-        ? {
-            ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
-            ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
-            ...(autoStartListening ? { autoStartListening: true } : {}),
-          }
-        : undefined,
+      voiceStartOptions,
     );
   }, [
-    autoStartListening,
     autoStartKey,
     internalIsConnecting,
     internalStatus,
     resolvedContextHint,
     startVoice,
-    voiceAgentSlug,
-    voiceDynamicVariables,
+    voiceStartOptions,
     voiceControls,
   ]);
 
   useEffect(() => {
     if (!focusedVoiceOverlayRequested) return;
 
-    if (isActive || isConnecting) {
+    if (isActive || isConnecting || hasConnectionError) {
       focusedOverlaySawLiveSessionRef.current = true;
       return;
     }
@@ -218,7 +225,18 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     }, 5000);
 
     return () => window.clearTimeout(clearPendingOverlay);
-  }, [focusedVoiceOverlayRequested, isActive, isConnecting]);
+  }, [focusedVoiceOverlayRequested, hasConnectionError, isActive, isConnecting]);
+
+  const handleOverlayEnd = () => {
+    setFocusedVoiceOverlayRequested(false);
+    stopVoice();
+  };
+
+  const handleRetryVoice = () => {
+    if (isActive || isConnecting) return;
+    setFocusedVoiceOverlayRequested(true);
+    void Promise.resolve(startVoice(resolvedContextHint, undefined, voiceStartOptions)).catch(() => {});
+  };
 
   const handleTalk = () => {
     if (!isActive && dynamicHero) {
@@ -243,16 +261,8 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
       void Promise.resolve(startVoice(
         resolvedContextHint,
         undefined,
-        voiceAgentSlug || voiceDynamicVariables || autoStartListening
-          ? {
-              ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
-              ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
-            ...(autoStartListening ? { autoStartListening: true } : {}),
-          }
-        : undefined,
-      )).catch(() => {
-        setFocusedVoiceOverlayRequested(false);
-      });
+        voiceStartOptions,
+      )).catch(() => {});
     }
   };
 
@@ -296,10 +306,12 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             isSpeaking={isSpeaking}
             isConnecting={isConnecting}
             transcript={transcript}
-            onEnd={stopVoice}
+            onEnd={handleOverlayEnd}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={onMicToggle}
+            connectionError={lastError}
+            onRetry={handleRetryVoice}
           />
         )}
 
@@ -410,10 +422,12 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           isSpeaking={isSpeaking}
           isConnecting={isConnecting}
           transcript={transcript}
-          onEnd={stopVoice}
+          onEnd={handleOverlayEnd}
           voiceSessionPhase={voiceSessionPhase}
           isMicMuted={isMicMuted}
           onMicToggle={onMicToggle}
+          connectionError={lastError}
+          onRetry={handleRetryVoice}
         />
       )}
 
