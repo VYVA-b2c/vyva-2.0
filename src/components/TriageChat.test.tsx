@@ -192,7 +192,8 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     renderTriageChat();
 
-    await screen.findByText("Which one is closest?");
+    await screen.findByRole("button", { name: "First answer" }, { timeout: 5000 });
+    expect(screen.getByText("Which one is closest?")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "First answer" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Fourth answer" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Fifth answer" })).not.toBeVisible();
