@@ -80,6 +80,16 @@ describe("Find specialist profile location", () => {
   it("uses real area details and expands known country codes", () => {
     expect(profileLocationFromParts({ postalCode: "11380", cityState: "Tarifa", country: "ES" })).toBe("11380, Tarifa, Spain");
   });
+
+  it("uses the full saved street address for specialist searches", () => {
+    expect(profileLocationFromParts({
+      street: "6 calle montemenor",
+      postalCode: "11380",
+      cityState: "Tarifa",
+      region: "Cadiz",
+      country: "ES",
+    })).toBe("6 calle montemenor, 11380, Tarifa, Cadiz, Spain");
+  });
 });
 
 describe("VisualScanResultPanel", () => {

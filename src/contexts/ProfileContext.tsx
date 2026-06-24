@@ -18,6 +18,7 @@ interface ProfileData {
   profileId?: string | null;
   street: string;
   cityState: string;
+  region?: string | null;
   postalCode: string;
   caregiverName: string;
   caregiverContact: string;
