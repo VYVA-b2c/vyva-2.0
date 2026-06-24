@@ -1518,12 +1518,29 @@ const HealthScreen = () => {
     if (!new URLSearchParams(location.search).has("doctor")) return;
 
     setSeeDoctorOpen(true);
-    window.setTimeout(() => {
+    const scrollTimer = window.setTimeout(() => {
+      if (typeof document === "undefined") return;
       document.getElementById("health-see-doctor-card")?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
     }, 80);
+    return () => window.clearTimeout(scrollTimer);
+  }, [location.search]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (!searchParams.has("specialist") && !searchParams.has("provider")) return;
+
+    setSpecialistOpen(true);
+    const scrollTimer = window.setTimeout(() => {
+      if (typeof document === "undefined") return;
+      document.getElementById("health-specialist-panel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 80);
+    return () => window.clearTimeout(scrollTimer);
   }, [location.search]);
 
   const bookSpecialistMutation = useMutation({

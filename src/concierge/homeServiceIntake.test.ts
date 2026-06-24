@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildHomeServiceIntake,
+  homeServiceQuestionsFor,
   homeServiceIntakeFromPreferences,
   normalizeHomeServiceType,
 } from "../../shared/serviceIntake";
@@ -53,5 +54,33 @@ describe("home service intake", () => {
   it("detects common service words", () => {
     expect(normalizeHomeServiceType("I need a fontanero")).toBe("plumber");
     expect(normalizeHomeServiceType("socket keeps sparking")).toBe("electrician");
+  });
+
+  it("asks other services to identify the service before urgency", () => {
+    const questions = homeServiceQuestionsFor("other");
+
+    expect(questions[0]).toMatchObject({
+      key: "service_needed",
+      kind: "text",
+      en: "What service do you need?",
+    });
+    expect(questions[1]).toMatchObject({ key: "urgency" });
+  });
+
+  it("uses the typed other-service name in the research brief", () => {
+    const intake = buildHomeServiceIntake({
+      origin: "app",
+      serviceType: "other",
+      urgency: "today",
+      criteria: "trusted",
+      answers: {
+        service_needed: "Pest control",
+        problem_summary: "Wasps are near the front door",
+      },
+      language: "en",
+    });
+
+    expect(intake.research_brief).toContain("Pest control needed");
+    expect(intake.research_brief).not.toContain("Other service needed");
   });
 });

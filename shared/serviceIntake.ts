@@ -215,17 +215,12 @@ const ELECTRICIAN_QUESTIONS: HomeServiceQuestion[] = [
 
 const FALLBACK_QUESTIONS: HomeServiceQuestion[] = [
   {
-    key: "problem_type",
-    en: "What kind of help is needed?",
-    es: "Que tipo de ayuda hace falta?",
-    kind: "choice",
-    options: [
-      { key: "repair", en: "Repair", es: "Reparacion" },
-      { key: "maintenance", en: "Maintenance", es: "Mantenimiento" },
-      { key: "cleaning", en: "Cleaning", es: "Limpieza" },
-      { key: "locked_out", en: "Locked out / lock", es: "Cerradura / llaves" },
-      { key: "not_sure", en: "Not sure", es: "No lo se" },
-    ],
+    key: "service_needed",
+    en: "What service do you need?",
+    es: "Que servicio necesitas?",
+    kind: "text",
+    placeholderEn: "Example: gardener, pest control, appliance repair",
+    placeholderEs: "Ejemplo: jardinero, control de plagas, reparar electrodomestico",
   },
 ];
 
@@ -236,7 +231,9 @@ export function homeServiceQuestionsFor(serviceType: HomeServiceType | string | 
     : type === "electrician"
       ? ELECTRICIAN_QUESTIONS
       : FALLBACK_QUESTIONS;
-  return [...COMMON_QUESTIONS, ...specific, ...FINISHING_QUESTIONS];
+  return type === "other"
+    ? [...specific, ...COMMON_QUESTIONS, ...FINISHING_QUESTIONS]
+    : [...COMMON_QUESTIONS, ...specific, ...FINISHING_QUESTIONS];
 }
 
 export function normalizeHomeServiceType(value: unknown): HomeServiceType {
@@ -331,9 +328,13 @@ export function buildHomeServiceResearchBrief(input: {
   const answers = compactRecord(input.answers);
   const criteria = compactCriteria(input.criteria);
   const questions = homeServiceQuestionsFor(type);
+  const customServiceLabel = type === "other" && answers.service_needed && answers.service_needed !== "skip"
+    ? answers.service_needed
+    : "";
   const facts = questions
     .map((question) => {
       if (question.key === "criteria") return "";
+      if (question.key === "service_needed" && customServiceLabel) return "";
       const value = question.key === "urgency" ? urgency : answers[question.key];
       if (!value) return "";
       const label = language.startsWith("es") ? question.es : question.en;
@@ -345,7 +346,7 @@ export function buildHomeServiceResearchBrief(input: {
     ? `Criteria: ${criteria.map((value) => criteriaQuestion ? optionLabel(criteriaQuestion, value, language) : value).join(", ")}`
     : "";
   const brief = [
-    `${homeServiceTypeLabel(type, language)} needed`,
+    `${customServiceLabel || homeServiceTypeLabel(type, language)} needed`,
     ...facts,
     criteriaText,
   ].filter(Boolean).join(". ");

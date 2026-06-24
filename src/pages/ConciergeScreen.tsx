@@ -168,6 +168,68 @@ interface AppointmentRequestResponse {
   mission?: AppointmentMissionState;
 }
 
+interface AppointmentErrorBody {
+  error?: string;
+  code?: string;
+  nextRoute?: string;
+}
+
+class AppointmentRequestError extends Error {
+  status?: number;
+  code?: string;
+  nextRoute?: string;
+
+  constructor(message: string, status?: number, code?: string, nextRoute?: string) {
+    super(message);
+    this.name = "AppointmentRequestError";
+    this.status = status;
+    this.code = code;
+    this.nextRoute = nextRoute;
+  }
+}
+
+async function readAppointmentErrorBody(response: Response): Promise<AppointmentErrorBody> {
+  try {
+    const parsed = await response.json();
+    return typeof parsed === "object" && parsed !== null ? parsed as AppointmentErrorBody : {};
+  } catch {
+    return {};
+  }
+}
+
+function isFeatureAccessVerificationError(error: unknown) {
+  if (error instanceof AppointmentRequestError && error.code === "FEATURE_ACCESS_UNAVAILABLE") return true;
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /could not verify feature access/i.test(message) || /could not verify access/i.test(message);
+}
+
+function appointmentErrorMessage(error: unknown, isSpanish: boolean, fallback: string) {
+  if (error instanceof AppointmentRequestError) {
+    if (error.status === 401) return isSpanish ? "Inicia sesion de nuevo y vuelve a intentarlo." : "Please sign in again and try once more.";
+    if (error.status === 403 || error.code === "ENTITLEMENT_REQUIRED") {
+      return isSpanish
+        ? "Concierge no esta incluido en este plan. Revisa la suscripcion para activarlo."
+        : "Concierge is not included in this plan. Check subscription settings to enable it.";
+    }
+    if (error.status === 409) return isSpanish ? "Elige o termina un perfil de cuidado primero." : "Choose or finish a care profile first.";
+    if (isFeatureAccessVerificationError(error)) {
+      return isSpanish
+        ? "No he podido verificar el acceso ahora mismo. Vuelve a intentarlo."
+        : "I could not verify access right now. Please try again.";
+    }
+    return error.message || fallback;
+  }
+  if (error instanceof Error) {
+    if (isFeatureAccessVerificationError(error)) {
+      return isSpanish
+        ? "No he podido verificar el acceso ahora mismo. Vuelve a intentarlo."
+        : "I could not verify access right now. Please try again.";
+    }
+    return error.message || fallback;
+  }
+  return fallback;
+}
+
 type TransportAction =
   | "open_url"
   | "call_phone"
@@ -723,8 +785,8 @@ async function createAppointmentRequest(params: {
     }),
   });
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "Could not create appointment request");
+    const data = await readAppointmentErrorBody(res);
+    throw new AppointmentRequestError(data.error ?? "Could not create appointment request", res.status, data.code, data.nextRoute);
   }
   return await res.json() as AppointmentRequestResponse;
 }
@@ -736,8 +798,8 @@ async function discoverAppointmentOptions(params: {
     method: "POST",
   });
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "Could not look for appointment options");
+    const data = await readAppointmentErrorBody(res);
+    throw new AppointmentRequestError(data.error ?? "Could not look for appointment options", res.status, data.code, data.nextRoute);
   }
   return await res.json() as AppointmentRequestResponse;
 }
@@ -1633,6 +1695,32 @@ const ConciergeScreen = () => {
     })
   ), [appointmentControlMode, appointmentMission, appointmentOptions, appointmentRequest, isSpanish, selectedAppointmentOption]);
 
+  function prepareHomeServiceAccessFallback(detail: string) {
+    const cleanedDetail = detail.trim();
+    const message = [
+      isSpanish
+        ? "No he podido verificar la busqueda de proveedores ahora mismo. Prepara esta solicitud de Concierge para revisar opciones fiables antes de contactar con nadie."
+        : "I could not verify provider search access right now. Prepare this Concierge request so I can review trusted options before anyone is contacted.",
+      cleanedDetail ? `${isSpanish ? "Detalle" : "Request details"}:\n${cleanedDetail}` : "",
+      isSpanish
+        ? "No llames, reserves, envies mensajes ni compartas datos sin mi confirmacion."
+        : "Do not call, book, message, or share details without my confirmation.",
+    ].filter(Boolean).join("\n\n");
+
+    setAppointmentError(null);
+    setAppointmentNotice(isSpanish
+      ? "He preparado la solicitud por chat para revisarla primero."
+      : "I prepared this as a Concierge request to review first.");
+    setAppointmentRequest(null);
+    setAppointmentOptions([]);
+    setAppointmentDiscovery(null);
+    setSelectedAppointmentOptionId(null);
+    setAppointmentMission(null);
+    setAppointmentAttemptResult(null);
+    setAppointmentOpen(false);
+    prepareConciergeRequest(message);
+  }
+
   const createAppointmentMutation = useMutation({
     mutationFn: createAppointmentRequest,
     onMutate: () => {
@@ -1679,7 +1767,11 @@ const ConciergeScreen = () => {
               : (isSpanish ? "No he encontrado una opcion clara. Puedo prepararlo por chat." : "I did not find a clear option. I can still prepare this in chat."));
           })
           .catch((error) => {
-            setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
+            if (isFeatureAccessVerificationError(error)) {
+              prepareHomeServiceAccessFallback(result.request.reason_detail ?? "");
+              return;
+            }
+            setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
           });
         return;
       }
@@ -1689,8 +1781,12 @@ const ConciergeScreen = () => {
           ? (isSpanish ? "Aun no hay proveedor guardado. Puedo buscar opciones fiables." : "No saved provider yet. I can look for trusted options.")
           : (isSpanish ? "No veo un proveedor guardado para esto. Puedo buscar opciones." : "I do not see a saved provider for this yet. I can look for options."));
     },
-    onError: (error) => {
-      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido crear la solicitud." : "I could not create the request."));
+    onError: (error, variables) => {
+      if (variables.appointmentType === "home-service" && isFeatureAccessVerificationError(error)) {
+        prepareHomeServiceAccessFallback(variables.detail);
+        return;
+      }
+      setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido crear la solicitud." : "I could not create the request."));
     },
   });
 
@@ -1734,7 +1830,11 @@ const ConciergeScreen = () => {
         : "I did not find a clear option. I can still prepare this in chat.");
     },
     onError: (error) => {
-      setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
+      if ((appointmentRequest?.appointment_type === "home-service" || selectedAppointmentChip?.key === "home-service") && isFeatureAccessVerificationError(error)) {
+        prepareHomeServiceAccessFallback(appointmentRequest?.reason_detail ?? buildCurrentHomeServiceIntake().intake.research_brief ?? "");
+        return;
+      }
+      setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
     },
   });
 
@@ -1917,6 +2017,27 @@ const ConciergeScreen = () => {
   );
   const answeredHomeServiceQuestionCount = homeServiceQuestions.filter((question) => homeServiceIntakeAnswers[question.key]).length;
   const isHomeServiceIntakeComplete = Boolean(homeServiceType && homeServiceQuestions.length > 0 && answeredHomeServiceQuestionCount === homeServiceQuestions.length);
+  const homeServiceCurrentStep = homeServiceQuestions.length > 0
+    ? Math.min(answeredHomeServiceQuestionCount + (activeHomeServiceQuestion ? 1 : 0), homeServiceQuestions.length)
+    : 0;
+  const homeServiceProgressPercent = homeServiceQuestions.length > 0
+    ? Math.round((homeServiceCurrentStep / homeServiceQuestions.length) * 100)
+    : 0;
+  const homeServiceProgressLabel = homeServiceQuestions.length > 0
+    ? (isHomeServiceIntakeComplete
+      ? (isSpanish ? "Listo" : "Ready")
+      : isSpanish
+        ? `Paso ${homeServiceCurrentStep} de ${homeServiceQuestions.length}`
+        : `Step ${homeServiceCurrentStep} of ${homeServiceQuestions.length}`)
+    : "";
+  const homeServiceCompletedLabel = homeServiceQuestions.length > 0
+    ? (isSpanish
+      ? `${answeredHomeServiceQuestionCount} de ${homeServiceQuestions.length} listo`
+      : `${answeredHomeServiceQuestionCount} of ${homeServiceQuestions.length} done`)
+    : "";
+  const homeServiceNeededLabel = homeServiceType === "other" && homeServiceIntakeAnswers.service_needed && homeServiceIntakeAnswers.service_needed !== "skip"
+    ? homeServiceIntakeAnswers.service_needed.trim()
+    : "";
   const homeServiceSafetyFlags = useMemo(() => {
     if (!homeServiceType) return [];
     return buildHomeServiceIntake({
@@ -3731,30 +3852,6 @@ const ConciergeScreen = () => {
 
             {isHomeServiceAppointment && (
               <div
-                className="mt-4 rounded-[20px] border border-[#F6D7AE] bg-white px-4 py-3"
-                data-testid="panel-appointment-home-service-summary"
-              >
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { Icon: CircleCheck, label: isSpanish ? "Perfil revisado" : "Saved list checked", tone: "#047857", bg: "#ECFDF5" },
-                    { Icon: Search, label: isSpanish ? "Busqueda fiable" : "Trusted search", tone: "#B45309", bg: "#FFF7ED" },
-                    { Icon: ShieldCheck, label: isSpanish ? "Tu confirmas" : "You confirm", tone: "#6B21A8", bg: "#F5F3FF" },
-                  ].map(({ Icon, label, tone, bg }) => (
-                    <div key={label} className="inline-flex min-h-[42px] flex-1 basis-[150px] items-center gap-2 rounded-full border border-[#F3E6D8] bg-[#FFFCF8] px-3">
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: bg, color: tone }}>
-                        <Icon size={16} />
-                      </span>
-                      <span className="font-body text-[13px] font-black leading-tight text-vyva-text-1">
-                        {label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {isHomeServiceAppointment && (
-              <div
                 className="mt-4 rounded-[22px] border border-[#F6D7AE] bg-white p-4"
                 data-testid="panel-home-service-intake"
               >
@@ -3764,132 +3861,164 @@ const ConciergeScreen = () => {
                       {isSpanish ? "Solicitud de servicio" : "Service order"}
                     </p>
                     <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                      {homeServiceType
+                      {homeServiceNeededLabel || (homeServiceType
                         ? homeServiceTypeLabel(homeServiceType, locale)
-                        : (isSpanish ? "Que necesitas?" : "What do you need?")}
+                        : (isSpanish ? "Que necesitas?" : "What do you need?"))}
                     </h3>
                   </div>
                   {homeServiceType && (
-                    <span className="inline-flex w-fit items-center rounded-full bg-[#FFF7ED] px-3 py-1 font-body text-[12px] font-black text-[#B45309]">
-                      {answeredHomeServiceQuestionCount}/{homeServiceQuestions.length}
+                    <span className="inline-flex w-fit items-center rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-black text-[#6D28D9]">
+                      {homeServiceCompletedLabel}
                     </span>
                   )}
                 </div>
 
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {HOME_SERVICE_TYPES.map((service) => {
-                    const selected = homeServiceType === service.key;
-                    return (
-                      <button
-                        key={service.key}
-                        type="button"
-                        onClick={() => {
-                          setHomeServiceType(service.key);
-                          setHomeServiceIntakeOrigin((current) => current || "app");
-                          setHomeServiceIntakeAnswers({});
-                          setHomeServiceTextDrafts({});
-                          setAppointmentRequest(null);
-                          setAppointmentOptions([]);
-                          setAppointmentDiscovery(null);
-                          setAppointmentAttemptResult(null);
-                          setAppointmentMission(null);
-                          setAppointmentNotice(null);
-                          setAppointmentError(null);
-                        }}
-                        data-testid={`button-home-service-type-${service.key}`}
-                        className={`vyva-tap min-h-[54px] rounded-[16px] border px-3 text-left font-body text-[13px] font-black leading-tight ${
-                          selected
-                            ? "border-[#B45309] bg-[#FFF7ED] text-[#92400E]"
-                            : "border-[#F1D9BD] bg-[#FFFCF8] text-vyva-text-1"
-                        }`}
-                      >
-                        {isSpanish ? service.es : service.en}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {homeServiceType && activeHomeServiceQuestion && (
-                  <div
-                    className="mt-4 rounded-[18px] border border-[#FED7AA] bg-[#FFFBF5] p-3"
-                    data-testid="panel-home-service-question"
-                  >
-                    <p className="font-body text-[13px] font-black leading-tight text-vyva-text-1">
-                      {homeServiceTextFromQuestion(activeHomeServiceQuestion, isSpanish)}
-                    </p>
-                    {activeHomeServiceQuestion.kind === "choice" ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {activeHomeServiceQuestion.options?.map((option) => (
-                          <button
-                            key={option.key}
-                            type="button"
-                            onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, option.key)}
-                            data-testid={`button-home-service-answer-${option.key}`}
-                            className="vyva-tap inline-flex min-h-[40px] items-center rounded-full border border-[#FED7AA] bg-white px-3 font-body text-[12px] font-black text-[#92400E]"
-                          >
-                            {homeServiceOptionText(option, isSpanish)}
-                          </button>
-                        ))}
-                        {!activeHomeServiceQuestion.options?.some((option) => option.key === "not_sure") && (
-                          <button
-                            type="button"
-                            onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, "not_sure")}
-                            className="vyva-tap inline-flex min-h-[40px] items-center rounded-full border border-[#FED7AA] bg-white px-3 font-body text-[12px] font-black text-[#92400E]"
-                          >
-                            {isSpanish ? "No lo se" : "Not sure"}
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="mt-3">
-                        <textarea
-                          value={homeServiceTextDrafts[activeHomeServiceQuestion.key] ?? homeServiceIntakeAnswers[activeHomeServiceQuestion.key] ?? ""}
-                          onChange={(event) => setHomeServiceTextDrafts((current) => ({
-                            ...current,
-                            [activeHomeServiceQuestion.key]: event.target.value,
-                          }))}
-                          placeholder={isSpanish ? activeHomeServiceQuestion.placeholderEs : activeHomeServiceQuestion.placeholderEn}
-                          rows={3}
-                          className="min-h-[82px] w-full resize-none rounded-[16px] border border-[#FED7AA] bg-white px-3 py-3 font-body text-[15px] font-medium leading-relaxed text-vyva-text-1 outline-none focus:ring-2 focus:ring-[#B45309]/20"
-                        />
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const draft = (homeServiceTextDrafts[activeHomeServiceQuestion.key] ?? "").trim();
-                              setHomeServiceAnswer(activeHomeServiceQuestion.key, draft || "skip");
-                            }}
-                            data-testid="button-home-service-answer-next"
-                            className="vyva-tap inline-flex min-h-[42px] items-center justify-center rounded-full bg-[#B45309] px-3 font-body text-[13px] font-black text-white"
-                          >
-                            {isSpanish ? "Guardar" : "Save"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, "skip")}
-                            data-testid="button-home-service-answer-skip"
-                            className="vyva-tap inline-flex min-h-[42px] items-center justify-center rounded-full border border-[#FED7AA] bg-white px-3 font-body text-[13px] font-black text-[#92400E]"
-                          >
-                            {isSpanish ? "Saltar" : "Skip"}
-                          </button>
+                <div className="flex flex-col">
+                  {homeServiceType && activeHomeServiceQuestion && (
+                    <div
+                      className="order-1 mt-4 overflow-hidden rounded-[24px] border-2 border-[#7C3AED] bg-white shadow-[0_18px_36px_rgba(124,58,237,0.18)]"
+                      data-testid="panel-home-service-question"
+                      aria-live="polite"
+                    >
+                      <div className="bg-[#7C3AED] px-4 py-3 text-white">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="inline-flex min-w-0 items-center gap-2 font-body text-[12px] font-black uppercase tracking-[0.1em]">
+                            <Sparkles size={15} aria-hidden="true" />
+                            {isSpanish ? "Siguiente paso" : "Next step"}
+                          </span>
+                          <span className="flex-shrink-0 rounded-full bg-white/18 px-3 py-1 font-body text-[12px] font-black">
+                            {homeServiceProgressLabel}
+                          </span>
+                        </div>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/20">
+                          <div
+                            className="h-full rounded-full bg-white"
+                            style={{ width: `${homeServiceProgressPercent}%` }}
+                          />
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {homeServiceType && !activeHomeServiceQuestion && (
-                  <div className="mt-4 rounded-[18px] border border-[#BBF7D0] bg-[#F0FDF4] p-3" data-testid="panel-home-service-ready">
-                    <p className="font-body text-[13px] font-black text-[#0F766E]">
-                      {isSpanish ? "Listo. VYVA ya tiene lo necesario para buscar." : "Ready. VYVA has enough to search."}
-                    </p>
-                    {homeServiceSafetyFlags.length > 0 && (
-                      <p className="mt-1 font-body text-[12px] font-semibold text-vyva-text-2">
-                        {isSpanish ? "Se priorizara urgencia y seguridad." : "Urgency and safety will be prioritized."}
-                      </p>
-                    )}
+                      <div className="px-4 py-4">
+                        <p className="font-body text-[20px] font-black leading-tight text-vyva-text-1">
+                          {homeServiceTextFromQuestion(activeHomeServiceQuestion, isSpanish)}
+                        </p>
+                        {activeHomeServiceQuestion.kind === "choice" ? (
+                          <div className="mt-4 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3">
+                            {activeHomeServiceQuestion.options?.map((option) => (
+                              <button
+                                key={option.key}
+                                type="button"
+                                onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, option.key)}
+                                data-testid={`button-home-service-answer-${option.key}`}
+                                className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center rounded-[16px] border-2 border-[#C4B5FD] bg-[#FAF5FF] px-3 text-center font-body text-[15px] font-black leading-tight text-[#4C1D95] shadow-[0_6px_14px_rgba(124,58,237,0.08)] transition-colors hover:bg-[#F3E8FF]"
+                              >
+                                {homeServiceOptionText(option, isSpanish)}
+                              </button>
+                            ))}
+                            {!activeHomeServiceQuestion.options?.some((option) => option.key === "not_sure") && (
+                              <button
+                                type="button"
+                                onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, "not_sure")}
+                                className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center rounded-[16px] border-2 border-[#C4B5FD] bg-[#FAF5FF] px-3 text-center font-body text-[15px] font-black leading-tight text-[#4C1D95] shadow-[0_6px_14px_rgba(124,58,237,0.08)] transition-colors hover:bg-[#F3E8FF]"
+                              >
+                                {isSpanish ? "No lo se" : "Not sure"}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-4">
+                            <textarea
+                              value={homeServiceTextDrafts[activeHomeServiceQuestion.key] ?? homeServiceIntakeAnswers[activeHomeServiceQuestion.key] ?? ""}
+                              onChange={(event) => setHomeServiceTextDrafts((current) => ({
+                                ...current,
+                                [activeHomeServiceQuestion.key]: event.target.value,
+                              }))}
+                              placeholder={isSpanish ? activeHomeServiceQuestion.placeholderEs : activeHomeServiceQuestion.placeholderEn}
+                              rows={3}
+                              className="min-h-[104px] w-full resize-none rounded-[18px] border-2 border-[#C4B5FD] bg-[#FAF5FF] px-4 py-3 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-1 outline-none focus:border-[#7C3AED] focus:ring-4 focus:ring-[#7C3AED]/15"
+                            />
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const draft = (homeServiceTextDrafts[activeHomeServiceQuestion.key] ?? "").trim();
+                                  setHomeServiceAnswer(activeHomeServiceQuestion.key, draft || "skip");
+                                }}
+                                data-testid="button-home-service-answer-next"
+                                className="vyva-tap inline-flex min-h-[48px] items-center justify-center rounded-full bg-[#7C3AED] px-3 font-body text-[15px] font-black text-white shadow-[0_10px_22px_rgba(124,58,237,0.22)]"
+                              >
+                                {isSpanish ? "Guardar" : "Save"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, "skip")}
+                                data-testid="button-home-service-answer-skip"
+                                className="vyva-tap inline-flex min-h-[48px] items-center justify-center rounded-full border-2 border-[#C4B5FD] bg-white px-3 font-body text-[15px] font-black text-[#6D28D9]"
+                              >
+                                {isSpanish ? "Saltar" : "Skip"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {homeServiceType && !activeHomeServiceQuestion && (
+                    <div className="order-1 mt-4 rounded-[22px] border-2 border-[#0F766E] bg-[#ECFDF5] p-4 shadow-[0_14px_28px_rgba(15,118,110,0.14)]" data-testid="panel-home-service-ready">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#0F766E]">
+                          <CircleCheck size={20} aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-body text-[17px] font-black leading-tight text-[#0F766E]">
+                            {isSpanish ? "Listo. VYVA ya tiene lo necesario para buscar." : "Ready. VYVA has enough to search."}
+                          </p>
+                          {homeServiceSafetyFlags.length > 0 && (
+                            <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                              {isSpanish ? "Se priorizara urgencia y seguridad." : "Urgency and safety will be prioritized."}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`${homeServiceType ? "order-2 mt-3 grid-cols-3 gap-2" : "order-1 mt-3 grid-cols-2 gap-2 sm:grid-cols-3"} grid`}>
+                    {HOME_SERVICE_TYPES.map((service) => {
+                      const selected = homeServiceType === service.key;
+                      return (
+                        <button
+                          key={service.key}
+                          type="button"
+                          onClick={() => {
+                            setHomeServiceType(service.key);
+                            setHomeServiceIntakeOrigin((current) => current || "app");
+                            setHomeServiceIntakeAnswers({});
+                            setHomeServiceTextDrafts({});
+                            setAppointmentRequest(null);
+                            setAppointmentOptions([]);
+                            setAppointmentDiscovery(null);
+                            setAppointmentAttemptResult(null);
+                            setAppointmentMission(null);
+                            setAppointmentNotice(null);
+                            setAppointmentError(null);
+                          }}
+                          data-testid={`button-home-service-type-${service.key}`}
+                          className={`vyva-tap rounded-[14px] border px-3 text-left font-body font-black leading-tight ${
+                            homeServiceType ? "min-h-[46px] text-[12px]" : "min-h-[54px] text-[13px]"
+                          } ${
+                            selected
+                              ? "border-[#B45309] bg-[#FFF7ED] text-[#92400E]"
+                              : "border-[#F1D9BD] bg-[#FFFCF8] text-vyva-text-1"
+                          }`}
+                        >
+                          {isSpanish ? service.es : service.en}
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
               </div>
             )}
 
