@@ -100,6 +100,14 @@ import HealthDevicesSettings from "./pages/settings/HealthDevicesSettings";
 import NotificationsSettings from "./pages/settings/NotificationsSettings";
 import ScheduledSupportSettings from "./pages/settings/ScheduledSupportSettings";
 import CaregiverDashboardPage from "./pages/CaregiverDashboardPage";
+import VyvaDemoEntry, {
+  VyvaCaregiverDashboard,
+  VyvaCaregiverSeniorDetail,
+  VyvaSeniorDailyCheckIn,
+  VyvaSeniorHome,
+  VyvaSeniorMyWeek,
+  VyvaSeniorWeeklyCheckIn,
+} from "./pages/VyvaMvpDemo";
 import SocialHub from "./social/SocialHub";
 import MovementExerciseGuideScreen from "./social/MovementExerciseGuideScreen";
 import ParticipateScreen from "./social/ParticipateScreen";
@@ -503,6 +511,13 @@ const App = () => (
                 <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
+                <Route path="/vyva-demo" element={<VyvaDemoEntry />} />
+                <Route path="/vyva-demo/senior/:seniorKey" element={<VyvaSeniorHome />} />
+                <Route path="/vyva-demo/senior/:seniorKey/daily" element={<VyvaSeniorDailyCheckIn />} />
+                <Route path="/vyva-demo/senior/:seniorKey/weekly" element={<VyvaSeniorWeeklyCheckIn />} />
+                <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
+                <Route path="/vyva-demo/caregiver/:caregiverKey" element={<VyvaCaregiverDashboard />} />
+                <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
                 {import.meta.env.DEV ? (
                   <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
                 ) : null}
