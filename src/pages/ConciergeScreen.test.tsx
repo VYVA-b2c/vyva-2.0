@@ -7,6 +7,22 @@ import ConciergeScreen from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
 
 const voiceHeroMock = vi.hoisted(() => vi.fn());
+const voiceActionMock = vi.hoisted(() => ({
+  action: null as null | {
+    id: string;
+    actionType?: string;
+    domain: string;
+    route: string;
+    title: string;
+    summary: string;
+    cue: string;
+    sourceText: string;
+    priority: "high" | "medium" | "low";
+    extractedSubject?: string;
+    feedbackReason: string;
+    payload?: Record<string, string | number | boolean>;
+  },
+}));
 
 vi.mock("@/lib/queryClient", () => ({
   apiFetch: vi.fn(),
@@ -35,8 +51,11 @@ vi.mock("@/hooks/useRouteVoiceAutoStart", () => ({
 
 vi.mock("@/hooks/useVoiceActionFulfillment", () => ({
   useVoiceActionFulfillment: () => ({
-    action: null,
-    payloadValue: () => "",
+    action: voiceActionMock.action,
+    payloadValue: (key: string) => {
+      const value = voiceActionMock.action?.payload?.[key];
+      return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : "";
+    },
   }),
 }));
 
@@ -96,6 +115,7 @@ function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initi
 afterEach(() => {
   apiFetchMock.mockReset();
   voiceHeroMock.mockClear();
+  voiceActionMock.action = null;
   vi.restoreAllMocks();
   localStorage.clear();
 });
@@ -224,7 +244,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Lopez");
-    expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("VYVA calls");
+    expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("VYVA chooses the safe path");
     expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("Ask VYVA to handle this");
     expect(screen.queryByTestId("button-appointment-channel-phone")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
@@ -428,7 +448,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-appointment-discover-options"));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Marbella Dermatology Centre");
-    expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("VYVA chooses the safest contact path from the provider details.");
+    expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("VYVA chooses the safest next step from the provider details.");
     expect(screen.getByTestId("button-appointment-handle-provider")).toHaveTextContent("Ask VYVA to handle this");
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-2/discover-options", expect.objectContaining({ method: "POST" }));
   });
@@ -564,20 +584,66 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("ask me to confirm");
   });
 
-  it("prepares home service help and still prepares ride requests without booking", async () => {
+  it("collects plumber intake, stores app origin, and automatically searches when no saved provider exists", async () => {
+    let createdBody: Record<string, any> | null = null;
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
+      if (target.includes("/api/appointments/requests/request-home-service/discover-options")) {
+        expect(init?.method).toBe("POST");
+        return jsonResponse({
+          request: {
+            id: "request-home-service",
+            appointment_type: "home-service",
+            reason_detail: createdBody?.detail,
+            preferences: createdBody?.preferences,
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-plumber",
+            provider_id: null,
+            provider_source: "external",
+            provider_snapshot: {
+              name: "Marbella Rapid Plumbing",
+              address: "Avenida Ricardo Soriano 3",
+              phone: "+34 600 111 222",
+              preferred_channel: "phone",
+            },
+            match_reason: "Verified local plumbing option",
+            available_channels: ["phone", "manual"],
+            rank: 1,
+            status: "recommended",
+          }],
+          discovery: { source: "google_places", inserted_count: 1 },
+        });
+      }
       if (target.endsWith("/api/appointments/requests")) {
         expect(init?.method).toBe("POST");
         const body = JSON.parse(String(init?.body));
+        createdBody = body;
         expect(body.appointment_type).toBe("home-service");
-        expect(body.detail.toLowerCase()).toContain("plumber");
-        expect(body.detail).toContain("ask me before contacting or booking");
+        expect(body.detail).toContain("Plumber needed");
+        expect(body.detail).toContain("Leak");
+        expect(body.preferences.service_intake).toMatchObject({
+          version: "home-service-intake-v1",
+          origin: "app",
+          service_type: "plumber",
+          urgency: "today",
+          answers: expect.objectContaining({
+            problem_type: "leak",
+            active_flooding: "yes",
+            affected_area: "kitchen",
+            shutoff_status: "cannot_find",
+          }),
+        });
+        expect(body.preferences.service_intake.safety_flags).toContain("active_water_damage");
         return jsonResponse({
           request: {
             id: "request-home-service",
             appointment_type: "home-service",
             reason_detail: body.detail,
+            preferences: body.preferences,
             status: "needs_provider",
             selected_provider_option_id: null,
             selected_channel: null,
@@ -588,22 +654,129 @@ describe("ConciergeScreen action hub", () => {
       return jsonResponse({ items: [] });
     });
 
-    const firstRender = renderScreen();
+    renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
 
     expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Find home service");
-    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("You choose before anyone is contacted.");
-    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("Saved list first");
-    expect(screen.getByDisplayValue(/plumber or home repair needed/i)).toBeVisible();
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("Saved list checked");
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("Trusted search");
+    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("You confirm");
     expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("Find trusted options");
-    expect(screen.queryByText("No saved plumber yet")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
 
+    fireEvent.click(screen.getByTestId("button-home-service-type-plumber"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
+    fireEvent.change(screen.getByPlaceholderText(/water leaking/i), {
+      target: { value: "Water leaking under the kitchen sink" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-leak"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-yes"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-kitchen"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-cannot_find"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.change(screen.getByPlaceholderText(/Door code/i), {
+      target: { value: "Lift available; caregiver can open the door" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
+
+    expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("button-appointment-start-home-service")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
 
-    expect(await screen.findByText("No saved plumber yet")).toBeVisible();
-    expect(screen.getByText("Search trusted nearby options in one tap.")).toBeVisible();
-    expect(screen.getByTestId("button-appointment-discover-options")).toHaveTextContent("Find trusted options");
-    firstRender.unmount();
+    expect(await screen.findByText("Marbella Rapid Plumbing")).toBeVisible();
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-home-service/discover-options", expect.objectContaining({ method: "POST" }));
+  });
+
+  it("asks electrician-specific questions instead of plumbing questions", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    fireEvent.click(screen.getByTestId("button-home-service-type-electrician"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
+    fireEvent.change(screen.getByPlaceholderText(/water leaking/i), {
+      target: { value: "The lights keep going out in the bedroom" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
+
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What kind of electrical issue?");
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Breaker trips");
+    expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("Blocked drain");
+  });
+
+  it("turns a voice plumber payload into the same structured service intake", async () => {
+    voiceActionMock.action = {
+      id: "voice-home-service-1",
+      actionType: "concierge.home_service",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Home service help",
+      summary: "Opening Concierge",
+      cue: "Prepare trusted options",
+      sourceText: "I need a plumber today",
+      priority: "high",
+      feedbackReason: "User asked for a plumber",
+      payload: {
+        intake_origin: "voice",
+        service_type: "plumber",
+        urgency: "today",
+        problem_summary: "Water leaking under the kitchen sink",
+        problem_type: "leak",
+        active_flooding: "yes",
+        affected_area: "kitchen",
+        shutoff_status: "cannot_find",
+        criteria: "trusted",
+        access_notes: "Caregiver can open the door",
+      },
+    };
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/appointments/requests")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.preferences.service_intake).toMatchObject({
+          origin: "voice",
+          service_type: "plumber",
+          answers: expect.objectContaining({
+            problem_summary: "Water leaking under the kitchen sink",
+            problem_type: "leak",
+          }),
+        });
+        return jsonResponse({
+          request: {
+            id: "request-voice-home-service",
+            appointment_type: "home-service",
+            reason_detail: body.detail,
+            preferences: body.preferences,
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-saved-plumber",
+            provider_id: "provider-1",
+            provider_source: "saved",
+            provider_snapshot: { name: "Saved Plumber", phone: "+34 600 222 333", preferred_channel: "phone" },
+            match_reason: "Saved plumber provider",
+            available_channels: ["phone", "manual"],
+            rank: 1,
+            status: "recommended",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
+    fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
+
+    expect(await screen.findByText("Saved Plumber")).toBeVisible();
+  });
+
+  it("still prepares ride requests without booking", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
@@ -793,7 +966,7 @@ describe("ConciergeScreen route prefill", () => {
     renderScreen();
 
     expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
-    expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA fills form");
+    expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA chooses the safe path");
     expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs: number of guests");
     expect(screen.getByText("VYVA is handling it")).toBeVisible();

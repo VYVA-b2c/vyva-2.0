@@ -9,6 +9,7 @@ import {
   voiceActionEntryForSpecialistTransfer,
   voiceActionRegistryEntries,
 } from "@/lib/voiceActionRegistry";
+import { normalizeHomeServiceType } from "../../shared/serviceIntake";
 
 export {
   isVoiceAppActionDomain,
@@ -123,6 +124,13 @@ function medicationSubject(text: string) {
     "lisinopril",
   ];
   return known.find((item) => text.includes(item));
+}
+
+function homeServiceSubject(text: string) {
+  const serviceType = normalizeHomeServiceType(text);
+  if (serviceType !== "other") return serviceType;
+  if (hasAny(text, ["home service", "home repair", "repair at home", "servicio en casa", "reparacion en casa"])) return "handyman";
+  return "";
 }
 
 function createAction(input: Omit<VoiceAppAction, "sourceText">, sourceText: string): VoiceAppAction {
@@ -355,6 +363,39 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
   if (hasAny(normalized, ["shopping", "groceries", "supermarket", "choose product", "product choice", "what should i buy", "compras", "compra", "supermercado", "que compro", "que deberia comprar"])) {
     return actionFromRegistry("concierge.shopping", text, {
       feedbackReason: "User asked for shopping or product-choice help.",
+    });
+  }
+
+  const homeService = homeServiceSubject(normalized);
+  if (
+    homeService
+    || hasAny(normalized, [
+      "plumber",
+      "electrician",
+      "locksmith",
+      "cleaner",
+      "blocked drain",
+      "no hot water",
+      "power outage",
+      "sparks",
+      "burning smell",
+      "fontanero",
+      "electricista",
+      "cerrajero",
+      "limpieza",
+      "sin agua caliente",
+      "sin luz",
+    ])
+  ) {
+    const serviceType = homeService || normalizeHomeServiceType(normalized);
+    return actionFromRegistry("concierge.home_service", text, {
+      title: "Home service help",
+      feedbackReason: "User asked for a trusted home-service provider.",
+      payload: {
+        intake_origin: "voice",
+        task_type: "home_service",
+        service_type: serviceType,
+      },
     });
   }
 
