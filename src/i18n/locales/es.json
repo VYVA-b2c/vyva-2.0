@@ -1748,22 +1748,22 @@
     },
     "primaryCards": {
       "service": {
-        "label": "Buscar un servicio",
-        "mobile": "Servicio",
-        "sub": "Fontanero, reparaciones, limpieza, cuidados",
-        "mobileSub": "Reparaciones y cuidados"
+        "label": "Buscar ayuda",
+        "mobile": "Ayuda",
+        "sub": "Arreglos, limpieza, cuidados",
+        "mobileSub": "Arreglos y cuidado"
       },
       "ride": {
-        "label": "Reservar transporte",
-        "mobile": "Transporte",
-        "sub": "Taxi, transporte medico, volver a casa",
+        "label": "Pedir taxi",
+        "mobile": "Taxi",
+        "sub": "Taxi, traslado, vuelta a casa",
         "mobileSub": "Taxi o traslado"
       },
       "delivery": {
-        "label": "Hacer un pedido",
+        "label": "Pedir comida",
         "mobile": "Pedido",
-        "sub": "Compra, farmacia, comida, esenciales",
-        "mobileSub": "Comida y esenciales"
+        "sub": "Compra, farmacia, comida",
+        "mobileSub": "Comida y basicos"
       },
       "appointment": {
         "label": "Reservar cita",

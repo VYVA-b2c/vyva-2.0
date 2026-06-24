@@ -346,15 +346,19 @@ function locationCountryLabel(country?: string | null): string {
 }
 
 export function profileLocationFromParts({
+  street,
   postalCode,
   cityState,
+  region,
   country,
 }: {
+  street?: string | null;
   postalCode?: string | null;
   cityState?: string | null;
+  region?: string | null;
   country?: string | null;
 }): string {
-  const areaParts = [postalCode, cityState].map((part) => part?.trim()).filter(Boolean) as string[];
+  const areaParts = [street, postalCode, cityState, region].map((part) => part?.trim()).filter(Boolean) as string[];
   if (!areaParts.length) return "";
 
   return uniqueValues([...areaParts, locationCountryLabel(country)].filter(Boolean)).join(", ");
@@ -1187,11 +1191,13 @@ const HealthScreen = () => {
 
   const profileLocation = useMemo(() => {
     return profileLocationFromParts({
+      street: profile?.street,
       postalCode: profile?.postalCode,
       cityState: profile?.cityState,
+      region: profile?.region,
       country: profile?.country,
     });
-  }, [profile?.postalCode, profile?.cityState, profile?.country]);
+  }, [profile?.street, profile?.postalCode, profile?.cityState, profile?.region, profile?.country]);
 
   const { data: personalisationData } = useQuery<{
     conditions: string[];
@@ -1512,12 +1518,29 @@ const HealthScreen = () => {
     if (!new URLSearchParams(location.search).has("doctor")) return;
 
     setSeeDoctorOpen(true);
-    window.setTimeout(() => {
+    const scrollTimer = window.setTimeout(() => {
+      if (typeof document === "undefined") return;
       document.getElementById("health-see-doctor-card")?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
     }, 80);
+    return () => window.clearTimeout(scrollTimer);
+  }, [location.search]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (!searchParams.has("specialist") && !searchParams.has("provider")) return;
+
+    setSpecialistOpen(true);
+    const scrollTimer = window.setTimeout(() => {
+      if (typeof document === "undefined") return;
+      document.getElementById("health-specialist-panel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 80);
+    return () => window.clearTimeout(scrollTimer);
   }, [location.search]);
 
   const bookSpecialistMutation = useMutation({

@@ -94,6 +94,13 @@ function jsonResponse(body: unknown) {
   });
 }
 
+function errorResponse(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge"]) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -135,7 +142,7 @@ describe("ConciergeScreen action hub", () => {
       voiceAgentSlug: "concierge",
     }));
     expect(screen.getByTestId("concierge-guided-hub")).not.toHaveTextContent("Shop");
-    for (const label of ["Find a Service", "Book a Ride", "Place Order", "Book Appointment"]) {
+    for (const label of ["Find help", "Book ride", "Order food", "Book visit"]) {
       expect(screen.getByRole("button", { name: label })).toBeVisible();
     }
     expect(screen.queryByRole("button", { name: "Plan a Trip" })).not.toBeInTheDocument();
@@ -149,7 +156,7 @@ describe("ConciergeScreen action hub", () => {
       expect(card).not.toHaveClass("rounded-[22px]");
       expect(card).not.toHaveClass("min-h-[104px]");
     }
-    expect(screen.getByTestId("concierge-guided-hub")).toHaveTextContent("Groceries, pharmacy, food, essentials");
+    expect(screen.getByTestId("concierge-guided-hub")).toHaveTextContent("Food, pharmacy, needs");
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("button-concierge-fast-legal-advice")).toHaveTextContent("Get legal advice");
     expect(screen.getByTestId("button-concierge-fast-trip")).toHaveTextContent("Plan me a trip");
@@ -663,7 +670,8 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
 
     expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Find home service");
-    expect(screen.getByTestId("panel-appointment-home-service-summary")).toHaveTextContent("VYVA prepares the job.");
+    expect(screen.queryByTestId("panel-appointment-home-service-summary")).not.toBeInTheDocument();
+    expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
     expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("Find trusted options");
     expect(screen.getByTestId("button-appointment-start-home-service")).toBeDisabled();
 
@@ -706,6 +714,68 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What kind of electrical issue?");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Breaker trips");
     expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("Blocked drain");
+  });
+
+  it("asks other service users what service they need before urgency", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    fireEvent.click(screen.getByTestId("button-home-service-type-other"));
+
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What service do you need?");
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Next step");
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Step 1 of 5");
+    expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("How urgent is it?");
+    fireEvent.change(screen.getByPlaceholderText(/gardener/i), {
+      target: { value: "Pest control" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
+
+    expect(screen.getByTestId("panel-home-service-intake")).toHaveTextContent("Pest control");
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("How urgent is it?");
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Step 2 of 5");
+  });
+
+  it("prepares a Concierge request instead of showing raw feature-access errors for home service", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/appointments/requests")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.appointment_type).toBe("home-service");
+        expect(body.detail).toContain("Pest control needed");
+        return errorResponse(503, {
+          error: "Could not verify feature access",
+          code: "FEATURE_ACCESS_UNAVAILABLE",
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    fireEvent.click(screen.getByTestId("button-home-service-type-other"));
+    fireEvent.change(screen.getByPlaceholderText(/gardener/i), {
+      target: { value: "Pest control" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
+    fireEvent.change(screen.getByPlaceholderText(/water leaking/i), {
+      target: { value: "Wasps are near the front door" },
+    });
+    fireEvent.click(screen.getByTestId("button-home-service-answer-next"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
+    fireEvent.click(screen.getByTestId("button-home-service-answer-skip"));
+
+    expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
+    fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Request ready");
+    expect(prefill).toHaveTextContent("Pest control needed");
+    expect(prefill).toHaveTextContent("without my confirmation");
+    expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
   });
 
   it("turns a voice plumber payload into the same structured service intake", async () => {

@@ -14,6 +14,14 @@ describe("voice agent contracts", () => {
     expect(contract.id).toBe("main_vyva");
   });
 
+  it("selects the main VYVA contract from the Home agent slug", () => {
+    const contract = voiceAgentContractFor({
+      agentSlug: "main-vyva",
+    });
+
+    expect(contract.id).toBe("main_vyva");
+  });
+
   it("reports missing required keys", () => {
     const contract = voiceAgentContractFor({ domain: "health" });
     const validation = validateVoiceAgentContext(contract, {

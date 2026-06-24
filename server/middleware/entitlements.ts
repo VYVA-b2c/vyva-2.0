@@ -136,7 +136,11 @@ export function requireEntitlement(feature: EntitlementFeature) {
       next();
     } catch (error) {
       console.error("[entitlements] failed to resolve feature access", error);
-      res.status(500).json({ error: "Could not verify feature access" });
+      res.status(503).json({
+        error: "We could not verify access right now. Please try again.",
+        code: "FEATURE_ACCESS_UNAVAILABLE",
+        feature,
+      });
     }
   };
 }

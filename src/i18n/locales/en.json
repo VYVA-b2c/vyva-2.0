@@ -1748,27 +1748,27 @@
     },
     "primaryCards": {
       "service": {
-        "label": "Find a Service",
-        "mobile": "Service",
-        "sub": "Plumber, repairs, cleaning, care",
+        "label": "Find help",
+        "mobile": "Help",
+        "sub": "Repairs, cleaning, care",
         "mobileSub": "Repairs and care"
       },
       "ride": {
-        "label": "Book a Ride",
+        "label": "Book ride",
         "mobile": "Ride",
-        "sub": "Taxi, medical transport, getting home",
-        "mobileSub": "Taxi or transport"
+        "sub": "Taxi, transport, home",
+        "mobileSub": "Taxi or ride"
       },
       "delivery": {
-        "label": "Place Order",
+        "label": "Order food",
         "mobile": "Order",
-        "sub": "Groceries, pharmacy, food, essentials",
-        "mobileSub": "Food and essentials"
+        "sub": "Food, pharmacy, needs",
+        "mobileSub": "Food and needs"
       },
       "appointment": {
-        "label": "Book Appointment",
-        "mobile": "Appointment",
-        "sub": "Doctor, salon, government, restaurant",
+        "label": "Book visit",
+        "mobile": "Appt",
+        "sub": "Doctor, salon, office, dining",
         "mobileSub": "Doctor, salon, office"
       }
     },
