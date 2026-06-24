@@ -80,6 +80,12 @@ import {
   respondToReadingClubPlan,
   voteReadingClubPoll,
 } from "../lib/readingClubPulse.js";
+import {
+  askVyvaToCheckParticipationEvent,
+  buildParticipationPulse,
+  parseParticipationLanguage,
+  respondToParticipationEvent,
+} from "../lib/participation.js";
 import { normalizeAppLanguage } from "../../shared/language.js";
 
 type SocialLanguage = "es" | "de" | "en";
@@ -200,6 +206,17 @@ const planResponseSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
   response: z.enum(["join", "maybe", "not_for_me", "clear"]),
+});
+
+const participationResponseSchema = z.object({
+  lang: z.string().optional(),
+  response: z.enum(["interested", "maybe", "not_for_me", "clear"]),
+});
+
+const participationCheckSchema = z.object({
+  lang: z.string().optional(),
+  note: z.string().trim().max(360).optional(),
+  helperActions: z.array(z.enum(["check_details", "transport", "reminder", "bring_friend"])).max(4).optional(),
 });
 
 const planReplySchema = z.object({
@@ -2196,6 +2213,84 @@ router.get("/hub", async (req: Request, res: Response) => {
     alsoForYou,
     listRooms: activeRooms,
   });
+});
+
+function participationHintList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap(participationHintList);
+  }
+  if (typeof value !== "string") return [];
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+router.get("/participate/pulse", async (req: Request, res: Response) => {
+  const userId = resolvePublicUserId(req);
+  const profile = await loadProfileSummary(userId);
+  const language = parseParticipationLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const pulse = await buildParticipationPulse({
+    userId,
+    language,
+    hints: {
+      interests: participationHintList(req.query.interests ?? req.query.interest),
+      preferredTimes: participationHintList(req.query.preferredTimes ?? req.query.time),
+      city: typeof req.query.city === "string" ? req.query.city : undefined,
+      region: typeof req.query.region === "string" ? req.query.region : undefined,
+      countryCode: typeof req.query.countryCode === "string"
+        ? req.query.countryCode
+        : typeof req.query.country === "string"
+          ? req.query.country
+          : profile.countryCode ?? undefined,
+    },
+  });
+
+  return res.json({ pulse });
+});
+
+router.post("/participate/events/:eventId/respond", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = participationResponseSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  try {
+    const result = await respondToParticipationEvent({
+      userId,
+      eventId: req.params.eventId,
+      response: parsed.data.response,
+    });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return res.status(404).json({ error: error instanceof Error ? error.message : "Participation event not found" });
+  }
+});
+
+router.post("/participate/events/:eventId/ask-vyva", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = participationCheckSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  try {
+    const result = await askVyvaToCheckParticipationEvent({
+      userId,
+      eventId: req.params.eventId,
+      language: parseParticipationLanguage(parsed.data.lang),
+      note: parsed.data.note,
+      helperActions: parsed.data.helperActions,
+    });
+    return res.json(result);
+  } catch (error) {
+    return res.status(404).json({ error: error instanceof Error ? error.message : "Participation event not found" });
+  }
 });
 
 router.get("/rooms/:slug", async (req: Request, res: Response) => {

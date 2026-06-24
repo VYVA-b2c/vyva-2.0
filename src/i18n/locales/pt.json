@@ -1630,7 +1630,31 @@
       "shop": "Comprar",
       "book": "Reservar",
       "order": "Encomendar",
-      "save": "Poupar"
+      "save": "Poupar",
+      "service": {
+        "label": "Encontrar servico",
+        "mobile": "Servico",
+        "sub": "Canalizador, reparacoes, limpeza, cuidados",
+        "mobileSub": "Reparacoes e cuidados"
+      },
+      "ride": {
+        "label": "Reservar transporte",
+        "mobile": "Transporte",
+        "sub": "Taxi, transporte medico, voltar para casa",
+        "mobileSub": "Taxi ou transporte"
+      },
+      "delivery": {
+        "label": "Fazer encomenda",
+        "mobile": "Encomenda",
+        "sub": "Mercearia, farmacia, comida, essenciais",
+        "mobileSub": "Comida e essenciais"
+      },
+      "appointment": {
+        "label": "Marcar consulta",
+        "mobile": "Consulta",
+        "sub": "Medico, salao, servicos publicos, restaurante",
+        "mobileSub": "Medico, salao, servicos"
+      }
     },
     "quickPrompts": {
       "findBestDeals": "Encontrar as melhores ofertas",
@@ -1654,6 +1678,64 @@
         "ride": {
           "label": "Reservar viagem",
           "sub": "Organizar transporte seguro"
+        },
+        "legal-advice": {
+          "label": "Obter aconselhamento juridico",
+          "sub": "Compreender opcoes antes de agir",
+          "mobileSub": "Conhecer opcoes"
+        },
+        "trip": {
+          "label": "Planear uma viagem",
+          "sub": "Rotas, horarios, visitas, lembretes",
+          "mobileSub": "Rotas e lembretes"
+        },
+        "care": {
+          "label": "Encontrar o melhor cuidado",
+          "sub": "Comparar apoio e cuidado seguros",
+          "mobileSub": "Cuidado e apoio"
+        },
+        "form": {
+          "label": "Preencher formulario",
+          "sub": "Preparar respostas, parar antes de enviar",
+          "mobileSub": "Preparar respostas"
+        },
+        "research": {
+          "label": "Pesquisar um tema",
+          "sub": "Resumir fontes e proximos passos",
+          "mobileSub": "Fontes e passos"
+        },
+        "best-deal": {
+          "label": "Encontrar a melhor oferta",
+          "sub": "Comparar preco, confianca e ajuste",
+          "mobileSub": "Comparar opcoes"
+        },
+        "age-at-home": {
+          "label": "Envelhecer bem em casa",
+          "sub": "Planear apoio domestico mais seguro",
+          "mobileSub": "Apoio em casa seguro"
+        }
+      }
+    },
+    "moreHelp": {
+      "kicker": "Mais ajuda Concierge",
+      "title": "Outras coisas que a VYVA pode preparar",
+      "titleMobile": "Outras tarefas",
+      "actions": {
+        "compare-save": {
+          "label": "Comparar e poupar",
+          "sub": "Contas, ofertas, planos"
+        },
+        "paperwork": {
+          "label": "Ajuda com documentos",
+          "sub": "Formularios, cartas, documentos"
+        },
+        "message": {
+          "label": "Enviar mensagem",
+          "sub": "Redigir, rever, confirmar"
+        },
+        "offer": {
+          "label": "Verificar uma oferta",
+          "sub": "Preco, confianca, condicoes"
         }
       }
     },

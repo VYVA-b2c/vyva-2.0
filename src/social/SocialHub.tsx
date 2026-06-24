@@ -124,7 +124,7 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           match: "Encuentra una conexion amable.",
           socialise: "Explora las salas abiertas.",
           share: "Comparte un recuerdo o una idea.",
-          participate: "Unete a una actividad compartida.",
+          participate: "Eventos y clases elegidos para ti.",
         }[card.id],
         mobileDescription: {
           match: "Buena conexion",
@@ -148,7 +148,7 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           match: "Finde eine freundliche Verbindung.",
           socialise: "Entdecke offene Raeume.",
           share: "Teile eine Erinnerung oder Idee.",
-          participate: "Mach bei einer gemeinsamen Aktivitaet mit.",
+          participate: "Kuratierte Veranstaltungen und Kurse fuer dich.",
         }[card.id],
         mobileDescription: {
           match: "Nette Verbindung",
@@ -171,7 +171,7 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
         match: "Find a kind connection.",
         socialise: "Browse open rooms.",
         share: "Share a memory, song, or thought.",
-        participate: "Join a game, chat, or shared activity.",
+        participate: "Curated events, classes, and outings chosen for you.",
       }[card.id],
       mobileDescription: {
         match: "Find someone kind",
@@ -332,17 +332,14 @@ function getFastHelpRoomCopy(room: SocialRoom, language: SocialLanguage): FastHe
 
 type SocialPrimaryCardViewProps = {
   card: SocialPrimaryCard;
+  onSelect?: () => void;
 };
 
-function SocialPrimaryCardView({ card }: SocialPrimaryCardViewProps) {
+function SocialPrimaryCardContent({ card }: { card: SocialPrimaryCard }) {
   const Icon = card.Icon;
 
   return (
-    <article
-      data-testid={`card-social-primary-${card.id}`}
-      className="min-h-[132px] rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] px-5 py-5 shadow-[0_14px_30px_rgba(60,38,20,0.07)]"
-      style={{ boxShadow: `0 16px 34px ${card.glow}, 0 2px 10px rgba(43,31,24,0.05)` }}
-    >
+    <>
       <div
         className="flex h-14 w-14 items-center justify-center rounded-[18px]"
         style={{ background: card.iconBg, color: card.iconColor }}
@@ -356,6 +353,35 @@ function SocialPrimaryCardView({ card }: SocialPrimaryCardViewProps) {
         <span className="sm:hidden">{card.mobileDescription}</span>
         <span className="hidden sm:inline">{card.description}</span>
       </p>
+    </>
+  );
+}
+
+function SocialPrimaryCardView({ card, onSelect }: SocialPrimaryCardViewProps) {
+  const cardClassName = "min-h-[132px] rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] px-5 py-5 text-left shadow-[0_14px_30px_rgba(60,38,20,0.07)]";
+  const cardStyle = { boxShadow: `0 16px 34px ${card.glow}, 0 2px 10px rgba(43,31,24,0.05)` };
+
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        data-testid={`card-social-primary-${card.id}`}
+        onClick={onSelect}
+        className={`vyva-tap w-full transition-transform hover:-translate-y-0.5 active:scale-[0.99] ${cardClassName}`}
+        style={cardStyle}
+      >
+        <SocialPrimaryCardContent card={card} />
+      </button>
+    );
+  }
+
+  return (
+    <article
+      data-testid={`card-social-primary-${card.id}`}
+      className={cardClassName}
+      style={cardStyle}
+    >
+      <SocialPrimaryCardContent card={card} />
     </article>
   );
 }
@@ -665,7 +691,11 @@ const SocialHub = () => {
       <section className="mt-[22px]" data-testid="social-primary-cards">
         <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           {entryCopy.cards.map((card) => (
-            <SocialPrimaryCardView key={card.id} card={card} />
+            <SocialPrimaryCardView
+              key={card.id}
+              card={card}
+              onSelect={card.id === "participate" ? () => navigate("/social-rooms/participate") : undefined}
+            />
           ))}
         </div>
       </section>

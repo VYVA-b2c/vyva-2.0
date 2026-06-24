@@ -332,8 +332,8 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-path-vote")).toHaveTextContent("The room only sees totals.");
     expect(screen.getByTestId("together-path-view")).toHaveTextContent("Share a view");
     expect(screen.getByTestId("together-path-view")).toHaveTextContent("VYVA review stays nearby.");
-    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("Help the activity");
-    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("choose one small helper action.");
+    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("Events for you");
+    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("curated Participate recommendations");
     expect(screen.getByTestId("together-participation-path")).toHaveTextContent(
       "Looking first is welcome. No path shares private contact.",
     );
@@ -846,6 +846,24 @@ describe("TogetherRoomScreen", () => {
     } finally {
       Element.prototype.scrollIntoView = originalScrollIntoView;
     }
+  });
+
+  it("opens curated Participate recommendations from the activity path when provided", () => {
+    const onOpenParticipate = vi.fn();
+
+    render(
+      <TogetherRoomScreen
+        roomResponse={roomResponse}
+        language="en"
+        visitId="visit-1"
+        onBack={vi.fn()}
+        onOpenParticipate={onOpenParticipate}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("together-path-activity"));
+
+    expect(onOpenParticipate).toHaveBeenCalledTimes(1);
   });
 
   it("opens a safe room trust check with VYVA", () => {
