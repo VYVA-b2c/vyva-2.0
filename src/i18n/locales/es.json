@@ -349,11 +349,11 @@
         "openLabel": "Abrir bienestar"
       },
       "cognitive": {
-        "title": "Mi mente",
-        "subtitle": "Foco, memoria y calma",
-        "bubble": "Un ratito conmigo mantiene tu mente en forma.",
-        "micLabel": "Empezar ejercicio mental",
-        "openLabel": "Abrir mente ágil"
+        "title": "Actividades",
+        "subtitle": "Eventos, clases y planes tranquilos",
+        "bubble": "Puedo encontrar planes seguros que encajen contigo.",
+        "micLabel": "Buscar actividades",
+        "openLabel": "Abrir actividades"
       },
       "social": {
         "title": "Mi comunidad",
@@ -1760,8 +1760,8 @@
         "mobileSub": "Taxi o traslado"
       },
       "delivery": {
-        "label": "Pedir a domicilio",
-        "mobile": "Domicilio",
+        "label": "Hacer un pedido",
+        "mobile": "Pedido",
         "sub": "Compra, farmacia, comida, esenciales",
         "mobileSub": "Comida y esenciales"
       },
@@ -1770,18 +1770,6 @@
         "mobile": "Cita",
         "sub": "Medico, peluqueria, tramite, restaurante",
         "mobileSub": "Medico, salon, tramite"
-      },
-      "trip": {
-        "label": "Planear un viaje",
-        "mobile": "Viaje",
-        "sub": "Viajes, visitas, rutas, recordatorios",
-        "mobileSub": "Viajes y visitas"
-      },
-      "events": {
-        "label": "Buscar eventos",
-        "mobile": "Eventos",
-        "sub": "Actividades, clases, salidas cercanas",
-        "mobileSub": "Actividades cerca"
       }
     },
     "quickPrompts": {
@@ -1795,17 +1783,40 @@
       "doctorContext": "Solicitud de ayuda medica desde Concierge. Pregunta que esta pasando y ayuda a preparar un siguiente paso seguro.",
       "ridePrefill": "Ayudame a organizar transporte seguro. Pregunta destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion.",
       "actions": {
-        "doctor": {
-          "label": "Encontrar un proveedor de confianza",
-          "sub": "Ayuda para elegir la atencion adecuada"
+        "legal-advice": {
+          "label": "Orientacion legal",
+          "sub": "Entender opciones antes de actuar",
+          "mobileSub": "Entender opciones"
         },
-        "appointment": {
-          "label": "Reservar cita",
-          "sub": "Preparar una solicitud para confirmar"
+        "trip": {
+          "label": "Planear mi viaje",
+          "sub": "Rutas, horarios, visitas, recordatorios",
+          "mobileSub": "Rutas y recordatorios"
         },
-        "ride": {
-          "label": "Reservar transporte",
-          "sub": "Organizar traslado seguro"
+        "care": {
+          "label": "Encontrar el mejor cuidado",
+          "sub": "Comparar atencion y apoyo seguros",
+          "mobileSub": "Atencion y apoyo"
+        },
+        "form": {
+          "label": "Rellenar un formulario",
+          "sub": "Preparar respuestas y parar antes de enviar",
+          "mobileSub": "Preparar respuestas"
+        },
+        "research": {
+          "label": "Investigar un tema",
+          "sub": "Resumir fuentes y proximos pasos",
+          "mobileSub": "Fuentes y pasos"
+        },
+        "best-deal": {
+          "label": "Encontrar la mejor oferta",
+          "sub": "Comparar precio, confianza y encaje",
+          "mobileSub": "Comparar opciones"
+        },
+        "age-at-home": {
+          "label": "Envejecer con gracia en casa",
+          "sub": "Planear apoyo seguro en casa",
+          "mobileSub": "Apoyo en casa"
         }
       }
     },
