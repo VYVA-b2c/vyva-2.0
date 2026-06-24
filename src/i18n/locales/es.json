@@ -1749,13 +1749,13 @@
     "primaryCards": {
       "service": {
         "label": "Buscar un servicio",
-        "mobile": "Servicio",
+        "mobile": "Ayuda",
         "sub": "Fontanero, reparaciones, limpieza, cuidados",
         "mobileSub": "Reparaciones y cuidados"
       },
       "ride": {
         "label": "Reservar transporte",
-        "mobile": "Transporte",
+        "mobile": "Taxi",
         "sub": "Taxi, transporte medico, volver a casa",
         "mobileSub": "Taxi o traslado"
       },

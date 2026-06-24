@@ -87,11 +87,11 @@ export function ActionCard({
         </div>
 
         <div className="min-w-0">
-          <span className="block font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [overflow-wrap:anywhere]">
+          <span className="block font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [hyphens:none] [overflow-wrap:normal] [word-break:normal]">
             {title}
           </span>
           {description ? (
-            <span className="mt-2 block font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:anywhere]">
+            <span className="mt-2 block font-body text-[14px] font-medium leading-snug text-vyva-text-2 [hyphens:none] [overflow-wrap:normal] [word-break:normal]">
               {description}
             </span>
           ) : null}

@@ -1753,13 +1753,13 @@
       "save": "Risparmia",
       "service": {
         "label": "Trova un servizio",
-        "mobile": "Servizio",
+        "mobile": "Aiuto",
         "sub": "Idraulico, riparazioni, pulizie, assistenza",
         "mobileSub": "Riparazioni e assistenza"
       },
       "ride": {
         "label": "Prenota un trasporto",
-        "mobile": "Trasporto",
+        "mobile": "Taxi",
         "sub": "Taxi, trasporto medico, rientro a casa",
         "mobileSub": "Taxi o trasporto"
       },
@@ -1771,7 +1771,7 @@
       },
       "appointment": {
         "label": "Prenota appuntamento",
-        "mobile": "Appuntamento",
+        "mobile": "Visita",
         "sub": "Medico, salone, ufficio pubblico, ristorante",
         "mobileSub": "Medico, salone, ufficio"
       }

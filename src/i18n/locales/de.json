@@ -1633,7 +1633,7 @@
       "save": "Sparen",
       "service": {
         "label": "Service finden",
-        "mobile": "Service",
+        "mobile": "Hilfe",
         "sub": "Klempner, Reparaturen, Reinigung, Pflege",
         "mobileSub": "Reparaturen und Pflege"
       },
@@ -1645,7 +1645,7 @@
       },
       "delivery": {
         "label": "Bestellung aufgeben",
-        "mobile": "Bestellung",
+        "mobile": "Essen",
         "sub": "Lebensmittel, Apotheke, Essen, Bedarf",
         "mobileSub": "Essen und Bedarf"
       },
