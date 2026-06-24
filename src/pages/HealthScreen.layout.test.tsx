@@ -77,7 +77,7 @@ vi.mock("@/components/VoiceHero", () => ({
   },
 }));
 
-function renderHealthScreen() {
+function renderHealthScreen(initialEntries = ["/health"]) {
   const client = new QueryClient({
     defaultOptions: {
       queries: {
@@ -104,7 +104,7 @@ function renderHealthScreen() {
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <HealthScreen />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -172,5 +172,11 @@ describe("HealthScreen home-style layout", () => {
     fireEvent.click(screen.getByTestId("button-health-fast-visual-scan"));
     expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("section-health-visual-scan")).toBeInTheDocument();
+  });
+
+  it("opens the specialist provider finder from the specialist URL flag", () => {
+    renderHealthScreen(["/health?specialist=1"]);
+
+    expect(screen.getByTestId("section-health-specialist")).toBeInTheDocument();
   });
 });
