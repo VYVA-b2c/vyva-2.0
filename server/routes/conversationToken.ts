@@ -141,11 +141,29 @@ const SOCIAL_AGENT_ENV_KEYS: Record<string, string[]> = {
 };
 
 const TOP_LEVEL_AGENT_ENV_KEYS: Record<string, string[]> = {
-  vyva: ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  "main-vyva": ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  main_vyva: ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID"],
-  "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID"],
+  vyva: [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  "main-vyva": [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  main_vyva: [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
+  "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
   doctor: ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   "medical-doctor": ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   meds: ["ELEVENLABS_MEDS_AGENT_ID", "ELEVENLABS_MEDICATION_AGENT_ID", "ELEVENLABS_MEDICATIONS_AGENT_ID"],
@@ -172,8 +190,10 @@ const FIXED_AGENT_IDS: Record<string, string> = {
 };
 
 const DEFAULT_AGENT_ENV_KEYS = [
+  "ELEVENLABS_COMPANION_AGENT_ID",
   "ELEVENLABS_SOCIAL_AGENT_ID",
   "ELEVENLABS_AGENT_ID",
+  "VITE_ELEVENLABS_COMPANION_AGENT_ID",
   "VITE_ELEVENLABS_SOCIAL_AGENT_ID",
   "VITE_ELEVENLABS_AGENT_ID",
 ];
@@ -211,7 +231,7 @@ function buildRoomAgentKeys(roomSlug: string, agentSlug?: string) {
   return [...new Set(keys)];
 }
 
-function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
+export function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
   const normalizedAgentSlug = normalizeSlug(agentSlug);
   const normalizedRoomSlug = normalizeSlug(roomSlug);
   const canonicalRoomSlug = normalizedRoomSlug ? resolveSocialRoomSlug(normalizedRoomSlug) : undefined;
