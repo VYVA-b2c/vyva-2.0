@@ -282,7 +282,7 @@ const en = {
       actions: {
         bookTransport: "Arrange ride",
         bookTransportSub: "VYVA can arrange the ride.",
-        ridePrefill: "Please help me find safe transport options for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        ridePrefill: "Please help me arrange a ride for a medical appointment. Check saved drivers first and ask me to confirm before contacting anyone.\n\n{{context}}",
       },
     },
     vitalsPage: {
@@ -531,7 +531,7 @@ const en = {
           requestQuote: "Request quote",
           aria: "{{action}} for: {{recommendation}}",
           emailSubject: "VYVA symptom report",
-          ridePrefill: "Please help me find safe transport options for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
+          ridePrefill: "Please help me arrange a ride for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before contacting anyone.",
           appointmentPrefill: "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
           hydrationPrefill: "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
           quotePrefill: "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.",
@@ -1278,12 +1278,12 @@ const en = {
         label: "Arrange ride",
         sub: "VYVA can arrange the ride.",
       },
-      ridePrefill: "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+      ridePrefill: "Please help me arrange a ride. Ask for destination and timing, check saved drivers first, and do not contact anyone without my confirmation.",
     },
   },
   concierge: {
     fastHelp: {
-      ridePrefill: "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+      ridePrefill: "Please help me arrange a ride. Ask for destination and timing, check saved drivers first, and do not contact anyone without my confirmation.",
       actions: {
         ride: {
           label: "Arrange ride",
@@ -1295,12 +1295,12 @@ const en = {
   activity: {
     bookRide: "Arrange ride",
     bookRideSub: "VYVA can arrange the ride.",
-    ridePrefill: "Please help me find safe transport options for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
+    ridePrefill: "Please help me arrange a ride for a {{duration}} minute {{activity}} activity. Ask me to confirm before contacting anyone.",
   },
   statusVitals: {
     actions: {
       ride: "Arrange ride",
-      ridePrefill: "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking.",
+      ridePrefill: "Please help me arrange a ride based on my VYVA vitals. Ask me to confirm before contacting anyone.",
     },
   },
   informes: {
@@ -1314,7 +1314,7 @@ const en = {
       prepareRefill: "Prepare refill",
       vitalsContext: "Latest VYVA vitals: pulse {{bpm}} bpm{{resp}}. Please help me decide the safest next step.",
       vitalsAppointmentPrefill: "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
-      vitalsRidePrefill: "Please help me find safe transport options for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
+      vitalsRidePrefill: "Please help me arrange a ride for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before contacting anyone.",
       medsContext: "Today's medication status: {{taken}} of {{total}} taken, {{pending}} still pending.",
       medsRefillPrefill: "Please help me prepare a safe pharmacy refill or delivery based on this medication status: {{context}} Ask me to confirm before ordering or paying.",
       medsDoctorContext: "VYVA medication support request. {{context}} Please help me decide if I should contact my doctor or pharmacist.",

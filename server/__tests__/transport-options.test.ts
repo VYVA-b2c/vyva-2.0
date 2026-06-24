@@ -93,6 +93,51 @@ describe("transport options resolver", () => {
     expect(result.options[0].description).toContain("trusted driver");
   });
 
+  it("matches a family visit to the saved family driver before taxi providers", async () => {
+    const result = await resolveTransportOptions("user-1", {
+      destination: { name: "Daughter Maria", address: "Maria's home, Madrid" },
+      requestedTime: "tomorrow 16:00",
+      purpose: "family_visit",
+    }, deps({
+      loadSavedProviders: vi.fn(async () => [
+        {
+          id: "provider-taxi",
+          name: "Radio Taxi Familiar",
+          phone: "+34 612 345 678",
+          address: "Madrid",
+          maps_url: "https://maps.example/taxi",
+          notes: "Trusted taxi",
+          category: "taxi",
+        },
+        {
+          id: "provider-family",
+          name: "Ahmed family driver",
+          phone: "+34 600 111 222",
+          address: "Madrid",
+          maps_url: null,
+          notes: "Daughter visits and family outings",
+          category: "family_driver",
+          metadata: { ride_purposes: ["family_visit"], people: ["daughter"] },
+        },
+      ]),
+      searchLocalProviders: vi.fn(async () => [{
+        name: "City Taxi",
+        phone: "+34 600 000 000",
+        address: "Madrid",
+        maps_url: "https://maps.example/city",
+        place_id: "city-taxi",
+      }]),
+    }));
+
+    expect(result.options[0]).toMatchObject({
+      kind: "caregiver",
+      label: "Ahmed family driver",
+      phone: "+34 600 111 222",
+      matchStrength: "direct",
+    });
+    expect(result.options[0].matchReason).toMatch(/daughter|family/i);
+  });
+
   it("falls back to manual Concierge help in an unknown market", async () => {
     const result = await resolveTransportOptions("user-1", {
       destination: { address: "Local clinic" },

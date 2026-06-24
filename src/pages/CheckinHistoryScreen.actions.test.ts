@@ -146,7 +146,7 @@ describe("saved check-in service actions", () => {
       state: {
         conciergePrefill: {
           kind: "ride",
-          message: expect.stringContaining("find safe transport options"),
+          message: expect.stringContaining("arrange a ride"),
           source: "daily_checkin",
         },
       },

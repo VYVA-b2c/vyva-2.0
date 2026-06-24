@@ -143,7 +143,7 @@ export function sharedCheckinServiceActionsFor(result: SharedCheckinResult, name
           kind: "ride",
           message: isSpanish
             ? `Ayudame a preparar transporte seguro para atencion basada en este informe compartido de VYVA. Confirma conmigo antes de reservar.\n\n${context}`
-            : `Please help me find safe transport options for care based on this shared VYVA report. Ask me to confirm before contacting anyone.\n\n${context}`,
+            : `Please help me arrange a ride for care based on this shared VYVA report. Ask me to confirm before contacting anyone.\n\n${context}`,
           source: "shared_checkin",
         },
       },

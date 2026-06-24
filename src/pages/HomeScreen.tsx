@@ -287,7 +287,7 @@ const HomeScreen = () => {
         conciergePrefill: {
           kind: isRide ? "ride" : "appointment",
           message: isRide
-            ? t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.")
+            ? t("home.fastHelp.ridePrefill", "Please help me arrange a ride. Ask for destination and timing, check saved drivers first, and do not contact anyone without my confirmation.")
             : t("home.fastHelp.appointmentPrefill", "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation."),
           source: "home_quick_action",
         },

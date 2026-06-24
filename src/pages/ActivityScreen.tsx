@@ -776,7 +776,7 @@ const ActivityScreen = () => {
     const message = kind === "ride"
       ? t(
         "activity.ridePrefill",
-        "Please help me find safe transport options for a {{duration}} minute {{activity}} activity. Ask me to confirm before contacting anyone.",
+        "Please help me arrange a ride for a {{duration}} minute {{activity}} activity. Ask me to confirm before contacting anyone.",
         { duration, activity: selectedLabel },
       )
       : t(

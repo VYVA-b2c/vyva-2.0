@@ -2143,6 +2143,7 @@ export const rideRequests = pgTable("ride_requests", {
   provider_snapshot:      jsonb("provider_snapshot").notNull().default({}),
   plan_summary:           text("plan_summary"),
   source:                 text("source").notNull().default("concierge"),
+  ride_purpose:           text("ride_purpose"),
   metadata:               jsonb("metadata").notNull().default({}),
   language:               text("language").notNull().default("es"),
   created_at:             timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

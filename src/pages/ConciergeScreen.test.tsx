@@ -579,7 +579,8 @@ describe("ConciergeScreen action hub", () => {
       if (String(url).includes("/api/transport/ride-requests")) {
         expect(init?.method).toBe("POST");
         const body = JSON.parse(String(init?.body));
-        expect(body.destination.address).toBe("Heart Clinic Madrid");
+        expect(body.destination.address).toBe("Daughter Maria");
+        expect(body.purpose).toBe("family_visit");
         return jsonResponse({
           ride_request: { id: "ride-request-1", status: "needs_confirmation" },
           market: { countryCode: "ES", city: "Madrid" },
@@ -601,8 +602,10 @@ describe("ConciergeScreen action hub", () => {
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-fast-ride"));
 
+    expect(screen.getByTestId("transport-purpose-options")).toHaveTextContent("Visit family");
+    fireEvent.click(screen.getByTestId("button-transport-purpose-family_visit"));
     fireEvent.change(screen.getByTestId("input-transport-destination"), {
-      target: { value: "Heart Clinic Madrid" },
+      target: { value: "Daughter Maria" },
     });
     fireEvent.click(screen.getByTestId("button-transport-find-options"));
 

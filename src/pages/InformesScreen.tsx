@@ -839,7 +839,7 @@ export function InformesMain() {
     const key = kind === "appointment" ? "informes.actions.vitalsAppointmentPrefill" : "informes.actions.vitalsRidePrefill";
     const fallback = kind === "appointment"
       ? "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking."
-      : "Please help me find safe transport options for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before contacting anyone.";
+      : "Please help me arrange a ride for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before contacting anyone.";
     navigate("/concierge", {
       state: {
         conciergePrefill: {

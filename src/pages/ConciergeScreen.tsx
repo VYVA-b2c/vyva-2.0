@@ -55,6 +55,7 @@ type ConciergeRoutePrefill = {
   destinationName?: string;
   destinationAddress?: string;
   scheduledFor?: string;
+  ridePurpose?: TransportPurpose;
 };
 
 type ConciergeLocationState = {
@@ -141,6 +142,14 @@ type TransportOptionKind =
   | "caregiver"
   | "concierge_manual";
 
+type TransportPurpose =
+  | "medical"
+  | "family_visit"
+  | "errand"
+  | "social"
+  | "return_home"
+  | "other";
+
 interface TransportOption {
   id: string;
   kind: TransportOptionKind;
@@ -150,6 +159,8 @@ interface TransportOption {
   phone?: string;
   url?: string;
   actions: TransportAction[];
+  matchReason?: string;
+  matchStrength?: "direct" | "general" | "fallback";
 }
 
 interface TransportOptionsResponse {
@@ -561,6 +572,14 @@ const TRANSPORT_MOBILITY_NEEDS = [
   { value: "Low walking distance", en: "Low walking", es: "Caminar poco" },
 ] as const;
 
+const TRANSPORT_PURPOSE_OPTIONS: Array<{ value: TransportPurpose; en: string; es: string }> = [
+  { value: "medical", en: "Appointment", es: "Cita" },
+  { value: "family_visit", en: "Visit family", es: "Ver familia" },
+  { value: "errand", en: "Errand", es: "Recado" },
+  { value: "social", en: "Going out", es: "Salida" },
+  { value: "return_home", en: "Home", es: "Casa" },
+];
+
 async function callConcierge(
   prompt: string,
   history: ChatMessage[],
@@ -663,10 +682,41 @@ async function markAppointmentBooked(params: {
   return await res.json() as { scheduled_event?: unknown };
 }
 
+function chooseTransportOption(options: TransportOption[]): TransportOption | undefined {
+  return options.find((entry) => (
+    (entry.kind === "caregiver" || entry.kind === "saved_provider") &&
+    entry.actions.includes("start_concierge_action")
+  ))
+    ?? options.find((entry) => (
+      (entry.kind === "local_taxi" || entry.kind === "medical_transport") &&
+      entry.actions.includes("start_concierge_action")
+    ))
+    ?? options.find((entry) => entry.kind === "concierge_manual")
+    ?? options.find((entry) => entry.actions.includes("start_concierge_action"))
+    ?? options[0];
+}
+
+function inferTransportPurpose(prefill: ConciergeRoutePrefill | null): TransportPurpose {
+  if (!prefill || prefill.kind !== "ride") return "other";
+  if (prefill.ridePurpose) return prefill.ridePurpose;
+  if (prefill.scheduledEventId || prefill.appointmentRequestId) return "medical";
+  const text = [
+    prefill.message,
+    prefill.destinationName,
+    prefill.destinationAddress,
+  ].filter(Boolean).join(" ").toLowerCase();
+  if (/\b(daughter|son|family|mum|mom|mother|father|dad|hija|hijo|familia)\b/.test(text)) return "family_visit";
+  if (/\b(pharmacy|farmacia|grocery|groceries|shopping|errand|supermarket|recado|compra)\b/.test(text)) return "errand";
+  if (/\b(restaurant|church|club|friend|social|restaurante|iglesia|amigo)\b/.test(text)) return "social";
+  if (/\b(return home|back home|home|casa|volver)\b/.test(text)) return "return_home";
+  return "other";
+}
+
 async function arrangeTransportRide(params: {
   pickupAddress: string;
   destinationAddress: string;
   requestedTime: string;
+  purpose: TransportPurpose;
   mobilityNeeds: string[];
   locale: string;
   scheduledEventId?: string;
@@ -678,7 +728,7 @@ async function arrangeTransportRide(params: {
       pickup: params.pickupAddress.trim() ? { address: params.pickupAddress.trim() } : undefined,
       destination: params.destinationAddress.trim() ? { address: params.destinationAddress.trim() } : undefined,
       requestedTime: params.requestedTime.trim() || "now",
-      purpose: "medical",
+      purpose: params.purpose,
       mobilityNeeds: params.mobilityNeeds,
       language: params.locale,
       scheduledEventId: params.scheduledEventId,
@@ -695,7 +745,7 @@ async function arrangeTransportRide(params: {
   if (!created.ride_request?.id) {
     throw new Error("Could not prepare ride request");
   }
-  const option = created.options.find((entry) => entry.actions.includes("start_concierge_action")) ?? created.options[0];
+  const option = chooseTransportOption(created.options);
 
   const confirmRes = await apiFetch(`/api/transport/ride-requests/${created.ride_request.id}/confirm`, {
     method: "POST",
@@ -1266,6 +1316,7 @@ const ConciergeScreen = () => {
   const [transportPickup, setTransportPickup] = useState("");
   const [transportDestination, setTransportDestination] = useState("");
   const [transportTime, setTransportTime] = useState("now");
+  const [transportPurpose, setTransportPurpose] = useState<TransportPurpose>("other");
   const [transportMobilityNeeds, setTransportMobilityNeeds] = useState<string[]>([]);
   const [transportDetailsOpen, setTransportDetailsOpen] = useState(false);
   const [transportError, setTransportError] = useState<string | null>(null);
@@ -1482,6 +1533,7 @@ const ConciergeScreen = () => {
       pickupAddress: transportPickup,
       destinationAddress: transportDestination,
       requestedTime: transportTime,
+      purpose: transportPurpose,
       mobilityNeeds: transportMobilityNeeds,
       locale,
       scheduledEventId: routePrefill?.kind === "ride" ? routePrefill.scheduledEventId : undefined,
@@ -1565,6 +1617,7 @@ const ConciergeScreen = () => {
       setTransportError(null);
       setTransportNotice(null);
       setTransportTime(prefill.scheduledFor ?? "now");
+      setTransportPurpose(inferTransportPurpose(nextPrefill));
       setTransportDetailsOpen(false);
     }
 
@@ -1707,12 +1760,13 @@ const ConciergeScreen = () => {
   function prepareRideRequest() {
     const message = t(
       "concierge.fastHelp.ridePrefill",
-      "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+      "Please help me arrange a ride. Ask for destination and timing, check saved drivers first, and do not contact anyone without my confirmation.",
     );
     setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
     setInput((current) => current.trim() ? current : message);
     setTransportPickup(savedTransportPickupLabel);
     setTransportDestination("");
+    setTransportPurpose("other");
     setTransportMobilityNeeds([]);
     setTransportError(null);
     setTransportNotice(null);
@@ -2389,6 +2443,32 @@ const ConciergeScreen = () => {
                   >
                     {isSpanish ? "Ahora" : "Now"}
                   </button>
+                </div>
+
+                <div className="mt-3">
+                  <p className="mb-2 font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                    {isSpanish ? "Tipo de viaje" : "Ride type"}
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto pb-1" data-testid="transport-purpose-options">
+                    {TRANSPORT_PURPOSE_OPTIONS.map((purpose) => {
+                      const selected = transportPurpose === purpose.value;
+                      return (
+                        <button
+                          key={purpose.value}
+                          type="button"
+                          onClick={() => setTransportPurpose(purpose.value)}
+                          data-testid={`button-transport-purpose-${purpose.value}`}
+                          className={`vyva-tap min-h-[38px] flex-shrink-0 rounded-full border px-3 font-body text-[12px] font-black ${
+                            selected
+                              ? "border-[#047857] bg-[#ECFDF5] text-[#047857]"
+                              : "border-[#E8DED4] bg-white text-vyva-text-2"
+                          }`}
+                        >
+                          {isSpanish ? purpose.es : purpose.en}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <button

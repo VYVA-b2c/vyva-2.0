@@ -1710,7 +1710,7 @@ const SignosScreen = () => {
       appointment: t("statusVitals.actions.appointment", "Book appointment"),
       ride: t("statusVitals.actions.ride", "Arrange ride"),
       appointmentPrefill: t("statusVitals.actions.appointmentPrefill", "Please help me schedule a doctor appointment based on my VYVA vitals. Ask me to confirm before booking."),
-      ridePrefill: t("statusVitals.actions.ridePrefill", "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking."),
+      ridePrefill: t("statusVitals.actions.ridePrefill", "Please help me arrange a ride based on my VYVA vitals. Ask me to confirm before contacting anyone."),
     },
   }), [profile?.gpEmail, profile?.gpName, profile?.gpPhone, statusSummaryText, t]);
   const compactStatusServiceActions = useMemo(() => {

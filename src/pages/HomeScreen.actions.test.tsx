@@ -48,7 +48,7 @@ const labels: Record<string, string> = {
   "home.fastHelp.ride.sub": "VYVA can arrange the ride.",
   "home.fastHelp.doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
   "home.fastHelp.appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
-  "home.fastHelp.ridePrefill": "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+  "home.fastHelp.ridePrefill": "Please help me arrange a ride. Ask for destination and timing, check saved drivers first, and do not contact anyone without my confirmation.",
   "meds.callGpNamed": "Call {{name}}",
   "meds.callGp": "Call GP",
   "meds.callGpSub": "Speak to your practice now.",
@@ -159,7 +159,7 @@ describe("Home fast service actions", () => {
       state: {
         conciergePrefill: {
           kind: "ride",
-          message: "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+          message: "Please help me arrange a ride. Ask for destination and timing, check saved drivers first, and do not contact anyone without my confirmation.",
           source: "home_quick_action",
         },
       },

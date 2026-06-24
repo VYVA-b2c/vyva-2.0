@@ -157,7 +157,7 @@ describe("daily check-in service action navigation", () => {
       state: {
         conciergePrefill: {
           kind: "ride",
-          message: "Please help me find safe transport options for care based on today's VYVA check-in. Ask me to confirm before contacting anyone.\n\nDizzy today",
+          message: "Please help me arrange a ride for care based on today's VYVA check-in. Ask me to confirm before contacting anyone.\n\nDizzy today",
           source: "daily_checkin",
         },
       },

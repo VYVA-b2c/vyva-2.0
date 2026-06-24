@@ -14,6 +14,16 @@ export type TransportOptionKind =
   | "caregiver"
   | "concierge_manual";
 
+export type TransportPurpose =
+  | "medical"
+  | "family_visit"
+  | "errand"
+  | "social"
+  | "return_home"
+  | "other";
+
+export type TransportMatchStrength = "direct" | "general" | "fallback";
+
 export interface TransportPoint {
   address?: string;
   lat?: number;
@@ -25,7 +35,7 @@ export interface TransportOptionsRequest {
   pickup?: TransportPoint;
   destination?: TransportPoint;
   requestedTime?: "now" | string;
-  purpose?: "medical" | "errand" | "social" | "other";
+  purpose?: TransportPurpose;
   mobilityNeeds?: string[];
   language?: string;
 }
@@ -45,6 +55,8 @@ export interface TransportOption {
   phone?: string;
   url?: string;
   actions: TransportAction[];
+  matchReason?: string;
+  matchStrength?: TransportMatchStrength;
 }
 
 export interface TransportOptionsResponse {
@@ -70,6 +82,7 @@ interface SavedTransportProvider {
   maps_url: string | null;
   notes: string | null;
   category: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 interface LocalTransportProvider {
@@ -134,8 +147,155 @@ const DEFAULT_DISCLAIMERS = [
   "No ride is booked or requested until you confirm the next step.",
 ];
 
+const PURPOSE_LABELS: Record<TransportPurpose, string> = {
+  medical: "medical appointments",
+  family_visit: "family visits",
+  errand: "errands",
+  social: "social outings",
+  return_home: "returning home",
+  other: "this ride",
+};
+
 function clean(value: string | null | undefined): string {
   return value?.trim() ?? "";
+}
+
+function normalizeText(value: string | null | undefined): string {
+  return clean(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function stringList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => stringList(entry));
+  }
+  if (typeof value === "string") {
+    return value
+      .split(/[,\n;]/)
+      .map((entry) => normalizeText(entry))
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function providerText(provider: SavedTransportProvider): string {
+  const metadata = provider.metadata ?? {};
+  return [
+    provider.category,
+    provider.name,
+    provider.address,
+    provider.notes,
+    ...stringList(metadata.purpose),
+    ...stringList(metadata.purposes),
+    ...stringList(metadata.ride_purposes),
+    ...stringList(metadata.transport_purposes),
+    ...stringList(metadata.preferred_for),
+    ...stringList(metadata.people),
+    ...stringList(metadata.person),
+    ...stringList(metadata.destinations),
+    ...stringList(metadata.destination),
+    ...stringList(metadata.relationship),
+  ].map((entry) => normalizeText(entry)).filter(Boolean).join(" ");
+}
+
+function metadataPurposes(provider: SavedTransportProvider): string[] {
+  const metadata = provider.metadata ?? {};
+  return [
+    ...stringList(metadata.purpose),
+    ...stringList(metadata.purposes),
+    ...stringList(metadata.ride_purposes),
+    ...stringList(metadata.transport_purposes),
+    ...stringList(metadata.preferred_for),
+  ];
+}
+
+function hasAny(text: string, keywords: string[]): boolean {
+  return keywords.some((keyword) => text.includes(keyword));
+}
+
+function destinationPersonHint(destinationLabel: string): string | null {
+  const destination = normalizeText(destinationLabel);
+  if (hasAny(destination, ["daughter", "hija"])) return "daughter";
+  if (hasAny(destination, ["son", "hijo"])) return "son";
+  if (hasAny(destination, ["family", "familia", "mother", "father", "mum", "mom", "dad", "padre", "madre"])) return "family";
+  if (hasAny(destination, ["church", "iglesia", "restaurant", "restaurante", "club", "social"])) return "social outing";
+  return null;
+}
+
+function scoreSavedProvider(
+  provider: SavedTransportProvider,
+  request: TransportOptionsRequest,
+  destinationLabel: string,
+): { score: number; reason: string; strength: TransportMatchStrength } {
+  const purpose = request.purpose ?? "other";
+  const text = providerText(provider);
+  const category = normalizeText(provider.category);
+  const purposes = metadataPurposes(provider);
+  const hasPurposeMetadata = purposes.includes(purpose.replace("_", " "));
+  const personHint = destinationPersonHint(destinationLabel);
+  let score = 0;
+  let reason = "Saved transport contact";
+
+  if (hasPurposeMetadata || purposes.includes(purpose)) {
+    score += 90;
+    reason = `Saved for ${PURPOSE_LABELS[purpose]}`;
+  }
+
+  if (purpose === "family_visit" && (
+    hasAny(category, ["family_driver", "trusted_driver", "caregiver", "carer", "volunteer"]) ||
+    hasAny(text, ["family", "daughter", "son", "hija", "hijo", "visit"])
+  )) {
+    score += 75;
+    reason = personHint ? `Saved for ${personHint} visits` : "Saved family-visit driver";
+  }
+
+  if (purpose === "medical" && (
+    hasAny(category, ["medical_transport", "red_cross_transport", "trusted_driver", "taxi"]) ||
+    hasAny(text, ["medical", "doctor", "clinic", "hospital", "appointment", "medico", "cita", "clinica"])
+  )) {
+    score += 65;
+    reason = "Saved for medical rides";
+  }
+
+  if (purpose === "errand" && hasAny(text, ["errand", "pharmacy", "grocery", "shopping", "farmacia", "compra"])) {
+    score += 55;
+    reason = "Saved for errands";
+  }
+
+  if (purpose === "social" && hasAny(text, ["social", "church", "restaurant", "club", "friend", "iglesia", "restaurante"])) {
+    score += 50;
+    reason = "Saved for social outings";
+  }
+
+  if (purpose === "return_home" && hasAny(text, ["home", "casa", "return", "volver"])) {
+    score += 45;
+    reason = "Saved for return-home rides";
+  }
+
+  if (personHint && hasAny(text, [personHint, "family", "familia"])) {
+    score += 45;
+    reason = `Saved for ${personHint} visits`;
+  }
+
+  if (hasAny(category, ["driver", "trusted_driver", "family_driver", "caregiver", "carer", "volunteer"])) {
+    score += 25;
+    if (reason === "Saved transport contact") reason = "Saved trusted driver";
+  }
+
+  if (hasAny(category, ["taxi", "transport", "ride", "taxi_stand", "red_cross_transport"])) {
+    score += 15;
+    if (reason === "Saved transport contact") reason = "Saved transport provider";
+  }
+
+  if (score === 0) score = 5;
+
+  return {
+    score,
+    reason,
+    strength: score >= 70 ? "direct" : score >= 25 ? "general" : "fallback",
+  };
 }
 
 function normalizeCountry(value: string | null | undefined): string | undefined {
@@ -224,7 +384,10 @@ function rideAppsForMarket(market: TransportMarket, request: TransportOptionsReq
     }));
 }
 
-function savedProviderOption(provider: SavedTransportProvider): TransportOption {
+function savedProviderOption(
+  provider: SavedTransportProvider,
+  match: { reason: string; strength: TransportMatchStrength },
+): TransportOption {
   const providerKind = /driver|caregiver|carer|volunteer|family|friend|conductor|chofer|chauffeur/i.test([
     provider.category,
     provider.name,
@@ -237,17 +400,21 @@ function savedProviderOption(provider: SavedTransportProvider): TransportOption 
     id: `saved-${provider.id}`,
     kind: providerKind,
     label: provider.name,
-    description: providerKind === "caregiver"
-      ? "Saved trusted driver or helper. VYVA can ask them before anything is arranged."
-      : provider.address
-        ? `Saved transport provider near ${provider.address}.`
-        : "Saved trusted transport provider.",
+    description: match.strength === "direct"
+      ? `${match.reason}. VYVA can ask them first.`
+      : providerKind === "caregiver"
+        ? "Saved trusted driver or helper. VYVA can ask them before anything is arranged."
+        : provider.address
+          ? `Saved transport provider near ${provider.address}.`
+          : "Saved trusted transport provider.",
     providerName: provider.name,
     phone: provider.phone ?? undefined,
     url: provider.maps_url ?? undefined,
     actions: provider.phone
       ? ["call_phone", "start_concierge_action"]
       : ["start_concierge_action"],
+    matchReason: match.reason,
+    matchStrength: match.strength,
   };
 }
 
@@ -292,7 +459,7 @@ async function defaultLoadProfile(userId: string): Promise<TransportProfile | nu
 async function defaultLoadSavedProviders(userId: string): Promise<SavedTransportProvider[]> {
   const result = await pool.query<SavedTransportProvider>(
     `
-      select id::text, name, phone, address, maps_url, notes, category
+      select id::text, name, phone, address, maps_url, notes, category, metadata
       from user_providers
       where user_id = $1
         and is_active is true
@@ -408,6 +575,12 @@ export async function resolveTransportOptions(
   let fallbackReason: string | undefined = hasEnoughLocation ? undefined : "pickup_or_destination_needed";
 
   const savedProviders = await loadSavedProviders(userId);
+  const savedProviderMatches = savedProviders
+    .map((provider) => ({
+      provider,
+      match: scoreSavedProvider(provider, request, destinationLabel),
+    }))
+    .sort((a, b) => b.match.score - a.match.score);
   let localProviders: LocalTransportProvider[] = [];
   if (hasEnoughLocation) {
     try {
@@ -419,7 +592,7 @@ export async function resolveTransportOptions(
   }
 
   const options = uniqueOptions([
-    ...savedProviders.map(savedProviderOption),
+    ...savedProviderMatches.map(({ provider, match }) => savedProviderOption(provider, match)),
     ...rideAppsForMarket(market, request, pickupLabel, destinationLabel),
     ...localProviders.map(localProviderOption),
     manualFallbackOption(),

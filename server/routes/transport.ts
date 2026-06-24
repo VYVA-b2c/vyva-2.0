@@ -20,7 +20,7 @@ const transportOptionsSchema = z.object({
   pickup: pointSchema.optional(),
   destination: pointSchema.optional(),
   requestedTime: z.string().trim().max(120).optional(),
-  purpose: z.enum(["medical", "errand", "social", "other"]).optional(),
+  purpose: z.enum(["medical", "family_visit", "errand", "social", "return_home", "other"]).optional(),
   mobilityNeeds: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
   language: z.string().trim().min(2).max(12).optional(),
 });
@@ -35,6 +35,8 @@ const transportOptionSchema = z.object({
   phone: z.string().trim().max(80).optional(),
   url: z.string().trim().max(1000).optional(),
   actions: z.array(transportActionSchema).max(8).default([]),
+  matchReason: z.string().trim().max(220).optional(),
+  matchStrength: z.enum(["direct", "general", "fallback"]).optional(),
 });
 
 const rideRequestSchema = transportOptionsSchema.extend({
@@ -85,6 +87,7 @@ interface RideRequestRow {
   provider_snapshot: JsonRecord;
   plan_summary: string | null;
   source: string;
+  ride_purpose: string | null;
   metadata: JsonRecord;
   language: string;
   created_at: Date | string;
@@ -187,6 +190,7 @@ async function loadRideRequestForUser(rideRequestId: string, userId: string): Pr
         provider_snapshot,
         plan_summary,
         source,
+        ride_purpose,
         metadata,
         language,
         created_at,
@@ -261,12 +265,13 @@ router.post("/ride-requests", async (req: Request, res: Response) => {
     const requestedTime = parsed.data.requestedTime?.trim()
       || (pickupAt ? pickupAt.toISOString() : scheduledEvent ? new Date(scheduledEvent.scheduled_for).toISOString() : "now");
     const language = parsed.data.language ?? "en";
+    const ridePurpose = parsed.data.purpose ?? (scheduledEvent?.title ? "medical" : "other");
 
     const transportOptions = await resolveTransportOptions(userId, {
       pickup,
       destination,
       requestedTime,
-      purpose: parsed.data.purpose ?? (scheduledEvent?.title ? "medical" : "other"),
+      purpose: ridePurpose,
       mobilityNeeds: parsed.data.mobilityNeeds ?? [],
       language,
     });
@@ -298,6 +303,7 @@ router.post("/ride-requests", async (req: Request, res: Response) => {
           }
         : null,
       suggested_pickup_time: pickupAt?.toISOString() ?? null,
+      ride_purpose: ridePurpose,
     };
 
     const inserted = await pool.query<RideRequestRow>(
@@ -314,6 +320,7 @@ router.post("/ride-requests", async (req: Request, res: Response) => {
           mobility_needs,
           plan_summary,
           source,
+          ride_purpose,
           metadata,
           language
         )
@@ -329,8 +336,9 @@ router.post("/ride-requests", async (req: Request, res: Response) => {
           $8::text[],
           $9,
           $10,
-          $11::jsonb,
-          $12
+          $11,
+          $12::jsonb,
+          $13
         )
         returning
           id::text,
@@ -348,6 +356,7 @@ router.post("/ride-requests", async (req: Request, res: Response) => {
           provider_snapshot,
           plan_summary,
           source,
+          ride_purpose,
           metadata,
           language,
           created_at,
@@ -364,6 +373,7 @@ router.post("/ride-requests", async (req: Request, res: Response) => {
         parsed.data.mobilityNeeds ?? [],
         planSummary,
         parsed.data.source ?? (scheduledEvent ? "scheduled_event" : appointmentRequest ? "appointment" : "concierge"),
+        ridePurpose,
         JSON.stringify(metadata),
         language,
       ],
@@ -420,6 +430,9 @@ router.post("/ride-requests/:id/confirm", async (req: Request, res: Response) =>
     const pickup = asRecord(rideRequest.pickup);
     const pickupLabel = pointLabel(pickup);
     const destinationLabel = pointLabel(destination);
+    const isSavedDriver = option.kind === "saved_provider" || option.kind === "caregiver";
+    const ridePurpose = (rideRequest.ride_purpose ?? cleanString(metadata.ride_purpose)) || "other";
+    const matchReason = option.matchReason ?? cleanString(asRecord(metadata.confirmed_option).match_reason);
     const providerSnapshot = {
       id: option.id,
       kind: option.kind,
@@ -428,7 +441,14 @@ router.post("/ride-requests/:id/confirm", async (req: Request, res: Response) =>
       phone: option.phone ?? null,
       url: option.url ?? null,
       description: option.description ?? null,
+      match_reason: matchReason || null,
+      match_strength: option.matchStrength ?? null,
     };
+    const actionSummary = isSavedDriver
+      ? `VYVA will ask ${providerName} about the ride${destinationLabel ? ` to ${destinationLabel}` : ""}.`
+      : eventTitle
+        ? `VYVA will arrange the ride for ${eventTitle}.`
+        : `VYVA will arrange the ride${destinationLabel ? ` to ${destinationLabel}` : ""}.`;
 
     const pending = await triggerConciergeAction({
       userId,
@@ -437,13 +457,12 @@ router.post("/ride-requests/:id/confirm", async (req: Request, res: Response) =>
       providerName,
       providerPhone: option.phone ?? null,
       foundExternally: option.kind !== "saved_provider" && option.kind !== "caregiver",
-      actionSummary: eventTitle
-        ? `VYVA will arrange the ride for ${eventTitle}.`
-        : `VYVA will arrange the ride${destinationLabel ? ` to ${destinationLabel}` : ""}.`,
+      actionSummary,
       actionPayload: {
         ride_request_id: rideRequest.id,
         scheduled_event_id: rideRequest.scheduled_event_id,
         appointment_request_id: rideRequest.appointment_request_id,
+        ride_purpose: ridePurpose,
         pickup_address: cleanString(pickup.address) || pickupLabel,
         pickup_name: cleanString(pickup.name),
         destination_name: cleanString(destination.name),
@@ -456,6 +475,8 @@ router.post("/ride-requests/:id/confirm", async (req: Request, res: Response) =>
         provider_notes: option.description ?? null,
         provider_url: option.url ?? null,
         option_kind: option.kind,
+        match_reason: matchReason || null,
+        match_strength: option.matchStrength ?? null,
       },
       language: rideRequest.language,
       triggerSource: "agent_confirmed",
@@ -495,6 +516,7 @@ router.post("/ride-requests/:id/confirm", async (req: Request, res: Response) =>
           provider_snapshot,
           plan_summary,
           source,
+          ride_purpose,
           metadata,
           language,
           created_at,

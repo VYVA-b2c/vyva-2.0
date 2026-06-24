@@ -944,7 +944,7 @@ export function healthDoctorQuickActionsFor({
   const appointmentMessage = messages.appointment
     ?? `Please help me schedule a doctor appointment. Ask me to confirm before booking anything.\n\n${safeContext}`;
   const rideMessage = messages.ride
-    ?? `Please help me find safe transport options for a medical appointment. Ask me to confirm before contacting anyone.\n\n${safeContext}`;
+    ?? `Please help me arrange a ride for a medical appointment. Ask me to confirm before contacting anyone.\n\n${safeContext}`;
   const actions: HealthDoctorQuickAction[] = [];
 
   if (gpPhoneHref) {
@@ -1320,7 +1320,7 @@ const HealthScreen = () => {
       ),
       ride: t(
         "health.seeDoctor.actions.ridePrefill",
-        "Please help me find safe transport options for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        "Please help me arrange a ride for a medical appointment. Check saved drivers first and ask me to confirm before contacting anyone.\n\n{{context}}",
         { context: seeDoctorContext },
       ),
     },

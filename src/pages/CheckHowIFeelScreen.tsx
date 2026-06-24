@@ -245,7 +245,7 @@ const CHECKIN_TEXT = {
     appActions: {
       care: ["Buscar atención médica", "Si empeora, hay dolor en el pecho, falta de aire o confusión, no esperes."],
       appointment: ["Pedir cita médica", "VYVA prepara la solicitud con tu lectura de hoy para que confirmes antes de reservar."],
-      ride: ["Buscar transporte", "Compara formas seguras de llegar si decides salir."],
+      ride: ["Organizar transporte", "VYVA puede organizar el viaje si decides salir."],
       order: ["Pedir entrega", "Prepara compra o farmacia a domicilio y confirma antes de pedir o pagar."],
       quote: ["Pedir ayuda en casa", "Solicita presupuesto para acompañamiento o apoyo en casa, siempre con confirmacion."],
       symptom: ["Hacer chequeo de síntomas", "VYVA te guía con preguntas claras y te ayuda a decidir el siguiente paso."],
@@ -1355,7 +1355,7 @@ export function appActionsFor(answers: Answers, result: CheckinResult): AppActio
       case "ride":
         return {
           key,
-          title: "Buscar transporte",
+          title: "Organizar transporte",
           description: "Organiza un viaje seguro para atencion medica si decides salir.",
           to: "/concierge",
           primary,
@@ -1692,7 +1692,7 @@ export function checkinActionNavigationFor(
         conciergePrefill: {
           kind: isRide ? "ride" : "appointment",
           message: isRide
-            ? `Please help me find safe transport options for care based on today's VYVA check-in. Ask me to confirm before contacting anyone.\n\n${contextText}`
+            ? `Please help me arrange a ride for care based on today's VYVA check-in. Ask me to confirm before contacting anyone.\n\n${contextText}`
             : `Please help me schedule a care appointment based on today's VYVA check-in. Ask me to confirm before booking.\n\n${contextText}`,
           source: "daily_checkin",
         },
