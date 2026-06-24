@@ -62,7 +62,7 @@ const labels: Record<string, string> = {
   "activities.quick.relaxSub": "Take a calm guided pause.",
   "activities.quick.learn": "Learn Something New",
   "activities.quick.learnSub": "Try words, language, and recall.",
-  "activities.quick.play": "Play a Brain Game",
+  "activities.quick.play": "Take a cognitive assessment.",
   "activities.quick.playSub": "Practice memory and focus.",
   "activities.chooseActivity": "Choose an activity",
   "activities.trivia": "Focus & Attention",
@@ -150,7 +150,7 @@ describe("Activities service actions", () => {
     expect(screen.getByTestId("button-activities-quick-relax")).toHaveTextContent("Relax & Breathe");
     expect(screen.getByTestId("button-activities-quick-relax")).toHaveTextContent("Take a calm guided pause.");
     expect(screen.getByTestId("button-activities-quick-learn")).toHaveTextContent("Learn Something New");
-    expect(screen.getByTestId("button-activities-quick-play")).toHaveTextContent("Play a Brain Game");
+    expect(screen.getByTestId("button-activities-quick-play")).toHaveTextContent("Take a cognitive assessment.");
   });
 
   it("routes the Strengthen Memory primary card to memory games", async () => {

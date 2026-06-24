@@ -188,7 +188,7 @@ const ActivitiesScreen = () => {
     {
       id: "play",
       icon: BrainCircuit,
-      label: t("activities.quick.play", "Play a Brain Game"),
+      label: t("activities.quick.play", "Take a cognitive assessment."),
       sub: t("activities.quick.playSub", "Practice memory and focus."),
       mobileLabel: t("activities.quick.playMobile", "Play"),
       mobileSub: t("activities.quick.playSubMobile", "Brain games"),
