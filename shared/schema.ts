@@ -1257,6 +1257,108 @@ export const insertSocialRoomNotificationSchema = createInsertSchema(socialRoomN
 export type InsertSocialRoomNotification = z.infer<typeof insertSocialRoomNotificationSchema>;
 export type SocialRoomNotification = typeof socialRoomNotifications.$inferSelect;
 
+export const participationEvents = pgTable("participation_events", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  event_key:          text("event_key").notNull().unique(),
+  title_es:           text("title_es").notNull(),
+  title_de:           text("title_de").notNull(),
+  title_en:           text("title_en").notNull(),
+  summary_es:         text("summary_es").notNull().default(""),
+  summary_de:         text("summary_de").notNull().default(""),
+  summary_en:         text("summary_en").notNull().default(""),
+  description_es:     text("description_es").notNull().default(""),
+  description_de:     text("description_de").notNull().default(""),
+  description_en:     text("description_en").notNull().default(""),
+  format:             text("format").notNull().default("nearby"),
+  location_label:     text("location_label").notNull().default("nearby"),
+  city:               text("city"),
+  country_code:       text("country_code"),
+  time_label_es:      text("time_label_es").notNull().default(""),
+  time_label_de:      text("time_label_de").notNull().default(""),
+  time_label_en:      text("time_label_en").notNull().default(""),
+  starts_at:          timestamp("starts_at", { withTimezone: true }),
+  ends_at:            timestamp("ends_at", { withTimezone: true }),
+  cost_label_es:      text("cost_label_es").notNull().default(""),
+  cost_label_de:      text("cost_label_de").notNull().default(""),
+  cost_label_en:      text("cost_label_en").notNull().default(""),
+  language_codes:     text("language_codes").array().notNull().default([]),
+  tags:               text("tags").array().notNull().default([]),
+  interest_tags:      text("interest_tags").array().notNull().default([]),
+  accessibility_tags: text("accessibility_tags").array().notNull().default([]),
+  helper_actions:     text("helper_actions").array().notNull().default([]),
+  source:             text("source").notNull().default("curated"),
+  source_url:         text("source_url"),
+  status:             text("status").notNull().default("active"),
+  is_curated:         boolean("is_curated").notNull().default(true),
+  needs_live_check:   boolean("needs_live_check").notNull().default(true),
+  safety_status:      text("safety_status").notNull().default("approved"),
+  metadata:           jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  created_by:         text("created_by"),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("participation_events_status_idx").on(t.status, t.safety_status),
+  index("participation_events_country_city_idx").on(t.country_code, t.city),
+]);
+
+export const insertParticipationEventSchema = createInsertSchema(participationEvents).omit({ id: true, created_at: true, updated_at: true });
+export type InsertParticipationEvent = z.infer<typeof insertParticipationEventSchema>;
+export type ParticipationEventRow = typeof participationEvents.$inferSelect;
+
+export const participationEventResponses = pgTable("participation_event_responses", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  event_id:   uuid("event_id").notNull().references(() => participationEvents.id, { onDelete: "cascade" }),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  response:   text("response").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("participation_event_responses_event_user_unique").on(t.event_id, t.user_id),
+  index("participation_event_responses_user_idx").on(t.user_id, t.updated_at.desc()),
+]);
+
+export const insertParticipationEventResponseSchema = createInsertSchema(participationEventResponses).omit({ id: true, created_at: true, updated_at: true });
+export type InsertParticipationEventResponse = z.infer<typeof insertParticipationEventResponseSchema>;
+export type ParticipationEventResponseRow = typeof participationEventResponses.$inferSelect;
+
+export const participationEventChecks = pgTable("participation_event_checks", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  event_id:          uuid("event_id").notNull().references(() => participationEvents.id, { onDelete: "cascade" }),
+  user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  status:            text("status").notNull().default("requested"),
+  request_note:      text("request_note").notNull().default(""),
+  helper_actions:    text("helper_actions").array().notNull().default([]),
+  concierge_prefill: jsonb("concierge_prefill").$type<Record<string, unknown>>().notNull().default({}),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  resolved_at:       timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [
+  index("participation_event_checks_user_idx").on(t.user_id, t.created_at.desc()),
+  index("participation_event_checks_event_idx").on(t.event_id, t.created_at.desc()),
+]);
+
+export const insertParticipationEventCheckSchema = createInsertSchema(participationEventChecks).omit({ id: true, created_at: true, updated_at: true });
+export type InsertParticipationEventCheck = z.infer<typeof insertParticipationEventCheckSchema>;
+export type ParticipationEventCheckRow = typeof participationEventChecks.$inferSelect;
+
+export const participationNotifications = pgTable("participation_notifications", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  event_id:   uuid("event_id").references(() => participationEvents.id, { onDelete: "set null" }),
+  type:       text("type").notNull(),
+  title:      text("title").notNull(),
+  body:       text("body").notNull().default(""),
+  metadata:   jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  read_at:    timestamp("read_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("participation_notifications_user_idx").on(t.user_id, t.created_at.desc()),
+]);
+
+export const insertParticipationNotificationSchema = createInsertSchema(participationNotifications).omit({ id: true, created_at: true });
+export type InsertParticipationNotification = z.infer<typeof insertParticipationNotificationSchema>;
+export type ParticipationNotificationRow = typeof participationNotifications.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: triage_reports — persisted completed TriageSummary + vitals
@@ -2436,6 +2538,10 @@ export const schema = {
   socialRoomModerationActions,
   socialRoomMemberRoles,
   socialRoomNotifications,
+  participationEvents,
+  participationEventResponses,
+  participationEventChecks,
+  participationNotifications,
   triageReports,
   vitalsReadings,
   vyvaSignalReadings,
