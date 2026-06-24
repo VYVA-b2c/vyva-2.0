@@ -114,6 +114,7 @@ const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage")
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
+const ParticipateEventsAdminPage = lazy(() => import("./pages/admin/ParticipateEventsAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 
 const SECTION_MAP: Record<string, React.ComponentType> = {
@@ -526,6 +527,7 @@ const App = () => (
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/participate-events" element={<AdminRoute><ParticipateEventsAdminPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />

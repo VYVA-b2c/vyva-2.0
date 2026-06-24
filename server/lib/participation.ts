@@ -11,6 +11,7 @@ import {
   socialUserInterests,
 } from "../../shared/schema.js";
 import type {
+  AdminParticipationEvent,
   ParticipationEvent,
   ParticipationEventFormat,
   ParticipationEventRecommendation,
@@ -464,6 +465,12 @@ function checkStatusForEvent(event: EventRow, userId: string, checks: EventCheck
   return memoryChecks.find((check) => check.eventKey === event.event_key && check.userId === userId)?.status ?? "none";
 }
 
+function checkRequestCountForEvent(event: EventRow, checks: EventCheckRow[]) {
+  const dbCount = checks.filter((check) => check.event_id === event.id).length;
+  const memoryCount = memoryChecks.filter((check) => check.eventKey === event.event_key).length;
+  return dbCount + memoryCount;
+}
+
 function fitCopy(language: SocialLanguage) {
   if (language === "es") {
     return {
@@ -621,6 +628,57 @@ function eventToParticipationEvent(
   };
 }
 
+function eventToAdminParticipationEvent(
+  row: EventRow,
+  extra: {
+    responseCounts: ParticipationEventResponseCounts;
+    checkRequestCount: number;
+  },
+): AdminParticipationEvent {
+  return {
+    id: row.event_key,
+    eventKey: row.event_key,
+    titleEs: row.title_es,
+    titleDe: row.title_de,
+    titleEn: row.title_en,
+    summaryEs: row.summary_es,
+    summaryDe: row.summary_de,
+    summaryEn: row.summary_en,
+    descriptionEs: row.description_es,
+    descriptionDe: row.description_de,
+    descriptionEn: row.description_en,
+    format: normalizeFormat(row.format),
+    locationLabel: row.location_label,
+    city: row.city,
+    countryCode: row.country_code,
+    timeLabelEs: row.time_label_es,
+    timeLabelDe: row.time_label_de,
+    timeLabelEn: row.time_label_en,
+    startsAt: row.starts_at?.toISOString() ?? null,
+    endsAt: row.ends_at?.toISOString() ?? null,
+    costLabelEs: row.cost_label_es,
+    costLabelDe: row.cost_label_de,
+    costLabelEn: row.cost_label_en,
+    languageCodes: row.language_codes ?? [],
+    tags: row.tags ?? [],
+    interestTags: row.interest_tags ?? [],
+    accessibilityTags: row.accessibility_tags ?? [],
+    helperActions: normalizeHelperActions(row.helper_actions),
+    source: row.source,
+    sourceUrl: row.source_url,
+    status: row.status,
+    isCurated: row.is_curated,
+    needsLiveCheck: row.needs_live_check,
+    safetyStatus: row.safety_status,
+    metadata: (row.metadata ?? {}) as Record<string, unknown>,
+    createdBy: row.created_by,
+    createdAt: row.created_at?.toISOString() ?? null,
+    updatedAt: row.updated_at?.toISOString() ?? null,
+    responseCounts: extra.responseCounts,
+    checkRequestCount: extra.checkRequestCount,
+  };
+}
+
 function defaultSignals(userId: string, language: SocialLanguage, hints: ParticipationHints = {}): ParticipationSignals {
   const interests = compactStrings(hints.interests ?? []);
   return {
@@ -722,6 +780,21 @@ async function loadEvents(): Promise<EventRow[]> {
   );
 }
 
+async function loadAdminEvents(): Promise<EventRow[]> {
+  return safeDb(
+    "load participation admin events",
+    async () => {
+      const rows = await db
+        .select()
+        .from(participationEvents)
+        .orderBy(desc(participationEvents.updated_at))
+        .limit(160);
+      return rows.length > 0 ? rows : [...seedEvents, ...memoryEvents.values()];
+    },
+    () => [...seedEvents, ...memoryEvents.values()],
+  );
+}
+
 async function loadResponses(userId: string, eventRows: EventRow[]) {
   const eventIds = eventRows.filter((event) => UUID_RE.test(event.id)).map((event) => event.id);
   if (eventIds.length === 0) return [];
@@ -741,6 +814,20 @@ async function loadChecks(userId: string, eventRows: EventRow[]) {
       .select()
       .from(participationEventChecks)
       .where(and(eq(participationEventChecks.user_id, userId), inArray(participationEventChecks.event_id, eventIds)))
+      .orderBy(desc(participationEventChecks.created_at)),
+    () => [] as EventCheckRow[],
+  );
+}
+
+async function loadAdminChecks(eventRows: EventRow[]) {
+  const eventIds = eventRows.filter((event) => UUID_RE.test(event.id)).map((event) => event.id);
+  if (eventIds.length === 0) return [];
+  return safeDb(
+    "load participation admin checks",
+    async () => db
+      .select()
+      .from(participationEventChecks)
+      .where(inArray(participationEventChecks.event_id, eventIds))
       .orderBy(desc(participationEventChecks.created_at)),
     () => [] as EventCheckRow[],
   );
@@ -1158,15 +1245,20 @@ function memoryEventFromAdmin(input: AdminEventInput, adminUserId: string): Even
 }
 
 export async function listAdminParticipationEvents(language: SocialLanguage = "en") {
-  const rows = await loadEvents();
-  return rows.map((event) => eventToParticipationEvent(event, language, {
-    responseCounts: responseCountsForEvent(event, []),
-    fitReasons: [],
+  void language;
+  const rows = await loadAdminEvents();
+  const [responses, checks] = await Promise.all([
+    loadResponses("admin", rows),
+    loadAdminChecks(rows),
+  ]);
+  return rows.map((event) => eventToAdminParticipationEvent(event, {
+    responseCounts: responseCountsForEvent(event, responses),
+    checkRequestCount: checkRequestCountForEvent(event, checks),
   }));
 }
 
 export async function createAdminParticipationEvent(input: AdminEventInput, adminUserId: string) {
-  return safeDb(
+  const row = await safeDb(
     "create participation admin event",
     async () => {
       const [row] = await db.insert(participationEvents).values(eventInsertFromAdmin(input, adminUserId)).returning();
@@ -1178,6 +1270,10 @@ export async function createAdminParticipationEvent(input: AdminEventInput, admi
       return row;
     },
   );
+  return eventToAdminParticipationEvent(row, {
+    responseCounts: responseCountsForEvent(row, []),
+    checkRequestCount: checkRequestCountForEvent(row, []),
+  });
 }
 
 function dbPatchFromAdmin(input: AdminEventPatch): EventUpdate {
@@ -1220,7 +1316,7 @@ function dbPatchFromAdmin(input: AdminEventPatch): EventUpdate {
 }
 
 export async function updateAdminParticipationEvent(eventRef: string, patchInput: AdminEventPatch) {
-  return safeDb(
+  const row = await safeDb(
     "update participation admin event",
     async () => {
       const patch = dbPatchFromAdmin(patchInput);
@@ -1247,6 +1343,12 @@ export async function updateAdminParticipationEvent(eventRef: string, patchInput
       return next;
     },
   );
+  return row
+    ? eventToAdminParticipationEvent(row, {
+      responseCounts: responseCountsForEvent(row, []),
+      checkRequestCount: checkRequestCountForEvent(row, []),
+    })
+    : null;
 }
 
 export async function listAdminParticipationActivity() {

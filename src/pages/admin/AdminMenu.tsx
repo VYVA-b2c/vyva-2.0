@@ -12,6 +12,7 @@ const adminItems = [
   { label: "Hero messages", path: "/admin/hero-messages", description: "Banner copy and rules" },
   { label: "Voice readiness", path: "/admin/voice-readiness", description: "Agent context contracts" },
   { label: "Supply packages", path: "/admin/concierge-supplies", description: "Concierge supplies and kits" },
+  { label: "Participate events", path: "/admin/participate-events", description: "Curated city events" },
   { label: "Caregivers", path: "/admin/proxy-pending", description: "Elder assignments and support" },
 ];
 
