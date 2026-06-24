@@ -1630,7 +1630,31 @@
       "shop": "Acheter",
       "book": "Reserver",
       "order": "Commander",
-      "save": "Economiser"
+      "save": "Economiser",
+      "service": {
+        "label": "Trouver aide",
+        "mobile": "Aide",
+        "sub": "Reparation, menage, aide",
+        "mobileSub": "Aide et soins"
+      },
+      "ride": {
+        "label": "Reserver trajet",
+        "mobile": "Trajet",
+        "sub": "Taxi, transport medical, retour a la maison",
+        "mobileSub": "Taxi ou transport"
+      },
+      "delivery": {
+        "label": "Commander repas",
+        "mobile": "Repas",
+        "sub": "Courses, pharmacie, repas",
+        "mobileSub": "Repas et besoins"
+      },
+      "appointment": {
+        "label": "Prendre RDV",
+        "mobile": "RDV",
+        "sub": "Medecin, salon, bureau, repas",
+        "mobileSub": "Medecin, salon, bureau"
+      }
     },
     "quickPrompts": {
       "findBestDeals": "Trouver les meilleures offres",

@@ -1750,7 +1750,31 @@
       "shop": "Acquista",
       "book": "Prenota",
       "order": "Ordina",
-      "save": "Risparmia"
+      "save": "Risparmia",
+      "service": {
+        "label": "Trova aiuto",
+        "mobile": "Aiuto",
+        "sub": "Riparazioni, pulizie, assistenza",
+        "mobileSub": "Casa e cura"
+      },
+      "ride": {
+        "label": "Prenota taxi",
+        "mobile": "Taxi",
+        "sub": "Taxi, trasporto, ritorno",
+        "mobileSub": "Taxi o corsa"
+      },
+      "delivery": {
+        "label": "Ordina cibo",
+        "mobile": "Ordine",
+        "sub": "Spesa, farmacia, cibo",
+        "mobileSub": "Cibo e bisogni"
+      },
+      "appointment": {
+        "label": "Prenota visita",
+        "mobile": "Visita",
+        "sub": "Medico, salone, ufficio pubblico, ristorante",
+        "mobileSub": "Medico, salone, ufficio"
+      }
     },
     "quickPrompts": {
       "findBestDeals": "Trova le migliori offerte",

@@ -633,7 +633,7 @@ const PRIMARY_CONCIERGE_CARDS = [
     key: "appointment",
     fallback: "Book visit",
     descriptionFallback: "Doctor, salon, office, dining",
-    mobileFallback: "Appt",
+    mobileFallback: "Schedule",
     mobileDescriptionFallback: "Doctor, salon, office",
     Icon: Calendar,
     iconColor: "#6B21A8",

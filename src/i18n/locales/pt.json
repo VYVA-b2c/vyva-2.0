@@ -1630,7 +1630,31 @@
       "shop": "Comprar",
       "book": "Reservar",
       "order": "Encomendar",
-      "save": "Poupar"
+      "save": "Poupar",
+      "service": {
+        "label": "Encontrar ajuda",
+        "mobile": "Ajuda",
+        "sub": "Arranjos, limpeza, cuidados",
+        "mobileSub": "Arranjos e cuidado"
+      },
+      "ride": {
+        "label": "Chamar taxi",
+        "mobile": "Taxi",
+        "sub": "Taxi, transporte, volta",
+        "mobileSub": "Taxi ou viagem"
+      },
+      "delivery": {
+        "label": "Pedir comida",
+        "mobile": "Pedido",
+        "sub": "Mercado, farmacia, comida",
+        "mobileSub": "Comida e basicos"
+      },
+      "appointment": {
+        "label": "Marcar hora",
+        "mobile": "Visita",
+        "sub": "Medico, salao, servicos publicos, restaurante",
+        "mobileSub": "Medico, salao, servico"
+      }
     },
     "quickPrompts": {
       "findBestDeals": "Encontrar as melhores ofertas",

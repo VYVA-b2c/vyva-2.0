@@ -1767,7 +1767,7 @@
       },
       "appointment": {
         "label": "Book visit",
-        "mobile": "Appt",
+        "mobile": "Schedule",
         "sub": "Doctor, salon, office, dining",
         "mobileSub": "Doctor, salon, office"
       }
