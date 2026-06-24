@@ -1,0 +1,550 @@
+import { Router, type Request, type Response } from "express";
+import { asc, desc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { db } from "../db.js";
+import { learningCategories, learningLessons } from "../../shared/schema.js";
+import { normalizeLearningLanguage } from "../lib/learningProgram.js";
+
+const lessonStatusSchema = z.enum(["draft", "review", "published", "archived"]);
+const lessonDifficultySchema = z.enum(["easy", "medium", "deep"]);
+
+const lessonBodySchema = z.object({
+  externalId: z.string().trim().min(1).max(140).nullable().optional(),
+  categorySlug: z.string().trim().min(1).max(80),
+  language: z.string().trim().min(2).max(12).optional().default("en"),
+  title: z.string().trim().min(1).max(160),
+  hook: z.string().trim().min(1).max(300),
+  body: z.string().trim().min(1).max(5000),
+  reflectionPrompt: z.string().trim().min(1).max(300),
+  sourceNotes: z.string().trim().max(1000).nullable().optional(),
+  estimatedMinutes: z.number().int().min(1).max(15).optional().default(3),
+  difficulty: lessonDifficultySchema.optional().default("easy"),
+  tags: z.array(z.string().trim().min(1).max(40)).max(20).optional().default([]),
+  status: lessonStatusSchema.optional().default("draft"),
+  isActive: z.boolean().optional().default(true),
+});
+
+const lessonPatchSchema = lessonBodySchema.partial();
+
+const categoryBodySchema = z.object({
+  slug: z.string().trim().min(1).max(80).regex(/^[a-z0-9_]+$/),
+  label: z.string().trim().min(1).max(80),
+  description: z.string().trim().max(500).optional().default(""),
+  color: z.string().trim().min(1).max(40).optional().default("#7C3AED"),
+  icon: z.string().trim().min(1).max(80).optional().default("book-open"),
+  sortOrder: z.number().int().min(0).max(1000).optional().default(100),
+  isActive: z.boolean().optional().default(true),
+});
+
+const categoryPatchSchema = categoryBodySchema.partial().omit({ slug: true });
+
+type LearningLessonRow = typeof learningLessons.$inferSelect;
+type LearningCategoryRow = typeof learningCategories.$inferSelect;
+
+function actor(req: Request) {
+  return String(req.user?.email ?? req.user?.id ?? "admin");
+}
+
+function serializeLesson(row: LearningLessonRow) {
+  return {
+    id: row.id,
+    externalId: row.externalId,
+    categorySlug: row.categorySlug,
+    language: row.language,
+    title: row.title,
+    hook: row.hook,
+    body: row.body,
+    reflectionPrompt: row.reflectionPrompt,
+    sourceNotes: row.sourceNotes,
+    estimatedMinutes: row.estimatedMinutes,
+    difficulty: row.difficulty,
+    tags: row.tags ?? [],
+    status: row.status,
+    isActive: row.isActive,
+    reviewedAt: row.reviewedAt?.toISOString() ?? null,
+    reviewedBy: row.reviewedBy,
+    publishedAt: row.publishedAt?.toISOString() ?? null,
+    publishedBy: row.publishedBy,
+    archivedAt: row.archivedAt?.toISOString() ?? null,
+    archivedBy: row.archivedBy,
+    createdAt: row.createdAt?.toISOString() ?? null,
+    updatedAt: row.updatedAt?.toISOString() ?? null,
+  };
+}
+
+function serializeCategory(row: LearningCategoryRow) {
+  return {
+    id: row.id,
+    slug: row.slug,
+    label: row.label,
+    description: row.description,
+    color: row.color,
+    icon: row.icon,
+    sortOrder: row.sortOrder,
+    isActive: row.isActive,
+    createdAt: row.createdAt?.toISOString() ?? null,
+    updatedAt: row.updatedAt?.toISOString() ?? null,
+  };
+}
+
+function lessonPatchForStatus(status: z.infer<typeof lessonStatusSchema> | undefined, reviewer: string) {
+  const now = new Date();
+  if (status === "published") {
+    return {
+      status,
+      isActive: true,
+      reviewedAt: now,
+      reviewedBy: reviewer,
+      publishedAt: now,
+      publishedBy: reviewer,
+      archivedAt: null,
+      archivedBy: null,
+    };
+  }
+  if (status === "archived") {
+    return {
+      status,
+      isActive: false,
+      archivedAt: now,
+      archivedBy: reviewer,
+    };
+  }
+  if (status === "draft") {
+    return {
+      status,
+      isActive: false,
+    };
+  }
+  if (status === "review") {
+    return {
+      status,
+      isActive: false,
+    };
+  }
+  return {};
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringValue(row: Record<string, unknown>, keys: string[], fallback = "") {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return fallback;
+}
+
+function numberValue(row: Record<string, unknown>, keys: string[], fallback: number) {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return fallback;
+}
+
+function booleanValue(row: Record<string, unknown>, keys: string[], fallback: boolean) {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["true", "yes", "1", "active"].includes(normalized)) return true;
+      if (["false", "no", "0", "inactive"].includes(normalized)) return false;
+    }
+  }
+  return fallback;
+}
+
+function tagsValue(row: Record<string, unknown>) {
+  const value = row.tags;
+  if (Array.isArray(value)) {
+    return value.map((tag) => typeof tag === "string" ? tag.trim() : "").filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value.split(",").map((tag) => tag.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeImportStatus(value: string): z.infer<typeof lessonStatusSchema> {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "published") return "published";
+  if (normalized === "archived") return "archived";
+  if (normalized === "review" || normalized === "in_review" || normalized === "needs_review") return "review";
+  return "draft";
+}
+
+function normalizeImportDifficulty(value: string): z.infer<typeof lessonDifficultySchema> {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "medium") return "medium";
+  if (normalized === "deep" || normalized === "advanced") return "deep";
+  return "easy";
+}
+
+function normalizeCategoryImport(raw: unknown) {
+  const row = asObject(raw);
+  return categoryBodySchema.safeParse({
+    slug: stringValue(row, ["slug"]),
+    label: stringValue(row, ["label"]),
+    description: stringValue(row, ["description"], ""),
+    color: stringValue(row, ["color"], "#7C3AED"),
+    icon: stringValue(row, ["icon"], "book-open"),
+    sortOrder: numberValue(row, ["sortOrder", "sort_order"], 100),
+    isActive: booleanValue(row, ["isActive", "is_active"], true),
+  });
+}
+
+function normalizeLessonImport(raw: unknown) {
+  const row = asObject(raw);
+  return lessonBodySchema.required({ externalId: true }).safeParse({
+    externalId: stringValue(row, ["externalId", "external_id"]),
+    categorySlug: stringValue(row, ["categorySlug", "category_slug"]),
+    language: stringValue(row, ["language"], "en"),
+    title: stringValue(row, ["title"]),
+    hook: stringValue(row, ["hook"]),
+    body: stringValue(row, ["body", "snippet"]),
+    reflectionPrompt: stringValue(row, ["reflectionPrompt", "reflection_prompt"]),
+    sourceNotes: stringValue(row, ["sourceNotes", "source_notes"], "") || null,
+    estimatedMinutes: numberValue(row, ["estimatedMinutes", "estimated_minutes"], 3),
+    difficulty: normalizeImportDifficulty(stringValue(row, ["difficulty"], "easy")),
+    tags: tagsValue(row),
+    status: normalizeImportStatus(stringValue(row, ["status"], "draft")),
+    isActive: booleanValue(row, ["isActive", "is_active"], false),
+  });
+}
+
+async function listCategoriesHandler(_req: Request, res: Response) {
+  try {
+    const rows = await db
+      .select()
+      .from(learningCategories)
+      .orderBy(asc(learningCategories.sortOrder), asc(learningCategories.label));
+    return res.json({ categories: rows.map(serializeCategory) });
+  } catch (error) {
+    console.error("[admin] learning categories load failed:", error);
+    return res.status(500).json({ error: "Learning categories could not be loaded." });
+  }
+}
+
+async function createCategoryHandler(req: Request, res: Response) {
+  const parsed = categoryBodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid learning category." });
+
+  try {
+    const [row] = await db
+      .insert(learningCategories)
+      .values(parsed.data)
+      .onConflictDoUpdate({
+        target: learningCategories.slug,
+        set: {
+          label: parsed.data.label,
+          description: parsed.data.description,
+          color: parsed.data.color,
+          icon: parsed.data.icon,
+          sortOrder: parsed.data.sortOrder,
+          isActive: parsed.data.isActive,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return res.status(201).json({ category: serializeCategory(row) });
+  } catch (error) {
+    console.error("[admin] learning category save failed:", error);
+    return res.status(500).json({ error: "Learning category could not be saved." });
+  }
+}
+
+async function updateCategoryHandler(req: Request, res: Response) {
+  const parsed = categoryPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid learning category update." });
+
+  try {
+    const [row] = await db
+      .update(learningCategories)
+      .set({ ...parsed.data, updatedAt: new Date() })
+      .where(eq(learningCategories.slug, req.params.slug))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Learning category was not found." });
+    return res.json({ category: serializeCategory(row) });
+  } catch (error) {
+    console.error("[admin] learning category update failed:", error);
+    return res.status(500).json({ error: "Learning category could not be updated." });
+  }
+}
+
+async function listLessonsHandler(req: Request, res: Response) {
+  try {
+    const status = typeof req.query.status === "string" ? req.query.status : "all";
+    const category = typeof req.query.category === "string" ? req.query.category : "all";
+    const language = typeof req.query.language === "string" ? req.query.language : "all";
+    const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+
+    const rows = await db
+      .select()
+      .from(learningLessons)
+      .orderBy(desc(learningLessons.updatedAt), desc(learningLessons.createdAt))
+      .limit(1000);
+
+    const filtered = rows.filter((lesson) => {
+      if (status !== "all" && lesson.status !== status) return false;
+      if (category !== "all" && lesson.categorySlug !== category) return false;
+      if (language !== "all" && lesson.language !== language) return false;
+      if (search) {
+        const haystack = [
+          lesson.title,
+          lesson.hook,
+          lesson.body,
+          lesson.reflectionPrompt,
+          lesson.categorySlug,
+          ...(lesson.tags ?? []),
+        ].join(" ").toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    return res.json({ lessons: filtered.map(serializeLesson) });
+  } catch (error) {
+    console.error("[admin] learning lessons load failed:", error);
+    return res.status(500).json({ error: "Learning lessons could not be loaded." });
+  }
+}
+
+async function createLessonHandler(req: Request, res: Response) {
+  const parsed = lessonBodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid learning lesson." });
+
+  const reviewer = actor(req);
+  const values = {
+    ...parsed.data,
+    language: normalizeLearningLanguage(parsed.data.language),
+    sourceNotes: parsed.data.sourceNotes ?? null,
+    tags: [...new Set(parsed.data.tags)],
+    ...lessonPatchForStatus(parsed.data.status, reviewer),
+  };
+
+  try {
+    const [row] = await db
+      .insert(learningLessons)
+      .values(values)
+      .returning();
+    return res.status(201).json({ lesson: serializeLesson(row) });
+  } catch (error) {
+    console.error("[admin] learning lesson create failed:", error);
+    return res.status(500).json({ error: "Learning lesson could not be created." });
+  }
+}
+
+async function updateLessonHandler(req: Request, res: Response) {
+  const parsed = lessonPatchSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid learning lesson update." });
+
+  const reviewer = actor(req);
+  const patch = {
+    ...parsed.data,
+    ...(parsed.data.language ? { language: normalizeLearningLanguage(parsed.data.language) } : {}),
+    ...(parsed.data.sourceNotes === undefined ? {} : { sourceNotes: parsed.data.sourceNotes ?? null }),
+    ...(parsed.data.tags ? { tags: [...new Set(parsed.data.tags)] } : {}),
+    ...lessonPatchForStatus(parsed.data.status, reviewer),
+    updatedAt: new Date(),
+  };
+
+  try {
+    const [row] = await db
+      .update(learningLessons)
+      .set(patch)
+      .where(eq(learningLessons.id, req.params.id))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Learning lesson was not found." });
+    return res.json({ lesson: serializeLesson(row) });
+  } catch (error) {
+    console.error("[admin] learning lesson update failed:", error);
+    return res.status(500).json({ error: "Learning lesson could not be updated." });
+  }
+}
+
+async function publishLessonHandler(req: Request, res: Response) {
+  try {
+    const [row] = await db
+      .update(learningLessons)
+      .set({ ...lessonPatchForStatus("published", actor(req)), updatedAt: new Date() })
+      .where(eq(learningLessons.id, req.params.id))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Learning lesson was not found." });
+    return res.json({ lesson: serializeLesson(row) });
+  } catch (error) {
+    console.error("[admin] learning lesson publish failed:", error);
+    return res.status(500).json({ error: "Learning lesson could not be published." });
+  }
+}
+
+async function archiveLessonHandler(req: Request, res: Response) {
+  try {
+    const [row] = await db
+      .update(learningLessons)
+      .set({ ...lessonPatchForStatus("archived", actor(req)), updatedAt: new Date() })
+      .where(eq(learningLessons.id, req.params.id))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Learning lesson was not found." });
+    return res.json({ lesson: serializeLesson(row) });
+  } catch (error) {
+    console.error("[admin] learning lesson archive failed:", error);
+    return res.status(500).json({ error: "Learning lesson could not be archived." });
+  }
+}
+
+async function importContentPackHandler(req: Request, res: Response) {
+  const pack = asObject(req.body);
+  const categoriesRaw = Array.isArray(pack.categories) ? pack.categories : [];
+  const lessonsRaw = Array.isArray(pack.lessons) ? pack.lessons : [];
+
+  if (categoriesRaw.length === 0 && lessonsRaw.length === 0) {
+    return res.status(400).json({ error: "Upload a content pack with categories and/or lessons." });
+  }
+
+  const errors: string[] = [];
+  const categories = categoriesRaw.map((category, index) => {
+    const parsed = normalizeCategoryImport(category);
+    if (!parsed.success) {
+      errors.push(`Category row ${index + 1} is invalid.`);
+      return null;
+    }
+    return parsed.data;
+  }).filter((category): category is z.infer<typeof categoryBodySchema> => Boolean(category));
+
+  const lessons = lessonsRaw.map((lesson, index) => {
+    const parsed = normalizeLessonImport(lesson);
+    if (!parsed.success) {
+      errors.push(`Lesson row ${index + 1} is invalid.`);
+      return null;
+    }
+    return {
+      ...parsed.data,
+      externalId: parsed.data.externalId!,
+      language: normalizeLearningLanguage(parsed.data.language),
+      tags: [...new Set(parsed.data.tags)],
+      sourceNotes: parsed.data.sourceNotes ?? null,
+    };
+  }).filter((lesson): lesson is z.infer<typeof lessonBodySchema> & { externalId: string } => Boolean(lesson));
+
+  const duplicateCategorySlugs = categories
+    .map((category) => category.slug)
+    .filter((slug, index, all) => all.indexOf(slug) !== index);
+  const duplicateExternalIds = lessons
+    .map((lesson) => lesson.externalId)
+    .filter((externalId, index, all) => all.indexOf(externalId) !== index);
+
+  if (duplicateCategorySlugs.length) {
+    errors.push(`Duplicate category slug(s): ${[...new Set(duplicateCategorySlugs)].join(", ")}.`);
+  }
+  if (duplicateExternalIds.length) {
+    errors.push(`Duplicate lesson external_id(s): ${[...new Set(duplicateExternalIds)].join(", ")}.`);
+  }
+
+  try {
+    const [existingCategories, existingLessons] = await Promise.all([
+      db.select({ slug: learningCategories.slug }).from(learningCategories).limit(5000),
+      db.select({ externalId: learningLessons.externalId }).from(learningLessons).limit(10000),
+    ]);
+    const knownCategorySlugs = new Set([
+      ...existingCategories.map((category) => category.slug),
+      ...categories.map((category) => category.slug),
+    ]);
+    const missingCategorySlugs = lessons
+      .map((lesson) => lesson.categorySlug)
+      .filter((slug) => !knownCategorySlugs.has(slug));
+    if (missingCategorySlugs.length) {
+      errors.push(`Unknown category_slug(s): ${[...new Set(missingCategorySlugs)].join(", ")}. Add them to the categories section first.`);
+    }
+
+    if (errors.length) {
+      return res.status(400).json({ error: "Learning content pack could not be imported.", details: errors });
+    }
+
+    const existingCategorySlugs = new Set(existingCategories.map((category) => category.slug));
+    const existingExternalIds = new Set(existingLessons.map((lesson) => lesson.externalId).filter(Boolean));
+    const reviewer = actor(req);
+    const now = new Date();
+
+    await db.transaction(async (tx) => {
+      for (const category of categories) {
+        await tx
+          .insert(learningCategories)
+          .values(category)
+          .onConflictDoUpdate({
+            target: learningCategories.slug,
+            set: {
+              label: category.label,
+              description: category.description,
+              color: category.color,
+              icon: category.icon,
+              sortOrder: category.sortOrder,
+              isActive: category.isActive,
+              updatedAt: now,
+            },
+          });
+      }
+
+      for (const lesson of lessons) {
+        const statusPatch = lessonPatchForStatus(lesson.status, reviewer);
+        await tx
+          .insert(learningLessons)
+          .values({
+            ...lesson,
+            ...statusPatch,
+          })
+          .onConflictDoUpdate({
+            target: learningLessons.externalId,
+            set: {
+              categorySlug: lesson.categorySlug,
+              language: lesson.language,
+              title: lesson.title,
+              hook: lesson.hook,
+              body: lesson.body,
+              reflectionPrompt: lesson.reflectionPrompt,
+              sourceNotes: lesson.sourceNotes ?? null,
+              estimatedMinutes: lesson.estimatedMinutes,
+              difficulty: lesson.difficulty,
+              tags: lesson.tags,
+              ...statusPatch,
+              updatedAt: now,
+            },
+          });
+      }
+    });
+
+    return res.json({
+      summary: {
+        categoriesCreated: categories.filter((category) => !existingCategorySlugs.has(category.slug)).length,
+        categoriesUpdated: categories.filter((category) => existingCategorySlugs.has(category.slug)).length,
+        lessonsCreated: lessons.filter((lesson) => !existingExternalIds.has(lesson.externalId)).length,
+        lessonsUpdated: lessons.filter((lesson) => existingExternalIds.has(lesson.externalId)).length,
+        lessonsPublished: lessons.filter((lesson) => lesson.status === "published").length,
+        lessonsArchived: lessons.filter((lesson) => lesson.status === "archived").length,
+      },
+    });
+  } catch (error) {
+    console.error("[admin] learning import failed:", error);
+    return res.status(500).json({ error: "Learning content pack could not be imported." });
+  }
+}
+
+const router = Router();
+router.get("/categories", listCategoriesHandler);
+router.post("/categories", createCategoryHandler);
+router.patch("/categories/:slug", updateCategoryHandler);
+router.post("/import", importContentPackHandler);
+router.get("/lessons", listLessonsHandler);
+router.post("/lessons", createLessonHandler);
+router.patch("/lessons/:id", updateLessonHandler);
+router.patch("/lessons/:id/publish", publishLessonHandler);
+router.patch("/lessons/:id/archive", archiveLessonHandler);
+
+export default router;

@@ -33,12 +33,12 @@ import MedsScreen from "./pages/MedsScreen";
 import AdherenceReportScreen from "./pages/AdherenceReportScreen";
 import ActivitiesScreen from "./pages/ActivitiesScreen";
 import ActivityScreen from "./pages/ActivityScreen";
+import LearnSomethingNewPage from "./pages/LearnSomethingNewPage";
 import RelaxBreatheScreen from "./pages/RelaxBreatheScreen";
 import SpatialNavigator from "./games/SpatialNavigator";
 import FaceNameMatch from "./games/FaceNameMatch";
 import AttentionBoostersPage from "./games/AttentionBoostersPage";
 import ExecutiveFunctionPage from "./games/ExecutiveFunctionPage";
-import LanguageGamesPage from "./games/LanguageGamesPage";
 import SensesPage from "./games/SensesPage";
 import MemoryGamesPage from "./games/memory/MemoryGamesPage";
 import MemoryGameRunner from "./games/memory/MemoryGameRunner";
@@ -114,6 +114,7 @@ const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdmin
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
+const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
 
 const SECTION_MAP: Record<string, React.ComponentType> = {
   allergies: AllergiesSection,
@@ -526,6 +527,7 @@ const App = () => (
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
+                <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
                   <Route element={<OnboardingGuard />}>
@@ -568,6 +570,7 @@ const App = () => (
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/activities" element={<AppShell><ActivitiesScreen /></AppShell>} />
                   <Route path="/activities/relax-breathe" element={<AppShell><RelaxBreatheScreen /></AppShell>} />
+                  <Route path="/learn" element={<AppShell><LearnSomethingNewPage /></AppShell>} />
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
@@ -579,7 +582,7 @@ const App = () => (
                   <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
                   <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
                   <Route path="/executive-function/number-trails" element={<NumberTrailsRoute />} />
-                  <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
+                  <Route path="/language" element={<Navigate to="/learn" replace />} />
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
                   <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />
                   <Route path="/memory-games" element={<AppShell><MemoryGamesPage /></AppShell>} />

@@ -17,6 +17,7 @@ const AUTHENTICATED_PWA_INSTALL_PATHS = [
   "/health",
   "/history",
   "/informes",
+  "/learn",
   "/language",
   "/meds",
   "/memory-games",
