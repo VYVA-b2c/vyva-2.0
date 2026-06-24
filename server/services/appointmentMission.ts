@@ -177,8 +177,8 @@ export function missionStateFor(input: {
     activityLog.push("Contact step prepared.");
   } else if (options.length > 0) {
     status = "awaiting_confirmation";
-    currentStep = "Choose a provider and confirm the contact method.";
-    activityLog.push(`Preferred method: ${ordered.preferredChannel ?? "manual"}.`);
+    currentStep = "Choose a provider and confirm VYVA can handle the next step.";
+    activityLog.push("Trusted provider path prepared.");
   } else if (input.request.status === "needs_provider") {
     status = "selecting_provider";
     currentStep = "Search official sources and maps for provider options.";
