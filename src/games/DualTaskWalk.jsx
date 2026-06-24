@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  CircleHelp,
   Eye,
   Loader2,
   Square,
@@ -50,6 +51,30 @@ const FALLBACK_SEQUENCE = {
   difficulty_tier: 1,
   language: "es",
 };
+
+const DUAL_TASK_TUTORIAL_KEY = "dualTaskWalk:tutorialSeen:v1";
+
+function tutorialStorageKey(userId) {
+  return userId ? `${DUAL_TASK_TUTORIAL_KEY}:${userId}` : DUAL_TASK_TUTORIAL_KEY;
+}
+
+function readTutorialSeen(userId) {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(tutorialStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeTutorialSeen(userId) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(tutorialStorageKey(userId), "true");
+  } catch {
+    // Tutorial persistence is helpful, but the exercise should still work.
+  }
+}
 
 function asArray(value) {
   if (Array.isArray(value)) return value;
@@ -240,11 +265,18 @@ export default function DualTaskWalk({ userId, onExit }) {
     decreaseNumber: t("brainGames.dualTask.decreaseNumber"),
     tutorialNumber: t("brainGames.dualTask.tutorialNumber"),
     mathAnswer: t("brainGames.dualTask.mathAnswer"),
+    instructions: t("brainGames.dualTask.instructions", "Instructions"),
+    tutorialUnderstand: t("brainGames.dualTask.tutorialUnderstand", "I understand"),
+    tutorialCount: t("brainGames.dualTask.tutorialCount", "Count back"),
+    tutorialWatch: t("brainGames.dualTask.tutorialWatch", "Watch symbols"),
+    tutorialTap: t("brainGames.dualTask.tutorialTap", "Tap repeats"),
   }), [t]);
 
   const [screen, setScreen] = useState("loading");
   const [sequence, setSequence] = useState(null);
   const [userState, setUserState] = useState(null);
+  const [tutorialSeen, setTutorialSeen] = useState(() => readTutorialSeen(userId));
+  const [tutorialReturnScreen, setTutorialReturnScreen] = useState("intro");
 
   const [serial7sStep, setSerial7sStep] = useState(0);
   const [pickerValue, setPickerValue] = useState(0);
@@ -259,8 +291,6 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   const [roundProgress, setRoundProgress] = useState(1);
   const [sessionResult, setSessionResult] = useState(null);
-  const [tutorialSymbolIndex, setTutorialSymbolIndex] = useState(0);
-  const [tutorialTapped, setTutorialTapped] = useState(false);
 
   const symbolIntervalRef = useRef(null);
   const roundTimerRef = useRef(null);
@@ -703,6 +733,21 @@ export default function DualTaskWalk({ userId, onExit }) {
     onExit?.();
   }, [finishRound, onExit]);
 
+  const markTutorialSeen = useCallback(() => {
+    writeTutorialSeen(userId);
+    setTutorialSeen(true);
+  }, [userId]);
+
+  const openInstructions = useCallback(() => {
+    setTutorialReturnScreen(screenRef.current === "playing" ? "intro" : screenRef.current || "intro");
+    setScreen("tutorial");
+  }, []);
+
+  const closeTutorial = useCallback(() => {
+    markTutorialSeen();
+    setScreen(tutorialReturnScreen || "intro");
+  }, [markTutorialSeen, tutorialReturnScreen]);
+
   useEffect(() => {
     let active = true;
 
@@ -716,7 +761,8 @@ export default function DualTaskWalk({ userId, onExit }) {
         setSequence(nextSequence);
         setPickerValue(nextSequence.start_number);
         setPickerTouched(false);
-        setScreen("intro");
+        setTutorialReturnScreen("intro");
+        setScreen(readTutorialSeen(userId) ? "intro" : "tutorial");
       } catch {
         if (!active) return;
         const fallbackState = getDefaultUserState(userId);
@@ -724,7 +770,8 @@ export default function DualTaskWalk({ userId, onExit }) {
         setSequence(FALLBACK_SEQUENCE);
         setPickerValue(FALLBACK_SEQUENCE.start_number);
         setPickerTouched(false);
-        setScreen("intro");
+        setTutorialReturnScreen("intro");
+        setScreen(readTutorialSeen(userId) ? "intro" : "tutorial");
       }
     }
 
@@ -736,31 +783,10 @@ export default function DualTaskWalk({ userId, onExit }) {
 
   useEffect(() => clearRoundTimers, [clearRoundTimers]);
 
-  useEffect(() => {
-    if (screen !== "tutorial") return undefined;
-    setTutorialSymbolIndex(0);
-    setTutorialTapped(false);
-    const timer = window.setInterval(() => {
-      setTutorialSymbolIndex((current) => {
-        if (current >= DEMO_SEQUENCE.symbol_stream.length - 1) {
-          window.clearInterval(timer);
-          return current;
-        }
-        setTutorialTapped(false);
-        return current + 1;
-      });
-    }, 1800);
-
-    return () => window.clearInterval(timer);
-  }, [screen]);
-
   const resultToneGreat = (sessionResult?.dual_task_score ?? 0) >= 600;
   const lastThreeMath = serial7sLog.slice(-3);
   const progressToPromotion = clamp(((userState?.consecutive_wins ?? 0) / 3) * 100, 0, 100);
   const nextTier = clamp((userState?.current_tier ?? currentSequence.difficulty_tier) + 1, 1, 10);
-  const tutorialCurrentSymbol = DEMO_SEQUENCE.symbol_stream[tutorialSymbolIndex];
-  const tutorialPreviousSymbol = tutorialSymbolIndex > 0 ? DEMO_SEQUENCE.symbol_stream[tutorialSymbolIndex - 1] : "—";
-  const tutorialMatch = tutorialSymbolIndex > 0 && DEMO_SEQUENCE.match_indices.includes(tutorialSymbolIndex);
 
   const shellStyle = {
     background: BRAND.bg,
@@ -799,6 +825,17 @@ export default function DualTaskWalk({ userId, onExit }) {
             <div className="flex min-h-[64px] items-center rounded-full px-5 text-[22px] font-bold text-white shadow-vyva-card" style={{ background: BRAND.gold }}>
               {text.level} {currentSequence.difficulty_tier}
             </div>
+            {tutorialSeen ? (
+              <button
+                type="button"
+                onClick={openInstructions}
+                aria-label={text.instructions}
+                title={text.instructions}
+                className="flex min-h-[64px] w-[64px] items-center justify-center rounded-full bg-white text-vyva-purple shadow-vyva-card"
+              >
+                <CircleHelp size={28} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
 
           <main className="flex min-h-0 flex-1 flex-col justify-center py-4 md:py-6">
@@ -826,11 +863,11 @@ export default function DualTaskWalk({ userId, onExit }) {
 
           <button
             type="button"
-            onClick={() => setScreen("tutorial")}
+            onClick={() => startRound()}
             className="min-h-[72px] w-full shrink-0 rounded-[8px] px-6 text-[26px] font-bold text-white shadow-vyva-card sm:px-8 sm:text-[28px]"
             style={{ background: BRAND.purple }}
           >
-            {text.example}
+            {text.start}
           </button>
         </div>
       </div>
@@ -841,11 +878,11 @@ export default function DualTaskWalk({ userId, onExit }) {
     return (
       <div className="h-[100dvh] overflow-hidden px-3 sm:px-5 md:px-6" style={fixedShellStyle}>
         <div className="mx-auto flex h-full w-full max-w-[820px] flex-col">
-          <header className="flex min-h-[64px] shrink-0 items-center justify-between gap-3 border-b-2" style={{ borderColor: BRAND.border }}>
-            <h1 className="min-w-0 text-[24px] font-bold leading-[1.1] sm:text-[28px]">{text.tutorialTitle}</h1>
+          <header className="flex min-h-[64px] shrink-0 items-center justify-between gap-3">
+            <h1 className="min-w-0 font-display text-[34px] font-bold leading-tight sm:text-[40px]">{text.tutorialTitle}</h1>
             <button
               type="button"
-              onClick={() => startRound()}
+              onClick={closeTutorial}
               className="min-h-[64px] shrink-0 rounded-full px-5 text-[22px] font-bold sm:px-6 sm:text-[24px]"
               style={{ background: BRAND.softPurple, color: BRAND.purple }}
             >
@@ -853,56 +890,55 @@ export default function DualTaskWalk({ userId, onExit }) {
             </button>
           </header>
 
-          <main className="grid min-h-0 flex-1 grid-rows-[minmax(256px,40fr)_minmax(0,60fr)] gap-2 py-2 sm:gap-3">
-            <section className="flex min-h-0 flex-col rounded-[8px] border-2 bg-white p-3 sm:p-4" style={{ borderColor: BRAND.border }}>
-              <p className="text-[24px] font-semibold leading-[1.15] sm:text-[28px]">
-                {text.startAt}: <span style={{ color: BRAND.purple }}>{DEMO_SEQUENCE.start_number}</span>
-              </p>
-              <div className="mt-2 grid flex-1 grid-cols-[150px_minmax(0,1fr)] items-stretch gap-3 sm:grid-cols-[178px_minmax(0,1fr)]">
-                <NumberPicker
-                  value={44}
-                  min={1}
-                  max={100}
-                  onChange={() => {}}
-                  ariaLabel={text.tutorialNumber}
-                  increaseLabel={text.increaseNumber}
-                  decreaseLabel={text.decreaseNumber}
-                />
-                <div className="flex min-h-[80px] items-center justify-center rounded-[8px] text-[30px] font-bold sm:text-[32px]" style={{ background: "#ECFDF3", color: "#15803D" }}>
-                  <Check size={42} />
-                  <span className="ml-3">✓ ✓</span>
+          <main className="flex min-h-0 flex-1 flex-col justify-center py-3">
+            <section className="rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-[24px] bg-[#FAF7FF] p-5">
+                  <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white" style={{ color: BRAND.purple }}>
+                    <Brain size={34} aria-hidden="true" />
+                  </span>
+                  <p className="mt-4 text-[22px] font-black leading-tight">{text.tutorialCount}</p>
+                  <div className="mt-4 flex items-center justify-center gap-2 text-[34px] font-black leading-none" style={{ color: BRAND.purple }}>
+                    <span>{DEMO_SEQUENCE.start_number}</span>
+                    <span className="h-1 w-7 rounded-full bg-[#8A7B96]" aria-hidden="true" />
+                    <span>{DEMO_SEQUENCE.expected_answers[0]}</span>
+                  </div>
+                  <p className="mt-3 text-[18px] font-bold leading-snug text-[#5B4B71]">{text.countBack}</p>
+                </div>
+
+                <div className="rounded-[24px] bg-[#FFF7ED] p-5">
+                  <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white" style={{ color: BRAND.gold }}>
+                    <Eye size={34} aria-hidden="true" />
+                  </span>
+                  <p className="mt-4 text-[22px] font-black leading-tight">{text.tutorialTap}</p>
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    <span className="h-12 w-12 rounded-full" style={{ background: BRAND.ink }} />
+                    <span className="h-12 w-12 rounded-full" style={{ background: BRAND.ink }} />
+                  </div>
+                  <p className="mt-3 text-[18px] font-bold leading-snug text-[#5B4B71]">{text.tapMatch}</p>
                 </div>
               </div>
-            </section>
 
-            <section className="relative flex min-h-0 flex-col rounded-[8px] border-2 bg-white p-3 sm:p-4" style={{ borderColor: BRAND.border }}>
-              {tutorialMatch && !tutorialTapped && (
-                <div className="absolute left-3 right-3 top-3 rounded-[8px] px-4 py-3 text-center text-[22px] font-bold text-white sm:left-4 sm:right-4 sm:top-4 sm:text-[26px]" style={{ background: BRAND.gold }}>
-                  {text.sameSymbol}
-                </div>
-              )}
-              <p className="text-[22px] font-semibold leading-[1.15] text-[#5B4B71] sm:text-[24px]">
-                {text.previousSymbol}: <span className="text-[34px] text-[#2B2233]">{tutorialPreviousSymbol}</span>
-              </p>
-              <div className="flex min-h-0 flex-1 items-center justify-center text-[88px] font-bold leading-none sm:text-[104px]">{tutorialCurrentSymbol}</div>
-              <button
-                type="button"
-                onClick={() => setTutorialTapped(true)}
-                className="mx-auto flex min-h-[92px] w-full max-w-[520px] shrink-0 items-center justify-center rounded-[8px] px-6 text-[28px] font-bold text-white sm:px-8 sm:text-[30px]"
-                style={{ background: tutorialTapped && tutorialMatch ? "#16A34A" : BRAND.purple }}
-              >
-                {text.tapHere}
-              </button>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {[text.tutorialCount, text.tutorialWatch, text.tutorialTap].map((label, index) => (
+                  <div key={label} className="flex min-h-[74px] items-center gap-3 rounded-[18px] border bg-white px-4 text-left" style={{ borderColor: BRAND.border }}>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[18px] font-black text-white" style={{ background: BRAND.purple }}>
+                      {index + 1}
+                    </span>
+                    <p className="text-[18px] font-black leading-tight">{label}</p>
+                  </div>
+                ))}
+              </div>
             </section>
           </main>
 
           <button
             type="button"
-            onClick={() => startRound()}
+            onClick={closeTutorial}
             className="min-h-[72px] w-full shrink-0 rounded-[8px] px-8 text-[28px] font-bold text-white shadow-vyva-card"
             style={{ background: BRAND.purple }}
           >
-            {text.start}
+            {text.tutorialUnderstand}
           </button>
         </div>
       </div>
