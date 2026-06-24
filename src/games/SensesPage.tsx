@@ -38,7 +38,11 @@ export default function SensesPage() {
     <div className="vyva-page">
       <PageHeader
         className="pt-2"
-        title={t("brainGames.senses.title")}
+        title={(
+          <span className="block text-[32px] leading-[1.02] min-[380px]:text-[34px] sm:text-[38px]">
+            {t("brainGames.senses.title")}
+          </span>
+        )}
         subtitle={t("brainGames.senses.subtitle")}
         icon={Headphones}
         iconColor="#0F766E"
@@ -46,7 +50,7 @@ export default function SensesPage() {
         backTo="/activities"
       />
 
-      <ResponsiveGrid className="mt-5" columns="two">
+      <ResponsiveGrid className="mt-5 xl:grid-cols-4" columns="two">
         {sensesGames.map((game) => {
           const Icon = game.Icon;
 
