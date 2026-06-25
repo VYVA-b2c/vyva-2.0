@@ -39,7 +39,7 @@ function renderSharedReport() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/shared/check-in/token-1"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/shared/check-in/token-1"]}>
         <Routes>
           <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
           <Route path="/health/doctor" element={<LocationProbe />} />

@@ -11,7 +11,7 @@ function LocationProbe() {
 
 function renderLanguageGames() {
   return render(
-    <MemoryRouter initialEntries={["/language"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/language"]}>
       <Routes>
         <Route path="/language" element={<LanguageGamesPage />} />
         <Route path="/memory-games/curious-minds" element={<LocationProbe />} />

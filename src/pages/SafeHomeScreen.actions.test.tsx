@@ -85,7 +85,7 @@ function LocationProbe() {
 
 function renderSafeHome() {
   return render(
-    <MemoryRouter initialEntries={["/safe-home"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/safe-home"]}>
       <Routes>
         <Route path="/safe-home" element={<SafeHomeScreen />} />
         <Route path="/concierge" element={<LocationProbe />} />

@@ -50,6 +50,9 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
+  build: {
+    chunkSizeWarningLimit: 1900,
+  },
   server: {
     host: "0.0.0.0",
     port: 5000,

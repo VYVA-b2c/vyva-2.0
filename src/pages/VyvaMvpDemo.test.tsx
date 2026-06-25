@@ -106,8 +106,22 @@ const caregiverDetail = {
   ],
   recommendations: [],
   checkIns: [],
-  medications: [],
-  routineEvents: [],
+  medications: [
+    {
+      id: "med-1",
+      name: "Evening tablet",
+      doseLabel: "1 tablet",
+      scheduledTime: "20:00",
+      events: [{ id: "med-event-1", status: "REMIND_LATER", scheduledFor: "2026-06-24T20:00:00.000Z" }],
+    },
+  ],
+  routineEvents: [
+    {
+      id: "routine-event-1",
+      status: "MISSED",
+      routine: { id: "routine-1", label: "Morning walk" },
+    },
+  ],
   alerts: [
     {
       id: "alert-1",
@@ -139,7 +153,7 @@ function renderRoute(path: string, element: React.ReactNode, queryMap: Record<st
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[path]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
         <Routes>
           <Route path={path.replace("maria", ":seniorKey").replace("john-profile", ":seniorId").replace("ana", ":caregiverKey")} element={element} />
           <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
@@ -265,6 +279,10 @@ describe("VYVA MVP demo UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check-ins" }));
     expect(screen.getAllByText("Sharing consent is not enabled.").length).toBeGreaterThan(1);
     expect(screen.queryByText(/What was the best part/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Medication / Routine" }));
+    expect(screen.getAllByText("Sharing consent is not enabled.").length).toBeGreaterThan(1);
+    expect(screen.queryByText("Evening tablet")).not.toBeInTheDocument();
+    expect(screen.queryByText("Morning walk")).not.toBeInTheDocument();
   });
 
   it("lets caregiver review an alert", async () => {

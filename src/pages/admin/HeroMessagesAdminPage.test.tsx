@@ -70,7 +70,7 @@ function renderPage() {
   });
 
   render(
-    <MemoryRouter initialEntries={["/admin/hero-messages"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/hero-messages"]}>
       <HeroMessagesAdminPage />
     </MemoryRouter>,
   );

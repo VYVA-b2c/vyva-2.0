@@ -9,6 +9,13 @@ vi.mock("@/i18n", () => ({
   getLanguageSnapshot: () => ({ language: "en", source: "test" }),
 }));
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    i18n: { language: "en" },
+    t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key),
+  }),
+}));
+
 vi.mock("@/components/onboarding/SpeakItOverlay", () => ({
   default: () => null,
 }));
@@ -27,7 +34,7 @@ function jsonResponse(body: unknown, status = 200) {
 function renderCareTeamFlow() {
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <CareTeamFlow />
       </MemoryRouter>
     </QueryClientProvider>,

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TriageChat from "./TriageChat";
@@ -35,21 +35,29 @@ function triageResponse(body: Record<string, unknown>) {
   });
 }
 
-function renderTriageChat(props: Partial<ComponentProps<typeof TriageChat>> = {}) {
-  return render(
-    <TriageChat
-      bpm={null}
-      respiratoryRate={null}
-      entryMode="without_vitals"
-      initialClue="Feeling anxious"
-      onComplete={vi.fn()}
-      {...props}
-    />,
-  );
+async function renderTriageChat(props: Partial<ComponentProps<typeof TriageChat>> = {}) {
+  let result: ReturnType<typeof render>;
+
+  await act(async () => {
+    result = render(
+      <TriageChat
+        bpm={null}
+        respiratoryRate={null}
+        entryMode="without_vitals"
+        initialClue="Feeling anxious"
+        onComplete={vi.fn()}
+        {...props}
+      />,
+    );
+    await Promise.resolve();
+  });
+
+  return result!;
 }
 
 describe("TriageChat MediSearch follow-ups", () => {
   afterEach(() => {
+    cleanup();
     apiFetchMock.mockReset();
     setLanguage("en");
     vi.useRealTimers();
@@ -64,7 +72,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
     const request = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
@@ -80,23 +88,25 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    const { rerender } = renderTriageChat({ language: "es", languageReady: false });
+    const { rerender } = await renderTriageChat({ language: "es", languageReady: false });
 
     await screen.findByTestId("triage-review-panel");
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(apiFetchMock).not.toHaveBeenCalled();
 
-    rerender(
-      <TriageChat
-        bpm={null}
-        respiratoryRate={null}
-        entryMode="without_vitals"
-        initialClue="Feeling anxious"
-        language="es"
-        languageReady
-        onComplete={vi.fn()}
-      />,
-    );
+    await act(async () => {
+      rerender(
+        <TriageChat
+          bpm={null}
+          respiratoryRate={null}
+          entryMode="without_vitals"
+          initialClue="Feeling anxious"
+          language="es"
+          languageReady
+          onComplete={vi.fn()}
+        />,
+      );
+    });
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(1));
     const request = JSON.parse((apiFetchMock.mock.calls[0][1] as RequestInit).body as string);
@@ -107,7 +117,7 @@ describe("TriageChat MediSearch follow-ups", () => {
   it("rotates the review headline through VYVA thinking steps", async () => {
     vi.useFakeTimers();
 
-    renderTriageChat({ languageReady: false });
+    await renderTriageChat({ languageReady: false });
 
     expect(screen.getByTestId("triage-review-headline")).toHaveTextContent("Checking your next step");
 
@@ -136,7 +146,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       medisearchConversationId: "conversation-1",
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
     await waitFor(() => {
       expect(screen.getByTestId("triage-quick-answers")).toBeInTheDocument();
@@ -165,7 +175,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    renderTriageChat({ bpm: 72, respiratoryRate: 18 });
+    await renderTriageChat({ bpm: 72, respiratoryRate: 18 });
 
     await screen.findByText("How are you feeling now?", {}, { timeout: 5000 });
     expect(screen.queryByTestId("triage-confidence-tracker")).not.toBeInTheDocument();
@@ -190,7 +200,7 @@ describe("TriageChat MediSearch follow-ups", () => {
       evidenceSources: [],
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
     await screen.findByRole("button", { name: "First answer" }, { timeout: 5000 });
     expect(screen.getByText("Which one is closest?")).toBeInTheDocument();
@@ -228,7 +238,7 @@ describe("TriageChat MediSearch follow-ups", () => {
         medisearchConversationId: "conversation-1",
       }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
     await waitFor(() => {
       expect(screen.getByTestId("triage-medical-followups")).toBeInTheDocument();
@@ -269,9 +279,9 @@ describe("TriageChat MediSearch follow-ups", () => {
       medicalFollowups: ["Could this be anxiety?"],
     }));
 
-    renderTriageChat();
+    await renderTriageChat();
 
-    await screen.findByText("Emergency warning");
+    expect(await screen.findAllByText("Emergency warning")).not.toHaveLength(0);
     await waitFor(() => {
       expect(screen.queryByTestId("triage-medical-followups")).not.toBeInTheDocument();
     });
@@ -281,7 +291,7 @@ describe("TriageChat MediSearch follow-ups", () => {
     const onDraftChange = vi.fn();
     setLanguage("es");
 
-    renderTriageChat({
+    await renderTriageChat({
       initialClue: "",
       initialDraft: {
         messages: [{ role: "assistant", content: "How is breathing now?" }],
@@ -343,7 +353,7 @@ describe("TriageChat MediSearch follow-ups", () => {
         wizardSymptomId: "skin",
       }));
 
-    renderTriageChat({
+    await renderTriageChat({
       initialClue: "",
       initialDraft: {
         messages: [{ role: "assistant", content: "Do any skin warning signs apply?" }],

@@ -913,6 +913,10 @@ function CaregiverCheckIns({ data }: { data: CaregiverDetailResponse }) {
 }
 
 function MedicationRoutine({ data }: { data: CaregiverDetailResponse }) {
+  if (!data.senior.canViewPrivateDetails) {
+    return <p className="rounded-xl border border-[#e4c9c1] bg-[#fff5f0] p-5 font-semibold text-[#963f2f]">{VYVA_UI_COPY.caregiver.consentOff}</p>;
+  }
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="border-[#d8e0e7] bg-white">

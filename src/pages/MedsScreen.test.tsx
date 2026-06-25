@@ -173,7 +173,7 @@ function renderMedsScreen(medications: TestMedication[] = []) {
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <MedsScreen />
       </MemoryRouter>
     </QueryClientProvider>,

@@ -138,7 +138,7 @@ function renderPage() {
   });
 
   return render(
-    <MemoryRouter initialEntries={["/admin/participate-events"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/participate-events"]}>
       <ParticipateEventsAdminPage />
     </MemoryRouter>,
   );

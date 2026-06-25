@@ -76,7 +76,7 @@ function renderScreen() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/health/vitals"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/health/vitals"]}>
         <Routes>
           <Route path="/health/vitals" element={<SignosScreen />} />
           <Route path="/settings/health-devices" element={<div data-testid="health-devices-route">Health devices settings</div>} />

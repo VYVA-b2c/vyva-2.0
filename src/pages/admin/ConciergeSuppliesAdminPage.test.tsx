@@ -89,7 +89,7 @@ function renderPage() {
   });
 
   return render(
-    <MemoryRouter initialEntries={["/admin/concierge-supplies"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/concierge-supplies"]}>
       <ConciergeSuppliesAdminPage />
     </MemoryRouter>,
   );

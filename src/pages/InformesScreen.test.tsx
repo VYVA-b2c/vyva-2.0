@@ -67,7 +67,7 @@ function renderDetail(profile: unknown, reportOverride: Partial<typeof report> =
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/informes/report-1"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/informes/report-1"]}>
         <LocationProbe />
         <DetailView report={{ ...report, ...reportOverride }} onBack={vi.fn()} />
       </MemoryRouter>
@@ -106,7 +106,7 @@ function renderMain(profile: unknown, summaryOverride: Partial<{
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/informes"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/informes"]}>
         <LocationProbe />
         <InformesMain />
       </MemoryRouter>

@@ -92,7 +92,7 @@ function LocationProbe() {
 
 function renderSocialHub() {
   return render(
-    <MemoryRouter initialEntries={["/social-rooms"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms"]}>
       <Routes>
         <Route path="/social-rooms" element={<SocialHub />} />
         <Route path="/social-rooms/participate" element={<LocationProbe />} />

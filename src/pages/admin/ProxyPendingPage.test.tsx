@@ -122,7 +122,7 @@ function renderPage() {
 
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/admin/proxy-pending"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/proxy-pending"]}>
         <ProxyPendingPage />
       </MemoryRouter>
     </QueryClientProvider>,
