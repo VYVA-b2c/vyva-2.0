@@ -75,6 +75,22 @@ vi.mock("react-i18next", () => ({
 }));
 
 const apiFetchMock = vi.mocked(apiFetch);
+const APPOINTMENT_MISSION_GUIDE_STORAGE_KEY = "vyva_concierge_appointment_mission_guide_hidden_v1";
+const HOME_SERVICE_GUIDE_STORAGE_KEY = "vyva_concierge_home_service_guide_hidden_v1";
+
+async function dismissAppointmentGuide() {
+  fireEvent.click(await screen.findByTestId("button-appointment-mission-understood"));
+  await waitFor(() => {
+    expect(screen.queryByTestId("modal-appointment-mission")).not.toBeInTheDocument();
+  });
+}
+
+async function dismissHomeServiceGuide() {
+  fireEvent.click(await screen.findByTestId("button-home-service-guide-understood"));
+  await waitFor(() => {
+    expect(screen.queryByTestId("modal-home-service-guide")).not.toBeInTheDocument();
+  });
+}
 
 function LocationProbe() {
   const location = useLocation();
@@ -188,14 +204,17 @@ describe("ConciergeScreen action hub", () => {
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
     expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Schedule an appointment");
+    expect(await screen.findByTestId("modal-appointment-mission")).toBeVisible();
     expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("Appointment mission");
     for (const label of ["Medical", "Personal care", "Government", "Home service", "Social or restaurant"]) {
       expect(screen.getByRole("button", { name: label })).toBeVisible();
     }
+    await dismissAppointmentGuide();
 
     fireEvent.click(screen.getByTestId("button-concierge-card-service"));
     expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Find home service");
     expect(screen.getByTestId("button-appointment-start-home-service")).toHaveTextContent("Find trusted options");
+    await dismissHomeServiceGuide();
 
     fireEvent.click(screen.getByTestId("button-concierge-fast-best-deal"));
     expect(screen.getByTestId("panel-offers-search")).toBeVisible();
@@ -206,6 +225,62 @@ describe("ConciergeScreen action hub", () => {
 
     fireEvent.click(screen.getByTestId("button-concierge-fast-research"));
     expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("research a topic");
+  });
+
+  it("shows the appointment mission as a one-time popup with a saved hide option", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+
+    expect(await screen.findByTestId("modal-appointment-mission")).toBeVisible();
+    expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("Appointment mission");
+
+    fireEvent.click(screen.getByTestId("button-appointment-mission-understood"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal-appointment-mission")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("button-appointment-open-mission-guide")).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("button-appointment-open-mission-guide"));
+    expect(await screen.findByTestId("modal-appointment-mission")).toBeVisible();
+    fireEvent.click(screen.getByTestId("checkbox-appointment-mission-never"));
+    fireEvent.click(screen.getByTestId("button-appointment-mission-understood"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal-appointment-mission")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("button-appointment-open-mission-guide")).not.toBeInTheDocument();
+    expect(localStorage.getItem(APPOINTMENT_MISSION_GUIDE_STORAGE_KEY)).toBe("true");
+  });
+
+  it("shows the home service guide as a one-time popup with a saved hide option", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+
+    expect(await screen.findByTestId("modal-home-service-guide")).toBeVisible();
+    expect(screen.getByTestId("panel-home-service-guide")).toHaveTextContent("Saved list checked");
+    expect(screen.getByTestId("panel-home-service-guide")).toHaveTextContent("Trusted search");
+    expect(screen.getByTestId("panel-home-service-guide")).toHaveTextContent("You confirm");
+
+    fireEvent.click(screen.getByTestId("button-home-service-guide-understood"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal-home-service-guide")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("button-home-service-open-guide")).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("button-home-service-open-guide"));
+    expect(await screen.findByTestId("modal-home-service-guide")).toBeVisible();
+    fireEvent.click(screen.getByTestId("checkbox-home-service-guide-never"));
+    fireEvent.click(screen.getByTestId("button-home-service-guide-understood"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal-home-service-guide")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("button-home-service-open-guide")).not.toBeInTheDocument();
+    expect(localStorage.getItem(HOME_SERVICE_GUIDE_STORAGE_KEY)).toBe("true");
   });
 
   it("creates an appointment request and asks VYVA to handle the saved provider before booking", async () => {
@@ -250,18 +325,22 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    await dismissAppointmentGuide();
     fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
       target: { value: "dermatology" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Lopez");
+    fireEvent.click(screen.getByTestId("button-appointment-open-mission-guide"));
     expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("VYVA chooses the safe path");
+    await dismissAppointmentGuide();
     expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("Ask VYVA to handle this");
     expect(screen.queryByTestId("button-appointment-channel-phone")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    fireEvent.click(screen.getByTestId("button-appointment-open-mission-guide"));
     expect(screen.getByTestId("panel-appointment-live-controls")).toHaveTextContent("VYVA is calling");
     fireEvent.click(screen.getByTestId("button-appointment-call-mute"));
     expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("Muted");
@@ -317,6 +396,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    await dismissAppointmentGuide();
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Email");
@@ -374,6 +454,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    await dismissAppointmentGuide();
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Form");
@@ -388,9 +469,11 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    await dismissAppointmentGuide();
     fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
       target: { value: "Prefer Tuesday morning and ask about wheelchair access" },
     });
+    fireEvent.click(screen.getByTestId("button-appointment-open-mission-guide"));
     fireEvent.click(screen.getByTestId("button-appointment-apply-edit"));
 
     expect(screen.getByTestId("panel-appointment-mission")).toHaveTextContent("User edit: Prefer Tuesday morning");
@@ -451,6 +534,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    await dismissAppointmentGuide();
     fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
       target: { value: "dermatology" },
     });
@@ -508,6 +592,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    await dismissAppointmentGuide();
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
     fireEvent.click(await screen.findByTestId("button-appointment-discover-options"));
 
@@ -676,6 +761,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    await dismissHomeServiceGuide();
 
     expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Find home service");
     expect(screen.queryByTestId("panel-appointment-home-service-summary")).not.toBeInTheDocument();
@@ -712,6 +798,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    await dismissHomeServiceGuide();
     fireEvent.click(screen.getByTestId("button-home-service-type-electrician"));
     fireEvent.click(screen.getByTestId("button-home-service-answer-today"));
     fireEvent.change(screen.getByPlaceholderText(/water leaking/i), {
@@ -729,6 +816,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    await dismissHomeServiceGuide();
     fireEvent.click(screen.getByTestId("button-home-service-type-other"));
 
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What service do you need?");
@@ -763,6 +851,7 @@ describe("ConciergeScreen action hub", () => {
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    await dismissHomeServiceGuide();
     fireEvent.click(screen.getByTestId("button-home-service-type-other"));
     fireEvent.change(screen.getByPlaceholderText(/gardener/i), {
       target: { value: "Pest control" },
