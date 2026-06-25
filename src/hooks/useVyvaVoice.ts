@@ -174,6 +174,23 @@ function formatDisconnectDetails(details: DisconnectionDetails) {
   return `Voice session closed (${details.reason}${closeCode})${closeReason}. ${message}`;
 }
 
+async function requestVoiceMicrophonePermission() {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Microphone access is not available in this browser.");
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : "";
+    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+      throw new Error("Microphone permission was denied.");
+    }
+    throw error instanceof Error ? error : new Error("Microphone access failed.");
+  }
+}
+
 function decodeBase64Url(value: string) {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
@@ -613,6 +630,32 @@ function useVyvaVoiceController() {
       setHasMicrophone(false);
       setIsMicMuted(true);
       const voiceSessionId = getVoiceSessionId();
+      const skipMicrophone = options?.skipMicrophone ?? false;
+      if (!skipMicrophone) {
+        try {
+          await requestVoiceMicrophonePermission();
+        } catch (err) {
+          if (!isCurrentSession()) return;
+
+          const detail = err instanceof Error ? err.message : "Microphone access is needed to start voice.";
+          setLastError(detail);
+          setVoiceStatus("idle");
+          setIsConnecting(false);
+          setIsMicMuted(true);
+          setIsTransferring(false);
+          transferPendingRef.current = false;
+          recordVoiceTimelineEvent({
+            kind: "session_error",
+            title: "Voice microphone access failed",
+            detail,
+            sessionId: voiceSessionId,
+            ...(options?.agentSlug ? { agentSlug: options.agentSlug } : {}),
+          });
+          releaseVoiceInstance(voiceInstanceIdRef.current);
+          teardown();
+          return;
+        }
+      }
       const shouldResolveAgentOnServer = Boolean(options?.agentSlug || options?.roomSlug);
       const routedSession = await resolveRouterSession(contextHint, systemPrompt, options);
       const activeAgentId = routedSession.agentId ?? (shouldResolveAgentOnServer ? undefined : VYVA_AGENT_ID);
@@ -663,7 +706,6 @@ function useVyvaVoiceController() {
       });
       activeRecommendationRef.current = activeRecommendationFromVariables(routedSession.dynamicVariables);
       recordedRecommendationActionsRef.current.clear();
-      const skipMicrophone = options?.skipMicrophone ?? false;
       const autoStartListening = options?.autoStartListening ?? false;
       systemPromptRef.current = resolvedSystemPrompt;
       userClosingRef.current = false;

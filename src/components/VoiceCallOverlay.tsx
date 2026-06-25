@@ -100,8 +100,11 @@ const VoiceCallOverlay = ({
     ? voiceSessionPhaseLabel(voiceSessionPhase)
     : fallbackStatusLabel;
   const canToggleMic = Boolean(!hasConnectionError && onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
+  const hasMicrophoneError = Boolean(connectionError && /microphone|permission/i.test(connectionError));
   const emptyTranscriptLabel = hasConnectionError
-    ? t("voiceHero.connectionError", "Voice couldn't connect")
+    ? hasMicrophoneError
+      ? t("voiceHero.microphoneError", "Microphone is blocked")
+      : t("voiceHero.connectionError", "Voice couldn't connect")
     : isConnecting
     ? t("voiceHero.connecting")
     : t("voiceHero.listening");
@@ -206,7 +209,9 @@ const VoiceCallOverlay = ({
               overflowWrap: "anywhere",
             }}
           >
-            {t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.")}
+            {hasMicrophoneError
+              ? t("voiceHero.microphoneErrorHelp", "Please allow microphone access for VYVA, then try again.")
+              : t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.")}
           </p>
         )}
 
