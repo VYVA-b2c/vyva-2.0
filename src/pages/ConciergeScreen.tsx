@@ -2399,6 +2399,22 @@ const ConciergeScreen = () => {
     };
   }
 
+  function clearAppointmentAssistantState() {
+    setAppointmentOpen(false);
+    setSelectedAppointmentChip(null);
+    setAppointmentNote("");
+    resetHomeServiceIntake("app", null);
+    setAppointmentRequest(null);
+    setAppointmentOptions([]);
+    setAppointmentDiscovery(null);
+    setSelectedAppointmentOptionId(null);
+    setAppointmentAttemptResult(null);
+    setAppointmentMission(null);
+    setAppointmentNotice(null);
+    setAppointmentError(null);
+    setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+  }
+
   function prepareRideRequest() {
     const message = t(
       "concierge.fastHelp.ridePrefill",
@@ -2406,6 +2422,7 @@ const ConciergeScreen = () => {
     );
     setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
     setInput((current) => current.trim() ? current : message);
+    clearAppointmentAssistantState();
     setTransportPickup(savedTransportPickupLabel);
     setTransportDestination("");
     setTransportMobilityNeeds([]);
@@ -2414,7 +2431,6 @@ const ConciergeScreen = () => {
     setTransportNotice(null);
     setTransportTime("now");
     setTransportDetailsOpen(false);
-    setAppointmentOpen(false);
     setOffersOpen(false);
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
@@ -4018,40 +4034,52 @@ const ConciergeScreen = () => {
 
             {isHomeServiceAppointment && (
               <div
-                className="mt-4 rounded-[22px] border border-[#F6D7AE] bg-white p-4"
+                className="mt-4 overflow-hidden rounded-[24px] border border-[#F6D7AE] bg-white shadow-[0_16px_34px_rgba(180,83,9,0.10)]"
                 data-testid="panel-home-service-intake"
               >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="border-b border-[#F7E5CE] bg-[#FFFCF8] px-4 py-4">
                   <div>
                     <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#B45309]">
                       {isSpanish ? "Solicitud de servicio" : "Service order"}
                     </p>
-                    <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    <h3 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
                       {homeServiceNeededLabel || (homeServiceType
                         ? homeServiceTypeLabel(homeServiceType, locale)
                         : (isSpanish ? "Que necesitas?" : "What do you need?"))}
                     </h3>
                   </div>
                   {homeServiceType && (
-                    <span className="inline-flex w-fit items-center rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-black text-[#6D28D9]">
-                      {homeServiceCompletedLabel}
-                    </span>
+                    <div
+                      className="mt-3 flex items-center justify-between gap-3 rounded-[18px] border border-[#E9D5FF] bg-white px-3 py-2"
+                      data-testid="panel-home-service-selected-service"
+                    >
+                      <span className="min-w-0 font-body text-[13px] font-black leading-tight text-[#6D28D9]">
+                        {isSpanish ? "Servicio seleccionado" : "Selected service"}
+                      </span>
+                      <span className="flex-shrink-0 rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-black text-[#6D28D9]">
+                        {homeServiceCompletedLabel}
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                <div className="flex flex-col">
+                <div className="flex flex-col px-4 pb-4">
                   {homeServiceType && activeHomeServiceQuestion && (
                     <div
-                      className="order-1 mt-4 overflow-hidden rounded-[24px] border-2 border-[#7C3AED] bg-white shadow-[0_18px_36px_rgba(124,58,237,0.18)]"
+                      className="order-1 mt-4 overflow-hidden rounded-[26px] border-2 border-[#6D28D9] bg-[#F8F5FF] shadow-[0_20px_42px_rgba(109,40,217,0.22)]"
                       data-testid="panel-home-service-question"
                       aria-live="polite"
                     >
-                      <div className="bg-[#7C3AED] px-4 py-3 text-white">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="inline-flex min-w-0 items-center gap-2 font-body text-[12px] font-black uppercase tracking-[0.1em]">
-                            <Sparkles size={15} aria-hidden="true" />
-                            {isSpanish ? "Siguiente paso" : "Next step"}
+                      <div className="bg-[linear-gradient(135deg,#6D28D9_0%,#8B5CF6_100%)] px-4 py-4 text-white">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#6D28D9] shadow-[0_10px_22px_rgba(42,20,92,0.22)]">
+                            <Sparkles size={22} aria-hidden="true" />
                           </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-body text-[13px] font-black uppercase text-[#EDE9FE]">
+                              {isSpanish ? "Pregunta actual" : "Current question"}
+                            </p>
+                          </div>
                           <span className="flex-shrink-0 rounded-full bg-white/18 px-3 py-1 font-body text-[12px] font-black">
                             {homeServiceProgressLabel}
                           </span>
@@ -4064,8 +4092,8 @@ const ConciergeScreen = () => {
                         </div>
                       </div>
 
-                      <div className="px-4 py-4">
-                        <p className="font-body text-[20px] font-black leading-tight text-vyva-text-1">
+                      <div className="px-4 py-5">
+                        <p className="font-body text-[22px] font-black leading-[1.08] text-vyva-text-1">
                           {homeServiceTextFromQuestion(activeHomeServiceQuestion, isSpanish)}
                         </p>
                         {activeHomeServiceQuestion.kind === "choice" ? (
@@ -4076,7 +4104,7 @@ const ConciergeScreen = () => {
                                 type="button"
                                 onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, option.key)}
                                 data-testid={`button-home-service-answer-${option.key}`}
-                                className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center rounded-[16px] border-2 border-[#C4B5FD] bg-[#FAF5FF] px-3 text-center font-body text-[15px] font-black leading-tight text-[#4C1D95] shadow-[0_6px_14px_rgba(124,58,237,0.08)] transition-colors hover:bg-[#F3E8FF]"
+                                className="vyva-tap inline-flex min-h-[56px] w-full items-center justify-center rounded-[18px] border-2 border-[#C4B5FD] bg-white px-3 text-center font-body text-[16px] font-black leading-tight text-[#4C1D95] shadow-[0_8px_18px_rgba(124,58,237,0.10)] transition-colors hover:bg-[#F3E8FF]"
                               >
                                 {homeServiceOptionText(option, isSpanish)}
                               </button>
@@ -4085,7 +4113,7 @@ const ConciergeScreen = () => {
                               <button
                                 type="button"
                                 onClick={() => setHomeServiceAnswer(activeHomeServiceQuestion.key, "not_sure")}
-                                className="vyva-tap inline-flex min-h-[52px] w-full items-center justify-center rounded-[16px] border-2 border-[#C4B5FD] bg-[#FAF5FF] px-3 text-center font-body text-[15px] font-black leading-tight text-[#4C1D95] shadow-[0_6px_14px_rgba(124,58,237,0.08)] transition-colors hover:bg-[#F3E8FF]"
+                                className="vyva-tap inline-flex min-h-[56px] w-full items-center justify-center rounded-[18px] border-2 border-[#C4B5FD] bg-white px-3 text-center font-body text-[16px] font-black leading-tight text-[#4C1D95] shadow-[0_8px_18px_rgba(124,58,237,0.10)] transition-colors hover:bg-[#F3E8FF]"
                               >
                                 {isSpanish ? "No lo se" : "Not sure"}
                               </button>
@@ -4150,7 +4178,20 @@ const ConciergeScreen = () => {
                     </div>
                   )}
 
-                  <div className={`${homeServiceType ? "order-2 mt-3 grid-cols-3 gap-2" : "order-1 mt-3 grid-cols-2 gap-2 sm:grid-cols-3"} grid`}>
+                  <div
+                    className={`${
+                      homeServiceType
+                        ? "order-2 mt-3 rounded-[18px] border border-[#F2DFC6] bg-[#FFFCF8] p-2"
+                        : "order-1 mt-3"
+                    }`}
+                    data-testid="panel-home-service-service-picker"
+                  >
+                    {homeServiceType && (
+                      <p className="mb-2 px-1 font-body text-[12px] font-black uppercase text-[#9A6B3A]">
+                        {isSpanish ? "Cambiar servicio" : "Change service"}
+                      </p>
+                    )}
+                    <div className={`${homeServiceType ? "grid-cols-2 gap-2 sm:grid-cols-3" : "grid-cols-2 gap-2 sm:grid-cols-3"} grid`}>
                     {HOME_SERVICE_TYPES.map((service) => {
                       const selected = homeServiceType === service.key;
                       return (
@@ -4172,17 +4213,18 @@ const ConciergeScreen = () => {
                           }}
                           data-testid={`button-home-service-type-${service.key}`}
                           className={`vyva-tap rounded-[14px] border px-3 text-left font-body font-black leading-tight ${
-                            homeServiceType ? "min-h-[46px] text-[12px]" : "min-h-[54px] text-[13px]"
+                            homeServiceType ? "min-h-[44px] text-[12px]" : "min-h-[54px] text-[13px]"
                           } ${
                             selected
-                              ? "border-[#B45309] bg-[#FFF7ED] text-[#92400E]"
-                              : "border-[#F1D9BD] bg-[#FFFCF8] text-vyva-text-1"
+                              ? "border-[#B45309] bg-[#FFF7ED] text-[#92400E] shadow-[0_6px_14px_rgba(180,83,9,0.10)]"
+                              : "border-[#F1D9BD] bg-white text-vyva-text-1"
                           }`}
                         >
                           {isSpanish ? service.es : service.en}
                         </button>
                       );
                     })}
+                    </div>
                   </div>
                 </div>
               </div>
