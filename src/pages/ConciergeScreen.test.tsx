@@ -732,7 +732,7 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-type-other"));
 
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("What service do you need?");
-    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Next step");
+    expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Current question");
     expect(screen.getByTestId("panel-home-service-question")).toHaveTextContent("Step 1 of 5");
     expect(screen.getByTestId("panel-home-service-question")).not.toHaveTextContent("How urgent is it?");
     fireEvent.change(screen.getByPlaceholderText(/gardener/i), {
