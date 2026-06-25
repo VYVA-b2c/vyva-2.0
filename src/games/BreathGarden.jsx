@@ -655,9 +655,6 @@ export default function BreathGarden({ userId, onExit }) {
               <ThemeIcon themeId={theme} size={54} />
             </div>
             <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.breathGarden.title", "Breath Garden")}</h1>
-            <p className="mt-3 text-[26px] font-black" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.subtitle", "Your breathing brings the garden to life.")}
-            </p>
             <p className="mx-auto mt-6 max-w-[650px] text-[26px] font-bold leading-snug" style={{ color: BRAND.ink }}>
               {t("games.breathGarden.howItWorks", "Tap once as you breathe in, and once as you breathe out. There is no correct rhythm - just breathe your way.")}
             </p>

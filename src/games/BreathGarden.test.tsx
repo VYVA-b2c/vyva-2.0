@@ -96,6 +96,8 @@ describe("BreathGarden component", () => {
     fireEvent.click(screen.getByRole("button", { name: "I understand" }));
 
     expect(screen.getByRole("heading", { name: "Breath Garden" })).toBeInTheDocument();
+    expect(screen.queryByText("Your breathing brings the garden to life.")).not.toBeInTheDocument();
+    expect(screen.getByText("Tap once as you breathe in, and once as you breathe out. There is no correct rhythm - just breathe your way.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
 
     expect(screen.getByRole("button", { name: "Tap as you inhale... and exhale" })).toBeInTheDocument();
