@@ -566,6 +566,8 @@ const APPOINTMENT_TYPE_CHIPS = [
 
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
 const CHAT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const APPOINTMENT_MISSION_GUIDE_STORAGE_KEY = "vyva_concierge_appointment_mission_guide_hidden_v1";
+const HOME_SERVICE_GUIDE_STORAGE_KEY = "vyva_concierge_home_service_guide_hidden_v1";
 
 const HOME_SERVICE_VOICE_ANSWER_KEYS = [
   "urgency",
@@ -1583,6 +1585,26 @@ const ConciergeScreen = () => {
   const [appointmentAttemptResult, setAppointmentAttemptResult] = useState<AppointmentAttemptResponse | null>(null);
   const [appointmentMission, setAppointmentMission] = useState<AppointmentMissionState | null>(null);
   const [appointmentControlMode, setAppointmentControlMode] = useState<"listening" | "muted" | "stopped">("listening");
+  const [appointmentMissionGuideOpen, setAppointmentMissionGuideOpen] = useState(false);
+  const [appointmentMissionGuideDismissed, setAppointmentMissionGuideDismissed] = useState(false);
+  const [appointmentMissionGuideNeverShow, setAppointmentMissionGuideNeverShow] = useState(false);
+  const [appointmentMissionGuideHidden, setAppointmentMissionGuideHidden] = useState(() => {
+    try {
+      return localStorage.getItem(APPOINTMENT_MISSION_GUIDE_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const [homeServiceGuideOpen, setHomeServiceGuideOpen] = useState(false);
+  const [homeServiceGuideDismissed, setHomeServiceGuideDismissed] = useState(false);
+  const [homeServiceGuideNeverShow, setHomeServiceGuideNeverShow] = useState(false);
+  const [homeServiceGuideHidden, setHomeServiceGuideHidden] = useState(() => {
+    try {
+      return localStorage.getItem(HOME_SERVICE_GUIDE_STORAGE_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
   const [appointmentNotice, setAppointmentNotice] = useState<string | null>(null);
   const [appointmentError, setAppointmentError] = useState<string | null>(null);
   const [appointmentBookedForm, setAppointmentBookedForm] = useState({
@@ -2049,6 +2071,56 @@ const ConciergeScreen = () => {
       language: locale,
     }).safety_flags;
   }, [homeServiceIntakeAnswers, homeServiceIntakeOrigin, homeServiceType, locale]);
+
+  useEffect(() => {
+    if (!appointmentOpen) {
+      setAppointmentMissionGuideOpen(false);
+      return;
+    }
+
+    if (showAppointmentMissionCard && !appointmentMissionGuideHidden && !appointmentMissionGuideDismissed) {
+      setAppointmentMissionGuideOpen(true);
+    }
+  }, [appointmentMissionGuideDismissed, appointmentMissionGuideHidden, appointmentOpen, showAppointmentMissionCard]);
+
+  function dismissAppointmentMissionGuide() {
+    setAppointmentMissionGuideOpen(false);
+    setAppointmentMissionGuideDismissed(true);
+
+    if (!appointmentMissionGuideNeverShow) return;
+
+    try {
+      localStorage.setItem(APPOINTMENT_MISSION_GUIDE_STORAGE_KEY, "true");
+    } catch {
+      // Ignore storage failures; the current session dismissal still applies.
+    }
+    setAppointmentMissionGuideHidden(true);
+  }
+
+  useEffect(() => {
+    if (!appointmentOpen || !isHomeServiceAppointment) {
+      setHomeServiceGuideOpen(false);
+      return;
+    }
+
+    if (!homeServiceGuideHidden && !homeServiceGuideDismissed) {
+      setHomeServiceGuideOpen(true);
+    }
+  }, [appointmentOpen, homeServiceGuideDismissed, homeServiceGuideHidden, isHomeServiceAppointment]);
+
+  function dismissHomeServiceGuide() {
+    setHomeServiceGuideOpen(false);
+    setHomeServiceGuideDismissed(true);
+
+    if (!homeServiceGuideNeverShow) return;
+
+    try {
+      localStorage.setItem(HOME_SERVICE_GUIDE_STORAGE_KEY, "true");
+    } catch {
+      // Ignore storage failures; the current session dismissal still applies.
+    }
+    setHomeServiceGuideHidden(true);
+  }
 
   useEffect(() => {
     if (pendingActions.length === 0) {
@@ -3850,6 +3922,100 @@ const ConciergeScreen = () => {
               </button>
             </div>
 
+            {isHomeServiceAppointment && !homeServiceGuideOpen && !homeServiceGuideHidden && (
+              <button
+                type="button"
+                onClick={() => setHomeServiceGuideOpen(true)}
+                data-testid="button-home-service-open-guide"
+                className="vyva-tap mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-full border border-[#FED7AA] bg-white px-4 font-body text-[13px] font-black text-[#B45309] sm:w-auto"
+              >
+                {isSpanish ? "Como lo gestiona VYVA" : "How VYVA handles this"}
+              </button>
+            )}
+
+            {isHomeServiceAppointment && homeServiceGuideOpen && (
+              <div
+                className="fixed inset-0 z-[80] flex items-end justify-center bg-black/35 px-4 pb-4 pt-16 sm:items-center sm:p-6"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="home-service-guide-title"
+                data-testid="modal-home-service-guide"
+              >
+                <div
+                  className="max-h-[84vh] w-full max-w-[500px] overflow-y-auto rounded-[26px] border border-[#FED7AA] bg-white p-4 shadow-[0_24px_70px_rgba(180,83,9,0.20)] sm:p-5"
+                  data-testid="panel-home-service-guide"
+                >
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#B45309]">
+                    {isSpanish ? "Servicio en casa" : "Home service"}
+                  </p>
+                  <h3 id="home-service-guide-title" className="mt-1 font-body text-[20px] font-black leading-tight text-vyva-text-1">
+                    {isSpanish ? "Buscar servicio en casa" : "Find home service"}
+                  </h3>
+                  <p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">
+                    {isSpanish ? "Describe el problema. VYVA organiza el siguiente paso." : "Describe the problem. VYVA organizes the next step."}
+                  </p>
+
+                  <div className="mt-4 grid gap-2">
+                    {[
+                      {
+                        Icon: CircleCheck,
+                        label: isSpanish ? "Lista guardada revisada" : "Saved list checked",
+                        color: "#0F766E",
+                        bg: "#ECFDF5",
+                        border: "#BBF7D0",
+                      },
+                      {
+                        Icon: Search,
+                        label: isSpanish ? "Busqueda fiable" : "Trusted search",
+                        color: "#B45309",
+                        bg: "#FFF7ED",
+                        border: "#FED7AA",
+                      },
+                      {
+                        Icon: ShieldCheck,
+                        label: isSpanish ? "Tu confirmas" : "You confirm",
+                        color: "#6D28D9",
+                        bg: "#F5F3FF",
+                        border: "#DDD6FE",
+                      },
+                    ].map(({ Icon, label, color, bg, border }) => (
+                      <div
+                        key={label}
+                        className="flex min-h-[48px] items-center gap-3 rounded-full border bg-white px-3"
+                        style={{ borderColor: border }}
+                      >
+                        <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ background: bg, color }}>
+                          <Icon size={15} aria-hidden="true" />
+                        </span>
+                        <span className="font-body text-[13px] font-black text-vyva-text-1">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 rounded-[18px] border border-[#FED7AA] bg-[#FFFCF8] p-3">
+                    <label className="flex items-start gap-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                      <input
+                        type="checkbox"
+                        checked={homeServiceGuideNeverShow}
+                        onChange={(event) => setHomeServiceGuideNeverShow(event.target.checked)}
+                        data-testid="checkbox-home-service-guide-never"
+                        className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[#FED7AA] text-[#B45309]"
+                      />
+                      <span>{isSpanish ? "No mostrar de nuevo" : "Never show this again"}</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={dismissHomeServiceGuide}
+                      data-testid="button-home-service-guide-understood"
+                      className="vyva-tap mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#B45309] px-4 font-body text-[14px] font-black text-white"
+                    >
+                      {isSpanish ? "Entendido" : "Understood"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {isHomeServiceAppointment && (
               <div
                 className="mt-4 rounded-[22px] border border-[#F6D7AE] bg-white p-4"
@@ -4022,17 +4188,35 @@ const ConciergeScreen = () => {
               </div>
             )}
 
-            {showAppointmentMissionCard && (
-              <div
-                className="mt-4 rounded-[22px] border border-[#99F6E4] bg-white p-4"
-                data-testid="panel-appointment-mission"
+            {showAppointmentMissionCard && !appointmentMissionGuideOpen && !appointmentMissionGuideHidden && (
+              <button
+                type="button"
+                onClick={() => setAppointmentMissionGuideOpen(true)}
+                data-testid="button-appointment-open-mission-guide"
+                className="vyva-tap mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-full border border-[#99F6E4] bg-white px-4 font-body text-[13px] font-black text-[#0F766E] sm:w-auto"
               >
+                {isSpanish ? "Como lo gestiona VYVA" : "How VYVA handles this"}
+              </button>
+            )}
+
+            {showAppointmentMissionCard && appointmentMissionGuideOpen && (
+              <div
+                className="fixed inset-0 z-[80] flex items-end justify-center bg-black/35 px-4 pb-4 pt-16 sm:items-center sm:p-6"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="appointment-mission-guide-title"
+                data-testid="modal-appointment-mission"
+              >
+                <div
+                  className="max-h-[84vh] w-full max-w-[520px] overflow-y-auto rounded-[26px] border border-[#99F6E4] bg-white p-4 shadow-[0_24px_70px_rgba(15,118,110,0.22)] sm:p-5"
+                  data-testid="panel-appointment-mission"
+                >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
                       {isSpanish ? "Mision de cita" : "Appointment mission"}
                     </p>
-                    <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    <h3 id="appointment-mission-guide-title" className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
                       {appointmentMissionStatusLabel(activeAppointmentMission.status, isSpanish)}
                     </h3>
                     <p className="mt-1 font-body text-[14px] font-semibold leading-relaxed text-vyva-text-2">
@@ -4153,6 +4337,28 @@ const ConciergeScreen = () => {
                     </div>
                   </div>
                 )}
+
+                <div className="mt-4 rounded-[18px] border border-[#D6F5DF] bg-[#FFFCF8] p-3">
+                  <label className="flex items-start gap-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                    <input
+                      type="checkbox"
+                      checked={appointmentMissionGuideNeverShow}
+                      onChange={(event) => setAppointmentMissionGuideNeverShow(event.target.checked)}
+                      data-testid="checkbox-appointment-mission-never"
+                      className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-[#99F6E4] text-[#0F766E]"
+                    />
+                    <span>{isSpanish ? "No mostrar de nuevo" : "Never show this again"}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={dismissAppointmentMissionGuide}
+                    data-testid="button-appointment-mission-understood"
+                    className="vyva-tap mt-3 inline-flex min-h-[44px] w-full items-center justify-center rounded-full bg-[#0F766E] px-4 font-body text-[14px] font-black text-white"
+                  >
+                    {isSpanish ? "Entendido" : "Understood"}
+                  </button>
+                </div>
+                </div>
               </div>
             )}
 
