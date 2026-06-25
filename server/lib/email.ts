@@ -2,9 +2,15 @@ import nodemailer from "nodemailer";
 import { explainEmailProviderError, requireEmailFromAddress } from "./emailSenderConfig.js";
 
 const isDev = process.env.NODE_ENV !== "production";
-const EMAIL_NOT_CONFIGURED_MESSAGE = "Email sender is not configured. Set SENDGRID_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS.";
+const EMAIL_NOT_CONFIGURED_MESSAGE = "Email sender is not configured. Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS.";
 const VYVA_WEBSITE_URL = "https://vyva.life";
 const VYVA_PRIVACY_URL = "https://vyva.life/privacypolicy";
+
+type ResendResponse = {
+  id?: string;
+  name?: string;
+  message?: string;
+};
 
 type SendGridResponse = {
   message?: string;
@@ -168,10 +174,11 @@ async function sendEmailMessage({
   debugLink,
   allowDevelopmentLog = isDev,
 }: EmailMessage): Promise<void> {
-  const apiKey = process.env.SENDGRID_API_KEY?.trim();
-  const transport = apiKey ? null : createTransport();
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const sendGridApiKey = process.env.SENDGRID_API_KEY?.trim();
+  const transport = resendApiKey || sendGridApiKey ? null : createTransport();
 
-  if (!apiKey && !transport) {
+  if (!resendApiKey && !sendGridApiKey && !transport) {
     if (allowDevelopmentLog && isDev) {
       console.log(`[email:dev] ${debugLabel} email (provider not configured - logging instead)`);
       console.log(`[email:dev] To: ${to}`);
@@ -185,11 +192,38 @@ async function sendEmailMessage({
   const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
   const replyTo = process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
 
-  if (apiKey) {
+  if (resendApiKey) {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `VYVA <${from}>`,
+        to: [to],
+        subject,
+        text,
+        html,
+        reply_to: replyTo,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(async () => ({
+        message: await response.text().catch(() => response.statusText),
+      })) as ResendResponse;
+      const message = payload.message ?? payload.name ?? `Resend request failed with ${response.status}`;
+      throw new Error(explainEmailProviderError(message, from, "Resend"));
+    }
+    return;
+  }
+
+  if (sendGridApiKey) {
     const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${sendGridApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -212,7 +246,7 @@ async function sendEmailMessage({
         message: await response.text().catch(() => response.statusText),
       })) as SendGridResponse;
       const message = payload.errors?.[0]?.message ?? payload.message ?? `SendGrid request failed with ${response.status}`;
-      throw new Error(explainEmailProviderError(message, from));
+      throw new Error(explainEmailProviderError(message, from, "SendGrid"));
     }
     return;
   }
