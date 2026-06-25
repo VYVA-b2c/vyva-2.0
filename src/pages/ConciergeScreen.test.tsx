@@ -869,6 +869,23 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("replaces an open home service assistant when the ride card is tapped", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-service"));
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Find home service");
+    expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("button-concierge-card-ride"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-concierge-transport")).toHaveTextContent("Transport options");
+    });
+    expect(screen.queryByTestId("panel-appointment-assistant")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-home-service-intake")).not.toBeInTheDocument();
+  });
+
   it("finds transport options and prepares a provider without starting a booking", async () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url).includes("/api/transport/options")) {

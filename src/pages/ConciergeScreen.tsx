@@ -2327,6 +2327,22 @@ const ConciergeScreen = () => {
     };
   }
 
+  function clearAppointmentAssistantState() {
+    setAppointmentOpen(false);
+    setSelectedAppointmentChip(null);
+    setAppointmentNote("");
+    resetHomeServiceIntake("app", null);
+    setAppointmentRequest(null);
+    setAppointmentOptions([]);
+    setAppointmentDiscovery(null);
+    setSelectedAppointmentOptionId(null);
+    setAppointmentAttemptResult(null);
+    setAppointmentMission(null);
+    setAppointmentNotice(null);
+    setAppointmentError(null);
+    setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+  }
+
   function prepareRideRequest() {
     const message = t(
       "concierge.fastHelp.ridePrefill",
@@ -2334,6 +2350,7 @@ const ConciergeScreen = () => {
     );
     setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
     setInput((current) => current.trim() ? current : message);
+    clearAppointmentAssistantState();
     setTransportPickup(savedTransportPickupLabel);
     setTransportDestination("");
     setTransportMobilityNeeds([]);
@@ -2342,7 +2359,6 @@ const ConciergeScreen = () => {
     setTransportNotice(null);
     setTransportTime("now");
     setTransportDetailsOpen(false);
-    setAppointmentOpen(false);
     setOffersOpen(false);
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
