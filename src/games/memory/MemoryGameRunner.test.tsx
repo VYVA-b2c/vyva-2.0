@@ -47,7 +47,7 @@ vi.mock("./gameStorage", async () => {
 
 function renderWordRecall() {
   return render(
-    <MemoryRouter initialEntries={["/memory-games/word_recall?level=1&variant=word_recall-l1-v1"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games/word_recall?level=1&variant=word_recall-l1-v1"]}>
       <Routes>
         <Route path="/memory-games/:gameType" element={<MemoryGameRunner />} />
       </Routes>
@@ -57,7 +57,7 @@ function renderWordRecall() {
 
 function renderRhythmTap() {
   return render(
-    <MemoryRouter initialEntries={["/attention-boosters/rhythm-tap?level=1&variant=sequence_memory-l1-v1"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/attention-boosters/rhythm-tap?level=1&variant=sequence_memory-l1-v1"]}>
       <Routes>
         <Route
           path="/attention-boosters/rhythm-tap"

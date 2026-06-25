@@ -53,7 +53,7 @@ describe("SettingsHome action rows", () => {
     Object.assign(navigator, { clipboard: { writeText: clipboardWrite } });
 
     render(
-      <MemoryRouter initialEntries={["/settings"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
         <SettingsHome />
       </MemoryRouter>,
     );
@@ -72,7 +72,7 @@ describe("SettingsHome action rows", () => {
 
   it("opens Health devices from Settings", () => {
     render(
-      <MemoryRouter initialEntries={["/settings"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
         <Routes>
           <Route path="/settings" element={<SettingsHome />} />
           <Route path="/settings/health-devices" element={<div data-testid="health-devices-route">Health devices</div>} />

@@ -100,7 +100,7 @@ function LocationProbe() {
 
 function renderActivities() {
   return render(
-    <MemoryRouter initialEntries={["/activities"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/activities"]}>
       <Routes>
         <Route path="/activities" element={<ActivitiesScreen />} />
         <Route path="/activity" element={<LocationProbe />} />

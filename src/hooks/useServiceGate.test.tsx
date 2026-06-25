@@ -79,7 +79,7 @@ function renderGate(path: string, body: ReadinessResponse) {
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/"]}>
         <TestButton path={path} />
         <LocationSpy />
       </MemoryRouter>
@@ -100,7 +100,7 @@ function renderGateWhileReadinessLoads(path: string) {
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/"]}>
         <TestButton path={path} />
         <LocationSpy />
       </MemoryRouter>

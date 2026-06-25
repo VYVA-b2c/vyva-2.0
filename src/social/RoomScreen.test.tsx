@@ -208,7 +208,7 @@ function LocationProbe() {
 
 function renderRoom(initialEntry = "/social-rooms/morning-movement") {
   render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<><MovementExerciseGuideScreen /><LocationProbe /></>} />
         <Route path="/social-rooms/:slug" element={<RoomScreen />} />
@@ -651,8 +651,9 @@ describe("RoomScreen movement room", () => {
     fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
 
     await waitFor(() => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument());
-    expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent(logged);
-    expect(screen.getByTestId("movement-room-exercise-logged-status")).not.toHaveTextContent("logged for 10 min.");
+    const loggedStatus = await screen.findByTestId("movement-room-exercise-logged-status");
+    expect(loggedStatus).toHaveTextContent(logged);
+    expect(loggedStatus).not.toHaveTextContent("logged for 10 min.");
   });
 });
 

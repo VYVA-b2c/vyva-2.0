@@ -218,6 +218,10 @@ const speechLangFor = (language: string) => {
   return map[base] ?? "en-US";
 };
 
+const shouldSkipMessageAnimation = () =>
+  import.meta.env.MODE === "test" ||
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
 function TriageReviewPanel() {
   const { t } = useTranslation();
   const [headlineIndex, setHeadlineIndex] = useState(0);
@@ -365,6 +369,15 @@ export default function TriageChat({
   const animateMessage = useCallback(
     (msgIdx: number, fullText: string, onDone?: () => void) => {
       if (animTimerRef.current) clearInterval(animTimerRef.current);
+
+      if (shouldSkipMessageAnimation()) {
+        setAnimatingIdx(null);
+        setAnimatedText(fullText);
+        scrollToBottom();
+        onDone?.();
+        return;
+      }
+
       setAnimatingIdx(msgIdx);
       setAnimatedText("");
       let pos = 0;

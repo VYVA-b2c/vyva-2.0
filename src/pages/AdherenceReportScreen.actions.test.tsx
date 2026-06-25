@@ -116,7 +116,7 @@ function LocationProbe() {
 
 function renderAdherenceReport() {
   return render(
-    <MemoryRouter initialEntries={["/meds/adherence-report"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/meds/adherence-report"]}>
       <Routes>
         <Route path="/meds/adherence-report" element={<AdherenceReportScreen />} />
         <Route path="/concierge" element={<LocationProbe />} />

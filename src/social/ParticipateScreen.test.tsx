@@ -149,7 +149,7 @@ function renderParticipate() {
 
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/social-rooms/participate"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms/participate"]}>
         <Routes>
           <Route path="/social-rooms/participate" element={<ParticipateScreen />} />
           <Route path="/social-rooms" element={<LocationProbe />} />

@@ -71,7 +71,7 @@ function profileResponse(overrides = {}) {
 function renderAccountSettings() {
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/settings/account"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings/account"]}>
         <Routes>
           <Route path="/settings/account" element={<AccountSettings />} />
           <Route path="/settings" element={<span>Settings</span>} />

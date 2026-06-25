@@ -76,7 +76,7 @@ function mockShoppingApiWithPackages(packages: unknown[], nextRecommendationResp
 
 function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/concierge/shopping"]) {
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
       <LocationProbe />
       <ConciergeShoppingScreen />
     </MemoryRouter>,

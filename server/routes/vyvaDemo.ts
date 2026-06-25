@@ -519,8 +519,8 @@ router.get("/caregiver/:caregiverKey/seniors/:seniorId", async (req: Request, re
           })),
         }))
       : [],
-    medications,
-    routineEvents,
+    medications: canViewPrivateDetails ? medications : [],
+    routineEvents: canViewPrivateDetails ? routineEvents : [],
     alerts,
     notes,
     consentMessage: canViewPrivateDetails ? null : "Sharing consent is not enabled.",
