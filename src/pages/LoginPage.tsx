@@ -135,6 +135,15 @@ const GUIDE_RESPONSES: Record<GuideTopic, { label: string; body: string }> = {
 
 const LOGIN_LANGUAGE_CODES = new Set<string>(LANGUAGES.map((entry) => entry.code));
 
+function resetLinkForCurrentOrigin(resetLink: string) {
+  try {
+    const parsed = new URL(resetLink, window.location.href);
+    return `${window.location.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return resetLink;
+  }
+}
+
 function normalizeReturnPath(value: string | undefined): string | null {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
   if (value === "/onboarding" || value.startsWith("/login")) return null;
@@ -1427,6 +1436,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotDevResetLink, setForgotDevResetLink] = useState<string | null>(null);
   const [magicSent, setMagicSent] = useState(false);
   const [magicLoading, setMagicLoading] = useState(false);
   const [magicError, setMagicError] = useState<string | null>(null);
@@ -1459,6 +1469,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setForgotEmail(contact.trim().includes("@") ? contact : "");
     setForgotSent(false);
     setForgotError(null);
+    setForgotDevResetLink(null);
     setView("forgot");
   };
 
@@ -1656,6 +1667,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const handleForgot = async () => {
     if (forgotLoading) return;
     setForgotError(null);
+    setForgotDevResetLink(null);
     setForgotLoading(true);
     try {
       const email = forgotEmail.trim();
@@ -1664,10 +1676,15 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+      const body = await res.json().catch(() => null) as {
+        error?: string;
+        message?: string;
+        _devResetLink?: unknown;
+      } | null;
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
         throw new Error(body?.message || body?.error || copy.errors.requestFailed);
       }
+      setForgotDevResetLink(typeof body?._devResetLink === "string" ? resetLinkForCurrentOrigin(body._devResetLink) : null);
       setForgotSent(true);
     } catch (err) {
       setForgotError(localizeAuthErrorMessage(err, language, copy.errors.generic));
@@ -2341,6 +2358,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       <CheckCircle2 size={34} className="mx-auto mb-3 text-vyva-green" />
                       <p className="font-body text-[16px] font-bold">{copy.checkInbox}</p>
                       <p className="mt-1 font-body text-[13px] leading-[1.55] text-vyva-text-2">{copy.resetSentBody}</p>
+                      {forgotDevResetLink ? (
+                        <a
+                          href={forgotDevResetLink}
+                          className="mt-4 inline-flex rounded-full bg-white px-4 py-2 font-body text-[13px] font-bold text-vyva-purple shadow-sm"
+                        >
+                          Open local reset link
+                        </a>
+                      ) : null}
                     </div>
                   ) : (
                     <>
@@ -2350,7 +2375,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                           data-testid="input-forgot-email"
                           type="email"
                           value={forgotEmail}
-                          onChange={(event) => setForgotEmail(event.target.value)}
+                          onChange={(event) => {
+                            setForgotEmail(event.target.value);
+                            setForgotDevResetLink(null);
+                          }}
                           onKeyDown={(event) => event.key === "Enter" && canSendReset && handleForgot()}
                           placeholder={copy.emailPlaceholder}
                           className="mt-2 h-[56px] rounded-[20px] border-vyva-border bg-white px-4 shadow-vyva-input"
