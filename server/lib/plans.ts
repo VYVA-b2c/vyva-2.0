@@ -1,6 +1,7 @@
 import { and, eq, or } from "drizzle-orm";
 import { db } from "../db.js";
 import { subscriptionPlans, tierEntitlements } from "../../shared/schema.js";
+import { isMissingOnConflictConstraintError, isRelationSchemaUnavailableError } from "./dbCompatibility.js";
 
 export const DEFAULT_PLAN_CATALOG = [
   {
@@ -86,6 +87,58 @@ export function normalizeSubscriptionTier(tier: string | null | undefined): stri
   return LEGACY_TIER_MAP[normalized] ?? normalized;
 }
 
+type TierEntitlementRow = typeof tierEntitlements.$inferSelect;
+
+let warnedAboutPlanCatalogFallback = false;
+
+function isPlanCatalogUnavailable(error: unknown): boolean {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  const mentionsPlanCatalog = message.includes("subscription_plans") || message.includes("tier_entitlements");
+  return (
+    isRelationSchemaUnavailableError(error, "subscription_plans") ||
+    isRelationSchemaUnavailableError(error, "tier_entitlements") ||
+    isMissingOnConflictConstraintError(error) ||
+    (
+      mentionsPlanCatalog &&
+      (
+        message.includes("does not exist") ||
+        message.includes("permission denied") ||
+        message.includes("schema cache") ||
+        message.includes("row-level security")
+      )
+    )
+  );
+}
+
+function defaultEntitlementForTier(tier: string | null | undefined): TierEntitlementRow | null {
+  const normalizedTier = normalizeSubscriptionTier(tier);
+  const plan = DEFAULT_PLAN_CATALOG.find((catalogPlan) => catalogPlan.plan_id === normalizedTier);
+  if (!plan) return null;
+
+  const entitlement = plan.entitlement;
+  return {
+    id: `default-${normalizedTier}`,
+    tier: entitlement.tier,
+    display_name: entitlement.display_name,
+    description: entitlement.description,
+    voice_assistant: entitlement.voice_assistant,
+    medication_tracking: entitlement.medication_tracking,
+    symptom_check: entitlement.symptom_check,
+    concierge: entitlement.concierge,
+    caregiver_dashboard: entitlement.caregiver_dashboard,
+    custom_features: entitlement.custom_features,
+    is_active: entitlement.is_active,
+    created_at: new Date(0),
+    updated_at: new Date(0),
+  };
+}
+
+function warnPlanCatalogFallback(error: unknown) {
+  if (warnedAboutPlanCatalogFallback) return;
+  warnedAboutPlanCatalogFallback = true;
+  console.warn("[plans] subscription plan catalog unavailable; using built-in default entitlements.", error);
+}
+
 export function bestSubscriptionTier(
   profileTier: string | null | undefined,
   lifecycleTiers: Array<{ tier: string | null; status: string | null }>,
@@ -159,14 +212,20 @@ export async function ensureDefaultPlans() {
 }
 
 export async function entitlementForTier(tier: string | null | undefined) {
-  await ensureDefaultPlans();
   const normalizedTier = normalizeSubscriptionTier(tier);
-  const [entitlement] = await db
-    .select()
-    .from(tierEntitlements)
-    .where(eq(tierEntitlements.tier, normalizedTier))
-    .limit(1);
-  return entitlement ?? null;
+  try {
+    await ensureDefaultPlans();
+    const [entitlement] = await db
+      .select()
+      .from(tierEntitlements)
+      .where(eq(tierEntitlements.tier, normalizedTier))
+      .limit(1);
+    return entitlement ?? defaultEntitlementForTier(normalizedTier);
+  } catch (error) {
+    if (!isPlanCatalogUnavailable(error)) throw error;
+    warnPlanCatalogFallback(error);
+    return defaultEntitlementForTier(normalizedTier);
+  }
 }
 
 export async function listPlans(options: { publicOnly?: boolean } = {}) {
