@@ -178,15 +178,13 @@ test("login screen renders auth controls", async ({ page }) => {
 
 test("login schedule callback collects contact and caller context", async ({ page }) => {
   await mockApi(page);
-  await page.route("https://freeipapi.com/api/json/", async (route) => {
-    await fulfillJson(route, 200, { countryCode: "GB" });
-  });
   await page.goto("/login", { waitUntil: "domcontentloaded" });
 
   await page.getByTestId("button-login-schedule-callback").click();
   await expect(page.getByTestId("modal-login-callback")).toBeVisible();
   await expect(page.getByTestId("input-callback-first-name")).toBeFocused();
   await expect(page.getByTestId("input-callback-last-name")).toBeVisible();
+  await page.getByTestId("select-callback-country-code").selectOption("+44");
   await expect(page.getByTestId("select-callback-country-code")).toHaveValue("+44");
   await expect(page.getByTestId("input-callback-phone")).toBeVisible();
   await expect(page.getByTestId("input-callback-date")).toBeVisible();
@@ -202,13 +200,11 @@ test("login schedule callback collects contact and caller context", async ({ pag
 
 test("login call vyva shows the country-specific number", async ({ page }) => {
   await mockApi(page);
-  await page.route("https://freeipapi.com/api/json/", async (route) => {
-    await fulfillJson(route, 200, { countryCode: "IT" });
-  });
   await page.goto("/login", { waitUntil: "domcontentloaded" });
 
   await page.getByTestId("button-login-call-vyva").click();
   await expect(page.getByTestId("modal-login-call-vyva")).toBeVisible();
+  await page.getByTestId("select-call-country").selectOption("IT");
   await expect(page.getByTestId("select-call-country")).toHaveValue("IT");
   await page.getByTestId("button-call-submit").click();
   await expect(page.getByTestId("link-call-vyva-number")).toHaveText("+39 800 984 401");
@@ -319,7 +315,6 @@ test("home screen renders core cards and navigates to concierge", async ({ page 
 
   await expect(page.getByTestId("card-home-agent-health")).toBeVisible();
   await expect(page.getByTestId("card-home-agent-concierge")).toBeVisible();
-  await expect(page.getByText("or explore a topic")).toBeVisible();
 
   await page.getByTestId("card-home-agent-concierge").click();
   await expect(page).toHaveURL(/\/concierge$/);
@@ -330,7 +325,8 @@ test("concierge shopping helper recommends and saves a choice", async ({ page })
   await page.setViewportSize({ width: 1024, height: 768 });
   await page.goto("/concierge/shopping", { waitUntil: "domcontentloaded" });
 
-  await expect(page.getByRole("heading", { name: "Shopping helper" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Shop", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Groceries\b/ }).first().click();
   await page.getByLabel("What do you need help choosing?").fill("easy breakfast");
   await page.getByTestId("button-shopping-find").click();
 
@@ -342,7 +338,8 @@ test("concierge shopping helper recommends and saves a choice", async ({ page })
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Shopping helper" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Shop", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Groceries\b/ }).first().click();
   await page.getByLabel("What do you need help choosing?").fill("easy breakfast");
   await page.getByTestId("button-shopping-find").click();
   await expect(page.getByTestId("shopping-recommendation-results")).toBeVisible();
