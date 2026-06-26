@@ -22,6 +22,8 @@ const ChatScreen = () => {
     voiceSessionPhase,
     isMicMuted,
     setMicrophoneMuted,
+    lastError,
+    lastErrorCode,
   } = useVyvaVoice();
   const [text, setText] = useState("");
   const pendingRef = useRef<string | null>(searchParams.get("q"));
@@ -243,7 +245,7 @@ const ChatScreen = () => {
         </div>
       </div>
 
-      {chatMode === "voice" && (status === "connected" || isConnecting) && (
+      {chatMode === "voice" && (status === "connected" || isConnecting || lastError) && (
         <VoiceCallOverlay
           isSpeaking={isSpeaking}
           isConnecting={isConnecting}
@@ -252,6 +254,16 @@ const ChatScreen = () => {
           voiceSessionPhase={voiceSessionPhase}
           isMicMuted={isMicMuted}
           onMicToggle={setMicrophoneMuted}
+          connectionError={lastError}
+          connectionErrorCode={lastErrorCode}
+          onRetry={() => {
+            void startVoice("companion", undefined, {
+              autoStartListening: true,
+              dynamicVariables: {
+                app_entrypoint: "chat_voice_mode",
+              },
+            });
+          }}
         />
       )}
     </div>
