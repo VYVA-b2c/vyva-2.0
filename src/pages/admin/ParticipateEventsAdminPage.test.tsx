@@ -149,6 +149,18 @@ afterEach(() => {
 });
 
 describe("ParticipateEventsAdminPage", () => {
+  it("offers a downloadable activity import template", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    const link = screen.getByRole("link", { name: /Download template/ });
+
+    expect(link).toHaveAttribute("download", "vyva-activities-template.csv");
+    expect(link.getAttribute("href")).toContain("eventKey");
+    expect(link.getAttribute("href")).toContain("interests");
+    expect(link.getAttribute("href")).toContain("needs_review");
+  });
+
   it("manages city coverage, creates drafts, and saves event changes", async () => {
     renderPage();
 
