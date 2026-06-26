@@ -194,4 +194,36 @@ describe("ParticipateEventsAdminPage", () => {
       expect(String(patch?.[1]?.body)).toContain("Barcelona");
     });
   }, 15_000);
+
+  it("imports uploaded activities through the existing admin event endpoint", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+
+    const file = new File([
+      [
+        "title,summary,city,country,format,interests,accessibility",
+        "Community choir,A gentle singalong for older adults,Valencia,ES,nearby,music; social,seated",
+      ].join("\n"),
+    ], "activities.csv", { type: "text/csv" });
+
+    fireEvent.change(screen.getByTestId("admin-participate-upload-input"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => {
+      const post = apiFetchMock.mock.calls.find(([path, init]) => (
+        path === "/api/admin/social/participate/events"
+        && init?.method === "POST"
+        && String(init?.body).includes("community-choir")
+      ));
+      expect(post).toBeTruthy();
+      expect(String(post?.[1]?.body)).toContain("Community choir");
+      expect(String(post?.[1]?.body)).toContain("Valencia");
+      expect(String(post?.[1]?.body)).toContain("needs_review");
+    });
+
+    expect(await screen.findByText(/1 activity imported from activities.csv/)).toBeInTheDocument();
+    expect(await screen.findByText("community-choir")).toBeInTheDocument();
+  }, 15_000);
 });
