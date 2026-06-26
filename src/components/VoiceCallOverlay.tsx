@@ -51,6 +51,17 @@ function inferConnectionErrorCode(message?: string | null): VoiceConnectionError
   if (normalized.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
   if (normalized.includes("current plan") || normalized.includes("entitlement")) return "VOICE_ENTITLEMENT_REQUIRED";
   if (normalized.includes("not authenticated")) return "VOICE_AUTH_REQUIRED";
+  if (
+    normalized.includes("failed to connect") ||
+    normalized.includes("could not connect") ||
+    normalized.includes("couldn't connect") ||
+    normalized.includes("unable to start voice session") ||
+    normalized.includes("failed to start session") ||
+    normalized.includes("websocket") ||
+    normalized.includes("voice session closed")
+  ) {
+    return "VOICE_SESSION_START_FAILED";
+  }
   return null;
 }
 
