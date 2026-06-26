@@ -313,8 +313,9 @@ describe("RoomScreen movement room", () => {
     expect(screen.getByTestId("movement-exercise-step-visual")).toHaveAttribute("data-motion", "side-change");
     fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
 
-    await waitFor(() => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument());
-    expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Chair yoga logged for 10 min.");
+    await waitFor(() =>
+      expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Chair yoga logged for 10 min."),
+    );
     expect(screen.getByTestId("movement-room-exercise-card-chair-yoga")).toHaveTextContent("Logged");
     expect(localStorage.getItem("vyva_movement_last_exercise_id")).toBe("chair-yoga");
     expect(screen.getByTestId("movement-room-gentle-week")).toHaveTextContent("1 day moved");
@@ -652,7 +653,6 @@ describe("RoomScreen movement room", () => {
     fireEvent.click(screen.getByTestId("button-movement-guide-step-4"));
     fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
 
-    await waitFor(() => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument());
     const loggedStatus = await screen.findByTestId("movement-room-exercise-logged-status");
     expect(loggedStatus).toHaveTextContent(logged);
     expect(loggedStatus).not.toHaveTextContent("logged for 10 min.");

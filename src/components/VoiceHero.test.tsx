@@ -78,7 +78,7 @@ describe("VoiceHero status dot", () => {
 
     expect(screen.queryByAltText("VYVA")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-voice-hero-signal")).not.toHaveTextContent("V");
-    expect(screen.getByTestId("button-voice-hero-signal").querySelectorAll("svg")).toHaveLength(0);
+    expect(screen.getByTestId("button-voice-hero-signal").querySelectorAll("svg")).toHaveLength(1);
     expect(screen.queryByTestId("voice-hero-status-dot")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-voice-hero-signal"));

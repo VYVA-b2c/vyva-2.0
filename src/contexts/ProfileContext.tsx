@@ -5,10 +5,16 @@ import { syncProfileLanguage, useLanguage } from "@/i18n/index";
 import { SUPPORTED_LANGUAGES } from "@/i18n/detectLanguage";
 import type { LanguageCode } from "@/i18n/languages";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { displayProfileFirstName } from "@/lib/displayIdentity";
 
 interface ProfileData {
   firstName: string;
+  first_name?: string | null;
   lastName: string;
+  preferredName?: string | null;
+  preferred_name?: string | null;
+  fullName?: string | null;
+  full_name?: string | null;
   email: string;
   phone: string;
   country: string;
@@ -75,7 +81,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const firstName = profile?.firstName?.trim() || "";
+  const firstName = displayProfileFirstName(profile);
   const lastName = profile?.lastName?.trim() || "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "";
   const initials =
