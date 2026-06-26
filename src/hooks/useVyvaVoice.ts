@@ -92,6 +92,30 @@ export interface TranscriptEntry {
   timestamp: number;
 }
 
+export type VoiceConnectionErrorCode =
+  | "VOICE_AUTH_REQUIRED"
+  | "VOICE_ENTITLEMENT_REQUIRED"
+  | "ELEVENLABS_AGENT_MISSING"
+  | "ELEVENLABS_API_KEY_MISSING"
+  | "ELEVENLABS_SIGNED_URL_ERROR"
+  | "ELEVENLABS_TOKEN_ERROR"
+  | "MICROPHONE_UNAVAILABLE"
+  | "MICROPHONE_PERMISSION_DENIED"
+  | "MICROPHONE_ACCESS_FAILED"
+  | "VOICE_SESSION_CLOSED"
+  | "VOICE_SESSION_ERROR"
+  | "VOICE_SESSION_START_FAILED";
+
+class VoiceConnectionError extends Error {
+  code: VoiceConnectionErrorCode;
+
+  constructor(message: string, code: VoiceConnectionErrorCode) {
+    super(message);
+    this.name = "VoiceConnectionError";
+    this.code = code;
+  }
+}
+
 type StartVoiceOptions = {
   agentId?: string;
   agentSlug?: string;
@@ -176,7 +200,7 @@ function formatDisconnectDetails(details: DisconnectionDetails) {
 
 async function requestVoiceMicrophonePermission() {
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-    throw new Error("Microphone access is not available in this browser.");
+    throw new VoiceConnectionError("Microphone access is not available in this browser.", "MICROPHONE_UNAVAILABLE");
   }
 
   try {
@@ -185,10 +209,37 @@ async function requestVoiceMicrophonePermission() {
   } catch (error) {
     const name = error instanceof DOMException ? error.name : "";
     if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-      throw new Error("Microphone permission was denied.");
+      throw new VoiceConnectionError("Microphone permission was denied.", "MICROPHONE_PERMISSION_DENIED");
     }
-    throw error instanceof Error ? error : new Error("Microphone access failed.");
+    throw new VoiceConnectionError(
+      error instanceof Error ? error.message : "Microphone access failed.",
+      "MICROPHONE_ACCESS_FAILED",
+    );
   }
+}
+
+function isVoiceConnectionError(error: unknown): error is VoiceConnectionError {
+  return error instanceof VoiceConnectionError;
+}
+
+function voiceConnectionErrorCode(error: unknown, fallback: VoiceConnectionErrorCode): VoiceConnectionErrorCode {
+  return isVoiceConnectionError(error) ? error.code : fallback;
+}
+
+function codeFromTokenError(status: number, parsed: { code?: string; error?: string; detail?: string }): VoiceConnectionErrorCode {
+  if (parsed.code === "ENTITLEMENT_REQUIRED") return "VOICE_ENTITLEMENT_REQUIRED";
+  if (parsed.code === "ELEVENLABS_AGENT_MISSING") return "ELEVENLABS_AGENT_MISSING";
+  if (parsed.code === "ELEVENLABS_API_KEY_MISSING") return "ELEVENLABS_API_KEY_MISSING";
+  if (parsed.code === "ELEVENLABS_SIGNED_URL_ERROR") return "ELEVENLABS_SIGNED_URL_ERROR";
+  if (parsed.code === "ELEVENLABS_TOKEN_ERROR") return "ELEVENLABS_TOKEN_ERROR";
+  if (status === 401) return "VOICE_AUTH_REQUIRED";
+  if (status === 403) return "VOICE_ENTITLEMENT_REQUIRED";
+
+  const text = `${parsed.error ?? ""} ${parsed.detail ?? ""}`.toLowerCase();
+  if (text.includes("api key")) return "ELEVENLABS_API_KEY_MISSING";
+  if (text.includes("agent configured")) return "ELEVENLABS_AGENT_MISSING";
+  if (text.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
+  return "VOICE_SESSION_START_FAILED";
 }
 
 function decodeBase64Url(value: string) {
@@ -328,6 +379,7 @@ function useVyvaVoiceController() {
   const [hasEnded, setHasEnded] = useState(false);
   const [lastResolvedSessionContext, setLastResolvedSessionContext] = useState<VoiceResolvedSessionContext | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [lastErrorCode, setLastErrorCode] = useState<VoiceConnectionErrorCode | null>(null);
   const [hasMicrophone, setHasMicrophone] = useState(false);
   const systemPromptRef = useRef<string | undefined>(undefined);
   const statusRef = useRef<"idle" | "connecting" | "connected">("idle");
@@ -405,6 +457,7 @@ function useVyvaVoiceController() {
       setIsTransferring(false);
       transferPendingRef.current = false;
       setLastError(null);
+      setLastErrorCode(null);
     };
 
     window.addEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
@@ -442,9 +495,11 @@ function useVyvaVoiceController() {
         if (!res.ok) {
           const errorText = await res.text();
           let message = errorText || "token fetch failed";
+          let parsedErrorCode: VoiceConnectionErrorCode | null = null;
           try {
             const parsed = JSON.parse(errorText) as {
               error?: string;
+              code?: string;
               detail?: string;
               expected_keys?: string[];
             };
@@ -452,10 +507,14 @@ function useVyvaVoiceController() {
             if (parsed.expected_keys?.[0]) {
               message = `${message} (${parsed.expected_keys[0]})`;
             }
+            parsedErrorCode = codeFromTokenError(res.status, parsed);
           } catch {
             // Keep the raw response text when the server did not return JSON.
           }
-          throw new Error(message);
+          throw new VoiceConnectionError(
+            message,
+            parsedErrorCode ?? codeFromTokenError(res.status, { error: message }),
+          );
         }
 
         const data = (await res.json()) as { signed_url?: string; token?: string };
@@ -627,6 +686,7 @@ function useVyvaVoiceController() {
       setHasEnded(false);
       replaceTranscript([]);
       setLastError(null);
+      setLastErrorCode(null);
       setHasMicrophone(false);
       setIsMicMuted(true);
       const voiceSessionId = getVoiceSessionId();
@@ -639,6 +699,7 @@ function useVyvaVoiceController() {
 
           const detail = err instanceof Error ? err.message : "Microphone access is needed to start voice.";
           setLastError(detail);
+          setLastErrorCode(voiceConnectionErrorCode(err, "MICROPHONE_ACCESS_FAILED"));
           setVoiceStatus("idle");
           setIsConnecting(false);
           setIsMicMuted(true);
@@ -908,6 +969,7 @@ function useVyvaVoiceController() {
             if (!userClosingRef.current && message) {
               console.warn("[VYVA] Voice session closed:", details);
               setLastError(message);
+              setLastErrorCode("VOICE_SESSION_CLOSED");
               recordVoiceTimelineEvent({
                 kind: "session_error",
                 title: "Voice session closed unexpectedly",
@@ -931,6 +993,7 @@ function useVyvaVoiceController() {
 
             console.error("[VYVA] Voice session error:", message, context);
             setLastError(message);
+            setLastErrorCode("VOICE_SESSION_ERROR");
             setIsTransferring(false);
             transferPendingRef.current = false;
             recordVoiceTimelineEvent({
@@ -1000,6 +1063,7 @@ function useVyvaVoiceController() {
 
         console.error("[VYVA] Failed to start session:", err);
         setLastError(err instanceof Error ? err.message : "Unable to start voice session");
+        setLastErrorCode(voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED"));
         setVoiceStatus("idle");
         setIsConnecting(false);
         setIsMicMuted(true);
@@ -1084,6 +1148,7 @@ function useVyvaVoiceController() {
       setIsTransferring(false);
     }
     setLastError(null);
+    setLastErrorCode(null);
     systemPromptRef.current = undefined;
     recordVoiceTimelineEvent({
       kind: "session_ended",
@@ -1148,6 +1213,7 @@ function useVyvaVoiceController() {
     isConnecting,
     hasMicrophone,
     lastError,
+    lastErrorCode,
     transcript,
     lastResolvedSessionContext,
     systemPromptRef,

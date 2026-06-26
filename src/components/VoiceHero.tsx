@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, type VoiceConnectionErrorCode, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
@@ -62,6 +62,7 @@ interface VoiceHeroProps {
     isMicMuted?: boolean;
     onMicToggle?: (muted: boolean) => void;
     lastError?: string | null;
+    lastErrorCode?: VoiceConnectionErrorCode | null;
   };
 }
 
@@ -119,6 +120,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     isMicMuted: internalIsMicMuted,
     setMicrophoneMuted: internalSetMicrophoneMuted,
     lastError: internalLastError,
+    lastErrorCode: internalLastErrorCode,
   } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
@@ -144,6 +146,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const isMicMuted = voiceControls?.isMicMuted ?? internalIsMicMuted;
   const onMicToggle = voiceControls?.onMicToggle ?? internalSetMicrophoneMuted;
   const lastError = voiceControls?.lastError ?? internalLastError;
+  const lastErrorCode = voiceControls?.lastErrorCode ?? internalLastErrorCode;
   const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
   const autoStartKey = typeof autoStartVoice === "string"
     ? autoStartVoice
@@ -311,6 +314,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             isMicMuted={isMicMuted}
             onMicToggle={onMicToggle}
             connectionError={lastError}
+            connectionErrorCode={lastErrorCode}
             onRetry={handleRetryVoice}
           />
         )}
@@ -427,6 +431,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           isMicMuted={isMicMuted}
           onMicToggle={onMicToggle}
           connectionError={lastError}
+          connectionErrorCode={lastErrorCode}
           onRetry={handleRetryVoice}
         />
       )}
