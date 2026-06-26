@@ -356,7 +356,6 @@ const HomeScreen = () => {
   return (
     <div className="vyva-page">
       <VoiceHero
-        heroSurface="home"
         headline={
           <span className="block">{greetingText}</span>
         }
