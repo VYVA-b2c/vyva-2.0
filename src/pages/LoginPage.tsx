@@ -1404,7 +1404,11 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     isSpeaking: isGuideSpeaking,
     isConnecting: isGuideConnecting,
     lastError: guideVoiceError,
+    lastErrorCode: guideVoiceErrorCode,
     transcript: guideTranscript,
+    voiceSessionPhase: guideVoiceSessionPhase,
+    isMicMuted: isGuideMicMuted,
+    setMicrophoneMuted: setGuideMicrophoneMuted,
   } = useVyvaVoice();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1600,10 +1604,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   }, [copy.guide.topics, guideTopic, language, mode, startVoice, view]);
 
   useEffect(() => {
-    if (guideVoiceStatus === "idle" && !isGuideConnecting) {
+    if (guideVoiceStatus === "idle" && !isGuideConnecting && !guideVoiceError) {
       setGuideSessionMode(null);
     }
-  }, [guideVoiceStatus, isGuideConnecting]);
+  }, [guideVoiceError, guideVoiceStatus, isGuideConnecting]);
 
   useEffect(() => {
     if (!isCallbackModalOpen) return;
@@ -1787,7 +1791,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const canSendReset = forgotEmail.trim().length > 3 && !forgotLoading;
   const canSendMagic = contactIsReady && !magicLoading;
   const isGuideLive = guideVoiceStatus === "connected" || guideVoiceStatus === "connecting" || isGuideConnecting;
-  const isGuideVoiceOverlayVisible = isGuideLive && guideSessionMode === "voice";
+  const isGuideVoiceOverlayVisible = (isGuideLive || Boolean(guideVoiceError)) && guideSessionMode === "voice";
   const guideVoiceErrorText = guideVoiceError
     ? guideVoiceError.toLowerCase().includes("no elevenlabs agent configured")
       ? copy.errors.noAgent
@@ -1849,6 +1853,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           isConnecting={isGuideConnecting}
           transcript={guideTranscript}
           onEnd={stopVoice}
+          voiceSessionPhase={guideVoiceSessionPhase}
+          isMicMuted={isGuideMicMuted}
+          onMicToggle={setGuideMicrophoneMuted}
+          connectionError={guideVoiceErrorText ?? guideVoiceError}
+          connectionErrorCode={guideVoiceErrorCode}
+          onRetry={() => {
+            void startLoginGuide({ textOnly: false });
+          }}
         />
       )}
 

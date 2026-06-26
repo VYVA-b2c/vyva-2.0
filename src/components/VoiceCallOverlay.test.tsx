@@ -227,4 +227,13 @@ describe("VoiceCallOverlay word transcript", () => {
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("ElevenLabs could not start: Failed to connect to [voice session url hidden] because websocket closed with code 1006");
     expect(screen.getByTestId("text-call-error-detail")).not.toHaveTextContent("secret-token");
   });
+
+  it("infers session start failures from generic startup messages", () => {
+    renderOverlay([], {
+      connectionError: "Unable to start voice session",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice session failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("ElevenLabs could not start: Unable to start voice session");
+  });
 });
