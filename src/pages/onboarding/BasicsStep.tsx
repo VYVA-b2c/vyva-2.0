@@ -19,7 +19,6 @@ const LANGUAGE_LABEL_BY_CODE: Record<LanguageCode, string> = {
   de: "Deutsch",
   it: "Italiano",
   pt: "Portugu\u00eas",
-  cy: "English",
 };
 
 const LANGUAGE_CODE_BY_LABEL = Object.fromEntries(

@@ -49,7 +49,7 @@ type RoutineTemplate = {
   activities: string[];
 };
 
-type GameContentLanguage = Exclude<LanguageCode, "cy">;
+type GameContentLanguage = LanguageCode;
 
 type StoryChoiceQuestion = {
   prompt: string;

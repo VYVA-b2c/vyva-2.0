@@ -118,7 +118,7 @@ describe("SocialHub home-style layout", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps the voice hero and renders Participate without an Activities social card", () => {
+  it("keeps the voice hero and renders Activities as a fifth Community card", () => {
     renderSocialHub();
 
     expect(screen.getByTestId("voice-hero")).toBeInTheDocument();
@@ -132,8 +132,9 @@ describe("SocialHub home-style layout", () => {
     expect(within(primaryCards).getByText("Socialise")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Share")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Participate")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Activities")).toBeInTheDocument();
     expect(primaryCards).toHaveTextContent("Curated events, classes, and outings chosen for you.");
-    expect(primaryCards).not.toHaveTextContent("Activities");
+    expect(primaryCards).toHaveTextContent("Recommended activities chosen from your interests.");
     expect(primaryCards).not.toHaveTextContent("Challenge");
     expect(primaryCards).not.toHaveTextContent("Learn");
     expect(screen.queryByTestId("button-social-quick-challenge")).not.toBeInTheDocument();
@@ -144,6 +145,14 @@ describe("SocialHub home-style layout", () => {
     renderSocialHub();
 
     fireEvent.click(screen.getByTestId("card-social-primary-participate"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/participate");
+  });
+
+  it("opens Activities as the curated social events area", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("card-social-primary-activities"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/participate");
   });

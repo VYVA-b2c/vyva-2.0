@@ -229,11 +229,11 @@
         "openLabel": "Abrir bem-estar"
       },
       "cognitive": {
-        "title": "Atividades",
-        "subtitle": "Eventos, aulas e planos tranquilos",
-        "bubble": "Posso encontrar atividades seguras que combinem com os seus interesses.",
-        "micLabel": "Encontrar atividades",
-        "openLabel": "Abrir atividades"
+        "title": "Meu cerebro",
+        "subtitle": "Memoria, foco e calma",
+        "bubble": "Posso ajudar a manter a mente ativa ao seu ritmo.",
+        "micLabel": "Abrir Meu cerebro",
+        "openLabel": "Abrir Meu cerebro"
       },
       "social": {
         "title": "Comunidade",
