@@ -229,11 +229,11 @@
         "openLabel": "Wohlbefinden öffnen"
       },
       "cognitive": {
-        "title": "Geist",
-        "subtitle": "Fokus und Ruhe",
-        "bubble": "Ein kurzer Moment mit mir hält Ihren Geist aktiv.",
-        "micLabel": "Gedächtnisübung starten",
-        "openLabel": "Aktiven Geist öffnen"
+        "title": "Aktivitaeten",
+        "subtitle": "Veranstaltungen, Kurse und ruhige Plaene",
+        "bubble": "Ich finde sichere Aktivitaeten, die zu Ihren Interessen passen.",
+        "micLabel": "Aktivitaeten finden",
+        "openLabel": "Aktivitaeten oeffnen"
       },
       "social": {
         "title": "Community",

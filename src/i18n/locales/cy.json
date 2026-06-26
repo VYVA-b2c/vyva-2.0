@@ -193,11 +193,11 @@
         "openLabel": "Open wellbeing"
       },
       "cognitive": {
-        "title": "I wake up my mind",
-        "subtitle": "Focus, memory and calm",
-        "bubble": "A little time with me keeps your mind active.",
-        "micLabel": "Start a mental exercise",
-        "openLabel": "Open agile mind"
+        "title": "Activities",
+        "subtitle": "Events, classes and gentle plans",
+        "bubble": "I can find safe things to do that fit your interests.",
+        "micLabel": "Find activities",
+        "openLabel": "Open activities"
       },
       "social": {
         "title": "My Community",
