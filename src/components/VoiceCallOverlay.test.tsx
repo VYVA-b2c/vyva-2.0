@@ -236,4 +236,23 @@ describe("VoiceCallOverlay word transcript", () => {
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice session failed");
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("ElevenLabs could not start: Unable to start voice session");
   });
+
+  it("shows access verification failures without blaming ElevenLabs", () => {
+    renderOverlay([], {
+      connectionError: "We could not verify access right now. Please try again.",
+      connectionErrorCode: "VOICE_ACCESS_UNAVAILABLE",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Access check failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("VYVA could not verify account access right now. Please try again.");
+  });
+
+  it("infers access verification failures from the server message", () => {
+    renderOverlay([], {
+      connectionError: "We could not verify access right now. Please try again.",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Access check failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("VYVA could not verify account access right now. Please try again.");
+  });
 });
