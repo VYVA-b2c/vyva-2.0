@@ -90,10 +90,6 @@ describe("brain game shared infrastructure", () => {
     });
   });
 
-  it("falls back to English for dormant language overrides", () => {
-    expect(translate("cy", "brainGames.dualTask.title")).toBe(translate("en", "brainGames.dualTask.title"));
-  });
-
   it("keeps current games off local copy dictionaries", () => {
     [attentionBoostersSource, breathGardenSource, categorySortSource, dualTaskSource, executiveFunctionSource, faceNameSource, languageGamesSource, listenCloselySource, numberTrailsSource, rememberLaterSource, scentMemorySource, spatialNavigatorSource, storyRecallSource].forEach((source) => {
       expect(source).not.toContain("const COPY =");
@@ -128,8 +124,5 @@ describe("brain game shared infrastructure", () => {
         ]));
       });
     });
-
-    const firstVariant = storyLevel.variants[0];
-    expect(getVariantContent(firstVariant, "cy").title).toBe(getVariantContent(firstVariant, "en").title);
   });
 });

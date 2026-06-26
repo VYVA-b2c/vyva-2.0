@@ -7,7 +7,7 @@ import { mergeSignupInviteRecipients, normalizeSignupInviteRecipientName } from 
 describe("signup invite language", () => {
   it("defaults unsupported languages to English", () => {
     expect(normalizeSignupInviteLanguage(undefined)).toBe("en");
-    expect(normalizeSignupInviteLanguage("cy")).toBe("en");
+    expect(normalizeSignupInviteLanguage("xx")).toBe("en");
     expect(signupInviteCopyFor("unknown").subject).toBe("Welcome to VYVA");
   });
 

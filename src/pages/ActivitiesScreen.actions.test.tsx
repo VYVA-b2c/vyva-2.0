@@ -1,411 +1,203 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  ParticipationEventRecommendation,
-  ParticipationEventResponseAction,
-  ParticipationPulse,
-} from "@/social/types";
-import { apiFetch } from "@/lib/queryClient";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ActivitiesScreen from "./ActivitiesScreen";
 
-const mocks = vi.hoisted(() => ({
-  apiFetch: vi.fn(),
-  toast: vi.fn(),
+const voiceHeroMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useQuery: ({ queryKey }: { queryKey?: unknown[] }) => ({
+      data: queryKey?.[0] === "/api/games/progress"
+        ? {
+            summary: { streakDays: 2 },
+            today: { completedCount: 0, activityTypes: [] },
+          }
+        : undefined,
+    }),
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+    }),
+  };
+});
+
+vi.mock("@/hooks/useRouteVoiceAutoStart", () => ({
+  useRouteVoiceAutoStart: () => false,
 }));
 
-vi.mock("@/lib/queryClient", () => ({
-  apiFetch: mocks.apiFetch,
+vi.mock("@/components/VoiceHero", () => ({
+  default: (props: { autoStartVoice?: boolean | string; children?: ReactNode; voiceAgentSlug?: string }) => {
+    voiceHeroMock(props);
+    return <div data-testid="voice-hero">{props.children}</div>;
+  },
 }));
 
-vi.mock("@/hooks/use-toast", () => ({
-  useToast: () => ({ toast: mocks.toast }),
+vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
+  default: () => <div data-testid="voice-action-panel" />,
 }));
+
+const labels: Record<string, string> = {
+  "brain.voiceSource": "Brain coach",
+  "brain.headline": "Brain coach",
+  "brain.subtitle": "Keep your mind sharp",
+  "brain.streakThisWeek": "Streak this week",
+  "brain.progressSummary": "Brain Coach progress",
+  "brain.progressStreak": "2 day streak",
+  "brain.progressStart": "Start with one short activity",
+  "activities.primaryTitle": "Choose your focus",
+  "activities.libraryTitle": "Choose an activity",
+  "activities.primary.memory": "Strengthen Memory",
+  "activities.primary.memorySub": "Practice recall, matching, and daily routines.",
+  "activities.primary.reflexes": "Train Reflexes",
+  "activities.primary.reflexesSub": "Build faster focus and response.",
+  "activities.primary.intelligence": "Improve Thinking",
+  "activities.primary.intelligenceSub": "Challenge logic, planning, and problem solving.",
+  "activities.primary.senses": "Sharpen Senses",
+  "activities.primary.sensesSub": "Reset with sound, breath, and calm attention.",
+  "activities.quick.kicker": "Brain Coach",
+  "activities.quick.relax": "Relax & Breathe",
+  "activities.quick.relaxSub": "Take a calm guided pause.",
+  "activities.quick.learn": "Learn Something New",
+  "activities.quick.learnSub": "Try words, language, and recall.",
+  "activities.quick.play": "Take a cognitive assessment.",
+  "activities.quick.playSub": "Practice memory and focus.",
+  "activities.chooseActivity": "Choose an activity",
+  "activities.trivia": "Focus & Attention",
+  "activities.memory": "Memory Game",
+  "activities.spatialNavigator": "Logic & Reasoning",
+  "activities.scrabble": "Word & Language",
+  "activities.logicPuzzle": "Brain Training",
+  "activities.meditation": "Relax & Breathe",
+  "activities.breathing": "Relax & Breathe",
+  "activities.doneToday": "Done today",
+  "activities.joinSocialRoom": "Join a room",
+  "activities.joinSocialRoomSub": "Start a friendly conversation now.",
+  "activities.findCompanions": "Find companions",
+  "activities.findCompanionsSub": "Match around interests and routines.",
+  "companions.activityTile": "Connect with others",
+  "companions.activityTileSubtitle": "Meet others with shared interests",
+  "voiceHero.endCall": "Pause listening",
+};
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({
-    language: "en",
-    t: (key: string, fallback?: string, vars?: Record<string, unknown>) => {
-      if (key === "brain.progressStreak") return `${vars?.count ?? 0} day streak`;
-      return fallback ?? key;
-    },
+    t: (key: string) => labels[key] ?? key,
   }),
 }));
-
-function eventFixture(input: Partial<ParticipationEventRecommendation> & { id: string; title: string }): ParticipationEventRecommendation {
-  return {
-    id: input.id,
-    eventKey: input.id,
-    title: input.title,
-    summary: input.summary ?? "A gentle curated event chosen for this profile.",
-    description: input.description ?? "VYVA checks details before anyone commits.",
-    format: input.format ?? "nearby",
-    locationLabel: input.locationLabel ?? "Nearby or online",
-    city: input.city ?? null,
-    countryCode: input.countryCode ?? "ES",
-    timeLabel: input.timeLabel ?? "This week, time to be checked",
-    startsAt: null,
-    endsAt: null,
-    costLabel: input.costLabel ?? "Free or low cost",
-    languageCodes: input.languageCodes ?? ["en", "es", "de"],
-    tags: input.tags ?? ["music", "social"],
-    interestTags: input.interestTags ?? ["music", "choir"],
-    accessibilityTags: input.accessibilityTags ?? ["seating", "easy_access"],
-    helperActions: input.helperActions ?? ["check_details", "transport", "reminder"],
-    source: input.source ?? "curated",
-    sourceUrl: null,
-    status: input.status ?? "active",
-    isCurated: input.isCurated ?? true,
-    needsLiveCheck: input.needsLiveCheck ?? true,
-    safetyStatus: input.safetyStatus ?? "approved",
-    responseCounts: input.responseCounts ?? { interested: 2, maybe: 1, not_for_me: 0 },
-    myResponse: input.myResponse ?? null,
-    fitReasons: input.fitReasons ?? [
-      { id: "interest", kind: "interest", label: "Matches music" },
-      { id: "access", kind: "access", label: "Comfort and access included" },
-      { id: "safety", kind: "safety", label: "VYVA checks details before you commit" },
-    ],
-    checkStatus: input.checkStatus ?? "none",
-    score: input.score ?? 90,
-  };
-}
-
-function pulseFixture(overrides: Partial<ParticipationPulse> = {}): ParticipationPulse {
-  const featuredEvent = eventFixture({
-    id: "gentle-choir-table",
-    title: "Familiar songs table",
-    summary: "A small gathering to listen, hum along, or share a song you love.",
-    format: "nearby",
-  });
-  const recommendations = [
-    eventFixture({
-      id: "book-club-taster",
-      title: "Book club taster",
-      summary: "A light session to hear recommendations and share a favourite read.",
-      format: "nearby",
-      tags: ["reading"],
-      interestTags: ["reading"],
-      score: 70,
-    }),
-    eventFixture({
-      id: "online-culture-chat",
-      title: "Online culture chat",
-      summary: "A quiet online group for language, culture, and stories.",
-      format: "online",
-      locationLabel: "Online from home",
-      tags: ["language", "culture"],
-      interestTags: ["language", "culture"],
-      score: 65,
-    }),
-    eventFixture({
-      id: "garden-walk",
-      title: "Garden walk with pauses",
-      summary: "A short outing to enjoy plants, sit when needed, and return without rushing.",
-      format: "hybrid",
-      tags: ["nature", "walking"],
-      interestTags: ["nature", "walking"],
-      score: 60,
-    }),
-  ];
-
-  return {
-    generatedAt: "2026-06-24T10:00:00.000Z",
-    language: "en",
-    headline: "Events chosen for you",
-    reassurance: "VYVA checks details before you commit.",
-    safetyCopy: "No booking, payment, or outside contact happens without your confirmation.",
-    profileSignals: {
-      interests: ["music", "reading"],
-      locationLabel: "Near you or online",
-      preferredTimes: ["afternoon"],
-      languageLabel: "English",
-      needsProfileNudge: false,
-    },
-    featuredEvent,
-    recommendations,
-    savedEvents: [],
-    notifications: [],
-    ...overrides,
-  };
-}
-
-const dailyPlanPayload = {
-  planId: "plan-1",
-  status: "active" as const,
-  estimatedDurationMinutes: 8,
-  recommendedDomains: ["attention"],
-  activities: [{
-    planItemId: "item-1",
-    activityType: "sequence_memory",
-    title: "Rhythm Tap",
-    domain: "attention",
-    route: "/attention-boosters",
-    estimatedDurationMinutes: 4,
-    rationale: "A short attention warm-up",
-    status: "recommended" as const,
-    completedToday: false,
-  }],
-  rationale: ["Starts with one short activity."],
-  completion: {
-    completedCount: 0,
-    totalCount: 1,
-    allComplete: false,
-  },
-  caregiverNudge: null,
-};
-
-function clonePulse(pulse: ParticipationPulse): ParticipationPulse {
-  return JSON.parse(JSON.stringify(pulse)) as ParticipationPulse;
-}
-
-function updatePulseResponse(
-  pulse: ParticipationPulse,
-  eventId: string,
-  response: ParticipationEventResponseAction,
-): ParticipationPulse {
-  const nextResponse = response === "clear" ? null : response;
-  const updateEvent = <T extends ParticipationEventRecommendation>(event: T): T => (
-    event.id === eventId ? { ...event, myResponse: nextResponse } : event
-  );
-  const featuredEvent = updateEvent(pulse.featuredEvent);
-  const recommendations = pulse.recommendations.map(updateEvent);
-  const savedEvents = [featuredEvent, ...recommendations].filter((event) => (
-    event.myResponse === "interested" || event.myResponse === "maybe"
-  ));
-  return { ...pulse, featuredEvent, recommendations, savedEvents };
-}
 
 function LocationProbe() {
   const location = useLocation();
   return (
     <>
       <div data-testid="current-route">{location.pathname}</div>
-      <pre data-testid="route-state">{JSON.stringify(location.state ?? {})}</pre>
+      <div data-testid="route-state">{JSON.stringify(location.state ?? {})}</div>
     </>
   );
 }
 
-function renderActivities({
-  pulse = pulseFixture(),
-  dailyPlan = dailyPlanPayload,
-  progress = { summary: { streakDays: 2 }, today: { completedCount: 0, activityTypes: [] } },
-}: {
-  pulse?: ParticipationPulse;
-  dailyPlan?: unknown;
-  progress?: unknown;
-} = {}) {
-  const current = { pulse };
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-        queryFn: async ({ queryKey }) => {
-          const path = String(queryKey[0]);
-          if (path.startsWith("/api/social/participate/pulse")) return { pulse: clonePulse(current.pulse) };
-          if (path === "/api/games/progress") return progress;
-          if (path === "/api/games/daily-plan") return dailyPlan;
-          return {};
-        },
-      },
-      mutations: { retry: false },
-    },
-  });
-
-  mocks.apiFetch.mockImplementation(async (url: string, init?: RequestInit) => {
-    if (url.includes("/respond") && init?.method === "POST") {
-      const eventId = url.split("/events/")[1]?.split("/")[0] ?? "";
-      const body = JSON.parse(String(init.body ?? "{}")) as { response: ParticipationEventResponseAction };
-      current.pulse = updatePulseResponse(current.pulse, eventId, body.response);
-      return {
-        ok: true,
-        json: async () => ({
-          eventId,
-          response: body.response === "clear" ? null : body.response,
-          responseCounts: { interested: 3, maybe: 1, not_for_me: 0 },
-        }),
-      };
-    }
-    if (url.includes("/ask-vyva") && init?.method === "POST") {
-      const eventId = url.split("/events/")[1]?.split("/")[0] ?? "";
-      return {
-        ok: true,
-        json: async () => ({
-          eventId,
-          checkStatus: "requested",
-          conciergePrefill: {
-            kind: "events",
-            source: "activities",
-            message: "Help me check this event. Do not book or contact anyone without my confirmation.",
-            event: { id: eventId, title: "Familiar songs table" },
-          },
-        }),
-      };
-    }
-    if (url === "/api/games/daily-plan/events" && init?.method === "POST") {
-      return { ok: true, json: async () => ({ ok: true }) };
-    }
-    return { ok: false, json: async () => ({}) };
-  });
-
-  const view = render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/activities"]}>
-        <Routes>
-          <Route path="/activities" element={<ActivitiesScreen />} />
-          <Route path="/concierge" element={<LocationProbe />} />
-          <Route path="/onboarding/profile/hobbies" element={<LocationProbe />} />
-          <Route path="/memory-games" element={<LocationProbe />} />
-          <Route path="/attention-boosters" element={<LocationProbe />} />
-          <Route path="/language" element={<LocationProbe />} />
-          <Route path="/activities/relax-breathe" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+function renderActivities() {
+  return render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/activities"]}>
+      <Routes>
+        <Route path="/activities" element={<ActivitiesScreen />} />
+        <Route path="/activity" element={<LocationProbe />} />
+        <Route path="/memory-games" element={<LocationProbe />} />
+        <Route path="/attention-boosters" element={<LocationProbe />} />
+        <Route path="/senses" element={<LocationProbe />} />
+        <Route path="/executive-function" element={<LocationProbe />} />
+        <Route path="/language" element={<LocationProbe />} />
+        <Route path="/activities/relax-breathe" element={<LocationProbe />} />
+        <Route path="/social-rooms" element={<LocationProbe />} />
+        <Route path="/companions" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>,
   );
-
-  return { ...view, queryClient, current };
 }
 
-describe("Activities event actions", () => {
+describe("Activities service actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    voiceHeroMock.mockClear();
   });
 
-  afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
-  });
-
-  it("filters recommendations by For you, Nearby, Online, and Saved", async () => {
-    const savedEvent = eventFixture({
-      id: "saved-music-class",
-      title: "Saved music class",
-      myResponse: "interested",
-    });
-    renderActivities({
-      pulse: pulseFixture({
-        savedEvents: [savedEvent],
-      }),
-    });
-
-    expect(await screen.findByRole("heading", { name: "Activities chosen for you" })).toBeInTheDocument();
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Book club taster");
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Online culture chat");
-
-    fireEvent.click(screen.getByTestId("activities-filter-nearby"));
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Book club taster");
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Garden walk with pauses");
-    expect(screen.getByTestId("activities-more-recommendations")).not.toHaveTextContent("Online culture chat");
-
-    fireEvent.click(screen.getByTestId("activities-filter-online"));
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Online culture chat");
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Garden walk with pauses");
-    expect(screen.getByTestId("activities-more-recommendations")).not.toHaveTextContent("Book club taster");
-
-    fireEvent.click(screen.getByTestId("activities-filter-saved"));
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Saved music class");
-    expect(screen.queryByTestId("activities-saved-events")).not.toBeInTheDocument();
-  });
-
-  it("saves interested, maybe, and not-for-me responses through the participation endpoint", async () => {
+  it("renders the health-style primary cards and reordered activity library", () => {
     renderActivities();
 
-    fireEvent.click((await screen.findAllByRole("button", { name: /I'm interested/i }))[0]);
+    const progressSummary = screen.getByTestId("brain-coach-progress-summary");
+    const primarySection = screen.getByTestId("section-activities-primary-actions");
+    expect(screen.queryByTestId("brain-coach-weekly-streak")).not.toBeInTheDocument();
+    expect(progressSummary).toHaveTextContent("Brain Coach progress");
+    expect(progressSummary).toHaveTextContent("2 day streak");
+    expect(progressSummary.compareDocumentPosition(primarySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    await waitFor(() => {
-      expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Interest saved");
-    });
-    expect(apiFetch).toHaveBeenCalledWith(
-      "/api/social/participate/events/gentle-choir-table/respond",
-      expect.objectContaining({
-        method: "POST",
-        body: expect.stringContaining('"response":"interested"'),
-      }),
-    );
+    expect(screen.getByText("Choose your focus")).toBeInTheDocument();
+    expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
+      autoStartVoice: false,
+      voiceAgentSlug: "brain-coach",
+    }));
+    expect(screen.getByTestId("button-activities-primary-memory")).toHaveTextContent("Strengthen Memory");
+    expect(screen.getByTestId("button-activities-primary-reflexes")).toHaveTextContent("Train Reflexes");
+    expect(screen.getByTestId("button-activities-primary-intelligence")).toHaveTextContent("Improve Thinking");
+    expect(screen.getByTestId("button-activities-primary-senses")).toHaveTextContent("Sharpen Senses");
 
-    fireEvent.click(screen.getAllByRole("button", { name: /Maybe later/i })[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Saved for later");
-    });
-    expect(apiFetch).toHaveBeenCalledWith(
-      "/api/social/participate/events/gentle-choir-table/respond",
-      expect.objectContaining({
-        method: "POST",
-        body: expect.stringContaining('"response":"maybe"'),
-      }),
-    );
-
-    fireEvent.click(screen.getAllByRole("button", { name: /Not for me/i })[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("This will not be shown first");
-    });
-    expect(apiFetch).toHaveBeenCalledWith(
-      "/api/social/participate/events/gentle-choir-table/respond",
-      expect.objectContaining({
-        method: "POST",
-        body: expect.stringContaining('"response":"not_for_me"'),
-      }),
-    );
+    const quickActions = screen.getByTestId("activities-quick-actions");
+    expect(quickActions).toHaveTextContent("Brain Coach");
+    expect(quickActions).toHaveTextContent("Choose an activity");
+    expect(screen.queryByTestId(/^activity-card-/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-activities-quick-relax")).toHaveTextContent("Relax & Breathe");
+    expect(screen.getByTestId("button-activities-quick-relax")).toHaveTextContent("Take a calm guided pause.");
+    expect(screen.getByTestId("button-activities-quick-learn")).toHaveTextContent("Learn Something New");
+    expect(screen.getByTestId("button-activities-quick-play")).toHaveTextContent("Take a cognitive assessment.");
   });
 
-  it("asks VYVA to check an event and carries event context to Concierge", async () => {
+  it("routes the Strengthen Memory primary card to memory games", async () => {
     renderActivities();
 
-    fireEvent.click((await screen.findAllByRole("button", { name: /Ask VYVA to check/i }))[0]);
+    fireEvent.click(screen.getByTestId("button-activities-primary-memory"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("current-route")).toHaveTextContent("/concierge");
-    });
-    expect(screen.getByTestId("route-state")).toHaveTextContent("gentle-choir-table");
-    expect(screen.getByTestId("route-state")).toHaveTextContent("Do not book or contact anyone");
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
   });
 
-  it("shows starter events and a profile nudge when profile signals are thin", async () => {
-    renderActivities({
-      pulse: pulseFixture({
-        profileSignals: {
-          interests: [],
-          locationLabel: "Near you or online",
-          preferredTimes: [],
-          languageLabel: "English",
-          needsProfileNudge: true,
-        },
-        emptyProfileNudge: {
-          title: "Tell us your interests",
-          body: "VYVA can then recommend events, classes, and outings that fit you.",
-          actionLabel: "Add hobbies",
-          path: "/onboarding/profile/hobbies",
-        },
-      }),
-    });
-
-    expect(await screen.findByTestId("activities-profile-nudge")).toHaveTextContent("Tell us your interests");
-    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Familiar songs table");
-
-    fireEvent.click(screen.getByRole("button", { name: "Add hobbies" }));
-
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/onboarding/profile/hobbies");
-  });
-
-  it("keeps compact Brain Coach links below the curated event experience", async () => {
+  it("routes the Sharpen Senses primary card to the senses hub", async () => {
     renderActivities();
 
-    const brainCoach = await screen.findByTestId("activities-brain-coach-strip");
-    expect(brainCoach).toHaveTextContent("A short plan for today");
-    expect(screen.queryByTestId("section-activities-primary-actions")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-activities-primary-senses"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/senses"));
+  });
+
+  it("routes the Relax & Breathe quick action to the dedicated page", async () => {
+    renderActivities();
 
     fireEvent.click(screen.getByTestId("button-activities-quick-relax"));
+
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/activities/relax-breathe"));
+    expect(screen.getByTestId("route-state")).toHaveTextContent("{}");
+  });
 
-    cleanup();
+  it("routes the Learn Something New quick action to language activities", async () => {
     renderActivities();
-    fireEvent.click(await screen.findByTestId("button-activities-quick-learn"));
+
+    fireEvent.click(screen.getByTestId("button-activities-quick-learn"));
+
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/language"));
+  });
 
-    cleanup();
+  it("routes the brain game quick action to memory games", async () => {
     renderActivities();
-    fireEvent.click(await screen.findByTestId("button-activities-quick-play"));
+
+    fireEvent.click(screen.getByTestId("button-activities-quick-play"));
+
     await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games"));
+  });
+
+  it("does not render the old companionship tile on Activities", () => {
+    renderActivities();
+
+    expect(screen.queryByTestId("activities-companion-actions")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connect with others")).not.toBeInTheDocument();
   });
 });

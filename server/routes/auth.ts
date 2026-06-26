@@ -27,7 +27,7 @@ const isDev = !isProductionRuntime();
 const isProduction = isProductionRuntime();
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 const emailSchema = z.string().trim().email();
-const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt", "cy"] as const;
+const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
 type ProfileLanguage = (typeof SUPPORTED_PROFILE_LANGUAGES)[number];
 
 function getPublicAppUrl(req: Request): string | null {

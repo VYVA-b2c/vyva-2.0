@@ -3,7 +3,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/lib/queryClient";
-import type { ParticipationEventRecommendation, ParticipationPulse } from "@/social/types";
 import ActivitiesScreen from "./ActivitiesScreen";
 
 const mocks = vi.hoisted(() => ({
@@ -19,99 +18,23 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: mocks.toast }),
 }));
 
-vi.mock("@/i18n", () => ({
-  useLanguage: () => ({
-    language: "en",
-    t: (key: string, fallback?: string, vars?: Record<string, unknown>) => {
-      if (key === "brain.progressStreak") return `${vars?.count ?? 0} day streak`;
-      return fallback ?? key;
-    },
-  }),
+vi.mock("@/components/VoiceHero", () => ({
+  default: () => <div data-testid="voice-hero" />,
 }));
 
-function eventFixture(input: Partial<ParticipationEventRecommendation> & { id: string; title: string }): ParticipationEventRecommendation {
-  return {
-    id: input.id,
-    eventKey: input.id,
-    title: input.title,
-    summary: input.summary ?? "A gentle curated event chosen for this profile.",
-    description: input.description ?? "VYVA checks details before anyone commits.",
-    format: input.format ?? "nearby",
-    locationLabel: input.locationLabel ?? "Nearby or online",
-    city: input.city ?? null,
-    countryCode: input.countryCode ?? "ES",
-    timeLabel: input.timeLabel ?? "This week, time to be checked",
-    startsAt: null,
-    endsAt: null,
-    costLabel: input.costLabel ?? "Free or low cost",
-    languageCodes: input.languageCodes ?? ["en", "es", "de"],
-    tags: input.tags ?? ["music", "social"],
-    interestTags: input.interestTags ?? ["music", "choir"],
-    accessibilityTags: input.accessibilityTags ?? ["seating", "easy_access"],
-    helperActions: input.helperActions ?? ["check_details", "transport", "reminder"],
-    source: input.source ?? "curated",
-    sourceUrl: null,
-    status: input.status ?? "active",
-    isCurated: input.isCurated ?? true,
-    needsLiveCheck: input.needsLiveCheck ?? true,
-    safetyStatus: input.safetyStatus ?? "approved",
-    responseCounts: input.responseCounts ?? { interested: 2, maybe: 1, not_for_me: 0 },
-    myResponse: input.myResponse ?? null,
-    fitReasons: input.fitReasons ?? [
-      { id: "interest", kind: "interest", label: "Matches music" },
-      { id: "access", kind: "access", label: "Comfort and access included" },
-      { id: "safety", kind: "safety", label: "VYVA checks details before you commit" },
-    ],
-    checkStatus: input.checkStatus ?? "none",
-    score: input.score ?? 90,
-  };
-}
+vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
+  default: () => <div data-testid="voice-action-panel" />,
+}));
 
-function pulseFixture(overrides: Partial<ParticipationPulse> = {}): ParticipationPulse {
-  const featuredEvent = eventFixture({
-    id: "gentle-choir-table",
-    title: "Familiar songs table",
-    summary: "A small gathering to listen, hum along, or share a song you love.",
-  });
-  const recommendations = [
-    eventFixture({
-      id: "book-club-taster",
-      title: "Book club taster",
-      summary: "A light session to hear recommendations and share a favourite read.",
-      tags: ["reading"],
-      interestTags: ["reading"],
-      score: 70,
-    }),
-    eventFixture({
-      id: "garden-walk",
-      title: "Garden walk with pauses",
-      summary: "A short outing to enjoy plants, sit when needed, and return without rushing.",
-      tags: ["nature", "walking"],
-      interestTags: ["nature", "walking"],
-      score: 65,
-    }),
-  ];
+vi.mock("@/hooks/useRouteVoiceAutoStart", () => ({
+  useRouteVoiceAutoStart: () => false,
+}));
 
-  return {
-    generatedAt: "2026-06-24T10:00:00.000Z",
-    language: "en",
-    headline: "Events chosen for you",
-    reassurance: "VYVA checks details before you commit.",
-    safetyCopy: "No booking, payment, or outside contact happens without your confirmation.",
-    profileSignals: {
-      interests: ["music", "reading"],
-      locationLabel: "Near you or online",
-      preferredTimes: ["afternoon"],
-      languageLabel: "English",
-      needsProfileNudge: false,
-    },
-    featuredEvent,
-    recommendations,
-    savedEvents: [],
-    notifications: [],
-    ...overrides,
-  };
-}
+vi.mock("@/i18n", () => ({
+  useLanguage: () => ({
+    t: (key: string, fallback?: string) => fallback ?? key,
+  }),
+}));
 
 const progressPayload = {
   summary: {
@@ -126,7 +49,7 @@ const progressPayload = {
 
 const dailyPlanPayload = {
   planId: "plan-1",
-  status: "active" as const,
+  status: "active",
   estimatedDurationMinutes: 8,
   recommendedDomains: ["attention"],
   activities: [{
@@ -137,7 +60,7 @@ const dailyPlanPayload = {
     route: "/attention-boosters",
     estimatedDurationMinutes: 4,
     rationale: "A short attention warm-up",
-    status: "recommended" as const,
+    status: "recommended",
     completedToday: false,
   }],
   rationale: ["Starts with one short activity."],
@@ -153,7 +76,7 @@ const dailyPlanPayload = {
     body: "Your caregiver suggested starting with one short recommended activity.",
     sentAt: "2026-06-01T10:00:00.000Z",
     sentBy: "caregiver-1",
-    status: "unread" as const,
+    status: "unread",
     isUnread: true,
     readAt: null,
     dismissedAt: null,
@@ -161,13 +84,11 @@ const dailyPlanPayload = {
 };
 
 function renderActivitiesScreen({
-  pulse = pulseFixture(),
   dailyPlan = dailyPlanPayload,
   progress = progressPayload,
 }: {
-  pulse?: ParticipationPulse;
-  dailyPlan?: unknown;
-  progress?: unknown;
+  dailyPlan?: typeof dailyPlanPayload;
+  progress?: typeof progressPayload;
 } = {}) {
   const client = new QueryClient({
     defaultOptions: {
@@ -175,13 +96,11 @@ function renderActivitiesScreen({
         retry: false,
         queryFn: async ({ queryKey }) => {
           const path = String(queryKey[0]);
-          if (path.startsWith("/api/social/participate/pulse")) return { pulse };
           if (path === "/api/games/progress") return progress;
           if (path === "/api/games/daily-plan") return dailyPlan;
           return {};
         },
       },
-      mutations: { retry: false },
     },
   });
 
@@ -196,30 +115,6 @@ function renderActivitiesScreen({
 
 afterEach(() => {
   vi.clearAllMocks();
-});
-
-describe("ActivitiesScreen curated events", () => {
-  it("renders events first and keeps Brain Coach compact below", async () => {
-    renderActivitiesScreen();
-
-    expect(await screen.findByRole("heading", { name: "Activities chosen for you" })).toBeInTheDocument();
-    expect(screen.getByText("VYVA checks details before you commit.")).toBeInTheDocument();
-    expect(screen.getByTestId("activities-profile-signals")).toHaveTextContent("music");
-    expect(screen.getByTestId("activities-profile-signals")).toHaveTextContent("English");
-    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Familiar songs table");
-    expect(screen.getByTestId("activities-filters")).toHaveTextContent("For you");
-    expect(screen.getByTestId("activities-filters")).toHaveTextContent("Nearby");
-    expect(screen.getByTestId("activities-filters")).toHaveTextContent("Online");
-    expect(screen.getByTestId("activities-filters")).toHaveTextContent("Saved");
-    expect(screen.getByTestId("activities-more-recommendations")).toHaveTextContent("Book club taster");
-
-    const featuredEvent = screen.getByTestId("activities-featured-event");
-    const brainCoach = await screen.findByTestId("activities-brain-coach-strip");
-    expect(featuredEvent.compareDocumentPosition(brainCoach) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(brainCoach).toHaveTextContent("Brain Coach");
-    expect(brainCoach).toHaveTextContent("A short plan for today");
-    expect(screen.queryByTestId("section-activities-primary-actions")).not.toBeInTheDocument();
-  });
 });
 
 describe("ActivitiesScreen Brain Coach nudges", () => {

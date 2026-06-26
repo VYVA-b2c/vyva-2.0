@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
@@ -74,7 +74,7 @@ function homeDoctorMailto(email: string | undefined | null, subject: string, bod
 
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
   { id: "health", icon: Heart, path: "/health", theme: "pink" },
-  { id: "cognitive", icon: Calendar, path: "/activities", theme: "purple" },
+  { id: "cognitive", icon: Brain, path: "/activities", theme: "purple" },
   { id: "social", icon: Users, path: "/social-rooms", theme: "blue" },
   { id: "concierge", icon: ConciergeBell, path: "/concierge", theme: "green" },
 ];
@@ -87,7 +87,7 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
   health: { title: "Health", subtitle: "Symptoms and care" },
-  cognitive: { title: "Activities", subtitle: "Events & classes" },
+  cognitive: { title: "My Brain", subtitle: "Memory and focus" },
   social: { title: "Community", subtitle: "Rooms and chats" },
   concierge: { title: "Concierge", subtitle: "Help and errands" },
 };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Upload } from "lucide-react";
+import { CheckCircle2, Download, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -34,6 +34,56 @@ const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"
 const SAFETY_OPTIONS: SafetyStatus[] = ["approved", "needs_review", "hidden"];
 const LANGUAGE_OPTIONS = ["en", "es", "de"];
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
+const ACTIVITY_TEMPLATE_FILE_NAME = "vyva-activities-template.csv";
+const ACTIVITY_TEMPLATE_CSV = [
+  [
+    "eventKey",
+    "title",
+    "summary",
+    "description",
+    "city",
+    "country",
+    "format",
+    "location",
+    "time",
+    "cost",
+    "language",
+    "interests",
+    "tags",
+    "accessibility",
+    "actions",
+    "url",
+    "status",
+    "safety",
+    "curated",
+    "conciergeCheck",
+    "source",
+  ],
+  [
+    "valencia-community-choir",
+    "Community choir",
+    "Gentle seated singalong for older adults",
+    "Hosted by the local community centre",
+    "Valencia",
+    "ES",
+    "nearby",
+    "Community centre",
+    "Wednesday morning",
+    "Free",
+    "en; es",
+    "music; social",
+    "choir; community",
+    "seated; step-free",
+    "check_details; reminder",
+    "https://example.com",
+    "draft",
+    "needs_review",
+    "true",
+    "true",
+    "admin-import",
+  ],
+].map((row) => row.join(",")).join("\n");
+const ACTIVITY_TEMPLATE_HREF = `data:text/csv;charset=utf-8,${encodeURIComponent(ACTIVITY_TEMPLATE_CSV)}`;
 
 const emptyCounts = { interested: 0, maybe: 0, not_for_me: 0 };
 
@@ -654,6 +704,14 @@ export default function ParticipateEventsAdminPage() {
             <Upload size={16} />
             {importing ? "Uploading..." : "Upload activities"}
           </button>
+          <a
+            className="inline-flex items-center gap-2 rounded-2xl border border-[#eadfd5] bg-[#fffaf4] px-5 py-3 font-bold text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-800"
+            href={ACTIVITY_TEMPLATE_HREF}
+            download={ACTIVITY_TEMPLATE_FILE_NAME}
+          >
+            <Download size={16} />
+            Download template
+          </a>
           <button
             className="inline-flex items-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-60"
             onClick={() => refresh().catch((err) => setMessage(err.message))}

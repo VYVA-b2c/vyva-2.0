@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Calendar,
   ChefHat,
   ChevronRight,
   Footprints,
@@ -58,7 +59,7 @@ function getLoadingRoomsLabel(language: SocialLanguage) {
 }
 
 type SocialPrimaryCard = {
-  id: "match" | "socialise" | "share" | "participate";
+  id: "match" | "socialise" | "share" | "participate" | "activities";
   title: string;
   description: string;
   mobileDescription: string;
@@ -110,6 +111,14 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
       iconColor: "#B45309",
       glow: "rgba(180,83,9,0.14)",
     },
+    {
+      id: "activities",
+      title: "Activities",
+      Icon: Calendar,
+      iconBg: "#F0FDFA",
+      iconColor: "#0F766E",
+      glow: "rgba(15,118,110,0.14)",
+    },
   ];
 
   if (language === "es") {
@@ -125,12 +134,14 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           socialise: "Explora las salas abiertas.",
           share: "Comparte un recuerdo o una idea.",
           participate: "Eventos y clases elegidos para ti.",
+          activities: "Actividades recomendadas para ti.",
         }[card.id],
         mobileDescription: {
           match: "Buena conexion",
           socialise: "Salas abiertas",
           share: "Comparte algo",
           participate: "Unete",
+          activities: "Para ti",
         }[card.id],
       })),
     };
@@ -149,12 +160,14 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           socialise: "Entdecke offene Raeume.",
           share: "Teile eine Erinnerung oder Idee.",
           participate: "Kuratierte Veranstaltungen und Kurse fuer dich.",
+          activities: "Empfohlene Aktivitaeten fuer dich.",
         }[card.id],
         mobileDescription: {
           match: "Nette Verbindung",
           socialise: "Offene Raeume",
           share: "Etwas teilen",
           participate: "Mitmachen",
+          activities: "Fuer dich",
         }[card.id],
       })),
     };
@@ -172,12 +185,14 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
         socialise: "Browse open rooms.",
         share: "Share a memory, song, or thought.",
         participate: "Curated events, classes, and outings chosen for you.",
+        activities: "Recommended activities chosen from your interests.",
       }[card.id],
       mobileDescription: {
         match: "Find someone kind",
         socialise: "Open rooms",
         share: "Share a memory",
         participate: "Join in",
+        activities: "For you",
       }[card.id],
     })),
   };
@@ -694,7 +709,7 @@ const SocialHub = () => {
             <SocialPrimaryCardView
               key={card.id}
               card={card}
-              onSelect={card.id === "participate" ? () => navigate("/social-rooms/participate") : undefined}
+              onSelect={card.id === "participate" || card.id === "activities" ? () => navigate("/social-rooms/participate") : undefined}
             />
           ))}
         </div>
