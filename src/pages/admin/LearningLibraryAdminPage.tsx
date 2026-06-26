@@ -115,37 +115,117 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 
-const starterContentPack = {
-  schema_version: "learning_content_pack_v1",
-  categories: [
-    {
-      slug: "world_cultures",
-      label: "World Cultures",
-      description: "Traditions, places, food, and everyday life around the world.",
-      color: "#0F766E",
-      icon: "landmark",
-      sort_order: 90,
-      is_active: true,
-    },
-  ],
-  lessons: [
-    {
-      external_id: "world-cultures-tea-001",
-      category_slug: "world_cultures",
-      language: "en",
-      title: "Why tea rituals feel calming",
-      hook: "A simple cup of tea can become a small ceremony.",
-      body: "Tea rituals often slow the body down through repeated steps: warming water, waiting, pouring, and tasting. The routine gives attention somewhere gentle to rest.",
-      reflection_prompt: "What daily routine feels calming to you?",
-      source_notes: "Curated starter example",
-      estimated_minutes: 3,
-      difficulty: "easy",
-      tags: ["culture", "ritual", "daily_life"],
-      status: "draft",
-      is_active: false,
-    },
-  ],
-};
+const defaultTemplateCategories = [
+  {
+    slug: "science",
+    label: "Science",
+    description: "Short discoveries about the world and how it works.",
+    color: "#2563EB",
+    icon: "atom",
+    sort_order: 10,
+    is_active: true,
+  },
+  {
+    slug: "language",
+    label: "Language",
+    description: "Words, meanings, memory, and communication.",
+    color: "#7C3AED",
+    icon: "languages",
+    sort_order: 20,
+    is_active: true,
+  },
+  {
+    slug: "arts",
+    label: "Arts",
+    description: "Painting, design, craft, and creative observation.",
+    color: "#DB2777",
+    icon: "palette",
+    sort_order: 30,
+    is_active: true,
+  },
+  {
+    slug: "general_knowledge",
+    label: "General Knowledge",
+    description: "Useful everyday facts and gentle trivia.",
+    color: "#B45309",
+    icon: "sparkles",
+    sort_order: 40,
+    is_active: true,
+  },
+  {
+    slug: "music",
+    label: "Music",
+    description: "Songs, rhythm, instruments, and listening.",
+    color: "#0F766E",
+    icon: "music",
+    sort_order: 50,
+    is_active: true,
+  },
+  {
+    slug: "history",
+    label: "History",
+    description: "Human stories, objects, places, and time.",
+    color: "#92400E",
+    icon: "landmark",
+    sort_order: 60,
+    is_active: true,
+  },
+  {
+    slug: "nature",
+    label: "Nature",
+    description: "Plants, animals, seasons, and habitats.",
+    color: "#0A7C4E",
+    icon: "leaf",
+    sort_order: 70,
+    is_active: true,
+  },
+  {
+    slug: "technology",
+    label: "Technology",
+    description: "Simple explanations of modern tools.",
+    color: "#475569",
+    icon: "cpu",
+    sort_order: 80,
+    is_active: true,
+  },
+];
+
+function buildLearningContentTemplate(categories: Category[]) {
+  const templateCategories = categories.length > 0
+    ? categories.map((category) => ({
+      slug: category.slug,
+      label: category.label,
+      description: category.description,
+      color: category.color,
+      icon: category.icon,
+      sort_order: category.sortOrder,
+      is_active: category.isActive,
+    }))
+    : defaultTemplateCategories;
+  const sampleCategory = templateCategories.find((category) => category.is_active) ?? templateCategories[0] ?? defaultTemplateCategories[3];
+
+  return {
+    schema_version: "learning_content_pack_v1",
+    categories: templateCategories,
+    lessons: [
+      {
+        external_id: `${sampleCategory.slug}-lesson-001`,
+        category_slug: sampleCategory.slug,
+        language: "en",
+        title: "Replace with a clear lesson title",
+        hook: "Open with one inviting sentence that makes the topic feel worth learning.",
+        body: "Write a short, warm learning snippet. Keep it practical, accurate, and easy to finish in a few minutes.",
+        reflection_prompt: "End with one gentle question that helps the learner connect the idea to memory or daily life.",
+        source_notes: "Add source, citation, reviewer note, or internal provenance here.",
+        estimated_minutes: 3,
+        difficulty: "easy",
+        tags: ["starter", sampleCategory.slug],
+        status: "draft",
+        is_active: false,
+      },
+    ],
+  };
+}
 
 export default function LearningLibraryAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -294,13 +374,16 @@ export default function LearningLibraryAdminPage() {
   }
 
   function downloadTemplate() {
-    const blob = new Blob([JSON.stringify(starterContentPack, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(buildLearningContentTemplate(categories), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "learning-content-pack-template.json";
+    link.download = "learning-library-template.json";
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     URL.revokeObjectURL(url);
+    setMessage("Learning library template download started.");
   }
 
   return (
@@ -332,15 +415,6 @@ export default function LearningLibraryAdminPage() {
             </label>
             <button
               type="button"
-              onClick={downloadTemplate}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 py-2 text-sm font-bold text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
-              data-testid="button-admin-learning-template"
-            >
-              <Download size={16} />
-              Template
-            </button>
-            <button
-              type="button"
               onClick={startNewLesson}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-purple-800"
               data-testid="button-admin-learning-create"
@@ -351,6 +425,32 @@ export default function LearningLibraryAdminPage() {
           </div>
         </AdminPageHeader>
         <AdminMenu />
+
+        <section className="mt-4 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" aria-labelledby="learning-template-title">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Content template</p>
+              <h2 id="learning-template-title" className="mt-1 text-lg font-black text-[#2f2135]">Learning library JSON</h2>
+              <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
+                Download a ready-to-fill file with the current categories, one sample lesson, and every field needed for bulk upload.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#2f2135] px-4 text-sm font-black text-white transition hover:bg-purple-800"
+              data-testid="button-admin-learning-template"
+            >
+              <Download size={16} />
+              Download template
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-[#7d6b65]">
+            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{categories.length || defaultTemplateCategories.length} categories</span>
+            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">JSON upload format</span>
+            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">Add categories by slug</span>
+          </div>
+        </section>
 
         {message ? (
           <p className="mt-4 rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#5b4a46]" data-testid="admin-learning-message">

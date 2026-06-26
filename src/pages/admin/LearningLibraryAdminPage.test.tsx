@@ -173,4 +173,58 @@ describe("LearningLibraryAdminPage", () => {
     ));
     expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Import complete.");
   });
+
+  it("downloads a learning library template with the current categories", async () => {
+    const createObjectUrl = vi.fn(() => "blob:learning-template");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectUrl });
+
+    mocks.apiFetch.mockImplementation((url: string) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response(lessonPayload));
+      return Promise.resolve(response({}));
+    });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={["/admin/learning-library"]}>
+          <LearningLibraryAdminPage />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("Learning library JSON")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("button-admin-learning-template"));
+
+      expect(createObjectUrl).toHaveBeenCalledTimes(1);
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:learning-template");
+
+      const blob = createObjectUrl.mock.calls[0][0] as Blob;
+      const template = JSON.parse(await blob.text());
+      expect(template.schema_version).toBe("learning_content_pack_v1");
+      expect(template.categories).toEqual([
+        expect.objectContaining({
+          slug: "music",
+          label: "Music",
+          sort_order: 50,
+          is_active: true,
+        }),
+      ]);
+      expect(template.lessons[0]).toEqual(expect.objectContaining({
+        category_slug: "music",
+        external_id: "music-lesson-001",
+        status: "draft",
+        is_active: false,
+      }));
+      expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Learning library template download started.");
+    } finally {
+      Object.defineProperty(URL, "createObjectURL", { configurable: true, value: originalCreateObjectUrl });
+      Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: originalRevokeObjectUrl });
+      click.mockRestore();
+    }
+  });
 });
