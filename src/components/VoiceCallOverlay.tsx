@@ -67,6 +67,23 @@ function isSetupError(code: VoiceConnectionErrorCode | null) {
     code === "ELEVENLABS_TOKEN_ERROR";
 }
 
+function isSessionError(code: VoiceConnectionErrorCode | null) {
+  return code === "VOICE_SESSION_START_FAILED" ||
+    code === "VOICE_SESSION_ERROR" ||
+    code === "VOICE_SESSION_CLOSED";
+}
+
+function safeConnectionErrorDetail(message?: string | null) {
+  const trimmed = message?.replace(/\s+/g, " ").trim();
+  if (!trimmed) return null;
+
+  return trimmed
+    .replace(/([?&](?:token|api_key|xi-api-key|signed_url)=)[^&\s]+/gi, "$1[hidden]")
+    .replace(/\b(?:wss?|https?):\/\/\S+/gi, "[voice session url hidden]")
+    .replace(/\bBearer\s+[A-Za-z0-9._-]+/gi, "Bearer [hidden]")
+    .slice(0, 180);
+}
+
 const VoiceCallOverlay = ({
   isSpeaking,
   isConnecting,
@@ -124,8 +141,10 @@ const VoiceCallOverlay = ({
   const resolvedConnectionErrorCode = connectionErrorCode ?? inferConnectionErrorCode(connectionError);
   const hasMicrophoneError = isMicrophoneError(resolvedConnectionErrorCode);
   const hasVoiceSetupError = isSetupError(resolvedConnectionErrorCode);
+  const hasSessionError = isSessionError(resolvedConnectionErrorCode);
   const hasAccessError = resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED" ||
     resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED";
+  const safeErrorDetail = safeConnectionErrorDetail(connectionError);
   const statusLabel = hasConnectionError
     ? hasVoiceSetupError
       ? t("voiceHero.connectionSetupNeeded", "Setup needed")
@@ -145,6 +164,8 @@ const VoiceCallOverlay = ({
       ? t("voiceHero.voiceAccessError", "Voice plan needed")
       : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
       ? t("voiceHero.voiceSignInError", "Sign in again")
+      : hasSessionError
+      ? t("voiceHero.voiceSessionError", "Voice session failed")
       : t("voiceHero.connectionError", "Voice couldn't connect")
     : isConnecting
     ? t("voiceHero.connecting")
@@ -163,6 +184,27 @@ const VoiceCallOverlay = ({
     ? t("voiceHero.voiceEntitlementErrorHelp", "This profile does not have voice access enabled.")
     : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
     ? t("voiceHero.voiceAuthErrorHelp", "Please sign in again, then try voice.")
+    : resolvedConnectionErrorCode === "VOICE_SESSION_START_FAILED"
+    ? t(
+        "voiceHero.voiceSessionStartErrorHelp",
+        safeErrorDetail
+          ? `ElevenLabs could not start: ${safeErrorDetail}`
+          : "ElevenLabs could not start the browser voice session.",
+      )
+    : resolvedConnectionErrorCode === "VOICE_SESSION_ERROR"
+    ? t(
+        "voiceHero.voiceSessionRuntimeErrorHelp",
+        safeErrorDetail
+          ? `The voice session reported: ${safeErrorDetail}`
+          : "The active voice session reported an error.",
+      )
+    : resolvedConnectionErrorCode === "VOICE_SESSION_CLOSED"
+    ? t(
+        "voiceHero.voiceSessionClosedHelp",
+        safeErrorDetail
+          ? `The voice session closed: ${safeErrorDetail}`
+          : "The voice session closed before VYVA could continue.",
+      )
     : t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.");
   const speakerLabel = visibleWord ? "VYVA" : null;
   const currentOrbState = hasConnectionError ? "idle" : orbState(isSpeaking, isConnecting);
