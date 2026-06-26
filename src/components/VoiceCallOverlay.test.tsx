@@ -195,4 +195,13 @@ describe("VoiceCallOverlay word transcript", () => {
 
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
+
+  it("shows a clear microphone permission message", () => {
+    renderOverlay([], {
+      connectionError: "Microphone permission was denied.",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Microphone is blocked");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("Please allow microphone access for VYVA, then try again.");
+  });
 });
