@@ -103,6 +103,17 @@ describe("hero message selection", () => {
     expect(result.headline).toBe("English fallback");
   });
 
+  it("does not personalize hero copy with an email-like first name", () => {
+    const result = selectHeroMessage("home", {
+      language: "en",
+      firstName: "qm@4cksa.com",
+      date: new Date("2026-06-26T14:00:00"),
+    });
+
+    expect(result.headline).toBe("Good afternoon");
+    expect(result.headline).not.toContain("qm@4cksa.com");
+  });
+
   it("keeps priority and cooldown behavior for managed messages", () => {
     setRuntimeHeroMessages([
       managed({

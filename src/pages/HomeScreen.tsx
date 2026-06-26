@@ -8,6 +8,7 @@ import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { displayFirstName } from "@/lib/displayIdentity";
 import { incrementChatNavigationCount } from "@/lib/personaliseCards";
 
 type HomeAgentCard = {
@@ -171,7 +172,7 @@ const HomeScreen = () => {
   const { t } = useTranslation();
   const { firstName: profileFirstName, profile } = useProfile();
 
-  const firstName = profileFirstName || "";
+  const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
   const gpName = profile?.gpName?.trim();
   const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
