@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { CheckCircle2, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { CheckCircle2, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -80,6 +80,8 @@ const emptyEvent: AdminParticipationEvent = {
   checkRequestCount: 0,
 };
 
+type ImportRow = Record<string, unknown>;
+
 function cloneEvent(event: AdminParticipationEvent) {
   return JSON.parse(JSON.stringify(event)) as AdminParticipationEvent;
 }
@@ -113,6 +115,217 @@ function normalizeHelperActions(values: string[]) {
   return values.filter((value): value is ParticipationHelperAction => (
     HELPER_ACTION_OPTIONS.includes(value as ParticipationHelperAction)
   ));
+}
+
+function normalizeHeader(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function rawImportValue(row: ImportRow, aliases: string[]) {
+  const normalizedAliases = aliases.map(normalizeHeader);
+  for (const [key, value] of Object.entries(row)) {
+    if (normalizedAliases.includes(normalizeHeader(key))) return value;
+  }
+  return undefined;
+}
+
+function importText(row: ImportRow, aliases: string[]) {
+  const value = rawImportValue(row, aliases);
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function limitImportText(value: string, maxLength: number) {
+  return cleanText(value).slice(0, maxLength);
+}
+
+function slugifyEventKey(value: string, fallback: string) {
+  const slug = cleanText(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+  return slug || fallback;
+}
+
+function parseBooleanImport(value: string, fallback: boolean) {
+  const normalized = value.trim().toLowerCase();
+  if (["true", "yes", "y", "1"].includes(normalized)) return true;
+  if (["false", "no", "n", "0"].includes(normalized)) return false;
+  return fallback;
+}
+
+function importList(row: ImportRow, aliases: string[], fallback: string[] = [], maxItems = 24) {
+  const value = rawImportValue(row, aliases);
+  const list = Array.isArray(value)
+    ? value
+    : String(value ?? "").split(/[,;|\n]/);
+  const cleaned = list
+    .map((item) => String(item).trim())
+    .filter(Boolean);
+  return (cleaned.length ? cleaned : fallback).slice(0, maxItems);
+}
+
+function importFormat(value: string): ParticipationEventFormat {
+  const normalized = value.trim().toLowerCase();
+  return FORMAT_OPTIONS.includes(normalized as ParticipationEventFormat)
+    ? normalized as ParticipationEventFormat
+    : "nearby";
+}
+
+function importStatus(value: string): EventStatus {
+  const normalized = value.trim().toLowerCase();
+  return STATUS_OPTIONS.includes(normalized as EventStatus) ? normalized as EventStatus : "draft";
+}
+
+function importSafetyStatus(value: string): SafetyStatus {
+  const normalized = value.trim().toLowerCase();
+  return SAFETY_OPTIONS.includes(normalized as SafetyStatus) ? normalized as SafetyStatus : "needs_review";
+}
+
+function importIsoDate(value: string) {
+  const trimmed = cleanText(value);
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function importSourceUrl(value: string) {
+  const trimmed = cleanText(value);
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).toString();
+  } catch {
+    return null;
+  }
+}
+
+function parseCsvRows(text: string): ImportRow[] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === "\"") {
+      if (inQuotes && next === "\"") {
+        field += "\"";
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && char === ",") {
+      row.push(field.trim());
+      field = "";
+      continue;
+    }
+
+    if (!inQuotes && (char === "\n" || char === "\r")) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(field.trim());
+      field = "";
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      continue;
+    }
+
+    field += char;
+  }
+
+  row.push(field.trim());
+  if (row.some(Boolean)) rows.push(row);
+
+  const [headers, ...bodyRows] = rows;
+  if (!headers?.length) return [];
+  return bodyRows
+    .filter((bodyRow) => bodyRow.some(Boolean))
+    .map((bodyRow) => Object.fromEntries(headers.map((header, index) => [header, bodyRow[index] ?? ""])));
+}
+
+function parseImportRows(fileName: string, text: string): ImportRow[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (fileName.toLowerCase().endsWith(".json") || trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    const parsed = JSON.parse(trimmed) as unknown;
+    const rows = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object" && "events" in parsed && Array.isArray((parsed as { events?: unknown }).events)
+        ? (parsed as { events: unknown[] }).events
+        : parsed && typeof parsed === "object" && "activities" in parsed && Array.isArray((parsed as { activities?: unknown }).activities)
+          ? (parsed as { activities: unknown[] }).activities
+          : [];
+    return rows.filter((item): item is ImportRow => Boolean(item) && typeof item === "object" && !Array.isArray(item));
+  }
+  return parseCsvRows(text);
+}
+
+function eventFromImportRow(row: ImportRow, index: number, fileName: string): AdminParticipationEvent {
+  const title = importText(row, ["titleEn", "title", "name", "eventTitle", "activity"]);
+  const fallbackTitle = title || `Imported activity ${index + 1}`;
+  const format = importFormat(importText(row, ["format", "mode", "type"]));
+  const eventKey = slugifyEventKey(
+    importText(row, ["eventKey", "event_key", "key", "slug", "id"]) || fallbackTitle,
+    `imported-activity-${index + 1}`,
+  );
+  const languages = importList(row, ["languageCodes", "language_codes", "languages", "language"], ["en", "es", "de"], 8);
+  const helperActions = normalizeHelperActions(importList(
+    row,
+    ["helperActions", "helper_actions", "actions"],
+    ["check_details"],
+    4,
+  ));
+
+  return {
+    ...cloneEvent(emptyEvent),
+    eventKey,
+    id: eventKey,
+    titleEn: limitImportText(fallbackTitle, 140),
+    titleEs: limitImportText(importText(row, ["titleEs", "title_es", "spanishTitle", "titulo"]) || fallbackTitle, 140),
+    titleDe: limitImportText(importText(row, ["titleDe", "title_de", "germanTitle"]) || fallbackTitle, 140),
+    summaryEn: limitImportText(importText(row, ["summaryEn", "summary", "shortDescription", "description"]) || "Curated activity selected by VYVA.", 260),
+    summaryEs: limitImportText(importText(row, ["summaryEs", "summary_es", "resumen"]) || importText(row, ["summaryEn", "summary"]) || "Actividad seleccionada por VYVA.", 260),
+    summaryDe: limitImportText(importText(row, ["summaryDe", "summary_de"]) || importText(row, ["summaryEn", "summary"]) || "Von VYVA ausgewahlte Aktivitat.", 260),
+    descriptionEn: limitImportText(importText(row, ["descriptionEn", "description_en", "details", "notes"]), 600),
+    descriptionEs: limitImportText(importText(row, ["descriptionEs", "description_es"]), 600),
+    descriptionDe: limitImportText(importText(row, ["descriptionDe", "description_de"]), 600),
+    format,
+    locationLabel: limitImportText(importText(row, ["locationLabel", "location_label", "venue", "location"]) || (format === "online" ? "Online" : "Local community"), 160),
+    city: nullableText(importText(row, ["city", "town", "area"])),
+    countryCode: normalizeCountry(importText(row, ["countryCode", "country_code", "country"])),
+    timeLabelEn: limitImportText(importText(row, ["timeLabelEn", "time", "timeLabel", "when"]) || "Time to be checked", 120),
+    timeLabelEs: limitImportText(importText(row, ["timeLabelEs", "time_label_es"]) || "Hora por confirmar", 120),
+    timeLabelDe: limitImportText(importText(row, ["timeLabelDe", "time_label_de"]) || "Zeit wird gepruft", 120),
+    startsAt: importIsoDate(importText(row, ["startsAt", "starts_at", "start", "startDate"])),
+    endsAt: importIsoDate(importText(row, ["endsAt", "ends_at", "end", "endDate"])),
+    costLabelEn: limitImportText(importText(row, ["costLabelEn", "cost", "price"]) || "Free or low cost", 120),
+    costLabelEs: limitImportText(importText(row, ["costLabelEs", "cost_label_es"]) || "Gratis o bajo coste", 120),
+    costLabelDe: limitImportText(importText(row, ["costLabelDe", "cost_label_de"]) || "Kostenlos oder gunstig", 120),
+    languageCodes: languages,
+    tags: importList(row, ["tags", "categories"], [], 24),
+    interestTags: importList(row, ["interestTags", "interest_tags", "interests", "hobbies"], [], 24),
+    accessibilityTags: importList(row, ["accessibilityTags", "accessibility_tags", "accessibility"], [], 16),
+    helperActions: helperActions.length ? helperActions : ["check_details"],
+    source: limitImportText(importText(row, ["source", "provider"]) || "admin-import", 60),
+    sourceUrl: importSourceUrl(importText(row, ["sourceUrl", "source_url", "url", "link"])),
+    status: importStatus(importText(row, ["status", "publishStatus", "publish_status"])),
+    isCurated: parseBooleanImport(importText(row, ["isCurated", "is_curated", "curated"]), true),
+    needsLiveCheck: parseBooleanImport(importText(row, ["needsLiveCheck", "needs_live_check", "conciergeCheck"]), true),
+    safetyStatus: importSafetyStatus(importText(row, ["safetyStatus", "safety_status", "safety"])),
+    metadata: {
+      importFile: fileName,
+      importRow: index + 1,
+    },
+  };
 }
 
 function eventPayload(event: AdminParticipationEvent, includeKey: boolean) {
@@ -256,6 +469,7 @@ function safetyTone(status: string) {
 }
 
 export default function ParticipateEventsAdminPage() {
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [events, setEvents] = useState<AdminParticipationEvent[]>([]);
   const [activity, setActivity] = useState<AdminParticipationActivity>({});
   const [draft, setDraft] = useState<AdminParticipationEvent>(cloneEvent(emptyEvent));
@@ -270,6 +484,7 @@ export default function ParticipateEventsAdminPage() {
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/social/participate${path}`, options);
@@ -365,16 +580,50 @@ export default function ParticipateEventsAdminPage() {
   async function addEvent() {
     const body = eventPayload(draft, true);
     await api("/events", { method: "POST", body: JSON.stringify(body) });
-    setMessage(`${body.eventKey} added as ${body.status}.`);
     setDraft(cloneEvent(emptyEvent));
     await refresh();
+    setMessage(`${body.eventKey} added as ${body.status}.`);
   }
 
   async function saveEvent(event: AdminParticipationEvent) {
     const body = eventPayload(event, false);
     await api(`/events/${event.eventKey}`, { method: "PATCH", body: JSON.stringify(body) });
-    setMessage(`${event.eventKey} saved.`);
     await refresh();
+    setMessage(`${event.eventKey} saved.`);
+  }
+
+  async function importEvents(file: File) {
+    setImporting(true);
+    setMessage("");
+    try {
+      const rows = parseImportRows(file.name, await file.text());
+      if (rows.length === 0) throw new Error("No activities found in that file.");
+      if (rows.length > 100) throw new Error("Upload up to 100 activities at a time.");
+
+      let imported = 0;
+      const failed: string[] = [];
+
+      for (const [index, row] of rows.entries()) {
+        const importEvent = eventFromImportRow(row, index, file.name);
+        const body = eventPayload(importEvent, true);
+        try {
+          await api("/events", { method: "POST", body: JSON.stringify(body) });
+          imported += 1;
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "Could not import";
+          failed.push(`${importEvent.eventKey}: ${detail}`);
+        }
+      }
+
+      const importedLabel = imported === 1 ? "1 activity imported" : `${imported} activities imported`;
+      const nextMessage = failed.length > 0
+        ? `${importedLabel}. ${failed.length} need review.`
+        : `${importedLabel} from ${file.name}.`;
+      await refresh();
+      setMessage(nextMessage);
+    } finally {
+      setImporting(false);
+    }
   }
 
   return (
@@ -384,10 +633,31 @@ export default function ParticipateEventsAdminPage() {
           title="Participate events"
           subtitle="Manage city coverage, publish status, and Concierge-checked curated events shown in Community."
         >
+          <input
+            ref={uploadInputRef}
+            data-testid="admin-participate-upload-input"
+            className="sr-only"
+            type="file"
+            accept=".csv,.json,text/csv,application/json"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) importEvents(file).catch((err) => setMessage(err.message));
+            }}
+          />
+          <button
+            className="inline-flex items-center gap-2 rounded-2xl border border-purple-200 bg-white px-5 py-3 font-bold text-purple-800 disabled:opacity-60"
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={loading || importing}
+            type="button"
+          >
+            <Upload size={16} />
+            {importing ? "Uploading..." : "Upload activities"}
+          </button>
           <button
             className="inline-flex items-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-60"
             onClick={() => refresh().catch((err) => setMessage(err.message))}
-            disabled={loading}
+            disabled={loading || importing}
           >
             <RefreshCw size={16} />
             Refresh

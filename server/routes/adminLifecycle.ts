@@ -1708,6 +1708,19 @@ function adminLifecycleLoadError(res: Response, section: string, error: unknown)
   return res.status(500).json({ error: `Could not load ${section}. Please refresh and try again.` });
 }
 
+function emptyActivityResponse() {
+  return {
+    activity: [],
+    summary: {
+      total: 0,
+      failed: 0,
+      warning: 0,
+      latest_at: null,
+    },
+    degraded: true,
+  };
+}
+
 adminLifecycleRouter.get("/schema-health", async (req: Request, res: Response) => {
   if (!requireAdmin(req, res)) return;
 
@@ -1868,7 +1881,8 @@ adminLifecycleRouter.get("/activity", async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    return adminLifecycleLoadError(res, "activity", error);
+    console.warn("[admin-lifecycle] activity log unavailable; returning empty admin log", error);
+    return res.json(emptyActivityResponse());
   }
 });
 
