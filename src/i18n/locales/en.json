@@ -1170,6 +1170,15 @@
       "I can help you keep\nyour health routine on track"
     ],
     "takenToday": "{{taken}} of {{total}} taken today",
+    "heroDoseHeadline": "Don't forget your\n{{medication}}",
+    "heroDoseDueToday": "Due today. Tap Reminders when done.",
+    "heroDoseDueNow": "Due now. Tap Reminders when done.",
+    "heroDoseDueInMinutes_one": "Due in {{count}} min. Tap Reminders when done.",
+    "heroDoseDueInMinutes_other": "Due in {{count}} min. Tap Reminders when done.",
+    "heroDoseDueAt": "Due at {{time}}. Tap Reminders when done.",
+    "heroAllDoneHeadline": "All medicines\ndone today",
+    "heroAllDoneSub": "Nice work. Nothing else is due today.",
+    "loadingSchedule": "Checking today's schedule...",
     "todaySchedule": "Today's Schedule",
     "dueTonight": "1 due tonight",
     "taken": "Taken",
@@ -1185,12 +1194,16 @@
     "primary": {
       "reminders": "Reminders",
       "remindersSub": "Review today's schedule and add medication reminders.",
+      "remindersMobileSub": "Today's schedule",
       "refills": "Refills",
       "refillsSub": "Prepare repeat prescriptions or delivery.",
+      "refillsMobileSub": "Pharmacy refills",
       "interactions": "Interactions",
       "interactionsSub": "Check medicines and supplements.",
+      "interactionsMobileSub": "Check the mix",
       "adherence": "Adherence",
-      "adherenceSub": "See progress and missed doses."
+      "adherenceSub": "See progress and missed doses.",
+      "adherenceMobileSub": "Missed doses"
     },
     "canHelpWith": "I can help you with",
     "fastHelpKicker": "Fast help",

@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiFetch } from "@/lib/queryClient";
 import MedsScreen from "./MedsScreen";
@@ -14,6 +15,11 @@ const labels: Record<string, string> = {
   "meds.noMedsSub": "Use the button below to add your medications by voice",
   "meds.todaySchedule": "Today's Schedule",
   "meds.quickAccess": "Medication",
+  "meds.heroDoseHeadline": "Don't forget your\n{{medication}}",
+  "meds.heroDoseDueInMinutes_one": "Due in {{count}} min. Tap Reminders when done.",
+  "meds.heroDoseDueInMinutes_other": "Due in {{count}} min. Tap Reminders when done.",
+  "meds.heroAllDoneHeadline": "All medicines\ndone today",
+  "meds.heroAllDoneSub": "Nice work. Nothing else is due today.",
   "meds.primary.reminders": "Reminders",
   "meds.primary.remindersSub": "Review today's schedule and add medication reminders.",
   "meds.primary.refills": "Refills",
@@ -68,11 +74,13 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallbackOrOptions?: string | { returnObjects?: boolean }) => {
+    t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) => {
       if (key === "meds.headlines" && typeof fallbackOrOptions === "object" && fallbackOrOptions?.returnObjects) {
         return [];
       }
-      return labels[key] ?? (typeof fallbackOrOptions === "string" ? fallbackOrOptions : key);
+      const options = typeof fallbackOrOptions === "object" ? fallbackOrOptions : {};
+      const template = labels[key] ?? (typeof fallbackOrOptions === "string" ? fallbackOrOptions : String(options.defaultValue ?? key));
+      return template.replace(/\{\{(\w+)\}\}/g, (_match, name) => String(options[name] ?? ""));
     },
   }),
 }));
@@ -94,7 +102,7 @@ vi.mock("@/hooks/useVoiceActionFulfillment", () => ({
 }));
 
 vi.mock("@/components/VoiceHero", () => ({
-  default: (props: { voiceAgentSlug?: string }) => {
+  default: (props: { voiceAgentSlug?: string; headline?: ReactNode; subtitle?: ReactNode }) => {
     mocks.voiceHero(props);
     return <div data-testid="voice-hero" />;
   },
@@ -187,6 +195,7 @@ describe("MedsScreen schedule actions", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -205,6 +214,7 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("Refills");
     expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Interactions");
     expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("Adherence");
+    expect(screen.getByTestId("grid-meds-primary-actions")).toHaveClass("min-[340px]:grid-cols-2");
 
     expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("I can help you with");
@@ -213,6 +223,36 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("button-assistant-sideEffects")).toHaveTextContent("Side Effect Check");
     expect(screen.queryByTestId("button-assistant-interactions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-assistant-order")).not.toBeInTheDocument();
+  });
+
+  it("uses the next pending dose as the hero reminder", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-06-26T07:50:00"));
+
+    renderMedsScreen([
+      {
+        id: "med-monoprost",
+        medication_name: "Monoprost",
+        dosage: "1 drop",
+        frequency: "once_daily",
+        scheduled_times: ["08:00"],
+        takenToday: false,
+        takenCountToday: 0,
+        scheduledCountToday: 1,
+      },
+    ]);
+
+    await waitFor(() => {
+      const props = mocks.voiceHero.mock.calls.at(-1)?.[0] as {
+        headline?: { props?: { children?: unknown } };
+        subtitle?: unknown;
+      };
+
+      expect(props.headline?.props?.children).toBe("Don't forget your\nMonoprost");
+      expect(props.subtitle).toBe("Due in 10 min. Tap Reminders when done.");
+    });
+
+    vi.useRealTimers();
   });
 
   it("reveals the compact reminders add-by-voice area from the Reminders card", async () => {

@@ -47,6 +47,7 @@ type DisplayMed = {
   scheduledCountToday: number; // number of doses expected today
   nameForApi: string;   // canonical English name sent to /confirm
   scheduledTimeForApi: string; // first scheduled time or "anytime"
+  scheduledTimesForApi: string[];
   rawDosage: string;    // original dosage from DB, used to seed the edit form
   rawFrequency: string; // original frequency from DB, used to seed the edit form
 };
@@ -63,6 +64,32 @@ type DbMed = {
 };
 
 type TodayResponse = { medications: DbMed[] };
+
+const MINUTE_MS = 60_000;
+
+function parseScheduledTimeForToday(value: string, now: Date) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
+  const scheduled = new Date(now);
+  scheduled.setHours(hours, minutes, 0, 0);
+  return scheduled;
+}
+
+function formatDoseTime(date: Date, locale: string) {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date);
+  } catch {
+    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+}
 
 export {
   medicationDoctorActionKinds,
@@ -128,6 +155,7 @@ const MedsScreen = () => {
         scheduledCountToday: m.scheduledCountToday,
         nameForApi: m.medication_name,
         scheduledTimeForApi: m.scheduled_times?.[0] ?? "anytime",
+        scheduledTimesForApi: m.scheduled_times ?? [],
         rawDosage: m.dosage ?? "",
         rawFrequency: m.frequency ?? "",
       }));
@@ -169,6 +197,7 @@ const MedsScreen = () => {
   const [headlineIndex, setHeadlineIndex] = useState(0);
   const [headlineVisible, setHeadlineVisible] = useState(true);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [heroNow, setHeroNow] = useState(() => new Date());
 
   // ─── Edit / Delete state ───────────────────────────────────────────────────
   const [editMed, setEditMed] = useState<DisplayMed | null>(null);
@@ -268,6 +297,11 @@ const MedsScreen = () => {
     setConfirmedDoseCounts(new Map());
   }, [todayData]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setHeroNow(new Date()), MINUTE_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const effectiveTakenCount = (med: DisplayMed) =>
     Math.min(
       med.scheduledCountToday,
@@ -315,9 +349,78 @@ const MedsScreen = () => {
   const rawHeadlines = t("meds.headlines", { returnObjects: true });
   const headlines = Array.isArray(rawHeadlines) && rawHeadlines.length > 0 ? rawHeadlines as string[] : [];
   const currentHeadline = headlines.length > 0 ? headlines[headlineIndex] : t("meds.headline");
+  const nextDoseReminder = pendingMeds
+    .map((med) => {
+      const scheduledTimes = med.scheduledTimesForApi
+        .map((time) => parseScheduledTimeForToday(time, heroNow))
+        .filter((time): time is Date => Boolean(time))
+        .sort((a, b) => a.getTime() - b.getTime());
+      const nextScheduledIndex = Math.min(effectiveTakenCount(med), Math.max(0, scheduledTimes.length - 1));
+      const scheduledAt = scheduledTimes[nextScheduledIndex] ?? null;
+
+      return {
+        med,
+        scheduledAt,
+        minutesUntil: scheduledAt
+          ? Math.round((scheduledAt.getTime() - heroNow.getTime()) / MINUTE_MS)
+          : null,
+      };
+    })
+    .sort((a, b) => {
+      const priority = (minutesUntil: number | null) =>
+        minutesUntil === null ? 2 : minutesUntil <= 0 ? 0 : 1;
+      const priorityDiff = priority(a.minutesUntil) - priority(b.minutesUntil);
+      if (priorityDiff !== 0) return priorityDiff;
+      if (a.minutesUntil === null || b.minutesUntil === null) return 0;
+      return a.minutesUntil - b.minutesUntil;
+    })[0] ?? null;
+  const allScheduledDosesDone = totalScheduledDoseCount > 0 && totalRemainingDoseCount === 0;
+  const medicationHeroHeadline = nextDoseReminder
+    ? t("meds.heroDoseHeadline", {
+        medication: nextDoseReminder.med.displayName,
+        defaultValue: "Don't forget your\n{{medication}}",
+      })
+    : allScheduledDosesDone
+      ? t("meds.heroAllDoneHeadline", {
+          defaultValue: "All medicines\ndone today",
+        })
+      : currentHeadline;
+  const medicationHeroSubtitle = nextDoseReminder
+    ? nextDoseReminder.minutesUntil === null
+      ? t("meds.heroDoseDueToday", {
+          defaultValue: "Due today. Tap Reminders when done.",
+        })
+      : nextDoseReminder.minutesUntil <= 0
+        ? t("meds.heroDoseDueNow", {
+            defaultValue: "Due now. Tap Reminders when done.",
+          })
+        : nextDoseReminder.minutesUntil < 60
+          ? t("meds.heroDoseDueInMinutes", {
+              count: Math.max(1, nextDoseReminder.minutesUntil),
+              defaultValue: "Due in {{count}} min. Tap Reminders when done.",
+            })
+          : t("meds.heroDoseDueAt", {
+              time: formatDoseTime(nextDoseReminder.scheduledAt ?? heroNow, language),
+              defaultValue: "Due at {{time}}. Tap Reminders when done.",
+            })
+    : allScheduledDosesDone
+      ? t("meds.heroAllDoneSub", {
+          defaultValue: "Nice work. Nothing else is due today.",
+        })
+      : todayLoading
+        ? t("meds.loadingSchedule", {
+            defaultValue: "Checking today's schedule...",
+          })
+        : todayData && displayMeds.length === 0
+          ? t("meds.noMedsScheduled")
+          : t("meds.takenToday", { taken: totalTakenDoseCount, total: totalScheduledDoseCount });
+  const hasPriorityHeroMessage = Boolean(nextDoseReminder) || allScheduledDosesDone;
 
   useEffect(() => {
-    if (!headlines.length) return;
+    if (!headlines.length || hasPriorityHeroMessage) {
+      setHeadlineVisible(true);
+      return;
+    }
     const fadeTimer = setTimeout(() => setHeadlineVisible(false), 3600);
     const swapTimer = setTimeout(() => {
       setHeadlineIndex((prev) => (prev + 1) % headlines.length);
@@ -327,7 +430,7 @@ const MedsScreen = () => {
       clearTimeout(fadeTimer);
       clearTimeout(swapTimer);
     };
-  }, [headlineIndex, headlines.length]);
+  }, [hasPriorityHeroMessage, headlineIndex, headlines.length]);
 
   const ASSISTANT_ACTIONS = [
     {
@@ -576,6 +679,7 @@ const MedsScreen = () => {
     icon: LucideIcon;
     label: string;
     sub: string;
+    mobileSub: string;
     color: string;
     bg: string;
     onClick: () => void;
@@ -586,6 +690,7 @@ const MedsScreen = () => {
       icon: Clock,
       label: t("meds.primary.reminders", "Reminders"),
       sub: t("meds.primary.remindersSub", "Review today's schedule and add medication reminders."),
+      mobileSub: t("meds.primary.remindersMobileSub", "Today's schedule"),
       color: "#7C3AED",
       bg: "#F5F3FF",
       onClick: () => setRemindersOpen((open) => !open),
@@ -596,6 +701,7 @@ const MedsScreen = () => {
       icon: ShoppingCart,
       label: t("meds.primary.refills", "Refills"),
       sub: t("meds.primary.refillsSub", "Prepare repeat prescriptions or delivery."),
+      mobileSub: t("meds.primary.refillsMobileSub", "Pharmacy refills"),
       color: "#C9890A",
       bg: "#FEF3C7",
       onClick: openRefillSupport,
@@ -606,6 +712,7 @@ const MedsScreen = () => {
       icon: AlertCircle,
       label: t("meds.primary.interactions", "Interactions"),
       sub: t("meds.primary.interactionsSub", "Check medicines and supplements."),
+      mobileSub: t("meds.primary.interactionsMobileSub", "Check the mix"),
       color: "#0A7C4E",
       bg: "#ECFDF5",
       onClick: () => openAssistant(
@@ -619,6 +726,7 @@ const MedsScreen = () => {
       icon: BarChart2,
       label: t("meds.primary.adherence", "Adherence"),
       sub: t("meds.primary.adherenceSub", "See progress and missed doses."),
+      mobileSub: t("meds.primary.adherenceMobileSub", "Missed doses"),
       color: "#6B21A8",
       bg: "#EDE9FE",
       onClick: () => navigate("/meds/adherence-report"),
@@ -638,10 +746,8 @@ const MedsScreen = () => {
   return (
     <div className="px-[22px]">
       <VoiceHero
-        heroSurface="meds"
-        sourceText={t("meds.voiceSource")}
-        headline={<span style={{ opacity: headlineVisible ? 1 : 0, transition: "opacity 0.28s ease, transform 0.28s ease", display: "inline-block", transform: headlineVisible ? "translateY(0)" : "translateY(6px)" }}>{currentHeadline}</span>}
-        subtitle={todayData && displayMeds.length === 0 ? t("meds.noMedsScheduled") : t("meds.takenToday", { taken: totalTakenDoseCount, total: totalScheduledDoseCount })}
+        headline={<span style={{ opacity: headlineVisible ? 1 : 0, transition: "opacity 0.28s ease, transform 0.28s ease", display: "inline-block", transform: headlineVisible ? "translateY(0)" : "translateY(6px)" }}>{medicationHeroHeadline}</span>}
+        subtitle={medicationHeroSubtitle}
         contextHint="medication reminder"
         voiceAgentSlug="meds"
       >
@@ -703,8 +809,8 @@ const MedsScreen = () => {
         </section>
       )}
 
-      <section className="mt-6" data-testid="section-meds-primary-actions">
-        <ResponsiveGrid columns="two" gap="sm">
+      <section className="mt-[22px]" data-testid="section-meds-primary-actions">
+        <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2" data-testid="grid-meds-primary-actions">
           {primaryActions.map((action) => (
             <ActionCard
               key={action.id}
@@ -713,9 +819,15 @@ const MedsScreen = () => {
               iconBg={action.bg}
               iconColor={action.color}
               title={action.label}
-              description={action.sub}
-              size="large"
+              description={
+                <>
+                  <span className="sm:hidden">{action.mobileSub}</span>
+                  <span className="hidden sm:inline">{action.sub}</span>
+                </>
+              }
+              size="standard"
               surface="white"
+              contentClassName="justify-start"
               selected={action.id === "reminders" && remindersOpen}
               aria-expanded={action.id === "reminders" ? remindersOpen : undefined}
               onClick={action.onClick}
