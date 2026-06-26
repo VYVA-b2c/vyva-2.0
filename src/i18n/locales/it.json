@@ -349,11 +349,11 @@
         "openLabel": "Apri benessere"
       },
       "cognitive": {
-        "title": "Mia mente",
-        "subtitle": "Focus, memoria e calma",
-        "bubble": "Un piccolo momento con me mantiene attiva la mente.",
-        "micLabel": "Iniziare un esercizio mentale",
-        "openLabel": "Apri mente agile"
+        "title": "Attivita",
+        "subtitle": "Eventi, corsi e piani tranquilli",
+        "bubble": "Posso trovare attivita sicure adatte ai tuoi interessi.",
+        "micLabel": "Trova attivita",
+        "openLabel": "Apri attivita"
       },
       "social": {
         "title": "La mia comunità",
