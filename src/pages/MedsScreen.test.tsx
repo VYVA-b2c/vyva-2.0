@@ -28,6 +28,40 @@ const labels: Record<string, string> = {
   "meds.primary.interactionsSub": "Check medicines and supplements.",
   "meds.primary.adherence": "Adherence",
   "meds.primary.adherenceSub": "See progress and missed doses.",
+  "meds.primary.safety": "Safety signals",
+  "meds.primary.safetySub": "Review early signals and draft case packets.",
+  "meds.safety.title": "Medication safety signals",
+  "meds.safety.subtitle": "Early signal review and audit-ready case packets.",
+  "meds.safety.steadyBadge": "Steady",
+  "meds.safety.steadyTitle": "No medication safety signals found",
+  "meds.safety.steadySub": "Today looks steady from the medication data VYVA can see.",
+  "meds.safety.statSignals": "Signals",
+  "meds.safety.statCases": "Cases",
+  "meds.safety.statReady": "Ready",
+  "meds.safety.emptyTitle": "No case needed right now",
+  "meds.safety.emptySub": "A single missed confirmation stays in reminders. Draft cases appear only for explicit or repeated signals.",
+  "meds.safety.analyse": "Analyse signals",
+  "meds.safety.newCase": "New side-effect note",
+  "meds.safety.newCaseTitle": "New safety case",
+  "meds.safety.reviewCase": "Review safety case",
+  "meds.safety.caseDrawerSub": "Prepare a review packet. This does not submit anything to a regulator.",
+  "meds.safety.caseFallback": "Medication safety case",
+  "meds.safety.readyToExport": "Ready to export",
+  "meds.safety.missingTitle": "Missing for audit-ready export",
+  "meds.safety.status": "Status",
+  "meds.safety.severity": "Severity",
+  "meds.safety.suspectedMedication": "Suspected medication",
+  "meds.safety.reaction": "Symptom or reaction",
+  "meds.safety.reactionStarted": "Reaction start date",
+  "meds.safety.seriousness": "Seriousness assessment",
+  "meds.safety.outcome": "Outcome",
+  "meds.safety.actionTaken": "Action taken",
+  "meds.safety.reporterName": "Reporter name",
+  "meds.safety.reporterContact": "Reporter contact",
+  "meds.safety.narrative": "Narrative",
+  "meds.safety.evidence": "Evidence timeline",
+  "meds.safety.exportPacket": "Export packet",
+  "meds.safety.export": "Export packet",
   "meds.fastHelpKicker": "Fast help",
   "meds.canHelpWith": "I can help you with",
   "meds.assistant.interactions.label": "Check Interactions",
@@ -164,7 +198,30 @@ type TestMedication = {
   scheduledCountToday: number;
 };
 
-function renderMedsScreen(medications: TestMedication[] = []) {
+function safetyResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    summary: {
+      status: "steady",
+      severity: "watch",
+      title: "No medication safety signals found",
+      message: "Today looks steady from the medication data VYVA can see.",
+      signalCount: 0,
+      openCaseCount: 0,
+      lastAnalysedAt: null,
+    },
+    signalCandidates: [],
+    signals: [],
+    openCases: [],
+    exportAvailability: {
+      canExport: false,
+      readyCount: 0,
+      needsReviewCount: 0,
+    },
+    ...overrides,
+  };
+}
+
+function renderMedsScreen(medications: TestMedication[] = [], safety = safetyResponse()) {
   const client = new QueryClient({
     defaultOptions: {
       queries: {
@@ -172,6 +229,9 @@ function renderMedsScreen(medications: TestMedication[] = []) {
         queryFn: async ({ queryKey }) => {
           if (queryKey[0] === "/api/meds/adherence-report/today") {
             return { medications };
+          }
+          if (queryKey[0] === "/api/meds/safety") {
+            return safety;
           }
           return {};
         },
@@ -214,6 +274,7 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("Refills");
     expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Interactions");
     expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("Adherence");
+    expect(screen.getByTestId("button-meds-primary-safety")).toHaveTextContent("Safety signals");
     expect(screen.getByTestId("grid-meds-primary-actions")).toHaveClass("min-[340px]:grid-cols-2");
 
     expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("Fast help");
@@ -276,6 +337,96 @@ describe("MedsScreen schedule actions", () => {
     fireEvent.click(await screen.findByTestId("button-meds-primary-adherence"));
 
     expect(mocks.navigate).toHaveBeenCalledWith("/meds/adherence-report");
+  });
+
+  it("reveals the safety signal panel without opening reminders", async () => {
+    renderMedsScreen();
+
+    fireEvent.click(await screen.findByTestId("button-meds-primary-safety"));
+
+    expect(await screen.findByTestId("section-meds-safety")).toBeInTheDocument();
+    expect(screen.getByText("Medication safety signals")).toBeInTheDocument();
+    expect(screen.getByText("No case needed right now")).toBeInTheDocument();
+    expect(screen.getByTestId("button-meds-safety-analyse")).toHaveTextContent("Analyse signals");
+    expect(screen.getByTestId("button-meds-safety-new-case")).toHaveTextContent("New side-effect note");
+    expect(screen.queryByTestId("section-meds-reminders")).not.toBeInTheDocument();
+  });
+
+  it("opens a safety case drawer and exports an audit packet", async () => {
+    const safetyCase = {
+      id: "case-1",
+      status: "draft",
+      severity: "attention",
+      signal_type: "possible_side_effect",
+      suspected_medication: "Aspirin",
+      reaction: "Rash",
+      reaction_started_at: null,
+      seriousness_flags: [],
+      outcome: null,
+      action_taken: null,
+      reporter_name: null,
+      reporter_contact: null,
+      reporter_role: "patient_or_caregiver",
+      narrative: null,
+      evidence: [{ type: "manual_report" }],
+      missing_fields: ["Reaction start date"],
+      export_ready: false,
+    };
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/export")) {
+        return new Response(JSON.stringify({
+          case: { ...safetyCase, missing_fields: [], export_ready: true },
+          export: {
+            human_readable_text: "VYVA Medication Safety Case Packet\nAspirin",
+            export_ready: true,
+            missing_fields: [],
+          },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (String(url).includes("/api/meds/safety/cases/case-1") && init?.method === "PATCH") {
+        return new Response(JSON.stringify({
+          case: { ...safetyCase, outcome: "Improving", missing_fields: [], export_ready: true },
+          sent_to: [],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    renderMedsScreen([], safetyResponse({
+      summary: {
+        status: "needs_review",
+        severity: "attention",
+        title: "1 medication safety case to review",
+        message: "Review the case details.",
+        signalCount: 1,
+        openCaseCount: 1,
+        lastAnalysedAt: null,
+      },
+      openCases: [safetyCase],
+      exportAvailability: {
+        canExport: true,
+        readyCount: 0,
+        needsReviewCount: 1,
+      },
+    }));
+
+    fireEvent.click(await screen.findByTestId("button-meds-primary-safety"));
+    fireEvent.click(await screen.findByTestId("button-review-safety-case-0"));
+
+    expect(await screen.findByTestId("sheet-meds-safety-case")).toBeInTheDocument();
+    expect(screen.getByTestId("input-safety-case-medication")).toHaveValue("Aspirin");
+    expect(screen.getAllByText("Reaction start date").length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.change(screen.getByTestId("input-safety-case-outcome"), { target: { value: "Improving" } });
+    fireEvent.click(screen.getByTestId("button-safety-case-save"));
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/meds/safety/cases/case-1",
+      expect.objectContaining({ method: "PATCH" }),
+    ));
+
+    fireEvent.click(screen.getByTestId("button-safety-case-export"));
+    const exportText = await screen.findByTestId("textarea-safety-case-export") as HTMLTextAreaElement;
+    expect(exportText.value).toContain("VYVA Medication Safety Case Packet");
   });
 
   it("keeps the footer Add by voice action when medications exist", async () => {
