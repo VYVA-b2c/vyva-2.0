@@ -1802,12 +1802,12 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const contactFormatHint =
     isPasswordFreeSignIn
       ? language === "en"
-        ? "We send a secure link to your email. No password to remember."
+        ? "No password to remember."
         : `${copy.email}: ${copy.emailPlaceholder}`
       : language === "en" && isSignupWithPassword
-        ? "Use email for sign-in links. Use mobile with your password."
+        ? "Use email for secure links, or mobile with a password."
       : language === "en" && mode === "login" && showPasswordSignIn && !adminOnly
-        ? "Use the mobile number or email you signed up with."
+        ? "Use the mobile number or email on your account."
       : `${copy.mobileNumber}: ${contactPlaceholder}`;
   const contactAutocomplete = isPasswordFreeSignIn ? "email" : "username";
   const todayForDateInput = new Date().toISOString().slice(0, 10);
@@ -1824,25 +1824,26 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const authSubtitle = adminOnly && activeView === "login"
     ? "Access the VYVA operations panel."
     : isPasswordFreeSignIn
-      ? copy.subtitles.forgot
+      ? language === "en"
+        ? "Enter your email. We will send a secure link."
+        : copy.subtitles.forgot
     : copy.subtitles[activeView];
   const isSignupHero = mode === "register" && view !== "magic";
   const heroEyebrow = isSignupHero ? copy.privateDailySupport : copy.signInHeroEyebrow;
   const heroTitle = isSignupHero ? copy.heroTitle : copy.signInHeroTitle;
   const heroSubtitle = isSignupHero ? copy.heroSubtitle : copy.signInHeroSubtitle;
   const switchPrompt = mode === "register" ? copy.alreadyHaveAccount : copy.dontHaveAccount;
-  const magicSubmitLabel = language === "en" ? "Send sign-in link" : copy.sendMagicLink;
+  const magicSubmitLabel = language === "en" ? "Send secure link" : copy.sendMagicLink;
   const shouldShowSignInMethods = !adminOnly && mode === "login" && view !== "forgot";
   const trustItems = [
     copy.guide.topics.privacy.body,
     copy.guide.topics.family.body,
   ];
-  const signInMethodChooser = shouldShowSignInMethods ? (
-    <div className="space-y-2" data-testid="signin-methods">
-      <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={language === "en" ? "Sign-in method" : copy.signInTab}>
+  const signInMethodAlternative = shouldShowSignInMethods ? (
+    <div className="flex justify-center" data-testid="signin-methods">
+      {showPasswordSignIn ? (
         <button
           type="button"
-          aria-pressed={isPasswordFreeSignIn}
           onClick={() => {
             setView("login");
             setMode("login");
@@ -1852,28 +1853,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             if (!contact.trim().includes("@")) setContact("");
           }}
           data-testid="button-signin-method-link"
-          className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
-            isPasswordFreeSignIn
-              ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
-              : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
-          }`}
+          className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full px-4 font-body text-[15px] font-black text-vyva-purple transition hover:bg-[#F5F0FF]"
         >
-          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${isPasswordFreeSignIn ? "bg-white/18 text-white" : "bg-white text-vyva-purple"}`}>
-            <Link2 size={18} />
-          </span>
-          <span className="min-w-0">
-            <span className="block font-body text-[15px] font-black leading-tight">
-              {language === "en" ? "Email link" : copy.signInWithMagicLink}
-            </span>
-            <span className={`mt-1 block font-body text-[12px] font-semibold leading-4 ${isPasswordFreeSignIn ? "text-white/76" : "text-vyva-text-3"}`}>
-              {language === "en" ? "Email only. No password." : copy.subtitles.forgot}
-            </span>
-          </span>
+          <Link2 size={17} />
+          {language === "en" ? "Send email link instead" : copy.signInWithMagicLink}
         </button>
-
+      ) : (
         <button
           type="button"
-          aria-pressed={showPasswordSignIn}
           onClick={() => {
             setView("login");
             setMode("login");
@@ -1881,48 +1868,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
             setMagicError(null);
           }}
           data-testid="button-signin-method-password"
-          className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
-            showPasswordSignIn
-              ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
-              : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
-          }`}
+          className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full px-4 font-body text-[15px] font-black text-vyva-purple transition hover:bg-[#F5F0FF]"
         >
-          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${showPasswordSignIn ? "bg-white/18 text-white" : "bg-white text-vyva-purple"}`}>
-            <KeyRound size={18} />
-          </span>
-          <span className="min-w-0">
-            <span className="block font-body text-[15px] font-black leading-tight">
-              {language === "en" ? "Password sign-in" : copy.usePasswordInstead}
-            </span>
-            <span className={`mt-1 block font-body text-[12px] font-semibold leading-4 ${showPasswordSignIn ? "text-white/76" : "text-vyva-text-3"}`}>
-              {language === "en" ? "Mobile or email." : `${copy.mobileNumber} / ${copy.email}`}
-            </span>
-          </span>
+          <KeyRound size={17} />
+          {language === "en" ? "Use mobile or password" : copy.usePasswordInstead}
         </button>
-      </div>
+      )}
     </div>
   ) : null;
-  const googleButton = (
-    <button
-      type="button"
-      aria-disabled="true"
-      title="Google OAuth is not connected yet"
-      className="inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-[18px] border-2 border-[#E8DDF3] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-vyva-text-1 shadow-vyva-input transition hover:border-[#D8C2EF]"
-      data-testid="button-google-auth"
-    >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F8F3EA] font-body text-[18px] font-black text-[#4285F4]">
-        G
-      </span>
-      {copy.continueWithGoogle}
-    </button>
-  );
-  const authDivider = (
-    <div className="flex items-center gap-3">
-      <span className="h-px flex-1 bg-[#EEE4D8]" />
-      <span className="font-body text-[12px] font-bold text-vyva-text-3">{copy.or}</span>
-      <span className="h-px flex-1 bg-[#EEE4D8]" />
-    </div>
-  );
 
   return (
     <>
@@ -2557,8 +2510,6 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     )
                   )}
 
-                  {signInMethodChooser}
-
                   <label className="font-body text-[15px] font-black text-vyva-text-2">
                     {contactLabel}
                     <Input
@@ -2633,8 +2584,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         {!loading && <ArrowRight size={17} />}
                       </button>
 
-                      {authDivider}
-                      {googleButton}
+                      {signInMethodAlternative}
                     </>
                   ) : showPasswordSignIn && view !== "magic" ? (
                     <>
@@ -2690,12 +2640,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         {!loading && <ArrowRight size={17} />}
                       </button>
 
-                      {!adminOnly && (
-                        <>
-                          {authDivider}
-                          {googleButton}
-                        </>
-                      )}
+                      {!adminOnly && signInMethodAlternative}
                     </>
                   ) : (
                     <>
@@ -2725,8 +2670,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         </>
                       )}
 
-                      {authDivider}
-                      {googleButton}
+                      {signInMethodAlternative}
                     </>
                   )}
 
