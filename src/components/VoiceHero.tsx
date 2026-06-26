@@ -319,37 +319,32 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             aria-label={statusLabel}
             title={connectionLabel}
             data-testid="button-voice-hero-signal"
-            className={`absolute right-[14px] top-[14px] z-10 flex h-[104px] w-[104px] items-center justify-center rounded-full transition active:scale-[0.98] disabled:opacity-70 sm:right-[18px] sm:top-[14px] sm:h-[118px] sm:w-[118px] ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+            className={`absolute right-[18px] top-[18px] z-10 flex h-[58px] w-[58px] items-center justify-center rounded-[22px] transition active:scale-[0.98] disabled:opacity-70 sm:right-[22px] sm:top-[20px] sm:h-[64px] sm:w-[64px] ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
             style={{
               background: isActive
-                ? "rgba(52,211,153,0.18)"
-                : "linear-gradient(145deg, rgba(255,255,255,0.28), rgba(255,255,255,0.08))",
-              border: isActive ? "1px solid rgba(52,211,153,0.46)" : "1px solid rgba(255,255,255,0.28)",
-              boxShadow: "0 20px 42px rgba(39, 13, 74, 0.24), inset 0 1px 0 rgba(255,255,255,0.24)",
+                ? "linear-gradient(145deg, rgba(52,211,153,0.28), rgba(255,255,255,0.12))"
+                : "linear-gradient(145deg, rgba(255,255,255,0.30), rgba(255,255,255,0.12))",
+              border: isActive ? "1px solid rgba(52,211,153,0.50)" : "1px solid rgba(255,255,255,0.30)",
+              boxShadow: "0 14px 28px rgba(39, 13, 74, 0.20), inset 0 1px 0 rgba(255,255,255,0.30)",
             }}
           >
             <span
               aria-hidden="true"
-              className="absolute inset-[13%] rounded-full"
-              style={{ border: "1px solid rgba(255,255,255,0.18)" }}
+              className="absolute inset-[7px] rounded-[18px]"
+              style={{ background: "rgba(255,255,255,0.12)" }}
             />
+            <span className="pointer-events-none absolute left-[12px] top-[10px] h-[12px] w-[20px] rounded-full bg-white/30 blur-[2px]" aria-hidden="true" />
+            {isActive ? (
+              <X size={24} strokeWidth={2.5} className="relative text-white" aria-hidden="true" />
+            ) : (
+              <Mic size={24} strokeWidth={2.5} className="relative text-white" aria-hidden="true" />
+            )}
             <span
+              data-testid="voice-hero-signal-center"
+              className="absolute bottom-[10px] right-[10px] h-[10px] w-[10px] rounded-full border border-white/80 shadow-[0_0_0_3px_rgba(255,255,255,0.18)]"
+              style={{ background: connectionColor }}
               aria-hidden="true"
-              className="absolute inset-[26%] rounded-full"
-              style={{ background: isActive ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.16)" }}
             />
-            <span
-              className="relative flex h-[42%] w-[42%] items-center justify-center rounded-full bg-white shadow-[0_10px_24px_rgba(36,17,51,0.18)]"
-              aria-hidden="true"
-            >
-              <span className="absolute h-[68%] w-[68%] rounded-full border border-[#7C3AED]/20" />
-              <span className="absolute h-[42%] w-[42%] rounded-full bg-[#7C3AED]/12" />
-              <span
-                data-testid="voice-hero-signal-center"
-                className="h-[18%] w-[18%] rounded-full"
-                style={{ background: browserOnline ? "#34D399" : "#EF4444" }}
-              />
-            </span>
           </button>
           <div className="flex min-h-[268px]">
             {/* Left column — text + CTA */}
