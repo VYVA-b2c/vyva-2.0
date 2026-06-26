@@ -1477,14 +1477,6 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setView("forgot");
   };
 
-  const showMagic = () => {
-    setMode("login");
-    setView("magic");
-    setMagicSent(false);
-    setMagicError(null);
-    setShowPasswordSignIn(false);
-  };
-
   const authContactPayload = (includeLanguage = false) => {
     const trimmedContact = contact.trim();
     const inviteId = includeLanguage ? currentSignupInviteId(location.search) : null;
@@ -1786,7 +1778,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
   const trimmedContact = contact.trim();
   const contactIsEmail = trimmedContact.includes("@");
-  const contactIsReady = trimmedContact.length >= (contactIsEmail ? 4 : 7);
+  const isPasswordFreeSignIn = view !== "forgot" && (mode === "login" || view === "magic") && !showPasswordSignIn;
+  const contactIsReady = isPasswordFreeSignIn
+    ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)
+    : trimmedContact.length >= (contactIsEmail ? 4 : 7);
   const canSubmit = contactIsReady && password.length >= (mode === "register" ? 8 : 1) && !loading;
   const canSendReset = forgotEmail.trim().length > 3 && !forgotLoading;
   const canSendMagic = contactIsReady && !magicLoading;
@@ -1799,11 +1794,25 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         ? copy.errors.noApiKey
         : guideVoiceError
     : null;
-  const contactLabel = copy.combinedContact ?? `${copy.mobileNumber} / ${copy.email}`;
+  const isSignupWithPassword = mode === "register" && view !== "magic";
+  const contactLabel = isPasswordFreeSignIn ? copy.email : copy.combinedContact ?? `${copy.mobileNumber} / ${copy.email}`;
   const compactPhoneExample = copy.phonePlaceholder.replace(/\s+/g, "");
-  const contactPlaceholder = copy.combinedContactPlaceholder ?? `${compactPhoneExample} ${copy.or} ${copy.emailPlaceholder}`;
-  const contactFormatHint = `${copy.mobileNumber}: ${contactPlaceholder}`;
-  const contactAutocomplete = "username";
+  const contactPlaceholder = isPasswordFreeSignIn
+    ? copy.emailPlaceholder
+    : language === "en"
+      ? "Mobile or email"
+      : copy.combinedContactPlaceholder ?? `${compactPhoneExample} ${copy.or} ${copy.emailPlaceholder}`;
+  const contactFormatHint =
+    isPasswordFreeSignIn
+      ? language === "en"
+        ? "We send a secure link to your email. No password to remember."
+        : `${copy.email}: ${copy.emailPlaceholder}`
+      : language === "en" && isSignupWithPassword
+        ? "Use email for sign-in links. Use mobile with your password."
+      : language === "en" && mode === "login" && showPasswordSignIn && !adminOnly
+        ? "Use the mobile number or email you signed up with."
+      : `${copy.mobileNumber}: ${contactPlaceholder}`;
+  const contactAutocomplete = isPasswordFreeSignIn ? "email" : "username";
   const todayForDateInput = new Date().toISOString().slice(0, 10);
   const selectedDialOption = COUNTRY_DIAL_OPTIONS.find((option) => option.dialCode === callbackCountryCode) ?? COUNTRY_DIAL_OPTIONS[0];
   const selectedCallNumber = VYVA_CALL_NUMBERS[callCountry] ?? VYVA_CALL_NUMBERS.ES;
@@ -1817,21 +1826,94 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         : copy.titles[activeView];
   const authSubtitle = adminOnly && activeView === "login"
     ? "Access the VYVA operations panel."
+    : isPasswordFreeSignIn
+      ? copy.subtitles.forgot
     : copy.subtitles[activeView];
   const isSignupHero = mode === "register" && view !== "magic";
   const heroEyebrow = isSignupHero ? copy.privateDailySupport : copy.signInHeroEyebrow;
   const heroTitle = isSignupHero ? copy.heroTitle : copy.signInHeroTitle;
   const heroSubtitle = isSignupHero ? copy.heroSubtitle : copy.signInHeroSubtitle;
   const switchPrompt = mode === "register" ? copy.alreadyHaveAccount : copy.dontHaveAccount;
+  const magicSubmitLabel = language === "en" ? "Send sign-in link" : copy.sendMagicLink;
+  const shouldShowSignInMethods = !adminOnly && mode === "login" && view !== "forgot";
+  const trustItems = [
+    copy.guide.topics.privacy.body,
+    copy.guide.topics.family.body,
+  ];
+  const signInMethodChooser = shouldShowSignInMethods ? (
+    <div className="space-y-2" data-testid="signin-methods">
+      <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={language === "en" ? "Sign-in method" : copy.signInTab}>
+        <button
+          type="button"
+          aria-pressed={isPasswordFreeSignIn}
+          onClick={() => {
+            setView("login");
+            setMode("login");
+            setShowPasswordSignIn(false);
+            setMagicError(null);
+            setError(null);
+            if (!contact.trim().includes("@")) setContact("");
+          }}
+          data-testid="button-signin-method-link"
+          className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
+            isPasswordFreeSignIn
+              ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
+              : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
+          }`}
+        >
+          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${isPasswordFreeSignIn ? "bg-white/18 text-white" : "bg-white text-vyva-purple"}`}>
+            <Link2 size={18} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-body text-[15px] font-black leading-tight">
+              {language === "en" ? "Email link" : copy.signInWithMagicLink}
+            </span>
+            <span className={`mt-1 block font-body text-[12px] font-semibold leading-4 ${isPasswordFreeSignIn ? "text-white/76" : "text-vyva-text-3"}`}>
+              {language === "en" ? "Email only. No password." : copy.subtitles.forgot}
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          aria-pressed={showPasswordSignIn}
+          onClick={() => {
+            setView("login");
+            setMode("login");
+            setShowPasswordSignIn(true);
+            setMagicError(null);
+          }}
+          data-testid="button-signin-method-password"
+          className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
+            showPasswordSignIn
+              ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
+              : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
+          }`}
+        >
+          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${showPasswordSignIn ? "bg-white/18 text-white" : "bg-white text-vyva-purple"}`}>
+            <KeyRound size={18} />
+          </span>
+          <span className="min-w-0">
+            <span className="block font-body text-[15px] font-black leading-tight">
+              {language === "en" ? "Password sign-in" : copy.usePasswordInstead}
+            </span>
+            <span className={`mt-1 block font-body text-[12px] font-semibold leading-4 ${showPasswordSignIn ? "text-white/76" : "text-vyva-text-3"}`}>
+              {language === "en" ? "Mobile or email." : `${copy.mobileNumber} / ${copy.email}`}
+            </span>
+          </span>
+        </button>
+      </div>
+    </div>
+  ) : null;
   const googleButton = (
     <button
       type="button"
       aria-disabled="true"
       title="Google OAuth is not connected yet"
-      className="inline-flex min-h-[52px] w-full items-center justify-center gap-3 rounded-full border border-[#E8DDF3] bg-white px-4 py-3 font-body text-[14px] font-extrabold text-vyva-text-1 shadow-vyva-input transition hover:border-[#D8C2EF]"
+      className="inline-flex min-h-[60px] w-full items-center justify-center gap-3 rounded-[18px] border-2 border-[#E8DDF3] bg-white px-4 py-3 font-body text-[16px] font-extrabold text-vyva-text-1 shadow-vyva-input transition hover:border-[#D8C2EF]"
       data-testid="button-google-auth"
     >
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F8F3EA] font-body text-[17px] font-black text-[#4285F4]">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F8F3EA] font-body text-[18px] font-black text-[#4285F4]">
         G
       </span>
       {copy.continueWithGoogle}
@@ -2248,22 +2330,22 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         </div>
       )}
 
-      <div className="relative min-h-screen overflow-x-hidden bg-[#FAF7F2] text-vyva-text-1">
+      <div className="relative min-h-screen overflow-x-hidden bg-[#FBF8F3] text-vyva-text-1">
         {!adminOnly && (
-          <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#FAF7F2]">
-            <div className="absolute inset-0 bg-[linear-gradient(118deg,#FFF9EE_0%,#FAF7F2_58%,#F8F1FC_100%)]" />
+          <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#FBF8F3]">
+            <div className="absolute inset-0 bg-[linear-gradient(118deg,#FFFDF6_0%,#FBF8F3_58%,#F7F1FB_100%)]" />
           </div>
         )}
-        <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 pb-3 pt-4 sm:px-8 sm:py-5 lg:px-10 lg:py-7">
-          <VyvaWordmark className="h-auto w-[132px] sm:w-[158px]" />
-          <label className="flex min-h-[44px] items-center gap-2 rounded-full border border-[#E8DDF3] bg-white/90 px-3 py-2 shadow-[0_12px_32px_rgba(77,45,20,0.08)] backdrop-blur">
-            <Globe2 size={15} className="text-vyva-purple" />
+        <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 pb-4 pt-5 sm:px-8 sm:py-6 lg:px-8">
+          <VyvaWordmark className="h-auto w-[140px] sm:w-[162px]" />
+          <label className="flex min-h-[52px] items-center gap-2 rounded-[18px] border-2 border-[#E8DDF3] bg-white px-4 py-2 shadow-[0_10px_26px_rgba(77,45,20,0.08)]">
+            <Globe2 size={17} className="text-vyva-purple" />
             <span className="sr-only">{copy.language}</span>
             <select
               value={language}
               onChange={(event) => setLanguage(event.target.value)}
               aria-label={copy.language}
-              className="bg-transparent font-body text-[13px] font-extrabold text-vyva-purple outline-none"
+              className="bg-transparent font-body text-[15px] font-extrabold text-vyva-purple outline-none"
               data-testid="select-login-language"
             >
               {languages.map((item) => (
@@ -2275,10 +2357,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           </label>
         </header>
 
-        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-start justify-center px-5 pb-8 pt-2 sm:px-8 md:min-h-[calc(100vh-108px)] md:items-center md:pt-0 lg:px-10 lg:pb-12">
+        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-104px)] w-full max-w-6xl items-start justify-center px-5 pb-8 pt-3 sm:px-8 md:min-h-[calc(100vh-116px)] md:pt-0 lg:px-8 lg:pb-12">
           <section
             data-testid="auth-layout"
-            className="grid w-full max-w-[560px] gap-6 lg:max-w-[1080px] lg:grid-cols-[minmax(360px,0.9fr)_minmax(420px,500px)] lg:items-start lg:gap-12"
+            className="grid w-full max-w-[580px] gap-6 lg:max-w-[1120px] lg:grid-cols-[minmax(320px,420px)_minmax(480px,560px)] lg:items-start lg:gap-10"
           >
             {adminOnly ? (
               <div className="text-center md:text-left">
@@ -2300,26 +2382,39 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               </div>
             ) : (
-              <div className="relative hidden overflow-hidden rounded-[34px] border border-white/70 bg-[#2F183F] shadow-[0_28px_80px_rgba(79,43,116,0.18)] lg:block lg:rounded-[40px]">
+              <div className="relative hidden overflow-hidden rounded-[28px] border border-white/80 bg-[#2F183F] shadow-[0_22px_64px_rgba(79,43,116,0.16)] lg:block">
                 <img
                   src="/assets/vyva/cozy-home-room.png"
                   alt=""
                   aria-hidden="true"
-                  className="absolute inset-0 h-full w-full object-cover object-[28%_center]"
+                  className="absolute inset-0 h-full w-full object-cover object-[30%_center]"
                 />
-                <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(47,24,63,0.78)_0%,rgba(107,33,168,0.46)_42%,rgba(255,247,232,0.08)_100%)]" />
-                <div className="absolute inset-x-0 bottom-0 h-[58%] bg-[linear-gradient(0deg,rgba(47,24,63,0.82)_0%,rgba(47,24,63,0.42)_64%,rgba(47,24,63,0)_100%)]" />
-                <div className="relative z-10 flex min-h-[560px] flex-col justify-end p-8 text-left text-white xl:min-h-[600px] xl:p-9">
-                  <div className="mb-5 h-1.5 w-24 rounded-full bg-[#FFDF61]" />
-                  <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-[#FFE98B]">
+                <div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(47,24,63,0.72)_0%,rgba(107,33,168,0.38)_48%,rgba(255,247,232,0.06)_100%)]" />
+                <div className="absolute inset-x-0 bottom-0 h-[62%] bg-[linear-gradient(0deg,rgba(47,24,63,0.86)_0%,rgba(47,24,63,0.54)_62%,rgba(47,24,63,0)_100%)]" />
+                <div className="relative z-10 flex min-h-[540px] flex-col justify-between p-7 text-left text-white xl:min-h-[560px] xl:p-8">
+                  <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/14 px-4 py-2 font-body text-[13px] font-extrabold text-white ring-1 ring-white/18">
+                    <ShieldCheck size={16} />
+                    {copy.profilePrivate}
+                  </div>
+                  <div>
+                  <div className="mb-5 h-1.5 w-20 rounded-full bg-[#FFDF61]" />
+                  <p className="mb-3 font-body text-[12px] font-extrabold uppercase tracking-[0.2em] text-[#FFE98B]">
                     {heroEyebrow}
                   </p>
-                  <h1 className="max-w-[460px] font-body text-[3.35rem] font-black leading-[0.96] text-white drop-shadow-[0_8px_24px_rgba(47,24,63,0.3)] xl:text-[3.8rem]">
+                  <h1 className="max-w-[390px] font-body text-[2.9rem] font-black leading-[1.02] text-white drop-shadow-[0_8px_24px_rgba(47,24,63,0.28)] xl:text-[3.2rem]">
                     {heroTitle}
                   </h1>
-                  <p className="mt-5 max-w-[460px] font-body text-[17px] font-semibold leading-8 text-white/88">
+                  <p className="mt-5 max-w-[390px] font-body text-[18px] font-semibold leading-8 text-white/90">
                     {heroSubtitle}
                   </p>
+                  <div className="mt-5 space-y-2">
+                    {trustItems.map((item) => (
+                      <div key={item} className="flex items-start gap-2.5 rounded-[16px] bg-white/12 px-3.5 py-3 ring-1 ring-white/12">
+                        <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-[#FFE98B]" />
+                        <span className="font-body text-[14px] font-bold leading-5 text-white/92">{item}</span>
+                      </div>
+                    ))}
+                  </div>
                   {mode === "register" && view !== "magic" && (
                     <div className="mt-7 grid gap-2 xl:grid-cols-2" aria-label="Ways to start with VYVA">
                       <button
@@ -2350,17 +2445,18 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       {guideVoiceErrorText}
                     </p>
                   )}
+                  </div>
                 </div>
               </div>
             )}
 
             <div
               data-testid="auth-card"
-              className="w-full rounded-[34px] border border-[#E8DDD2] bg-white/95 p-5 shadow-[0_28px_70px_rgba(79,43,116,0.14)] backdrop-blur sm:rounded-[42px] sm:p-7 md:justify-self-end"
+              className="w-full rounded-[28px] border border-[#E4D8CD] bg-white p-5 shadow-[0_22px_58px_rgba(79,43,116,0.13)] sm:p-7 md:justify-self-end"
             >
               <div className="mb-5">
-                <h2 className="font-body text-[34px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>
-                <p className="mt-1 font-body text-[14px] text-vyva-text-2">{authSubtitle}</p>
+                <h2 className="font-body text-[36px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>
+                <p className="mt-1.5 font-body text-[16px] font-semibold leading-6 text-vyva-text-2">{authSubtitle}</p>
               </div>
 
               {view === "forgot" ? (
@@ -2447,7 +2543,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">
                           {copy.setupIntentLabel}
                         </p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid gap-2 sm:grid-cols-2">
                           {(["self", "caregiver"] as const).map((intent) => {
                             const active = setupIntent === intent;
                             const Icon = intent === "self" ? UserRound : UsersRound;
@@ -2483,12 +2579,15 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     )
                   )}
 
-                  <label className="font-body text-[13px] font-bold text-vyva-text-2">
+                  {signInMethodChooser}
+
+                  <label className="font-body text-[15px] font-black text-vyva-text-2">
                     {contactLabel}
                     <Input
                       ref={contactInputRef}
                       data-testid="input-auth-contact"
-                      type="text"
+                      type={isPasswordFreeSignIn ? "email" : "text"}
+                      inputMode={isPasswordFreeSignIn ? "email" : "text"}
                       value={contact}
                       onChange={(event) => {
                         setContact(event.target.value);
@@ -2501,10 +2600,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         if (mode === "login" && showPasswordSignIn && canSubmit) handleSubmit();
                       }}
                       placeholder={contactPlaceholder}
-                      className="mt-2 h-[58px] rounded-[20px] border-vyva-border bg-white px-4 text-[16px] shadow-vyva-input"
+                      className="mt-2 h-[62px] rounded-[18px] border-2 border-vyva-border bg-[#F8FBFF] px-5 text-[17px] font-bold text-[#2F183F] shadow-vyva-input"
                       autoComplete={contactAutocomplete}
                     />
-                    <span className="mt-2 block font-body text-[12px] font-medium leading-[1.4] text-vyva-text-3">
+                    <span className="mt-2 block font-body text-[13px] font-semibold leading-5 text-vyva-text-3">
                       {contactFormatHint}
                     </span>
                   </label>
@@ -2524,7 +2623,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             onChange={(event) => setPassword(event.target.value)}
                             onKeyDown={(event) => event.key === "Enter" && canSubmit && handleSubmit()}
                             placeholder={copy.createPassword}
-                            className="h-[58px] rounded-[20px] border-vyva-border bg-white px-4 pr-12 shadow-vyva-input"
+                            className="h-[64px] rounded-[18px] border-2 border-vyva-border bg-white px-5 pr-12 text-[17px] font-bold shadow-vyva-input"
                             autoComplete="new-password"
                           />
                           <button
@@ -2550,7 +2649,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="vyva-primary-action w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab disabled:opacity-40"
+                        className="vyva-primary-action w-full rounded-[18px] bg-[#6B21A8] py-4 text-[17px] font-black shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95] disabled:opacity-40"
                       >
                         {loading ? copy.creating : copy.createAccount}
                         {!loading && <ArrowRight size={17} />}
@@ -2581,7 +2680,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             onChange={(event) => setPassword(event.target.value)}
                             onKeyDown={(event) => event.key === "Enter" && canSubmit && handleSubmit()}
                             placeholder={copy.yourPassword}
-                            className="h-[58px] rounded-[20px] border-vyva-border bg-white px-4 pr-12 shadow-vyva-input"
+                            className="h-[64px] rounded-[18px] border-2 border-vyva-border bg-white px-5 pr-12 text-[17px] font-bold shadow-vyva-input"
                             autoComplete="current-password"
                           />
                           <button
@@ -2607,7 +2706,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="vyva-primary-action w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab disabled:opacity-40"
+                        className="vyva-primary-action w-full rounded-[18px] bg-[#6B21A8] py-4 text-[17px] font-black shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95] disabled:opacity-40"
                       >
                         {loading ? copy.signingIn : copy.signIn}
                         {!loading && <ArrowRight size={17} />}
@@ -2615,16 +2714,6 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
                       {!adminOnly && (
                         <>
-                          <button
-                            type="button"
-                            onClick={showMagic}
-                            className="inline-flex items-center justify-center gap-2 rounded-full border border-[#E8DDF3] bg-white px-4 py-3 font-body text-[13px] font-extrabold text-vyva-purple"
-                            data-testid="button-show-magic-link"
-                          >
-                            <KeyRound size={15} />
-                            {copy.signInWithMagicLink}
-                          </button>
-
                           {authDivider}
                           {googleButton}
                         </>
@@ -2650,9 +2739,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             type="button"
                             onClick={handleMagicLink}
                             disabled={!canSendMagic}
-                            className="vyva-primary-action w-full bg-[linear-gradient(135deg,#6B21A8_0%,#8B3FC8_100%)] py-4 shadow-vyva-fab disabled:opacity-40"
+                            className="vyva-primary-action w-full rounded-[18px] bg-[#6B21A8] py-4 text-[17px] font-black shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95] disabled:opacity-40"
                           >
-                            {magicLoading ? copy.sending : copy.sendMagicLink}
+                            {magicLoading ? copy.sending : magicSubmitLabel}
                             {!magicLoading && <Link2 size={17} />}
                           </button>
                         </>
@@ -2660,24 +2749,11 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
                       {authDivider}
                       {googleButton}
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setView("login");
-                          setMode("login");
-                          setShowPasswordSignIn(true);
-                          setMagicError(null);
-                        }}
-                        className="inline-flex items-center justify-center rounded-full px-4 py-2 font-body text-[13px] font-extrabold text-vyva-purple"
-                      >
-                        {copy.usePasswordInstead}
-                      </button>
                     </>
                   )}
 
                   {!adminOnly && (
-                    <p className="text-center font-body text-[13px] text-vyva-text-2">
+                    <p className="text-center font-body text-[15px] text-vyva-text-2">
                       {switchPrompt}{" "}
                       <button
                         type="button"
@@ -2690,7 +2766,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     </p>
                   )}
 
-                  <div className="flex flex-col items-center justify-center gap-1 rounded-[22px] bg-[#FFF9E8] px-4 py-3 text-center sm:flex-row sm:gap-2 sm:rounded-full">
+                  <div className="flex flex-col items-center justify-center gap-1 rounded-[18px] bg-[#FFF9E8] px-4 py-3 text-center sm:flex-row sm:gap-2">
                     <span className="inline-flex items-center justify-center gap-2">
                       <ShieldCheck size={16} className="text-[#B98900]" />
                       <span className="font-body text-[12px] font-bold text-[#8A6500]">{copy.profilePrivate}</span>
