@@ -62,9 +62,28 @@ describe("VoiceHero status dot", () => {
   it("shows browser online state instead of idle voice state", () => {
     render(<VoiceHero headline="Good evening" weatherData={null} />);
 
-    const statusDot = screen.getByTestId("voice-hero-status-dot");
-    expect(statusDot).toHaveAttribute("title", "Online");
-    expect(statusDot.querySelector("span")).toHaveStyle({ background: "#34D399" });
+    const signal = screen.getByTestId("button-voice-hero-signal");
+    expect(signal).toHaveAttribute("title", "Online");
+    expect(screen.getByTestId("voice-hero-signal-center")).toHaveStyle({ background: "#34D399" });
+  });
+
+  it("uses one voice signal instead of the old avatar and mini status dot on the home hero", () => {
+    render(
+      <VoiceHero
+        headline="Good morning"
+        weatherData={{ city: "Tarifa", temperature: 24, description: "weather.clear" }}
+        contextHint="app_open"
+      />,
+    );
+
+    expect(screen.queryByAltText("VYVA")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-voice-hero-signal")).not.toHaveTextContent("V");
+    expect(screen.getByTestId("button-voice-hero-signal").querySelectorAll("svg")).toHaveLength(0);
+    expect(screen.queryByTestId("voice-hero-status-dot")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-signal"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, undefined);
   });
 
   it("turns red when the browser goes offline", () => {
@@ -75,9 +94,9 @@ describe("VoiceHero status dot", () => {
       window.dispatchEvent(new Event("offline"));
     });
 
-    const statusDot = screen.getByTestId("voice-hero-status-dot");
-    expect(statusDot).toHaveAttribute("title", "Offline");
-    expect(statusDot.querySelector("span")).toHaveStyle({ background: "#EF4444" });
+    const signal = screen.getByTestId("button-voice-hero-signal");
+    expect(signal).toHaveAttribute("title", "Offline");
+    expect(screen.getByTestId("voice-hero-signal-center")).toHaveStyle({ background: "#EF4444" });
   });
 
   it("passes a specialist agent slug when starting voice from the CTA", () => {
