@@ -1391,14 +1391,16 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Could not prepare reset email. Please try again later." });
   }
 
+  let emailDeliveryFailed = false;
+
   try {
     await sendPasswordResetEmail({ to: user.email, resetLink, allowDevelopmentLog: isLocalRequest(req) });
   } catch (err) {
     console.error("[auth] Failed to send password reset email:", err);
-    const message = err instanceof Error && err.message.trim()
-      ? err.message
-      : "Failed to send reset email. Please try again later.";
-    return res.status(503).json({ error: message });
+    if (!(isDev && isLocalRequest(req))) {
+      return res.status(503).json({ error: "Could not send the reset email right now. Please try again later or contact VYVA support." });
+    }
+    emailDeliveryFailed = true;
   }
 
   const response: Record<string, unknown> = { ...genericOk };
@@ -1407,6 +1409,10 @@ authRouter.post("/reset-request", async (req: Request, res: Response) => {
   // directly from the API without requiring a real mail server.
   if (isDev && isLocalRequest(req)) {
     response._devToken = resetToken;
+    response._devResetLink = resetLink;
+    if (emailDeliveryFailed) {
+      response._devEmailDeliveryFailed = true;
+    }
   }
 
   return res.json(response);

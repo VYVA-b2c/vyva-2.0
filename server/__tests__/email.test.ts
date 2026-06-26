@@ -21,6 +21,8 @@ describe("email sender", () => {
   });
 
   it("sends password reset emails through Resend when configured", async () => {
+    process.env.SENDGRID_API_KEY = "SG_old_key_that_should_not_be_used";
+
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({ id: "email_123" }),
