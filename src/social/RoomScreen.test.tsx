@@ -564,7 +564,9 @@ describe("RoomScreen movement room", () => {
     fireEvent.click(screen.getByTestId("button-movement-guide-finish"));
 
     await waitFor(() => expect(screen.queryByTestId("movement-exercise-guide")).not.toBeInTheDocument());
-    expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Wall push-ups logged for 10 min.");
+    await waitFor(() =>
+      expect(screen.getByTestId("movement-room-exercise-logged-status")).toHaveTextContent("Wall push-ups logged for 10 min."),
+    );
 
     const logCall = apiFetchMock.mock.calls.find(([, options]) => options?.body === JSON.stringify({ activity_type: "WallPushUps", duration_minutes: 10 }));
     expect(logCall).toBeTruthy();
