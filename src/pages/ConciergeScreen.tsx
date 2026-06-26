@@ -707,6 +707,25 @@ function getBookingUrl(item: ConciergePendingItem): string {
     : "";
 }
 
+function conciseRequestText(message: string) {
+  const withoutConfirmation = message
+    .replace(/\s+(Ask|Please ask)\b.*$/i, "")
+    .replace(/\s+(Do not|Don't)\b.*$/i, "")
+    .replace(/\s+and do not\b.*$/i, "")
+    .replace(/\s+without my confirmation\.?$/i, "")
+    .trim();
+  const simplified = withoutConfirmation
+    .replace(/^please\s+/i, "")
+    .replace(/^help me\s+/i, "")
+    .replace(/^can you\s+/i, "")
+    .replace(/^could you\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const request = simplified || message.trim();
+  const sentence = request.charAt(0).toUpperCase() + request.slice(1);
+  return sentence.length <= 90 ? sentence : `${sentence.slice(0, 87).trimEnd()}...`;
+}
+
 function statusLabel(status: ConciergePendingItem["status"], locale = "es"): string {
   const es = locale.startsWith("es");
   switch (status) {
@@ -1469,36 +1488,33 @@ const ConciergeScreen = () => {
   const visibleOfferIdeas = OFFER_IDEA_CHIPS.slice(3 + offersIdeaPage * 4, 3 + offersIdeaPage * 4 + 4);
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
+  const routeRequestSummary = routePrefill
+    ? conciseRequestText(routePrefill.message)
+    : "";
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
         eyebrow: routePrefill.kind === "appointment"
-          ? (isSpanish ? "Revisa primero" : "Review first")
-          : (isSpanish ? "Listo para revisar" : "Ready to review"),
+          ? (isSpanish ? "Revisar" : "Review")
+          : (isSpanish ? "Listo" : "Ready"),
         title: routePrefill.kind === "ride"
-          ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
+          ? (isSpanish ? "Transporte listo" : "Ride ready")
           : routePrefill.kind === "appointment"
-            ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
+            ? (isSpanish ? "Cita lista" : "Appointment ready")
             : routePrefill.kind === "home_care_quote"
-              ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
-              : (isSpanish ? "Solicitud preparada" : "Request ready"),
-        detail: routePrefill.kind === "ride"
-          ? (isSpanish ? "VYVA puede buscar opciones y dejarte confirmar antes de reservar." : "VYVA can find options and let you confirm before booking.")
-          : routePrefill.kind === "appointment"
-            ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
-            : routePrefill.kind === "home_care_quote"
-              ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
-              : (isSpanish ? "VYVA prepara opciones y te pide confirmar antes de actuar." : "VYVA prepares options and asks you to confirm before acting."),
+              ? (isSpanish ? "Apoyo listo" : "Support ready")
+              : (isSpanish ? "Solicitud lista" : "Request ready"),
+        detail: "",
         primaryLabel: routePrefill.kind === "ride"
           ? (isSpanish ? "Buscar transporte" : "Find ride options")
           : routePrefill.kind === "appointment"
-            ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
+            ? (isSpanish ? "Iniciar solicitud" : "Start request")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Pedir presupuesto" : "Request quote")
               : (isSpanish ? "Iniciar solicitud" : "Start request"),
         secondaryLabel: routePrefill.kind === "appointment"
-          ? (isSpanish ? "Anadir detalles" : "Add details")
-          : (isSpanish ? "Editar solicitud" : "Edit request"),
+          ? (isSpanish ? "Editar" : "Edit")
+          : (isSpanish ? "Editar" : "Edit"),
       }
     : null;
 
@@ -1526,9 +1542,6 @@ const ConciergeScreen = () => {
         domain="concierge"
         actionTypes={["concierge.appointment_help", "concierge.task"]}
         title={isSpanish ? "Solicitud preparada" : "Request ready"}
-        description={isSpanish
-          ? "VYVA prepara los detalles importantes para que los revises antes de solicitar nada."
-          : "VYVA prepares the important details for you to review before anything is requested."}
         className="mt-5"
       />
 
@@ -1550,9 +1563,11 @@ const ConciergeScreen = () => {
                 <h2 className="mt-2 font-body text-[32px] font-black leading-[1.08] text-white">
                   {routePrefillMeta.title}
                 </h2>
-                <p className="mt-4 font-body text-[19px] font-bold leading-[1.35] text-white/92">
-                  {routePrefillMeta.detail}
-                </p>
+                {routePrefillMeta.detail && (
+                  <p className="mt-4 font-body text-[19px] font-bold leading-[1.35] text-white/92">
+                    {routePrefillMeta.detail}
+                  </p>
+                )}
               </div>
             </div>
             <button
@@ -1566,15 +1581,12 @@ const ConciergeScreen = () => {
           </div>
           <div className="space-y-4 px-5 pb-5 pt-6">
             <div className="rounded-[28px] border border-[#E8DED4] bg-[#FFFCF8] p-4">
-              <p className="font-body text-[16px] font-black uppercase tracking-[0.14em] text-vyva-text-3">
-                {isSpanish ? "Detalles clave" : "Key details"}
-              </p>
-              <div className="mt-4 rounded-[24px] bg-white px-4 py-4">
+              <div className="rounded-[24px] bg-white px-4 py-4">
                 <p className="font-body text-[14px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
                   {isSpanish ? "Solicitud" : "Request"}
                 </p>
                 <p className="mt-2 font-body text-[19px] font-black leading-[1.35] text-vyva-text-1">
-                  {routePrefill.message}
+                  {routeRequestSummary}
                 </p>
               </div>
             </div>
@@ -1607,7 +1619,7 @@ const ConciergeScreen = () => {
               </button>
             </div>
             <p className="rounded-[24px] bg-[#ECFDF5] px-5 py-4 text-center font-body text-[17px] font-black leading-snug text-[#047857]">
-              {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+              {isSpanish ? "Tu apruebas primero." : "You approve first."}
             </p>
           </div>
         </section>

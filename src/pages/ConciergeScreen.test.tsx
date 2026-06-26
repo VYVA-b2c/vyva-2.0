@@ -92,7 +92,7 @@ describe("ConciergeScreen route prefill", () => {
       },
     }]);
 
-    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Appointment request ready");
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Appointment ready");
     expect(screen.getByTestId("panel-appointment-assistant")).toHaveTextContent("Schedule an appointment");
     expect(screen.getByDisplayValue("Please help me schedule care for chest discomfort. Ask me to confirm before booking.")).toBeVisible();
 

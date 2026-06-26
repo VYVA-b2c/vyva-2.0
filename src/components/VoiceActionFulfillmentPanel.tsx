@@ -22,15 +22,34 @@ type VoiceActionFulfillmentPanelProps = {
 };
 
 function safetyCopy(safetyLevel?: string, requiresConfirmation?: boolean) {
-  if (safetyLevel === "urgent") return "Safety first. Review the next step before anything happens.";
-  if (requiresConfirmation) return "Nothing is done without your confirmation.";
-  if (safetyLevel === "medical") return "Use profile context carefully and avoid guessing.";
-  if (safetyLevel === "sensitive") return "Keep details private and confirm practical next steps.";
+  if (safetyLevel === "urgent") return "Review first.";
+  if (requiresConfirmation) return "You approve first.";
+  if (safetyLevel === "medical") return "Profile context only.";
+  if (safetyLevel === "sensitive") return "Private.";
   return "";
 }
 
 function hasHighlightValue(highlight: VoiceActionFulfillmentHighlight) {
   return highlight.value !== undefined && highlight.value !== null && String(highlight.value).trim().length > 0;
+}
+
+function conciseRequestText(message: string) {
+  const withoutConfirmation = message
+    .replace(/\s+(Ask|Please ask)\b.*$/i, "")
+    .replace(/\s+(Do not|Don't)\b.*$/i, "")
+    .replace(/\s+and do not\b.*$/i, "")
+    .replace(/\s+without my confirmation\.?$/i, "")
+    .trim();
+  const simplified = withoutConfirmation
+    .replace(/^please\s+/i, "")
+    .replace(/^help me\s+/i, "")
+    .replace(/^can you\s+/i, "")
+    .replace(/^could you\s+/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const request = simplified || message.trim();
+  const sentence = request.charAt(0).toUpperCase() + request.slice(1);
+  return sentence.length <= 90 ? sentence : `${sentence.slice(0, 87).trimEnd()}...`;
 }
 
 export default function VoiceActionFulfillmentPanel({
@@ -57,16 +76,20 @@ export default function VoiceActionFulfillmentPanel({
   const needsTapConfirmation = Boolean(action.requiresConfirmation && !isActiveActionAccepted);
   const visibleHighlights = highlights.filter(hasHighlightValue);
   const visiblePayloadEntries = payloadEntries.filter((entry) =>
-    !visibleHighlights.some((highlight) => highlight.label.toLowerCase() === entry.label.toLowerCase()),
+    entry.key !== "task_type"
+    && !visibleHighlights.some((highlight) => highlight.label.toLowerCase() === entry.label.toLowerCase()),
   );
   const safetyNote = safetyCopy(action.safetyLevel, action.requiresConfirmation);
   const isAppointmentAction = action.actionType === "concierge.appointment_help";
-  const eyebrow = action.requiresConfirmation ? "Review first" : "Ready to help";
-  const panelTitle = isAppointmentAction ? "Appointment request ready" : title ?? action.title;
-  const panelDescription = description ?? action.cue ?? action.summary;
-  const requestText = action.sourceText?.trim() || action.summary || panelDescription;
+  const eyebrow = action.requiresConfirmation ? "Review" : "Ready";
+  const panelTitle = isAppointmentAction ? "Appointment ready" : title ?? action.title;
+  const panelDescription = isAppointmentAction ? "" : description ?? "";
+  const requestText = conciseRequestText(action.sourceText?.trim() || action.summary || panelTitle);
+  const primaryActionLabel = needsTapConfirmation
+    ? (isAppointmentAction ? "Start request" : "Continue")
+    : action.completion?.doneLabel ?? "Done";
   const detailRows = [
-    subject ? { label: "Focus", value: subject } : null,
+    subject && subject.toLowerCase() !== "appointment" ? { label: "Focus", value: subject } : null,
     ...visibleHighlights.map((highlight) => ({
       label: highlight.label,
       value: highlight.value,
@@ -100,9 +123,11 @@ export default function VoiceActionFulfillmentPanel({
             <h2 className="mt-2 font-body text-[32px] font-black leading-[1.08] text-white">
               {panelTitle}
             </h2>
-            <p className="mt-4 font-body text-[19px] font-bold leading-[1.35] text-white/92">
-              {panelDescription}
-            </p>
+            {panelDescription && (
+              <p className="mt-4 font-body text-[19px] font-bold leading-[1.35] text-white/92">
+                {panelDescription}
+              </p>
+            )}
           </div>
         </div>
 
@@ -123,10 +148,7 @@ export default function VoiceActionFulfillmentPanel({
 
       <div className="space-y-4 px-5 pb-5 pt-6">
         <div className="rounded-[28px] border border-[#E8DED4] bg-[#FFFCF8] p-4">
-          <p className="font-body text-[16px] font-black uppercase tracking-[0.14em] text-vyva-text-3">
-            Key details
-          </p>
-          <div className="mt-4 rounded-[24px] bg-white px-4 py-4">
+          <div className="rounded-[24px] bg-white px-4 py-4">
             <p className="font-body text-[14px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
               Request
             </p>
@@ -178,7 +200,7 @@ export default function VoiceActionFulfillmentPanel({
             data-testid="button-complete-voice-action-fulfillment"
           >
             {needsTapConfirmation ? <Send size={21} /> : <CheckCircle2 size={21} />}
-            {needsTapConfirmation ? "Review and continue" : action.completion?.doneLabel ?? "Done"}
+            {primaryActionLabel}
           </button>
           <button
             type="button"
