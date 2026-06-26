@@ -221,7 +221,7 @@ describe("ConciergeScreen action hub", () => {
 
     fireEvent.click(screen.getByTestId("button-concierge-fast-trip"));
     expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("plan a trip or visit");
-    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("without my confirmation");
+    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Nothing is booked");
 
     fireEvent.click(screen.getByTestId("button-concierge-fast-research"));
     expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("research a topic");
@@ -678,7 +678,7 @@ describe("ConciergeScreen action hub", () => {
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
     expect(prefill).toHaveTextContent("Watch important changes for Senior Energy Saver");
-    expect(prefill).toHaveTextContent("ask me to confirm");
+    expect(prefill).toHaveTextContent("Nothing is booked");
   });
 
   it("collects plumber intake, stores app origin, and automatically searches when no saved provider exists", async () => {
@@ -869,9 +869,15 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Request ready");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Key details");
+    expect(prefill).toHaveTextContent("Need");
     expect(prefill).toHaveTextContent("Pest control needed");
-    expect(prefill).toHaveTextContent("without my confirmation");
+    expect(prefill).toHaveTextContent("Urgency");
+    expect(prefill).toHaveTextContent("Today");
+    expect(prefill).toHaveTextContent("Nothing is booked");
+    expect(prefill).not.toHaveTextContent("provider search access");
+    expect(prefill).not.toHaveTextContent("without my confirmation");
     expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
   });
 
@@ -1091,7 +1097,9 @@ describe("ConciergeScreen route prefill", () => {
       },
     }]);
 
-    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Request ready");
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Please prepare an easy outing");
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
 
