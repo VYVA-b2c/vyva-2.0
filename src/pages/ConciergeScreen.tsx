@@ -72,6 +72,75 @@ type ConciergeLocationState = {
   conciergePrefill?: ConciergeRoutePrefill;
 } | null;
 
+type RoutePrefillHighlight = {
+  label: string;
+  value: string;
+};
+
+function firstMatch(text: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return "";
+}
+
+function cleanRoutePrefillText(message: string) {
+  return message
+    .replace(/\s+/g, " ")
+    .replace(/\s+(Do not call, book, message, or share details without my confirmation\.?|No llames, reserves, envies mensajes ni compartas datos sin mi confirmacion\.?).*$/i, "")
+    .replace(/^(I could not verify provider search access right now\. Prepare this Concierge request so I can review trusted options before anyone is contacted\.|No he podido verificar la busqueda de proveedores ahora mismo\. Prepara esta solicitud de Concierge para revisar opciones fiables antes de contactar con nadie\.)\s*/i, "")
+    .replace(/^(Request details|Detalle):\s*/i, "")
+    .trim();
+}
+
+function buildRoutePrefillHighlights(message: string, isSpanish: boolean): RoutePrefillHighlight[] {
+  const cleanText = cleanRoutePrefillText(message);
+  const service = firstMatch(cleanText, [
+    /^([^.?]+? needed)\.?/i,
+    /(?:service|servicio):\s*([^.?]+)/i,
+  ]);
+  const urgency = firstMatch(cleanText, [
+    /How urgent is it\??:\s*([^.?]+)/i,
+    /Que urgencia tiene\??:\s*([^.?]+)/i,
+  ]);
+  const problem = firstMatch(cleanText, [
+    /What happened\??:\s*([^.?]+)/i,
+    /Que ha pasado\??:\s*([^.?]+)/i,
+  ]);
+  const location = firstMatch(cleanText, [
+    /Where is the problem\??:\s*([^.?]+)/i,
+    /Donde esta el problema\??:\s*([^.?]+)/i,
+  ]);
+  const criteria = firstMatch(cleanText, [
+    /Criteria:\s*([^.?]+)/i,
+    /Criterios?:\s*([^.?]+)/i,
+  ]);
+
+  const structured = [
+    service ? { label: isSpanish ? "Necesitas" : "Need", value: service } : null,
+    urgency ? { label: isSpanish ? "Urgencia" : "Urgency", value: urgency } : null,
+    problem ? { label: isSpanish ? "Problema" : "Problem", value: problem } : null,
+    location ? { label: isSpanish ? "Lugar" : "Where", value: location } : null,
+    criteria ? { label: isSpanish ? "Prioridad" : "Priority", value: criteria } : null,
+  ].filter(Boolean) as RoutePrefillHighlight[];
+
+  if (structured.length > 0) return structured.slice(0, 4);
+
+  const general = cleanText
+    .split(/(?<=[.!?])\s+/)
+    .map((line) => line.trim())
+    .filter((line) => line && !/confirm|confirmacion|book|contacted|contactar|compartas/i.test(line))
+    .slice(0, 3);
+
+  return general.length > 0
+    ? general.map((value, index) => ({
+      label: index === 0 ? (isSpanish ? "Solicitud" : "Request") : (isSpanish ? "Detalle" : "Detail"),
+      value,
+    }))
+    : [{ label: isSpanish ? "Solicitud" : "Request", value: cleanText || message.trim() }];
+}
+
 interface StoredChatHistory {
   savedAt: string;
   messages: ChatMessage[];
@@ -3057,6 +3126,9 @@ const ConciergeScreen = () => {
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
+  const routePrefillHighlights = routePrefill
+    ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
+    : [];
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
@@ -3066,21 +3138,21 @@ const ConciergeScreen = () => {
             ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
-              : (isSpanish ? "Solicitud preparada" : "Request ready"),
+              : (isSpanish ? "Revisa la solicitud" : "Review request"),
         detail: routePrefill.kind === "ride"
           ? (isSpanish ? "Compara formas seguras. Confirmas primero." : "Compare safe ways. You confirm first.")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
-              : (isSpanish ? "VYVA prepara opciones y te pide confirmar antes de actuar." : "VYVA prepares options and asks you to confirm before acting."),
+              : (isSpanish ? "Comprueba los detalles antes de enviarlos." : "Check the details before sending."),
         primaryLabel: routePrefill.kind === "ride"
           ? (isSpanish ? "Buscar transporte" : "Find ride options")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Pedir presupuesto" : "Request quote")
-              : (isSpanish ? "Iniciar solicitud" : "Start request"),
+              : (isSpanish ? "Enviar a Concierge" : "Send to Concierge"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
           : (isSpanish ? "Editar solicitud" : "Edit request"),
@@ -3444,7 +3516,7 @@ const ConciergeScreen = () => {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD84D]">
-                  {isSpanish ? "Listo para actuar" : "Ready to act"}
+                  {isSpanish ? "Revisar primero" : "Review first"}
                 </p>
                 <h2 className="mt-1 font-body text-[23px] font-black leading-tight">
                   {routePrefillMeta.title}
@@ -3466,11 +3538,20 @@ const ConciergeScreen = () => {
           <div className="p-4">
             <div className="rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-3">
               <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
-                {isSpanish ? "Solicitud" : "Request"}
+                {isSpanish ? "Detalles clave" : "Key details"}
               </p>
-              <p className="mt-1 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
-                {routePrefill.message}
-              </p>
+              <div className="mt-2 grid gap-2">
+                {routePrefillHighlights.map((item) => (
+                  <div key={`${item.label}-${item.value}`} className="flex flex-col gap-0.5 rounded-[16px] bg-white px-3 py-2 sm:flex-row sm:items-center sm:gap-3">
+                    <span className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3 sm:w-24">
+                      {item.label}
+                    </span>
+                    <span className="font-body text-[15px] font-bold leading-snug text-vyva-text-1">
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
