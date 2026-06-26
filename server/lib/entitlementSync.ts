@@ -109,14 +109,19 @@ async function lifecycleEvidenceFor(input: EntitlementSyncInput) {
     ...phones.map((phone) => eq(userIntakes.phone, phone)),
   ];
 
-  return filters.length > 0
-    ? await db
+  if (filters.length === 0) return [];
+
+  try {
+    return await db
       .select({ tier: userIntakes.tier, status: userIntakes.status })
       .from(userIntakes)
       .where(filters.length === 1 ? filters[0] : or(...filters))
       .orderBy(desc(userIntakes.updated_at))
-      .limit(12)
-    : [];
+      .limit(12);
+  } catch (error) {
+    if (isMissingRelationError(error)) return [];
+    throw error;
+  }
 }
 
 async function billingEvidenceFor(input: EntitlementSyncInput) {
@@ -125,14 +130,19 @@ async function billingEvidenceFor(input: EntitlementSyncInput) {
     hasText(input.profile?.stripe_subscription_id) &&
     ["active", "trial"].includes(input.profile?.subscription_status ?? "")
   );
-  const rows = userIds.length && profileHasActiveStripeSubscription
-    ? await db
-      .select({ tier: billingEvents.plan_id, status: billingEvents.status })
-      .from(billingEvents)
-      .where(inArray(billingEvents.user_id, userIds))
-      .orderBy(desc(billingEvents.created_at))
-      .limit(12)
-    : [];
+  let rows: Array<{ tier: string | null; status: string | null }> = [];
+  if (userIds.length && profileHasActiveStripeSubscription) {
+    try {
+      rows = await db
+        .select({ tier: billingEvents.plan_id, status: billingEvents.status })
+        .from(billingEvents)
+        .where(inArray(billingEvents.user_id, userIds))
+        .orderBy(desc(billingEvents.created_at))
+        .limit(12);
+    } catch (error) {
+      if (!isMissingRelationError(error)) throw error;
+    }
+  }
 
   return [
     ...(profileHasActiveStripeSubscription ? [{ tier: "premium", status: "active" }] : []),
