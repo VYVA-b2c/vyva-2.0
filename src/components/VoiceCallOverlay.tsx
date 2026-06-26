@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { RotateCcw, Mic, MicOff, PhoneOff } from "lucide-react";
-import { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, type VoiceConnectionErrorCode } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
@@ -17,6 +17,7 @@ interface VoiceCallOverlayProps {
   isMicMuted?: boolean;
   onMicToggle?: (muted: boolean) => void;
   connectionError?: string | null;
+  connectionErrorCode?: VoiceConnectionErrorCode | null;
   onRetry?: () => void;
 }
 
@@ -41,6 +42,31 @@ function orbState(isSpeaking: boolean, isConnecting: boolean): ZamoraOrbState {
   return "listening";
 }
 
+function inferConnectionErrorCode(message?: string | null): VoiceConnectionErrorCode | null {
+  const normalized = message?.toLowerCase() ?? "";
+  if (!normalized) return null;
+  if (normalized.includes("microphone") || normalized.includes("permission")) return "MICROPHONE_ACCESS_FAILED";
+  if (normalized.includes("api key")) return "ELEVENLABS_API_KEY_MISSING";
+  if (normalized.includes("agent configured")) return "ELEVENLABS_AGENT_MISSING";
+  if (normalized.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
+  if (normalized.includes("current plan") || normalized.includes("entitlement")) return "VOICE_ENTITLEMENT_REQUIRED";
+  if (normalized.includes("not authenticated")) return "VOICE_AUTH_REQUIRED";
+  return null;
+}
+
+function isMicrophoneError(code: VoiceConnectionErrorCode | null) {
+  return code === "MICROPHONE_UNAVAILABLE" ||
+    code === "MICROPHONE_PERMISSION_DENIED" ||
+    code === "MICROPHONE_ACCESS_FAILED";
+}
+
+function isSetupError(code: VoiceConnectionErrorCode | null) {
+  return code === "ELEVENLABS_AGENT_MISSING" ||
+    code === "ELEVENLABS_API_KEY_MISSING" ||
+    code === "ELEVENLABS_SIGNED_URL_ERROR" ||
+    code === "ELEVENLABS_TOKEN_ERROR";
+}
+
 const VoiceCallOverlay = ({
   isSpeaking,
   isConnecting,
@@ -51,6 +77,7 @@ const VoiceCallOverlay = ({
   isMicMuted = false,
   onMicToggle,
   connectionError,
+  connectionErrorCode,
   onRetry,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
@@ -94,20 +121,49 @@ const VoiceCallOverlay = ({
     ? t("voiceHero.speaking")
     : t("voiceHero.listening");
   const hasConnectionError = Boolean(connectionError);
+  const resolvedConnectionErrorCode = connectionErrorCode ?? inferConnectionErrorCode(connectionError);
+  const hasMicrophoneError = isMicrophoneError(resolvedConnectionErrorCode);
+  const hasVoiceSetupError = isSetupError(resolvedConnectionErrorCode);
+  const hasAccessError = resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED" ||
+    resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED";
   const statusLabel = hasConnectionError
-    ? t("voiceHero.connectionNeedsAttention", "Needs attention")
+    ? hasVoiceSetupError
+      ? t("voiceHero.connectionSetupNeeded", "Setup needed")
+      : hasAccessError
+      ? t("voiceHero.connectionAccessNeeded", "Access needed")
+      : t("voiceHero.connectionNeedsAttention", "Needs attention")
     : voiceSessionPhase
     ? voiceSessionPhaseLabel(voiceSessionPhase)
     : fallbackStatusLabel;
   const canToggleMic = Boolean(!hasConnectionError && onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
-  const hasMicrophoneError = Boolean(connectionError && /microphone|permission/i.test(connectionError));
   const emptyTranscriptLabel = hasConnectionError
     ? hasMicrophoneError
       ? t("voiceHero.microphoneError", "Microphone is blocked")
+      : hasVoiceSetupError
+      ? t("voiceHero.voiceSetupError", "Voice setup needed")
+      : resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED"
+      ? t("voiceHero.voiceAccessError", "Voice plan needed")
+      : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
+      ? t("voiceHero.voiceSignInError", "Sign in again")
       : t("voiceHero.connectionError", "Voice couldn't connect")
     : isConnecting
     ? t("voiceHero.connecting")
     : t("voiceHero.listening");
+  const errorDetailLabel = hasMicrophoneError
+    ? t("voiceHero.microphoneErrorHelp", "Please allow microphone access for VYVA, then try again.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_API_KEY_MISSING"
+    ? t("voiceHero.voiceApiKeyMissingHelp", "The ElevenLabs API key is missing on the server.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_AGENT_MISSING"
+    ? t("voiceHero.voiceAgentMissingHelp", "No ElevenLabs agent is configured for this voice entry point.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_SIGNED_URL_ERROR"
+    ? t("voiceHero.voiceSignedUrlErrorHelp", "ElevenLabs rejected the voice session. Check the API key and agent ID.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_TOKEN_ERROR"
+    ? t("voiceHero.voiceTokenErrorHelp", "The server could not create a voice session.")
+    : resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED"
+    ? t("voiceHero.voiceEntitlementErrorHelp", "This profile does not have voice access enabled.")
+    : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
+    ? t("voiceHero.voiceAuthErrorHelp", "Please sign in again, then try voice.")
+    : t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.");
   const speakerLabel = visibleWord ? "VYVA" : null;
   const currentOrbState = hasConnectionError ? "idle" : orbState(isSpeaking, isConnecting);
 
@@ -209,9 +265,7 @@ const VoiceCallOverlay = ({
               overflowWrap: "anywhere",
             }}
           >
-            {hasMicrophoneError
-              ? t("voiceHero.microphoneErrorHelp", "Please allow microphone access for VYVA, then try again.")
-              : t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.")}
+            {errorDetailLabel}
           </p>
         )}
 

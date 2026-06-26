@@ -184,12 +184,13 @@ describe("VoiceCallOverlay word transcript", () => {
     const onRetry = vi.fn();
     renderOverlay([], {
       connectionError: "Missing ElevenLabs API key",
+      connectionErrorCode: "ELEVENLABS_API_KEY_MISSING",
       onRetry,
     });
 
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice couldn't connect");
-    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("Something stopped the voice from starting. Try again in a moment.");
-    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Needs attention");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice setup needed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("The ElevenLabs API key is missing on the server.");
+    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Setup needed");
 
     fireEvent.click(screen.getByTestId("button-retry-call"));
 
@@ -199,9 +200,20 @@ describe("VoiceCallOverlay word transcript", () => {
   it("shows a clear microphone permission message", () => {
     renderOverlay([], {
       connectionError: "Microphone permission was denied.",
+      connectionErrorCode: "MICROPHONE_PERMISSION_DENIED",
     });
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Microphone is blocked");
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("Please allow microphone access for VYVA, then try again.");
+  });
+
+  it("shows the missing agent setup reason", () => {
+    renderOverlay([], {
+      connectionError: "No ElevenLabs agent configured for this room yet.",
+      connectionErrorCode: "ELEVENLABS_AGENT_MISSING",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice setup needed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("No ElevenLabs agent is configured for this voice entry point.");
   });
 });
