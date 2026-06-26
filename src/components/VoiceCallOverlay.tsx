@@ -50,6 +50,7 @@ function inferConnectionErrorCode(message?: string | null): VoiceConnectionError
   if (normalized.includes("agent configured")) return "ELEVENLABS_AGENT_MISSING";
   if (normalized.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
   if (normalized.includes("current plan") || normalized.includes("entitlement")) return "VOICE_ENTITLEMENT_REQUIRED";
+  if (normalized.includes("could not verify access") || normalized.includes("verify access")) return "VOICE_ACCESS_UNAVAILABLE";
   if (normalized.includes("not authenticated")) return "VOICE_AUTH_REQUIRED";
   if (
     normalized.includes("failed to connect") ||
@@ -154,7 +155,8 @@ const VoiceCallOverlay = ({
   const hasVoiceSetupError = isSetupError(resolvedConnectionErrorCode);
   const hasSessionError = isSessionError(resolvedConnectionErrorCode);
   const hasAccessError = resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED" ||
-    resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED";
+    resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED" ||
+    resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE";
   const safeErrorDetail = safeConnectionErrorDetail(connectionError);
   const statusLabel = hasConnectionError
     ? hasVoiceSetupError
@@ -175,6 +177,8 @@ const VoiceCallOverlay = ({
       ? t("voiceHero.voiceAccessError", "Voice plan needed")
       : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
       ? t("voiceHero.voiceSignInError", "Sign in again")
+      : resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE"
+      ? t("voiceHero.voiceAccessUnavailableError", "Access check failed")
       : hasSessionError
       ? t("voiceHero.voiceSessionError", "Voice session failed")
       : t("voiceHero.connectionError", "Voice couldn't connect")
@@ -193,6 +197,8 @@ const VoiceCallOverlay = ({
     ? t("voiceHero.voiceTokenErrorHelp", "The server could not create a voice session.")
     : resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED"
     ? t("voiceHero.voiceEntitlementErrorHelp", "This profile does not have voice access enabled.")
+    : resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE"
+    ? t("voiceHero.voiceAccessUnavailableHelp", "VYVA could not verify account access right now. Please try again.")
     : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
     ? t("voiceHero.voiceAuthErrorHelp", "Please sign in again, then try voice.")
     : resolvedConnectionErrorCode === "VOICE_SESSION_START_FAILED"

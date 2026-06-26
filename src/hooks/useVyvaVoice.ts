@@ -95,6 +95,7 @@ export interface TranscriptEntry {
 export type VoiceConnectionErrorCode =
   | "VOICE_AUTH_REQUIRED"
   | "VOICE_ENTITLEMENT_REQUIRED"
+  | "VOICE_ACCESS_UNAVAILABLE"
   | "ELEVENLABS_AGENT_MISSING"
   | "ELEVENLABS_API_KEY_MISSING"
   | "ELEVENLABS_SIGNED_URL_ERROR"
@@ -228,6 +229,7 @@ function voiceConnectionErrorCode(error: unknown, fallback: VoiceConnectionError
 
 function codeFromTokenError(status: number, parsed: { code?: string; error?: string; detail?: string }): VoiceConnectionErrorCode {
   if (parsed.code === "ENTITLEMENT_REQUIRED") return "VOICE_ENTITLEMENT_REQUIRED";
+  if (parsed.code === "FEATURE_ACCESS_UNAVAILABLE") return "VOICE_ACCESS_UNAVAILABLE";
   if (parsed.code === "ELEVENLABS_AGENT_MISSING") return "ELEVENLABS_AGENT_MISSING";
   if (parsed.code === "ELEVENLABS_API_KEY_MISSING") return "ELEVENLABS_API_KEY_MISSING";
   if (parsed.code === "ELEVENLABS_SIGNED_URL_ERROR") return "ELEVENLABS_SIGNED_URL_ERROR";
