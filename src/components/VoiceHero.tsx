@@ -323,7 +323,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           </div>
           <div className="flex min-h-[268px]">
             {/* Left column — text + CTA */}
-            <div className="flex-[0_0_62%] flex flex-col gap-0 px-[22px] pt-[30px] pb-[20px] min-w-0">
+            <div className="flex w-full min-w-0 flex-col gap-0 px-[22px] pb-[20px] pt-[30px]">
               {/* Headline */}
               <h1
                 className="mb-auto max-w-[12ch] min-w-0 font-display text-[30px] font-normal italic leading-[1.08] text-white"
@@ -337,7 +337,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                 onClick={handleTalk}
                 disabled={isConnecting}
                 data-testid="button-voice-hero-talk"
-                className={`relative z-10 mt-[24px] flex min-h-[74px] w-full items-center justify-center gap-3 rounded-full px-[26px] py-[18px] text-center transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+                className={`relative z-10 mt-[24px] flex min-h-[76px] w-full items-center justify-center gap-3 rounded-full px-[28px] py-[18px] text-center transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
                 style={
                   isActive
                     ? {
@@ -356,7 +356,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                   <Mic size={23} style={{ color: "#6B21A8" }} />
                 )}
                 <span
-                  className="min-w-0 max-w-full whitespace-nowrap font-body text-[clamp(17px,4.8vw,20px)] font-extrabold leading-tight"
+                  className="min-w-0 max-w-full whitespace-nowrap font-body text-[clamp(20px,5.4vw,24px)] font-extrabold leading-tight"
                   style={{ color: isActive ? "#ffffff" : "#6B21A8" }}
                 >
                   {statusLabel}
