@@ -1,8 +1,7 @@
-import nodemailer from "nodemailer";
 import { explainEmailProviderError, requireEmailFromAddress } from "./emailSenderConfig.js";
 
 const isDev = process.env.NODE_ENV !== "production";
-const EMAIL_NOT_CONFIGURED_MESSAGE = "Email sender is not configured. Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS.";
+const EMAIL_NOT_CONFIGURED_MESSAGE = "Resend email sender is not configured. Set RESEND_API_KEY.";
 const VYVA_WEBSITE_URL = "https://vyva.life";
 const VYVA_PRIVACY_URL = "https://vyva.life/privacypolicy";
 
@@ -10,11 +9,6 @@ type ResendResponse = {
   id?: string;
   name?: string;
   message?: string;
-};
-
-type SendGridResponse = {
-  message?: string;
-  errors?: Array<{ message?: string }>;
 };
 
 type EmailMessage = {
@@ -26,24 +20,6 @@ type EmailMessage = {
   debugLink: string;
   allowDevelopmentLog?: boolean;
 };
-
-function createTransport() {
-  const host = process.env.SMTP_HOST;
-  const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) {
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
-}
 
 export interface SendPasswordResetEmailOptions {
   to: string;
@@ -175,10 +151,8 @@ async function sendEmailMessage({
   allowDevelopmentLog = isDev,
 }: EmailMessage): Promise<void> {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  const sendGridApiKey = process.env.SENDGRID_API_KEY?.trim();
-  const transport = resendApiKey || sendGridApiKey ? null : createTransport();
 
-  if (!resendApiKey && !sendGridApiKey && !transport) {
+  if (!resendApiKey) {
     if (allowDevelopmentLog && isDev) {
       console.log(`[email:dev] ${debugLabel} email (provider not configured - logging instead)`);
       console.log(`[email:dev] To: ${to}`);
@@ -192,73 +166,29 @@ async function sendEmailMessage({
   const from = requireEmailFromAddress({ allowDevelopmentFallback: true });
   const replyTo = process.env.NOTIFY_REPLY_TO_EMAIL?.trim() || from;
 
-  if (resendApiKey) {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: `VYVA <${from}>`,
-        to: [to],
-        subject,
-        text,
-        html,
-        reply_to: replyTo,
-      }),
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(async () => ({
-        message: await response.text().catch(() => response.statusText),
-      })) as ResendResponse;
-      const message = payload.message ?? payload.name ?? `Resend request failed with ${response.status}`;
-      throw new Error(explainEmailProviderError(message, from, "Resend"));
-    }
-    return;
-  }
-
-  if (sendGridApiKey) {
-    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${sendGridApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }], subject }],
-        from: { email: from, name: "VYVA" },
-        reply_to: { email: replyTo, name: "VYVA" },
-        content: [
-          { type: "text/plain", value: text },
-          { type: "text/html", value: html },
-        ],
-        tracking_settings: {
-          click_tracking: { enable: false, enable_text: false },
-          open_tracking: { enable: false },
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(async () => ({
-        message: await response.text().catch(() => response.statusText),
-      })) as SendGridResponse;
-      const message = payload.errors?.[0]?.message ?? payload.message ?? `SendGrid request failed with ${response.status}`;
-      throw new Error(explainEmailProviderError(message, from, "SendGrid"));
-    }
-    return;
-  }
-
-  await transport.sendMail({
-    from: { name: "VYVA", address: from },
-    replyTo,
-    to,
-    subject,
-    text,
-    html,
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: `VYVA <${from}>`,
+      to: [to],
+      subject,
+      text,
+      html,
+      reply_to: replyTo,
+    }),
   });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(async () => ({
+      message: await response.text().catch(() => response.statusText),
+    })) as ResendResponse;
+    const message = payload.message ?? payload.name ?? `Resend request failed with ${response.status}`;
+    throw new Error(explainEmailProviderError(message, from, "Resend"));
+  }
 }
 
 export async function sendPasswordResetEmail({

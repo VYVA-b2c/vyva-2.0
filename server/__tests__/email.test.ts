@@ -49,4 +49,28 @@ describe("email sender", () => {
       reply_to: "hello@vyva.life",
     });
   });
+
+  it("does not fall back when Resend refuses delivery", async () => {
+    process.env.SENDGRID_API_KEY = "SG_fallback_key";
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        json: vi.fn().mockResolvedValue({ message: "Maximum credits exceeded" }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      sendPasswordResetEmail({
+        to: "karim.assad@mokadigital.net",
+        resetLink: "https://v2.vyva.life/reset-password?token=test",
+        allowDevelopmentLog: false,
+      }),
+    ).rejects.toThrow("Maximum credits exceeded");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [resendUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(resendUrl).toBe("https://api.resend.com/emails");
+  });
 });
