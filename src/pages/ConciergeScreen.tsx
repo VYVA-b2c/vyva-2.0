@@ -1472,6 +1472,9 @@ const ConciergeScreen = () => {
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
+        eyebrow: routePrefill.kind === "appointment"
+          ? (isSpanish ? "Revisa primero" : "Review first")
+          : (isSpanish ? "Listo para revisar" : "Ready to review"),
         title: routePrefill.kind === "ride"
           ? (isSpanish ? "Transporte seguro preparado" : "Safe transport ready")
           : routePrefill.kind === "appointment"
@@ -1522,63 +1525,68 @@ const ConciergeScreen = () => {
       <VoiceActionFulfillmentPanel
         domain="concierge"
         actionTypes={["concierge.appointment_help", "concierge.task"]}
-        title={isSpanish ? "Gestion preparada" : "Task context ready"}
+        title={isSpanish ? "Solicitud preparada" : "Request ready"}
         description={isSpanish
-          ? "VYVA puede usar la peticion, la fecha, el proveedor y la ubicacion antes de confirmar cualquier accion."
-          : "VYVA can use the request, date, provider, and location before confirming any action."}
+          ? "VYVA prepara los detalles importantes para que los revises antes de solicitar nada."
+          : "VYVA prepares the important details for you to review before anything is requested."}
         className="mt-5"
       />
 
       {routePrefill && routePrefillMeta && (
         <section
-          className="mt-4 overflow-hidden rounded-[28px] border border-[#D8B4FE] bg-white"
-          style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.16)" }}
+          className="mt-4 overflow-hidden rounded-[34px] border border-[#D8B4FE] bg-white"
+          style={{ boxShadow: "0 20px 52px rgba(107,33,168,0.18)" }}
           data-testid="panel-concierge-route-prefill"
         >
-          <div className="bg-[linear-gradient(135deg,#7C2BE8_0%,#3D0D82_100%)] p-4 text-white">
-            <div className="flex items-start gap-3">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white/16 text-white shadow-sm">
+          <div className="relative bg-[linear-gradient(135deg,#8728F4_0%,#5F17C7_52%,#3D0D82_100%)] px-6 pb-8 pt-7 text-white">
+            <div className="flex items-start gap-4 pr-10">
+              <div className="mt-1 flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-white/14 text-white shadow-sm ring-1 ring-white/18">
                 <routePrefillMeta.Icon size={22} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#FFD84D]">
-                  {isSpanish ? "Listo para actuar" : "Ready to act"}
+                <p className="font-body text-[15px] font-black uppercase tracking-[0.16em] text-[#FFD84D]">
+                  {routePrefillMeta.eyebrow}
                 </p>
-                <h2 className="mt-1 font-body text-[23px] font-black leading-tight">
+                <h2 className="mt-2 font-body text-[32px] font-black leading-[1.08] text-white">
                   {routePrefillMeta.title}
                 </h2>
-                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-white/88">
+                <p className="mt-4 font-body text-[19px] font-bold leading-[1.35] text-white/92">
                   {routePrefillMeta.detail}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setRoutePrefill(null)}
-                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
-                aria-label={isSpanish ? "Cerrar" : "Close"}
-              >
-                <X size={17} />
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setRoutePrefill(null)}
+              className="vyva-tap absolute right-6 top-7 flex h-11 w-11 items-center justify-center rounded-full bg-white/14 text-white ring-1 ring-white/14"
+              aria-label={isSpanish ? "Cerrar" : "Close"}
+            >
+              <X size={22} />
+            </button>
           </div>
-          <div className="p-4">
-            <div className="rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] p-3">
-              <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
-                {isSpanish ? "Solicitud" : "Request"}
+          <div className="space-y-4 px-5 pb-5 pt-6">
+            <div className="rounded-[28px] border border-[#E8DED4] bg-[#FFFCF8] p-4">
+              <p className="font-body text-[16px] font-black uppercase tracking-[0.14em] text-vyva-text-3">
+                {isSpanish ? "Detalles clave" : "Key details"}
               </p>
-              <p className="mt-1 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
-                {routePrefill.message}
-              </p>
+              <div className="mt-4 rounded-[24px] bg-white px-4 py-4">
+                <p className="font-body text-[14px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
+                  {isSpanish ? "Solicitud" : "Request"}
+                </p>
+                <p className="mt-2 font-body text-[19px] font-black leading-[1.35] text-vyva-text-1">
+                  {routePrefill.message}
+                </p>
+              </div>
             </div>
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
                 onClick={sendPrefillToConcierge}
                 disabled={chatLoading}
                 data-testid="button-concierge-prefill-send"
-                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)] disabled:opacity-60"
+                className="vyva-tap inline-flex min-h-[64px] flex-1 items-center justify-center gap-3 rounded-full bg-vyva-purple px-5 font-body text-[20px] font-black text-white shadow-[0_14px_30px_rgba(107,33,168,0.28)] disabled:opacity-60"
               >
-                {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                {chatLoading ? <Loader2 size={21} className="animate-spin" /> : <Send size={21} />}
                 {routePrefillMeta.primaryLabel}
               </button>
               <button
@@ -1592,13 +1600,13 @@ const ConciergeScreen = () => {
                   setInput(routePrefill.message);
                   setRoutePrefill(null);
                 }}
-                className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
+                className="vyva-tap inline-flex min-h-[64px] flex-1 items-center justify-center gap-3 rounded-full border-2 border-[#D8B4FE] bg-white px-5 font-body text-[20px] font-black text-vyva-purple"
               >
-                <PencilLine size={18} />
+                <PencilLine size={21} />
                 {routePrefillMeta.secondaryLabel}
               </button>
             </div>
-            <p className="mt-3 rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
+            <p className="rounded-[24px] bg-[#ECFDF5] px-5 py-4 text-center font-body text-[17px] font-black leading-snug text-[#047857]">
               {isSpanish ? "Nada se reserva ni solicita sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
             </p>
           </div>
