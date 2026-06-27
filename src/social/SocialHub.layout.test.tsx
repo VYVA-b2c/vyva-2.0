@@ -95,7 +95,7 @@ function renderSocialHub() {
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms"]}>
       <Routes>
         <Route path="/social-rooms" element={<SocialHub />} />
-        <Route path="/social-rooms/participate" element={<LocationProbe />} />
+        <Route path="/activities" element={<LocationProbe />} />
         <Route path="/social-rooms/:slug" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
@@ -118,7 +118,7 @@ describe("SocialHub home-style layout", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps the voice hero and renders Activities as a fifth Community card", () => {
+  it("keeps the voice hero and renders Activities without the duplicate Participate card", () => {
     renderSocialHub();
 
     expect(screen.getByTestId("voice-hero")).toBeInTheDocument();
@@ -131,30 +131,21 @@ describe("SocialHub home-style layout", () => {
     expect(within(primaryCards).getByText("Match")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Socialise")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Share")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Participate")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Activities")).toBeInTheDocument();
-    expect(primaryCards).toHaveTextContent("Curated events, classes, and outings chosen for you.");
-    expect(primaryCards).toHaveTextContent("Recommended activities chosen from your interests.");
+    expect(primaryCards).not.toHaveTextContent("Participate");
+    expect(primaryCards).toHaveTextContent("Open recommended games and practices.");
     expect(primaryCards).not.toHaveTextContent("Challenge");
     expect(primaryCards).not.toHaveTextContent("Learn");
     expect(screen.queryByTestId("button-social-quick-challenge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-social-quick-learn")).not.toBeInTheDocument();
   });
 
-  it("opens Participate as the curated social events area", () => {
-    renderSocialHub();
-
-    fireEvent.click(screen.getByTestId("card-social-primary-participate"));
-
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/participate");
-  });
-
-  it("opens Activities as the curated social events area", () => {
+  it("opens Activities as the single activities area", () => {
     renderSocialHub();
 
     fireEvent.click(screen.getByTestId("card-social-primary-activities"));
 
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/participate");
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/activities");
   });
 
   it("shows three live Fast help room rows with improved headlines and rotates to the rest", () => {
