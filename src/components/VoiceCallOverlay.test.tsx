@@ -1,7 +1,7 @@
 import { act, type ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import VoiceCallOverlay from "./VoiceCallOverlay";
-import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import type { TranscriptEntry, VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -193,15 +193,26 @@ describe("VoiceCallOverlay word transcript", () => {
 
   it("keeps the purple screen in an error state with retry available", () => {
     const onRetry = vi.fn();
+    const voiceDiagnostics: VoiceDiagnosticStep[] = [
+      { id: "browser_microphone", label: "Microphone", status: "passed", detail: "Microphone access granted" },
+      { id: "account_access", label: "Account access", status: "passed", detail: "Voice access verified" },
+      { id: "server_credentials", label: "Server key", status: "failed", detail: "Missing ElevenLabs API key" },
+    ];
     renderOverlay([], {
       connectionError: "Missing ElevenLabs API key",
       connectionErrorCode: "ELEVENLABS_API_KEY_MISSING",
+      voiceDiagnostics,
       onRetry,
     });
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice setup needed");
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("The ElevenLabs API key is missing on the server.");
     expect(screen.getByTestId("text-call-status")).toHaveTextContent("Setup needed");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped at Server key");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Microphone");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("OK");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Server key");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped");
 
     fireEvent.click(screen.getByTestId("button-retry-call"));
 

@@ -14,6 +14,7 @@ const voiceState = vi.hoisted(() => ({
   isMicMuted: false,
   lastError: null as string | null,
   lastErrorCode: null as string | null,
+  voiceDiagnostics: [],
   stopVoice: vi.fn(),
   setMicrophoneMuted: vi.fn(),
   startVoice: vi.fn(),

@@ -317,6 +317,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     setMicrophoneMuted,
     lastError,
     lastErrorCode,
+    voiceDiagnostics,
     sendContextUpdate,
     recordRecommendationFeedback,
   } = useVyvaVoice();
@@ -599,6 +600,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             onMicToggle={setMicrophoneMuted}
             connectionError={lastError}
             connectionErrorCode={lastErrorCode}
+            voiceDiagnostics={voiceDiagnostics}
           />
         )}
         {showVoiceDock && (

@@ -18,7 +18,7 @@ import {
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { useVyvaVoice, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import {
   VOICE_AGENT_CONTRACTS,
   validateVoiceAgentContext,
@@ -90,6 +90,21 @@ function statusLabel(validation: VoiceContextValidation) {
   if (validation.status === "ready") return "Ready";
   if (validation.status === "missing_required") return "Missing keys";
   return "No session";
+}
+
+function diagnosticStatusLabel(step: VoiceDiagnosticStep) {
+  if (step.status === "failed") return "Stopped";
+  if (step.status === "passed") return "OK";
+  if (step.status === "running") return "Checking";
+  if (step.status === "skipped") return "Skipped";
+  return "Waiting";
+}
+
+function diagnosticPillTone(step: VoiceDiagnosticStep): "neutral" | "good" | "warn" | "dark" {
+  if (step.status === "failed") return "warn";
+  if (step.status === "passed") return "good";
+  if (step.status === "running") return "dark";
+  return "neutral";
 }
 
 function Pill({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "good" | "warn" | "dark" }) {
@@ -265,6 +280,7 @@ export default function VoiceReadinessAdminPage() {
     voiceSessionPhase,
     transcript,
     lastResolvedSessionContext,
+    voiceDiagnostics,
   } = useVyvaVoice();
   const { activeAction, isActiveActionAccepted } = useVoiceActionContext();
   const timelineEvents = useVoiceTimeline();
@@ -327,6 +343,8 @@ export default function VoiceReadinessAdminPage() {
       ),
     }))
   ), [currentContract.id, lastResolvedSessionContext?.dynamicVariables]);
+  const failedVoiceDiagnostic = voiceDiagnostics.find((step) => step.status === "failed");
+  const activeVoiceDiagnostic = failedVoiceDiagnostic ?? [...voiceDiagnostics].reverse().find((step) => step.status !== "pending");
 
   async function refreshPersistedTimeline() {
     try {
@@ -494,7 +512,7 @@ export default function VoiceReadinessAdminPage() {
 
         <AdminMenu />
 
-        <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricTile
             icon={Mic}
             label="Voice state"
@@ -519,6 +537,44 @@ export default function VoiceReadinessAdminPage() {
             value={activeAction?.title ?? "None"}
             sub={activeAction ? `${activeAction.route} - ${isActiveActionAccepted ? "confirmed" : "not confirmed"}` : "No current app action."}
           />
+          <MetricTile
+            icon={RadioTower}
+            label="Voice health"
+            value={activeVoiceDiagnostic ? `${activeVoiceDiagnostic.label}: ${diagnosticStatusLabel(activeVoiceDiagnostic)}` : "No check yet"}
+            sub={activeVoiceDiagnostic?.detail ?? "Start voice to run browser, account, agent, key, signed URL, and session checks."}
+          />
+        </section>
+
+        <section className="mt-5 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="voice-health-diagnostics">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#8b7a73]">Voice health</p>
+              <h2 className="mt-1 text-lg font-black text-[#2f2135]">Connection checklist</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[#7d6b65]">
+                Shows the most recent voice start path across microphone, access, agent config, server key, signed URL, and browser session.
+              </p>
+            </div>
+            {failedVoiceDiagnostic ? (
+              <Pill tone="warn">Stopped at {failedVoiceDiagnostic.label}</Pill>
+            ) : (
+              <Pill tone={activeVoiceDiagnostic?.status === "passed" ? "good" : "neutral"}>
+                {activeVoiceDiagnostic ? diagnosticStatusLabel(activeVoiceDiagnostic) : "Idle"}
+              </Pill>
+            )}
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {voiceDiagnostics.map((step) => (
+              <div key={step.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={`voice-health-${step.id}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-black text-[#2f2135]">{step.label}</p>
+                  <Pill tone={diagnosticPillTone(step)}>{diagnosticStatusLabel(step)}</Pill>
+                </div>
+                <p className="mt-2 min-h-[20px] break-words text-sm leading-relaxed text-[#7d6b65]">
+                  {step.detail ?? "Waiting for next voice start."}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="mt-5 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">

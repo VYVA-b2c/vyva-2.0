@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { type TranscriptEntry, type VoiceConnectionErrorCode, useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
@@ -64,6 +64,7 @@ interface VoiceHeroProps {
     onMicToggle?: (muted: boolean) => void;
     lastError?: string | null;
     lastErrorCode?: VoiceConnectionErrorCode | null;
+    voiceDiagnostics?: VoiceDiagnosticStep[];
   };
 }
 
@@ -83,6 +84,22 @@ const homeHeadlineClampStyle: React.CSSProperties = {
 function readBrowserOnline() {
   if (typeof navigator === "undefined" || typeof navigator.onLine !== "boolean") return true;
   return navigator.onLine;
+}
+
+function voiceDiagnosticTone(step: VoiceDiagnosticStep) {
+  if (step.status === "failed") return "bg-red-100 text-red-700";
+  if (step.status === "passed") return "bg-emerald-100 text-emerald-700";
+  if (step.status === "running") return "bg-white/22 text-white";
+  if (step.status === "skipped") return "bg-white/12 text-white/64";
+  return "bg-white/10 text-white/58";
+}
+
+function voiceDiagnosticStatusLabel(step: VoiceDiagnosticStep) {
+  if (step.status === "failed") return "Stopped";
+  if (step.status === "passed") return "OK";
+  if (step.status === "running") return "Checking";
+  if (step.status === "skipped") return "Skipped";
+  return "Waiting";
 }
 
 const VoiceHero: React.FC<VoiceHeroProps> = ({
@@ -123,6 +140,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     setMicrophoneMuted: internalSetMicrophoneMuted,
     lastError: internalLastError,
     lastErrorCode: internalLastErrorCode,
+    voiceDiagnostics: internalVoiceDiagnostics,
   } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
@@ -150,6 +168,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const onMicToggle = voiceControls?.onMicToggle ?? internalSetMicrophoneMuted;
   const lastError = voiceControls?.lastError ?? internalLastError;
   const lastErrorCode = voiceControls?.lastErrorCode ?? internalLastErrorCode;
+  const voiceDiagnostics = voiceControls?.voiceDiagnostics ?? internalVoiceDiagnostics;
   const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
   const autoStartKey = typeof autoStartVoice === "string"
     ? autoStartVoice
@@ -318,6 +337,8 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const standardHeroHeadlineStyle = isHealthHero
     ? { ...headlineClampStyle, overflowWrap: "normal" as const, wordBreak: "normal" as const }
     : headlineClampStyle;
+  const visibleVoiceDiagnostics = (voiceDiagnostics ?? []).filter((step) => step.status !== "pending");
+  const failedVoiceDiagnostic = visibleVoiceDiagnostics.find((step) => step.status === "failed");
   const inlineErrorPanel = showInlineVoiceError ? (
     <div
       data-testid="voice-hero-inline-error"
@@ -330,6 +351,32 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
       <p className="m-0 mt-1 min-w-0 break-words text-[13px] font-medium leading-snug text-white/72">
         {lastError}
       </p>
+      {visibleVoiceDiagnostics.length > 0 && (
+        <div data-testid="voice-hero-diagnostics" className="mt-3 rounded-[16px] bg-black/10 p-2">
+          <p className="m-0 text-[12px] font-extrabold leading-tight text-white/72">
+            {failedVoiceDiagnostic
+              ? t("voiceHero.diagnosticsStoppedAt", `Stopped at ${failedVoiceDiagnostic.label}`)
+              : t("voiceHero.diagnosticsChecking", "Voice checks")}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {visibleVoiceDiagnostics.map((step) => (
+              <span
+                key={step.id}
+                className={`inline-flex min-w-0 max-w-full items-center gap-1 rounded-full px-2 py-1 text-[11px] font-extrabold leading-tight ${voiceDiagnosticTone(step)}`}
+                title={step.detail}
+              >
+                <span className="min-w-0 break-words">{step.label}</span>
+                <span className="shrink-0 opacity-80">{voiceDiagnosticStatusLabel(step)}</span>
+              </span>
+            ))}
+          </div>
+          {failedVoiceDiagnostic?.detail && (
+            <p className="m-0 mt-2 min-w-0 break-words text-[12px] font-semibold leading-snug text-white/68">
+              {failedVoiceDiagnostic.detail}
+            </p>
+          )}
+        </div>
+      )}
       <button
         type="button"
         data-testid="button-voice-hero-retry"
@@ -362,6 +409,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             onMicToggle={onMicToggle}
             connectionError={lastError}
             connectionErrorCode={lastErrorCode}
+            voiceDiagnostics={voiceDiagnostics}
             onRetry={handleRetryVoice}
           />
         )}
@@ -465,6 +513,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           onMicToggle={onMicToggle}
           connectionError={lastError}
           connectionErrorCode={lastErrorCode}
+          voiceDiagnostics={voiceDiagnostics}
           onRetry={handleRetryVoice}
         />
       )}

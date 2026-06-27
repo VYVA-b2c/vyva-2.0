@@ -329,6 +329,7 @@ function sendMissingAgentResponse(
     room_slug: input.roomSlug,
     agent_slug: input.agentSlug,
     source: input.resolved.source,
+    agent_id_present: false,
     expected_keys: input.resolved.expectedKeys?.slice(0, 6),
   });
 }
@@ -348,6 +349,10 @@ export async function conversationReadinessHandler(req: Request, res: Response) 
     return res.status(500).json({
       error: "Missing ElevenLabs API key",
       code: "ELEVENLABS_API_KEY_MISSING",
+      agent_slug: resolved.resolvedSlug,
+      room_slug: normalizedRoomSlug,
+      source: resolved.source,
+      agent_id_present: true,
     });
   }
 
@@ -356,6 +361,7 @@ export async function conversationReadinessHandler(req: Request, res: Response) 
     agent_slug: resolved.resolvedSlug,
     room_slug: normalizedRoomSlug,
     source: resolved.source,
+    agent_id_present: true,
   });
 }
 
