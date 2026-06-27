@@ -1302,7 +1302,7 @@ const MedsScreen = () => {
               </div>
             </div>
 
-            <div className="mt-4 grid items-start gap-3 lg:grid-cols-[190px_minmax(0,1fr)_260px] xl:grid-cols-[210px_minmax(0,1fr)_285px]">
+            <div className="mt-4 grid items-start gap-3 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)]">
               <div className="flex min-h-[118px] flex-col justify-between rounded-[24px] bg-[#123F3A] px-5 py-4 text-white sm:min-h-[132px] lg:min-h-[154px]" data-testid="metric-meds-due">
                 <p className="font-body text-[12px] font-black uppercase text-white/70">
                   {t("meds.dashboard.focusNow", "Focus now")}
@@ -1387,121 +1387,123 @@ const MedsScreen = () => {
                 )}
               </div>
 
-              <div
-                className="flex min-w-0 flex-col justify-between rounded-[22px] border border-[#D9ECE4] bg-[#F8FEFC] p-4"
-                data-testid="panel-meds-pharmacy"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFEFF] text-[#0F766E]">
-                    <Store size={20} strokeWidth={2.4} aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body text-[12px] font-black uppercase text-vyva-text-3">
-                      {t("meds.dashboard.pharmacy", "Pharmacy")}
-                    </p>
-                    <h2 className="mt-1 font-body text-[19px] font-black leading-tight text-vyva-text-1" data-testid="text-meds-pharmacy-name">
-                      {pharmacyProvider?.name || t("meds.dashboard.noPharmacyTitle", "No pharmacy saved yet")}
-                    </h2>
-                    <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                      {pharmacyPhone || pharmacyProvider?.address || t("meds.dashboard.noPharmacySub", "Add a pharmacy so contact details are ready.")}
-                    </p>
-                  </div>
+            </div>
+
+            <div className="mt-3 rounded-[18px] border border-[#E1E8E4] bg-[#F8FEFC] px-4 py-3">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 font-body text-[13px] font-black text-vyva-text-2">
+                <span data-testid="metric-meds-taken">
+                  {t("meds.dashboard.takenToday", "Taken today")}: <span className="text-vyva-text-1">{takenValue}</span>
+                </span>
+                <span data-testid="metric-meds-adherence">
+                  {t("meds.dashboard.adherence", "Adherence")}: <span className="text-vyva-text-1">{adherenceValue}</span>
+                </span>
+                <span data-testid="metric-meds-count">
+                  {t("meds.dashboard.medicines", "Medicines")}: <span className="text-vyva-text-1">{displayMeds.length}</span>
+                </span>
+              </div>
+            </div>
+
+            <div
+              className="mt-3 rounded-[22px] border border-[#E1E8E4] bg-white p-4"
+              data-testid="section-meds-dashboard-tips"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+                  <Sparkles size={20} strokeWidth={2.4} aria-hidden="true" />
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  {pharmacyPhoneHref ? (
-                    <a
-                      data-testid="link-meds-pharmacy-phone"
-                      href={pharmacyPhoneHref}
-                      className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
-                    >
-                      <Phone size={17} aria-hidden="true" />
-                      {t("meds.dashboard.callPharmacy", "Call pharmacy")}
-                    </a>
-                  ) : (
-                    <button
-                      data-testid="button-meds-pharmacy-add"
-                      type="button"
-                      onClick={() => navigate("/onboarding/profile/providers")}
-                      className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
-                    >
-                      <Plus size={17} aria-hidden="true" />
-                      {t("meds.dashboard.addPharmacy", "Add pharmacy")}
-                    </button>
-                  )}
-                  <button
-                    data-testid="button-meds-pharmacy-order"
-                    type="button"
-                    onClick={openRefillSupport}
-                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 font-body text-[14px] font-black text-white"
+                <div className="min-w-0">
+                  <h2 className="font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    {t("meds.dashboard.personalGuidance", "Personal guidance")}
+                  </h2>
+                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                    {t("meds.dashboard.guidanceSub", "Small steps matched to the health profile VYVA can see.")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="min-w-0 border-l-4 border-[#3B82F6] pl-3" data-testid="card-meds-health-tip">
+                  <div className="flex items-center gap-2">
+                    <HeartPulse size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#1D4ED8]" aria-hidden="true" />
+                    <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                      {t("meds.dashboard.healthTipTitle", "Health tip")}
+                    </h3>
+                  </div>
+                  <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#EFF6FF] px-2.5 font-body text-[11px] font-black leading-none text-[#1D4ED8]">
+                    {healthTip.context}
+                  </p>
+                  <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {healthTip.text}
+                  </p>
+                </div>
+                <div className="min-w-0 border-l-4 border-[#10B981] pl-3" data-testid="card-meds-exercise-tip">
+                  <div className="flex items-center gap-2">
+                    <Footprints size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#047857]" aria-hidden="true" />
+                    <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                      {t("meds.dashboard.exerciseTipTitle", "Exercise tip")}
+                    </h3>
+                  </div>
+                  <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#ECFDF5] px-2.5 font-body text-[11px] font-black leading-none text-[#047857]">
+                    {exerciseTip.context}
+                  </p>
+                  <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {exerciseTip.text}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="mt-3 flex min-w-0 flex-col justify-between rounded-[22px] border border-[#D9ECE4] bg-[#F8FEFC] p-4 sm:flex-row sm:items-center sm:gap-4"
+              data-testid="panel-meds-pharmacy"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFEFF] text-[#0F766E]">
+                  <Store size={20} strokeWidth={2.4} aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[12px] font-black uppercase text-vyva-text-3">
+                    {t("meds.dashboard.pharmacy", "Pharmacy")}
+                  </p>
+                  <h2 className="mt-1 font-body text-[19px] font-black leading-tight text-vyva-text-1" data-testid="text-meds-pharmacy-name">
+                    {pharmacyProvider?.name || t("meds.dashboard.noPharmacyTitle", "No pharmacy saved yet")}
+                  </h2>
+                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                    {pharmacyPhone || pharmacyProvider?.address || t("meds.dashboard.noPharmacySub", "Add a pharmacy so contact details are ready.")}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:min-w-[300px]">
+                {pharmacyPhoneHref ? (
+                  <a
+                    data-testid="link-meds-pharmacy-phone"
+                    href={pharmacyPhoneHref}
+                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
                   >
-                    <ShoppingCart size={17} aria-hidden="true" />
-                    {t("meds.dashboard.orderRefill", "Order refill")}
+                    <Phone size={17} aria-hidden="true" />
+                    {t("meds.dashboard.callPharmacy", "Call pharmacy")}
+                  </a>
+                ) : (
+                  <button
+                    data-testid="button-meds-pharmacy-add"
+                    type="button"
+                    onClick={() => navigate("/onboarding/profile/providers")}
+                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                  >
+                    <Plus size={17} aria-hidden="true" />
+                    {t("meds.dashboard.addPharmacy", "Add pharmacy")}
                   </button>
-                </div>
+                )}
+                <button
+                  data-testid="button-meds-pharmacy-order"
+                  type="button"
+                  onClick={openRefillSupport}
+                  className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 font-body text-[14px] font-black text-white"
+                >
+                  <ShoppingCart size={17} aria-hidden="true" />
+                  {t("meds.dashboard.orderRefill", "Order refill")}
+                </button>
               </div>
-            </div>
-          </div>
-
-          <div className="border-t border-[#E1E8E4] bg-[#F8FEFC] px-4 py-3 sm:px-5">
-            <div className="flex flex-wrap gap-x-4 gap-y-1 font-body text-[13px] font-black text-vyva-text-2">
-              <span data-testid="metric-meds-taken">
-                {t("meds.dashboard.takenToday", "Taken today")}: <span className="text-vyva-text-1">{takenValue}</span>
-              </span>
-              <span data-testid="metric-meds-adherence">
-                {t("meds.dashboard.adherence", "Adherence")}: <span className="text-vyva-text-1">{adherenceValue}</span>
-              </span>
-              <span data-testid="metric-meds-count">
-                {t("meds.dashboard.medicines", "Medicines")}: <span className="text-vyva-text-1">{displayMeds.length}</span>
-              </span>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="mt-3" data-testid="section-meds-dashboard-tips">
-        <article className="rounded-[24px] border border-[#E1E8E4] bg-white p-4 shadow-[0_10px_24px_rgba(31,41,55,0.06)] sm:p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
-              <Sparkles size={22} strokeWidth={2.4} aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-body text-[20px] font-black leading-tight text-vyva-text-1">
-                {t("meds.dashboard.personalGuidance", "Personal guidance")}
-              </h2>
-              <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                {t("meds.dashboard.guidanceSub", "Small steps matched to the health profile VYVA can see.")}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="min-w-0 border-l-4 border-[#3B82F6] pl-3" data-testid="card-meds-health-tip">
-              <div className="flex items-center gap-2">
-                <HeartPulse size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#1D4ED8]" aria-hidden="true" />
-                <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
-                  {t("meds.dashboard.healthTipTitle", "Health tip")}
-                </h3>
-              </div>
-              <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#EFF6FF] px-2.5 font-body text-[11px] font-black leading-none text-[#1D4ED8]">
-                {healthTip.context}
-              </p>
-              <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                {healthTip.text}
-              </p>
-            </div>
-            <div className="min-w-0 border-l-4 border-[#10B981] pl-3" data-testid="card-meds-exercise-tip">
-              <div className="flex items-center gap-2">
-                <Footprints size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#047857]" aria-hidden="true" />
-                <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
-                  {t("meds.dashboard.exerciseTipTitle", "Exercise tip")}
-                </h3>
-              </div>
-              <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#ECFDF5] px-2.5 font-body text-[11px] font-black leading-none text-[#047857]">
-                {exerciseTip.context}
-              </p>
-              <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                {exerciseTip.text}
-              </p>
             </div>
           </div>
         </article>
