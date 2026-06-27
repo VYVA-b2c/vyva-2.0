@@ -21,13 +21,18 @@
 
 import {
   pgTable, pgEnum, unique, uniqueIndex, primaryKey, index,
-  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric
+  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import type { TriageScanResult } from "./triageScans.js";
 
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 // ============================================================
 // ENUMS
@@ -485,6 +490,78 @@ export const userMedications = pgTable("user_medications", {
 export const insertUserMedicationSchema = createInsertSchema(userMedications).omit({ id: true, created_at: true });
 export type InsertUserMedication = z.infer<typeof insertUserMedicationSchema>;
 export type UserMedication = typeof userMedications.$inferSelect;
+
+export const medicationSafetySignals = pgTable("medication_safety_signals", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull(),
+  signal_type:     text("signal_type").notNull(),
+  severity:        text("severity").notNull().default("watch"),
+  title:           text("title").notNull(),
+  summary:         text("summary").notNull(),
+  medication_name: text("medication_name"),
+  source:          text("source").notNull().default("meds"),
+  evidence:        jsonb("evidence").notNull().default([]),
+  status:          text("status").notNull().default("open"),
+  related_case_id: uuid("related_case_id"),
+  detected_at:     timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_safety_signals_user_time_idx").on(t.user_id, t.detected_at.desc()),
+  index("medication_safety_signals_user_status_idx").on(t.user_id, t.status),
+]);
+
+export const insertMedicationSafetySignalSchema = createInsertSchema(medicationSafetySignals).omit({ id: true, created_at: true, detected_at: true });
+export type InsertMedicationSafetySignal = z.infer<typeof insertMedicationSafetySignalSchema>;
+export type MedicationSafetySignal = typeof medicationSafetySignals.$inferSelect;
+
+export const medicationSafetyCases = pgTable("medication_safety_cases", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  user_id:              text("user_id").notNull(),
+  status:               text("status").notNull().default("draft"),
+  severity:             text("severity").notNull().default("watch"),
+  signal_type:          text("signal_type").notNull().default("possible_side_effect"),
+  suspected_medication: text("suspected_medication"),
+  reaction:             text("reaction"),
+  reaction_started_at:  timestamp("reaction_started_at", { withTimezone: true }),
+  seriousness_flags:    text("seriousness_flags").array().notNull().default([]),
+  outcome:              text("outcome"),
+  action_taken:         text("action_taken"),
+  reporter_name:        text("reporter_name"),
+  reporter_contact:     text("reporter_contact"),
+  reporter_role:        text("reporter_role").notNull().default("patient_or_caregiver"),
+  narrative:            text("narrative"),
+  evidence:             jsonb("evidence").notNull().default([]),
+  missing_fields:       text("missing_fields").array().notNull().default([]),
+  export_ready:         boolean("export_ready").notNull().default(false),
+  latest_export_json:   jsonb("latest_export_json"),
+  shared_at:            timestamp("shared_at", { withTimezone: true }),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_safety_cases_user_status_idx").on(t.user_id, t.status),
+  index("medication_safety_cases_user_type_idx").on(t.user_id, t.signal_type, t.created_at.desc()),
+]);
+
+export const insertMedicationSafetyCaseSchema = createInsertSchema(medicationSafetyCases).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMedicationSafetyCase = z.infer<typeof insertMedicationSafetyCaseSchema>;
+export type MedicationSafetyCase = typeof medicationSafetyCases.$inferSelect;
+
+export const medicationSafetyCaseEvents = pgTable("medication_safety_case_events", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  case_id:    uuid("case_id").notNull(),
+  user_id:    text("user_id").notNull(),
+  event_type: text("event_type").notNull(),
+  actor_id:   text("actor_id"),
+  payload:    jsonb("payload").notNull().default({}),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_safety_case_events_case_time_idx").on(t.case_id, t.created_at.desc()),
+  index("medication_safety_case_events_user_time_idx").on(t.user_id, t.created_at.desc()),
+]);
+
+export const insertMedicationSafetyCaseEventSchema = createInsertSchema(medicationSafetyCaseEvents).omit({ id: true, created_at: true });
+export type InsertMedicationSafetyCaseEvent = z.infer<typeof insertMedicationSafetyCaseEventSchema>;
+export type MedicationSafetyCaseEvent = typeof medicationSafetyCaseEvents.$inferSelect;
 
 export const userHealthConditions = pgTable("user_health_conditions", {
   id:         uuid("id").primaryKey().defaultRandom(),
@@ -1357,7 +1434,6 @@ export const participationNotifications = pgTable("participation_notifications",
 export const insertParticipationNotificationSchema = createInsertSchema(participationNotifications).omit({ id: true, created_at: true });
 export type InsertParticipationNotification = z.infer<typeof insertParticipationNotificationSchema>;
 export type ParticipationNotificationRow = typeof participationNotifications.$inferSelect;
-
 
 // ============================================================
 // NEW TABLE: triage_reports — persisted completed TriageSummary + vitals
@@ -2504,6 +2580,9 @@ export const schema = {
   checkinSessions,
   checkinTrendState,
   userMedications,
+  medicationSafetySignals,
+  medicationSafetyCases,
+  medicationSafetyCaseEvents,
   userHealthConditions,
   onboardingState,
   consentLog,
