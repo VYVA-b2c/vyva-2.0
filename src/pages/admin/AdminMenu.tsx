@@ -10,6 +10,7 @@ const adminItems = [
   { label: "Phone onboarding", path: "/admin/phone-onboarding", description: "Inbound caller intake" },
   { label: "Home cards", path: "/admin/home-cards", description: "Personalized Today cards" },
   { label: "Hero messages", path: "/admin/hero-messages", description: "Banner copy and rules" },
+  { label: "Learning library", path: "/admin/learning-library", description: "Daily lessons and interests" },
   { label: "Voice readiness", path: "/admin/voice-readiness", description: "Agent context contracts" },
   { label: "Supply packages", path: "/admin/concierge-supplies", description: "Concierge supplies and kits" },
   { label: "Participate events", path: "/admin/participate-events", description: "Curated city events" },

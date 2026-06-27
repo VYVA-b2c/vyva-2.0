@@ -61,7 +61,8 @@ const labels: Record<string, string> = {
   "activities.quick.relax": "Relax & Breathe",
   "activities.quick.relaxSub": "Take a calm guided pause.",
   "activities.quick.learn": "Learn Something New",
-  "activities.quick.learnSub": "Try words, language, and recall.",
+  "activities.quick.learnSub": "Start a short daily learning program.",
+  "activities.quick.learnSubMobile": "Daily lessons",
   "activities.quick.play": "Take a cognitive assessment.",
   "activities.quick.playSub": "Practice memory and focus.",
   "activities.chooseActivity": "Choose an activity",
@@ -105,6 +106,7 @@ function renderActivities() {
         <Route path="/activities" element={<ActivitiesScreen />} />
         <Route path="/activity" element={<LocationProbe />} />
         <Route path="/memory-games" element={<LocationProbe />} />
+        <Route path="/learn" element={<LocationProbe />} />
         <Route path="/attention-boosters" element={<LocationProbe />} />
         <Route path="/senses" element={<LocationProbe />} />
         <Route path="/executive-function" element={<LocationProbe />} />
@@ -178,12 +180,12 @@ describe("Activities service actions", () => {
     expect(screen.getByTestId("route-state")).toHaveTextContent("{}");
   });
 
-  it("routes the Learn Something New quick action to language activities", async () => {
+  it("routes the Learn Something New quick action to the learning program", async () => {
     renderActivities();
 
     fireEvent.click(screen.getByTestId("button-activities-quick-learn"));
 
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/language"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/learn"));
   });
 
   it("routes the brain game quick action to memory games", async () => {

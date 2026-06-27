@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setLanguage } from "@/i18n";
@@ -14,7 +14,7 @@ function renderLanguageGames() {
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/language"]}>
       <Routes>
         <Route path="/language" element={<LanguageGamesPage />} />
-        <Route path="/memory-games/curious-minds" element={<LocationProbe />} />
+        <Route path="/learn" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -25,14 +25,9 @@ describe("LanguageGamesPage", () => {
     setLanguage("en");
   });
 
-  it("offers Curious Minds instead of the short story memory exercise", async () => {
+  it("redirects old language links to the learning program", async () => {
     renderLanguageGames();
 
-    expect(screen.getByRole("button", { name: "Open Curious Minds" })).toBeInTheDocument();
-    expect(screen.queryByText("Short stories")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Open Curious Minds" }));
-
-    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games/curious-minds"));
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/learn"));
   });
 });

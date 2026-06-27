@@ -42,6 +42,7 @@ const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
 const ActivitiesScreen = lazy(() => import("./pages/ActivitiesScreen"));
 const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
+const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
 const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
 const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
@@ -120,6 +121,7 @@ const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessA
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const ParticipateEventsAdminPage = lazy(() => import("./pages/admin/ParticipateEventsAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
+const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
 
 const routerFutureFlags = {
   v7_relativeSplatPath: true,
@@ -550,6 +552,7 @@ const App = () => (
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/participate-events" element={<AdminRoute><ParticipateEventsAdminPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
+                <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
                   <Route element={<OnboardingGuard />}>
@@ -593,6 +596,7 @@ const App = () => (
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/activities" element={<AppShell><ActivitiesScreen /></AppShell>} />
                   <Route path="/activities/relax-breathe" element={<AppShell><RelaxBreatheScreen /></AppShell>} />
+                  <Route path="/learn" element={<AppShell><LearnSomethingNewPage /></AppShell>} />
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
                   <Route path="/attention-boosters" element={<AppShell><AttentionBoostersPage /></AppShell>} />
                   <Route path="/attention-boosters/rhythm-tap" element={<AppShell><MemoryGameRunner forcedGameType="sequence_memory" returnPath="/attention-boosters" /></AppShell>} />
@@ -604,7 +608,7 @@ const App = () => (
                   <Route path="/executive-function" element={<AppShell><ExecutiveFunctionPage /></AppShell>} />
                   <Route path="/executive-function/category-sort" element={<CategorySortRoute />} />
                   <Route path="/executive-function/number-trails" element={<NumberTrailsRoute />} />
-                  <Route path="/language" element={<AppShell><LanguageGamesPage /></AppShell>} />
+                  <Route path="/language" element={<Navigate to="/learn" replace />} />
                   <Route path="/spatial-navigator" element={<AppShell><SpatialNavigatorRoute /></AppShell>} />
                   <Route path="/face-name-match" element={<AppShell><FaceNameMatchRoute /></AppShell>} />
                   <Route path="/memory-games" element={<AppShell><MemoryGamesPage /></AppShell>} />

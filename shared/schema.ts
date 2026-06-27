@@ -1901,6 +1901,127 @@ export const insertCognitiveCaregiverSettingsSchema = createInsertSchema(cogniti
 export type InsertCognitiveCaregiverSettings = z.infer<typeof insertCognitiveCaregiverSettingsSchema>;
 export type CognitiveCaregiverSettingsRow = typeof cognitiveCaregiverSettings.$inferSelect;
 
+// ============================================================
+// LEARNING PROGRAM - curated daily learning snippets
+// ============================================================
+
+export const learningCategories = pgTable("learning_categories", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  slug:        text("slug").notNull().unique(),
+  label:       text("label").notNull(),
+  description: text("description").notNull().default(""),
+  color:       text("color").notNull().default("#7C3AED"),
+  icon:        text("icon").notNull().default("book-open"),
+  sortOrder:   integer("sort_order").notNull().default(0),
+  isActive:    boolean("is_active").notNull().default(true),
+  createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:   timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_learning_categories_active_sort").on(t.isActive, t.sortOrder),
+]);
+
+export const learningLessons = pgTable("learning_lessons", {
+  id:               uuid("id").primaryKey().defaultRandom(),
+  externalId:       text("external_id"),
+  categorySlug:     text("category_slug").notNull(),
+  language:         text("language").notNull().default("en"),
+  title:            text("title").notNull(),
+  hook:             text("hook").notNull(),
+  body:             text("body").notNull(),
+  reflectionPrompt: text("reflection_prompt").notNull(),
+  sourceNotes:      text("source_notes"),
+  estimatedMinutes: integer("estimated_minutes").notNull().default(3),
+  difficulty:       text("difficulty").notNull().default("easy"),
+  tags:             text("tags").array().notNull().default([]),
+  status:           text("status").notNull().default("draft"),
+  isActive:         boolean("is_active").notNull().default(true),
+  reviewedAt:       timestamp("reviewed_at", { withTimezone: true }),
+  reviewedBy:       text("reviewed_by"),
+  publishedAt:      timestamp("published_at", { withTimezone: true }),
+  publishedBy:      text("published_by"),
+  archivedAt:       timestamp("archived_at", { withTimezone: true }),
+  archivedBy:       text("archived_by"),
+  createdAt:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("idx_learning_lessons_external_id_unique").on(t.externalId),
+  index("idx_learning_lessons_status_language_category").on(t.status, t.language, t.categorySlug),
+  index("idx_learning_lessons_active_status").on(t.isActive, t.status),
+]);
+
+export const learningPrograms = pgTable("learning_programs", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  userId:              text("user_id").notNull(),
+  status:              text("status").notNull().default("active"),
+  interests:           text("interests").array().notNull().default([]),
+  pace:                text("pace").notNull().default("gentle"),
+  dailyTime:           text("daily_time").notNull().default("09:00"),
+  lessonLengthMinutes: integer("lesson_length_minutes").notNull().default(3),
+  language:            text("language").notNull().default("en"),
+  startDate:           date("start_date").notNull(),
+  endDate:             date("end_date").notNull(),
+  completedAt:         timestamp("completed_at", { withTimezone: true }),
+  createdAt:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_learning_programs_user_status").on(t.userId, t.status, t.startDate),
+]);
+
+export const learningProgramItems = pgTable("learning_program_items", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  programId:     uuid("program_id").notNull().references(() => learningPrograms.id, { onDelete: "cascade" }),
+  userId:        text("user_id").notNull(),
+  lessonId:      uuid("lesson_id").notNull().references(() => learningLessons.id, { onDelete: "cascade" }),
+  programDay:    integer("program_day").notNull(),
+  scheduledDate: date("scheduled_date").notNull(),
+  status:        text("status").notNull().default("recommended"),
+  completedAt:   timestamp("completed_at", { withTimezone: true }),
+  savedAt:       timestamp("saved_at", { withTimezone: true }),
+  skippedAt:     timestamp("skipped_at", { withTimezone: true }),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:     timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("learning_program_items_program_day_unique").on(t.programId, t.programDay),
+  index("idx_learning_program_items_user_date").on(t.userId, t.scheduledDate),
+  index("idx_learning_program_items_program_day").on(t.programId, t.programDay),
+]);
+
+export const learningProgramEvents = pgTable("learning_program_events", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  programId:     uuid("program_id").notNull().references(() => learningPrograms.id, { onDelete: "cascade" }),
+  programItemId: uuid("program_item_id").references(() => learningProgramItems.id, { onDelete: "set null" }),
+  lessonId:      uuid("lesson_id").references(() => learningLessons.id, { onDelete: "set null" }),
+  userId:        text("user_id").notNull(),
+  eventType:     text("event_type").notNull(),
+  source:        text("source").notNull().default("app"),
+  metadata:      jsonb("metadata").notNull().default({}),
+  createdAt:     timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_learning_program_events_program").on(t.programId, t.createdAt.desc()),
+  index("idx_learning_program_events_user").on(t.userId, t.createdAt.desc()),
+  index("idx_learning_program_events_item").on(t.programItemId, t.createdAt.desc()),
+]);
+
+export const insertLearningCategorySchema = createInsertSchema(learningCategories).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLearningCategory = z.infer<typeof insertLearningCategorySchema>;
+export type LearningCategoryRow = typeof learningCategories.$inferSelect;
+
+export const insertLearningLessonSchema = createInsertSchema(learningLessons).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLearningLesson = z.infer<typeof insertLearningLessonSchema>;
+export type LearningLessonRow = typeof learningLessons.$inferSelect;
+
+export const insertLearningProgramSchema = createInsertSchema(learningPrograms).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLearningProgram = z.infer<typeof insertLearningProgramSchema>;
+export type LearningProgramRow = typeof learningPrograms.$inferSelect;
+
+export const insertLearningProgramItemSchema = createInsertSchema(learningProgramItems).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLearningProgramItem = z.infer<typeof insertLearningProgramItemSchema>;
+export type LearningProgramItemRow = typeof learningProgramItems.$inferSelect;
+
+export const insertLearningProgramEventSchema = createInsertSchema(learningProgramEvents).omit({ id: true, createdAt: true });
+export type InsertLearningProgramEvent = z.infer<typeof insertLearningProgramEventSchema>;
+export type LearningProgramEventRow = typeof learningProgramEvents.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: utility_review_runs — evidence log for bill reviews
@@ -2631,6 +2752,11 @@ export const schema = {
   cognitiveDailyPlanItems,
   cognitiveDailyPlanEvents,
   cognitiveCaregiverSettings,
+  learningCategories,
+  learningLessons,
+  learningPrograms,
+  learningProgramItems,
+  learningProgramEvents,
   organizations,
   tierEntitlements,
   userIntakes,

@@ -959,7 +959,7 @@ const protectedUtilityRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedGameIndexRoutes: ResponsiveRoute[] = [
-  { name: "language games", path: "/language", expectedLayout: "wide" },
+  { name: "learn something new", path: "/learn", expectedLayout: "wide" },
   { name: "attention boosters", path: "/attention-boosters", expectedLayout: "wide" },
   { name: "executive function", path: "/executive-function", expectedLayout: "wide" },
   { name: "memory games", path: "/memory-games", expectedLayout: "wide" },

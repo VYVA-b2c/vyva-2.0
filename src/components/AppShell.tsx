@@ -57,6 +57,7 @@ const WIDE_ROUTES = [
   "/activities",
   "/senses",
   "/activity",
+  "/learn",
   "/language",
   "/safe-home",
   "/scam-guard",
