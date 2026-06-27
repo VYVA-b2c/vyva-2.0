@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs/promises";
 import "dotenv/config";
 import { routerHandler } from "./routes/router.js";
-import { conversationTokenHandler } from "./routes/conversationToken.js";
+import { conversationReadinessHandler, conversationTokenHandler } from "./routes/conversationToken.js";
 import { voiceContextHandler } from "./routes/voiceContext.js";
 import { voiceRecommendationFeedbackHandler } from "./routes/voiceRecommendationFeedback.js";
 import {
@@ -151,6 +151,7 @@ app.post("/api/voice-context", authMiddleware, requireUser, requireEntitlement("
 app.post("/api/voice/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceRecommendationFeedbackHandler);
 app.get("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), listOwnVoiceTimelineEventsHandler);
 app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), recordVoiceTimelineEventsHandler);
+app.post("/api/voice-readiness", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationReadinessHandler);
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
