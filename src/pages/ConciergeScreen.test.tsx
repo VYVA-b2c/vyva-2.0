@@ -881,6 +881,40 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
   });
 
+  it("prepares a review request instead of showing access errors for other appointment types", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/appointments/requests")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.appointment_type).toBe("government");
+        expect(body.detail).toContain("passport renewal");
+        return errorResponse(503, {
+          error: "Could not verify feature access",
+          code: "FEATURE_ACCESS_UNAVAILABLE",
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    await dismissAppointmentGuide();
+    fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
+      target: { value: "Please help me schedule a passport renewal appointment" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Government" }));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Government");
+    expect(prefill).toHaveTextContent("passport renewal");
+    expect(prefill).toHaveTextContent("Nothing is booked");
+    expect(prefill).not.toHaveTextContent("verify access");
+    expect(screen.queryByText("I could not verify access right now. Please try again.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
+  });
+
   it("turns a voice plumber payload into the same structured service intake", async () => {
     voiceActionMock.action = {
       id: "voice-home-service-1",

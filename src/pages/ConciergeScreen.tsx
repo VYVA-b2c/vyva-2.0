@@ -88,8 +88,9 @@ function firstMatch(text: string, patterns: RegExp[]) {
 function cleanRoutePrefillText(message: string) {
   return message
     .replace(/\s+/g, " ")
-    .replace(/\s+(Do not call, book, message, or share details without my confirmation\.?|No llames, reserves, envies mensajes ni compartas datos sin mi confirmacion\.?).*$/i, "")
+    .replace(/\s+(Do not call, book, message, or share details without my confirmation\.?|Do not book, contact, message, or share details without my confirmation\.?|No llames, reserves, envies mensajes ni compartas datos sin mi confirmacion\.?|No reserves, contactes, envies mensajes ni compartas datos sin mi confirmacion\.?).*$/i, "")
     .replace(/^(I could not verify provider search access right now\. Prepare this Concierge request so I can review trusted options before anyone is contacted\.|No he podido verificar la busqueda de proveedores ahora mismo\. Prepara esta solicitud de Concierge para revisar opciones fiables antes de contactar con nadie\.)\s*/i, "")
+    .replace(/^(I could not verify appointment access right now\. Prepare this Concierge request for review before acting\.|No he podido verificar el acceso a la cita ahora mismo\. Prepara esta solicitud de Concierge para revisarla antes de actuar\.)\s*/i, "")
     .replace(/^(Request details|Detalle):\s*/i, "")
     .trim();
 }
@@ -1786,16 +1787,44 @@ const ConciergeScreen = () => {
     })
   ), [appointmentControlMode, appointmentMission, appointmentOptions, appointmentRequest, isSpanish, selectedAppointmentOption]);
 
-  function prepareHomeServiceAccessFallback(detail: string) {
+  function prepareAppointmentAccessFallback(appointmentType: AppointmentType, detail: string) {
     const cleanedDetail = detail.trim();
+    const typeLabel = APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === appointmentType)?.[isSpanish ? "es" : "en"];
+    if (appointmentType === "home-service") {
+      const message = [
+        isSpanish
+          ? "No he podido verificar la busqueda de proveedores ahora mismo. Prepara esta solicitud de Concierge para revisar opciones fiables antes de contactar con nadie."
+          : "I could not verify provider search access right now. Prepare this Concierge request so I can review trusted options before anyone is contacted.",
+        cleanedDetail ? `${isSpanish ? "Detalle" : "Request details"}:\n${cleanedDetail}` : "",
+        isSpanish
+          ? "No llames, reserves, envies mensajes ni compartas datos sin mi confirmacion."
+          : "Do not call, book, message, or share details without my confirmation.",
+      ].filter(Boolean).join("\n\n");
+
+      setAppointmentError(null);
+      setAppointmentNotice(isSpanish
+        ? "He preparado la solicitud por chat para revisarla primero."
+        : "I prepared this as a Concierge request to review first.");
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
+      setSelectedAppointmentOptionId(null);
+      setAppointmentMission(null);
+      setAppointmentAttemptResult(null);
+      setAppointmentOpen(false);
+      prepareConciergeRequest(message);
+      return;
+    }
+
     const message = [
       isSpanish
-        ? "No he podido verificar la busqueda de proveedores ahora mismo. Prepara esta solicitud de Concierge para revisar opciones fiables antes de contactar con nadie."
-        : "I could not verify provider search access right now. Prepare this Concierge request so I can review trusted options before anyone is contacted.",
+        ? "No he podido verificar el acceso a la cita ahora mismo. Prepara esta solicitud de Concierge para revisarla antes de actuar."
+        : "I could not verify appointment access right now. Prepare this Concierge request for review before acting.",
+      typeLabel ? `${isSpanish ? "Tipo" : "Type"}: ${typeLabel}` : "",
       cleanedDetail ? `${isSpanish ? "Detalle" : "Request details"}:\n${cleanedDetail}` : "",
       isSpanish
-        ? "No llames, reserves, envies mensajes ni compartas datos sin mi confirmacion."
-        : "Do not call, book, message, or share details without my confirmation.",
+        ? "No reserves, contactes, envies mensajes ni compartas datos sin mi confirmacion."
+        : "Do not book, contact, message, or share details without my confirmation.",
     ].filter(Boolean).join("\n\n");
 
     setAppointmentError(null);
@@ -1810,6 +1839,10 @@ const ConciergeScreen = () => {
     setAppointmentAttemptResult(null);
     setAppointmentOpen(false);
     prepareConciergeRequest(message);
+  }
+
+  function prepareHomeServiceAccessFallback(detail: string) {
+    prepareAppointmentAccessFallback("home-service", detail);
   }
 
   const createAppointmentMutation = useMutation({
@@ -1873,8 +1906,8 @@ const ConciergeScreen = () => {
           : (isSpanish ? "No veo un proveedor guardado para esto. Puedo buscar opciones." : "I do not see a saved provider for this yet. I can look for options."));
     },
     onError: (error, variables) => {
-      if (variables.appointmentType === "home-service" && isFeatureAccessVerificationError(error)) {
-        prepareHomeServiceAccessFallback(variables.detail);
+      if (isFeatureAccessVerificationError(error)) {
+        prepareAppointmentAccessFallback(variables.appointmentType, variables.detail);
         return;
       }
       setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido crear la solicitud." : "I could not create the request."));
@@ -1921,8 +1954,12 @@ const ConciergeScreen = () => {
         : "I did not find a clear option. I can still prepare this in chat.");
     },
     onError: (error) => {
-      if ((appointmentRequest?.appointment_type === "home-service" || selectedAppointmentChip?.key === "home-service") && isFeatureAccessVerificationError(error)) {
-        prepareHomeServiceAccessFallback(appointmentRequest?.reason_detail ?? buildCurrentHomeServiceIntake().intake.research_brief ?? "");
+      if (isFeatureAccessVerificationError(error)) {
+        const fallbackType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? "medical";
+        const fallbackDetail = fallbackType === "home-service"
+          ? appointmentRequest?.reason_detail ?? buildCurrentHomeServiceIntake().intake.research_brief ?? ""
+          : appointmentRequest?.reason_detail ?? appointmentNote.trim();
+        prepareAppointmentAccessFallback(fallbackType, fallbackDetail);
         return;
       }
       setAppointmentError(appointmentErrorMessage(error, isSpanish, isSpanish ? "No he podido buscar opciones." : "I could not look for options."));
