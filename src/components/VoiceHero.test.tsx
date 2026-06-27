@@ -26,6 +26,7 @@ vi.mock("@/hooks/useVyvaVoice", () => ({
     voiceSessionPhase: null,
     isMicMuted: false,
     setMicrophoneMuted: voiceMocks.setMicrophoneMuted,
+    voiceDiagnostics: [],
   }),
 }));
 
@@ -277,6 +278,11 @@ describe("VoiceHero status dot", () => {
         voiceControls={{
           ...baseVoiceControls,
           lastError: "Missing ElevenLabs API key",
+          voiceDiagnostics: [
+            { id: "browser_microphone", label: "Microphone", status: "passed", detail: "Microphone access granted" },
+            { id: "account_access", label: "Account access", status: "passed", detail: "Voice access verified" },
+            { id: "server_credentials", label: "Server key", status: "failed", detail: "Missing ElevenLabs API key" },
+          ],
         }}
       />,
     );
@@ -284,6 +290,11 @@ describe("VoiceHero status dot", () => {
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
     expect(screen.getByTestId("voice-hero-inline-error")).toHaveTextContent("Voice is not ready yet");
     expect(screen.getByTestId("voice-hero-inline-error")).toHaveTextContent("Missing ElevenLabs API key");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Stopped at Server key");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Microphone");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("OK");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Server key");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Stopped");
 
     fireEvent.click(screen.getByTestId("button-voice-hero-retry"));
 

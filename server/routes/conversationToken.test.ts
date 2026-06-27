@@ -105,6 +105,7 @@ describe("conversation token agent resolution", () => {
       ready: true,
       agent_slug: "concierge",
       source: "slug",
+      agent_id_present: true,
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -118,6 +119,7 @@ describe("conversation token agent resolution", () => {
     expect(res.body).toMatchObject({
       code: "ELEVENLABS_AGENT_MISSING",
       agent_slug: "concierge",
+      agent_id_present: false,
     });
   });
 
@@ -132,6 +134,9 @@ describe("conversation token agent resolution", () => {
     expect(res.body).toMatchObject({
       code: "ELEVENLABS_API_KEY_MISSING",
       error: "Missing ElevenLabs API key",
+      agent_slug: "concierge",
+      source: "slug",
+      agent_id_present: true,
     });
   });
 
