@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { RotateCcw, Mic, MicOff, PhoneOff } from "lucide-react";
+import { ChevronDown, RotateCcw, Mic, MicOff, PhoneOff } from "lucide-react";
 import { type TranscriptEntry, type VoiceConnectionErrorCode } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
@@ -12,6 +12,7 @@ interface VoiceCallOverlayProps {
   isConnecting: boolean;
   transcript: TranscriptEntry[];
   onEnd: () => void;
+  onMinimize?: () => void;
   activeAction?: VoiceAppAction | null;
   voiceSessionPhase?: VoiceSessionPhase;
   isMicMuted?: boolean;
@@ -101,6 +102,7 @@ const VoiceCallOverlay = ({
   isConnecting,
   transcript,
   onEnd,
+  onMinimize,
   activeAction,
   voiceSessionPhase,
   isMicMuted = false,
@@ -245,6 +247,44 @@ const VoiceCallOverlay = ({
         overflow: "hidden",
       }}
     >
+      {onMinimize && (
+        <button
+          type="button"
+          data-testid="button-minimize-call"
+          onClick={onMinimize}
+          aria-label={hasConnectionError ? "Back to app" : "Minimize voice"}
+          title={hasConnectionError ? "Back to app" : "Minimize"}
+          className="font-body"
+          style={{
+            position: "absolute",
+            top: "max(env(safe-area-inset-top, 0px), 18px)",
+            right: 18,
+            zIndex: 2,
+            minHeight: 42,
+            maxWidth: "calc(100vw - 36px)",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.2)",
+            background: "rgba(255,255,255,0.12)",
+            color: "rgba(255,255,255,0.92)",
+            padding: "9px 14px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            fontSize: 14,
+            fontWeight: 800,
+            lineHeight: 1,
+            cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <ChevronDown size={18} />
+          <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+            {hasConnectionError ? t("voiceHero.backToApp", "Back to app") : t("voiceHero.minimize", "Minimize")}
+          </span>
+        </button>
+      )}
+
       {/* Central transcript + indicator area */}
       <div
         style={{
@@ -428,7 +468,15 @@ const VoiceCallOverlay = ({
           {statusLabel}
         </span>
 
-        <div style={{ display: "flex", gap: 12, width: "min(100%, 360px)", justifyContent: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            width: "min(100%, 420px)",
+            justifyContent: "center",
+          }}
+        >
           {hasConnectionError && onRetry && (
             <button
               data-testid="button-retry-call"
@@ -454,6 +502,34 @@ const VoiceCallOverlay = ({
             >
               <RotateCcw size={18} />
               {t("voiceHero.retryCall", "Try again")}
+            </button>
+          )}
+
+          {hasConnectionError && onMinimize && (
+            <button
+              data-testid="button-back-to-app"
+              onClick={onMinimize}
+              className="font-body"
+              style={{
+                minHeight: 52,
+                minWidth: 132,
+                background: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 100,
+                color: "white",
+                fontSize: 15,
+                fontWeight: 700,
+                padding: "12px 20px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <ChevronDown size={18} />
+              {t("voiceHero.backToApp", "Back to app")}
             </button>
           )}
 
