@@ -312,43 +312,18 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         )}
 
         <div className="mt-[14px] rounded-[24px] relative overflow-visible hero-purple" style={{ paddingTop: "0" }}>
-          <button
-            type="button"
-            onClick={handleTalk}
-            disabled={isConnecting}
-            aria-label={statusLabel}
+          <div
+            className="absolute right-[16px] top-[14px] z-10 flex h-8 w-8 items-center justify-center rounded-full"
+            style={{ background: connectionHalo, border: `1px solid ${connectionBorder}` }}
+            aria-label={connectionLabel}
             title={connectionLabel}
-            data-testid="button-voice-hero-signal"
-            className={`absolute right-[18px] top-[18px] z-10 flex h-[58px] w-[58px] items-center justify-center rounded-[22px] transition active:scale-[0.98] disabled:opacity-70 sm:right-[22px] sm:top-[20px] sm:h-[64px] sm:w-[64px] ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
-            style={{
-              background: isActive
-                ? "linear-gradient(145deg, rgba(52,211,153,0.28), rgba(255,255,255,0.12))"
-                : "linear-gradient(145deg, rgba(255,255,255,0.30), rgba(255,255,255,0.12))",
-              border: isActive ? "1px solid rgba(52,211,153,0.50)" : "1px solid rgba(255,255,255,0.30)",
-              boxShadow: "0 14px 28px rgba(39, 13, 74, 0.20), inset 0 1px 0 rgba(255,255,255,0.30)",
-            }}
+            data-testid="voice-hero-status-dot"
           >
-            <span
-              aria-hidden="true"
-              className="absolute inset-[7px] rounded-[18px]"
-              style={{ background: "rgba(255,255,255,0.12)" }}
-            />
-            <span className="pointer-events-none absolute left-[12px] top-[10px] h-[12px] w-[20px] rounded-full bg-white/30 blur-[2px]" aria-hidden="true" />
-            {isActive ? (
-              <X size={24} strokeWidth={2.5} className="relative text-white" aria-hidden="true" />
-            ) : (
-              <Mic size={24} strokeWidth={2.5} className="relative text-white" aria-hidden="true" />
-            )}
-            <span
-              data-testid="voice-hero-signal-center"
-              className="absolute bottom-[10px] right-[10px] h-[10px] w-[10px] rounded-full border border-white/80 shadow-[0_0_0_3px_rgba(255,255,255,0.18)]"
-              style={{ background: connectionColor }}
-              aria-hidden="true"
-            />
-          </button>
+            <span className="h-2.5 w-2.5 rounded-full live-dot" style={{ background: connectionColor }} />
+          </div>
           <div className="flex min-h-[268px]">
             {/* Left column — text + CTA */}
-            <div className="flex-[0_0_62%] flex flex-col gap-0 px-[22px] pt-[30px] pb-[20px] min-w-0">
+            <div className="flex w-full min-w-0 flex-col gap-0 px-[22px] pb-[20px] pt-[30px]">
               {/* Headline */}
               <h1
                 className="mb-auto max-w-[12ch] min-w-0 font-display text-[30px] font-normal italic leading-[1.08] text-white"
@@ -362,7 +337,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                 onClick={handleTalk}
                 disabled={isConnecting}
                 data-testid="button-voice-hero-talk"
-                className={`relative z-10 mt-[24px] flex min-h-[74px] w-full items-center justify-center gap-3 rounded-full px-[26px] py-[18px] text-center transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+                className={`relative z-10 mt-[24px] flex min-h-[76px] w-full items-center justify-center gap-3 rounded-full px-[28px] py-[18px] text-center transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
                 style={
                   isActive
                     ? {
@@ -381,7 +356,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                   <Mic size={23} style={{ color: "#6B21A8" }} />
                 )}
                 <span
-                  className="min-w-0 max-w-full whitespace-nowrap font-body text-[clamp(17px,4.8vw,20px)] font-extrabold leading-tight"
+                  className="min-w-0 max-w-full whitespace-nowrap font-body text-[clamp(20px,5.4vw,24px)] font-extrabold leading-tight"
                   style={{ color: isActive ? "#ffffff" : "#6B21A8" }}
                 >
                   {statusLabel}
