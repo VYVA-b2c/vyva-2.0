@@ -183,6 +183,13 @@ type VoiceContextResponse = {
   dynamic_variables?: Record<string, string | number | boolean>;
 };
 
+type VoiceServerErrorBody = {
+  error?: string;
+  code?: string;
+  detail?: string;
+  expected_keys?: string[];
+};
+
 function normalizeTranscriptText(text: string) {
   return text
     .toLowerCase()
@@ -242,6 +249,49 @@ function codeFromTokenError(status: number, parsed: { code?: string; error?: str
   if (text.includes("agent configured")) return "ELEVENLABS_AGENT_MISSING";
   if (text.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
   return "VOICE_SESSION_START_FAILED";
+}
+
+async function voiceConnectionErrorFromResponse(
+  response: Response,
+  fallbackMessage: string,
+) {
+  const errorText = await response.text();
+  let message = errorText || fallbackMessage;
+  let parsedErrorCode: VoiceConnectionErrorCode | null = null;
+
+  try {
+    const parsed = JSON.parse(errorText) as VoiceServerErrorBody;
+    message = parsed.error || parsed.detail || message;
+    if (parsed.expected_keys?.[0]) {
+      message = `${message} (${parsed.expected_keys[0]})`;
+    }
+    parsedErrorCode = codeFromTokenError(response.status, parsed);
+  } catch {
+    // Keep the raw response text when the server did not return JSON.
+  }
+
+  return new VoiceConnectionError(
+    message,
+    parsedErrorCode ?? codeFromTokenError(response.status, { error: message }),
+  );
+}
+
+async function checkBrowserVoiceReadiness(skipMicrophone: boolean) {
+  if (skipMicrophone) return;
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw new VoiceConnectionError("Microphone access is not available in this browser.", "MICROPHONE_UNAVAILABLE");
+  }
+
+  if (!navigator.permissions?.query) return;
+
+  try {
+    const permission = await navigator.permissions.query({ name: "microphone" as PermissionName });
+    if (permission.state === "denied") {
+      throw new VoiceConnectionError("Microphone permission was denied.", "MICROPHONE_PERMISSION_DENIED");
+    }
+  } catch (error) {
+    if (isVoiceConnectionError(error)) throw error;
+  }
 }
 
 function decodeBase64Url(value: string) {
@@ -371,6 +421,7 @@ function inferRecommendationFeedbackAction(text: string): VoiceRecommendationFee
 }
 
 function useVyvaVoiceController() {
+  const [isPreparing, setIsPreparing] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">("idle");
@@ -385,6 +436,7 @@ function useVyvaVoiceController() {
   const [hasMicrophone, setHasMicrophone] = useState(false);
   const systemPromptRef = useRef<string | undefined>(undefined);
   const statusRef = useRef<"idle" | "connecting" | "connected">("idle");
+  const isPreparingRef = useRef(false);
   const conversationRef = useRef<ElevenConversation | null>(null);
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const sessionGenerationRef = useRef(0);
@@ -399,6 +451,11 @@ function useVyvaVoiceController() {
   const setVoiceStatus = useCallback((nextStatus: "idle" | "connecting" | "connected") => {
     statusRef.current = nextStatus;
     setStatus(nextStatus);
+  }, []);
+
+  const setVoicePreparing = useCallback((nextPreparing: boolean) => {
+    isPreparingRef.current = nextPreparing;
+    setIsPreparing(nextPreparing);
   }, []);
 
   const replaceTranscript = useCallback((nextTranscript: TranscriptEntry[]) => {
@@ -429,11 +486,12 @@ function useVyvaVoiceController() {
     activeRecommendationRef.current = null;
     recordedRecommendationActionsRef.current.clear();
     setIsConnecting(false);
+    setVoicePreparing(false);
     setHasMicrophone(false);
     setIsSpeaking(false);
     setIsUserSpeaking(false);
     setIsMicMuted(true);
-  }, []);
+  }, [setVoicePreparing]);
 
   useEffect(() => () => {
     teardown();
@@ -453,6 +511,7 @@ function useVyvaVoiceController() {
       releaseVoiceInstance(voiceInstanceIdRef.current);
       setVoiceStatus("idle");
       setIsConnecting(false);
+      setVoicePreparing(false);
       setIsSpeaking(false);
       setIsUserSpeaking(false);
       setIsMicMuted(true);
@@ -464,7 +523,7 @@ function useVyvaVoiceController() {
 
     window.addEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
     return () => window.removeEventListener(VOICE_FORCE_STOP_EVENT, handleForceStop);
-  }, [setVoiceStatus, teardown]);
+  }, [setVoicePreparing, setVoiceStatus, teardown]);
 
   useEffect(() => {
     return subscribeAgentAppContext((message) => {
@@ -495,28 +554,7 @@ function useVyvaVoiceController() {
           }),
         });
         if (!res.ok) {
-          const errorText = await res.text();
-          let message = errorText || "token fetch failed";
-          let parsedErrorCode: VoiceConnectionErrorCode | null = null;
-          try {
-            const parsed = JSON.parse(errorText) as {
-              error?: string;
-              code?: string;
-              detail?: string;
-              expected_keys?: string[];
-            };
-            message = parsed.error || parsed.detail || message;
-            if (parsed.expected_keys?.[0]) {
-              message = `${message} (${parsed.expected_keys[0]})`;
-            }
-            parsedErrorCode = codeFromTokenError(res.status, parsed);
-          } catch {
-            // Keep the raw response text when the server did not return JSON.
-          }
-          throw new VoiceConnectionError(
-            message,
-            parsedErrorCode ?? codeFromTokenError(res.status, { error: message }),
-          );
+          throw await voiceConnectionErrorFromResponse(res, "token fetch failed");
         }
 
         const data = (await res.json()) as { signed_url?: string; token?: string };
@@ -535,6 +573,36 @@ function useVyvaVoiceController() {
         if (ALLOW_PUBLIC_AGENT_FALLBACK) {
           console.warn("[VYVA] Token fetch failed, trying explicit dev public fallback:", err);
           return { agentId: activeAgentId, connectionType: "websocket" };
+        }
+        throw err;
+      }
+    },
+    [],
+  );
+
+  const checkVoiceReadiness = useCallback(
+    async (
+      activeAgentId: string | undefined,
+      shouldResolveAgentOnServer: boolean,
+      options: StartVoiceOptions | undefined,
+    ) => {
+      try {
+        const res = await apiFetch("/api/voice-readiness", {
+          method: "POST",
+          body: JSON.stringify({
+            ...(activeAgentId ? { agent_id: activeAgentId } : {}),
+            ...(options?.agentSlug ? { agent_slug: options.agentSlug } : {}),
+            ...(options?.roomSlug ? { room_slug: options.roomSlug } : {}),
+          }),
+        });
+
+        if (!res.ok) {
+          throw await voiceConnectionErrorFromResponse(res, "voice readiness check failed");
+        }
+      } catch (err) {
+        if (ALLOW_PUBLIC_AGENT_FALLBACK && activeAgentId && !shouldResolveAgentOnServer) {
+          console.warn("[VYVA] Readiness check failed, allowing explicit dev public fallback:", err);
+          return;
         }
         throw err;
       }
@@ -677,14 +745,12 @@ function useVyvaVoiceController() {
       systemPrompt?: string,
       options?: StartVoiceOptions,
     ) => {
-      if (statusRef.current !== "idle") return;
-      claimVoiceInstance(voiceInstanceIdRef.current);
+      if (statusRef.current !== "idle" || isPreparingRef.current) return;
       const sessionGeneration = sessionGenerationRef.current + 1;
       sessionGenerationRef.current = sessionGeneration;
       const isCurrentSession = () => sessionGenerationRef.current === sessionGeneration && !userClosingRef.current;
 
-      setIsConnecting(true);
-      setVoiceStatus("connecting");
+      setVoicePreparing(true);
       setHasEnded(false);
       replaceTranscript([]);
       setLastError(null);
@@ -693,6 +759,43 @@ function useVyvaVoiceController() {
       setIsMicMuted(true);
       const voiceSessionId = getVoiceSessionId();
       const skipMicrophone = options?.skipMicrophone ?? false;
+      const shouldResolveAgentOnServer = Boolean(options?.agentSlug || options?.roomSlug);
+      const readinessAgentId = options?.agentId ?? (shouldResolveAgentOnServer ? undefined : VYVA_AGENT_ID);
+
+      try {
+        await checkBrowserVoiceReadiness(skipMicrophone);
+        await checkVoiceReadiness(readinessAgentId, shouldResolveAgentOnServer, options);
+      } catch (err) {
+        if (!isCurrentSession()) return;
+
+        const detail = err instanceof Error ? err.message : "Voice is not ready yet.";
+        setLastError(detail);
+        setLastErrorCode(voiceConnectionErrorCode(err, "VOICE_SESSION_START_FAILED"));
+        setVoiceStatus("idle");
+        setVoicePreparing(false);
+        setIsConnecting(false);
+        setIsMicMuted(true);
+        setIsTransferring(false);
+        transferPendingRef.current = false;
+        recordVoiceTimelineEvent({
+          kind: "session_error",
+          title: "Voice readiness failed",
+          detail,
+          sessionId: voiceSessionId,
+          ...(options?.agentSlug ? { agentSlug: options.agentSlug } : {}),
+        });
+        return;
+      }
+
+      if (!isCurrentSession()) {
+        setVoicePreparing(false);
+        return;
+      }
+
+      setVoicePreparing(false);
+      claimVoiceInstance(voiceInstanceIdRef.current);
+      setIsConnecting(true);
+      setVoiceStatus("connecting");
       if (!skipMicrophone) {
         try {
           await requestVoiceMicrophonePermission();
@@ -703,6 +806,7 @@ function useVyvaVoiceController() {
           setLastError(detail);
           setLastErrorCode(voiceConnectionErrorCode(err, "MICROPHONE_ACCESS_FAILED"));
           setVoiceStatus("idle");
+          setVoicePreparing(false);
           setIsConnecting(false);
           setIsMicMuted(true);
           setIsTransferring(false);
@@ -719,7 +823,6 @@ function useVyvaVoiceController() {
           return;
         }
       }
-      const shouldResolveAgentOnServer = Boolean(options?.agentSlug || options?.roomSlug);
       const routedSession = await resolveRouterSession(contextHint, systemPrompt, options);
       const activeAgentId = routedSession.agentId ?? (shouldResolveAgentOnServer ? undefined : VYVA_AGENT_ID);
       const resolvedSystemPrompt = routedSession.systemPrompt;
@@ -1082,7 +1185,7 @@ function useVyvaVoiceController() {
         teardown();
       }
     },
-    [appendTranscript, fetchSessionOptions, recordRecommendationFeedback, replaceTranscript, resolveRouterSession, setVoiceStatus, teardown]
+    [appendTranscript, checkVoiceReadiness, fetchSessionOptions, recordRecommendationFeedback, replaceTranscript, resolveRouterSession, setVoicePreparing, setVoiceStatus, teardown]
   );
 
   const beginUserTurn = useCallback(async () => {
@@ -1212,6 +1315,7 @@ function useVyvaVoiceController() {
     isMicMuted,
     isTransferring,
     voiceSessionPhase,
+    isPreparing,
     isConnecting,
     hasMicrophone,
     lastError,
