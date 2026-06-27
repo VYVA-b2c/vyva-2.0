@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, type LucideIcon } from "lucide-react";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
@@ -35,6 +35,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
@@ -91,6 +99,80 @@ function formatDoseTime(date: Date, locale: string) {
   }
 }
 
+type MedicationSafetySeverity = "watch" | "attention" | "urgent";
+type MedicationSafetySignalType = "missed_dose_pattern" | "possible_side_effect" | "interaction_question" | "vitals_overlap" | "symptom_followup";
+type MedicationSafetyCaseStatus = "draft" | "needs_review" | "shared" | "closed" | "dismissed";
+
+type MedicationSafetySignal = {
+  id?: string;
+  signal_type: MedicationSafetySignalType;
+  severity: MedicationSafetySeverity;
+  title: string;
+  summary: string;
+  medication_name?: string | null;
+  source?: string | null;
+  evidence?: Array<Record<string, unknown>>;
+  status?: string | null;
+  detected_at?: string | null;
+};
+
+type MedicationSafetyCase = {
+  id: string;
+  status: MedicationSafetyCaseStatus;
+  severity: MedicationSafetySeverity;
+  signal_type: MedicationSafetySignalType;
+  suspected_medication?: string | null;
+  reaction?: string | null;
+  reaction_started_at?: string | null;
+  seriousness_flags?: string[];
+  outcome?: string | null;
+  action_taken?: string | null;
+  reporter_name?: string | null;
+  reporter_contact?: string | null;
+  reporter_role?: string | null;
+  narrative?: string | null;
+  evidence?: Array<Record<string, unknown>>;
+  missing_fields?: string[];
+  export_ready?: boolean;
+  updated_at?: string | null;
+};
+
+type MedicationSafetyResponse = {
+  summary: {
+    status: "steady" | "watch" | "needs_review";
+    severity: MedicationSafetySeverity;
+    title: string;
+    message: string;
+    signalCount: number;
+    openCaseCount: number;
+    lastAnalysedAt?: string | null;
+  };
+  signalCandidates: MedicationSafetySignal[];
+  signals: MedicationSafetySignal[];
+  openCases: MedicationSafetyCase[];
+  exportAvailability: {
+    canExport: boolean;
+    readyCount: number;
+    needsReviewCount: number;
+  };
+};
+
+type MedicationSafetyCaseForm = {
+  status: MedicationSafetyCaseStatus;
+  severity: MedicationSafetySeverity;
+  signal_type: MedicationSafetySignalType;
+  suspected_medication: string;
+  reaction: string;
+  reaction_started_at: string;
+  seriousness_flags: string[];
+  outcome: string;
+  action_taken: string;
+  reporter_name: string;
+  reporter_contact: string;
+  reporter_role: string;
+  narrative: string;
+};
+
 export {
   medicationDoctorActionKinds,
   medicationDoctorContext,
@@ -131,6 +213,68 @@ function preferredMedicationVoiceMimeType() {
 
 function stopMedicationVoiceStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
+}
+
+const SERIOUSNESS_OPTIONS = [
+  { value: "hospitalization", label: "Hospitalization" },
+  { value: "life_threatening", label: "Life threatening" },
+  { value: "disability", label: "Disability" },
+  { value: "birth_defect", label: "Birth defect" },
+  { value: "death", label: "Death" },
+  { value: "other_medically_important", label: "Other medically important" },
+];
+
+function emptySafetyCaseForm(prefillMedication = ""): MedicationSafetyCaseForm {
+  return {
+    status: "draft",
+    severity: "attention",
+    signal_type: "possible_side_effect",
+    suspected_medication: prefillMedication,
+    reaction: "",
+    reaction_started_at: "",
+    seriousness_flags: [],
+    outcome: "",
+    action_taken: "",
+    reporter_name: "",
+    reporter_contact: "",
+    reporter_role: "patient_or_caregiver",
+    narrative: "",
+  };
+}
+
+function dateInputValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function formFromSafetyCase(safetyCase: MedicationSafetyCase): MedicationSafetyCaseForm {
+  return {
+    status: safetyCase.status ?? "draft",
+    severity: safetyCase.severity ?? "watch",
+    signal_type: safetyCase.signal_type ?? "possible_side_effect",
+    suspected_medication: safetyCase.suspected_medication ?? "",
+    reaction: safetyCase.reaction ?? "",
+    reaction_started_at: dateInputValue(safetyCase.reaction_started_at),
+    seriousness_flags: safetyCase.seriousness_flags ?? [],
+    outcome: safetyCase.outcome ?? "",
+    action_taken: safetyCase.action_taken ?? "",
+    reporter_name: safetyCase.reporter_name ?? "",
+    reporter_contact: safetyCase.reporter_contact ?? "",
+    reporter_role: safetyCase.reporter_role ?? "patient_or_caregiver",
+    narrative: safetyCase.narrative ?? "",
+  };
+}
+
+function safetyTone(severity?: MedicationSafetySeverity | string | null) {
+  if (severity === "urgent") return { bg: "#FEF2F2", color: "#B91C1C", border: "#FCA5A5" };
+  if (severity === "attention") return { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D" };
+  return { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" };
+}
+
+function signalTypeLabel(type: MedicationSafetySignalType | string) {
+  return type.replace(/_/g, " ");
 }
 
 const MedsScreen = () => {
@@ -198,6 +342,16 @@ const MedsScreen = () => {
   const [headlineVisible, setHeadlineVisible] = useState(true);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [heroNow, setHeroNow] = useState(() => new Date());
+  const [safetyOpen, setSafetyOpen] = useState(false);
+  const [caseSheetOpen, setCaseSheetOpen] = useState(false);
+  const [reviewCase, setReviewCase] = useState<MedicationSafetyCase | null>(null);
+  const [caseForm, setCaseForm] = useState<MedicationSafetyCaseForm>(() => emptySafetyCaseForm());
+  const [caseExportText, setCaseExportText] = useState("");
+
+  const { data: safetyData, isLoading: safetyLoading, isError: safetyError } = useQuery<MedicationSafetyResponse>({
+    queryKey: ["/api/meds/safety"],
+    enabled: safetyOpen,
+  });
 
   // ─── Edit / Delete state ───────────────────────────────────────────────────
   const [editMed, setEditMed] = useState<DisplayMed | null>(null);
@@ -242,6 +396,82 @@ const MedsScreen = () => {
     },
     onError: () => {
       toast({ title: t("meds.deleteError", "Could not remove medication"), variant: "destructive" });
+    },
+  });
+
+  const analyseSafetyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiFetch("/api/meds/safety/analyse", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to analyse medication safety");
+      return res.json() as Promise<MedicationSafetyResponse>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/safety"] });
+      toast({ title: t("meds.safety.analyseSuccess", "Medication safety signals updated") });
+    },
+    onError: () => {
+      toast({ title: t("meds.safety.analyseError", "Could not analyse medication safety"), variant: "destructive" });
+    },
+  });
+
+  const saveSafetyCaseMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        ...caseForm,
+        suspected_medication: caseForm.suspected_medication.trim() || null,
+        reaction: caseForm.reaction.trim() || null,
+        reaction_started_at: caseForm.reaction_started_at || null,
+        outcome: caseForm.outcome.trim() || null,
+        action_taken: caseForm.action_taken.trim() || null,
+        reporter_name: caseForm.reporter_name.trim() || null,
+        reporter_contact: caseForm.reporter_contact.trim() || null,
+        reporter_role: caseForm.reporter_role.trim() || "patient_or_caregiver",
+        narrative: caseForm.narrative.trim() || null,
+      };
+      const endpoint = reviewCase?.id
+        ? `/api/meds/safety/cases/${reviewCase.id}`
+        : "/api/meds/safety/cases";
+      const res = await apiFetch(endpoint, {
+        method: reviewCase?.id ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Failed to save medication safety case");
+      return res.json() as Promise<{ case: MedicationSafetyCase; sent_to?: string[] }>;
+    },
+    onSuccess: (data) => {
+      setReviewCase(data.case);
+      setCaseForm(formFromSafetyCase(data.case));
+      setCaseExportText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/safety"] });
+      toast({
+        title: data.sent_to?.length
+          ? t("meds.safety.sharedSuccess", "Case shared with caregiver")
+          : t("meds.safety.saveSuccess", "Safety case saved"),
+      });
+    },
+    onError: () => {
+      toast({ title: t("meds.safety.saveError", "Could not save safety case"), variant: "destructive" });
+    },
+  });
+
+  const exportSafetyCaseMutation = useMutation({
+    mutationFn: async (caseId: string) => {
+      const res = await apiFetch(`/api/meds/safety/cases/${caseId}/export`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to export medication safety case");
+      return res.json() as Promise<{
+        case: MedicationSafetyCase;
+        export: { human_readable_text: string; export_ready: boolean; missing_fields: string[] };
+      }>;
+    },
+    onSuccess: (data) => {
+      setReviewCase(data.case);
+      setCaseForm(formFromSafetyCase(data.case));
+      setCaseExportText(data.export.human_readable_text);
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/safety"] });
+      toast({ title: t("meds.safety.exportSuccess", "Audit-ready packet created") });
+    },
+    onError: () => {
+      toast({ title: t("meds.safety.exportError", "Could not export safety case"), variant: "destructive" });
     },
   });
 
@@ -674,6 +904,60 @@ const MedsScreen = () => {
     });
   }
 
+  function openSafetyCaseSheet(safetyCase: MedicationSafetyCase) {
+    setReviewCase(safetyCase);
+    setCaseForm(formFromSafetyCase(safetyCase));
+    setCaseExportText("");
+    setCaseSheetOpen(true);
+  }
+
+  function openNewSafetyCaseSheet() {
+    const prefill = focusedMedication?.displayName ?? displayMeds[0]?.displayName ?? "";
+    setReviewCase(null);
+    setCaseForm(emptySafetyCaseForm(prefill));
+    setCaseExportText("");
+    setCaseSheetOpen(true);
+  }
+
+  function updateCaseForm<K extends keyof MedicationSafetyCaseForm>(key: K, value: MedicationSafetyCaseForm[K]) {
+    setCaseForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleSeriousnessFlag(flag: string) {
+    setCaseForm((prev) => {
+      const hasFlag = prev.seriousness_flags.includes(flag);
+      return {
+        ...prev,
+        seriousness_flags: hasFlag
+          ? prev.seriousness_flags.filter((item) => item !== flag)
+          : [...prev.seriousness_flags, flag],
+      };
+    });
+  }
+
+  const safetySummary = safetyData?.summary;
+  const safetySummaryTone = safetyTone(safetySummary?.severity);
+  const visibleSafetySignals = [
+    ...(safetyData?.openCases?.map((safetyCase) => ({
+      id: safetyCase.id,
+      signal_type: safetyCase.signal_type,
+      severity: safetyCase.severity,
+      title: safetyCase.suspected_medication || signalTypeLabel(safetyCase.signal_type),
+      summary: safetyCase.reaction || safetyCase.missing_fields?.join(", ") || "Case needs review",
+      medication_name: safetyCase.suspected_medication,
+      source: "case",
+    })) ?? []),
+    ...(safetyData?.signals ?? []),
+    ...(safetyData?.signalCandidates ?? []),
+  ].slice(0, 5);
+  const safetyBadgeText = safetySummary
+    ? safetySummary.openCaseCount > 0
+      ? t("meds.safety.caseBadge", { count: safetySummary.openCaseCount, defaultValue: "{{count}} case" })
+      : safetySummary.signalCount > 0
+        ? t("meds.safety.signalBadge", { count: safetySummary.signalCount, defaultValue: "{{count}} signal" })
+        : t("meds.safety.steadyBadge", "Steady")
+    : t("meds.safety.steadyBadge", "Steady");
+
   const primaryActions: Array<{
     id: string;
     icon: LucideIcon;
@@ -731,6 +1015,17 @@ const MedsScreen = () => {
       bg: "#EDE9FE",
       onClick: () => navigate("/meds/adherence-report"),
       testId: "button-meds-primary-adherence",
+    },
+    {
+      id: "safety",
+      icon: ShieldCheck,
+      label: t("meds.primary.safety", "Safety signals"),
+      sub: t("meds.primary.safetySub", "Review early signals and draft case packets."),
+      mobileSub: t("meds.primary.safetyMobileSub", "Early signals"),
+      color: "#1D4ED8",
+      bg: "#EFF6FF",
+      onClick: () => setSafetyOpen((open) => !open),
+      testId: "button-meds-primary-safety",
     },
   ];
 
@@ -828,13 +1123,216 @@ const MedsScreen = () => {
               size="standard"
               surface="white"
               contentClassName="justify-start"
-              selected={action.id === "reminders" && remindersOpen}
-              aria-expanded={action.id === "reminders" ? remindersOpen : undefined}
+              selected={(action.id === "reminders" && remindersOpen) || (action.id === "safety" && safetyOpen)}
+              aria-expanded={
+                action.id === "reminders"
+                  ? remindersOpen
+                  : action.id === "safety"
+                    ? safetyOpen
+                    : undefined
+              }
               onClick={action.onClick}
             />
           ))}
         </ResponsiveGrid>
       </section>
+
+      {safetyOpen ? (
+        <section className="mt-5" data-testid="section-meds-safety">
+          <SectionTitle
+            className="mb-3"
+            title={t("meds.safety.title", "Medication safety signals")}
+            subtitle={t("meds.safety.subtitle", "Early signal review and audit-ready case packets.")}
+            titleClassName="font-body text-[22px] font-extrabold not-italic"
+            action={(
+              <span
+                className="inline-flex min-h-[32px] items-center rounded-full border px-3 font-body text-[12px] font-bold"
+                style={{
+                  background: safetySummaryTone.bg,
+                  color: safetySummaryTone.color,
+                  borderColor: safetySummaryTone.border,
+                }}
+              >
+                {safetyBadgeText}
+              </span>
+            )}
+          />
+
+          <div className="vyva-card overflow-hidden">
+            {safetyLoading ? (
+              <div className="space-y-3 p-4">
+                <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200" />
+                <div className="h-3 w-full animate-pulse rounded bg-gray-100" />
+                <div className="h-20 animate-pulse rounded-[18px] bg-gray-100" />
+              </div>
+            ) : safetyError ? (
+              <div className="flex items-start gap-3 p-4">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-red-50 text-red-600">
+                  <AlertCircle size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[16px] font-extrabold text-vyva-text-1">
+                    {t("meds.safety.loadErrorTitle", "Safety signals unavailable")}
+                  </p>
+                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                    {t("meds.safety.loadErrorSub", "Try again in a moment. Reminders and adherence are still available.")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="border-b border-vyva-border bg-[#FFFCF8] p-4">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]"
+                      style={{ background: safetySummaryTone.bg, color: safetySummaryTone.color }}
+                    >
+                      <ShieldCheck size={22} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                        {safetySummary?.title ?? t("meds.safety.steadyTitle", "No medication safety signals found")}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                        {safetySummary?.message ?? t("meds.safety.steadySub", "Today looks steady from the medication data VYVA can see.")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="rounded-[16px] bg-white p-3">
+                      <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">
+                        {t("meds.safety.statSignals", "Signals")}
+                      </p>
+                      <p className="mt-1 font-body text-[22px] font-black text-vyva-text-1">
+                        {safetySummary?.signalCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-[16px] bg-white p-3">
+                      <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">
+                        {t("meds.safety.statCases", "Cases")}
+                      </p>
+                      <p className="mt-1 font-body text-[22px] font-black text-vyva-text-1">
+                        {safetySummary?.openCaseCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-[16px] bg-white p-3">
+                      <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">
+                        {t("meds.safety.statReady", "Ready")}
+                      </p>
+                      <p className="mt-1 font-body text-[22px] font-black text-vyva-text-1">
+                        {safetyData?.exportAvailability?.readyCount ?? 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 p-4">
+                  {visibleSafetySignals.length > 0 ? (
+                    visibleSafetySignals.map((signal, index) => {
+                      const tone = safetyTone(signal.severity);
+                      return (
+                        <div
+                          key={`${signal.id ?? signal.signal_type}-${index}`}
+                          className="rounded-[18px] border bg-white p-4"
+                          style={{ borderColor: tone.border }}
+                          data-testid={`card-meds-safety-signal-${index}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-body text-[15px] font-extrabold leading-tight text-vyva-text-1">
+                                {signal.title}
+                              </p>
+                              <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                                {signal.summary}
+                              </p>
+                              {signal.medication_name ? (
+                                <p className="mt-2 font-body text-[12px] font-bold text-vyva-purple">
+                                  {signal.medication_name}
+                                </p>
+                              ) : null}
+                            </div>
+                            <span
+                              className="inline-flex min-h-[28px] flex-shrink-0 items-center rounded-full px-2.5 font-body text-[11px] font-bold"
+                              style={{ background: tone.bg, color: tone.color }}
+                            >
+                              {signalTypeLabel(signal.signal_type)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-[18px] border border-vyva-border bg-white p-4 text-center">
+                      <p className="font-body text-[15px] font-extrabold text-vyva-text-1">
+                        {t("meds.safety.emptyTitle", "No case needed right now")}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                        {t("meds.safety.emptySub", "A single missed confirmation stays in reminders. Draft cases appear only for explicit or repeated signals.")}
+                      </p>
+                    </div>
+                  )}
+
+                  {safetyData?.openCases?.length ? (
+                    <div className="flex flex-col gap-2">
+                      {safetyData.openCases.map((safetyCase, index) => {
+                        const tone = safetyTone(safetyCase.severity);
+                        return (
+                          <button
+                            key={safetyCase.id}
+                            type="button"
+                            data-testid={`button-review-safety-case-${index}`}
+                            onClick={() => openSafetyCaseSheet(safetyCase)}
+                            className="vyva-tap flex min-h-[76px] w-full items-center gap-3 rounded-[18px] border bg-[#FCFBF8] px-4 py-3 text-left"
+                            style={{ borderColor: tone.border }}
+                          >
+                            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]" style={{ background: tone.bg, color: tone.color }}>
+                              <FileText size={20} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-body text-[15px] font-extrabold leading-tight text-vyva-text-1">
+                                {safetyCase.suspected_medication || t("meds.safety.caseFallback", "Medication safety case")}
+                              </span>
+                              <span className="mt-1 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                                {safetyCase.export_ready
+                                  ? t("meds.safety.readyToExport", "Ready to export")
+                                  : t("meds.safety.missingFields", { count: safetyCase.missing_fields?.length ?? 0, defaultValue: "{{count}} fields missing" })}
+                              </span>
+                            </span>
+                            <ChevronRight size={19} className="flex-shrink-0 text-vyva-text-3" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      data-testid="button-meds-safety-analyse"
+                      type="button"
+                      onClick={() => analyseSafetyMutation.mutate()}
+                      disabled={analyseSafetyMutation.isPending}
+                      className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[15px] font-bold text-white disabled:opacity-60"
+                    >
+                      {analyseSafetyMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                      {t("meds.safety.analyse", "Analyse signals")}
+                    </button>
+                    <button
+                      data-testid="button-meds-safety-new-case"
+                      type="button"
+                      onClick={openNewSafetyCaseSheet}
+                      className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 font-body text-[15px] font-bold text-vyva-purple"
+                    >
+                      <FileText size={16} />
+                      {t("meds.safety.newCase", "New side-effect note")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       {remindersOpen ? (
       <section className="mt-5" data-testid="section-meds-reminders">
@@ -1115,6 +1613,244 @@ const MedsScreen = () => {
         title={assistantTitle}
         initialPrompt={assistantPrompt}
       />
+
+      <Sheet open={caseSheetOpen} onOpenChange={setCaseSheetOpen}>
+        <SheetContent
+          side="bottom"
+          className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
+          data-testid="sheet-meds-safety-case"
+        >
+          <SheetHeader className="flex-shrink-0 border-b border-vyva-border px-5 pb-4 pt-5">
+            <SheetTitle className="text-left font-display text-[24px] leading-tight text-vyva-text-1">
+              {reviewCase ? t("meds.safety.reviewCase", "Review safety case") : t("meds.safety.newCaseTitle", "New safety case")}
+            </SheetTitle>
+            <SheetDescription className="text-left font-body text-[14px] leading-snug text-vyva-text-2">
+              {t("meds.safety.caseDrawerSub", "Prepare a review packet. This does not submit anything to a regulator.")}
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {reviewCase?.missing_fields?.length ? (
+              <div className="mb-4 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-3">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-amber-800">
+                  {t("meds.safety.missingTitle", "Missing for audit-ready export")}
+                </p>
+                <p className="mt-1 font-body text-[13px] leading-snug text-amber-800">
+                  {reviewCase.missing_fields.join(", ")}
+                </p>
+              </div>
+            ) : reviewCase ? (
+              <div className="mb-4 rounded-[16px] border border-emerald-200 bg-emerald-50 px-3 py-3">
+                <p className="font-body text-[13px] font-bold text-emerald-800">
+                  {t("meds.safety.readyTitle", "All export fields are filled")}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-status">{t("meds.safety.status", "Status")}</Label>
+                  <select
+                    id="safety-case-status"
+                    data-testid="select-safety-case-status"
+                    value={caseForm.status}
+                    onChange={(event) => updateCaseForm("status", event.target.value as MedicationSafetyCaseStatus)}
+                    className="h-10 rounded-md border border-vyva-border bg-white px-3 font-body text-[14px]"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="needs_review">Needs review</option>
+                    <option value="shared">Shared</option>
+                    <option value="closed">Closed</option>
+                    <option value="dismissed">Dismissed</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-severity">{t("meds.safety.severity", "Severity")}</Label>
+                  <select
+                    id="safety-case-severity"
+                    data-testid="select-safety-case-severity"
+                    value={caseForm.severity}
+                    onChange={(event) => updateCaseForm("severity", event.target.value as MedicationSafetySeverity)}
+                    className="h-10 rounded-md border border-vyva-border bg-white px-3 font-body text-[14px]"
+                  >
+                    <option value="watch">Watch</option>
+                    <option value="attention">Attention</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-med">{t("meds.safety.suspectedMedication", "Suspected medication")}</Label>
+                <Input
+                  id="safety-case-med"
+                  data-testid="input-safety-case-medication"
+                  value={caseForm.suspected_medication}
+                  onChange={(event) => updateCaseForm("suspected_medication", event.target.value)}
+                  placeholder={t("meds.safety.medicationPlaceholder", "e.g. Metformin")}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-reaction">{t("meds.safety.reaction", "Symptom or reaction")}</Label>
+                <Input
+                  id="safety-case-reaction"
+                  data-testid="input-safety-case-reaction"
+                  value={caseForm.reaction}
+                  onChange={(event) => updateCaseForm("reaction", event.target.value)}
+                  placeholder={t("meds.safety.reactionPlaceholder", "e.g. dizziness after taking dose")}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-started">{t("meds.safety.reactionStarted", "Reaction start date")}</Label>
+                <Input
+                  id="safety-case-started"
+                  data-testid="input-safety-case-started"
+                  type="date"
+                  value={caseForm.reaction_started_at}
+                  onChange={(event) => updateCaseForm("reaction_started_at", event.target.value)}
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 font-body text-[13px] font-bold text-vyva-text-1">
+                  {t("meds.safety.seriousness", "Seriousness assessment")}
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {SERIOUSNESS_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex min-h-[40px] items-center gap-3 rounded-[14px] border border-vyva-border bg-white px-3 py-2 font-body text-[13px] font-semibold text-vyva-text-1"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={caseForm.seriousness_flags.includes(option.value)}
+                        onChange={() => toggleSeriousnessFlag(option.value)}
+                        className="h-4 w-4 accent-vyva-purple"
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-outcome">{t("meds.safety.outcome", "Outcome")}</Label>
+                  <Input
+                    id="safety-case-outcome"
+                    data-testid="input-safety-case-outcome"
+                    value={caseForm.outcome}
+                    onChange={(event) => updateCaseForm("outcome", event.target.value)}
+                    placeholder={t("meds.safety.outcomePlaceholder", "e.g. improving")}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-action">{t("meds.safety.actionTaken", "Action taken")}</Label>
+                  <Input
+                    id="safety-case-action"
+                    data-testid="input-safety-case-action"
+                    value={caseForm.action_taken}
+                    onChange={(event) => updateCaseForm("action_taken", event.target.value)}
+                    placeholder={t("meds.safety.actionPlaceholder", "e.g. called pharmacist")}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-reporter">{t("meds.safety.reporterName", "Reporter name")}</Label>
+                  <Input
+                    id="safety-case-reporter"
+                    data-testid="input-safety-case-reporter"
+                    value={caseForm.reporter_name}
+                    onChange={(event) => updateCaseForm("reporter_name", event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-contact">{t("meds.safety.reporterContact", "Reporter contact")}</Label>
+                  <Input
+                    id="safety-case-contact"
+                    data-testid="input-safety-case-contact"
+                    value={caseForm.reporter_contact}
+                    onChange={(event) => updateCaseForm("reporter_contact", event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-narrative">{t("meds.safety.narrative", "Narrative")}</Label>
+                <Textarea
+                  id="safety-case-narrative"
+                  data-testid="textarea-safety-case-narrative"
+                  value={caseForm.narrative}
+                  onChange={(event) => updateCaseForm("narrative", event.target.value)}
+                  placeholder={t("meds.safety.narrativePlaceholder", "Add context without guessing or diagnosing.")}
+                  className="min-h-[96px] rounded-[16px] font-body text-[14px]"
+                />
+              </div>
+
+              {reviewCase?.evidence?.length ? (
+                <div className="rounded-[16px] border border-vyva-border bg-[#FCFBF8] px-3 py-3">
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                    {t("meds.safety.evidence", "Evidence timeline")}
+                  </p>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {reviewCase.evidence.slice(0, 4).map((item, index) => (
+                      <p key={index} className="font-body text-[12px] leading-snug text-vyva-text-2">
+                        {JSON.stringify(item)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {caseExportText ? (
+                <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-3 py-3">
+                  <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.08em] text-emerald-800">
+                    {t("meds.safety.exportPacket", "Export packet")}
+                  </p>
+                  <Textarea
+                    readOnly
+                    value={caseExportText}
+                    className="min-h-[180px] rounded-[14px] bg-white font-mono text-[11px]"
+                    data-testid="textarea-safety-case-export"
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex-shrink-0 border-t border-vyva-border bg-white px-5 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                data-testid="button-safety-case-save"
+                type="button"
+                onClick={() => saveSafetyCaseMutation.mutate()}
+                disabled={saveSafetyCaseMutation.isPending}
+                className="vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[15px] font-bold text-white disabled:opacity-60"
+              >
+                {saveSafetyCaseMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                {t("common.save", "Save")}
+              </button>
+              <button
+                data-testid="button-safety-case-export"
+                type="button"
+                onClick={() => {
+                  if (reviewCase?.id) exportSafetyCaseMutation.mutate(reviewCase.id);
+                }}
+                disabled={!reviewCase?.id || exportSafetyCaseMutation.isPending}
+                className="vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 font-body text-[15px] font-bold text-vyva-purple disabled:opacity-50"
+              >
+                {exportSafetyCaseMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                {t("meds.safety.export", "Export packet")}
+              </button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Edit Medication Dialog */}
       <Dialog open={!!editMed} onOpenChange={(open) => { if (!open) setEditMed(null); }}>
