@@ -33,8 +33,21 @@ vi.mock("@/hooks/useHeroMessage", () => ({
 }));
 
 vi.mock("@/components/VoiceCallOverlay", () => ({
-  default: ({ connectionError, onRetry }: { connectionError?: string | null; onRetry?: () => void }) => (
+  default: ({
+    connectionError,
+    onMinimize,
+    onRetry,
+  }: {
+    connectionError?: string | null;
+    onMinimize?: () => void;
+    onRetry?: () => void;
+  }) => (
     <div data-testid="voice-call-overlay" data-error={connectionError ?? ""}>
+      {onMinimize && (
+        <button type="button" data-testid="button-minimize-call" onClick={onMinimize}>
+          Minimize
+        </button>
+      )}
       {onRetry && (
         <button type="button" data-testid="button-retry-call" onClick={onRetry}>
           Try again
@@ -208,6 +221,45 @@ describe("VoiceHero status dot", () => {
     );
 
     expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument();
+  });
+
+  it("lets the user minimize the focused overlay without ending voice", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+    };
+    const { rerender } = render(
+      <VoiceHero
+        headline="Concierge"
+        contextHint="concierge"
+        voiceAgentSlug="concierge"
+        showVoiceOverlay={false}
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    rerender(
+      <VoiceHero
+        headline="Concierge"
+        contextHint="concierge"
+        voiceAgentSlug="concierge"
+        showVoiceOverlay={false}
+        voiceControls={{
+          ...baseVoiceControls,
+          status: "connected",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(voiceMocks.stopVoice).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
   });
 
   it("keeps the focused overlay open when the voice connection fails", () => {

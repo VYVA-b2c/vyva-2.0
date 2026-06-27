@@ -6,6 +6,7 @@ import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
+import { emitVoiceOverlayPresence } from "@/lib/voiceOverlayFocus";
 
 const WEATHER_EMOJI: Record<string, string> = {
   "weather.clear": "☀️",
@@ -188,6 +189,13 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   }, []);
 
   useEffect(() => {
+    emitVoiceOverlayPresence(showOverlay, "voice_hero");
+    return () => {
+      if (showOverlay) emitVoiceOverlayPresence(false, "voice_hero");
+    };
+  }, [showOverlay]);
+
+  useEffect(() => {
     if (!autoStartKey || voiceControls) return;
     if (autoStartedRef.current === autoStartKey) return;
     if (internalStatus !== "idle" || internalIsConnecting) return;
@@ -232,6 +240,10 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const handleOverlayEnd = () => {
     setFocusedVoiceOverlayRequested(false);
     stopVoice();
+  };
+
+  const handleOverlayMinimize = () => {
+    setFocusedVoiceOverlayRequested(false);
   };
 
   const handleRetryVoice = () => {
@@ -302,6 +314,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             isConnecting={isConnecting}
             transcript={transcript}
             onEnd={handleOverlayEnd}
+            onMinimize={handleOverlayMinimize}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={onMicToggle}
@@ -403,6 +416,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           isConnecting={isConnecting}
           transcript={transcript}
           onEnd={handleOverlayEnd}
+          onMinimize={handleOverlayMinimize}
           voiceSessionPhase={voiceSessionPhase}
           isMicMuted={isMicMuted}
           onMicToggle={onMicToggle}
