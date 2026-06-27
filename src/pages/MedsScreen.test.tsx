@@ -397,6 +397,10 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("panel-meds-pharmacy")).toHaveTextContent("No pharmacy saved yet");
     expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Health tip");
     expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Exercise tip");
+    expect(
+      screen.getByTestId("section-meds-dashboard-tips").compareDocumentPosition(screen.getByTestId("panel-meds-pharmacy")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.queryByText("Today's Schedule")).not.toBeInTheDocument();
     expect(screen.queryByTestId("status-no-medications")).not.toBeInTheDocument();
     expect(screen.queryByText("Medication")).not.toBeInTheDocument();
