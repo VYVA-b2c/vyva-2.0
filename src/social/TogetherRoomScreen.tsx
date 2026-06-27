@@ -49,7 +49,7 @@ type TogetherRoomScreenProps = {
   language: SocialLanguage;
   visitId?: string | null;
   onBack: () => void;
-  onOpenParticipate?: () => void;
+  onOpenActivities?: () => void;
 };
 
 type StarterAction = "hello" | "plan" | "ask";
@@ -1005,17 +1005,17 @@ const copyByLanguage: Record<SocialLanguage, {
     participationPathLabels: {
       vote: "Votar en privado",
       view: "Compartir opinion",
-      activity: "Eventos para ti",
+      activity: "Actividades para ti",
     },
     participationPathBodies: {
       vote: "Elige una opcion. La sala solo ve totales.",
       view: "Escribe una frase amable; VYVA revisa cerca.",
-      activity: "Mira recomendaciones de Participate elegidas para tu perfil.",
+      activity: "Abre actividades recomendadas elegidas para tu perfil.",
     },
     participationPathActions: {
       vote: "Ir al voto",
       view: "Escribir opinion",
-      activity: "Ver eventos",
+      activity: "Ver actividades",
     },
     participationPathPrivacy: "Puedes mirar primero. Ningun camino comparte contacto privado.",
     nextGentleStepLabel: "Siguiente toque amable",
@@ -1812,17 +1812,17 @@ const copyByLanguage: Record<SocialLanguage, {
     participationPathLabels: {
       vote: "Privat abstimmen",
       view: "Ansicht teilen",
-      activity: "Events fuer dich",
+      activity: "Aktivitaeten fuer dich",
     },
     participationPathBodies: {
       vote: "Waehle eine Option. Der Raum sieht nur Summen.",
       view: "Schreibe einen freundlichen Satz; VYVA prueft in der Naehe.",
-      activity: "Sieh Participate-Empfehlungen, die zu deinem Profil passen.",
+      activity: "Oeffne empfohlene Aktivitaeten, die zu deinem Profil passen.",
     },
     participationPathActions: {
       vote: "Zur Abstimmung",
       view: "Ansicht schreiben",
-      activity: "Events ansehen",
+      activity: "Aktivitaeten ansehen",
     },
     participationPathPrivacy: "Du kannst erst schauen. Kein Weg teilt privaten Kontakt.",
     nextGentleStepLabel: "Naechster sanfter Tipp",
@@ -2619,17 +2619,17 @@ const copyByLanguage: Record<SocialLanguage, {
     participationPathLabels: {
       vote: "Vote privately",
       view: "Share a view",
-      activity: "Events for you",
+      activity: "Activities for you",
     },
     participationPathBodies: {
       vote: "Choose one option. The room only sees totals.",
       view: "Write one kind sentence; VYVA review stays nearby.",
-      activity: "See curated Participate recommendations chosen for your profile.",
+      activity: "Open recommended activities chosen for your profile.",
     },
     participationPathActions: {
       vote: "Go to vote",
       view: "Write a view",
-      activity: "See events",
+      activity: "See activities",
     },
     participationPathPrivacy: "Looking first is welcome. No path shares private contact.",
     nextGentleStepLabel: "Best next tap",
@@ -7138,7 +7138,7 @@ export default function TogetherRoomScreen({
   language,
   visitId,
   onBack,
-  onOpenParticipate,
+  onOpenActivities,
 }: TogetherRoomScreenProps) {
   const copy = copyByLanguage[language];
   const { room } = roomResponse;
@@ -9760,8 +9760,8 @@ export default function TogetherRoomScreen({
             onVote={() => scrollToRoomSection("together-room-choice")}
             onView={() => openViewComposer()}
             onActivity={() => {
-              if (onOpenParticipate) {
-                onOpenParticipate();
+              if (onOpenActivities) {
+                onOpenActivities();
                 return;
               }
               scrollToRoomSection("together-featured-plan");

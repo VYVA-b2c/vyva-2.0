@@ -332,8 +332,8 @@ describe("TogetherRoomScreen", () => {
     expect(screen.getByTestId("together-path-vote")).toHaveTextContent("The room only sees totals.");
     expect(screen.getByTestId("together-path-view")).toHaveTextContent("Share a view");
     expect(screen.getByTestId("together-path-view")).toHaveTextContent("VYVA review stays nearby.");
-    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("Events for you");
-    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("curated Participate recommendations");
+    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("Activities for you");
+    expect(screen.getByTestId("together-path-activity")).toHaveTextContent("recommended activities");
     expect(screen.getByTestId("together-participation-path")).toHaveTextContent(
       "Looking first is welcome. No path shares private contact.",
     );
@@ -848,8 +848,8 @@ describe("TogetherRoomScreen", () => {
     }
   });
 
-  it("opens curated Participate recommendations from the activity path when provided", () => {
-    const onOpenParticipate = vi.fn();
+  it("opens the main Activities area from the activity path when provided", () => {
+    const onOpenActivities = vi.fn();
 
     render(
       <TogetherRoomScreen
@@ -857,13 +857,13 @@ describe("TogetherRoomScreen", () => {
         language="en"
         visitId="visit-1"
         onBack={vi.fn()}
-        onOpenParticipate={onOpenParticipate}
+        onOpenActivities={onOpenActivities}
       />,
     );
 
     fireEvent.click(screen.getByTestId("together-path-activity"));
 
-    expect(onOpenParticipate).toHaveBeenCalledTimes(1);
+    expect(onOpenActivities).toHaveBeenCalledTimes(1);
   });
 
   it("opens a safe room trust check with VYVA", () => {
