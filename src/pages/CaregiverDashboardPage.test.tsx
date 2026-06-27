@@ -261,7 +261,7 @@ function renderPage() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<CaregiverDashboardPage />} />
           <Route path="/health/doctor" element={<LocationProbe />} />

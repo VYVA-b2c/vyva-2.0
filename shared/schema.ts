@@ -21,13 +21,18 @@
 
 import {
   pgTable, pgEnum, unique, uniqueIndex, primaryKey, index,
-  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric
+  text, integer, boolean, real, timestamp, uuid, jsonb, date, time, numeric, customType
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import type { TriageScanResult } from "./triageScans.js";
 
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 // ============================================================
 // ENUMS
@@ -472,13 +477,12 @@ export type CheckinTrendState = typeof checkinTrendState.$inferSelect;
 
 export const userMedications = pgTable("user_medications", {
   id:              uuid("id").primaryKey().defaultRandom(),
-  user_id:         uuid("user_id").notNull(),
+  user_id:         text("user_id").notNull(),
   medication_name: text("medication_name").notNull(),
   dosage:          text("dosage"),
   frequency:       text("frequency"),
   scheduled_times: text("scheduled_times").array(),
   active:          boolean("active").notNull().default(true),
-  is_active:       boolean("is_active").notNull().default(true),
   added_by:        text("added_by").notNull().default("user"),
   created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -486,6 +490,78 @@ export const userMedications = pgTable("user_medications", {
 export const insertUserMedicationSchema = createInsertSchema(userMedications).omit({ id: true, created_at: true });
 export type InsertUserMedication = z.infer<typeof insertUserMedicationSchema>;
 export type UserMedication = typeof userMedications.$inferSelect;
+
+export const medicationSafetySignals = pgTable("medication_safety_signals", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull(),
+  signal_type:     text("signal_type").notNull(),
+  severity:        text("severity").notNull().default("watch"),
+  title:           text("title").notNull(),
+  summary:         text("summary").notNull(),
+  medication_name: text("medication_name"),
+  source:          text("source").notNull().default("meds"),
+  evidence:        jsonb("evidence").notNull().default([]),
+  status:          text("status").notNull().default("open"),
+  related_case_id: uuid("related_case_id"),
+  detected_at:     timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_safety_signals_user_time_idx").on(t.user_id, t.detected_at.desc()),
+  index("medication_safety_signals_user_status_idx").on(t.user_id, t.status),
+]);
+
+export const insertMedicationSafetySignalSchema = createInsertSchema(medicationSafetySignals).omit({ id: true, created_at: true, detected_at: true });
+export type InsertMedicationSafetySignal = z.infer<typeof insertMedicationSafetySignalSchema>;
+export type MedicationSafetySignal = typeof medicationSafetySignals.$inferSelect;
+
+export const medicationSafetyCases = pgTable("medication_safety_cases", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  user_id:              text("user_id").notNull(),
+  status:               text("status").notNull().default("draft"),
+  severity:             text("severity").notNull().default("watch"),
+  signal_type:          text("signal_type").notNull().default("possible_side_effect"),
+  suspected_medication: text("suspected_medication"),
+  reaction:             text("reaction"),
+  reaction_started_at:  timestamp("reaction_started_at", { withTimezone: true }),
+  seriousness_flags:    text("seriousness_flags").array().notNull().default([]),
+  outcome:              text("outcome"),
+  action_taken:         text("action_taken"),
+  reporter_name:        text("reporter_name"),
+  reporter_contact:     text("reporter_contact"),
+  reporter_role:        text("reporter_role").notNull().default("patient_or_caregiver"),
+  narrative:            text("narrative"),
+  evidence:             jsonb("evidence").notNull().default([]),
+  missing_fields:       text("missing_fields").array().notNull().default([]),
+  export_ready:         boolean("export_ready").notNull().default(false),
+  latest_export_json:   jsonb("latest_export_json"),
+  shared_at:            timestamp("shared_at", { withTimezone: true }),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_safety_cases_user_status_idx").on(t.user_id, t.status),
+  index("medication_safety_cases_user_type_idx").on(t.user_id, t.signal_type, t.created_at.desc()),
+]);
+
+export const insertMedicationSafetyCaseSchema = createInsertSchema(medicationSafetyCases).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMedicationSafetyCase = z.infer<typeof insertMedicationSafetyCaseSchema>;
+export type MedicationSafetyCase = typeof medicationSafetyCases.$inferSelect;
+
+export const medicationSafetyCaseEvents = pgTable("medication_safety_case_events", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  case_id:    uuid("case_id").notNull(),
+  user_id:    text("user_id").notNull(),
+  event_type: text("event_type").notNull(),
+  actor_id:   text("actor_id"),
+  payload:    jsonb("payload").notNull().default({}),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("medication_safety_case_events_case_time_idx").on(t.case_id, t.created_at.desc()),
+  index("medication_safety_case_events_user_time_idx").on(t.user_id, t.created_at.desc()),
+]);
+
+export const insertMedicationSafetyCaseEventSchema = createInsertSchema(medicationSafetyCaseEvents).omit({ id: true, created_at: true });
+export type InsertMedicationSafetyCaseEvent = z.infer<typeof insertMedicationSafetyCaseEventSchema>;
+export type MedicationSafetyCaseEvent = typeof medicationSafetyCaseEvents.$inferSelect;
 
 export const userHealthConditions = pgTable("user_health_conditions", {
   id:         uuid("id").primaryKey().defaultRandom(),
@@ -1257,6 +1333,107 @@ export const insertSocialRoomNotificationSchema = createInsertSchema(socialRoomN
 export type InsertSocialRoomNotification = z.infer<typeof insertSocialRoomNotificationSchema>;
 export type SocialRoomNotification = typeof socialRoomNotifications.$inferSelect;
 
+export const participationEvents = pgTable("participation_events", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  event_key:          text("event_key").notNull().unique(),
+  title_es:           text("title_es").notNull(),
+  title_de:           text("title_de").notNull(),
+  title_en:           text("title_en").notNull(),
+  summary_es:         text("summary_es").notNull().default(""),
+  summary_de:         text("summary_de").notNull().default(""),
+  summary_en:         text("summary_en").notNull().default(""),
+  description_es:     text("description_es").notNull().default(""),
+  description_de:     text("description_de").notNull().default(""),
+  description_en:     text("description_en").notNull().default(""),
+  format:             text("format").notNull().default("nearby"),
+  location_label:     text("location_label").notNull().default("nearby"),
+  city:               text("city"),
+  country_code:       text("country_code"),
+  time_label_es:      text("time_label_es").notNull().default(""),
+  time_label_de:      text("time_label_de").notNull().default(""),
+  time_label_en:      text("time_label_en").notNull().default(""),
+  starts_at:          timestamp("starts_at", { withTimezone: true }),
+  ends_at:            timestamp("ends_at", { withTimezone: true }),
+  cost_label_es:      text("cost_label_es").notNull().default(""),
+  cost_label_de:      text("cost_label_de").notNull().default(""),
+  cost_label_en:      text("cost_label_en").notNull().default(""),
+  language_codes:     text("language_codes").array().notNull().default([]),
+  tags:               text("tags").array().notNull().default([]),
+  interest_tags:      text("interest_tags").array().notNull().default([]),
+  accessibility_tags: text("accessibility_tags").array().notNull().default([]),
+  helper_actions:     text("helper_actions").array().notNull().default([]),
+  source:             text("source").notNull().default("curated"),
+  source_url:         text("source_url"),
+  status:             text("status").notNull().default("active"),
+  is_curated:         boolean("is_curated").notNull().default(true),
+  needs_live_check:   boolean("needs_live_check").notNull().default(true),
+  safety_status:      text("safety_status").notNull().default("approved"),
+  metadata:           jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  created_by:         text("created_by"),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("participation_events_status_idx").on(t.status, t.safety_status),
+  index("participation_events_country_city_idx").on(t.country_code, t.city),
+]);
+
+export const insertParticipationEventSchema = createInsertSchema(participationEvents).omit({ id: true, created_at: true, updated_at: true });
+export type InsertParticipationEvent = z.infer<typeof insertParticipationEventSchema>;
+export type ParticipationEventRow = typeof participationEvents.$inferSelect;
+
+export const participationEventResponses = pgTable("participation_event_responses", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  event_id:   uuid("event_id").notNull().references(() => participationEvents.id, { onDelete: "cascade" }),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  response:   text("response").notNull(),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("participation_event_responses_event_user_unique").on(t.event_id, t.user_id),
+  index("participation_event_responses_user_idx").on(t.user_id, t.updated_at.desc()),
+]);
+
+export const insertParticipationEventResponseSchema = createInsertSchema(participationEventResponses).omit({ id: true, created_at: true, updated_at: true });
+export type InsertParticipationEventResponse = z.infer<typeof insertParticipationEventResponseSchema>;
+export type ParticipationEventResponseRow = typeof participationEventResponses.$inferSelect;
+
+export const participationEventChecks = pgTable("participation_event_checks", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  event_id:          uuid("event_id").notNull().references(() => participationEvents.id, { onDelete: "cascade" }),
+  user_id:           text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  status:            text("status").notNull().default("requested"),
+  request_note:      text("request_note").notNull().default(""),
+  helper_actions:    text("helper_actions").array().notNull().default([]),
+  concierge_prefill: jsonb("concierge_prefill").$type<Record<string, unknown>>().notNull().default({}),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  resolved_at:       timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [
+  index("participation_event_checks_user_idx").on(t.user_id, t.created_at.desc()),
+  index("participation_event_checks_event_idx").on(t.event_id, t.created_at.desc()),
+]);
+
+export const insertParticipationEventCheckSchema = createInsertSchema(participationEventChecks).omit({ id: true, created_at: true, updated_at: true });
+export type InsertParticipationEventCheck = z.infer<typeof insertParticipationEventCheckSchema>;
+export type ParticipationEventCheckRow = typeof participationEventChecks.$inferSelect;
+
+export const participationNotifications = pgTable("participation_notifications", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  event_id:   uuid("event_id").references(() => participationEvents.id, { onDelete: "set null" }),
+  type:       text("type").notNull(),
+  title:      text("title").notNull(),
+  body:       text("body").notNull().default(""),
+  metadata:   jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  read_at:    timestamp("read_at", { withTimezone: true }),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("participation_notifications_user_idx").on(t.user_id, t.created_at.desc()),
+]);
+
+export const insertParticipationNotificationSchema = createInsertSchema(participationNotifications).omit({ id: true, created_at: true });
+export type InsertParticipationNotification = z.infer<typeof insertParticipationNotificationSchema>;
+export type ParticipationNotificationRow = typeof participationNotifications.$inferSelect;
 
 // ============================================================
 // NEW TABLE: triage_reports — persisted completed TriageSummary + vitals
@@ -2524,6 +2701,9 @@ export const schema = {
   checkinSessions,
   checkinTrendState,
   userMedications,
+  medicationSafetySignals,
+  medicationSafetyCases,
+  medicationSafetyCaseEvents,
   userHealthConditions,
   onboardingState,
   consentLog,
@@ -2557,6 +2737,10 @@ export const schema = {
   socialRoomModerationActions,
   socialRoomMemberRoles,
   socialRoomNotifications,
+  participationEvents,
+  participationEventResponses,
+  participationEventChecks,
+  participationNotifications,
   triageReports,
   vitalsReadings,
   vyvaSignalReadings,

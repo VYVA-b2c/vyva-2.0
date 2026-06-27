@@ -83,7 +83,7 @@ function LocationProbe() {
 
 function renderDoctorScreen() {
   return render(
-    <MemoryRouter initialEntries={[{ pathname: "/health/doctor", state: { latestSymptomReport: "Chest pressure report" } }]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[{ pathname: "/health/doctor", state: { latestSymptomReport: "Chest pressure report" } }]}>
       <Routes>
         <Route path="/health/doctor" element={<DoctorChoiceScreen />} />
         <Route path="/concierge" element={<LocationProbe />} />

@@ -38,6 +38,20 @@ describe("voice navigation actions", () => {
     expect(action?.requiresConfirmation).toBe(false);
   });
 
+  it("routes trusted provider requests to the home-service intake", () => {
+    const action = actionForVoiceUtterance("I need a plumber today");
+
+    expect(action?.id).toBe("voice_concierge_home_service");
+    expect(action?.route).toBe("/concierge");
+    expect(action?.domain).toBe("concierge");
+    expect(action?.actionType).toBe("concierge.home_service");
+    expect(action?.payload).toMatchObject({
+      intake_origin: "voice",
+      service_type: "plumber",
+      task_type: "home_service",
+    });
+  });
+
   it("prioritises vitals over generic health routing", () => {
     const action = actionForVoiceUtterance("Can we check my blood pressure?");
 

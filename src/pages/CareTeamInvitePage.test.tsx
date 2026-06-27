@@ -63,7 +63,7 @@ function LocationSpy() {
 
 function renderInvitePage(initialEntry = "/care-team/invite/token-123") {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
         <Route path="/login" element={<LocationSpy />} />

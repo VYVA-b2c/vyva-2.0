@@ -1,5 +1,5 @@
 export type CardCategory = "Quote" | "Fact" | "Tip" | "Achievement" | "Did You Know";
-export type SupportedLocale = "en" | "es" | "fr" | "de" | "it" | "pt" | "cy";
+export type SupportedLocale = "en" | "es" | "fr" | "de" | "it" | "pt";
 
 export interface CardTranslations {
   text: string;
@@ -29,7 +29,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Man hört nicht auf zu lachen, wenn man alt wird — man wird alt, wenn man aufhört zu lachen.", attribution: "George Bernard Shaw" },
       it: { text: "Non smetti di ridere quando invecchi — invecchi quando smetti di ridere.", attribution: "George Bernard Shaw" },
       pt: { text: "Você não para de rir quando envelhece — envelhece quando para de rir.", attribution: "George Bernard Shaw" },
-      cy: { text: "Nid ydych chi'n rhoi'r gorau i chwerthin pan fyddwch chi'n heneiddio — rydych chi'n heneiddio pan fyddwch chi'n rhoi'r gorau i chwerthin.", attribution: "George Bernard Shaw" },
     },
   },
   {
@@ -44,7 +43,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Das Geheimnis des Vorankommens ist der Anfang.", attribution: "Mark Twain" },
       it: { text: "Il segreto per andare avanti è cominciare.", attribution: "Mark Twain" },
       pt: { text: "O segredo para avançar é começar.", attribution: "Mark Twain" },
-      cy: { text: "Cyfrinach mynd ymlaen yw dechrau.", attribution: "Mark Twain" },
     },
   },
   {
@@ -59,7 +57,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Vielleicht ist nicht jeder Tag gut, aber in jedem Tag steckt etwas Gutes.", attribution: "Alice Morse Earle" },
       it: { text: "Non ogni giorno può essere buono, ma c'è qualcosa di buono in ogni giorno.", attribution: "Alice Morse Earle" },
       pt: { text: "Nem todo dia pode ser bom, mas há algo de bom em cada dia.", attribution: "Alice Morse Earle" },
-      cy: { text: "Efallai nad yw pob dydd yn dda, ond mae rhywbeth da ym mhob dydd.", attribution: "Alice Morse Earle" },
     },
   },
   {
@@ -74,7 +71,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Das Alter ist eine Frage des Geistes über die Materie. Wenn es dir nichts ausmacht, macht es nichts aus.", attribution: "Mark Twain" },
       it: { text: "L'età è una questione di mente sulla materia. Se non te ne preoccupi, non conta.", attribution: "Mark Twain" },
       pt: { text: "A idade é uma questão de mente sobre matéria. Se você não se importa, não importa.", attribution: "Mark Twain" },
-      cy: { text: "Mae oed yn fater o feddwl dros fater. Os nad yw'n poeni arnoch, nid yw'n bwysig.", attribution: "Mark Twain" },
     },
   },
   {
@@ -88,7 +84,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Weisheit kommt aus Erfahrung, und Erfahrung kommt vom vollen Leben." },
       it: { text: "La saggezza viene dall'esperienza, e l'esperienza dal vivere pienamente." },
       pt: { text: "A sabedoria vem da experiência, e a experiência vem de viver plenamente." },
-      cy: { text: "Daw doethineb o brofiad, a daw profiad o fyw yn llawn." },
     },
   },
   {
@@ -103,7 +98,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Das Leben wird nicht an der Anzahl der Atemzüge gemessen, die wir nehmen, sondern an den Momenten, die uns den Atem verschlagen.", attribution: "Maya Angelou" },
       it: { text: "La vita non si misura dal numero di respiri che prendiamo, ma dai momenti che ci tolgono il respiro.", attribution: "Maya Angelou" },
       pt: { text: "A vida não é medida pelo número de respirações que damos, mas pelos momentos que nos tiram o fôlego.", attribution: "Maya Angelou" },
-      cy: { text: "Nid yw bywyd yn cael ei fesur gan nifer yr anadliadau a gymerwn, ond gan y eiliadau sy'n cymryd ein hanadl i ffwrdd.", attribution: "Maya Angelou" },
     },
   },
   {
@@ -118,7 +112,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Halte dein Gesicht immer der Sonne zugewandt, und die Schatten fallen hinter dich.", attribution: "Walt Whitman" },
       it: { text: "Tieni sempre il viso verso il sole e le ombre cadranno dietro di te.", attribution: "Walt Whitman" },
       pt: { text: "Mantenha sempre o rosto voltado para o sol e as sombras ficarão atrás de você.", attribution: "Walt Whitman" },
-      cy: { text: "Cadwch eich wyneb bob amser tua'r heulwen, a bydd cysgodion yn syrthio y tu ôl i chi.", attribution: "Walt Whitman" },
     },
   },
   {
@@ -133,7 +126,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Der größte Reichtum ist Gesundheit.", attribution: "Vergil" },
       it: { text: "La ricchezza più grande è la salute.", attribution: "Virgilio" },
       pt: { text: "A maior riqueza é a saúde.", attribution: "Virgílio" },
-      cy: { text: "Y cyfoeth mwyaf yw iechyd.", attribution: "Virgil" },
     },
   },
   {
@@ -148,7 +140,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Es kommt nicht darauf an, wie alt du bist, sondern wie du alt bist.", attribution: "Jules Renard" },
       it: { text: "Non importa quanti anni hai, ma come li porti.", attribution: "Jules Renard" },
       pt: { text: "Não importa quantos anos você tem, mas como você os carrega.", attribution: "Jules Renard" },
-      cy: { text: "Nid pa mor hen ydych chi sy'n bwysig, ond sut rydych chi'n heneiddio.", attribution: "Jules Renard" },
     },
   },
   {
@@ -162,7 +153,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Schwierige Wege führen oft zu wunderschönen Zielen." },
       it: { text: "Le strade difficili portano spesso a destinazioni meravigliose." },
       pt: { text: "Caminhos difíceis muitas vezes levam a destinos belos." },
-      cy: { text: "Mae ffyrdd anodd yn aml yn arwain at gyrchfannau hardd." },
     },
   },
   {
@@ -177,7 +167,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Geh nicht dorthin, wo der Weg hinführt; geh stattdessen dorthin, wo kein Weg ist, und hinterlasse eine Spur.", attribution: "Ralph Waldo Emerson" },
       it: { text: "Non andare dove il sentiero può portarti; vai invece dove non c'è sentiero e lascia una traccia.", attribution: "Ralph Waldo Emerson" },
       pt: { text: "Não vá onde o caminho pode levar; vá onde não há caminho e deixe um rastro.", attribution: "Ralph Waldo Emerson" },
-      cy: { text: "Peidiwch â mynd i ble mae'r llwybr yn arwain; ewch yn hytrach i ble nad oes llwybr a gadewch ôl.", attribution: "Ralph Waldo Emerson" },
     },
   },
   {
@@ -192,7 +181,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Der Sinn unseres Lebens ist es, glücklich zu sein.", attribution: "Dalai Lama" },
       it: { text: "Lo scopo della nostra vita è essere felici.", attribution: "Dalai Lama" },
       pt: { text: "O propósito de nossas vidas é ser feliz.", attribution: "Dalai Lama" },
-      cy: { text: "Pwrpas ein bywydau yw bod yn hapus.", attribution: "Dalai Lama" },
     },
   },
   // ── Facts ─────────────────────────────────────────────────────────────────
@@ -207,7 +195,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "15 Minuten Lachen am Tag können bis zu 40 Kalorien verbrennen — und macht viel mehr Spaß als Sport!" },
       it: { text: "Ridere per 15 minuti al giorno può bruciare fino a 40 calorie — ed è molto più divertente dell'esercizio fisico!" },
       pt: { text: "Rir por 15 minutos por dia pode queimar até 40 calorias — e é muito mais divertido do que exercício!" },
-      cy: { text: "Gall chwerthin am 15 munud y dydd losgi hyd at 40 calori — ac mae'n llawer mwy o hwyl na ymarfer corff!" },
     },
   },
   {
@@ -221,7 +208,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Musik zu hören, die du liebst, löst die Ausschüttung von Dopamin aus — dem Wohlfühlstoff des Gehirns." },
       it: { text: "Ascoltare la musica che ami innesca il rilascio di dopamina — la sostanza chimica del benessere del cervello." },
       pt: { text: "Ouvir música que você ama desencadeia a liberação de dopamina — o químico do bem-estar do cérebro." },
-      cy: { text: "Mae gwrando ar gerddoriaeth rydych chi'n ei charu yn sbarduno rhyddhau dopamin — cemegyn lles yr ymennydd." },
     },
   },
   {
@@ -235,7 +221,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Schon 20 Minuten in der Natur können den Stresshormonspiel erheblich senken." },
       it: { text: "Trascorrere solo 20 minuti nella natura può ridurre significativamente i livelli di ormoni dello stress." },
       pt: { text: "Passar apenas 20 minutos na natureza pode reduzir significativamente os níveis de hormônios do estresse." },
-      cy: { text: "Gall treulio dim ond 20 munud mewn natur ostwng lefelau hormonau straen yn sylweddol." },
     },
   },
   {
@@ -249,7 +234,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Ein kurzes 20-minütiges Nickerchen kann die Wachheit und Stimmung für Stunden verbessern, ohne den Nachtschlaf zu beeinträchtigen." },
       it: { text: "Un breve pisolino di 20 minuti può migliorare la vigilanza e l'umore per ore senza influire sul sonno notturno." },
       pt: { text: "Um breve cochilo de 20 minutos pode aumentar o estado de alerta e o humor por horas sem afetar o sono noturno." },
-      cy: { text: "Gall cyntun byr o 20 munud hybu effroedd a hwyliau am oriau heb effeithio ar gwsg y nos." },
     },
   },
   {
@@ -263,7 +247,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Tiefes Atmen für 5 Minuten aktiviert die Entspannungsreaktion des Körpers und senkt den Blutdruck." },
       it: { text: "La respirazione profonda per 5 minuti attiva la risposta di rilassamento del corpo e abbassa la pressione sanguigna." },
       pt: { text: "A respiração profunda por 5 minutos ativa a resposta de relaxamento do corpo e reduz a pressão arterial." },
-      cy: { text: "Mae anadlu dwfn am 5 munud yn actifadu ymateb ymlacio eich corff ac yn gostwng pwysedd gwaed." },
     },
   },
   {
@@ -277,7 +260,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Menschen mit starken sozialen Verbindungen leben im Durchschnitt 7 Jahre länger als isolierte Menschen." },
       it: { text: "Le persone con forti connessioni sociali vivono, in media, 7 anni in più rispetto a quelle che sono isolate." },
       pt: { text: "Pessoas com fortes conexões sociais vivem, em média, 7 anos a mais do que as que estão isoladas." },
-      cy: { text: "Mae pobl â chysylltiadau cymdeithasol cryf yn byw, ar gyfartaledd, 7 mlynedd yn hirach na'r rhai sy'n ynysig." },
     },
   },
   {
@@ -291,7 +273,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Schon 10 Minuten ein Tier streicheln kann den Cortisol-Spiegel (Stresshormon) um bis zu 37% senken." },
       it: { text: "Accarezzare un animale per soli 10 minuti può abbassare il cortisolo (ormone dello stress) fino al 37%." },
       pt: { text: "Acariciar um animal por apenas 10 minutos pode reduzir o cortisol (hormônio do estresse) em até 37%." },
-      cy: { text: "Gall anwylo anifail am ddim ond 10 munud ostwng cortisol (hormon straen) hyd at 37%." },
     },
   },
   {
@@ -305,7 +286,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Eine Tasse Tee enthält L-Theanin, eine Aminosäure, die ruhige Konzentration ohne Schläfrigkeit fördert." },
       it: { text: "Una tazza di tè contiene L-teanina, un aminoacido che promuove la concentrazione calma senza sonnolenza." },
       pt: { text: "Uma xícara de chá contém L-teanina, um aminoácido que promove foco calmo sem sonolência." },
-      cy: { text: "Mae cwpan o de yn cynnwys L-theanin, asid amino sy'n hyrwyddo ffocws tawel heb gysglyd." },
     },
   },
   {
@@ -319,7 +299,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Singen — sogar Summen für sich selbst — setzt gleichzeitig Endorphine, Oxytocin und Serotonin frei." },
       it: { text: "Cantare — anche canticchiare tra sé — rilascia endorfine, ossitocina e serotonina contemporaneamente." },
       pt: { text: "Cantar — mesmo cantarolar para si mesmo — libera endorfinas, ocitocina e serotonina simultaneamente." },
-      cy: { text: "Mae canu — hyd yn oed hymian i chi eich hun — yn rhyddhau endorffinau, ocsitocin, a serotonin ar yr un pryd." },
     },
   },
   {
@@ -333,7 +312,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Schon 10 Minuten Dehnen am Tag verbessern Durchblutung, Flexibilität und geistige Klarheit." },
       it: { text: "Fare stretching per soli 10 minuti al giorno migliora la circolazione, la flessibilità e la chiarezza mentale." },
       pt: { text: "Alongar-se por apenas 10 minutos por dia melhora a circulação, a flexibilidade e a clareza mental." },
-      cy: { text: "Mae ymestyn am ddim ond 10 munud y dydd yn gwella cylchrediad, hyblygrwydd ac eglurder meddyliol." },
     },
   },
   // ── Tips ──────────────────────────────────────────────────────────────────
@@ -348,7 +326,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Trinken Sie morgens als Erstes ein Glas Wasser — Ihr Körper verliert über Nacht Flüssigkeit und frühes Rehydrieren gibt Energie." },
       it: { text: "Bevi un bicchiere d'acqua al mattino — il tuo corpo perde liquidi durante la notte e reidratarsi presto aumenta l'energia." },
       pt: { text: "Beba um copo de água logo de manhã — seu corpo perde líquido durante a noite e reidratar-se cedo aumenta a energia." },
-      cy: { text: "Yfwch wydriad o ddŵr y peth cyntaf yn y bore — mae eich corff yn colli hylif dros nos ac mae ailhydradu'n gynnar yn rhoi egni." },
     },
   },
   {
@@ -362,7 +339,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Ein 10-minütiger Spaziergang nach jeder Mahlzeit hilft, den Blutzucker zu regulieren und die Verdauung zu verbessern." },
       it: { text: "Una camminata di 10 minuti dopo ogni pasto aiuta a regolare la glicemia e migliora la digestione." },
       pt: { text: "Uma caminhada de 10 minutos após cada refeição ajuda a regular o açúcar no sangue e melhora a digestão." },
-      cy: { text: "Mae cerdded am 10 munud ar ôl pob pryd bwyd yn helpu i reoli siwgr yn y gwaed ac yn gwella treuliad." },
     },
   },
   {
@@ -376,7 +352,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "3 Dinge aufzuschreiben, für die Sie täglich dankbar sind, kann den Schlaf verbessern und Angst innerhalb von Wochen reduzieren." },
       it: { text: "Scrivere 3 cose per cui sei grato ogni giorno può migliorare il sonno e ridurre l'ansia in poche settimane." },
       pt: { text: "Escrever 3 coisas pelas quais você é grato todos os dias pode melhorar o sono e reduzir a ansiedade em semanas." },
-      cy: { text: "Gall ysgrifennu 3 pheth rydych chi'n ddiolchgar amdanynt bob dydd wella cwsg a lleihau gorbryder o fewn wythnosau." },
     },
   },
   {
@@ -390,7 +365,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Probieren Sie heute ein neues Wortspiel oder Kreuzworträtsel aus — den Geist aktiv zu halten ist einer der besten Wege, um geistig fit zu bleiben." },
       it: { text: "Prova un nuovo cruciverba o rompicapo oggi — mantenere la mente attiva è uno dei modi migliori per restare acuto." },
       pt: { text: "Experimente um novo quebra-cabeça de palavras ou palavras cruzadas hoje — manter a mente ativa é uma das melhores formas de se manter aguçado." },
-      cy: { text: "Rhowch gynnig ar bos geiriau neu groesair newydd heddiw — mae cadw'r meddwl yn actif yn un o'r ffyrdd gorau i aros yn effro." },
     },
   },
   {
@@ -404,7 +378,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Bunte Obst und Gemüse essen liefert Antioxidantien, die Zellen schützen und den Energiepegel unterstützen." },
       it: { text: "Mangiare frutta e verdura colorata fornisce antiossidanti che proteggono le cellule e supportano i livelli di energia." },
       pt: { text: "Comer frutas e vegetais coloridos fornece antioxidantes que protegem as células e apoiam os níveis de energia." },
-      cy: { text: "Mae bwyta ffrwythau a llysiau lliwgar yn darparu gwrthosidyddion sy'n amddiffyn celloedd ac yn cynnal lefelau egni." },
     },
   },
   {
@@ -418,7 +391,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Heute einen Freund oder ein Familienmitglied anzurufen zählt als Selbstfürsorge — Verbindung ist Medizin." },
       it: { text: "Chiamare un amico o un familiare oggi conta come autocura — la connessione è medicina." },
       pt: { text: "Ligar para um amigo ou familiar hoje conta como autocuidado — a conexão é medicina." },
-      cy: { text: "Mae ffonio ffrind neu aelod o'r teulu heddiw yn cyfrif fel hunanofal — mae cysylltiad yn feddyginiaeth." },
     },
   },
   {
@@ -432,7 +404,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Probieren Sie die 4-7-8-Atemtechnik: 4 Sekunden einatmen, 7 Sekunden halten, 8 Sekunden ausatmen. Beruhigt den Geist sofort." },
       it: { text: "Prova la tecnica di respirazione 4-7-8: inspira per 4 secondi, trattieni per 7, espira per 8. Calma la mente istantaneamente." },
       pt: { text: "Experimente a técnica de respiração 4-7-8: inspire por 4 segundos, segure por 7, expire por 8. Acalma a mente instantaneamente." },
-      cy: { text: "Rhowch gynnig ar y dechneg anadlu 4-7-8: anadlwch i mewn am 4 eiliad, daliwch am 7, anadlwch allan am 8. Mae'n tawelu'r meddwl yn syth." },
     },
   },
   {
@@ -446,7 +417,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Rutschfestes Schuhwerk zu Hause ist eine der einfachsten Möglichkeiten, Stürze zu vermeiden und sicher auf den Beinen zu bleiben." },
       it: { text: "Le calzature antiscivolo in casa è uno dei modi più semplici per prevenire le cadute e restare sicuri sui piedi." },
       pt: { text: "Calçados antiderrapantes em casa é uma das formas mais simples de prevenir quedas e se manter confiante nos pés." },
-      cy: { text: "Mae esgidiau gwrthslip gartref yn un o'r ffyrdd symlaf o atal cwympiau a chadw'n hyderus ar eich traed." },
     },
   },
   {
@@ -460,7 +430,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Folgen Sie der 20-20-20-Regel für Augenkomfort: Alle 20 Minuten etwas 6 Meter entfernt für 20 Sekunden ansehen." },
       it: { text: "Segui la regola 20-20-20 per il comfort oculare: ogni 20 minuti, guarda qualcosa a 6 metri di distanza per 20 secondi." },
       pt: { text: "Siga a regra 20-20-20 para o conforto ocular: a cada 20 minutos, olhe para algo a 6 metros de distância por 20 segundos." },
-      cy: { text: "Dilynwch y rheol 20-20-20 ar gyfer cysur llygaid: bob 20 munud, edrychwch ar rywbeth 6 metr i ffwrdd am 20 eiliad." },
     },
   },
   {
@@ -474,7 +443,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Eine regelmäßige Schlafenszeit-Routine — jeden Abend zur gleichen Zeit — trainiert Ihre innere Uhr und verbessert die Schlafqualität erheblich." },
       it: { text: "Una routine costante all'ora di andare a letto — alla stessa ora ogni sera — addestra il tuo orologio biologico e migliora notevolmente la qualità del sonno." },
       pt: { text: "Uma rotina de hora de dormir consistente — no mesmo horário toda noite — treina seu relógio biológico e melhora dramaticamente a qualidade do sono." },
-      cy: { text: "Mae trefn amser gwely gyson — yr un amser bob nos — yn hyfforddi eich cloc corff ac yn gwella ansawdd cwsg yn sylweddol." },
     },
   },
   {
@@ -488,7 +456,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Melden Sie sich bei jemandem, mit dem Sie schon länger nicht gesprochen haben. Eine kurze Nachricht kann beiden den Tag erhellen." },
       it: { text: "Contatta qualcuno con cui non hai parlato da un po'. Un breve messaggio può illuminare entrambe le vostre giornate." },
       pt: { text: "Entre em contato com alguém com quem não conversou há algum tempo. Uma mensagem curta pode iluminar os dois dias." },
-      cy: { text: "Cysylltwch â rhywun nad ydych chi wedi siarad â nhw ers peth amser. Gall neges fer oleuo dau ddiwrnod." },
     },
   },
   // ── Achievements ──────────────────────────────────────────────────────────
@@ -503,7 +470,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Jedes Mal, wenn Sie Ihre Medikamente pünktlich nehmen, geben Sie Ihrem Körper die beste Chance zu gedeihen." },
       it: { text: "Ogni volta che prendi i tuoi farmaci secondo il programma, stai dando al tuo corpo la migliore possibilità di prosperare." },
       pt: { text: "Cada vez que você toma sua medicação no horário, está dando ao seu corpo a melhor chance de prosperar." },
-      cy: { text: "Bob tro rydych chi'n cymryd eich meddyginiaeth yn ôl yr amserlen, rydych chi'n rhoi'r cyfle gorau i'ch corff ffynnu." },
     },
   },
   {
@@ -517,7 +483,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Diese App heute zu öffnen ist ein Akt der Selbstfürsorge. Sie haben sich für sich selbst eingesetzt — das zählt." },
       it: { text: "Aprire questa app oggi è un atto di autocura. Ti sei presentato per te stesso — questo conta." },
       pt: { text: "Abrir este aplicativo hoje é um ato de autocuidado. Você apareceu por si mesmo — isso importa." },
-      cy: { text: "Mae agor yr ap hwn heddiw yn act o hunanofal. Fe wnaethoch chi ddangos i chi eich hun — mae hynny'n bwysig." },
     },
   },
   {
@@ -531,7 +496,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Jeder Schritt, den Sie machen — auch ein kurzer Spaziergang — zählt. Sie machen es besser als Sie denken." },
       it: { text: "Ogni passo che fai — anche una breve passeggiata — si accumula. Stai facendo meglio di quanto pensi." },
       pt: { text: "Cada passo que você dá — mesmo uma caminhada curta — conta. Você está se saindo melhor do que pensa." },
-      cy: { text: "Mae pob cam rydych chi'n ei gymryd — hyd yn oed tro byr — yn adio. Rydych chi'n gwneud yn well nag yr ydych chi'n meddwl." },
     },
   },
   {
@@ -545,7 +509,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Um Hilfe zu bitten ist ein Zeichen von Stärke, nicht von Schwäche. Sie sind vielen voraus, indem Sie einfach Kontakt aufnehmen." },
       it: { text: "Chiedere aiuto è un segno di forza, non di debolezza. Sei avanti a molti solo tendendo la mano." },
       pt: { text: "Pedir ajuda é um sinal de força, não de fraqueza. Você está à frente de muitos simplesmente por estender a mão." },
-      cy: { text: "Mae gofyn am help yn arwydd o gryfder, nid gwendid. Rydych chi ar y blaen i lawer dim ond trwy gysylltu." },
     },
   },
   {
@@ -559,7 +522,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Mit Anmut und Neugier in jedem Alter zu leben ist eine Leistung, die jeden Tag gefeiert werden sollte." },
       it: { text: "Vivere con grazia e curiosità a qualsiasi età è un risultato che vale la pena celebrare ogni singolo giorno." },
       pt: { text: "Viver com graça e curiosidade em qualquer idade é uma conquista que vale a pena celebrar todos os dias." },
-      cy: { text: "Mae byw â gras a chwilfrydedd ar unrhyw oedran yn gyflawniad sy'n werth ei ddathlu bob dydd." },
     },
   },
   {
@@ -573,7 +535,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Die Weisheit, die Sie in einem Leben angesammelt haben, ist unersetzlich. Es ist eine Ihrer größten Stärken." },
       it: { text: "La saggezza che hai accumulato nel corso di una vita è insostituibile. È uno dei tuoi maggiori punti di forza." },
       pt: { text: "A sabedoria que você acumulou ao longo de uma vida é insubstituível. É uma das suas maiores forças." },
-      cy: { text: "Mae'r doethineb rydych chi wedi'i gronni dros oes yn amhrisiadwy. Mae'n un o'ch cryfderau mwyaf." },
     },
   },
   {
@@ -587,7 +548,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Wachstum hört in keinem Alter auf. Jede neue Sache, die Sie ausprobieren oder lernen, ist ein Beweis dafür." },
       it: { text: "La crescita non si ferma a nessuna età. Ogni nuova cosa che provi o impari ne è la prova." },
       pt: { text: "O crescimento não para em nenhuma idade. Cada coisa nova que você tenta ou aprende é prova disso." },
-      cy: { text: "Nid yw twf yn stopio ar unrhyw oedran. Mae pob peth newydd rydych chi'n ei roi cynnig arno neu'n ei ddysgu yn brawf o hynny." },
     },
   },
   {
@@ -601,7 +561,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Sie haben jede Herausforderung gemeistert, die das Leben Ihnen bisher gestellt hat. Diese Bilanz ist außergewöhnlich." },
       it: { text: "Hai affrontato ogni sfida che la vita ti ha lanciato finora. Quel curriculum è straordinario." },
       pt: { text: "Você navegou por cada desafio que a vida jogou até agora. Esse histórico é extraordinário." },
-      cy: { text: "Rydych chi wedi llywio pob her y mae bywyd wedi'i thaflu atoch chi hyd yn hyn. Mae'r cofnod hwnnw'n rhyfeddol." },
     },
   },
   // ── Did You Know ──────────────────────────────────────────────────────────
@@ -616,7 +575,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Ihr Herz schlägt rund 100.000 Mal täglich — das sind über 2,5 Milliarden Mal in einem durchschnittlichen Leben." },
       it: { text: "Il tuo cuore batte circa 100.000 volte al giorno — sono più di 2,5 miliardi di volte in una vita media." },
       pt: { text: "Seu coração bate cerca de 100.000 vezes por dia — isso é mais de 2,5 bilhões de vezes em uma vida média." },
-      cy: { text: "Mae eich calon yn curo tua 100,000 o weithiau y dydd — mae hynny'n fwy na 2.5 biliwn o weithiau mewn oes gyfartalog." },
     },
   },
   {
@@ -630,7 +588,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Die älteste verifizierte Person der Welt wurde 122 Jahre alt. Das Geheimnis? Familie, Olivenöl und eine gute Einstellung." },
       it: { text: "La persona verificata più anziana del mondo ha vissuto fino a 122 anni. Il segreto? Famiglia, olio d'oliva e un buon atteggiamento." },
       pt: { text: "A pessoa verificada mais velha do mundo viveu até 122 anos. O segredo? Família, azeite e uma boa atitude." },
-      cy: { text: "Bu'r person hynaf y mae tystiolaeth amdano yn y byd yn fyw hyd at 122 oed. Y cyfrinach? Teulu, olew olewydd, ac agwedd dda." },
     },
   },
   {
@@ -644,7 +601,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Ein kreatives Hobby wie Zeichnen oder Malen aufzunehmen kann den kognitiven Rückgang verlangsamen, indem neue neuronale Verbindungen aktiv gehalten werden." },
       it: { text: "Intraprendere un hobby creativo come il disegno o la pittura può rallentare il declino cognitivo mantenendo attive nuove connessioni neurali." },
       pt: { text: "Adotar um hobby criativo como desenho ou pintura pode retardar o declínio cognitivo mantendo novas conexões neurais ativas." },
-      cy: { text: "Gall mabwysiadu hobi creadigol fel tynnu lluniau neu baentio arafu dirywiad gwybyddol trwy gadw cysylltiadau niwral newydd yn weithredol." },
     },
   },
   {
@@ -658,7 +614,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Ihr Körper leistet den Großteil seiner Zellreparaturarbeit während Sie schlafen — Qualitätsschlaf ist eine der besten Investitionen in Ihre Gesundheit." },
       it: { text: "Il tuo corpo svolge la maggior parte del suo lavoro di riparazione cellulare mentre dormi — il sonno di qualità è uno dei migliori investimenti nella tua salute." },
       pt: { text: "Seu corpo realiza a maior parte de seu trabalho de reparo celular enquanto você dorme — o sono de qualidade é um dos melhores investimentos na sua saúde." },
-      cy: { text: "Mae eich corff yn gwneud y rhan fwyaf o'i waith atgyweirio cellog tra rydych chi'n cysgu — mae cwsg o ansawdd yn un o'r buddsoddiannau gorau yn eich iechyd." },
     },
   },
   {
@@ -672,7 +627,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Regelmäßiger Verzehr von omega-3-reichem Fisch kann das Herzerkrankungsrisiko um bis zu 36% senken." },
       it: { text: "Mangiare regolarmente pesce ricco di omega-3 può ridurre il rischio di malattie cardiache fino al 36%." },
       pt: { text: "Comer regularmente peixes ricos em ômega-3 pode reduzir o risco de doenças cardíacas em até 36%." },
-      cy: { text: "Gall fwyta pysgod yn gyson sy'n gyfoethog mewn omega-3 leihau'r risg o glefyd y galon hyd at 36%." },
     },
   },
   {
@@ -686,7 +640,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Kurkuma enthält Curcumin, eine natürliche Verbindung mit starken entzündungshemmenden Eigenschaften — oft als 'das Ibuprofen der Natur' bezeichnet." },
       it: { text: "La curcuma contiene curcumina, un composto naturale con potenti proprietà antinfiammatorie — spesso chiamato 'l'ibuprofene della natura'." },
       pt: { text: "A cúrcuma contém curcumina, um composto natural com poderosas propriedades anti-inflamatórias — frequentemente chamado de 'o ibuprofeno da natureza'." },
-      cy: { text: "Mae tyrmerig yn cynnwys cwrcwmin, cyfansoddyn naturiol â phriodweddau gwrthlidiol pwerus — yn aml yn cael ei alw'n 'ibyproffen natur'." },
     },
   },
   {
@@ -700,7 +653,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Eine zweite Sprache zu sprechen — auch wenn man sie später im Leben lernt — kann den Ausbruch von Demenz um 4–5 Jahre verzögern." },
       it: { text: "Parlare una seconda lingua — anche imparandola più tardi nella vita — può ritardare l'insorgenza della demenza di 4-5 anni." },
       pt: { text: "Falar um segundo idioma — mesmo aprendendo um mais tarde na vida — pode atrasar o início da demência em 4–5 anos." },
-      cy: { text: "Gall siarad ail iaith — hyd yn oed dysgu un yn ddiweddarach mewn bywyd — oedi dechrau dementia am 4–5 mlynedd." },
     },
   },
   {
@@ -714,7 +666,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Blaubeeren werden manchmal als 'Gehirnbeeren' bezeichnet — regelmäßiger Verzehr ist mit verbessertem Gedächtnis und kognitiver Funktion verbunden." },
       it: { text: "I mirtilli vengono a volte chiamati 'bacche del cervello' — il consumo regolare è associato a una migliore memoria e funzione cognitiva." },
       pt: { text: "Os mirtilos às vezes são chamados de 'frutos do cérebro' — o consumo regular está associado a melhor memória e função cognitiva." },
-      cy: { text: "Weithiau gelwir llus yn 'ffrwythau'r ymennydd' — mae bwyta'n rheolaidd wedi'i gysylltu â gwell cof a gweithrediad gwybyddol." },
     },
   },
   {
@@ -728,7 +679,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Schwimmen ist eines der sanftesten Ganzkörpertrainings — es stärkt Muskeln und Herz-Kreislauf-Gesundheit mit minimalem Gelenkstress." },
       it: { text: "Il nuoto è uno degli allenamenti per tutto il corpo più delicati — sviluppa forza e salute cardiovascolare con un minimo stress articolare." },
       pt: { text: "A natação é um dos treinos de corpo inteiro mais suaves — constrói força e saúde cardiovascular com estresse mínimo nas articulações." },
-      cy: { text: "Nofio yw un o'r ymarferion corff llawnaf mwyaf tyner — mae'n adeiladu cryfder ac iechyd cardiofasgwlaidd â lleiafswm o straen ar gymalau." },
     },
   },
   {
@@ -742,7 +692,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Nur 2 Stunden pro Woche ehrenamtlich tätig zu sein, ist mit niedrigeren Depressionsraten und einem stärkeren Sinn für Zweck verbunden." },
       it: { text: "Fare volontariato solo 2 ore a settimana è associato a tassi di depressione più bassi e a un senso di scopo più forte." },
       pt: { text: "Fazer voluntariado apenas 2 horas por semana está associado a taxas mais baixas de depressão e a um senso mais forte de propósito." },
-      cy: { text: "Mae gwirfoddoli am ddim ond 2 awr yr wythnos yn gysylltiedig â chyfraddau is o iselder a synnwyr cryfach o bwrpas." },
     },
   },
   {
@@ -756,7 +705,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Der Duft von Lavendel wurde klinisch belegt, Angst zu reduzieren und die Schlafqualität bei älteren Erwachsenen zu verbessern." },
       it: { text: "È stato clinicamente dimostrato che il profumo di lavanda riduce l'ansia e migliora la qualità del sonno negli anziani." },
       pt: { text: "Foi clinicamente demonstrado que o aroma de lavanda reduz a ansiedade e melhora a qualidade do sono em adultos mais velhos." },
-      cy: { text: "Mae wedi'i ddangos yn glinigol bod arogl lafant yn lleihau gorbryder ac yn gwella ansawdd cwsg mewn oedolion hŷn." },
     },
   },
   {
@@ -770,7 +718,6 @@ export const INSPIRATION_CARDS: InspirationCard[] = [
       de: { text: "Menschen, die regelmäßig Kulturveranstaltungen wie Konzerte oder Theaterbesuche besuchen, berichten von höherer Lebenszufriedenheit und niedrigeren Depressionsraten." },
       it: { text: "Le persone che partecipano regolarmente a eventi culturali come concerti o visite a teatro riportano una maggiore soddisfazione di vita e tassi di depressione più bassi." },
       pt: { text: "Pessoas que frequentam regularmente eventos culturais como concertos ou visitas ao teatro relatam maior satisfação com a vida e taxas mais baixas de depressão." },
-      cy: { text: "Mae pobl sy'n mynychu digwyddiadau diwylliannol yn rheolaidd fel cyngherddau neu ymweliadau theatr yn adrodd boddhad bywyd uwch a chyfraddau is o iselder." },
     },
   },
 ];

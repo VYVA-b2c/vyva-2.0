@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, BrainCircuit, Check, Loader2, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Check, CircleHelp, Lightbulb, Loader2, MessageCircle, PartyPopper, RefreshCw, Sparkles } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { apiFetch } from "@/lib/queryClient";
@@ -24,6 +24,30 @@ const DEFAULT_STREAK_STATE = {
   last_streak_date: null,
   last_played_at: null,
 };
+
+const CURIOUS_MINDS_TUTORIAL_KEY = "curiousMinds:tutorialSeen:v1";
+
+function tutorialStorageKey(userId) {
+  return userId ? `${CURIOUS_MINDS_TUTORIAL_KEY}:${userId}` : CURIOUS_MINDS_TUTORIAL_KEY;
+}
+
+function readTutorialSeen(userId) {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(tutorialStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeTutorialSeen(userId) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(tutorialStorageKey(userId), "true");
+  } catch {
+    // Local tutorial persistence should never block the game.
+  }
+}
 
 function todayKey(date = new Date()) {
   const year = date.getFullYear();
@@ -111,6 +135,8 @@ export default function CuriousMinds({ userId, onExit }) {
   const [loadError, setLoadError] = useState("");
   const [saveWarning, setSaveWarning] = useState("");
   const [saving, setSaving] = useState(false);
+  const [tutorialSeen, setTutorialSeen] = useState(() => readTutorialSeen(userId));
+  const [tutorialReturnScreen, setTutorialReturnScreen] = useState("hook");
 
   const [hookGuessText, setHookGuessText] = useState("");
   const [hookGuessMethod, setHookGuessMethod] = useState(null);
@@ -166,7 +192,8 @@ export default function CuriousMinds({ userId, onExit }) {
 
     try {
       await loadTodaysContent();
-      setScreen("hook");
+      setTutorialReturnScreen("hook");
+      setScreen(readTutorialSeen(userId) ? "hook" : "tutorial");
     } catch (error) {
       console.warn("Curious Minds could not load.", error);
       setLoadError(error instanceof Error ? error.message : t("games.curiousMinds.contentUnavailable", "There is no reviewed Curious Minds content available yet."));
@@ -288,6 +315,21 @@ export default function CuriousMinds({ userId, onExit }) {
     onExit?.();
   };
 
+  const markTutorialSeen = () => {
+    writeTutorialSeen(userId);
+    setTutorialSeen(true);
+  };
+
+  const openInstructions = () => {
+    setTutorialReturnScreen(screenRef.current === "tutorial" ? "hook" : screenRef.current || "hook");
+    setScreen("tutorial");
+  };
+
+  const closeTutorial = () => {
+    markTutorialSeen();
+    setScreen(tutorialReturnScreen || "hook");
+  };
+
   if (screen === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center px-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
@@ -305,17 +347,67 @@ export default function CuriousMinds({ userId, onExit }) {
         <header className="flex items-center justify-between gap-4">
           <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
           {screen !== "close" ? (
-            <button
-              type="button"
-              onClick={() => void exitGame()}
-              disabled={saving}
-              className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-50"
-            >
-              <ArrowLeft size={24} aria-hidden="true" />
-              {t("common.exit", "Exit")}
-            </button>
+            <div className="flex items-center gap-3">
+              {tutorialSeen ? (
+                <button
+                  type="button"
+                  onClick={openInstructions}
+                  aria-label={t("games.curiousMinds.instructions", "Instructions")}
+                  title={t("games.curiousMinds.instructions", "Instructions")}
+                  className="flex min-h-[64px] w-[64px] items-center justify-center rounded-full bg-white text-vyva-purple shadow-vyva-card"
+                >
+                  <CircleHelp size={28} aria-hidden="true" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void exitGame()}
+                disabled={saving}
+                className="inline-flex min-h-[64px] items-center gap-2 rounded-full bg-white px-6 text-[22px] font-extrabold shadow-vyva-card disabled:opacity-50"
+              >
+                <ArrowLeft size={24} aria-hidden="true" />
+                {t("common.exit", "Exit")}
+              </button>
+            </div>
           ) : null}
         </header>
+
+        {screen === "tutorial" ? (
+          <section className="mt-6 rounded-[28px] border bg-white p-5 text-center shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+            <div className="mx-auto flex h-[84px] w-[84px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+              <Lightbulb size={46} aria-hidden="true" />
+            </div>
+            <h1 className="mt-5 font-display text-[36px] leading-tight sm:text-[42px]">{t("games.curiousMinds.tutorialTitle", "How it works")}</h1>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                { Icon: Sparkles, label: t("games.curiousMinds.tutorialGuess", "Guess first"), bg: "#FAF7FF" },
+                { Icon: MessageCircle, label: t("games.curiousMinds.tutorialIdeas", "Share ideas"), bg: "#F0FDFA" },
+                { Icon: RefreshCw, label: t("games.curiousMinds.tutorialRemember", "Remember later"), bg: "#FFF7ED" },
+              ].map(({ Icon, label, bg }, index) => (
+                <div key={label} className="relative rounded-[22px] px-4 py-5" style={{ background: bg }}>
+                  <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-[15px] font-black text-white" style={{ background: BRAND.purple }}>
+                    {index + 1}
+                  </span>
+                  <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-vyva-purple">
+                    <Icon size={28} aria-hidden="true" />
+                  </span>
+                  <p className="mt-3 text-[20px] font-black leading-tight text-vyva-text-1">{label}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mx-auto mt-5 max-w-[28ch] text-[20px] font-bold leading-snug" style={{ color: BRAND.muted }}>
+              {t("games.curiousMinds.tutorialPace", "There are no wrong answers. Take your time.")}
+            </p>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="mt-7 min-h-[72px] w-full rounded-full px-6 text-[24px] font-black text-white shadow-vyva-card"
+              style={{ background: BRAND.purple }}
+            >
+              {t("games.curiousMinds.tutorialUnderstand", "I understand")}
+            </button>
+          </section>
+        ) : null}
 
         {screen === "error" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>

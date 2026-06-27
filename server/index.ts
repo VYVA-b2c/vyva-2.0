@@ -85,6 +85,7 @@ import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedChe
 import gamesRouter from "./routes/games.js";
 import learningRouter from "./routes/learning.js";
 import motivationRouter from "./routes/motivation.js";
+import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
@@ -173,6 +174,7 @@ app.post("/api/address-voice-parse", addressVoiceParseHandler);
 app.use("/api/intake", express.urlencoded({ extended: false }), intakeRouter);
 app.use("/api/webhooks/twilio", express.urlencoded({ extended: false }), twilioWebhooksRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/vyva-demo", vyvaDemoRouter);
 app.use("/api/onboarding", authMiddleware, onboardingRouter);
 app.use("/api/billing", authMiddleware, billingRouter);
 app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycleRouter);

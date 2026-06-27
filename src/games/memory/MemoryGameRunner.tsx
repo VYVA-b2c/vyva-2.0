@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   BookOpen,
   CheckCircle2,
+  CircleHelp,
   Clock3,
   Grid2x2,
   Hash,
@@ -44,6 +45,29 @@ import StoryRecallGame from "./StoryRecallGame";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 const MEMORY_AUDIO_STORAGE_KEY = "vyva_memory_audio_muted";
+const SEQUENCE_TUTORIAL_KEY = "sequenceMemory:tutorialSeen:v1";
+
+function sequenceTutorialStorageKey(userId: string) {
+  return userId ? `${SEQUENCE_TUTORIAL_KEY}:${userId}` : SEQUENCE_TUTORIAL_KEY;
+}
+
+function readSequenceTutorialSeen(userId: string) {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(sequenceTutorialStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeSequenceTutorialSeen(userId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(sequenceTutorialStorageKey(userId), "true");
+  } catch {
+    // Local tutorial persistence is helpful, but play should not depend on it.
+  }
+}
 
 type MemoryCard = {
   deckId: string;
@@ -444,6 +468,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(MEMORY_AUDIO_STORAGE_KEY) === "true";
   });
+  const [sequenceTutorialSeen, setSequenceTutorialSeen] = useState(() => readSequenceTutorialSeen(userId));
+  const [showSequenceTutorial, setShowSequenceTutorial] = useState(false);
   const timeoutRef = useRef<number | null>(null);
   const sequenceStatusTimeoutRef = useRef<number | null>(null);
   const sequenceProgressRef = useRef(0);
@@ -540,6 +566,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       setWordRecallChoicesSeed((current) => current + 1);
       setWordRecallMessage(null);
       setWordRecallVoiceMessage(null);
+      setShowSequenceTutorial(nextPlan.gameType === "sequence_memory" && !readSequenceTutorialSeen(userId));
       setLoading(false);
     }
 
@@ -943,8 +970,24 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     setSequenceRun((current) => current + 1);
   };
 
+  const markSequenceTutorialSeen = useCallback(() => {
+    writeSequenceTutorialSeen(userId);
+    setSequenceTutorialSeen(true);
+  }, [userId]);
+
+  const openSequenceInstructions = useCallback(() => {
+    stopTts();
+    setShowSequenceTutorial(true);
+  }, [stopTts]);
+
+  const closeSequenceTutorial = useCallback(() => {
+    markSequenceTutorialSeen();
+    setShowSequenceTutorial(false);
+    setSequenceRun((current) => current + 1);
+  }, [markSequenceTutorialSeen]);
+
   useEffect(() => {
-    if (!plan || plan.gameType !== "sequence_memory" || !sequenceTiles.length || !expectedSequence.length || finished) return;
+    if (!plan || plan.gameType !== "sequence_memory" || !sequenceTiles.length || !expectedSequence.length || finished || showSequenceTutorial) return;
 
     setSequenceReady(false);
     setSequencePhase("countdown");
@@ -1002,7 +1045,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
       cancelled = true;
       timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
-  }, [expectedSequence, finished, plan, previewSequence, sequenceRun, sequenceTiles.length]);
+  }, [expectedSequence, finished, plan, previewSequence, sequenceRun, sequenceTiles.length, showSequenceTutorial]);
 
   useEffect(() => {
     if (!plan || finished || saving) return;
@@ -1291,6 +1334,76 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             {t("memory.backToMemory")}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (plan.gameType === "sequence_memory" && showSequenceTutorial) {
+    const previewTiles = sequenceTiles.length > 0
+      ? sequenceTiles
+      : [
+          { id: "one", emoji: "1", color: "#6B21A8" },
+          { id: "two", emoji: "2", color: "#0F766E" },
+          { id: "three", emoji: "3", color: "#B45309" },
+          { id: "four", emoji: "4", color: "#2563EB" },
+        ];
+
+    return (
+      <div className="px-[22px] pb-6">
+        <button
+          onClick={backToList}
+          className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
+        >
+          <ArrowLeft size={18} />
+          {t("common.back")}
+        </button>
+
+        <section className="mt-4 rounded-[28px] border border-[#EFE7DB] bg-white p-5 text-center shadow-vyva-card">
+          <div className="mx-auto flex h-[82px] w-[82px] items-center justify-center rounded-[24px] bg-[#FFF9F1] shadow-vyva-card">
+            <div className="flex h-[58px] w-[58px] items-center justify-center rounded-[20px]" style={gameIconStyle}>
+              <GameIcon size={30} />
+            </div>
+          </div>
+          <h1 className="mt-5 font-display text-[34px] leading-tight text-vyva-text-1 sm:text-[38px]">{t("memory.sequenceTutorialTitle", "How it works")}</h1>
+
+          <div className="mx-auto mt-6 grid max-w-[420px] grid-cols-2 gap-3">
+            {previewTiles.map((tile, index) => (
+              <div
+                key={tile.id}
+                className="flex min-h-[104px] flex-col items-center justify-center rounded-[22px] text-white shadow-vyva-card"
+                style={{ background: tile.color }}
+              >
+                <span className="text-[34px] leading-none">{tile.emoji}</span>
+                <span className="mt-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-white/20 px-2 text-[14px] font-black">
+                  {index + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[
+              t("memory.sequenceTutorialWatch", "Watch the order"),
+              t("memory.sequenceTutorialRepeat", "Tap it back"),
+              t("memory.sequenceTutorialPace", "Try again if needed"),
+            ].map((label, index) => (
+              <div key={label} className="flex min-h-[78px] items-center gap-3 rounded-[20px] bg-[#FFF9F1] px-4 py-4 text-left">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-vyva-purple text-[15px] font-black text-white">
+                  {index + 1}
+                </span>
+                <p className="text-[17px] font-black leading-tight text-vyva-text-1">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={closeSequenceTutorial}
+            className="mt-7 min-h-[72px] w-full rounded-full bg-vyva-purple px-6 text-[23px] font-black text-white shadow-vyva-card"
+          >
+            {t("memory.sequenceTutorialUnderstand", "I understand")}
+          </button>
+        </section>
       </div>
     );
   }
@@ -1838,9 +1951,22 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
               <h1 className="mt-4 font-display text-[30px] leading-[1.06] text-vyva-text-1">{gameTitle}</h1>
               <p className="mt-3 max-w-[24ch] text-[15px] leading-[1.55] text-vyva-text-2">{gamePrompt}</p>
             </div>
-            <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-[24px] bg-white shadow-vyva-card">
-              <div className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px]" style={gameIconStyle}>
-                <GameIcon size={28} />
+            <div className="flex shrink-0 items-center gap-2">
+              {sequenceTutorialSeen ? (
+                <button
+                  type="button"
+                  onClick={openSequenceInstructions}
+                  aria-label={t("memory.instructions", "Instructions")}
+                  title={t("memory.instructions", "Instructions")}
+                  className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-white text-vyva-purple shadow-vyva-card"
+                >
+                  <CircleHelp size={26} aria-hidden="true" />
+                </button>
+              ) : null}
+              <div className="flex h-[84px] w-[84px] items-center justify-center rounded-[24px] bg-white shadow-vyva-card">
+                <div className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px]" style={gameIconStyle}>
+                  <GameIcon size={28} />
+                </div>
               </div>
             </div>
           </div>

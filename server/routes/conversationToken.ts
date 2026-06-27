@@ -141,11 +141,29 @@ const SOCIAL_AGENT_ENV_KEYS: Record<string, string[]> = {
 };
 
 const TOP_LEVEL_AGENT_ENV_KEYS: Record<string, string[]> = {
-  vyva: ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  "main-vyva": ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  main_vyva: ["ELEVENLABS_MAIN_VYVA_AGENT_ID", "ELEVENLABS_AGENT_VYVA", "ELEVENLABS_AGENT_ID"],
-  health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID"],
-  "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID"],
+  vyva: [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  "main-vyva": [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  main_vyva: [
+    "ELEVENLABS_MAIN_VYVA_AGENT_ID",
+    "ELEVENLABS_COMPANION_AGENT_ID",
+    "ELEVENLABS_AGENT_VYVA",
+    "ELEVENLABS_SOCIAL_AGENT_ID",
+    "ELEVENLABS_AGENT_ID",
+  ],
+  health: ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
+  "health-assistant": ["ELEVENLABS_HEALTH_ASSISTANT_AGENT_ID", "ELEVENLABS_HEALTH_AGENT_ID"],
   doctor: ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   "medical-doctor": ["ELEVENLABS_DOCTOR_AGENT_ID", "ELEVENLABS_MEDICAL_DOCTOR_AGENT_ID", "ELEVENLABS_HEALTH_DOCTOR_AGENT_ID"],
   meds: ["ELEVENLABS_MEDS_AGENT_ID", "ELEVENLABS_MEDICATION_AGENT_ID", "ELEVENLABS_MEDICATIONS_AGENT_ID"],
@@ -172,8 +190,10 @@ const FIXED_AGENT_IDS: Record<string, string> = {
 };
 
 const DEFAULT_AGENT_ENV_KEYS = [
+  "ELEVENLABS_COMPANION_AGENT_ID",
   "ELEVENLABS_SOCIAL_AGENT_ID",
   "ELEVENLABS_AGENT_ID",
+  "VITE_ELEVENLABS_COMPANION_AGENT_ID",
   "VITE_ELEVENLABS_SOCIAL_AGENT_ID",
   "VITE_ELEVENLABS_AGENT_ID",
 ];
@@ -211,7 +231,7 @@ function buildRoomAgentKeys(roomSlug: string, agentSlug?: string) {
   return [...new Set(keys)];
 }
 
-function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
+export function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
   const normalizedAgentSlug = normalizeSlug(agentSlug);
   const normalizedRoomSlug = normalizeSlug(roomSlug);
   const canonicalRoomSlug = normalizedRoomSlug ? resolveSocialRoomSlug(normalizedRoomSlug) : undefined;
@@ -285,6 +305,7 @@ export async function conversationTokenHandler(req: Request, res: Response) {
     });
     return res.status(400).json({
       error: "No ElevenLabs agent configured for this room yet.",
+      code: "ELEVENLABS_AGENT_MISSING",
       room_slug,
       agent_slug,
       source: resolved.source,
@@ -297,17 +318,23 @@ export async function conversationTokenHandler(req: Request, res: Response) {
     process.env.VITE_ELEVENLABS_API_KEY ||
     process.env.ELEVENLABS_CONVAI_API_KEY;
   if (!ELEVENLABS_API_KEY) {
-    return res.status(500).json({ error: "Missing ElevenLabs API key" });
+    return res.status(500).json({
+      error: "Missing ElevenLabs API key",
+      code: "ELEVENLABS_API_KEY_MISSING",
+    });
   }
 
   try {
-    return signedUrlNoOverride(resolved.agentId, ELEVENLABS_API_KEY, res, {
+    return await signedUrlNoOverride(resolved.agentId, ELEVENLABS_API_KEY, res, {
       agent_slug: resolved.resolvedSlug,
       room_slug: normalizedRoomSlug,
       source: resolved.source,
     });
   } catch (e) {
-    return res.status(500).json({ error: (e as Error).message });
+    return res.status(500).json({
+      error: (e as Error).message,
+      code: "ELEVENLABS_TOKEN_ERROR",
+    });
   }
 }
 
@@ -325,9 +352,21 @@ async function signedUrlNoOverride(
   if (!resp.ok) {
     const errText = await resp.text();
     console.warn("[conversationToken] get_signed_url failed:", errText);
-    return res.status(resp.status).json({ error: "ElevenLabs signed URL error", detail: errText });
+    return res.status(resp.status).json({
+      error: "ElevenLabs signed URL error",
+      code: "ELEVENLABS_SIGNED_URL_ERROR",
+      detail: errText,
+    });
   }
 
   const data = (await resp.json()) as { signed_url?: string };
+  if (!data.signed_url) {
+    console.warn("[conversationToken] get_signed_url response missing signed_url", metadata);
+    return res.status(502).json({
+      error: "ElevenLabs signed URL response was empty",
+      code: "ELEVENLABS_TOKEN_ERROR",
+    });
+  }
+
   return res.json({ signed_url: data.signed_url, ...metadata });
 }

@@ -82,7 +82,7 @@ function mockReducedMotion(matches: boolean) {
 
 function renderRelaxBreathe() {
   return render(
-    <MemoryRouter initialEntries={["/activities/relax-breathe"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/activities/relax-breathe"]}>
       <Routes>
         <Route path="/activities/relax-breathe" element={<RelaxBreatheScreen />} />
         <Route path="/activities" element={<LocationProbe />} />

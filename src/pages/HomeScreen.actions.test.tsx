@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
 
 const guardPathMock = vi.fn();
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
+const profileMock = vi.hoisted(() => ({ firstName: "Karim" }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -16,7 +18,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 
 vi.mock("@/contexts/ProfileContext", () => ({
   useProfile: () => ({
-    firstName: "Karim",
+    firstName: profileMock.firstName,
     profile: {
       gpName: "Dr Garcia",
       gpPhone: "+34 612 345 678",
@@ -39,11 +41,13 @@ vi.mock("@/components/VoiceHero", () => ({
     autoStartVoice?: boolean | string;
     chatLabel?: string;
     contextHint?: string;
+    heroSurface?: string;
     onChatClick?: () => void;
     showVoiceOverlay?: boolean;
     talkLabel?: string;
     voiceAgentSlug?: string;
     voiceDynamicVariables?: Record<string, string | number | boolean>;
+    headline?: ReactNode;
   }) => {
     voiceHeroMock(props);
     return (
@@ -56,6 +60,7 @@ vi.mock("@/components/VoiceHero", () => ({
         data-agent-slug={props.voiceAgentSlug ?? ""}
         data-app-entrypoint={String(props.voiceDynamicVariables?.app_entrypoint ?? "")}
       >
+        <div data-testid="voice-hero-headline">{props.headline}</div>
         <button type="button" data-testid="button-voice-hero-talk">
           {props.talkLabel}
         </button>
@@ -75,6 +80,9 @@ const labels: Record<string, string> = {
   "home.mode.type": "Type",
   "home.mode.voice": "Voice",
   "home.mode.voiceCta": "Talk to VYVA",
+  "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
+  "home.greeting.afternoon.withoutName.1": "Good afternoon",
+  "home.greeting.evening.withName.1": "Good evening, {{name}}",
   "home.fastHelp.kicker": "Fast help",
   "home.fastHelp.title": "What would you like VYVA to do?",
   "home.fastHelp.doctor.label": "Talk to a real doctor now",
@@ -95,9 +103,9 @@ const labels: Record<string, string> = {
   "home.voiceCards.health.title": "My health",
   "home.voiceCards.health.subtitle": "Symptoms, meds and wellbeing",
   "home.voiceCards.health.micLabel": "Talk about my health",
-  "home.voiceCards.cognitive.title": "My mind",
-  "home.voiceCards.cognitive.subtitle": "Focus, memory and calm",
-  "home.voiceCards.cognitive.micLabel": "Start a mental exercise",
+  "home.voiceCards.cognitive.title": "My Brain",
+  "home.voiceCards.cognitive.subtitle": "Memory, focus and calm",
+  "home.voiceCards.cognitive.micLabel": "Open My Brain",
   "home.voiceCards.social.title": "My Community",
   "home.voiceCards.social.subtitle": "Rooms, chats and shared moments",
   "home.voiceCards.social.micLabel": "Talk to VYVA",
@@ -125,6 +133,7 @@ describe("Home fast service actions", () => {
     vi.useRealTimers();
     vi.clearAllMocks();
     voiceHeroMock.mockClear();
+    profileMock.firstName = "Karim";
     window.localStorage.clear();
     window.sessionStorage.clear();
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -178,6 +187,38 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-context", "app_open");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-agent-slug", "main-vyva");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-app-entrypoint", "home_open");
+  });
+
+  it("keeps the Home hero greeting on the user's first name", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T14:00:00"));
+    window.sessionStorage.setItem("home.greetingVariant", "1");
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("voice-hero-headline")).toHaveTextContent("Good afternoon, Karim");
+    expect(voiceHeroMock.mock.calls[0]?.[0]).not.toHaveProperty("heroSurface");
+  });
+
+  it("uses concise evening copy instead of long late-night variants", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("voice-hero-headline")).toHaveTextContent("Good evening, Karim");
+  });
+
+  it("does not use an account email as the Home hero name", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T14:00:00"));
+    window.sessionStorage.setItem("home.greetingVariant", "1");
+    profileMock.firstName = "qm@4cksa.com";
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("voice-hero-headline")).toHaveTextContent("Good afternoon");
+    expect(screen.getByTestId("voice-hero-headline")).not.toHaveTextContent("qm@4cksa.com");
   });
 
   it("opens doctor help with voice context from Home", () => {

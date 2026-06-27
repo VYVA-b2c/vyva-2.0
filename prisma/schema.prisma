@@ -1,0 +1,425 @@
+// VYVA MVP schema: longitudinal, wellness-first, non-diagnostic.
+// For SQLite MVP, JSON-like fields are stored as String? containing JSON.
+// Later Postgres version can convert optionsJson/evidenceJson/rawJson to Json/JSONB.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SENIOR
+  CAREGIVER
+  ADMIN
+}
+
+enum BaselineStatus {
+  COLLECTING
+  ACTIVE
+}
+
+enum Cadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+  TRIGGERED
+}
+
+enum BurdenLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AnswerType {
+  SCALE_CHANGE
+  SCALE_FREQUENCY
+  SCALE_DIFFICULTY
+  SCALE_SOCIAL
+  ACTION_PREFERENCE
+  YES_NO
+  FREE_TEXT
+  TASK_STORY
+  TASK_FLUENCY
+  TASK_PLANNING
+  TASK_PROSPECTIVE
+  NUMERIC
+}
+
+enum SessionType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  TRIGGERED
+}
+
+enum SessionStatus {
+  STARTED
+  COMPLETED
+  INCOMPLETE
+}
+
+enum SignalSource {
+  RESPONSE
+  MEDICATION
+  ROUTINE
+  CAREGIVER_NOTE
+  TRANSCRIPT_METADATA
+}
+
+enum InsightSeverity {
+  POSITIVE
+  NEUTRAL
+  WATCH
+  ATTENTION
+}
+
+enum InsightStatus {
+  ACTIVE
+  DISMISSED
+  RESOLVED
+}
+
+enum RecommendationStatus {
+  SUGGESTED
+  ACCEPTED
+  SKIPPED
+  COMPLETED
+}
+
+enum AlertSeverity {
+  INFO
+  ATTENTION
+  URGENT
+}
+
+enum AlertStatus {
+  OPEN
+  REVIEWED
+}
+
+enum MedicationEventStatus {
+  PENDING
+  TAKEN
+  SKIPPED
+  MISSED
+  REMIND_LATER
+}
+
+enum RoutineEventStatus {
+  PENDING
+  DONE
+  SKIPPED
+  MISSED
+  REMIND_LATER
+}
+
+model User {
+  id                String          @id @default(cuid())
+  name              String
+  role              UserRole
+  preferredLanguage String          @default("en")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  seniorProfile     SeniorProfile?  @relation("SeniorUser")
+  caregiverFor      SeniorProfile[] @relation("SeniorCaregiver")
+  caregiverNotes    CaregiverNote[] @relation("CaregiverNotes")
+
+  @@index([role])
+}
+
+model SeniorProfile {
+  id                     String          @id @default(cuid())
+  userId                 String          @unique
+  user                   User            @relation("SeniorUser", fields: [userId], references: [id], onDelete: Cascade)
+  dateOfBirth            DateTime?
+  livingSituation        String?
+  caregiverId            String?
+  caregiver              User?           @relation("SeniorCaregiver", fields: [caregiverId], references: [id])
+  consentCaregiverAlerts Boolean         @default(true)
+  consentShareDetails    Boolean         @default(true)
+  baselineStartedAt      DateTime?
+  baselineStatus         BaselineStatus  @default(COLLECTING)
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  sessions               AssessmentSession[]
+  responses              AssessmentResponse[]
+  signals                Signal[]
+  baselines              BaselineMetric[]
+  insights               Insight[]
+  recommendations        PreventionRecommendation[]
+  alerts                 Alert[]
+  notes                  CaregiverNote[]
+  medications            Medication[]
+  medicationEvents       MedicationEvent[]
+  routines               Routine[]
+  routineEvents          RoutineEvent[]
+  transcriptMetadata     TranscriptMetadata[]
+
+  @@index([caregiverId])
+  @@index([baselineStatus])
+}
+
+model Question {
+  id                String        @id
+  domain            String
+  questionText      String
+  answerType        AnswerType
+  optionsJson       String?
+  cadence           Cadence
+  burdenLevel       BurdenLevel   @default(LOW)
+  preventionDomain  String?
+  triggerRule       String?
+  cooldownDays      Int           @default(14)
+  active            Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  responses         AssessmentResponse[]
+
+  @@index([domain])
+  @@index([cadence])
+  @@index([active])
+}
+
+model WeeklyForm {
+  id              String   @id @default(cuid())
+  weekNumber      Int      @unique
+  title           String
+  questionIdsJson String   // JSON array of Question.id values
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AssessmentSession {
+  id                 String               @id @default(cuid())
+  seniorId           String
+  senior             SeniorProfile        @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  sessionType        SessionType
+  status             SessionStatus        @default(STARTED)
+  selectedReasonJson String?              // why questions were selected
+  startedAt          DateTime             @default(now())
+  completedAt        DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  responses          AssessmentResponse[]
+  transcriptMetadata TranscriptMetadata[]
+
+  @@index([seniorId, sessionType])
+  @@index([seniorId, startedAt])
+  @@index([status])
+}
+
+model AssessmentResponse {
+  id           String            @id @default(cuid())
+  sessionId    String
+  session      AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  seniorId     String
+  senior       SeniorProfile     @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  questionId   String
+  question     Question          @relation(fields: [questionId], references: [id])
+  answerText   String?
+  answerValue  Float?
+  answerJson   String?
+  createdAt    DateTime          @default(now())
+
+  signals      Signal[]
+
+  @@index([seniorId, createdAt])
+  @@index([sessionId])
+  @@index([questionId])
+}
+
+model Signal {
+  id                String              @id @default(cuid())
+  seniorId          String
+  senior            SeniorProfile       @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  responseId        String?
+  response          AssessmentResponse? @relation(fields: [responseId], references: [id], onDelete: SetNull)
+  domain            String
+  value             Float               // 0-100 concern scale: higher = more attention needed
+  normalizedValue   Float?
+  source            SignalSource
+  confidence        Float               @default(0.6)
+  createdAt         DateTime            @default(now())
+
+  @@index([seniorId, domain, createdAt])
+  @@index([source])
+}
+
+model BaselineMetric {
+  id           String        @id @default(cuid())
+  seniorId     String
+  senior       SeniorProfile @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  domain       String
+  baselineMean Float
+  baselineStd  Float
+  sampleCount  Int
+  windowDays   Int           @default(14)
+  status       BaselineStatus @default(COLLECTING)
+  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime      @default(now())
+
+  @@unique([seniorId, domain])
+  @@index([domain])
+}
+
+model Insight {
+  id           String          @id @default(cuid())
+  seniorId     String
+  senior       SeniorProfile   @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  type         String
+  domain       String
+  title        String
+  summary      String
+  evidenceJson String?
+  severity     InsightSeverity @default(NEUTRAL)
+  confidence   Float           @default(0.6)
+  status       InsightStatus   @default(ACTIVE)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  recommendations PreventionRecommendation[]
+
+  @@index([seniorId, status])
+  @@index([domain])
+  @@index([severity])
+}
+
+model PreventionRecommendation {
+  id          String               @id @default(cuid())
+  seniorId    String
+  senior      SeniorProfile        @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  insightId   String?
+  insight     Insight?             @relation(fields: [insightId], references: [id], onDelete: SetNull)
+  domain      String
+  title       String
+  body        String
+  actionType  String
+  status      RecommendationStatus @default(SUGGESTED)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([seniorId, status])
+  @@index([domain])
+}
+
+model Alert {
+  id           String        @id @default(cuid())
+  seniorId     String
+  senior       SeniorProfile @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  type         String
+  severity     AlertSeverity @default(INFO)
+  message      String
+  evidenceJson String?
+  status       AlertStatus   @default(OPEN)
+  createdAt    DateTime      @default(now())
+  reviewedAt   DateTime?
+
+  @@index([seniorId, status])
+  @@index([severity])
+  @@index([type])
+}
+
+model CaregiverNote {
+  id          String        @id @default(cuid())
+  seniorId    String
+  senior      SeniorProfile @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  caregiverId String
+  caregiver   User          @relation("CaregiverNotes", fields: [caregiverId], references: [id], onDelete: Cascade)
+  note        String
+  concernTag  String?
+  createdAt   DateTime      @default(now())
+
+  @@index([seniorId, createdAt])
+  @@index([caregiverId])
+}
+
+model Medication {
+  id            String            @id @default(cuid())
+  seniorId      String
+  senior        SeniorProfile     @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  name          String
+  doseLabel     String
+  scheduledTime String            // HH:mm for MVP
+  active        Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  events        MedicationEvent[]
+
+  @@index([seniorId, active])
+}
+
+model MedicationEvent {
+  id           String                @id @default(cuid())
+  medicationId String
+  medication   Medication            @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  seniorId     String
+  senior       SeniorProfile         @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  status       MedicationEventStatus @default(PENDING)
+  scheduledFor DateTime
+  recordedAt   DateTime?
+  createdAt    DateTime              @default(now())
+
+  @@index([seniorId, scheduledFor])
+  @@index([medicationId])
+  @@index([status])
+}
+
+model Routine {
+  id            String         @id @default(cuid())
+  seniorId      String
+  senior        SeniorProfile  @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  label         String
+  scheduledTime String?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  events        RoutineEvent[]
+
+  @@index([seniorId, active])
+}
+
+model RoutineEvent {
+  id           String             @id @default(cuid())
+  routineId    String
+  routine      Routine            @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  seniorId     String
+  senior       SeniorProfile      @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  status       RoutineEventStatus @default(PENDING)
+  scheduledFor DateTime
+  recordedAt   DateTime?
+  createdAt    DateTime           @default(now())
+
+  @@index([seniorId, scheduledFor])
+  @@index([routineId])
+  @@index([status])
+}
+
+model TranscriptMetadata {
+  id                       String             @id @default(cuid())
+  seniorId                 String
+  senior                   SeniorProfile      @relation(fields: [seniorId], references: [id], onDelete: Cascade)
+  sessionId                String?
+  session                  AssessmentSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  wordCount                Int
+  durationSeconds          Float?
+  averageWordsPerSentence  Float?
+  hesitationCount          Int?
+  repeatedPhraseCount      Int?
+  transcriptText           String?
+  createdAt                DateTime           @default(now())
+
+  @@index([seniorId, createdAt])
+  @@index([sessionId])
+}

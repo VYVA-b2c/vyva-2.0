@@ -349,11 +349,11 @@
         "openLabel": "Apri benessere"
       },
       "cognitive": {
-        "title": "Mia mente",
-        "subtitle": "Focus, memoria e calma",
-        "bubble": "Un piccolo momento con me mantiene attiva la mente.",
-        "micLabel": "Iniziare un esercizio mentale",
-        "openLabel": "Apri mente agile"
+        "title": "Il mio cervello",
+        "subtitle": "Memoria, attenzione e calma",
+        "bubble": "Posso aiutarti a mantenere la mente attiva al tuo ritmo.",
+        "micLabel": "Apri Il mio cervello",
+        "openLabel": "Apri Il mio cervello"
       },
       "social": {
         "title": "La mia comunità",
@@ -1173,16 +1173,29 @@
     "primary": {
       "reminders": "Promemoria",
       "remindersSub": "Controlla il programma di oggi e aggiungi promemoria.",
+      "remindersMobileSub": "Programma di oggi",
       "refills": "Rifornimenti",
       "refillsSub": "Prepara ricette ripetute o consegne.",
+      "refillsMobileSub": "Rifornimenti farmacia",
       "interactions": "Interazioni",
       "interactionsSub": "Controlla farmaci e integratori.",
+      "interactionsMobileSub": "Controlla il mix",
       "adherence": "Aderenza",
-      "adherenceSub": "Vedi progressi e dosi saltate."
+      "adherenceSub": "Vedi progressi e dosi saltate.",
+      "adherenceMobileSub": "Dosi saltate"
     },
     "canHelpWith": "Posso aiutarti con",
     "fastHelpKicker": "Aiuto rapido",
     "takenToday": "{{taken}} di {{total}} presi oggi",
+    "heroDoseHeadline": "Non dimenticare\n{{medication}}",
+    "heroDoseDueToday": "Da prendere oggi. Tocca Promemoria quando fatto.",
+    "heroDoseDueNow": "Da prendere ora. Tocca Promemoria quando fatto.",
+    "heroDoseDueInMinutes_one": "Da prendere tra {{count}} min. Tocca Promemoria quando fatto.",
+    "heroDoseDueInMinutes_other": "Da prendere tra {{count}} min. Tocca Promemoria quando fatto.",
+    "heroDoseDueAt": "Da prendere alle {{time}}. Tocca Promemoria quando fatto.",
+    "heroAllDoneHeadline": "Tutti i farmaci\npresi oggi",
+    "heroAllDoneSub": "Ottimo lavoro. Non c'e altro da prendere oggi.",
+    "loadingSchedule": "Controllo il programma di oggi...",
     "todaySchedule": "Programma di oggi",
     "dueTonight": "1 previsto stasera",
     "taken": "Preso",
@@ -1750,7 +1763,31 @@
       "shop": "Acquista",
       "book": "Prenota",
       "order": "Ordina",
-      "save": "Risparmia"
+      "save": "Risparmia",
+      "service": {
+        "label": "Trova un servizio",
+        "mobile": "Aiuto",
+        "sub": "Idraulico, riparazioni, pulizie, assistenza",
+        "mobileSub": "Riparazioni e assistenza"
+      },
+      "ride": {
+        "label": "Prenota un trasporto",
+        "mobile": "Taxi",
+        "sub": "Taxi, trasporto medico, rientro a casa",
+        "mobileSub": "Taxi o trasporto"
+      },
+      "delivery": {
+        "label": "Fai un ordine",
+        "mobile": "Ordine",
+        "sub": "Spesa, farmacia, cibo, essenziali",
+        "mobileSub": "Cibo ed essenziali"
+      },
+      "appointment": {
+        "label": "Prenota appuntamento",
+        "mobile": "Visita",
+        "sub": "Medico, salone, ufficio pubblico, ristorante",
+        "mobileSub": "Medico, salone, ufficio"
+      }
     },
     "quickPrompts": {
       "findBestDeals": "Trova le migliori offerte",
@@ -1774,6 +1811,64 @@
         "ride": {
           "label": "Prenota corsa",
           "sub": "Organizza un trasporto sicuro"
+        },
+        "legal-advice": {
+          "label": "Ottieni consulenza legale",
+          "sub": "Capire le opzioni prima di agire",
+          "mobileSub": "Conosci le opzioni"
+        },
+        "trip": {
+          "label": "Pianifica un viaggio",
+          "sub": "Percorsi, orari, visite, promemoria",
+          "mobileSub": "Percorsi e promemoria"
+        },
+        "care": {
+          "label": "Trova la migliore assistenza",
+          "sub": "Confronta assistenza e supporto sicuri",
+          "mobileSub": "Assistenza e supporto"
+        },
+        "form": {
+          "label": "Compila un modulo",
+          "sub": "Prepara risposte, fermati prima dell'invio",
+          "mobileSub": "Prepara risposte"
+        },
+        "research": {
+          "label": "Cerca un argomento",
+          "sub": "Riassumi fonti e prossimi passi",
+          "mobileSub": "Fonti e passi"
+        },
+        "best-deal": {
+          "label": "Trova la migliore offerta",
+          "sub": "Confronta prezzo, fiducia e aderenza",
+          "mobileSub": "Confronta opzioni"
+        },
+        "age-at-home": {
+          "label": "Invecchiare bene a casa",
+          "sub": "Pianifica un supporto domestico piu sicuro",
+          "mobileSub": "Supporto casa sicuro"
+        }
+      }
+    },
+    "moreHelp": {
+      "kicker": "Altro aiuto Concierge",
+      "title": "Altre cose che VYVA puo preparare",
+      "titleMobile": "Altre attivita",
+      "actions": {
+        "compare-save": {
+          "label": "Confronta e risparmia",
+          "sub": "Bollette, offerte, piani"
+        },
+        "paperwork": {
+          "label": "Aiuto con documenti",
+          "sub": "Moduli, lettere, documenti"
+        },
+        "message": {
+          "label": "Invia un messaggio",
+          "sub": "Scrivi, rivedi, conferma"
+        },
+        "offer": {
+          "label": "Controlla un'offerta",
+          "sub": "Prezzo, fiducia, condizioni"
         }
       }
     },

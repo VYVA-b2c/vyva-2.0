@@ -118,4 +118,18 @@ describe("appointment discovery", () => {
     expect(queries[0]).toContain("dinner with friends");
     expect(queries[0]).toContain("Tarifa, Spain");
   });
+
+  it("uses a generated home-service research brief in search queries", () => {
+    const queries = buildAppointmentSearchQueries({
+      appointmentType: "home-service",
+      detail: "Plumber needed. What kind of plumbing issue?: Leak. Where is the problem?: Kitchen. Criteria: trusted",
+      location: "Marbella, Spain",
+      language: "en",
+    });
+
+    expect(queries[0]).toContain("Plumber needed");
+    expect(queries[0]).toContain("Leak");
+    expect(queries[0]).toContain("Marbella, Spain");
+    expect(queries.some((query) => query.includes("home service repair maintenance"))).toBe(true);
+  });
 });

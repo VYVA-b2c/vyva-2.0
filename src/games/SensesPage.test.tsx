@@ -16,7 +16,7 @@ describe("SensesPage", () => {
 
   it("opens Listen Closely from the Sharpen Senses hub", () => {
     render(
-      <MemoryRouter initialEntries={["/senses"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/senses"]}>
         <Routes>
           <Route path="/senses" element={<SensesPage />} />
           <Route path="/senses/listen-closely" element={<LocationProbe />} />
@@ -31,7 +31,7 @@ describe("SensesPage", () => {
 
   it("keeps Association out of the Sharpen Senses hub", () => {
     render(
-      <MemoryRouter initialEntries={["/senses"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/senses"]}>
         <Routes>
           <Route path="/senses" element={<SensesPage />} />
         </Routes>
@@ -43,7 +43,7 @@ describe("SensesPage", () => {
 
   it("opens Scent Memory from the Sharpen Senses hub", () => {
     render(
-      <MemoryRouter initialEntries={["/senses"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/senses"]}>
         <Routes>
           <Route path="/senses" element={<SensesPage />} />
           <Route path="/senses/scent-memory" element={<LocationProbe />} />
@@ -58,7 +58,7 @@ describe("SensesPage", () => {
 
   it("opens Breath Garden from the Sharpen Senses hub", () => {
     render(
-      <MemoryRouter initialEntries={["/senses"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/senses"]}>
         <Routes>
           <Route path="/senses" element={<SensesPage />} />
           <Route path="/senses/breath-garden" element={<LocationProbe />} />

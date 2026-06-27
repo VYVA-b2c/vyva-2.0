@@ -15,95 +15,101 @@ import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
-import LoginPage from "@/pages/LoginPage";
-import LandingPage from "@/pages/LandingPage";
-import InviteLandingPage from "@/pages/InviteLandingPage";
-import ResetPasswordPage from "@/pages/ResetPasswordPage";
-import AccessLinkPage from "@/pages/AccessLinkPage";
-import CareTeamInvitePage from "@/pages/CareTeamInvitePage";
-import ProfileSelectPage from "@/pages/ProfileSelectPage";
 import AppShell from "./components/AppShell";
 import ServiceGateRoute from "./components/ServiceGateRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OnboardingGuard from "./components/OnboardingGuard";
-import HomeScreen from "./pages/HomeScreen";
-import ChatScreen from "./pages/ChatScreen";
-import HealthScreen from "./pages/HealthScreen";
-import MedsScreen from "./pages/MedsScreen";
-import AdherenceReportScreen from "./pages/AdherenceReportScreen";
-import ActivitiesScreen from "./pages/ActivitiesScreen";
-import ActivityScreen from "./pages/ActivityScreen";
-import LearnSomethingNewPage from "./pages/LearnSomethingNewPage";
-import RelaxBreatheScreen from "./pages/RelaxBreatheScreen";
-import SpatialNavigator from "./games/SpatialNavigator";
-import FaceNameMatch from "./games/FaceNameMatch";
-import AttentionBoostersPage from "./games/AttentionBoostersPage";
-import ExecutiveFunctionPage from "./games/ExecutiveFunctionPage";
-import SensesPage from "./games/SensesPage";
-import MemoryGamesPage from "./games/memory/MemoryGamesPage";
-import MemoryGameRunner from "./games/memory/MemoryGameRunner";
-import DualTaskWalk from "./games/DualTaskWalk";
-import CategorySort from "./games/CategorySort";
-import NumberTrails from "./games/NumberTrails";
-import RememberLater from "./games/RememberLater";
-import CuriousMinds from "./games/CuriousMinds";
-import ScentMemory from "./games/ScentMemory";
-import ListenClosely from "./games/ListenClosely";
-import BreathGarden from "./games/BreathGarden";
-import ConciergeScreen from "./pages/ConciergeScreen";
-import ConciergeShoppingScreen from "./pages/ConciergeShoppingScreen";
-import SafeHomeScreen from "./pages/SafeHomeScreen";
-import ScamGuardScreen from "./pages/ScamGuardScreen";
-import SettingsScreen from "./pages/SettingsScreen";
-import NotFound from "./pages/NotFound";
+import VyvaDemoEntry, {
+  VyvaCaregiverDashboard,
+  VyvaCaregiverSeniorDetail,
+  VyvaSeniorDailyCheckIn,
+  VyvaSeniorHome,
+  VyvaSeniorMyWeek,
+  VyvaSeniorWeeklyCheckIn,
+} from "./pages/VyvaMvpDemo";
 
-import WelcomeScreen from "./pages/onboarding/WelcomeScreen";
-import WhoForStep from "./pages/onboarding/WhoForStep";
-import BasicsStep from "./pages/onboarding/BasicsStep";
-import ChannelStep from "./pages/onboarding/ChannelStep";
-import DataConsentStep from "./pages/onboarding/DataConsentStep";
-import ActivationStep from "./pages/onboarding/ActivationStep";
-import ProfileOverview from "./pages/onboarding/ProfileOverview";
-import SectionCompleteScreen from "./pages/onboarding/SectionCompleteScreen";
-import ProxySetupStep from "./pages/onboarding/ProxySetupStep";
-import ElderConfirmStep from "./pages/onboarding/ElderConfirmStep";
-import ElderConfirmByToken from "./pages/onboarding/ElderConfirmByToken";
-
-import GPSection from "./pages/onboarding/sections/GPSection";
-import ProvidersSection from "./pages/onboarding/sections/ProvidersSection";
-import AddressSection from "./pages/onboarding/sections/AddressSection";
-import AllergiesSection from "./pages/onboarding/sections/AllergiesSection";
-import BasicsSection from "./pages/onboarding/sections/BasicsSection";
-import CareTeamFlow from "./pages/onboarding/sections/CareTeamFlow";
-import CognitiveSection from "./pages/onboarding/sections/CognitiveSection";
-import ConditionsSection from "./pages/onboarding/sections/ConditionsSection";
-import DevicesSection from "./pages/onboarding/sections/DevicesSection";
-import DietSection from "./pages/onboarding/sections/DietSection";
-import EmergencySection from "./pages/onboarding/sections/EmergencySection";
-import HobbiesSection from "./pages/onboarding/sections/HobbiesSection";
-import MedicationsSection from "./pages/onboarding/sections/MedicationsSection";
-
-import PrivacySettings from "./pages/settings/PrivacySettings";
-import DoctorChoiceScreen from "./pages/DoctorChoiceScreen";
-import SymptomCheckScreen from "./pages/SymptomCheckScreen";
-import CheckHowIFeelScreen from "./pages/CheckHowIFeelScreen";
-import CheckinHistoryScreen from "./pages/CheckinHistoryScreen";
-import SharedCheckinReport from "./pages/SharedCheckinReport";
-import SignosScreen from "./pages/SignosScreen";
-import InformesScreen from "./pages/InformesScreen";
-import CompanionsScreen from "./pages/CompanionsScreen";
-import HistoryScreen from "./pages/HistoryScreen";
-import SubscriptionSettings from "./pages/settings/SubscriptionSettings";
-import SettingsHome from "./pages/settings/SettingsHome";
-import AccountSettings from "./pages/settings/AccountSettings";
-import HealthDevicesSettings from "./pages/settings/HealthDevicesSettings";
-import NotificationsSettings from "./pages/settings/NotificationsSettings";
-import ScheduledSupportSettings from "./pages/settings/ScheduledSupportSettings";
-import CaregiverDashboardPage from "./pages/CaregiverDashboardPage";
-import SocialHub from "./social/SocialHub";
-import MovementExerciseGuideScreen from "./social/MovementExerciseGuideScreen";
-import RoomScreen from "./social/RoomScreen";
-
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
+const InviteLandingPage = lazy(() => import("@/pages/InviteLandingPage"));
+const ResetPasswordPage = lazy(() => import("@/pages/ResetPasswordPage"));
+const AccessLinkPage = lazy(() => import("@/pages/AccessLinkPage"));
+const CareTeamInvitePage = lazy(() => import("@/pages/CareTeamInvitePage"));
+const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
+const HomeScreen = lazy(() => import("./pages/HomeScreen"));
+const ChatScreen = lazy(() => import("./pages/ChatScreen"));
+const HealthScreen = lazy(() => import("./pages/HealthScreen"));
+const MedsScreen = lazy(() => import("./pages/MedsScreen"));
+const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
+const ActivitiesScreen = lazy(() => import("./pages/ActivitiesScreen"));
+const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
+const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
+const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
+const ConciergeScreen = lazy(() => import("./pages/ConciergeScreen"));
+const ConciergeShoppingScreen = lazy(() => import("./pages/ConciergeShoppingScreen"));
+const SafeHomeScreen = lazy(() => import("./pages/SafeHomeScreen"));
+const ScamGuardScreen = lazy(() => import("./pages/ScamGuardScreen"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const SpatialNavigator = lazy(() => import("./games/SpatialNavigator"));
+const FaceNameMatch = lazy(() => import("./games/FaceNameMatch"));
+const AttentionBoostersPage = lazy(() => import("./games/AttentionBoostersPage"));
+const ExecutiveFunctionPage = lazy(() => import("./games/ExecutiveFunctionPage"));
+const LanguageGamesPage = lazy(() => import("./games/LanguageGamesPage"));
+const SensesPage = lazy(() => import("./games/SensesPage"));
+const MemoryGamesPage = lazy(() => import("./games/memory/MemoryGamesPage"));
+const MemoryGameRunner = lazy(() => import("./games/memory/MemoryGameRunner"));
+const DualTaskWalk = lazy(() => import("./games/DualTaskWalk"));
+const CategorySort = lazy(() => import("./games/CategorySort"));
+const NumberTrails = lazy(() => import("./games/NumberTrails"));
+const RememberLater = lazy(() => import("./games/RememberLater"));
+const CuriousMinds = lazy(() => import("./games/CuriousMinds"));
+const ScentMemory = lazy(() => import("./games/ScentMemory"));
+const ListenClosely = lazy(() => import("./games/ListenClosely"));
+const BreathGarden = lazy(() => import("./games/BreathGarden"));
+const WelcomeScreen = lazy(() => import("./pages/onboarding/WelcomeScreen"));
+const WhoForStep = lazy(() => import("./pages/onboarding/WhoForStep"));
+const BasicsStep = lazy(() => import("./pages/onboarding/BasicsStep"));
+const ChannelStep = lazy(() => import("./pages/onboarding/ChannelStep"));
+const DataConsentStep = lazy(() => import("./pages/onboarding/DataConsentStep"));
+const ActivationStep = lazy(() => import("./pages/onboarding/ActivationStep"));
+const ProfileOverview = lazy(() => import("./pages/onboarding/ProfileOverview"));
+const SectionCompleteScreen = lazy(() => import("./pages/onboarding/SectionCompleteScreen"));
+const ProxySetupStep = lazy(() => import("./pages/onboarding/ProxySetupStep"));
+const ElderConfirmStep = lazy(() => import("./pages/onboarding/ElderConfirmStep"));
+const ElderConfirmByToken = lazy(() => import("./pages/onboarding/ElderConfirmByToken"));
+const GPSection = lazy(() => import("./pages/onboarding/sections/GPSection"));
+const ProvidersSection = lazy(() => import("./pages/onboarding/sections/ProvidersSection"));
+const AddressSection = lazy(() => import("./pages/onboarding/sections/AddressSection"));
+const AllergiesSection = lazy(() => import("./pages/onboarding/sections/AllergiesSection"));
+const BasicsSection = lazy(() => import("./pages/onboarding/sections/BasicsSection"));
+const CareTeamFlow = lazy(() => import("./pages/onboarding/sections/CareTeamFlow"));
+const CognitiveSection = lazy(() => import("./pages/onboarding/sections/CognitiveSection"));
+const ConditionsSection = lazy(() => import("./pages/onboarding/sections/ConditionsSection"));
+const DevicesSection = lazy(() => import("./pages/onboarding/sections/DevicesSection"));
+const DietSection = lazy(() => import("./pages/onboarding/sections/DietSection"));
+const EmergencySection = lazy(() => import("./pages/onboarding/sections/EmergencySection"));
+const HobbiesSection = lazy(() => import("./pages/onboarding/sections/HobbiesSection"));
+const MedicationsSection = lazy(() => import("./pages/onboarding/sections/MedicationsSection"));
+const PrivacySettings = lazy(() => import("./pages/settings/PrivacySettings"));
+const DoctorChoiceScreen = lazy(() => import("./pages/DoctorChoiceScreen"));
+const SymptomCheckScreen = lazy(() => import("./pages/SymptomCheckScreen"));
+const CheckHowIFeelScreen = lazy(() => import("./pages/CheckHowIFeelScreen"));
+const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
+const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
+const SignosScreen = lazy(() => import("./pages/SignosScreen"));
+const InformesScreen = lazy(() => import("./pages/InformesScreen"));
+const CompanionsScreen = lazy(() => import("./pages/CompanionsScreen"));
+const HistoryScreen = lazy(() => import("./pages/HistoryScreen"));
+const SubscriptionSettings = lazy(() => import("./pages/settings/SubscriptionSettings"));
+const SettingsHome = lazy(() => import("./pages/settings/SettingsHome"));
+const AccountSettings = lazy(() => import("./pages/settings/AccountSettings"));
+const HealthDevicesSettings = lazy(() => import("./pages/settings/HealthDevicesSettings"));
+const NotificationsSettings = lazy(() => import("./pages/settings/NotificationsSettings"));
+const ScheduledSupportSettings = lazy(() => import("./pages/settings/ScheduledSupportSettings"));
+const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage"));
+const SocialHub = lazy(() => import("./social/SocialHub"));
+const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
+const ParticipateScreen = lazy(() => import("./social/ParticipateScreen"));
+const RoomScreen = lazy(() => import("./social/RoomScreen"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
 const LifecycleAdminPage = lazy(() => import("./pages/admin/LifecycleAdminPage"));
 const AdminActivityPage = lazy(() => import("./pages/admin/AdminActivityPage"));
@@ -113,10 +119,16 @@ const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage")
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
+const ParticipateEventsAdminPage = lazy(() => import("./pages/admin/ParticipateEventsAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
 
-const SECTION_MAP: Record<string, React.ComponentType> = {
+const routerFutureFlags = {
+  v7_relativeSplatPath: true,
+  v7_startTransition: true,
+} as const;
+
+const SECTION_MAP: Record<string, React.ElementType> = {
   allergies: AllergiesSection,
   basics: BasicsSection,
   gp: GPSection,
@@ -132,6 +144,10 @@ const SECTION_MAP: Record<string, React.ComponentType> = {
   hobbies: HobbiesSection,
   medications: MedicationsSection,
 };
+
+function RouteLoadingScreen() {
+  return <div className="min-h-screen bg-[#F8F4EF]" aria-busy="true" />;
+}
 
 function SectionRouter() {
   const { id } = useParams<{ id: string }>();
@@ -487,11 +503,12 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <BrowserRouter>
+            <BrowserRouter future={routerFutureFlags}>
               <LanguageFrameBoundary>
                 <VyvaVoiceProvider>
                   <VoiceActionProvider>
                     <AgentAppContextTracker />
+                    <Suspense fallback={<RouteLoadingScreen />}>
                     <Routes>
                 <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
@@ -502,6 +519,13 @@ const App = () => (
                 <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
                 <Route path="/confirm/:token" element={<ElderConfirmByToken />} />
                 <Route path="/shared/check-in/:token" element={<SharedCheckinReport />} />
+                <Route path="/vyva-demo" element={<VyvaDemoEntry />} />
+                <Route path="/vyva-demo/senior/:seniorKey" element={<VyvaSeniorHome />} />
+                <Route path="/vyva-demo/senior/:seniorKey/daily" element={<VyvaSeniorDailyCheckIn />} />
+                <Route path="/vyva-demo/senior/:seniorKey/weekly" element={<VyvaSeniorWeeklyCheckIn />} />
+                <Route path="/vyva-demo/senior/:seniorKey/my-week" element={<VyvaSeniorMyWeek />} />
+                <Route path="/vyva-demo/caregiver/:caregiverKey" element={<VyvaCaregiverDashboard />} />
+                <Route path="/vyva-demo/caregiver/:caregiverKey/senior/:seniorId" element={<VyvaCaregiverSeniorDetail />} />
                 {import.meta.env.DEV ? (
                   <Route path="/dev/remember-later" element={<RememberLaterPreviewRoute />} />
                 ) : null}
@@ -526,6 +550,7 @@ const App = () => (
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/participate-events" element={<AdminRoute><ParticipateEventsAdminPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
@@ -565,6 +590,7 @@ const App = () => (
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
+                  <Route path="/social-rooms/participate" element={<AppShell><ParticipateScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
@@ -598,6 +624,7 @@ const App = () => (
                 </Route>
                 <Route path="*" element={<NotFound />} />
                     </Routes>
+                    </Suspense>
                     <PwaInstallPromptGate />
                   </VoiceActionProvider>
                 </VyvaVoiceProvider>

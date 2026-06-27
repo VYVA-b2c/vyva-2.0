@@ -12,7 +12,7 @@ describe("ExecutiveFunctionPage", () => {
 
   it("opens Number Trails from its hub card", () => {
     render(
-      <MemoryRouter initialEntries={["/executive-function"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/executive-function"]}>
         <Routes>
           <Route path="/executive-function" element={<ExecutiveFunctionPage />} />
           <Route path="/executive-function/number-trails" element={<h1>Number Trails page</h1>} />

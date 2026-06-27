@@ -11,7 +11,7 @@ describe("AttentionBoostersPage", () => {
 
   it("opens Curious Minds from the Train Reflexes hub", () => {
     render(
-      <MemoryRouter initialEntries={["/attention-boosters"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/attention-boosters"]}>
         <Routes>
           <Route path="/attention-boosters" element={<AttentionBoostersPage />} />
           <Route path="/memory-games/curious-minds" element={<h1>Curious Minds game</h1>} />

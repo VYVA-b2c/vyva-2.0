@@ -1,5 +1,5 @@
-import { act } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, type ComponentProps } from "react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
 
@@ -47,7 +47,7 @@ const canvasMocks = [
   canvasContextMock.setTransform,
 ];
 
-function renderOverlay(transcript: TranscriptEntry[], props: Partial<typeof baseProps> = {}) {
+function renderOverlay(transcript: TranscriptEntry[], props: Partial<ComponentProps<typeof VoiceCallOverlay>> = {}) {
   return render(
     <VoiceCallOverlay
       {...baseProps}
@@ -178,5 +178,81 @@ describe("VoiceCallOverlay word transcript", () => {
       maxWidth: "90vw",
       overflowWrap: "anywhere",
     });
+  });
+
+  it("keeps the purple screen in an error state with retry available", () => {
+    const onRetry = vi.fn();
+    renderOverlay([], {
+      connectionError: "Missing ElevenLabs API key",
+      connectionErrorCode: "ELEVENLABS_API_KEY_MISSING",
+      onRetry,
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice setup needed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("The ElevenLabs API key is missing on the server.");
+    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Setup needed");
+
+    fireEvent.click(screen.getByTestId("button-retry-call"));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a clear microphone permission message", () => {
+    renderOverlay([], {
+      connectionError: "Microphone permission was denied.",
+      connectionErrorCode: "MICROPHONE_PERMISSION_DENIED",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Microphone is blocked");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("Please allow microphone access for VYVA, then try again.");
+  });
+
+  it("shows the missing agent setup reason", () => {
+    renderOverlay([], {
+      connectionError: "No ElevenLabs agent configured for this room yet.",
+      connectionErrorCode: "ELEVENLABS_AGENT_MISSING",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice setup needed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("No ElevenLabs agent is configured for this voice entry point.");
+  });
+
+  it("shows a safe session start failure detail without leaking the signed URL", () => {
+    renderOverlay([], {
+      connectionError: "Failed to connect to wss://api.elevenlabs.io/v1/convai/conversation?token=secret-token&agent_id=agent_123 because websocket closed with code 1006",
+      connectionErrorCode: "VOICE_SESSION_START_FAILED",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice session failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("ElevenLabs could not start: Failed to connect to [voice session url hidden] because websocket closed with code 1006");
+    expect(screen.getByTestId("text-call-error-detail")).not.toHaveTextContent("secret-token");
+  });
+
+  it("infers session start failures from generic startup messages", () => {
+    renderOverlay([], {
+      connectionError: "Unable to start voice session",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice session failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("ElevenLabs could not start: Unable to start voice session");
+  });
+
+  it("shows access verification failures without blaming ElevenLabs", () => {
+    renderOverlay([], {
+      connectionError: "We could not verify access right now. Please try again.",
+      connectionErrorCode: "VOICE_ACCESS_UNAVAILABLE",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Access check failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("VYVA could not verify account access right now. Please try again.");
+  });
+
+  it("infers access verification failures from the server message", () => {
+    renderOverlay([], {
+      connectionError: "We could not verify access right now. Please try again.",
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Access check failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("VYVA could not verify account access right now. Please try again.");
   });
 });

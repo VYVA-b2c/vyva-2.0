@@ -40,7 +40,7 @@ function LocationSpy() {
 
 function renderInvite(initialEntry: string) {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/invite" element={<InviteLandingPage />} />
         <Route path="/login" element={<LocationSpy />} />

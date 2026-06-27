@@ -30,7 +30,7 @@ function LocationSpy() {
 
 function renderWhoFor() {
   return render(
-    <MemoryRouter initialEntries={["/onboarding/who-for"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/onboarding/who-for"]}>
       <Routes>
         <Route path="/onboarding/who-for" element={<WhoForStep />} />
         <Route path="/care-team/invite/:token" element={<LocationSpy />} />

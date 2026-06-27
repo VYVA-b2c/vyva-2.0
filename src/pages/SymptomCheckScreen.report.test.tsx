@@ -49,7 +49,7 @@ function renderReport(
   } = {},
 ) {
   return render(
-    <MemoryRouter initialEntries={["/health/symptom-check"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/health/symptom-check"]}>
       <LocationProbe />
       <ReportScreen
         summary={{ ...summary, ...options.summaryOverride }}

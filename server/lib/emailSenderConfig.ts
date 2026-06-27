@@ -1,5 +1,9 @@
 const EMAIL_FROM_ENV_KEYS = [
   "NOTIFY_FROM_EMAIL",
+  "RESEND_FROM_EMAIL",
+  "RESEND_FROM",
+  "RESEND_EMAIL_FROM",
+  "RESEND_SENDER_EMAIL",
   "SENDGRID_FROM_EMAIL",
   "EMAIL_FROM",
   "SMTP_FROM",
@@ -36,8 +40,8 @@ export function resolveEmailFromAddress(options: ResolveEmailFromOptions = {}) {
 export function emailFromConfigError() {
   return [
     "Email sender address is not configured.",
-    "Set NOTIFY_FROM_EMAIL to a vyva.life address or domain verified in SendGrid Sender Identity.",
-    "Aliases also supported: SENDGRID_FROM_EMAIL, EMAIL_FROM, SMTP_FROM.",
+    "Set NOTIFY_FROM_EMAIL or RESEND_FROM_EMAIL to a vyva.life address or a domain verified in your email provider.",
+    "Aliases also supported: RESEND_FROM, RESEND_EMAIL_FROM, RESEND_SENDER_EMAIL, SENDGRID_FROM_EMAIL, EMAIL_FROM, SMTP_FROM.",
   ].join(" ");
 }
 
@@ -47,15 +51,17 @@ export function requireEmailFromAddress(options: ResolveEmailFromOptions = {}) {
   return from;
 }
 
-export function explainEmailProviderError(message: string, from: string) {
+export function explainEmailProviderError(message: string, from: string, provider = "Email provider") {
   const normalized = message.toLowerCase();
   if (
     normalized.includes("verified sender identity") ||
-    normalized.includes("from address does not match")
+    normalized.includes("from address does not match") ||
+    normalized.includes("domain is not verified") ||
+    (normalized.includes("sender") && normalized.includes("verified"))
   ) {
     return [
-      `SendGrid rejected the sender address "${from}" because it is not a verified Sender Identity.`,
-      "Verify that exact address/domain in SendGrid, or set NOTIFY_FROM_EMAIL to a verified sender.",
+      `${provider} rejected the sender address "${from}" because it is not verified.`,
+      "Verify that exact address/domain in the provider, or set NOTIFY_FROM_EMAIL/RESEND_FROM_EMAIL to a verified sender.",
       `Original error: ${message}`,
     ].join(" ");
   }

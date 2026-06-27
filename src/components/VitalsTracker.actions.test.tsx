@@ -69,7 +69,7 @@ function LocationProbe() {
 function renderTracker(recommendedAction: string, props: Partial<ComponentProps<typeof VitalsTracker>> = {}) {
   setupApi(recommendedAction);
   return render(
-    <MemoryRouter initialEntries={["/health/vitals"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/health/vitals"]}>
       <Routes>
         <Route
           path="/health/vitals"

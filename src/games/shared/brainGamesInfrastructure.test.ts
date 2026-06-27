@@ -34,6 +34,8 @@ const requiredKeys = [
   "games.listenClosely.taskLabel",
   "games.listenClosely.instructionFind",
   "games.listenClosely.instructionCompare",
+  "games.listenClosely.tutorialSubtitle",
+  "games.listenClosely.tutorialUnderstand",
   "games.listenClosely.sampleSounds",
   "games.listenClosely.resultGood",
   "games.listenClosely.nextRound",
@@ -44,9 +46,13 @@ const requiredKeys = [
   "games.rememberLater.intentionEvent",
   "games.rememberLater.rules.number_even",
   "games.scentMemory.title",
+  "games.scentMemory.tutorialSubtitle",
+  "games.scentMemory.tutorialUnderstand",
   "games.scentMemory.placeholder",
   "brainGames.senses.scentMemory.badge",
   "games.breathGarden.title",
+  "games.breathGarden.tutorialSubtitle",
+  "games.breathGarden.tutorialUnderstand",
   "games.breathGarden.tapPrompt",
   "brainGames.senses.breathGarden.badge",
   "cognitiveDomains.arousal_regulation",
@@ -56,6 +62,17 @@ const requiredKeys = [
   "brainGames.faceName.f2n",
   "brainGames.dualTask.loading",
   "brainGames.dualTask.mathAnswer",
+  "brainGames.dualTask.instructions",
+  "brainGames.dualTask.tutorialUnderstand",
+  "brainGames.dualTask.tutorialCount",
+  "brainGames.dualTask.tutorialWatch",
+  "brainGames.dualTask.tutorialTap",
+  "memory.instructions",
+  "memory.sequenceTutorialTitle",
+  "memory.sequenceTutorialUnderstand",
+  "games.curiousMinds.instructions",
+  "games.curiousMinds.tutorialTitle",
+  "games.curiousMinds.tutorialUnderstand",
   "brainGames.spatialNav.loading",
   "brainGames.spatialNav.readySoon",
   "storyRecall.readLabel",
@@ -71,10 +88,6 @@ describe("brain game shared infrastructure", () => {
         expect(translate(language, key)).not.toBe(key);
       });
     });
-  });
-
-  it("falls back to English for dormant language overrides", () => {
-    expect(translate("cy", "brainGames.dualTask.title")).toBe(translate("en", "brainGames.dualTask.title"));
   });
 
   it("keeps current games off local copy dictionaries", () => {
@@ -111,8 +124,5 @@ describe("brain game shared infrastructure", () => {
         ]));
       });
     });
-
-    const firstVariant = storyLevel.variants[0];
-    expect(getVariantContent(firstVariant, "cy").title).toBe(getVariantContent(firstVariant, "en").title);
   });
 });

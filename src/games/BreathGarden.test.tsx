@@ -73,6 +73,7 @@ describe("BreathGarden component", () => {
   beforeEach(() => {
     setLanguage("en");
     apiFetchMock.mockReset();
+    window.localStorage.clear();
     vi.spyOn(Date, "now")
       .mockReturnValueOnce(1000)
       .mockReturnValueOnce(6000)
@@ -91,13 +92,42 @@ describe("BreathGarden component", () => {
     expect(await screen.findByRole("heading", { name: "Choose your garden" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tide" }));
 
+    expect(screen.getByText("Tap gently as you breathe.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+
     expect(screen.getByRole("heading", { name: "Breath Garden" })).toBeInTheDocument();
+    expect(screen.queryByText("Your breathing brings the garden to life.")).not.toBeInTheDocument();
+    expect(screen.getByText("Tap once as you breathe in, and once as you breathe out. There is no correct rhythm - just breathe your way.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
 
     expect(screen.getByRole("button", { name: "Tap as you inhale... and exhale" })).toBeInTheDocument();
   });
 
+  it("remembers the tutorial and reopens it from Instructions", async () => {
+    const { unmount } = render(<BreathGarden userId="" onExit={vi.fn()} />);
+
+    expect(await screen.findByRole("heading", { name: "Choose your garden" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Garden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(window.localStorage.getItem("breathGarden:tutorialSeen:v1")).toBe("true");
+    expect(screen.getByRole("button", { name: /Instructions/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Instructions/i }));
+    expect(screen.getByText("Tap gently as you breathe.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+    unmount();
+
+    render(<BreathGarden userId="" onExit={vi.fn()} />);
+    expect(await screen.findByRole("heading", { name: "Choose your garden" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Garden" }));
+
+    expect(screen.queryByText("Tap gently as you breathe.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
+  });
+
   it("saves a completed session with alternating breath taps", async () => {
+    window.localStorage.setItem("breathGarden:tutorialSeen:v1:user-1", "true");
     apiFetchMock
       .mockResolvedValueOnce(stateResponse())
       .mockResolvedValueOnce(sessionResponse());
@@ -129,6 +159,7 @@ describe("BreathGarden component", () => {
 
   it("saves an abandoned exit while playing", async () => {
     const onExit = vi.fn();
+    window.localStorage.setItem("breathGarden:tutorialSeen:v1:user-1", "true");
     apiFetchMock
       .mockResolvedValueOnce(stateResponse())
       .mockResolvedValueOnce(sessionResponse());

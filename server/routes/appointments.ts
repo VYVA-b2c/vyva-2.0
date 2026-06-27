@@ -41,6 +41,11 @@ import {
   orderAppointmentChannels,
   providerMetadataWithBookingSuccess,
 } from "../services/appointmentMission.js";
+import {
+  homeServiceIntakeFromPreferences,
+  homeServiceSearchTerms,
+  homeServiceTypeLabel,
+} from "../../shared/serviceIntake.js";
 
 const router = Router();
 
@@ -131,7 +136,12 @@ function appointmentChannelRecipient(channel: AppointmentChannel, snapshot: Reco
   return null;
 }
 
-function scoreProviderForType(provider: UserProvider, appointmentType: string, detail: string): number {
+function scoreProviderForType(
+  provider: UserProvider,
+  appointmentType: string,
+  detail: string,
+  requestPreferences: Record<string, unknown> = {},
+): number {
   const haystack = normalizeForMatch([
     provider.category,
     provider.name,
@@ -148,6 +158,12 @@ function scoreProviderForType(provider: UserProvider, appointmentType: string, d
   if (appointmentType === "home-service" && /(home|repair|plumber|electrician|locksmith|cleaner|maintenance)/.test(haystack)) score += 70;
   if (appointmentType === "social" && /(social|restaurant|cafe|meal|food|community|club)/.test(haystack)) score += 70;
 
+  if (appointmentType === "home-service") {
+    const intake = homeServiceIntakeFromPreferences(requestPreferences);
+    const serviceTerms = homeServiceSearchTerms(intake?.service_type);
+    if (serviceTerms.some((term) => haystack.includes(normalizeForMatch(term)))) score += 90;
+  }
+
   for (const word of detailText.split(/[^a-z0-9]+/).filter((entry) => entry.length > 3)) {
     if (haystack.includes(word)) score += 8;
   }
@@ -159,7 +175,9 @@ function scoreProviderForType(provider: UserProvider, appointmentType: string, d
   return score;
 }
 
-function matchReason(provider: UserProvider, appointmentType: string, score: number): string {
+function matchReason(provider: UserProvider, appointmentType: string, score: number, requestPreferences: Record<string, unknown> = {}): string {
+  const intake = appointmentType === "home-service" ? homeServiceIntakeFromPreferences(requestPreferences) : null;
+  if (intake && score >= 70) return `Saved ${homeServiceTypeLabel(intake.service_type, "en").toLowerCase()} provider`;
   if (score >= 70) return `Saved ${appointmentType.replace("-", " ")} provider`;
   if (provider.is_primary) return "Saved provider from Settings";
   return "Saved provider";
@@ -447,7 +465,7 @@ async function savedProviderOptions(
   return providers
     .map((provider) => ({
       provider,
-      score: scoreProviderForType(provider, appointmentType, detail),
+      score: scoreProviderForType(provider, appointmentType, detail, requestPreferences),
     }))
     .filter((item) => item.score > 0 || providers.length <= 3)
     .sort((a, b) => b.score - a.score)
@@ -469,7 +487,7 @@ async function savedProviderOptions(
           provider_preference_snapshot: ordered.preferenceSnapshot,
           preferred_channel: ordered.preferredChannel,
         },
-        match_reason: matchReason(item.provider, appointmentType, item.score),
+        match_reason: matchReason(item.provider, appointmentType, item.score, requestPreferences),
         available_channels: ordered.channels,
         rank: index + 1,
         status: index === 0 ? "recommended" : "suggested",
@@ -555,12 +573,16 @@ router.post("/requests", async (req: Request, res: Response) => {
 
   try {
     await syncProfileProvidersToUserProviders(userId);
+    const serviceIntake = parsed.data.appointment_type === "home-service"
+      ? homeServiceIntakeFromPreferences(parsed.data.preferences)
+      : null;
+    const requestDetail = serviceIntake?.research_brief || parsed.data.detail || "";
     const [request] = await db
       .insert(appointmentRequests)
       .values({
         user_id: userId,
         appointment_type: parsed.data.appointment_type,
-        reason_detail: parsed.data.detail || null,
+        reason_detail: requestDetail || null,
         preferences: parsed.data.preferences,
         status: "needs_provider",
         route_prefill_source: parsed.data.route_prefill_source ?? null,
@@ -572,7 +594,7 @@ router.post("/requests", async (req: Request, res: Response) => {
       userId,
       request.id,
       parsed.data.appointment_type,
-      parsed.data.detail,
+      requestDetail,
       parsed.data.preferences,
     );
     const options = candidates.length > 0
@@ -685,9 +707,13 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
       loadOptionsForRequest(request.id, userId),
     ]);
 
+    const requestPreferences = recordValue(request.preferences);
+    const serviceIntake = request.appointment_type === "home-service"
+      ? homeServiceIntakeFromPreferences(requestPreferences)
+      : null;
     const discovery = await discoverAppointmentProviderOptions({
       appointmentType: request.appointment_type,
-      detail: request.reason_detail ?? "",
+      detail: serviceIntake?.research_brief ?? request.reason_detail ?? "",
       location,
       language: request.language,
       maxResults: 5,
@@ -708,7 +734,7 @@ router.post("/requests/:id/discover-options", async (req: Request, res: Response
         const ordered = orderAppointmentChannels({
           channels: option.available_channels,
           providerSnapshot: option.provider_snapshot,
-          requestPreferences: recordValue(request.preferences),
+          requestPreferences,
         });
         return {
           request_id: request.id,

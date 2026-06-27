@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { type TranscriptEntry, useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, type VoiceConnectionErrorCode, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
-import VyvaAvatar from "@/components/VyvaAvatar";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 
 const WEATHER_EMOJI: Record<string, string> = {
@@ -61,6 +60,8 @@ interface VoiceHeroProps {
     voiceSessionPhase?: VoiceSessionPhase;
     isMicMuted?: boolean;
     onMicToggle?: (muted: boolean) => void;
+    lastError?: string | null;
+    lastErrorCode?: VoiceConnectionErrorCode | null;
   };
 }
 
@@ -117,6 +118,8 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     voiceSessionPhase: internalVoiceSessionPhase,
     isMicMuted: internalIsMicMuted,
     setMicrophoneMuted: internalSetMicrophoneMuted,
+    lastError: internalLastError,
+    lastErrorCode: internalLastErrorCode,
   } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
@@ -141,6 +144,8 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const voiceSessionPhase = voiceControls?.voiceSessionPhase ?? internalVoiceSessionPhase;
   const isMicMuted = voiceControls?.isMicMuted ?? internalIsMicMuted;
   const onMicToggle = voiceControls?.onMicToggle ?? internalSetMicrophoneMuted;
+  const lastError = voiceControls?.lastError ?? internalLastError;
+  const lastErrorCode = voiceControls?.lastErrorCode ?? internalLastErrorCode;
   const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
   const autoStartKey = typeof autoStartVoice === "string"
     ? autoStartVoice
@@ -153,7 +158,19 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const focusedOverlaySawLiveSessionRef = useRef(false);
 
   const isActive = voiceStatus === "connected";
-  const showOverlay = (shouldShowOverlay || focusedVoiceOverlayRequested) && (isActive || isConnecting);
+  const hasConnectionError = Boolean(lastError && !isActive && !isConnecting);
+  const showOverlay = (shouldShowOverlay || focusedVoiceOverlayRequested) && (isActive || isConnecting || hasConnectionError);
+
+  const voiceStartOptions = useMemo(
+    () => voiceAgentSlug || voiceDynamicVariables || autoStartListening
+      ? {
+          ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
+          ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
+          ...(autoStartListening ? { autoStartListening: true } : {}),
+        }
+      : undefined,
+    [autoStartListening, voiceAgentSlug, voiceDynamicVariables],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -179,30 +196,22 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     void startVoice(
       resolvedContextHint,
       undefined,
-      voiceAgentSlug || voiceDynamicVariables || autoStartListening
-        ? {
-            ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
-            ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
-            ...(autoStartListening ? { autoStartListening: true } : {}),
-          }
-        : undefined,
+      voiceStartOptions,
     );
   }, [
-    autoStartListening,
     autoStartKey,
     internalIsConnecting,
     internalStatus,
     resolvedContextHint,
     startVoice,
-    voiceAgentSlug,
-    voiceDynamicVariables,
+    voiceStartOptions,
     voiceControls,
   ]);
 
   useEffect(() => {
     if (!focusedVoiceOverlayRequested) return;
 
-    if (isActive || isConnecting) {
+    if (isActive || isConnecting || hasConnectionError) {
       focusedOverlaySawLiveSessionRef.current = true;
       return;
     }
@@ -218,7 +227,18 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     }, 5000);
 
     return () => window.clearTimeout(clearPendingOverlay);
-  }, [focusedVoiceOverlayRequested, isActive, isConnecting]);
+  }, [focusedVoiceOverlayRequested, hasConnectionError, isActive, isConnecting]);
+
+  const handleOverlayEnd = () => {
+    setFocusedVoiceOverlayRequested(false);
+    stopVoice();
+  };
+
+  const handleRetryVoice = () => {
+    if (isActive || isConnecting) return;
+    setFocusedVoiceOverlayRequested(true);
+    void Promise.resolve(startVoice(resolvedContextHint, undefined, voiceStartOptions)).catch(() => {});
+  };
 
   const handleTalk = () => {
     if (!isActive && dynamicHero) {
@@ -243,16 +263,8 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
       void Promise.resolve(startVoice(
         resolvedContextHint,
         undefined,
-        voiceAgentSlug || voiceDynamicVariables || autoStartListening
-          ? {
-              ...(voiceAgentSlug ? { agentSlug: voiceAgentSlug } : {}),
-              ...(voiceDynamicVariables ? { dynamicVariables: voiceDynamicVariables } : {}),
-            ...(autoStartListening ? { autoStartListening: true } : {}),
-          }
-        : undefined,
-      )).catch(() => {
-        setFocusedVoiceOverlayRequested(false);
-      });
+        voiceStartOptions,
+      )).catch(() => {});
     }
   };
 
@@ -276,13 +288,6 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     ? { ...headlineClampStyle, overflowWrap: "normal" as const, wordBreak: "normal" as const }
     : headlineClampStyle;
 
-  const timeOfDay = useMemo((): "morning" | "afternoon" | "evening" => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour <= 11) return "morning";
-    if (hour >= 12 && hour <= 17) return "afternoon";
-    return "evening";
-  }, []);
-
   const weatherEmoji = weatherData?.description ? (WEATHER_EMOJI[weatherData.description] ?? "🌡️") : "🌡️";
   const weatherLabel = weatherData
     ? `${weatherEmoji} ${weatherData.city} · ${weatherData.temperature}°`
@@ -296,10 +301,13 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             isSpeaking={isSpeaking}
             isConnecting={isConnecting}
             transcript={transcript}
-            onEnd={stopVoice}
+            onEnd={handleOverlayEnd}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={onMicToggle}
+            connectionError={lastError}
+            connectionErrorCode={lastErrorCode}
+            onRetry={handleRetryVoice}
           />
         )}
 
@@ -313,25 +321,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           >
             <span className="h-2.5 w-2.5 rounded-full live-dot" style={{ background: connectionColor }} />
           </div>
-
-          {/* Avatar — anchored to card bottom-right */}
-          <img
-            src="/assets/vyva/avatar-calm.png"
-            alt="VYVA"
-            draggable={false}
-            className="absolute pointer-events-none select-none vyva-avatar"
-            style={{
-              width: "auto",
-              height: "220px",
-              bottom: "18px",
-              right: "-46px",
-              filter: timeOfDay ? { morning: "brightness(1.06) saturate(1.08)", afternoon: "brightness(1.0) saturate(1.0)", evening: "brightness(0.92) saturate(0.9) sepia(0.08)" }[timeOfDay] : undefined,
-            }}
-          />
-
           <div className="flex min-h-[268px]">
             {/* Left column — text + CTA */}
-            <div className="flex-[0_0_62%] flex flex-col gap-0 px-[22px] pt-[30px] pb-[20px] min-w-0">
+            <div className="flex w-full min-w-0 flex-col gap-0 px-[22px] pb-[20px] pt-[30px]">
               {/* Headline */}
               <h1
                 className="mb-auto max-w-[12ch] min-w-0 font-display text-[30px] font-normal italic leading-[1.08] text-white"
@@ -345,7 +337,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                 onClick={handleTalk}
                 disabled={isConnecting}
                 data-testid="button-voice-hero-talk"
-                className={`relative z-10 mt-[24px] flex min-h-[74px] w-full items-center justify-start gap-3 rounded-full py-[18px] pl-[28px] pr-[82px] transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+                className={`relative z-10 mt-[24px] flex min-h-[76px] w-full items-center justify-center gap-3 rounded-full px-[28px] py-[18px] text-center transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
                 style={
                   isActive
                     ? {
@@ -364,7 +356,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                   <Mic size={23} style={{ color: "#6B21A8" }} />
                 )}
                 <span
-                  className="min-w-0 max-w-full whitespace-nowrap text-left font-body text-[clamp(17px,4.8vw,20px)] font-extrabold leading-tight"
+                  className="min-w-0 max-w-full whitespace-nowrap font-body text-[clamp(20px,5.4vw,24px)] font-extrabold leading-tight"
                   style={{ color: isActive ? "#ffffff" : "#6B21A8" }}
                 >
                   {statusLabel}
@@ -410,10 +402,13 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           isSpeaking={isSpeaking}
           isConnecting={isConnecting}
           transcript={transcript}
-          onEnd={stopVoice}
+          onEnd={handleOverlayEnd}
           voiceSessionPhase={voiceSessionPhase}
           isMicMuted={isMicMuted}
           onMicToggle={onMicToggle}
+          connectionError={lastError}
+          connectionErrorCode={lastErrorCode}
+          onRetry={handleRetryVoice}
         />
       )}
 

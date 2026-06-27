@@ -5,6 +5,7 @@ import { syncProfileLanguage, useLanguage } from "@/i18n/index";
 import { SUPPORTED_LANGUAGES } from "@/i18n/detectLanguage";
 import type { LanguageCode } from "@/i18n/languages";
 import { apiFetch, queryClient } from "@/lib/queryClient";
+import { displayFirstName } from "@/lib/displayIdentity";
 
 interface ProfileData {
   firstName: string;
@@ -18,6 +19,7 @@ interface ProfileData {
   profileId?: string | null;
   street: string;
   cityState: string;
+  region?: string | null;
   postalCode: string;
   caregiverName: string;
   caregiverContact: string;
@@ -74,7 +76,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     staleTime: 5 * 60 * 1000,
   });
 
-  const firstName = profile?.firstName?.trim() || "";
+  const firstName = displayFirstName(profile?.firstName);
   const lastName = profile?.lastName?.trim() || "";
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "";
   const initials =

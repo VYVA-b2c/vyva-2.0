@@ -349,11 +349,11 @@
         "openLabel": "Abrir bienestar"
       },
       "cognitive": {
-        "title": "Mi mente",
-        "subtitle": "Foco, memoria y calma",
-        "bubble": "Un ratito conmigo mantiene tu mente en forma.",
-        "micLabel": "Empezar ejercicio mental",
-        "openLabel": "Abrir mente ágil"
+        "title": "Mi cerebro",
+        "subtitle": "Memoria, atencion y calma",
+        "bubble": "Puedo ayudarte a mantener la mente activa a tu ritmo.",
+        "micLabel": "Abrir Mi cerebro",
+        "openLabel": "Abrir Mi cerebro"
       },
       "social": {
         "title": "Mi comunidad",
@@ -1173,16 +1173,29 @@
     "primary": {
       "reminders": "Recordatorios",
       "remindersSub": "Revisa el horario de hoy y anade recordatorios de medicacion.",
+      "remindersMobileSub": "Horario de hoy",
       "refills": "Reposiciones",
       "refillsSub": "Prepara recetas repetidas o entregas.",
+      "refillsMobileSub": "Farmacia",
       "interactions": "Interacciones",
       "interactionsSub": "Revisa medicinas y suplementos.",
+      "interactionsMobileSub": "Revisar mezcla",
       "adherence": "Cumplimiento",
-      "adherenceSub": "Ve progreso y dosis omitidas."
+      "adherenceSub": "Ve progreso y dosis omitidas.",
+      "adherenceMobileSub": "Dosis omitidas"
     },
     "canHelpWith": "Te puedo ayudar con",
     "fastHelpKicker": "Ayuda rapida",
     "takenToday": "{{taken}} de {{total}} tomados hoy",
+    "heroDoseHeadline": "No olvides tu\n{{medication}}",
+    "heroDoseDueToday": "Toca hoy. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueNow": "Toca ahora. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueInMinutes_one": "Toca en {{count}} min. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueInMinutes_other": "Toca en {{count}} min. Pulsa Recordatorios al tomarla.",
+    "heroDoseDueAt": "Toca a las {{time}}. Pulsa Recordatorios al tomarla.",
+    "heroAllDoneHeadline": "Medicacion\nde hoy lista",
+    "heroAllDoneSub": "Muy bien. No queda nada pendiente hoy.",
+    "loadingSchedule": "Revisando el horario de hoy...",
     "todaySchedule": "Horario de hoy",
     "dueTonight": "1 pendiente esta noche",
     "taken": "Tomado",
@@ -1749,19 +1762,19 @@
     "primaryCards": {
       "service": {
         "label": "Buscar un servicio",
-        "mobile": "Servicio",
+        "mobile": "Ayuda",
         "sub": "Fontanero, reparaciones, limpieza, cuidados",
         "mobileSub": "Reparaciones y cuidados"
       },
       "ride": {
         "label": "Reservar transporte",
-        "mobile": "Transporte",
+        "mobile": "Taxi",
         "sub": "Taxi, transporte medico, volver a casa",
         "mobileSub": "Taxi o traslado"
       },
       "delivery": {
-        "label": "Pedir a domicilio",
-        "mobile": "Domicilio",
+        "label": "Hacer un pedido",
+        "mobile": "Pedido",
         "sub": "Compra, farmacia, comida, esenciales",
         "mobileSub": "Comida y esenciales"
       },
@@ -1770,18 +1783,6 @@
         "mobile": "Cita",
         "sub": "Medico, peluqueria, tramite, restaurante",
         "mobileSub": "Medico, salon, tramite"
-      },
-      "trip": {
-        "label": "Planear un viaje",
-        "mobile": "Viaje",
-        "sub": "Viajes, visitas, rutas, recordatorios",
-        "mobileSub": "Viajes y visitas"
-      },
-      "events": {
-        "label": "Buscar eventos",
-        "mobile": "Eventos",
-        "sub": "Actividades, clases, salidas cercanas",
-        "mobileSub": "Actividades cerca"
       }
     },
     "quickPrompts": {
@@ -1795,17 +1796,40 @@
       "doctorContext": "Solicitud de ayuda medica desde Concierge. Pregunta que esta pasando y ayuda a preparar un siguiente paso seguro.",
       "ridePrefill": "Ayudame a organizar transporte seguro. Pregunta destino y horario, prepara opciones claras y no reserves nada sin mi confirmacion.",
       "actions": {
-        "doctor": {
-          "label": "Encontrar un proveedor de confianza",
-          "sub": "Ayuda para elegir la atencion adecuada"
+        "legal-advice": {
+          "label": "Orientacion legal",
+          "sub": "Entender opciones antes de actuar",
+          "mobileSub": "Entender opciones"
         },
-        "appointment": {
-          "label": "Reservar cita",
-          "sub": "Preparar una solicitud para confirmar"
+        "trip": {
+          "label": "Planear mi viaje",
+          "sub": "Rutas, horarios, visitas, recordatorios",
+          "mobileSub": "Rutas y recordatorios"
         },
-        "ride": {
-          "label": "Reservar transporte",
-          "sub": "Organizar traslado seguro"
+        "care": {
+          "label": "Encontrar el mejor cuidado",
+          "sub": "Comparar atencion y apoyo seguros",
+          "mobileSub": "Atencion y apoyo"
+        },
+        "form": {
+          "label": "Rellenar un formulario",
+          "sub": "Preparar respuestas y parar antes de enviar",
+          "mobileSub": "Preparar respuestas"
+        },
+        "research": {
+          "label": "Investigar un tema",
+          "sub": "Resumir fuentes y proximos pasos",
+          "mobileSub": "Fuentes y pasos"
+        },
+        "best-deal": {
+          "label": "Encontrar la mejor oferta",
+          "sub": "Comparar precio, confianza y encaje",
+          "mobileSub": "Comparar opciones"
+        },
+        "age-at-home": {
+          "label": "Envejecer con gracia en casa",
+          "sub": "Planear apoyo seguro en casa",
+          "mobileSub": "Apoyo en casa"
         }
       }
     },

@@ -65,7 +65,7 @@ function LocationProbe() {
 
 function renderActivity(initialEntries: ComponentProps<typeof MemoryRouter>["initialEntries"] = ["/activity"]) {
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={initialEntries}>
       <Routes>
         <Route path="/activity" element={<ActivityScreen />} />
         <Route path="/concierge" element={<LocationProbe />} />

@@ -3925,6 +3925,7 @@ const RoomScreen = () => {
         language={language}
         visitId={visitId}
         onBack={handleBackToRooms}
+        onOpenParticipate={() => navigate("/social-rooms/participate")}
       />
     );
   }

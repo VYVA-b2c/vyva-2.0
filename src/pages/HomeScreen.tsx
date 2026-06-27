@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Heart, Brain, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { displayFirstName } from "@/lib/displayIdentity";
 import { incrementChatNavigationCount } from "@/lib/personaliseCards";
 
 type HomeAgentCard = {
@@ -86,7 +87,7 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
   health: { title: "Health", subtitle: "Symptoms and care" },
-  cognitive: { title: "Brain", subtitle: "Memory and calm" },
+  cognitive: { title: "My Brain", subtitle: "Memory and focus" },
   social: { title: "Community", subtitle: "Rooms and chats" },
   concierge: { title: "Concierge", subtitle: "Help and errands" },
 };
@@ -171,7 +172,7 @@ const HomeScreen = () => {
   const { t } = useTranslation();
   const { firstName: profileFirstName, profile } = useProfile();
 
-  const firstName = profileFirstName || "";
+  const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
   const gpName = profile?.gpName?.trim();
   const gpPhoneHref = sanitizePhoneHref(profile?.gpPhone);
@@ -255,22 +256,15 @@ const HomeScreen = () => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour <= 11) return "morning";
     if (hour >= 12 && hour <= 16) return "afternoon";
-    if (hour >= 17 && hour <= 20) return "evening";
-    return "night";
+    return "evening";
   }, []);
 
   const greetingText = useMemo(() => {
     const period = timeGreetingKey;
-    const SESSION_KEY = "home.greetingVariant";
-    let variant = parseInt(sessionStorage.getItem(SESSION_KEY) || "0", 10);
-    if (!variant || variant < 1 || variant > 5) {
-      variant = Math.floor(Math.random() * 5) + 1;
-      sessionStorage.setItem(SESSION_KEY, String(variant));
-    }
     if (firstName) {
-      return t(`home.greeting.${period}.withName.${variant}`, { name: firstName });
+      return t(`home.greeting.${period}.withName.1`, { name: firstName });
     }
-    return t(`home.greeting.${period}.withoutName.${variant}`);
+    return t(`home.greeting.${period}.withoutName.1`);
   }, [firstName, timeGreetingKey, t]);
 
   const handleNavigate = (path: string, options?: NavigateOptions) => {
@@ -355,7 +349,6 @@ const HomeScreen = () => {
   return (
     <div className="vyva-page">
       <VoiceHero
-        heroSurface="home"
         headline={
           <span className="block">{greetingText}</span>
         }

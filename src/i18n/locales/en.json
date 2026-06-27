@@ -361,11 +361,11 @@
         "openLabel": "Open wellbeing"
       },
       "cognitive": {
-        "title": "My mind",
-        "subtitle": "Focus, memory and calm",
-        "bubble": "A little time with me keeps your mind active.",
-        "micLabel": "Start a mental exercise",
-        "openLabel": "Open agile mind"
+        "title": "My Brain",
+        "subtitle": "Memory, focus and calm",
+        "bubble": "I can help you keep your mind active at your pace.",
+        "micLabel": "Open My Brain",
+        "openLabel": "Open My Brain"
       },
       "social": {
         "title": "My Community",
@@ -1170,6 +1170,15 @@
       "I can help you keep\nyour health routine on track"
     ],
     "takenToday": "{{taken}} of {{total}} taken today",
+    "heroDoseHeadline": "Don't forget your\n{{medication}}",
+    "heroDoseDueToday": "Due today. Tap Reminders when done.",
+    "heroDoseDueNow": "Due now. Tap Reminders when done.",
+    "heroDoseDueInMinutes_one": "Due in {{count}} min. Tap Reminders when done.",
+    "heroDoseDueInMinutes_other": "Due in {{count}} min. Tap Reminders when done.",
+    "heroDoseDueAt": "Due at {{time}}. Tap Reminders when done.",
+    "heroAllDoneHeadline": "All medicines\ndone today",
+    "heroAllDoneSub": "Nice work. Nothing else is due today.",
+    "loadingSchedule": "Checking today's schedule...",
     "todaySchedule": "Today's Schedule",
     "dueTonight": "1 due tonight",
     "taken": "Taken",
@@ -1185,12 +1194,16 @@
     "primary": {
       "reminders": "Reminders",
       "remindersSub": "Review today's schedule and add medication reminders.",
+      "remindersMobileSub": "Today's schedule",
       "refills": "Refills",
       "refillsSub": "Prepare repeat prescriptions or delivery.",
+      "refillsMobileSub": "Pharmacy refills",
       "interactions": "Interactions",
       "interactionsSub": "Check medicines and supplements.",
+      "interactionsMobileSub": "Check the mix",
       "adherence": "Adherence",
-      "adherenceSub": "See progress and missed doses."
+      "adherenceSub": "See progress and missed doses.",
+      "adherenceMobileSub": "Missed doses"
     },
     "canHelpWith": "I can help you with",
     "fastHelpKicker": "Fast help",
@@ -1749,7 +1762,7 @@
     "primaryCards": {
       "service": {
         "label": "Find a Service",
-        "mobile": "Service",
+        "mobile": "Help",
         "sub": "Plumber, repairs, cleaning, care",
         "mobileSub": "Repairs and care"
       },
@@ -1760,28 +1773,16 @@
         "mobileSub": "Taxi or transport"
       },
       "delivery": {
-        "label": "Order Delivery",
-        "mobile": "Delivery",
+        "label": "Place Order",
+        "mobile": "Order",
         "sub": "Groceries, pharmacy, food, essentials",
         "mobileSub": "Food and essentials"
       },
       "appointment": {
         "label": "Book Appointment",
-        "mobile": "Appointment",
+        "mobile": "Schedule",
         "sub": "Doctor, salon, government, restaurant",
         "mobileSub": "Doctor, salon, office"
-      },
-      "trip": {
-        "label": "Plan a Trip",
-        "mobile": "Trip",
-        "sub": "Travel, visits, routes, reminders",
-        "mobileSub": "Travel and visits"
-      },
-      "events": {
-        "label": "Find Events",
-        "mobile": "Events",
-        "sub": "Activities, classes, local outings",
-        "mobileSub": "Activities nearby"
       }
     },
     "quickPrompts": {
@@ -1795,17 +1796,40 @@
       "doctorContext": "Concierge doctor help request. Ask what is happening and help prepare a safe next step.",
       "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
       "actions": {
-        "doctor": {
-          "label": "Find a trusted provider",
-          "sub": "Get help choosing the right care"
+        "legal-advice": {
+          "label": "Get legal advice",
+          "sub": "Understand options before acting",
+          "mobileSub": "Know your options"
         },
-        "appointment": {
-          "label": "Book appointment",
-          "sub": "Prepare a request to confirm"
+        "trip": {
+          "label": "Plan me a trip",
+          "sub": "Routes, timing, visits, reminders",
+          "mobileSub": "Routes and reminders"
         },
-        "ride": {
-          "label": "Book ride",
-          "sub": "Arrange safe transport"
+        "care": {
+          "label": "Find the best care for me",
+          "sub": "Compare safe care and support",
+          "mobileSub": "Care and support"
+        },
+        "form": {
+          "label": "Fill a form",
+          "sub": "Prepare answers, stop before submit",
+          "mobileSub": "Prepare answers"
+        },
+        "research": {
+          "label": "Research a topic",
+          "sub": "Summarize sources and next steps",
+          "mobileSub": "Sources and steps"
+        },
+        "best-deal": {
+          "label": "Find the best deal",
+          "sub": "Compare price, trust, and fit",
+          "mobileSub": "Compare options"
+        },
+        "age-at-home": {
+          "label": "Age in grace at home",
+          "sub": "Plan safer home support",
+          "mobileSub": "Safer home support"
         }
       }
     },

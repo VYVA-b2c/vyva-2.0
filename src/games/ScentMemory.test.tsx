@@ -61,9 +61,31 @@ describe("ScentMemory component", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    window.localStorage.clear();
+  });
+
+  it("shows the tutorial once and reopens it from Instructions", async () => {
+    render(<ScentMemory userId="user-1" onExit={vi.fn()} />);
+    await flushPromises();
+
+    expect(screen.getByText("Look. Remember. Share if you want.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "I understand" }));
+
+    expect(window.localStorage.getItem("scentMemory:tutorialSeen:v1:user-1")).toBe("true");
+    expect(screen.getByText("fresh bread")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Instructions" }));
+
+    expect(screen.getByText("Look. Remember. Share if you want.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+
+    expect(screen.getByText("fresh bread")).toBeInTheDocument();
   });
 
   it("loads a reviewed scent prompt and reveals the question after a short pause", async () => {
+    window.localStorage.setItem("scentMemory:tutorialSeen:v1:user-1", "true");
     render(<ScentMemory userId="user-1" onExit={vi.fn()} />);
     await flushPromises();
 
@@ -80,6 +102,7 @@ describe("ScentMemory component", () => {
   });
 
   it("saves a completed response and shows a warm close state", async () => {
+    window.localStorage.setItem("scentMemory:tutorialSeen:v1:user-1", "true");
     apiFetchMock.mockResolvedValueOnce(saveResponse());
 
     render(<ScentMemory userId="user-1" onExit={vi.fn()} />);
@@ -104,6 +127,7 @@ describe("ScentMemory component", () => {
   });
 
   it("allows skip without blocking completion", async () => {
+    window.localStorage.setItem("scentMemory:tutorialSeen:v1:user-1", "true");
     apiFetchMock.mockResolvedValueOnce(saveResponse());
 
     render(<ScentMemory userId="user-1" onExit={vi.fn()} />);

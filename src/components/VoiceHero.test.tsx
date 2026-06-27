@@ -33,7 +33,15 @@ vi.mock("@/hooks/useHeroMessage", () => ({
 }));
 
 vi.mock("@/components/VoiceCallOverlay", () => ({
-  default: () => <div data-testid="voice-call-overlay" />,
+  default: ({ connectionError, onRetry }: { connectionError?: string | null; onRetry?: () => void }) => (
+    <div data-testid="voice-call-overlay" data-error={connectionError ?? ""}>
+      {onRetry && (
+        <button type="button" data-testid="button-retry-call" onClick={onRetry}>
+          Try again
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 function setNavigatorOnline(online: boolean) {
@@ -57,6 +65,24 @@ describe("VoiceHero status dot", () => {
     const statusDot = screen.getByTestId("voice-hero-status-dot");
     expect(statusDot).toHaveAttribute("title", "Online");
     expect(statusDot.querySelector("span")).toHaveStyle({ background: "#34D399" });
+  });
+
+  it("keeps the home hero avatar-free with only the small status dot up top", () => {
+    render(
+      <VoiceHero
+        headline="Good morning"
+        weatherData={{ city: "Tarifa", temperature: 24, description: "weather.clear" }}
+        contextHint="app_open"
+      />,
+    );
+
+    expect(screen.queryByAltText("VYVA")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-voice-hero-signal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("voice-hero-status-dot").querySelectorAll("svg")).toHaveLength(0);
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, undefined);
   });
 
   it("turns red when the browser goes offline", () => {
@@ -182,5 +208,71 @@ describe("VoiceHero status dot", () => {
     );
 
     expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument();
+  });
+
+  it("keeps the focused overlay open when the voice connection fails", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+    };
+    const { rerender } = render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay={false}
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    rerender(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay={false}
+        voiceControls={{
+          ...baseVoiceControls,
+          lastError: "Missing ElevenLabs API key",
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("voice-call-overlay")).toHaveAttribute("data-error", "Missing ElevenLabs API key");
+  });
+
+  it("retries the same voice start payload from the error overlay", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+      lastError: "Missing ElevenLabs API key",
+    };
+    render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
+        autoStartListening
+        showVoiceOverlay
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-retry-call"));
+
+    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, {
+      agentSlug: "main-vyva",
+      dynamicVariables: { app_entrypoint: "home_open" },
+      autoStartListening: true,
+    });
   });
 });

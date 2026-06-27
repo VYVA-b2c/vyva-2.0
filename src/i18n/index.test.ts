@@ -543,6 +543,29 @@ describe("language persistence", () => {
     }
   });
 
+  it("keeps concierge card mobile labels compact across supported account languages", () => {
+    const expected = {
+      en: ["Help", "Ride", "Order", "Schedule"],
+      es: ["Ayuda", "Taxi", "Pedido", "Cita"],
+      fr: ["Aide", "Trajet", "Repas", "RDV"],
+      de: ["Hilfe", "Fahrt", "Essen", "Termin"],
+      it: ["Aiuto", "Taxi", "Ordine", "Visita"],
+      pt: ["Ajuda", "Taxi", "Pedido", "Visita"],
+    } as const;
+
+    const keys = [
+      "concierge.primaryCards.service.mobile",
+      "concierge.primaryCards.ride.mobile",
+      "concierge.primaryCards.delivery.mobile",
+      "concierge.primaryCards.appointment.mobile",
+    ];
+
+    for (const [language, labels] of Object.entries(expected)) {
+      expect(keys.map((key) => translate(language as keyof typeof expected, key))).toEqual(labels);
+      expect(labels.every((label) => label.length <= 8)).toBe(true);
+    }
+  });
+
   it("keeps daily check-in home card copy localized for supported account languages", () => {
     const expected = {
       en: ["Daily check-in", "Checked in today", "How are you today?", "VYVA has today's signal.", "My Health Plan", "My Health Plan"],

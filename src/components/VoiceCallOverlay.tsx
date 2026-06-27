@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { Mic, MicOff, PhoneOff } from "lucide-react";
-import { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import { RotateCcw, Mic, MicOff, PhoneOff } from "lucide-react";
+import { type TranscriptEntry, type VoiceConnectionErrorCode } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
@@ -16,6 +16,9 @@ interface VoiceCallOverlayProps {
   voiceSessionPhase?: VoiceSessionPhase;
   isMicMuted?: boolean;
   onMicToggle?: (muted: boolean) => void;
+  connectionError?: string | null;
+  connectionErrorCode?: VoiceConnectionErrorCode | null;
+  onRetry?: () => void;
 }
 
 const WORD_DISPLAY_MS = 360;
@@ -39,6 +42,60 @@ function orbState(isSpeaking: boolean, isConnecting: boolean): ZamoraOrbState {
   return "listening";
 }
 
+function inferConnectionErrorCode(message?: string | null): VoiceConnectionErrorCode | null {
+  const normalized = message?.toLowerCase() ?? "";
+  if (!normalized) return null;
+  if (normalized.includes("microphone") || normalized.includes("permission")) return "MICROPHONE_ACCESS_FAILED";
+  if (normalized.includes("api key")) return "ELEVENLABS_API_KEY_MISSING";
+  if (normalized.includes("agent configured")) return "ELEVENLABS_AGENT_MISSING";
+  if (normalized.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
+  if (normalized.includes("current plan") || normalized.includes("entitlement")) return "VOICE_ENTITLEMENT_REQUIRED";
+  if (normalized.includes("could not verify access") || normalized.includes("verify access")) return "VOICE_ACCESS_UNAVAILABLE";
+  if (normalized.includes("not authenticated")) return "VOICE_AUTH_REQUIRED";
+  if (
+    normalized.includes("failed to connect") ||
+    normalized.includes("could not connect") ||
+    normalized.includes("couldn't connect") ||
+    normalized.includes("unable to start voice session") ||
+    normalized.includes("failed to start session") ||
+    normalized.includes("websocket") ||
+    normalized.includes("voice session closed")
+  ) {
+    return "VOICE_SESSION_START_FAILED";
+  }
+  return null;
+}
+
+function isMicrophoneError(code: VoiceConnectionErrorCode | null) {
+  return code === "MICROPHONE_UNAVAILABLE" ||
+    code === "MICROPHONE_PERMISSION_DENIED" ||
+    code === "MICROPHONE_ACCESS_FAILED";
+}
+
+function isSetupError(code: VoiceConnectionErrorCode | null) {
+  return code === "ELEVENLABS_AGENT_MISSING" ||
+    code === "ELEVENLABS_API_KEY_MISSING" ||
+    code === "ELEVENLABS_SIGNED_URL_ERROR" ||
+    code === "ELEVENLABS_TOKEN_ERROR";
+}
+
+function isSessionError(code: VoiceConnectionErrorCode | null) {
+  return code === "VOICE_SESSION_START_FAILED" ||
+    code === "VOICE_SESSION_ERROR" ||
+    code === "VOICE_SESSION_CLOSED";
+}
+
+function safeConnectionErrorDetail(message?: string | null) {
+  const trimmed = message?.replace(/\s+/g, " ").trim();
+  if (!trimmed) return null;
+
+  return trimmed
+    .replace(/([?&](?:token|api_key|xi-api-key|signed_url)=)[^&\s]+/gi, "$1[hidden]")
+    .replace(/\b(?:wss?|https?):\/\/\S+/gi, "[voice session url hidden]")
+    .replace(/\bBearer\s+[A-Za-z0-9._-]+/gi, "Bearer [hidden]")
+    .slice(0, 180);
+}
+
 const VoiceCallOverlay = ({
   isSpeaking,
   isConnecting,
@@ -48,6 +105,9 @@ const VoiceCallOverlay = ({
   voiceSessionPhase,
   isMicMuted = false,
   onMicToggle,
+  connectionError,
+  connectionErrorCode,
+  onRetry,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const [visibleWordIndex, setVisibleWordIndex] = useState(0);
@@ -57,7 +117,7 @@ const VoiceCallOverlay = ({
   const latestVyvaEntry = latestEntry?.from === "vyva" ? latestEntry : null;
   const words = useMemo(
     () => transcriptWords(latestVyvaEntry?.text ?? ""),
-    [latestVyvaEntry?.text, latestVyvaEntry?.timestamp],
+    [latestVyvaEntry?.text],
   );
   const visibleWord = words[visibleWordIndex] ?? null;
 
@@ -89,11 +149,82 @@ const VoiceCallOverlay = ({
     : isSpeaking
     ? t("voiceHero.speaking")
     : t("voiceHero.listening");
-  const statusLabel = voiceSessionPhase ? voiceSessionPhaseLabel(voiceSessionPhase) : fallbackStatusLabel;
-  const canToggleMic = Boolean(onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
-  const emptyTranscriptLabel = isConnecting ? t("voiceHero.connecting") : t("voiceHero.listening");
+  const hasConnectionError = Boolean(connectionError);
+  const resolvedConnectionErrorCode = connectionErrorCode ?? inferConnectionErrorCode(connectionError);
+  const hasMicrophoneError = isMicrophoneError(resolvedConnectionErrorCode);
+  const hasVoiceSetupError = isSetupError(resolvedConnectionErrorCode);
+  const hasSessionError = isSessionError(resolvedConnectionErrorCode);
+  const hasAccessError = resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED" ||
+    resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED" ||
+    resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE";
+  const safeErrorDetail = safeConnectionErrorDetail(connectionError);
+  const statusLabel = hasConnectionError
+    ? hasVoiceSetupError
+      ? t("voiceHero.connectionSetupNeeded", "Setup needed")
+      : hasAccessError
+      ? t("voiceHero.connectionAccessNeeded", "Access needed")
+      : t("voiceHero.connectionNeedsAttention", "Needs attention")
+    : voiceSessionPhase
+    ? voiceSessionPhaseLabel(voiceSessionPhase)
+    : fallbackStatusLabel;
+  const canToggleMic = Boolean(!hasConnectionError && onMicToggle && voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring");
+  const emptyTranscriptLabel = hasConnectionError
+    ? hasMicrophoneError
+      ? t("voiceHero.microphoneError", "Microphone is blocked")
+      : hasVoiceSetupError
+      ? t("voiceHero.voiceSetupError", "Voice setup needed")
+      : resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED"
+      ? t("voiceHero.voiceAccessError", "Voice plan needed")
+      : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
+      ? t("voiceHero.voiceSignInError", "Sign in again")
+      : resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE"
+      ? t("voiceHero.voiceAccessUnavailableError", "Access check failed")
+      : hasSessionError
+      ? t("voiceHero.voiceSessionError", "Voice session failed")
+      : t("voiceHero.connectionError", "Voice couldn't connect")
+    : isConnecting
+    ? t("voiceHero.connecting")
+    : t("voiceHero.listening");
+  const errorDetailLabel = hasMicrophoneError
+    ? t("voiceHero.microphoneErrorHelp", "Please allow microphone access for VYVA, then try again.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_API_KEY_MISSING"
+    ? t("voiceHero.voiceApiKeyMissingHelp", "The ElevenLabs API key is missing on the server.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_AGENT_MISSING"
+    ? t("voiceHero.voiceAgentMissingHelp", "No ElevenLabs agent is configured for this voice entry point.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_SIGNED_URL_ERROR"
+    ? t("voiceHero.voiceSignedUrlErrorHelp", "ElevenLabs rejected the voice session. Check the API key and agent ID.")
+    : resolvedConnectionErrorCode === "ELEVENLABS_TOKEN_ERROR"
+    ? t("voiceHero.voiceTokenErrorHelp", "The server could not create a voice session.")
+    : resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED"
+    ? t("voiceHero.voiceEntitlementErrorHelp", "This profile does not have voice access enabled.")
+    : resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE"
+    ? t("voiceHero.voiceAccessUnavailableHelp", "VYVA could not verify account access right now. Please try again.")
+    : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
+    ? t("voiceHero.voiceAuthErrorHelp", "Please sign in again, then try voice.")
+    : resolvedConnectionErrorCode === "VOICE_SESSION_START_FAILED"
+    ? t(
+        "voiceHero.voiceSessionStartErrorHelp",
+        safeErrorDetail
+          ? `ElevenLabs could not start: ${safeErrorDetail}`
+          : "ElevenLabs could not start the browser voice session.",
+      )
+    : resolvedConnectionErrorCode === "VOICE_SESSION_ERROR"
+    ? t(
+        "voiceHero.voiceSessionRuntimeErrorHelp",
+        safeErrorDetail
+          ? `The voice session reported: ${safeErrorDetail}`
+          : "The active voice session reported an error.",
+      )
+    : resolvedConnectionErrorCode === "VOICE_SESSION_CLOSED"
+    ? t(
+        "voiceHero.voiceSessionClosedHelp",
+        safeErrorDetail
+          ? `The voice session closed: ${safeErrorDetail}`
+          : "The voice session closed before VYVA could continue.",
+      )
+    : t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.");
   const speakerLabel = visibleWord ? "VYVA" : null;
-  const currentOrbState = orbState(isSpeaking, isConnecting);
+  const currentOrbState = hasConnectionError ? "idle" : orbState(isSpeaking, isConnecting);
 
   const overlay = (
     <div
@@ -163,11 +294,11 @@ const VoiceCallOverlay = ({
           className="font-body"
           style={{
             color: visibleWord ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.86)",
-            fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : 30,
+            fontSize: visibleWord ? "clamp(56px, 16vw, 118px)" : hasConnectionError ? "clamp(34px, 9vw, 56px)" : 30,
             lineHeight: visibleWord ? 0.95 : 1.35,
             textAlign: "center",
-            maxWidth: visibleWord ? "90vw" : 320,
-            fontWeight: visibleWord ? 700 : 500,
+            maxWidth: visibleWord ? "90vw" : hasConnectionError ? "min(86vw, 520px)" : 320,
+            fontWeight: visibleWord ? 700 : hasConnectionError ? 700 : 500,
             fontStyle: "normal",
             overflowWrap: "anywhere",
             transition: "opacity 0.16s ease, transform 0.16s ease",
@@ -178,6 +309,24 @@ const VoiceCallOverlay = ({
         >
           {visibleWord ?? emptyTranscriptLabel}
         </p>
+
+        {hasConnectionError && (
+          <p
+            data-testid="text-call-error-detail"
+            className="font-body"
+            style={{
+              maxWidth: "min(86vw, 460px)",
+              margin: "0 auto",
+              color: "rgba(255,255,255,0.68)",
+              fontSize: 16,
+              lineHeight: 1.45,
+              textAlign: "center",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {errorDetailLabel}
+          </p>
+        )}
 
         {activeAction && (
           <div
@@ -280,6 +429,34 @@ const VoiceCallOverlay = ({
         </span>
 
         <div style={{ display: "flex", gap: 12, width: "min(100%, 360px)", justifyContent: "center" }}>
+          {hasConnectionError && onRetry && (
+            <button
+              data-testid="button-retry-call"
+              onClick={onRetry}
+              className="font-body"
+              style={{
+                minHeight: 52,
+                minWidth: 132,
+                background: "rgba(255,255,255,0.18)",
+                border: "1px solid rgba(255,255,255,0.26)",
+                borderRadius: 100,
+                color: "white",
+                fontSize: 15,
+                fontWeight: 700,
+                padding: "12px 20px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <RotateCcw size={18} />
+              {t("voiceHero.retryCall", "Try again")}
+            </button>
+          )}
+
           {canToggleMic && (
             <button
               data-testid="button-toggle-call-mic"

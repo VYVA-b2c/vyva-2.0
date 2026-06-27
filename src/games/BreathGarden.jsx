@@ -4,6 +4,7 @@ import {
   Check,
   Droplets,
   Flower2,
+  Info,
   Leaf,
   Loader2,
   Play,
@@ -37,6 +38,30 @@ const DEFAULT_STATE = {
   last_played_at: null,
   preferred_theme: "garden",
 };
+
+const BREATH_GARDEN_TUTORIAL_KEY = "breathGarden:tutorialSeen:v1";
+
+function tutorialStorageKey(userId) {
+  return userId ? `${BREATH_GARDEN_TUTORIAL_KEY}:${userId}` : BREATH_GARDEN_TUTORIAL_KEY;
+}
+
+function readBreathGardenTutorialSeen(userId) {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(tutorialStorageKey(userId)) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeBreathGardenTutorialSeen(userId) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(tutorialStorageKey(userId), "true");
+  } catch {
+    // Local tutorial persistence is a convenience; the game should still work.
+  }
+}
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -275,6 +300,43 @@ function GardenVisual({ themeId, bloomLevel, complete = false }) {
   );
 }
 
+function TutorialGardenVisual({ theme, inLabel, outLabel }) {
+  return (
+    <div className="relative mx-auto h-[210px] w-full max-w-[520px] overflow-hidden rounded-[28px] border sm:h-[260px] sm:rounded-[34px]" style={{ borderColor: theme.accent, background: theme.soft }}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.95),rgba(255,255,255,0.3))]" />
+      <div className="absolute left-1/2 top-1/2 h-[160px] w-[160px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[16px] border-white/85 shadow-vyva-card" style={{ background: theme.soft }} />
+      {[0, 1, 2].map((ring) => (
+        <div
+          key={ring}
+          className="absolute left-1/2 top-1/2 rounded-full border-2"
+          style={{
+            width: 190 + ring * 42,
+            height: 190 + ring * 42,
+            transform: "translate(-50%, -50%)",
+            borderColor: ring % 2 ? "#FFFFFF" : theme.accent,
+            opacity: ring === 0 ? 0.22 : 0.15,
+          }}
+        />
+      ))}
+      <div className="absolute left-[18%] top-[34%] rounded-full bg-white px-4 py-3 text-[19px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
+        <Waves size={24} className="mr-2 inline" aria-hidden="true" />
+        {inLabel}
+      </div>
+      <div className="absolute right-[12%] top-[48%] rounded-full bg-white px-4 py-3 text-[19px] font-black shadow-vyva-card" style={{ color: theme.accent }}>
+        {outLabel}
+      </div>
+      <div className="absolute bottom-[20px] left-1/2 flex -translate-x-1/2 items-end justify-center gap-2">
+        {[26, 44, 64].map((height, index) => (
+          <div key={height} className="flex flex-col items-center">
+            <div className="w-2 rounded-full" style={{ height, background: theme.accent, opacity: 0.55 + index * 0.15 }} />
+            <Flower2 size={26 + index * 6} style={{ color: theme.accent }} aria-hidden="true" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function safeRound(value, digits = 2) {
   if (value === null || value === undefined || !Number.isFinite(value)) return null;
   return Number(value.toFixed(digits));
@@ -293,6 +355,8 @@ export default function BreathGarden({ userId, onExit }) {
   const [encouragement, setEncouragement] = useState("");
   const [saveWarning, setSaveWarning] = useState("");
   const [finalMetrics, setFinalMetrics] = useState(null);
+  const [tutorialSeen, setTutorialSeen] = useState(() => readBreathGardenTutorialSeen(userId));
+  const [tutorialReturnScreen, setTutorialReturnScreen] = useState("intro");
 
   const sessionStartRef = useRef(null);
   const sessionSavedRef = useRef(false);
@@ -311,6 +375,9 @@ export default function BreathGarden({ userId, onExit }) {
   ], [t]);
 
   const loadState = useCallback(async () => {
+    const hasSeenTutorial = readBreathGardenTutorialSeen(userId);
+    setTutorialSeen(hasSeenTutorial);
+
     if (!userId) {
       const fallback = getDefaultBreathGardenUserState("local");
       setUserState(fallback);
@@ -330,7 +397,8 @@ export default function BreathGarden({ userId, onExit }) {
     const preferredTheme = isBreathGardenTheme(state.preferred_theme) ? state.preferred_theme : "garden";
     setUserState(state);
     setTheme(preferredTheme);
-    setScreen(Number(state.total_sessions ?? 0) > 0 ? "intro" : "theme");
+    setTutorialReturnScreen("intro");
+    setScreen(Number(state.total_sessions ?? 0) > 0 ? (hasSeenTutorial ? "intro" : "tutorial") : "theme");
   }, [t, userId]);
 
   useEffect(() => {
@@ -395,7 +463,19 @@ export default function BreathGarden({ userId, onExit }) {
 
   const handleThemePick = (themeId) => {
     setTheme(themeId);
-    setScreen("intro");
+    setTutorialReturnScreen("intro");
+    setScreen(tutorialSeen ? "intro" : "tutorial");
+  };
+
+  const closeTutorial = () => {
+    writeBreathGardenTutorialSeen(userId);
+    setTutorialSeen(true);
+    setScreen(tutorialReturnScreen || "intro");
+  };
+
+  const openInstructions = () => {
+    setTutorialReturnScreen("intro");
+    setScreen("tutorial");
   };
 
   const handleTap = () => {
@@ -560,13 +640,21 @@ export default function BreathGarden({ userId, onExit }) {
 
         {screen === "intro" ? (
           <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={openInstructions}
+                className="inline-flex min-h-[52px] items-center gap-2 rounded-full border bg-white px-4 text-[18px] font-extrabold"
+                style={{ borderColor: BRAND.border, color: BRAND.purple }}
+              >
+                <Info size={22} aria-hidden="true" />
+                {t("games.breathGarden.instructions", "Instructions")}
+              </button>
+            </div>
             <div className="mx-auto flex h-[96px] w-[96px] items-center justify-center rounded-[28px]" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
               <ThemeIcon themeId={theme} size={54} />
             </div>
             <h1 className="mt-6 font-display text-[40px] leading-tight">{t("games.breathGarden.title", "Breath Garden")}</h1>
-            <p className="mt-3 text-[26px] font-black" style={{ color: BRAND.muted }}>
-              {t("games.breathGarden.subtitle", "Your breathing brings the garden to life.")}
-            </p>
             <p className="mx-auto mt-6 max-w-[650px] text-[26px] font-bold leading-snug" style={{ color: BRAND.ink }}>
               {t("games.breathGarden.howItWorks", "Tap once as you breathe in, and once as you breathe out. There is no correct rhythm - just breathe your way.")}
             </p>
@@ -586,6 +674,54 @@ export default function BreathGarden({ userId, onExit }) {
               style={{ color: BRAND.purple }}
             >
               {t("games.breathGarden.changeTheme", "Change garden")}
+            </button>
+          </section>
+        ) : null}
+
+        {screen === "tutorial" ? (
+          <section className="mt-4 rounded-[28px] border bg-white p-4 text-center shadow-vyva-card sm:mt-6 sm:p-6" style={{ borderColor: BRAND.border }}>
+            <TutorialGardenVisual
+              theme={selectedTheme}
+              inLabel={t("games.breathGarden.tutorialIn", "In")}
+              outLabel={t("games.breathGarden.tutorialOut", "Out")}
+            />
+            <h1 className="mt-5 font-display text-[34px] leading-tight sm:mt-6 sm:text-[40px]">{t("games.breathGarden.title", "Breath Garden")}</h1>
+            <p className="mt-2 text-[23px] font-black leading-tight sm:mt-3 sm:text-[27px]" style={{ color: BRAND.muted }}>
+              {t("games.breathGarden.tutorialSubtitle", "Tap gently as you breathe.")}
+            </p>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-6 sm:gap-3">
+              {[
+                { label: t("games.breathGarden.tutorialIn", "In"), Icon: Waves },
+                { label: t("games.breathGarden.tutorialOut", "Out"), Icon: Droplets },
+                { label: t("games.breathGarden.tutorialGrow", "Garden grows"), Icon: Flower2 },
+              ].map(({ label, Icon }) => (
+                <div key={label} className="min-h-[90px] rounded-[22px] px-2 py-3 sm:min-h-[104px] sm:py-4" style={{ background: selectedTheme.soft, color: selectedTheme.accent }}>
+                  <Icon className="mx-auto" size={28} aria-hidden="true" />
+                  <span className="mt-2 block text-[15px] font-black leading-tight sm:mt-3 sm:text-[17px]">{label}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="mx-auto mt-4 max-w-[560px] text-[19px] font-bold leading-snug sm:mt-5 sm:text-[21px]" style={{ color: BRAND.muted }}>
+              {t("games.breathGarden.tutorialPace", "Go at your own pace. There is no right or wrong.")}
+            </p>
+
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="mt-4 min-h-[66px] w-full rounded-full px-6 text-[23px] font-black text-white shadow-vyva-card sm:mt-6 sm:min-h-[76px] sm:text-[25px]"
+              style={{ background: BRAND.purple }}
+            >
+              {t("games.breathGarden.tutorialUnderstand", "I understand")}
+            </button>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="mt-2 min-h-[48px] rounded-full px-5 text-[19px] font-extrabold underline underline-offset-4 sm:mt-3 sm:min-h-[58px] sm:text-[21px]"
+              style={{ color: BRAND.purple }}
+            >
+              {t("common.skip", "Skip")}
             </button>
           </section>
         ) : null}
