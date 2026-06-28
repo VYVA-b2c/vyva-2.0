@@ -185,6 +185,28 @@ describe("Profile readiness", () => {
     expect(res.body.services.concierge.ready).toBe(false);
   });
 
+  it("blocks voice readiness when app access is disabled for the profile", async () => {
+    const userId = await createProfile({
+      account_status: "disabled",
+      subscription_tier: "free",
+      subscription_status: "active",
+    });
+
+    const res = await request(app)
+      .get("/api/profile/readiness")
+      .set("x-user-id", userId)
+      .expect(200);
+
+    expect(res.body.profile.accountStatus).toBe("disabled");
+    expect(res.body.profile.accountEnabled).toBe(false);
+    expect(res.body.services.chat.ready).toBe(false);
+    expect(res.body.services.chat.missing[0]).toMatchObject({
+      section: "account",
+      path: "/settings/subscription",
+      reason: "Account access is disabled. Ask an admin to enable app access for this profile.",
+    });
+  });
+
   it("keeps paid premium active access even if a stale trial date exists", async () => {
     const userId = await createProfile({
       subscription_tier: "premium",

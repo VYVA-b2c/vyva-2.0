@@ -147,6 +147,17 @@ describe("VoiceHero status dot", () => {
     expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, undefined);
   });
 
+  it("does not start voice when the service gate blocks the CTA", () => {
+    const canStartVoice = vi.fn(() => false);
+    render(<VoiceHero headline="Good evening" contextHint="app_open" canStartVoice={canStartVoice} />);
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    expect(canStartVoice).toHaveBeenCalled();
+    expect(voiceMocks.startVoice).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
   it("starts the main VYVA agent when Home provides the main slug", () => {
     render(
       <VoiceHero

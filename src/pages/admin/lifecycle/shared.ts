@@ -227,6 +227,7 @@ export type LoginMapping = {
   effective_profile_id?: string | null;
   effective_profile_email?: string | null;
   effective_profile_phone?: string | null;
+  effective_account_status?: string | null;
   effective_subscription_tier?: string | null;
   effective_subscription_status?: string | null;
   subscription_mismatch?: boolean;

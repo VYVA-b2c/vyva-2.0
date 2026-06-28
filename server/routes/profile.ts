@@ -377,6 +377,14 @@ function subscriptionStep(feature: string): MissingSetupStep {
   };
 }
 
+function accountAccessStep(): MissingSetupStep {
+  return {
+    section: "account",
+    path: "/settings/subscription",
+    reason: "Account access is disabled. Ask an admin to enable app access for this profile.",
+  };
+}
+
 function gate(ready: boolean, missing: MissingSetupStep[], recommended?: MissingSetupStep[]): ServiceGate {
   return {
     ready,
@@ -387,6 +395,11 @@ function gate(ready: boolean, missing: MissingSetupStep[], recommended?: Missing
 
 function entitlementGate(enabled: boolean, feature: string, nextGate: ServiceGate = gate(true, [])): ServiceGate {
   if (!enabled) return gate(false, [subscriptionStep(feature)]);
+  return nextGate;
+}
+
+function accountGate(enabled: boolean, nextGate: ServiceGate): ServiceGate {
+  if (!enabled) return gate(false, [accountAccessStep()]);
   return nextGate;
 }
 
@@ -518,6 +531,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const effectiveTier = subscriptionSync.effectiveTier;
     const effectiveStatus = subscriptionSync.effectiveStatus;
     const entitlements = await entitlementForTier(effectiveTier);
+    const accountEnabled = profile?.account_status !== "disabled";
 
     const medicationMissing = [
       setupStep("medications", "To make medication reminders and reports work, add at least one medication first."),
@@ -560,6 +574,8 @@ router.get("/readiness", async (req: Request, res: Response) => {
         billingSubscriptionStatus: subscriptionSync.billingSubscriptionStatus,
         subscriptionTierMismatch: subscriptionSync.profileTierMismatch,
         entitlementRepaired: subscriptionSync.repaired,
+        accountStatus: profile?.account_status ?? null,
+        accountEnabled,
         hasBasics,
         hasContact,
         hasDetailedAddress,
@@ -572,22 +588,22 @@ router.get("/readiness", async (req: Request, res: Response) => {
         hasGp,
       },
       services: {
-        medications: entitlementGate(medicationEnabled, "medication tracking", medicationGate),
-        adherenceReport: entitlementGate(medicationEnabled, "medication tracking", medicationGate),
-        medicationReminders: entitlementGate(medicationEnabled, "medication tracking", medicationGate),
-        medicationInteractions: entitlementGate(medicationEnabled, "medication tracking", medicationGate),
-        sos: gate(hasDetailedAddress && hasEmergencyContact, sosMissing),
-        doctor: gate(hasBasics && hasContact, doctorMissing, doctorRecommended),
-        localServices: gate(hasLocalAddress, addressMissing),
-        specialistFinder: gate(hasLocalAddress, addressMissing),
-        reports: gate(true, []),
-        concierge: entitlementGate(conciergeEnabled, "concierge"),
-        socialRooms: gate(true, []),
-        activities: gate(true, []),
-        brainTraining: gate(true, []),
-        chat: entitlementGate(voiceEnabled, "the voice assistant"),
-        symptomCheck: entitlementGate(symptomCheckEnabled, "symptom checks"),
-        caregiverDashboard: entitlementGate(caregiverDashboardEnabled, "the caregiver dashboard"),
+        medications: accountGate(accountEnabled, entitlementGate(medicationEnabled, "medication tracking", medicationGate)),
+        adherenceReport: accountGate(accountEnabled, entitlementGate(medicationEnabled, "medication tracking", medicationGate)),
+        medicationReminders: accountGate(accountEnabled, entitlementGate(medicationEnabled, "medication tracking", medicationGate)),
+        medicationInteractions: accountGate(accountEnabled, entitlementGate(medicationEnabled, "medication tracking", medicationGate)),
+        sos: accountGate(accountEnabled, gate(hasDetailedAddress && hasEmergencyContact, sosMissing)),
+        doctor: accountGate(accountEnabled, gate(hasBasics && hasContact, doctorMissing, doctorRecommended)),
+        localServices: accountGate(accountEnabled, gate(hasLocalAddress, addressMissing)),
+        specialistFinder: accountGate(accountEnabled, gate(hasLocalAddress, addressMissing)),
+        reports: accountGate(accountEnabled, gate(true, [])),
+        concierge: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge")),
+        socialRooms: accountGate(accountEnabled, gate(true, [])),
+        activities: accountGate(accountEnabled, gate(true, [])),
+        brainTraining: accountGate(accountEnabled, gate(true, [])),
+        chat: accountGate(accountEnabled, entitlementGate(voiceEnabled, "the voice assistant")),
+        symptomCheck: accountGate(accountEnabled, entitlementGate(symptomCheckEnabled, "symptom checks")),
+        caregiverDashboard: accountGate(accountEnabled, entitlementGate(caregiverDashboardEnabled, "the caregiver dashboard")),
       },
     });
   } catch (err) {

@@ -40,6 +40,7 @@ interface VoiceHeroProps {
   voiceDynamicVariables?: Record<string, string | number | boolean>;
   talkLabel?: string;
   chatLabel?: string;
+  canStartVoice?: () => boolean;
   onTalkClick?: () => void;
   onChatClick?: () => void;
   weatherData?: WeatherData | null;
@@ -115,6 +116,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   voiceDynamicVariables,
   talkLabel,
   chatLabel,
+  canStartVoice,
   onTalkClick,
   onChatClick,
   weatherData,
@@ -288,6 +290,8 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   };
 
   const handleTalk = () => {
+    if (!isActive && canStartVoice && !canStartVoice()) return;
+
     if (!isActive && dynamicHero) {
       recordHeroEvent({
         messageId: dynamicHero.messageId,

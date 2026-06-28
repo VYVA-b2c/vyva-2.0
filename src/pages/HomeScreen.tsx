@@ -168,7 +168,7 @@ const HOME_FAST_ACTION_THEMES: Record<HomeFastAction["tone"], {
 };
 
 const HomeScreen = () => {
-  const { guardPath, readiness } = useServiceGate();
+  const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { firstName: profileFirstName, profile } = useProfile();
 
@@ -356,6 +356,7 @@ const HomeScreen = () => {
         contextHint="app_open"
         voiceAgentSlug="main-vyva"
         voiceDynamicVariables={{ app_entrypoint: "home_open" }}
+        canStartVoice={() => canUseService("chat", "/")}
         autoStartListening
         showVoiceOverlay
         talkLabel={t("home.mode.voiceCta", "Talk to VYVA")}
