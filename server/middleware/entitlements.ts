@@ -5,6 +5,7 @@ import { getActiveProfileContext, type ActiveProfileContext } from "../lib/profi
 import { entitlementForTier, normalizeSubscriptionTier } from "../lib/plans.js";
 import { profiles } from "../../shared/schema.js";
 import { syncProfileEntitlement } from "../lib/entitlementSync.js";
+import { missingColumnName, omitColumns } from "../lib/dbCompatibility.js";
 
 export type EntitlementFeature =
   | "voice_assistant"
@@ -20,6 +21,60 @@ const FEATURE_LABELS: Record<EntitlementFeature, string> = {
   concierge: "concierge",
   caregiver_dashboard: "caregiver dashboard",
 };
+
+type EntitlementProfile = typeof profiles.$inferSelect;
+
+const ENTITLEMENT_PROFILE_DEFAULTS = {
+  account_status: "enabled",
+  subscription_tier: "free",
+  subscription_status: "active",
+  stripe_subscription_id: null,
+  trial_ends_at: null,
+  email: null,
+  phone_number: null,
+  whatsapp_number: null,
+};
+
+const ENTITLEMENT_PROFILE_COLUMNS = {
+  id: profiles.id,
+  account_status: profiles.account_status,
+  subscription_tier: profiles.subscription_tier,
+  subscription_status: profiles.subscription_status,
+  stripe_subscription_id: profiles.stripe_subscription_id,
+  trial_ends_at: profiles.trial_ends_at,
+  email: profiles.email,
+  phone_number: profiles.phone_number,
+  whatsapp_number: profiles.whatsapp_number,
+};
+
+async function loadEntitlementProfile(profileId: string): Promise<EntitlementProfile | null> {
+  const omittedColumns = new Set<string>();
+  const optionalColumns = new Set(Object.keys(ENTITLEMENT_PROFILE_DEFAULTS));
+
+  for (let attempt = 0; attempt <= optionalColumns.size; attempt += 1) {
+    try {
+      const [profile] = await db
+        .select(omitColumns(ENTITLEMENT_PROFILE_COLUMNS, omittedColumns))
+        .from(profiles)
+        .where(eq(profiles.id, profileId))
+        .limit(1);
+
+      if (!profile) return null;
+      return {
+        ...ENTITLEMENT_PROFILE_DEFAULTS,
+        ...profile,
+        id: profile.id,
+      } as EntitlementProfile;
+    } catch (error) {
+      const column = missingColumnName(error);
+      if (!column || !optionalColumns.has(column) || omittedColumns.has(column)) throw error;
+      omittedColumns.add(column);
+      console.warn(`[entitlements] profile column ${column} unavailable; using default for feature access.`);
+    }
+  }
+
+  throw new Error("Unable to load entitlement profile");
+}
 
 declare global {
   namespace Express {
@@ -72,11 +127,7 @@ function entitlementContextPayload(
 export async function hasTierEntitlement(userId: string, feature: EntitlementFeature) {
   const context = await getActiveProfileContext(userId);
   const profileId = context.profileId ?? userId;
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.id, profileId))
-    .limit(1);
+  const profile = await loadEntitlementProfile(profileId);
 
   if (!profile || profile.account_status === "disabled") {
     return { allowed: false, profileId, tier: "free", reason: "profile_unavailable" as const };
@@ -128,11 +179,7 @@ export function requireEntitlement(feature: EntitlementFeature) {
         return;
       }
 
-      const [profile] = await db
-        .select()
-        .from(profiles)
-        .where(eq(profiles.id, profileId))
-        .limit(1);
+      const profile = await loadEntitlementProfile(profileId);
 
       if (!profile) {
         res.status(409).json({
