@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Headphones, Info, Loader2, Play, Volume2, Waves } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
-import { supabase } from "../lib/supabaseClient";
+import { gameData } from "./shared/gameDataApi";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 import {
@@ -209,8 +209,8 @@ export default function ListenClosely({ userId, onExit }) {
   const loadUserState = useCallback(async () => {
     if (!userId) return getDefaultListenCloselyUserState("");
 
-    const { data, error } = await supabase
-      .from("listen_closely_user_state")
+    const { data, error } = await gameData
+      .table("listen_closely_user_state")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -222,8 +222,8 @@ export default function ListenClosely({ userId, onExit }) {
     }
 
     const fallback = getDefaultListenCloselyUserState(userId);
-    const saved = await supabase
-      .from("listen_closely_user_state")
+    const saved = await gameData
+      .table("listen_closely_user_state")
       .upsert(fallback, { onConflict: "user_id" })
       .select("*")
       .single();
@@ -241,20 +241,20 @@ export default function ListenClosely({ userId, onExit }) {
 
     const { start, end } = localDayBounds();
     const [todaySessions, historySessions, soundscapes] = await Promise.all([
-      supabase
-        .from("listen_closely_sessions")
+      gameData
+        .table("listen_closely_sessions")
         .select("soundscape_id")
         .eq("user_id", userId)
         .gte("played_at", start.toISOString())
         .lt("played_at", end.toISOString()),
-      supabase
-        .from("listen_closely_sessions")
+      gameData
+        .table("listen_closely_sessions")
         .select("soundscape_id,played_at")
         .eq("user_id", userId)
         .order("played_at", { ascending: false })
         .limit(500),
-      supabase
-        .from("listen_closely_soundscapes")
+      gameData
+        .table("listen_closely_soundscapes")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true),
@@ -340,7 +340,7 @@ export default function ListenClosely({ userId, onExit }) {
       duration_seconds: result.duration_seconds,
     };
 
-    const saved = await supabase.from("listen_closely_sessions").insert(payload);
+    const saved = await gameData.table("listen_closely_sessions").insert(payload);
     if (saved.error) {
       console.warn("Listen Closely could not save the session.", saved.error);
       sessionSavedRef.current = false;
@@ -389,8 +389,8 @@ export default function ListenClosely({ userId, onExit }) {
     const next = getNextListenCloselyStateAfterSession(latestState, result);
     setUserState(next);
 
-    const saved = await supabase
-      .from("listen_closely_user_state")
+    const saved = await gameData
+      .table("listen_closely_user_state")
       .upsert(next, { onConflict: "user_id" })
       .select("*")
       .single();

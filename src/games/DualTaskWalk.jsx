@@ -11,7 +11,7 @@ import {
   Square,
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
-import { supabase } from "../lib/supabaseClient";
+import { gameData } from "./shared/gameDataApi";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
@@ -368,8 +368,8 @@ export default function DualTaskWalk({ userId, onExit }) {
     const fallback = getDefaultUserState(userId);
     if (!userId) return fallback;
 
-    const existing = await supabase
-      .from("dual_task_user_state")
+    const existing = await gameData
+      .table("dual_task_user_state")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -377,8 +377,8 @@ export default function DualTaskWalk({ userId, onExit }) {
     if (existing.data) return existing.data;
     if (existing.error) throw new Error(existing.error.message);
 
-    const created = await supabase
-      .from("dual_task_user_state")
+    const created = await gameData
+      .table("dual_task_user_state")
       .upsert(fallback, { onConflict: "user_id" })
       .select("*")
       .single();
@@ -393,8 +393,8 @@ export default function DualTaskWalk({ userId, onExit }) {
     let sequences = [];
 
     for (const languageToUse of languageOrder) {
-      const rows = await supabase
-        .from("dual_task_sequences")
+      const rows = await gameData
+        .table("dual_task_sequences")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true)
@@ -408,8 +408,8 @@ export default function DualTaskWalk({ userId, onExit }) {
     if (sequences.length === 0) throw new Error("No Dual Task Walk sequences are available.");
 
     const todaySessions = userId
-      ? await supabase
-          .from("dual_task_sessions")
+      ? await gameData
+          .table("dual_task_sessions")
           .select("sequence_id,played_at")
           .eq("user_id", userId)
           .gte("played_at", getStartOfTodayIso())
@@ -420,8 +420,8 @@ export default function DualTaskWalk({ userId, onExit }) {
     if (unusedToday.length > 0) return shuffle(unusedToday)[0];
 
     const allSessions = userId
-      ? await supabase
-          .from("dual_task_sessions")
+      ? await gameData
+          .table("dual_task_sessions")
           .select("sequence_id,played_at")
           .eq("user_id", userId)
       : { data: [], error: null };
@@ -461,7 +461,7 @@ export default function DualTaskWalk({ userId, onExit }) {
       abandoned: result.abandoned,
       duration_seconds: result.duration_seconds,
     };
-    const { data } = await supabase.from("dual_task_sessions").insert(payload);
+    const { data } = await gameData.table("dual_task_sessions").insert(payload);
     const savedSession = Array.isArray(data) ? data[0] : data;
 
     await recordCognitiveSession({
@@ -538,8 +538,8 @@ export default function DualTaskWalk({ userId, onExit }) {
       updated_at: new Date().toISOString(),
     };
 
-    const updated = await supabase
-      .from("dual_task_user_state")
+    const updated = await gameData
+      .table("dual_task_user_state")
       .upsert(payload, { onConflict: "user_id" })
       .select("*")
       .single();

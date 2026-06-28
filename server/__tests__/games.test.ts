@@ -360,6 +360,17 @@ describe("brain game API routes", () => {
     expect(dbMock.pool.query).not.toHaveBeenCalled();
   });
 
+  it("blocks game data route access to non-allowlisted tables", async () => {
+    const res = await request(app)
+      .post("/api/games/data/profiles/query")
+      .set("x-user-id", "test-user")
+      .send({ selectColumns: "*" })
+      .expect(404);
+
+    expect(res.body.error).toContain("not available");
+    expect(dbMock.pool.query).not.toHaveBeenCalled();
+  });
+
   it("keeps content tables read-only through the backend adapter", async () => {
     const res = await request(app)
       .post("/api/games/supabase/category_sort_cards")
@@ -400,6 +411,33 @@ describe("brain game API routes", () => {
     expect(res.body.data).toEqual([{ id: "session-1", user_id: "test-user", score: 88 }]);
   });
 
+  it("forces game data route reads for user-owned tables to the signed-in user", async () => {
+    const queries: Array<{ sql: string; params?: unknown[] }> = [];
+    dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      queries.push({ sql, params });
+      if (sql.includes("information_schema.columns")) {
+        return {
+          rows: ["id", "user_id", "score"].map((column_name) => ({ column_name })),
+        };
+      }
+      return { rows: [{ id: "session-1", user_id: "test-user", score: 90 }] };
+    });
+
+    const res = await request(app)
+      .post("/api/games/data/number_trails_sessions/query")
+      .set("x-user-id", "test-user")
+      .send({
+        selectColumns: "id,user_id,score",
+        filters: [{ column: "score", expression: "gte.50" }],
+      })
+      .expect(200);
+
+    const selectQuery = queries.find((query) => query.sql.startsWith("SELECT"));
+    expect(selectQuery?.sql).toContain('"user_id" = $2');
+    expect(selectQuery?.params).toEqual(["50", "test-user"]);
+    expect(res.body.data).toEqual([{ id: "session-1", user_id: "test-user", score: 90 }]);
+  });
+
   it("overwrites spoofed user ids on backend adapter writes", async () => {
     const queries: Array<{ sql: string; params?: unknown[] }> = [];
     dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
@@ -417,6 +455,31 @@ describe("brain game API routes", () => {
       .set("x-user-id", "test-user")
       .send({
         method: "POST",
+        body: { user_id: "attacker", score: 77 },
+      })
+      .expect(200);
+
+    const insertQuery = queries.find((query) => query.sql.includes("INSERT INTO"));
+    expect(insertQuery?.params).toContain("test-user");
+    expect(insertQuery?.params).not.toContain("attacker");
+  });
+
+  it("overwrites spoofed user ids on game data route writes", async () => {
+    const queries: Array<{ sql: string; params?: unknown[] }> = [];
+    dbMock.pool.query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      queries.push({ sql, params });
+      if (sql.includes("information_schema.columns")) {
+        return {
+          rows: ["id", "user_id", "score"].map((column_name) => ({ column_name })),
+        };
+      }
+      return { rows: [{ id: "session-1", user_id: "test-user", score: 77 }] };
+    });
+
+    await request(app)
+      .post("/api/games/data/number_trails_sessions")
+      .set("x-user-id", "test-user")
+      .send({
         body: { user_id: "attacker", score: 77 },
       })
       .expect(200);
