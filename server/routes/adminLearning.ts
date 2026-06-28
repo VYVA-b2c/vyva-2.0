@@ -223,6 +223,9 @@ function normalizeLessonImport(raw: unknown) {
 function importDatabaseDetails(error: unknown) {
   if (!error || typeof error !== "object") return [];
   const { code } = error as { code?: string };
+  if (code === "42P01") {
+    return ["The learning library database tables are missing. Run migrations/0045_learning_program.sql, then upload the pack again."];
+  }
   if (code === "42P10") {
     return ["The learning library database needs its unique save rule repaired. Republish with the latest migration, then upload the pack again."];
   }

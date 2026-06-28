@@ -161,7 +161,7 @@ describe("LearningLibraryAdminPage", () => {
         is_active: false,
       }],
     };
-    const file = new File([JSON.stringify(pack)], "learning-pack.json", { type: "application/json" });
+    const file = new File([`Here is the pack:\n\n\`\`\`json\n${JSON.stringify(pack)}\n\`\`\``], "learning-pack.json", { type: "application/json" });
     fireEvent.change(screen.getByTestId("input-admin-learning-import"), { target: { files: [file] } });
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(

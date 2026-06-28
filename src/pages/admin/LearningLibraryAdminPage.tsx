@@ -227,6 +227,23 @@ function buildLearningContentTemplate(categories: Category[]) {
   };
 }
 
+function parseLearningContentPackText(text: string) {
+  const trimmed = text.replace(/^\uFEFF/, "").trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const candidate = fenced ? fenced[1].trim() : trimmed;
+
+  try {
+    return JSON.parse(candidate) as unknown;
+  } catch (error) {
+    const start = candidate.indexOf("{");
+    const end = candidate.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(candidate.slice(start, end + 1)) as unknown;
+    }
+    throw error;
+  }
+}
+
 export default function LearningLibraryAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -352,7 +369,7 @@ export default function LearningLibraryAdminPage() {
     setMessage("");
     try {
       const text = await file.text();
-      const pack = JSON.parse(text) as unknown;
+      const pack = parseLearningContentPackText(text);
       const response = await apiFetch("/api/admin/learning/import", {
         method: "POST",
         body: JSON.stringify(pack),
@@ -367,7 +384,7 @@ export default function LearningLibraryAdminPage() {
       await loadData();
       setMessage(`Import complete. Categories: ${summary.categoriesCreated ?? 0} new, ${summary.categoriesUpdated ?? 0} updated. Lessons: ${summary.lessonsCreated ?? 0} new, ${summary.lessonsUpdated ?? 0} updated.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Content pack could not be imported.");
+      setMessage(error instanceof SyntaxError ? "Content pack must be valid JSON. Download the template, paste lesson content into it, then upload again." : error instanceof Error ? error.message : "Content pack could not be imported.");
     } finally {
       setImporting(false);
     }
