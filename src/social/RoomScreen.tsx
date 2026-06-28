@@ -3925,7 +3925,7 @@ const RoomScreen = () => {
         language={language}
         visitId={visitId}
         onBack={handleBackToRooms}
-        onOpenActivities={() => navigate("/activities")}
+        onOpenActivities={() => navigate("/social-rooms/activities")}
       />
     );
   }

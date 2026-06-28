@@ -107,6 +107,7 @@ const NotificationsSettings = lazy(() => import("./pages/settings/NotificationsS
 const ScheduledSupportSettings = lazy(() => import("./pages/settings/ScheduledSupportSettings"));
 const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage"));
 const SocialHub = lazy(() => import("./social/SocialHub"));
+const CommunityActivitiesScreen = lazy(() => import("./social/CommunityActivitiesScreen"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
@@ -120,6 +121,7 @@ const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessA
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
+const CuratedActivitiesAdminPage = lazy(() => import("./pages/admin/CuratedActivitiesAdminPage"));
 
 const routerFutureFlags = {
   v7_relativeSplatPath: true,
@@ -550,6 +552,7 @@ const App = () => (
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
+                <Route path="/admin/curated-activities" element={<AdminRoute><CuratedActivitiesAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
                   <Route element={<OnboardingGuard />}>
@@ -587,7 +590,8 @@ const App = () => (
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
-                  <Route path="/social-rooms/participate" element={<Navigate to="/activities" replace />} />
+                  <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/activities" replace />} />
+                  <Route path="/social-rooms/activities" element={<AppShell><CommunityActivitiesScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
