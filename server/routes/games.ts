@@ -1148,7 +1148,430 @@ export async function brainCoachCaregiverSummaryHandler(req: Request, res: Respo
   }
 }
 
+type SupabaseCompatFilter = {
+  column: string;
+  expression: string;
+};
+
+type SupabaseCompatPayload = {
+  method?: string;
+  selectColumns?: string;
+  filters?: SupabaseCompatFilter[];
+  orderClause?: string | null;
+  limitCount?: number | null;
+  body?: unknown;
+  onConflict?: string | null;
+};
+
+type SupabaseCompatAccess = "user" | "content" | "adminContent";
+
+const SUPABASE_COMPAT_TABLES: Record<string, SupabaseCompatAccess> = {
+  category_sort_cards: "content",
+  category_sort_sequences: "content",
+  category_sort_sessions: "user",
+  category_sort_user_state: "user",
+  curious_minds_hooks: "adminContent",
+  curious_minds_prompts: "adminContent",
+  curious_minds_sessions: "user",
+  curious_minds_user_state: "user",
+  dual_task_sequences: "content",
+  dual_task_sessions: "user",
+  dual_task_user_state: "user",
+  face_name_personas: "content",
+  face_name_sets: "content",
+  face_name_sessions: "user",
+  face_name_user_state: "user",
+  listen_closely_sessions: "user",
+  listen_closely_soundscapes: "content",
+  listen_closely_user_state: "user",
+  number_trails_configs: "content",
+  number_trails_sessions: "user",
+  number_trails_user_state: "user",
+  remember_later_rounds: "content",
+  remember_later_sessions: "user",
+  remember_later_user_state: "user",
+  spatial_nav_maps: "content",
+  spatial_nav_sessions: "user",
+  spatial_nav_user_state: "user",
+};
+
+const SUPABASE_COMPAT_FILTER_OPERATORS: Record<string, string> = {
+  eq: "=",
+  gt: ">",
+  gte: ">=",
+  lt: "<",
+  lte: "<=",
+};
+
+const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
+
+function isIdentifier(value: string) {
+  return /^[a-z_][a-z0-9_]*$/i.test(value);
+}
+
+function quoteIdentifier(value: string) {
+  if (!isIdentifier(value)) throw new Error("Invalid identifier.");
+  return `"${value}"`;
+}
+
+function parseSupabaseCompatValue(value: string) {
+  if (value === "null") return null;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return value;
+}
+
+function parseSupabaseCompatList(value: string) {
+  const trimmed = value.trim();
+  const inner = trimmed.startsWith("(") && trimmed.endsWith(")")
+    ? trimmed.slice(1, -1)
+    : trimmed;
+  if (!inner.trim()) return [];
+  return inner.split(",").map((entry) => parseSupabaseCompatValue(entry.trim()));
+}
+
+function selectedColumns(selectColumns: string | undefined, availableColumns: Set<string>) {
+  if (!selectColumns || selectColumns.trim() === "*" || selectColumns.trim() === "") {
+    return "*";
+  }
+
+  return selectColumns
+    .split(",")
+    .map((column) => column.trim())
+    .filter(Boolean)
+    .map((column) => {
+      if (!availableColumns.has(column)) throw new Error(`Column ${column} is not available.`);
+      return quoteIdentifier(column);
+    })
+    .join(", ");
+}
+
+function rowsFromBody(body: unknown): Record<string, unknown>[] {
+  const values = Array.isArray(body) ? body : [body];
+  return values.filter((value): value is Record<string, unknown> => (
+    value !== null && typeof value === "object" && !Array.isArray(value)
+  ));
+}
+
+function filterSql(
+  filters: SupabaseCompatFilter[] | undefined,
+  availableColumns: Set<string>,
+  values: unknown[],
+) {
+  const clauses: string[] = [];
+
+  for (const filter of filters ?? []) {
+    if (!availableColumns.has(filter.column)) {
+      throw new Error(`Column ${filter.column} is not available.`);
+    }
+    const column = quoteIdentifier(filter.column);
+    const expression = String(filter.expression ?? "");
+
+    const operator = expression.split(".", 1)[0];
+    if (operator === "in") {
+      const list = parseSupabaseCompatList(expression.slice("in.".length));
+      if (list.length === 0) {
+        clauses.push("false");
+        continue;
+      }
+      const placeholders = list.map((entry) => {
+        values.push(entry);
+        return `$${values.length}`;
+      });
+      clauses.push(`${column} IN (${placeholders.join(", ")})`);
+      continue;
+    }
+
+    if (operator === "not") {
+      const rest = expression.slice("not.".length);
+      const nestedOperator = rest.split(".", 1)[0];
+      const rawValue = rest.slice(nestedOperator.length + 1);
+      if (nestedOperator === "is" && rawValue === "null") {
+        clauses.push(`${column} IS NOT NULL`);
+        continue;
+      }
+      if (nestedOperator === "in") {
+        const list = parseSupabaseCompatList(rawValue);
+        if (list.length === 0) continue;
+        const placeholders = list.map((entry) => {
+          values.push(entry);
+          return `$${values.length}`;
+        });
+        clauses.push(`${column} NOT IN (${placeholders.join(", ")})`);
+        continue;
+      }
+      throw new Error(`Filter operator not.${nestedOperator} is not supported.`);
+    }
+
+    const sqlOperator = SUPABASE_COMPAT_FILTER_OPERATORS[operator];
+    if (!sqlOperator) {
+      throw new Error(`Filter operator ${operator} is not supported.`);
+    }
+    values.push(parseSupabaseCompatValue(expression.slice(operator.length + 1)));
+    clauses.push(`${column} ${sqlOperator} $${values.length}`);
+  }
+
+  return clauses;
+}
+
+function orderSql(orderClause: string | null | undefined, availableColumns: Set<string>) {
+  if (!orderClause) return "";
+  const [column, direction] = orderClause.split(".");
+  if (!availableColumns.has(column)) throw new Error(`Column ${column} is not available.`);
+  return ` ORDER BY ${quoteIdentifier(column)} ${direction === "desc" ? "DESC" : "ASC"}`;
+}
+
+function limitSql(limitCount: number | null | undefined, values: unknown[]) {
+  if (!Number.isFinite(limitCount ?? Number.NaN)) return "";
+  const limit = Math.min(1000, Math.max(1, Math.round(Number(limitCount))));
+  values.push(limit);
+  return ` LIMIT $${values.length}`;
+}
+
+function cleanWriteRow(
+  row: Record<string, unknown>,
+  availableColumns: Set<string>,
+  access: SupabaseCompatAccess,
+  userId: string,
+) {
+  const cleaned: Record<string, unknown> = {};
+  Object.entries(row).forEach(([key, value]) => {
+    if (availableColumns.has(key)) cleaned[key] = value;
+  });
+  if (access === "user" && availableColumns.has("user_id")) {
+    cleaned.user_id = userId;
+  }
+  return cleaned;
+}
+
+async function loadSupabaseCompatColumns(pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: Array<{ column_name: string }> }> }, table: string) {
+  const result = await pool.query(
+    `select column_name
+     from information_schema.columns
+     where table_schema = 'public'
+       and table_name = $1`,
+    [table],
+  );
+  return new Set(result.rows.map((row) => row.column_name));
+}
+
+async function isSupabaseCompatAdmin(
+  pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: Array<{ ok: boolean }> }> },
+  req: Request,
+) {
+  const requestEmail = typeof req.user?.email === "string" ? req.user.email.toLowerCase() : "";
+  if (requestEmail && requestEmail === SUPER_ADMIN_EMAIL) return true;
+
+  const result = await pool.query(
+    `select (
+       exists (
+         select 1 from profiles
+         where id = $1
+           and (
+             role = 'admin'
+             or lower(coalesce(email, '')) = $2
+           )
+       )
+       or exists (
+         select 1 from users
+         where id = $1
+           and lower(coalesce(email, '')) = $2
+       )
+     ) as ok`,
+    [req.user!.id, SUPER_ADMIN_EMAIL],
+  );
+  return Boolean(result.rows[0]?.ok);
+}
+
+async function selectSupabaseCompatRows(
+  pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  table: string,
+  columns: Set<string>,
+  access: SupabaseCompatAccess,
+  isAdmin: boolean,
+  req: Request,
+  payload: SupabaseCompatPayload,
+) {
+  const values: unknown[] = [];
+  const clauses = filterSql(payload.filters, columns, values);
+  if (access === "user" && columns.has("user_id")) {
+    values.push(req.user!.id);
+    clauses.push(`"user_id" = $${values.length}`);
+  }
+  if (access === "content" && columns.has("is_active")) {
+    values.push(true);
+    clauses.push(`"is_active" = $${values.length}`);
+  }
+  if (access === "adminContent" && !isAdmin && columns.has("is_active")) {
+    values.push(true);
+    clauses.push(`"is_active" = $${values.length}`);
+  }
+
+  const where = clauses.length ? ` WHERE ${clauses.join(" AND ")}` : "";
+  const order = orderSql(payload.orderClause, columns);
+  const limit = limitSql(payload.limitCount, values);
+  const selected = selectedColumns(payload.selectColumns, columns);
+  const sql = `SELECT ${selected} FROM public.${quoteIdentifier(table)}${where}${order}${limit}`;
+  const result = await pool.query(sql, values);
+  return result.rows;
+}
+
+async function insertSupabaseCompatRows(
+  pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  table: string,
+  columns: Set<string>,
+  access: SupabaseCompatAccess,
+  req: Request,
+  payload: SupabaseCompatPayload,
+) {
+  const rows = rowsFromBody(payload.body).map((row) => cleanWriteRow(row, columns, access, req.user!.id));
+  if (rows.length === 0) return [];
+
+  const insertColumns = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter((column) => columns.has(column));
+  if (insertColumns.length === 0) throw new Error("No writable columns were provided.");
+
+  const values: unknown[] = [];
+  const tuples = rows.map((row) => {
+    const placeholders = insertColumns.map((column) => {
+      values.push(row[column] ?? null);
+      return `$${values.length}`;
+    });
+    return `(${placeholders.join(", ")})`;
+  });
+
+  const sql = `INSERT INTO public.${quoteIdentifier(table)} (${insertColumns.map(quoteIdentifier).join(", ")})
+    VALUES ${tuples.join(", ")}
+    RETURNING *`;
+  const result = await pool.query(sql, values);
+  return result.rows;
+}
+
+async function updateSupabaseCompatRows(
+  pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  table: string,
+  columns: Set<string>,
+  access: SupabaseCompatAccess,
+  req: Request,
+  payload: SupabaseCompatPayload,
+) {
+  const row = cleanWriteRow(rowsFromBody(payload.body)[0] ?? {}, columns, access, req.user!.id);
+  const writeColumns = Object.keys(row).filter((column) => column !== "user_id" && columns.has(column));
+  if (writeColumns.length === 0) throw new Error("No writable columns were provided.");
+
+  const values: unknown[] = [];
+  const setSql = writeColumns.map((column) => {
+    values.push(row[column] ?? null);
+    return `${quoteIdentifier(column)} = $${values.length}`;
+  });
+  const clauses = filterSql(payload.filters, columns, values);
+  if (access === "user" && columns.has("user_id")) {
+    values.push(req.user!.id);
+    clauses.push(`"user_id" = $${values.length}`);
+  }
+  if (clauses.length === 0) throw new Error("Update requires a filter.");
+
+  const sql = `UPDATE public.${quoteIdentifier(table)}
+    SET ${setSql.join(", ")}
+    WHERE ${clauses.join(" AND ")}
+    RETURNING *`;
+  const result = await pool.query(sql, values);
+  return result.rows;
+}
+
+async function upsertSupabaseCompatRows(
+  pool: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  table: string,
+  columns: Set<string>,
+  access: SupabaseCompatAccess,
+  req: Request,
+  payload: SupabaseCompatPayload,
+) {
+  const conflictColumns = String(payload.onConflict ?? "")
+    .split(",")
+    .map((column) => column.trim())
+    .filter(Boolean);
+  if (conflictColumns.length === 0 || conflictColumns.some((column) => !columns.has(column))) {
+    throw new Error("Upsert requires valid conflict columns.");
+  }
+  if (access === "user" && columns.has("user_id") && !conflictColumns.includes("user_id")) {
+    throw new Error("User-owned upserts must conflict on user_id.");
+  }
+
+  const rows = rowsFromBody(payload.body).map((row) => cleanWriteRow(row, columns, access, req.user!.id));
+  if (rows.length === 0) return [];
+
+  const insertColumns = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter((column) => columns.has(column));
+  const values: unknown[] = [];
+  const tuples = rows.map((row) => {
+    const placeholders = insertColumns.map((column) => {
+      values.push(row[column] ?? null);
+      return `$${values.length}`;
+    });
+    return `(${placeholders.join(", ")})`;
+  });
+  const updates = insertColumns
+    .filter((column) => !conflictColumns.includes(column))
+    .map((column) => `${quoteIdentifier(column)} = EXCLUDED.${quoteIdentifier(column)}`);
+
+  const sql = `INSERT INTO public.${quoteIdentifier(table)} (${insertColumns.map(quoteIdentifier).join(", ")})
+    VALUES ${tuples.join(", ")}
+    ON CONFLICT (${conflictColumns.map(quoteIdentifier).join(", ")})
+    DO UPDATE SET ${updates.length ? updates.join(", ") : `${quoteIdentifier(conflictColumns[0])} = EXCLUDED.${quoteIdentifier(conflictColumns[0])}`}
+    RETURNING *`;
+  const result = await pool.query(sql, values);
+  return result.rows;
+}
+
+export async function supabaseCompatHandler(req: Request, res: Response) {
+  const table = req.params.table;
+  const access = SUPABASE_COMPAT_TABLES[table];
+  if (!access) {
+    return res.status(404).json({ error: "Table is not available through the backend adapter." });
+  }
+
+  const payload = req.body as SupabaseCompatPayload;
+  const method = String(payload.method ?? "GET").toUpperCase();
+  const needsAdmin = access === "adminContent" && method !== "GET";
+  if (access === "content" && method !== "GET") {
+    return res.status(403).json({ error: "Content tables are read-only through the backend adapter." });
+  }
+
+  try {
+    const { pool } = await import("../db.js");
+    const [columns, isAdmin] = await Promise.all([
+      loadSupabaseCompatColumns(pool, table),
+      access === "adminContent" || needsAdmin ? isSupabaseCompatAdmin(pool, req) : Promise.resolve(false),
+    ]);
+    if (columns.size === 0) {
+      return res.status(404).json({ error: "Table does not exist." });
+    }
+    if (needsAdmin && !isAdmin) {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const rows = method === "GET"
+      ? await selectSupabaseCompatRows(pool, table, columns, access, isAdmin, req, payload)
+      : method === "POST" && payload.onConflict
+        ? await upsertSupabaseCompatRows(pool, table, columns, access, req, payload)
+        : method === "POST"
+          ? await insertSupabaseCompatRows(pool, table, columns, access, req, payload)
+          : method === "PATCH"
+            ? await updateSupabaseCompatRows(pool, table, columns, access, req, payload)
+            : null;
+
+    if (rows === null) {
+      return res.status(405).json({ error: "Method is not supported." });
+    }
+    return res.json({ data: rows });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Backend adapter request failed.";
+    console.error("[games] Backend Supabase adapter failed:", error);
+    return res.status(400).json({ error: message });
+  }
+}
+
 const router = Router();
+router.post("/supabase/:table", supabaseCompatHandler);
 router.post("/sessions", createCognitiveSessionHandler);
 router.get("/history", cognitiveSessionHistoryHandler);
 router.get("/progress", brainCoachProgressHandler);
