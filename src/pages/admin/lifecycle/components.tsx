@@ -919,7 +919,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   restoring?: boolean;
   onClose: () => void;
   onSave: () => void;
-  onToggle: () => void;
+  onToggle: (enable: boolean) => void;
   onDelete: () => void;
   onRestore?: () => void;
   newEvent: typeof emptyScheduledEvent;
@@ -930,16 +930,17 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   onSupportSave: (schedule: ScheduledSupport, draft: SupportScheduleDraft) => void;
   onSupportStatus: (schedule: ScheduledSupport, action: "pause" | "resume") => void;
 }) {
-  const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled";
   const removed = !isVisibleLifecycleUser(detail.intake);
   const primaryMapping = detail.account_mappings?.[0];
+  const activeProfileDisabled = primaryMapping?.effective_account_status === "disabled";
+  const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled" || activeProfileDisabled;
   const selectedTier = String(draft.tier ?? "free").toLowerCase();
   const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
   const hasTierMismatch = Boolean(appTier && selectedTier && appTier !== selectedTier);
   const hasSubscriptionMismatch = Boolean(primaryMapping?.subscription_mismatch);
-  const accessMismatch = hasTierMismatch || hasSubscriptionMismatch;
+  const accessMismatch = hasTierMismatch || hasSubscriptionMismatch || activeProfileDisabled;
   const appAccessText = primaryMapping
-    ? `${tierLabel(primaryMapping.effective_subscription_tier ?? "Unknown")}${primaryMapping.effective_subscription_status ? ` (${lifecycleStatusLabel(primaryMapping.effective_subscription_status)})` : ""}`
+    ? `${tierLabel(primaryMapping.effective_subscription_tier ?? "Unknown")}${primaryMapping.effective_subscription_status ? ` (${lifecycleStatusLabel(primaryMapping.effective_subscription_status)})` : ""}${activeProfileDisabled ? " - Disabled" : ""}`
     : "No login match";
   const newEventDate = newEvent.scheduled_date || toDateInputValue(newEvent.scheduled_for);
   const newEventTime = newEvent.scheduled_time || toTimeInputValue(newEvent.scheduled_for);
@@ -1027,7 +1028,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
             </div>
             {primaryMapping && (
               <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
-                {primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save access to sync this user to the selected tier." : "Admin and app access are aligned.")}
+                {(primaryMapping.warnings ?? [])[0] ?? primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save access to sync this user to the selected tier." : "Admin and app access are aligned.")}
               </p>
             )}
             {!primaryMapping && (
@@ -1070,7 +1071,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting || restoring} onClick={onSave}>{saving ? "Saving..." : "Save access"}</button>
-              {!removed && <button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting || restoring} onClick={onToggle}>{disabled ? "Enable app access" : "Disable app access"}</button>}
+              {!removed && <button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting || restoring} onClick={() => onToggle(disabled)}>{disabled ? "Enable app access" : "Disable app access"}</button>}
               {removed ? (
                 <button type="button" className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 font-bold text-emerald-800 disabled:opacity-60" disabled={restoring || !onRestore} onClick={onRestore}>{restoring ? "Restoring..." : "Restore to Users"}</button>
               ) : (

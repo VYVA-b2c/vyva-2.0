@@ -1042,25 +1042,25 @@ export default function LifecycleAdminPage() {
     }
   }
 
-  async function toggleUser(intake: Intake) {
+  async function toggleUser(intake: Intake, forceEnable?: boolean) {
     setBusyAction(`toggle:${intake.id}`);
-    const disabled = intake.account_status === "disabled";
+    const shouldEnable = forceEnable ?? intake.account_status === "disabled";
     try {
-      const data = await api(`/users/${intake.id}/${disabled ? "enable" : "disable"}`, {
+      const data = await api(`/users/${intake.id}/${shouldEnable ? "enable" : "disable"}`, {
         method: "POST",
-        body: JSON.stringify({ reason: disabled ? "" : "Disabled by admin" }),
+        body: JSON.stringify({ reason: shouldEnable ? "" : "Disabled by admin" }),
       });
       const profileCount = Array.isArray(data.profiles) ? data.profiles.length : data.profile ? 1 : 0;
-      const confirmation = disabled ? "App access enabled." : "App access disabled.";
+      const confirmation = shouldEnable ? "App access enabled." : "App access disabled.";
       setMessage("");
       setUserDetailMessage(`${confirmation} ${profileCount ? `${profileCount} linked profile${profileCount === 1 ? "" : "s"} updated.` : "No linked app profile was found."}`);
       showActionReceipt({
         tone: profileCount ? "success" : "warning",
-        label: disabled ? "Enabled" : "Disabled",
-        title: `${intake.name} ${disabled ? "can use the app again" : "cannot use the app now"}.`,
+        label: shouldEnable ? "Enabled" : "Disabled",
+        title: `${intake.name} ${shouldEnable ? "can use the app again" : "cannot use the app now"}.`,
         details: [
           profileCount ? `${profileCount} linked app profile${profileCount === 1 ? "" : "s"} updated.` : "No linked app profile was found for this lifecycle user.",
-          disabled ? "App access was enabled where matching records were found." : "App access was disabled where matching records were found.",
+          shouldEnable ? "App access was enabled where matching records were found." : "App access was disabled where matching records were found.",
         ],
       });
       if (selectedUser?.intake.id === intake.id) await openUserDetail(intake);
@@ -2052,7 +2052,7 @@ export default function LifecycleAdminPage() {
           restoring={busyAction === `restore:${selectedUser.intake.id}`}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
-          onToggle={() => toggleUser(selectedUser.intake)}
+          onToggle={(enable) => toggleUser(selectedUser.intake, enable)}
           onDelete={() => deleteUser(selectedUser.intake)}
           onRestore={() => restoreUser(selectedUser.intake)}
           newEvent={newEvent}

@@ -281,6 +281,26 @@ describe("VoiceCallOverlay word transcript", () => {
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("VYVA could not verify account access right now. Please try again.");
   });
 
+  it("shows account profile access failures without blaming ElevenLabs", () => {
+    renderOverlay([], {
+      connectionError: "Account access is disabled for the active profile. Active profile: abc12345...7890. Status: disabled.",
+      connectionErrorCode: "VOICE_ACCOUNT_ACCESS_DISABLED",
+      voiceDiagnostics: [
+        { id: "browser_microphone", label: "Microphone", status: "passed", detail: "Microphone access granted" },
+        {
+          id: "account_access",
+          label: "Account access",
+          status: "failed",
+          detail: "Account access is disabled for the active profile. Active profile: abc12345...7890. Status: disabled.",
+        },
+      ],
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Account access failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("Account access is disabled for the active profile.");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped at Account access");
+  });
+
   it("infers access verification failures from the server message", () => {
     renderOverlay([], {
       connectionError: "We could not verify access right now. Please try again.",

@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../db.js";
-import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { getActiveProfileContext, type ActiveProfileContext } from "../lib/profileAccess.js";
 import { entitlementForTier, normalizeSubscriptionTier } from "../lib/plans.js";
 import { profiles } from "../../shared/schema.js";
 import { syncProfileEntitlement } from "../lib/entitlementSync.js";
@@ -33,11 +33,40 @@ declare global {
   }
 }
 
-async function activeProfileForRequest(req: Request) {
+type EntitlementErrorContext = ActiveProfileContext & {
+  usedDevFallback?: boolean;
+};
+
+async function activeProfileContextForRequest(req: Request): Promise<EntitlementErrorContext | null> {
   if (!req.user?.id) return null;
   const context = await getActiveProfileContext(req.user.id);
-  if (context.profileId) return context.profileId;
-  return process.env.NODE_ENV !== "production" ? req.user.id : null;
+  if (context.profileId || process.env.NODE_ENV === "production") return context;
+  return {
+    ...context,
+    profileId: req.user.id,
+    profileCount: Math.max(context.profileCount, 1),
+    needsProfileSetup: false,
+    usedDevFallback: true,
+  };
+}
+
+function entitlementContextPayload(
+  context: EntitlementErrorContext | null,
+  feature: EntitlementFeature,
+  profileId?: string | null,
+) {
+  const resolvedProfileId = profileId ?? context?.profileId ?? null;
+  return {
+    feature,
+    account_user_id: context?.accountUserId ?? null,
+    active_profile_id: context?.profileId ?? null,
+    profile_id: resolvedProfileId,
+    active_profile_role: context?.role ?? null,
+    profile_count: context?.profileCount ?? 0,
+    needs_profile_setup: context?.needsProfileSetup ?? false,
+    needs_profile_selection: context?.needsProfileSelection ?? false,
+    used_dev_fallback: context?.usedDevFallback ?? false,
+  };
 }
 
 export async function hasTierEntitlement(userId: string, feature: EntitlementFeature) {
@@ -81,10 +110,13 @@ export function requireEntitlement(feature: EntitlementFeature) {
     }
 
     try {
-      const profileId = await activeProfileForRequest(req);
+      const activeContext = await activeProfileContextForRequest(req);
+      const profileId = activeContext?.profileId ?? null;
       if (!profileId) {
         res.status(409).json({
           error: "No care profile selected",
+          code: "ACTIVE_PROFILE_REQUIRED",
+          ...entitlementContextPayload(activeContext, feature),
           nextRoute: "/onboarding/who-for",
         });
         return;
@@ -102,10 +134,23 @@ export function requireEntitlement(feature: EntitlementFeature) {
         .where(eq(profiles.id, profileId))
         .limit(1);
 
-      if (!profile || profile.account_status === "disabled") {
+      if (!profile) {
+        res.status(409).json({
+          error: "Active care profile was not found",
+          code: "ACTIVE_PROFILE_NOT_FOUND",
+          ...entitlementContextPayload(activeContext, feature, profileId),
+          nextRoute: "/onboarding/who-for",
+        });
+        return;
+      }
+
+      if (profile.account_status === "disabled") {
         res.status(403).json({
-          error: "Account is not enabled for this feature",
+          error: "Account access is disabled for the active profile",
+          code: "ACCOUNT_ACCESS_DISABLED",
           feature,
+          ...entitlementContextPayload(activeContext, feature, profileId),
+          account_status: profile.account_status,
           nextRoute: "/settings/subscription",
         });
         return;

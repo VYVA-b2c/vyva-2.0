@@ -51,6 +51,9 @@ function inferConnectionErrorCode(message?: string | null): VoiceConnectionError
   if (normalized.includes("api key")) return "ELEVENLABS_API_KEY_MISSING";
   if (normalized.includes("agent configured")) return "ELEVENLABS_AGENT_MISSING";
   if (normalized.includes("signed url")) return "ELEVENLABS_SIGNED_URL_ERROR";
+  if (normalized.includes("account access is disabled")) return "VOICE_ACCOUNT_ACCESS_DISABLED";
+  if (normalized.includes("no active care profile")) return "VOICE_ACTIVE_PROFILE_MISSING";
+  if (normalized.includes("selected care profile could not be found")) return "VOICE_ACTIVE_PROFILE_NOT_FOUND";
   if (normalized.includes("current plan") || normalized.includes("entitlement")) return "VOICE_ENTITLEMENT_REQUIRED";
   if (normalized.includes("could not verify access") || normalized.includes("verify access")) return "VOICE_ACCESS_UNAVAILABLE";
   if (normalized.includes("not authenticated")) return "VOICE_AUTH_REQUIRED";
@@ -85,6 +88,12 @@ function isSessionError(code: VoiceConnectionErrorCode | null) {
   return code === "VOICE_SESSION_START_FAILED" ||
     code === "VOICE_SESSION_ERROR" ||
     code === "VOICE_SESSION_CLOSED";
+}
+
+function isProfileAccessError(code: VoiceConnectionErrorCode | null) {
+  return code === "VOICE_ACCOUNT_ACCESS_DISABLED" ||
+    code === "VOICE_ACTIVE_PROFILE_MISSING" ||
+    code === "VOICE_ACTIVE_PROFILE_NOT_FOUND";
 }
 
 function safeConnectionErrorDetail(message?: string | null) {
@@ -175,6 +184,7 @@ const VoiceCallOverlay = ({
   const hasSessionError = isSessionError(resolvedConnectionErrorCode);
   const hasAccessError = resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED" ||
     resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED" ||
+    isProfileAccessError(resolvedConnectionErrorCode) ||
     resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE";
   const safeErrorDetail = safeConnectionErrorDetail(connectionError);
   const statusLabel = hasConnectionError
@@ -192,6 +202,8 @@ const VoiceCallOverlay = ({
       ? t("voiceHero.microphoneError", "Microphone is blocked")
       : hasVoiceSetupError
       ? t("voiceHero.voiceSetupError", "Voice setup needed")
+      : isProfileAccessError(resolvedConnectionErrorCode)
+      ? t("voiceHero.voiceProfileAccessError", "Account access failed")
       : resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED"
       ? t("voiceHero.voiceAccessError", "Voice plan needed")
       : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"
@@ -216,6 +228,21 @@ const VoiceCallOverlay = ({
     ? t("voiceHero.voiceTokenErrorHelp", "The server could not create a voice session.")
     : resolvedConnectionErrorCode === "VOICE_ENTITLEMENT_REQUIRED"
     ? t("voiceHero.voiceEntitlementErrorHelp", "This profile does not have voice access enabled.")
+    : resolvedConnectionErrorCode === "VOICE_ACCOUNT_ACCESS_DISABLED"
+    ? t(
+        "voiceHero.voiceAccountDisabledHelp",
+        safeErrorDetail ?? "The active care profile is disabled for app access.",
+      )
+    : resolvedConnectionErrorCode === "VOICE_ACTIVE_PROFILE_MISSING"
+    ? t(
+        "voiceHero.voiceActiveProfileMissingHelp",
+        safeErrorDetail ?? "No active care profile is selected for this login.",
+      )
+    : resolvedConnectionErrorCode === "VOICE_ACTIVE_PROFILE_NOT_FOUND"
+    ? t(
+        "voiceHero.voiceActiveProfileNotFoundHelp",
+        safeErrorDetail ?? "The selected care profile could not be found.",
+      )
     : resolvedConnectionErrorCode === "VOICE_ACCESS_UNAVAILABLE"
     ? t("voiceHero.voiceAccessUnavailableHelp", "VYVA could not verify account access right now. Please try again.")
     : resolvedConnectionErrorCode === "VOICE_AUTH_REQUIRED"

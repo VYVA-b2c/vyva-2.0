@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomeScreen from "./HomeScreen";
 
 const guardPathMock = vi.fn();
+const canUseServiceMock = vi.fn(() => true);
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
 const profileMock = vi.hoisted(() => ({ firstName: "Karim" }));
@@ -31,6 +32,7 @@ vi.mock("@/hooks/useServiceGate", () => ({
   serviceForPath: () => undefined,
   useServiceGate: () => ({
     guardPath: guardPathMock,
+    canUseService: canUseServiceMock,
     readiness: { services: {} },
   }),
 }));
@@ -40,6 +42,7 @@ vi.mock("@/components/VoiceHero", () => ({
     autoStartListening?: boolean;
     autoStartVoice?: boolean | string;
     chatLabel?: string;
+    canStartVoice?: () => boolean;
     contextHint?: string;
     heroSurface?: string;
     onChatClick?: () => void;
@@ -61,7 +64,7 @@ vi.mock("@/components/VoiceHero", () => ({
         data-app-entrypoint={String(props.voiceDynamicVariables?.app_entrypoint ?? "")}
       >
         <div data-testid="voice-hero-headline">{props.headline}</div>
-        <button type="button" data-testid="button-voice-hero-talk">
+        <button type="button" data-testid="button-voice-hero-talk" onClick={() => props.canStartVoice?.()}>
           {props.talkLabel}
         </button>
         {props.onChatClick && (
@@ -132,6 +135,7 @@ describe("Home fast service actions", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    canUseServiceMock.mockReturnValue(true);
     voiceHeroMock.mockClear();
     profileMock.firstName = "Karim";
     window.localStorage.clear();
@@ -187,6 +191,14 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-context", "app_open");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-agent-slug", "main-vyva");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-app-entrypoint", "home_open");
+  });
+
+  it("checks the chat service gate before starting Home voice", () => {
+    render(<HomeScreen />);
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    expect(canUseServiceMock).toHaveBeenCalledWith("chat", "/");
   });
 
   it("keeps the Home hero greeting on the user's first name", () => {

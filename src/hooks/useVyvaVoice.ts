@@ -112,6 +112,9 @@ export type VoiceDiagnosticStep = {
 export type VoiceConnectionErrorCode =
   | "VOICE_AUTH_REQUIRED"
   | "VOICE_ENTITLEMENT_REQUIRED"
+  | "VOICE_ACCOUNT_ACCESS_DISABLED"
+  | "VOICE_ACTIVE_PROFILE_MISSING"
+  | "VOICE_ACTIVE_PROFILE_NOT_FOUND"
   | "VOICE_ACCESS_UNAVAILABLE"
   | "ELEVENLABS_AGENT_MISSING"
   | "ELEVENLABS_API_KEY_MISSING"
@@ -222,6 +225,13 @@ type VoiceServerErrorBody = {
   code?: string;
   detail?: string;
   expected_keys?: string[];
+  account_user_id?: string | null;
+  active_profile_id?: string | null;
+  profile_id?: string | null;
+  account_status?: string | null;
+  profile_count?: number;
+  needs_profile_setup?: boolean;
+  needs_profile_selection?: boolean;
 };
 
 function sanitizeVoiceDiagnosticDetail(value?: string | null) {
@@ -280,6 +290,9 @@ function failedVoiceDiagnosticStep(code: VoiceConnectionErrorCode): VoiceDiagnos
   if (
     code === "VOICE_AUTH_REQUIRED" ||
     code === "VOICE_ENTITLEMENT_REQUIRED" ||
+    code === "VOICE_ACCOUNT_ACCESS_DISABLED" ||
+    code === "VOICE_ACTIVE_PROFILE_MISSING" ||
+    code === "VOICE_ACTIVE_PROFILE_NOT_FOUND" ||
     code === "VOICE_ACCESS_UNAVAILABLE"
   ) {
     return "account_access";
@@ -335,7 +348,40 @@ function voiceConnectionErrorCode(error: unknown, fallback: VoiceConnectionError
   return isVoiceConnectionError(error) ? error.code : fallback;
 }
 
+function shortVoiceDebugId(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.length > 14 ? `${trimmed.slice(0, 8)}...${trimmed.slice(-4)}` : trimmed;
+}
+
+function voiceAccountAccessMessage(parsed: VoiceServerErrorBody, fallback: string) {
+  const activeProfileId = shortVoiceDebugId(parsed.profile_id ?? parsed.active_profile_id);
+  const accountUserId = shortVoiceDebugId(parsed.account_user_id);
+
+  if (parsed.code === "ACCOUNT_ACCESS_DISABLED") {
+    const profileDetail = activeProfileId ? ` Active profile: ${activeProfileId}.` : "";
+    const statusDetail = parsed.account_status ? ` Status: ${parsed.account_status}.` : "";
+    return `Account access is disabled for the active profile.${profileDetail}${statusDetail}`;
+  }
+
+  if (parsed.code === "ACTIVE_PROFILE_REQUIRED") {
+    const accountDetail = accountUserId ? ` Account: ${accountUserId}.` : "";
+    return `No active care profile is selected for this login.${accountDetail}`;
+  }
+
+  if (parsed.code === "ACTIVE_PROFILE_NOT_FOUND") {
+    const profileDetail = activeProfileId ? ` Active profile: ${activeProfileId}.` : "";
+    const accountDetail = accountUserId ? ` Account: ${accountUserId}.` : "";
+    return `The selected care profile could not be found.${profileDetail}${accountDetail}`;
+  }
+
+  return fallback;
+}
+
 function codeFromTokenError(status: number, parsed: { code?: string; error?: string; detail?: string }): VoiceConnectionErrorCode {
+  if (parsed.code === "ACCOUNT_ACCESS_DISABLED") return "VOICE_ACCOUNT_ACCESS_DISABLED";
+  if (parsed.code === "ACTIVE_PROFILE_REQUIRED") return "VOICE_ACTIVE_PROFILE_MISSING";
+  if (parsed.code === "ACTIVE_PROFILE_NOT_FOUND") return "VOICE_ACTIVE_PROFILE_NOT_FOUND";
   if (parsed.code === "ENTITLEMENT_REQUIRED") return "VOICE_ENTITLEMENT_REQUIRED";
   if (parsed.code === "FEATURE_ACCESS_UNAVAILABLE") return "VOICE_ACCESS_UNAVAILABLE";
   if (parsed.code === "ELEVENLABS_AGENT_MISSING") return "ELEVENLABS_AGENT_MISSING";
@@ -363,6 +409,7 @@ async function voiceConnectionErrorFromResponse(
   try {
     const parsed = JSON.parse(errorText) as VoiceServerErrorBody;
     message = parsed.error || parsed.detail || message;
+    message = voiceAccountAccessMessage(parsed, message);
     if (parsed.expected_keys?.[0]) {
       message = `${message} (${parsed.expected_keys[0]})`;
     }

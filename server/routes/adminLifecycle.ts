@@ -662,6 +662,7 @@ type LoginMapping = {
   effective_profile_id: string | null;
   effective_profile_email: string | null;
   effective_profile_phone: string | null;
+  effective_account_status: string | null;
   effective_subscription_tier: string | null;
   effective_subscription_status: string | null;
   subscription_mismatch: boolean;
@@ -1006,12 +1007,18 @@ async function profileById(profileId: string | null | undefined): Promise<typeof
   }
 }
 
-function buildMappingWarning(mapping: LoginMapping) {
-  if (!mapping.effective_profile_id) return "This login does not yet have an app profile.";
-  if (mapping.lifecycle_profile_id && mapping.lifecycle_profile_id !== mapping.effective_profile_id) {
-    return "Admin is editing a lifecycle profile, but the app reads a different active login profile.";
+function buildMappingWarnings(mapping: LoginMapping) {
+  const warnings: string[] = [];
+  if (!mapping.effective_profile_id) {
+    warnings.push("This login does not yet have an app profile.");
   }
-  return null;
+  if (mapping.effective_account_status === "disabled") {
+    warnings.push("The app reads this login's active profile as disabled. Enable app access before testing voice.");
+  }
+  if (mapping.lifecycle_profile_id && mapping.effective_profile_id && mapping.lifecycle_profile_id !== mapping.effective_profile_id) {
+    warnings.push("Admin is editing a lifecycle profile, but the app reads a different active login profile.");
+  }
+  return warnings;
 }
 
 function subscriptionAdminFields(sync: EntitlementSyncResult) {
@@ -1077,6 +1084,7 @@ async function resolveLoginMappings(input: {
       effective_profile_id: effectiveProfileId,
       effective_profile_email: effectiveProfile?.email ?? null,
       effective_profile_phone: effectiveProfile?.phone_number ?? null,
+      effective_account_status: effectiveProfile?.account_status ?? null,
       effective_subscription_tier: subscriptionSync.effectiveTier,
       effective_subscription_status: subscriptionSync.effectiveStatus,
       subscription_mismatch: subscriptionSync.profileTierMismatch,
@@ -1091,8 +1099,7 @@ async function resolveLoginMappings(input: {
       latest_entitlement_repair_summary: subscriptionSync.latestRepairSummary,
       warnings: [],
     };
-    const warning = buildMappingWarning(mapping);
-    if (warning) mapping.warnings.push(warning);
+    mapping.warnings.push(...buildMappingWarnings(mapping));
     if (mapping.subscription_warning) mapping.warnings.push(mapping.subscription_warning);
     mappings.push(mapping);
   }
@@ -1119,6 +1126,7 @@ async function resolveLoginMappings(input: {
       effective_profile_id: effectiveProfileId,
       effective_profile_email: effectiveProfile?.email ?? account.email ?? null,
       effective_profile_phone: effectiveProfile?.phone_number ?? account.phone_number ?? null,
+      effective_account_status: effectiveProfile?.account_status ?? null,
       effective_subscription_tier: subscriptionSync.effectiveTier,
       effective_subscription_status: subscriptionSync.effectiveStatus,
       subscription_mismatch: subscriptionSync.profileTierMismatch,
@@ -1133,8 +1141,7 @@ async function resolveLoginMappings(input: {
       latest_entitlement_repair_summary: subscriptionSync.latestRepairSummary,
       warnings: [],
     };
-    const warning = buildMappingWarning(mapping);
-    if (warning) mapping.warnings.push(warning);
+    mapping.warnings.push(...buildMappingWarnings(mapping));
     if (mapping.subscription_warning) mapping.warnings.push(mapping.subscription_warning);
     mappings.push(mapping);
   }
