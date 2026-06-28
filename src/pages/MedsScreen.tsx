@@ -7,7 +7,14 @@ import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
-import { ActionCard, ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import {
+  ActionCard,
+  PurpleModal,
+  ResponsiveGrid,
+  SectionTitle,
+  VYVA_MODAL_PRIMARY_ACTION_CLASS,
+  VYVA_MODAL_SECONDARY_ACTION_CLASS,
+} from "@/components/vyva-ui";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
@@ -16,23 +23,6 @@ import {
   medicationListSummary,
   medicationRefillShoppingState,
 } from "@/lib/medicationServiceActions";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -1116,13 +1106,18 @@ const MedsScreen = () => {
         initialPrompt={assistantPrompt}
       />
 
-      {/* Edit Medication Dialog */}
-      <Dialog open={!!editMed} onOpenChange={(open) => { if (!open) setEditMed(null); }}>
-        <DialogContent className="max-w-sm mx-4">
-          <DialogHeader>
-            <DialogTitle>{t("meds.editMedTitle", "Edit Medication")}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
+      {editMed ? (
+        <PurpleModal
+          Icon={Pencil}
+          kicker={t("meds.modalKicker", "Medication")}
+          title={t("meds.editMedTitle", "Edit medication")}
+          titleId="edit-medication-title"
+          onClose={() => setEditMed(null)}
+          closeLabel={t("common.close", "Close")}
+          panelTestId="modal-edit-medication"
+          size="narrow"
+        >
+          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-med-name">{t("meds.editName", "Medication name")}</Label>
               <Input
@@ -1154,11 +1149,11 @@ const MedsScreen = () => {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
             <button
               data-testid="button-edit-med-cancel"
               onClick={() => setEditMed(null)}
-              className="flex-1 py-2.5 rounded-full font-body text-[15px] font-medium border border-vyva-border text-vyva-text-1"
+              className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
             >
               {t("common.cancel", "Cancel")}
             </button>
@@ -1174,43 +1169,47 @@ const MedsScreen = () => {
                 });
               }}
               disabled={updateMutation.isPending || !editName.trim()}
-              className="flex-1 py-2.5 rounded-full font-body text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
-              style={{ background: "#6B21A8" }}
+              className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
             >
               {updateMutation.isPending ? t("common.saving", "Saving...") : t("common.save", "Save")}
             </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </PurpleModal>
+      ) : null}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteMed} onOpenChange={(open) => { if (!open) setDeleteMed(null); }}>
-        <AlertDialogContent className="max-w-sm mx-4">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("meds.deleteConfirmTitle", "Remove medication?")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("meds.deleteConfirmDesc", "{{name}} will be removed from your medication list. You can add it again at any time.", { name: deleteMed?.displayName ?? "" })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel
+      {deleteMed ? (
+        <PurpleModal
+          Icon={Trash2}
+          kicker={t("meds.modalKicker", "Medication")}
+          title={t("meds.deleteConfirmTitle", "Remove medication?")}
+          subtitle={t("meds.deleteConfirmDesc", "{{name}} will be removed from your medication list. You can add it again at any time.", { name: deleteMed.displayName })}
+          titleId="delete-medication-title"
+          onClose={() => setDeleteMed(null)}
+          closeLabel={t("common.close", "Close")}
+          panelTestId="modal-delete-medication"
+          size="narrow"
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
               data-testid="button-delete-med-cancel"
               onClick={() => setDeleteMed(null)}
+              className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
             >
               {t("common.cancel", "Cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </button>
+            <button
+              type="button"
               data-testid="button-delete-med-confirm"
               onClick={() => { if (deleteMed) deleteMutation.mutate(deleteMed.id); }}
               disabled={deleteMutation.isPending}
-              className="font-body text-[15px] font-semibold"
-              style={{ background: "#DC2626" }}
+              className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} bg-[#B91C1C] shadow-[0_14px_28px_rgba(185,28,28,0.18)]`}
             >
               {deleteMutation.isPending ? t("common.removing", "Removing...") : t("meds.deleteConfirmAction", "Remove")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </button>
+          </div>
+        </PurpleModal>
+      ) : null}
     </div>
   );
 };

@@ -13,10 +13,10 @@ import {
   Stethoscope,
   Thermometer,
   Wind,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { PhoneFrame } from "@/components/onboarding/PhoneFrame";
+import { PurpleModal, VYVA_MODAL_PRIMARY_ACTION_CLASS, VYVA_MODAL_SECONDARY_ACTION_CLASS } from "@/components/vyva-ui";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import { VITALS_DEVICE_CATALOG, type VitalsDeviceCatalogItem, type VitalsDeviceKind } from "@/lib/vitalsDeviceCatalog";
@@ -118,28 +118,17 @@ function DeviceSetupModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="max-h-[90vh] w-full max-w-[620px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="health-device-setup-modal">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ color: device.accent, background: device.bg }}>
-              <Icon size={22} />
-            </span>
-            <div className="min-w-0">
-              <h2 className="font-display text-[26px] italic leading-tight text-vyva-text-1">{device.label}</h2>
-              <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{device.helper}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
-            aria-label={t("common.close", "Close")}
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <PurpleModal
+      Icon={Icon}
+      kicker={t("settings.healthDevices.kicker", "Health devices")}
+      title={device.label}
+      subtitle={device.helper}
+      titleId="health-device-setup-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="health-device-setup-modal"
+      size="wide"
+    >
 
         <div className="rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4">
           <div className="flex items-start gap-3">
@@ -159,7 +148,7 @@ function DeviceSetupModal({
             type="button"
             onClick={startBluetooth}
             disabled={state === "unsupported" || isBusy}
-            className="mt-4 flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#6B21A8] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_24px_rgba(107,33,168,0.18)] disabled:bg-[#D8CDE2] disabled:text-white"
+            className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-4`}
             data-testid="button-health-device-start-bluetooth"
           >
             {isBusy ? <Loader2 size={18} className="animate-spin" /> : <Bluetooth size={18} />}
@@ -183,7 +172,7 @@ function DeviceSetupModal({
               type="button"
               onClick={markReady}
               disabled={isSaving}
-              className="mt-4 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[17px] bg-[#047857] px-4 font-body text-[16px] font-black text-white disabled:opacity-60"
+              className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-4 bg-[#047857] shadow-[0_14px_28px_rgba(4,120,87,0.18)]`}
               data-testid="button-health-device-mark-ready"
             >
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
@@ -203,7 +192,7 @@ function DeviceSetupModal({
             <button
               type="button"
               onClick={() => navigate("/health/vitals")}
-              className="mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-[16px] bg-white px-3 font-body text-[14px] font-black text-[#6B21A8] shadow-[inset_0_0_0_1px_#DDD6FE]"
+              className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} mt-3`}
               data-testid="button-health-device-open-vitals-from-modal"
             >
               {t("settings.healthDevices.openVitals", "Open Vitals")}
@@ -211,8 +200,7 @@ function DeviceSetupModal({
             </button>
           </div>
         )}
-      </section>
-    </div>
+    </PurpleModal>
   );
 }
 

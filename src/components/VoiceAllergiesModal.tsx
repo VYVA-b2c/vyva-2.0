@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, Square, RefreshCw, CheckCircle2, Loader2, AlertTriangle, Info } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { PurpleModal, VYVA_MODAL_PRIMARY_ACTION_CLASS, VYVA_MODAL_SECONDARY_ACTION_CLASS } from "@/components/vyva-ui";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 
 const DISCLAIMER =
@@ -137,23 +137,22 @@ export default function VoiceAllergiesModal({
     resetSession();
   }, [resetSession]);
 
-  return (
-    <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent
-        side="bottom"
-        className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
-        data-testid="modal-voice-allergies"
-      >
-        <SheetHeader className="px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
-          <SheetTitle className="text-left font-display text-[18px] text-gray-900">
-            Voice Allergy Assistant
-          </SheetTitle>
-          <SheetDescription className="sr-only">
-            Speak to add allergens by voice or ask questions about allergy management.
-          </SheetDescription>
-        </SheetHeader>
+  if (!open) return null;
 
-        <div className="flex-1 overflow-hidden flex flex-col">
+  return (
+    <PurpleModal
+      Icon={Mic}
+      kicker="Allergies"
+      title="Voice assistant"
+      subtitle="Speak to add allergens or ask a follow-up question."
+      titleId="voice-allergies-title"
+      onClose={handleClose}
+      closeLabel="Close"
+      modalTestId="modal-voice-allergies"
+      size="narrow"
+      bodyClassName="flex max-h-[calc(88vh-132px)] flex-col p-0"
+    >
+        <div className="flex min-h-[420px] flex-1 overflow-hidden flex-col">
           {!micSupported ? (
             <div className="flex flex-col items-center justify-center gap-4 px-6 py-10">
               <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center">
@@ -168,13 +167,14 @@ export default function VoiceAllergiesModal({
                   browser and ensure microphone permissions are granted.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
+              <button
+                type="button"
+                onClick={handleClose}
+                className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
                 data-testid="button-voice-allergies-close-fallback"
               >
                 Close
-              </Button>
+              </button>
             </div>
           ) : (
             <Tabs
@@ -256,15 +256,15 @@ export default function VoiceAllergiesModal({
                       <p className="font-body text-[14px] text-red-600 text-center">
                         Couldn't identify any allergens. Please try again.
                       </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
+                      <button
+                        type="button"
                         onClick={handleTryAgain}
+                        className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} max-w-[220px]`}
                         data-testid="button-voice-allergies-retry"
                       >
                         <RefreshCw size={14} className="mr-1.5" />
                         Try again
-                      </Button>
+                      </button>
                     </div>
                   )}
 
@@ -299,7 +299,7 @@ export default function VoiceAllergiesModal({
                       <div className="flex gap-2 pt-1">
                         <Button
                           variant="outline"
-                          className="flex-1"
+                          className={`flex-1 ${VYVA_MODAL_SECONDARY_ACTION_CLASS}`}
                           onClick={handleTryAgain}
                           data-testid="button-voice-allergies-tryagain"
                         >
@@ -308,8 +308,7 @@ export default function VoiceAllergiesModal({
                         </Button>
                         {parsedAllergens.length > 0 && (
                           <Button
-                            className="flex-1 text-white font-body"
-                            style={{ background: "#B45309" }}
+                            className={`flex-1 ${VYVA_MODAL_PRIMARY_ACTION_CLASS}`}
                             onClick={handleConfirm}
                             data-testid="button-voice-allergies-confirm"
                           >
@@ -326,7 +325,7 @@ export default function VoiceAllergiesModal({
                   <div className="flex-shrink-0 pb-6 pt-2">
                     {isActive ? (
                       <Button
-                        className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-body text-[15px] rounded-full"
+                        className="h-12 w-full rounded-full bg-red-500 font-body text-[15px] text-white hover:bg-red-600"
                         onClick={handleStopAndParse}
                         data-testid="button-voice-allergies-stop"
                       >
@@ -335,8 +334,7 @@ export default function VoiceAllergiesModal({
                       </Button>
                     ) : (
                       <Button
-                        className="w-full h-12 font-body text-[15px] rounded-full text-white"
-                        style={{ background: "#B45309" }}
+                        className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
                         onClick={handleStartAdd}
                         disabled={isConnecting}
                         data-testid="button-voice-allergies-start"
@@ -417,7 +415,7 @@ export default function VoiceAllergiesModal({
                 <div className="flex-shrink-0 pb-6 pt-1">
                   {isActive ? (
                     <Button
-                      className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-body text-[15px] rounded-full"
+                      className="h-12 w-full rounded-full bg-red-500 font-body text-[15px] text-white hover:bg-red-600"
                       onClick={handleStopAsk}
                       data-testid="button-voice-allergy-ask-stop"
                     >
@@ -426,8 +424,7 @@ export default function VoiceAllergiesModal({
                     </Button>
                   ) : (
                     <Button
-                      className="w-full h-12 font-body text-[15px] rounded-full text-white"
-                      style={{ background: "#B45309" }}
+                      className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
                       onClick={handleStartAsk}
                       disabled={isConnecting}
                       data-testid="button-voice-allergy-ask-start"
@@ -445,8 +442,7 @@ export default function VoiceAllergiesModal({
             </Tabs>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+    </PurpleModal>
   );
 }
 
