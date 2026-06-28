@@ -95,7 +95,7 @@ function renderSocialHub() {
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms"]}>
       <Routes>
         <Route path="/social-rooms" element={<SocialHub />} />
-        <Route path="/activities" element={<LocationProbe />} />
+        <Route path="/social-rooms/activities" element={<LocationProbe />} />
         <Route path="/social-rooms/:slug" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
@@ -133,19 +133,19 @@ describe("SocialHub home-style layout", () => {
     expect(within(primaryCards).getByText("Share")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Activities")).toBeInTheDocument();
     expect(primaryCards).not.toHaveTextContent("Participate");
-    expect(primaryCards).toHaveTextContent("Open recommended games and practices.");
+    expect(primaryCards).toHaveTextContent("Find nearby and online things to do.");
     expect(primaryCards).not.toHaveTextContent("Challenge");
     expect(primaryCards).not.toHaveTextContent("Learn");
     expect(screen.queryByTestId("button-social-quick-challenge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-social-quick-learn")).not.toBeInTheDocument();
   });
 
-  it("opens Activities as the single activities area", () => {
+  it("opens Activities as the Community activities area", () => {
     renderSocialHub();
 
     fireEvent.click(screen.getByTestId("card-social-primary-activities"));
 
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/activities");
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/activities");
   });
 
   it("shows three live Fast help room rows with improved headlines and rotates to the rest", () => {

@@ -124,13 +124,13 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           match: "Encuentra una conexion amable.",
           socialise: "Explora las salas abiertas.",
           share: "Comparte un recuerdo o una idea.",
-          activities: "Abre juegos y practicas recomendadas.",
+          activities: "Encuentra actividades cercanas u online.",
         }[card.id],
         mobileDescription: {
           match: "Buena conexion",
           socialise: "Salas abiertas",
           share: "Comparte algo",
-          activities: "Para ti",
+          activities: "Que hacer",
         }[card.id],
       })),
     };
@@ -148,13 +148,13 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
           match: "Finde eine freundliche Verbindung.",
           socialise: "Entdecke offene Raeume.",
           share: "Teile eine Erinnerung oder Idee.",
-          activities: "Oeffne empfohlene Spiele und Uebungen.",
+          activities: "Finde Aktivitaeten in der Naehe oder online.",
         }[card.id],
         mobileDescription: {
           match: "Nette Verbindung",
           socialise: "Offene Raeume",
           share: "Etwas teilen",
-          activities: "Fuer dich",
+          activities: "Etwas tun",
         }[card.id],
       })),
     };
@@ -171,13 +171,13 @@ function getSocialHubEntryCopy(language: SocialLanguage): SocialHubEntryCopy {
         match: "Find a kind connection.",
         socialise: "Browse open rooms.",
         share: "Share a memory, song, or thought.",
-        activities: "Open recommended games and practices.",
+        activities: "Find nearby and online things to do.",
       }[card.id],
       mobileDescription: {
         match: "Find someone kind",
         socialise: "Open rooms",
         share: "Share a memory",
-        activities: "For you",
+        activities: "Things to do",
       }[card.id],
     })),
   };
@@ -694,7 +694,7 @@ const SocialHub = () => {
             <SocialPrimaryCardView
               key={card.id}
               card={card}
-              onSelect={card.id === "activities" ? () => navigate("/activities") : undefined}
+              onSelect={card.id === "activities" ? () => navigate("/social-rooms/activities") : undefined}
             />
           ))}
         </div>
