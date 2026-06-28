@@ -14,7 +14,6 @@ import {
   ChevronDown,
   X,
   Clock,
-  Lock,
   Pill,
   Activity,
   Calendar,
@@ -24,7 +23,6 @@ import {
   Trash2,
   Copy,
   History,
-  Heart,
   Salad,
   BookOpen,
   Bandage,
@@ -35,6 +33,7 @@ import {
   ChevronUp,
   AlertTriangle,
   CheckCircle2,
+  Loader2,
   ShoppingBasket,
   type LucideIcon,
 } from "lucide-react";
@@ -45,9 +44,14 @@ import { apiFetch, queryClient } from "@/lib/queryClient";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useDoctorVoice } from "@/hooks/useDoctorVoice";
-import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
+import { useServiceGate } from "@/hooks/useServiceGate";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
 import { useLanguage } from "@/i18n";
+import {
+  isVitalsSignalKey,
+  VITALS_SIGNAL_CATALOG,
+  type VitalsSignalKey,
+} from "../../shared/vitalsSignalCatalog";
 
 type WoundScan = {
   id: string;
@@ -143,6 +147,11 @@ type DailyCheckinToday = {
     last_completed_at: string | null;
     grace_minutes: number;
   };
+  trend?: {
+    streak_days: number;
+    best_streak: number;
+    total_checkins: number;
+  };
   latest_checkin: {
     id: string;
     completed_at: string;
@@ -165,6 +174,97 @@ type DailyCheckinToday = {
   } | null;
   message: string;
   action_label: string;
+};
+
+type MedicationAdherenceReport = {
+  latestTaken: {
+    medication_name: string;
+    scheduled_time: string;
+    confirmed_taken_at: string;
+  } | null;
+  nextDue?: {
+    medication_name: string;
+    scheduled_time: string;
+  } | null;
+  todaySummary?: {
+    taken: number;
+    scheduled: number;
+    remaining: number;
+    medicationCount: number;
+    completedMedicationCount: number;
+    pendingMedicationCount: number;
+  };
+};
+
+type MedicationDueSummary = {
+  medication_name: string;
+  scheduled_time: string;
+};
+
+type LatestVitalReading = {
+  signal_type: string;
+  context_tag?: string | null;
+  value: string | number;
+  recorded_at?: string | null;
+  source?: string | null;
+};
+
+type VitalsSafetyStatus = "steady" | "recheck" | "share_with_caregiver" | "contact_doctor" | "urgent_help";
+
+type LatestVitalsAnalysis = {
+  safety_status?: string | null;
+  recommended_action?: string | null;
+  senior_message?: string | null;
+  risk_score?: number | null;
+  risk_tier?: string | null;
+};
+
+type LatestVitalsAlert = {
+  severity?: string | null;
+  message?: string | null;
+  created_at?: string | null;
+};
+
+type LatestVitalsResponse = {
+  analysis?: LatestVitalsAnalysis | null;
+  recent_readings?: LatestVitalReading[];
+  latest_alert?: LatestVitalsAlert | null;
+};
+
+type HealthHomeVitalsSnapshot = {
+  value: string;
+  detail: string;
+  timeLabel: string;
+  statusLabel: string;
+  secondaryValues: string[];
+  tone: {
+    bg: string;
+    text: string;
+    border: string;
+    iconBg: string;
+  };
+  hasReading: boolean;
+  needsReview: boolean;
+};
+
+type HealthHomeInsight = {
+  title: string;
+  detail: string;
+  Icon: LucideIcon;
+  tone: {
+    bg: string;
+    text: string;
+    iconBg: string;
+  };
+};
+
+type HealthHomeOverview = {
+  planStatus: string;
+  primaryInsight: HealthHomeInsight;
+  vitalsSnapshot: HealthHomeVitalsSnapshot;
+  planItems: HealthPlanChecklistItem[];
+  signalCards: HealthSignalCardItem[];
+  recommendedAction: "open_plan" | "capture_vitals" | "symptom_report" | "symptom_check" | "checkin" | "checkin_history" | "medication";
 };
 
 export type SpecialistProvider = {
@@ -695,11 +795,302 @@ function formatCheckinTime(value?: string | null) {
   return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatHealthHomeTimestamp(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  return sameDay
+    ? date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    : date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function formatMedicationScheduledTime(value?: string | null) {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return trimmed;
+  const date = new Date();
+  date.setHours(Number(match[1]), Number(match[2]), 0, 0);
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function latestHealthTimestamp(values: Array<string | null | undefined>) {
+  const latest = values
+    .map((value) => {
+      if (!value) return null;
+      const time = new Date(value).getTime();
+      return Number.isNaN(time) ? null : { value, time };
+    })
+    .filter((value): value is { value: string; time: number } => Boolean(value))
+    .sort((a, b) => b.time - a.time)[0];
+  return latest?.value ?? "";
+}
+
+function compactVitalsSubject(value: string) {
+  if (/^BP\b/i.test(value)) return "BP";
+  const beforeColon = value.split(":")[0]?.trim();
+  if (beforeColon && beforeColon.length < value.length) return beforeColon;
+  const firstWord = value.split(/\s+/)[0]?.trim();
+  return firstWord || value;
+}
+
+function scheduledTimeHour(value?: string | null) {
+  if (!value) return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  return { hour, minute };
+}
+
+function isScheduledDoseSoonOrPast(value?: string | null) {
+  const parsed = scheduledTimeHour(value);
+  if (!parsed) return true;
+  const now = new Date();
+  const scheduled = new Date(now);
+  scheduled.setHours(parsed.hour, parsed.minute, 0, 0);
+  return scheduled.getTime() - now.getTime() <= 4 * 60 * 60 * 1000;
+}
+
+function isScheduledDoseTonight(value?: string | null) {
+  const parsed = scheduledTimeHour(value);
+  return Boolean(parsed && parsed.hour >= 17);
+}
+
+function roundedReadingValue(value: string | number) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return String(value);
+  return Number.isInteger(numberValue) ? String(numberValue) : String(Math.round(numberValue * 10) / 10);
+}
+
+function nearSameMoment(a?: string | null, b?: string | null) {
+  if (!a || !b) return true;
+  const first = new Date(a).getTime();
+  const second = new Date(b).getTime();
+  if (Number.isNaN(first) || Number.isNaN(second)) return true;
+  return Math.abs(first - second) <= 5 * 60 * 1000;
+}
+
+function formatLatestVitalReading(reading: LatestVitalReading | undefined, readings: LatestVitalReading[]) {
+  if (!reading) return "";
+  if (reading.signal_type === "bp_systolic" || reading.signal_type === "bp_diastolic") {
+    const systolic = reading.signal_type === "bp_systolic"
+      ? reading
+      : readings.find((item) => item.signal_type === "bp_systolic" && nearSameMoment(item.recorded_at, reading.recorded_at));
+    const diastolic = reading.signal_type === "bp_diastolic"
+      ? reading
+      : readings.find((item) => item.signal_type === "bp_diastolic" && nearSameMoment(item.recorded_at, reading.recorded_at));
+    if (systolic && diastolic) {
+      return `BP ${roundedReadingValue(systolic.value)}/${roundedReadingValue(diastolic.value)} mmHg`;
+    }
+  }
+
+  if (isVitalsSignalKey(reading.signal_type)) {
+    const signal = reading.signal_type as VitalsSignalKey;
+    const meta = VITALS_SIGNAL_CATALOG[signal];
+    return `${meta.shortLabel}: ${roundedReadingValue(reading.value)}${meta.unit ? ` ${meta.unit}` : ""}`;
+  }
+
+  return `${reading.signal_type.replace(/_/g, " ")}: ${roundedReadingValue(reading.value)}`;
+}
+
+function normalizeVitalsSafetyStatus(value?: string | null): VitalsSafetyStatus {
+  if (value === "urgent_help" || value === "contact_doctor" || value === "share_with_caregiver" || value === "recheck") {
+    return value;
+  }
+  return "steady";
+}
+
+function latestTimeFromReadings(readings: LatestVitalReading[]) {
+  const times = readings
+    .map((reading) => reading.recorded_at ? new Date(reading.recorded_at).getTime() : NaN)
+    .filter((time) => Number.isFinite(time));
+  if (!times.length) return "";
+  return new Date(Math.max(...times)).toISOString();
+}
+
+function bloodPressureReading(readings: LatestVitalReading[]) {
+  const systolic = readings.find((reading) => reading.signal_type === "bp_systolic");
+  const diastolic = readings.find((reading) =>
+    reading.signal_type === "bp_diastolic" && nearSameMoment(reading.recorded_at, systolic?.recorded_at));
+  if (!systolic || !diastolic) return null;
+
+  return {
+    value: `BP ${roundedReadingValue(systolic.value)}/${roundedReadingValue(diastolic.value)} mmHg`,
+    recordedAt: systolic.recorded_at ?? diastolic.recorded_at ?? null,
+  };
+}
+
+function preferredVitalsReading(readings: LatestVitalReading[]) {
+  const bp = bloodPressureReading(readings);
+  if (bp) return bp;
+  const priority = [
+    "resting_hr_bpm",
+    "respiratory_rate",
+    "oxygen_saturation",
+    "glucose_mgdl",
+    "weight_kg",
+  ];
+  const reading = priority
+    .map((signal) => readings.find((item) => item.signal_type === signal))
+    .find(Boolean) ?? readings[0];
+
+  return reading ? {
+    value: formatLatestVitalReading(reading, readings),
+    recordedAt: reading.recorded_at ?? null,
+  } : null;
+}
+
 function dailyCheckinTone(status?: DailyCheckinToday["status"]) {
   if (status === "completed") return { bg: "#ECFDF5", text: "#047857", Icon: CheckCircle2 };
   if (status === "overdue") return { bg: "#FEF2F2", text: "#B91C1C", Icon: AlertTriangle };
   if (status === "due_now") return { bg: "#FFF7ED", text: "#B45309", Icon: Clock };
   return { bg: "#F5F3FF", text: "#6B21A8", Icon: HeartPulse };
+}
+
+type HealthSignalCardItem = {
+  id: string;
+  Icon: LucideIcon;
+  label: string;
+  value: string;
+  detail: string;
+  actionLabel: string;
+  iconBg: string;
+  iconColor: string;
+  borderColor: string;
+  shadow: string;
+  onClick: () => void;
+};
+
+type HealthPlanChecklistItem = {
+  id: string;
+  Icon: LucideIcon;
+  label: string;
+  detail: string;
+  iconBg: string;
+  iconColor: string;
+  borderColor: string;
+  onClick: () => void;
+};
+
+type HealthToolAction = {
+  id: string;
+  Icon: LucideIcon;
+  label: string;
+  detail: string;
+  iconBg: string;
+  iconColor: string;
+  onClick: () => void;
+};
+
+function HealthPlanChecklist({ items }: { items: HealthPlanChecklistItem[] }) {
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3" data-testid="health-plan-checklist">
+      {items.map((item) => {
+        const Icon = item.Icon;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            data-testid={`button-health-plan-step-${item.id}`}
+            onClick={item.onClick}
+            aria-label={`${item.label}. ${item.detail}`}
+            className="vyva-tap min-w-0 rounded-[18px] border bg-white px-2.5 py-2 text-left shadow-[0_8px_18px_rgba(43,31,24,0.04)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
+            style={{ borderColor: item.borderColor }}
+          >
+            <span className="flex items-center gap-2">
+              <span
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[12px]"
+                style={{ background: item.iconBg, color: item.iconColor }}
+              >
+                <Icon size={17} strokeWidth={2.6} aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-body text-[12px] font-black leading-tight text-vyva-text-1">
+                  {item.label}
+                </span>
+                <span className="mt-0.5 block truncate font-body text-[11px] font-bold leading-tight text-vyva-text-2">
+                  {item.detail}
+                </span>
+              </span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function HealthToolButton({ tool }: { tool: HealthToolAction }) {
+  const Icon = tool.Icon;
+  return (
+    <button
+      type="button"
+      onClick={tool.onClick}
+      data-testid={`button-health-tool-${tool.id}`}
+      aria-label={`${tool.label}. ${tool.detail}`}
+      className="vyva-tap group flex min-h-[88px] items-center gap-3 rounded-[20px] border border-[#E8DED4] bg-[#FFFCF8] p-3 text-left shadow-[0_10px_24px_rgba(60,38,20,0.05)] transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[76px]"
+    >
+      <span
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+        style={{ background: tool.iconBg, color: tool.iconColor }}
+      >
+        <Icon size={22} strokeWidth={2.5} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1 sm:text-[16px]">
+          {tool.label}
+        </span>
+        <span className="mt-1 block line-clamp-2 font-body text-[12px] font-bold leading-snug text-vyva-text-2 sm:truncate">
+          {tool.detail}
+        </span>
+      </span>
+      <ChevronRight size={16} strokeWidth={2.7} className="ml-auto flex-shrink-0 text-vyva-purple transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+    </button>
+  );
+}
+
+function HealthSignalCard({ card }: { card: HealthSignalCardItem }) {
+  const Icon = card.Icon;
+  return (
+    <button
+      type="button"
+      onClick={card.onClick}
+      data-testid={`button-health-signal-${card.id}`}
+      aria-label={`${card.label}. ${card.value}. ${card.detail}`}
+      className="vyva-tap group flex min-h-[112px] w-full items-stretch gap-3 rounded-[22px] border bg-[#FFFCF8] p-3 text-left transition-transform hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[124px] sm:rounded-[24px] sm:p-4"
+      style={{ borderColor: card.borderColor, boxShadow: `0 14px 32px ${card.shadow}` }}
+    >
+      <span
+        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] sm:h-[50px] sm:w-[50px] sm:rounded-[18px]"
+        style={{ background: card.iconBg, color: card.iconColor }}
+      >
+        <Icon size={23} strokeWidth={2.5} aria-hidden="true" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
+          {card.label}
+        </span>
+        <span className="mt-1.5 line-clamp-1 font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
+          {card.value}
+        </span>
+        <span className="mt-1.5 line-clamp-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2 sm:text-[14px]">
+          {card.detail}
+        </span>
+        <span className="mt-auto flex items-center justify-between gap-3 pt-2">
+          <span className="rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-black text-vyva-purple">
+            {card.actionLabel}
+          </span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F5F3FF] text-vyva-purple transition-transform group-hover:translate-x-0.5">
+            <ChevronRight size={17} strokeWidth={2.7} aria-hidden="true" />
+          </span>
+        </span>
+      </span>
+    </button>
+  );
 }
 
 export function DailyCheckinCard({
@@ -1154,7 +1545,7 @@ const HealthScreen = () => {
   const { language: appLanguage } = useLanguage();
   const { firstName, profile } = useProfile();
   const navigate = useNavigate();
-  const { guardPath, canUseService, readiness } = useServiceGate();
+  const { guardPath, canUseService } = useServiceGate();
   const location = useLocation();
   const { toast } = useToast();
   const {
@@ -1235,6 +1626,79 @@ const HealthScreen = () => {
     queryKey: ["/api/profile"],
     retry: false,
     staleTime: 2 * 60 * 1000,
+  });
+  const { data: medicationReport } = useQuery<MedicationAdherenceReport>({
+    queryKey: ["/api/meds/adherence-report"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: latestVitalsData } = useQuery<LatestVitalsResponse>({
+    queryKey: ["/api/vitals-engine/latest"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: dailyCheckinToday } = useQuery<DailyCheckinToday>({
+    queryKey: ["/api/checkins/today"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const markDoseTakenMutation = useMutation({
+    mutationFn: async (dose: MedicationDueSummary) => {
+      const res = await apiFetch("/api/meds/adherence-report/confirm", {
+        method: "POST",
+        body: JSON.stringify({
+          medication_name: dose.medication_name,
+          scheduled_time: dose.scheduled_time,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(typeof body?.error === "string" ? body.error : "Could not mark medicine taken");
+      }
+      return res.json();
+    },
+    onSuccess: (_row, dose) => {
+      const takenAt = new Date().toISOString();
+      queryClient.setQueryData<MedicationAdherenceReport>(["/api/meds/adherence-report"], (current) => {
+        if (!current) return current;
+        const todaySummary = current.todaySummary
+          ? {
+              ...current.todaySummary,
+              taken: Math.min(current.todaySummary.scheduled, current.todaySummary.taken + 1),
+              remaining: Math.max(0, current.todaySummary.remaining - 1),
+              pendingMedicationCount: current.todaySummary.remaining <= 1
+                ? Math.max(0, current.todaySummary.pendingMedicationCount - 1)
+                : current.todaySummary.pendingMedicationCount,
+              completedMedicationCount: current.todaySummary.remaining <= 1
+                ? current.todaySummary.completedMedicationCount + 1
+                : current.todaySummary.completedMedicationCount,
+            }
+          : current.todaySummary;
+        return {
+          ...current,
+          latestTaken: {
+            medication_name: dose.medication_name,
+            scheduled_time: dose.scheduled_time,
+            confirmed_taken_at: takenAt,
+          },
+          nextDue: todaySummary?.remaining ? current.nextDue ?? null : null,
+          todaySummary,
+        };
+      });
+      toast({ description: t("health.planLead.markTakenSuccess", "{{name}} marked taken.", { name: dose.medication_name }) });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "";
+      toast({
+        description: message.toLowerCase().includes("fully confirmed")
+          ? t("health.planLead.markTakenAlready", "This medicine is already marked taken today.")
+          : t("health.planLead.markTakenError", "I could not mark that medicine taken. Please try again."),
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
+    },
   });
   const latestTriage = reportsSummary?.latestTriage ?? null;
   const latestTriageDate = latestTriage?.created_at
@@ -1676,69 +2140,554 @@ const HealthScreen = () => {
       .finally(() => setWoundAnalyzing(false));
   };
 
-  const PRIMARY_CARDS = [
+  const latestVitalsReadings = latestVitalsData?.recent_readings ?? [];
+  const preferredVitals = preferredVitalsReading(latestVitalsReadings);
+  const latestVitalsValue = preferredVitals?.value ?? "";
+  const latestVitalsTime = formatHealthHomeTimestamp(preferredVitals?.recordedAt ?? latestTimeFromReadings(latestVitalsReadings));
+  const secondaryVitalsValues = [
+    "resting_hr_bpm",
+    "respiratory_rate",
+    "oxygen_saturation",
+  ]
+    .map((signal) => latestVitalsReadings.find((reading) => reading.signal_type === signal))
+    .filter((reading): reading is LatestVitalReading => Boolean(reading))
+    .map((reading) => formatLatestVitalReading(reading, latestVitalsReadings))
+    .filter((value) => value && value !== latestVitalsValue)
+    .slice(0, 2);
+  const vitalsSafetyStatus = normalizeVitalsSafetyStatus(
+    latestVitalsData?.analysis?.recommended_action ?? latestVitalsData?.analysis?.safety_status,
+  );
+  const vitalsNeedsReview = vitalsSafetyStatus !== "steady" || Boolean(latestVitalsData?.latest_alert?.severity && latestVitalsData.latest_alert.severity !== "info");
+  const vitalsSnapshot: HealthHomeVitalsSnapshot = {
+    value: latestVitalsValue || t("health.planLead.vitalsEmptyValue", "Add vitals"),
+    detail: latestVitalsValue
+      ? latestVitalsTime
+        ? t("health.planLead.vitalsUpdated", "Updated {{time}}", { time: latestVitalsTime })
+        : t("health.planLead.vitalsFresh", "Latest capture")
+      : t("health.planLead.vitalsEmptyDetail", "BP, pulse, or breathing"),
+    timeLabel: latestVitalsTime,
+    statusLabel: !latestVitalsValue
+      ? t("health.planLead.vitalsStatusMissing", "Add vitals")
+      : vitalsNeedsReview
+        ? t("health.planLead.vitalsStatusReview", "Needs review")
+        : t("health.planLead.vitalsStatusStable", "Stable"),
+    secondaryValues: secondaryVitalsValues,
+    tone: !latestVitalsValue
+      ? { bg: "#F5F3FF", text: "#6B21A8", border: "#DDD6FE", iconBg: "#EDE9FE" }
+      : vitalsNeedsReview
+        ? { bg: "#FFF7ED", text: "#B45309", border: "#FED7AA", iconBg: "#FFEDD5" }
+        : { bg: "#ECFDF5", text: "#047857", border: "#BBF7D0", iconBg: "#D1FAE5" },
+    hasReading: Boolean(latestVitalsValue),
+    needsReview: vitalsNeedsReview,
+  };
+  const latestTaken = medicationReport?.latestTaken ?? null;
+  const nextDue = medicationReport?.nextDue ?? null;
+  const medicationToday = medicationReport?.todaySummary;
+  const latestTakenTime = formatHealthHomeTimestamp(latestTaken?.confirmed_taken_at);
+  const latestTakenDoseTime = formatMedicationScheduledTime(latestTaken?.scheduled_time);
+  const nextDueTime = formatMedicationScheduledTime(nextDue?.scheduled_time);
+  const nextDueIsTonight = isScheduledDoseTonight(nextDue?.scheduled_time);
+  const nextMedicineDueSummary = nextDue
+    ? nextDueTime
+      ? t("health.planLead.nextMedicineDueAt", "{{name}} due at {{time}}", {
+          name: nextDue.medication_name,
+          time: nextDueTime,
+        })
+      : t("health.planLead.nextMedicineDue", "{{name}} due", { name: nextDue.medication_name })
+    : "";
+  const medicineDoseLeftSummary = medicationToday?.remaining
+    ? medicationToday.remaining === 1
+      ? t("health.planLead.oneDoseLeft", "1 dose left today")
+      : t("health.planLead.dosesLeft", "{{count}} doses left today", { count: medicationToday.remaining })
+    : "";
+  const medicationDueShort = medicationToday?.remaining
+    ? t("health.homeSignals.medication.dueShort", "{{count}} due", { count: medicationToday.remaining })
+    : "";
+  const medicineValue = medicationToday?.scheduled
+    ? medicationToday.remaining > 0
+      ? medicationToday.remaining === 1 && nextDue
+        ? nextDueIsTonight
+          ? t("health.homeTools.medicine.oneDueTonight", "1 due tonight")
+          : nextDueTime
+            ? t("health.homeTools.medicine.oneDueAt", "1 due {{time}}", { time: nextDueTime })
+            : t("health.homeSignals.medication.dueShort", "{{count}} due", { count: 1 })
+        : t("health.homeSignals.medication.dueShort", "{{count}} due", { count: medicationToday.remaining })
+      : t("health.homeSignals.medication.allTaken", "Done today")
+    : latestTaken
+      ? latestTaken.medication_name
+      : t("health.homeSignals.medication.empty", "No medicine schedule yet");
+  const medicineDetail = latestTaken
+    ? latestTakenTime
+      ? t("health.homeSignals.medication.lastTakenDetail", "{{name}} last {{time}}", {
+          name: latestTaken.medication_name,
+          time: latestTakenTime,
+        })
+      : [
+          latestTaken.medication_name,
+          medicationDueShort || (latestTakenDoseTime ? t("health.homeSignals.medication.doseTime", "Dose {{time}}", { time: latestTakenDoseTime }) : ""),
+        ].filter(Boolean).join(" - ")
+    : medicationToday?.scheduled
+      ? t("health.homeSignals.medication.todayProgress", "{{taken}}/{{scheduled}} taken", {
+          taken: medicationToday.taken,
+          scheduled: medicationToday.scheduled,
+        })
+      : t("health.homeSignals.medication.emptyDetail", "Add schedule");
+  const latestDataTimestamp = latestHealthTimestamp([
+    preferredVitals?.recordedAt ?? latestTimeFromReadings(latestVitalsReadings),
+    latestTaken?.confirmed_taken_at,
+    dailyCheckinToday?.latest_checkin?.completed_at,
+    latestTriage?.created_at,
+  ]);
+  const latestDataLabel = latestDataTimestamp
+    ? t("health.planLead.updatedAt", "Updated {{time}}", { time: formatHealthHomeTimestamp(latestDataTimestamp) })
+    : "";
+  const checkinStatusLabel =
+    dailyCheckinToday?.status === "completed" ? t("health.dailyCheckin.completed", "Checked in today") :
+    dailyCheckinToday?.status === "overdue" ? t("health.dailyCheckin.overdue", "Check-in overdue") :
+    dailyCheckinToday?.status === "due_now" ? t("health.dailyCheckin.due", "Ready now") :
+    dailyCheckinToday?.status === "not_scheduled" ? t("health.dailyCheckin.setup", "Set up") :
+    t("health.dailyCheckin.upcoming", "Scheduled");
+  const checkinCompletedTime = formatHealthHomeTimestamp(dailyCheckinToday?.latest_checkin?.completed_at);
+  const checkinNextTime = formatHealthHomeTimestamp(dailyCheckinToday?.schedule?.next_run_at);
+  const checkinDetail =
+    dailyCheckinToday?.status === "completed" && checkinCompletedTime
+      ? dailyCheckinToday?.trend?.streak_days
+        ? t("health.homeSignals.checkin.streak", "{{count}} day streak", { count: dailyCheckinToday.trend.streak_days })
+        : t("health.homeSignals.checkin.completedAt", "Done {{time}}", { time: checkinCompletedTime })
+      : checkinNextTime
+        ? t("health.homeSignals.checkin.nextAt", "Next {{time}}", { time: checkinNextTime })
+        : dailyCheckinToday?.message || t("health.homeSignals.checkin.emptyDetail", "Quick status");
+  const checkinTone = dailyCheckinTone(dailyCheckinToday?.status);
+  const checkinValue = dailyCheckinToday?.status === "completed"
+    ? dailyCheckinToday.latest_checkin?.feeling_label || t("health.homeSignals.checkin.doneShort", "Done")
+    : checkinStatusLabel;
+  const steadyCheckinSummary = dailyCheckinToday?.status === "completed"
+    ? dailyCheckinToday?.trend?.streak_days
+      ? t("health.planLead.steadyCheckinStreak", "{{count}} day check-in streak", { count: dailyCheckinToday.trend.streak_days })
+      : dailyCheckinToday.latest_checkin?.feeling_label || t("health.planLead.steadyCheckinDone", "Check-in done")
+    : dailyCheckinToday?.status
+      ? checkinStatusLabel
+      : "";
+  const steadyMedicineSummary = medicationToday?.remaining
+    ? t("health.planLead.steadyMedicineDue", "{{count}} medicine due later", { count: medicationToday.remaining })
+    : medicationToday?.scheduled
+      ? t("health.planLead.steadyMedicineClear", "Medicines covered")
+      : "";
+  const steadyPlanSummary = [
+    steadyCheckinSummary,
+    steadyMedicineSummary,
+  ].filter(Boolean).slice(0, 2).join(" - ");
+  const symptomAdvice = latestTriage?.recommendations?.map((item) => item.trim()).find(Boolean) ?? "";
+  const latestMedicineTakenSummary = latestTaken && latestTakenTime
+    ? t("health.planLead.latestMedicineTaken", "{{name}} last {{time}}", {
+        name: latestTaken.medication_name,
+        time: latestTakenTime,
+      })
+    : "";
+  const vitalsPlanReason = !vitalsSnapshot.hasReading
+    ? t("health.planLead.reasonVitalsMissing", "Vitals missing")
+    : vitalsSnapshot.needsReview
+      ? t("health.planLead.reasonVitalsReview", "Vitals need review")
+      : t("health.planLead.reasonVitalsStable", "Vitals stable");
+  const medicinePlanReason = medicineDoseLeftSummary || t("health.planLead.insightMedicineDetail", "{{taken}}/{{scheduled}} taken", {
+    taken: medicationToday?.taken ?? 0,
+    scheduled: medicationToday?.scheduled ?? 0,
+  });
+  const medicinePlanDetail = [
+    vitalsSnapshot.hasReading && !vitalsSnapshot.needsReview ? vitalsPlanReason : "",
+    medicinePlanReason,
+  ].filter(Boolean).join(". ");
+  const primaryInsight: HealthHomeInsight = (() => {
+    if (vitalsSnapshot.needsReview) {
+      return {
+        Icon: Activity,
+        title: t("health.planLead.insightVitalsReview", "Vitals need review"),
+        detail: latestVitalsData?.analysis?.senior_message
+          ?? latestVitalsData?.latest_alert?.message
+          ?? (latestVitalsValue ? t("health.planLead.insightVitalsDetail", "{{capture}} is the latest capture.", { capture: latestVitalsValue }) : vitalsSnapshot.detail),
+        tone: { bg: "#FFF7ED", text: "#B45309", iconBg: "#FFEDD5" },
+      };
+    }
+
+    if (latestTriage?.urgency === "urgent" || latestTriage?.urgency === "routine") {
+      return {
+        Icon: HeartPulse,
+        title: t("health.planLead.insightSymptomsReview", "Review symptom follow-up"),
+        detail: t("health.planLead.insightSymptomsDetail", "{{symptom}} - {{urgency}}", {
+          symptom: latestTriage.chief_complaint,
+          urgency: latestTriageTone.label,
+        }),
+        tone: { bg: "#FFF1F2", text: "#BE123C", iconBg: "#FFE4E6" },
+      };
+    }
+
+    if (!vitalsSnapshot.hasReading) {
+      return {
+        Icon: Activity,
+        title: t("health.planLead.insightAddVitals", "Add one BP reading"),
+        detail: t("health.planLead.insightAddVitalsDetail", "Start your baseline with blood pressure, pulse, or breathing."),
+        tone: { bg: "#F5F3FF", text: "#6B21A8", iconBg: "#EDE9FE" },
+      };
+    }
+
+    if (dailyCheckinToday?.status && dailyCheckinToday.status !== "completed") {
+      return {
+        Icon: Calendar,
+        title: t("health.planLead.insightCheckin", "Check in today"),
+        detail: checkinNextTime
+          ? t("health.planLead.insightCheckinDetail", "Next check-in {{time}}", { time: checkinNextTime })
+          : checkinStatusLabel,
+        tone: { bg: "#EFF6FF", text: "#2563EB", iconBg: "#DBEAFE" },
+      };
+    }
+
+    if (medicationToday?.remaining && medicationToday.remaining > 0 && nextMedicineDueSummary) {
+      return {
+        Icon: Pill,
+        title: nextMedicineDueSummary,
+        detail: medicinePlanDetail,
+        tone: { bg: "#FDF4FF", text: "#86198F", iconBg: "#F5D0FE" },
+      };
+    }
+
+    if (medicationToday?.remaining && medicationToday.remaining > 0 && !latestTaken && medicationToday.taken === 0) {
+      return {
+        Icon: Pill,
+        title: t("health.planLead.insightMedicine", "Review medicines today"),
+        detail: t("health.planLead.insightMedicineDetail", "{{taken}}/{{scheduled}} taken", {
+          taken: medicationToday.taken,
+          scheduled: medicationToday.scheduled,
+        }),
+        tone: { bg: "#FFF7ED", text: "#B45309", iconBg: "#FFEDD5" },
+      };
+    }
+
+    if (medicationToday?.remaining && medicationToday.remaining > 0) {
+      return {
+        Icon: Pill,
+        title: t("health.planLead.insightMedicineLater", "Take {{count}} medicine later", { count: medicationToday.remaining }),
+        detail: latestMedicineTakenSummary || steadyCheckinSummary || steadyMedicineSummary,
+        tone: { bg: "#FDF4FF", text: "#86198F", iconBg: "#F5D0FE" },
+      };
+    }
+
+    if (dailyCheckinToday?.status === "completed" && dailyCheckinToday?.trend?.streak_days) {
+      return {
+        Icon: CheckCircle2,
+        title: t("health.planLead.insightKeepStreak", "Keep the streak going"),
+        detail: steadyCheckinSummary,
+        tone: { bg: "#ECFDF5", text: "#047857", iconBg: "#D1FAE5" },
+      };
+    }
+
+    return {
+      Icon: CheckCircle2,
+      title: t("health.planLead.insightSteady", "Keep today steady"),
+      detail: steadyPlanSummary || t("health.planLead.insightSteadyFallback", "Check-in is done."),
+      tone: { bg: "#ECFDF5", text: "#047857", iconBg: "#D1FAE5" },
+    };
+  })();
+  const hasMedicationRemaining = Boolean(medicationToday?.remaining && medicationToday.remaining > 0);
+  const medicationDueSoonOrOverdue = Boolean(
+    hasMedicationRemaining && (
+      !nextDue?.scheduled_time || isScheduledDoseSoonOrPast(nextDue.scheduled_time)
+    ),
+  );
+  const missingMedicationSetup = Boolean(!medicationToday?.scheduled && personalisationData?.hasMedications);
+  const recommendedAction: HealthHomeOverview["recommendedAction"] =
+    vitalsSnapshot.needsReview || !vitalsSnapshot.hasReading ? "capture_vitals" :
+    latestTriage?.urgency === "urgent" || latestTriage?.urgency === "routine" ? "symptom_report" :
+    dailyCheckinToday?.status && dailyCheckinToday.status !== "completed" ? "checkin" :
+    hasMedicationRemaining ? "medication" :
+    "open_plan";
+  const canMarkNextMedicineTaken = recommendedAction === "medication" && Boolean(nextDue?.medication_name && nextDue.scheduled_time);
+  const primaryActionLabel =
+    recommendedAction === "capture_vitals" ? t("health.planLead.captureVitalsAction", "Capture vitals") :
+    recommendedAction === "symptom_report" ? t("health.planLead.symptomAction", "Open report") :
+    recommendedAction === "checkin" ? t("health.planLead.checkinAction", "Check in") :
+    recommendedAction === "checkin_history" ? t("health.planLead.checkinHistoryAction", "View check-ins") :
+    canMarkNextMedicineTaken
+      ? markDoseTakenMutation.isPending
+        ? t("health.planLead.markTakenPending", "Marking...")
+        : t("health.planLead.markTakenAction", "Mark taken")
+      : recommendedAction === "medication" ? t("health.planLead.medicationAction", "Review medicine") :
+    t("health.planLead.primaryAction", "Open health plan");
+  const openRecommendedHealthAction = () => {
+    sendDoctorUserMessage("I want to review my personalised health plan");
+    if (canMarkNextMedicineTaken && nextDue) {
+      markDoseTakenMutation.mutate(nextDue);
+      return;
+    }
+    if (recommendedAction === "checkin") {
+      navigate("/health/check-in");
+      return;
+    }
+    if (recommendedAction === "checkin_history") {
+      navigate("/health/check-ins");
+      return;
+    }
+    if (recommendedAction === "symptom_report" && latestTriage) {
+      navigate(`/informes/${latestTriage.id}`);
+      return;
+    }
+    if (recommendedAction === "symptom_check") {
+      guardPath("/health/symptom-check");
+      return;
+    }
+    if (recommendedAction === "medication") {
+      guardPath("/meds");
+      return;
+    }
+    navigate("/health/vitals");
+  };
+  const checkinNeedsAction = Boolean(dailyCheckinToday?.status && dailyCheckinToday.status !== "completed");
+  const symptomNeedsAction = latestTriage
+    ? latestTriage.urgency === "urgent" || latestTriage.urgency === "routine"
+    : true;
+  const medicationNeedsAction = medicationDueSoonOrOverdue || missingMedicationSetup;
+  const showCheckinSignal = checkinNeedsAction && recommendedAction !== "checkin" && recommendedAction !== "checkin_history";
+  const showSymptomsSignal = symptomNeedsAction && recommendedAction !== "symptom_report" && recommendedAction !== "symptom_check";
+  const showMedicationSignal = medicationNeedsAction && recommendedAction !== "medication";
+  const planStepCount = [
+    !vitalsSnapshot.hasReading || vitalsSnapshot.needsReview,
+    checkinNeedsAction,
+    hasMedicationRemaining || missingMedicationSetup,
+    symptomNeedsAction,
+  ].filter(Boolean).length;
+  const planToolDetail = planStepCount === 0
+    ? t("health.homeTools.plan.upToDate", "Up to date")
+    : planStepCount === 1
+      ? t("health.homeTools.plan.stepLeft", "1 step left")
+      : t("health.homeTools.plan.stepsLeft", "{{count}} steps left", { count: planStepCount });
+  const vitalsToolDetail = !vitalsSnapshot.hasReading
+    ? t("health.homeTools.vitals.detail", "Capture")
+    : vitalsSnapshot.needsReview
+      ? t("health.homeTools.vitals.reviewDetail", "Needs review")
+      : t("health.homeTools.vitals.stableDetail", "{{signal}} stable", { signal: compactVitalsSubject(latestVitalsValue) });
+  const symptomsToolDetail = latestTriage
+    ? latestTriage.urgency === "monitor"
+      ? t("health.homeTools.symptoms.monitorOnly", "Monitor only")
+      : t("health.homeTools.symptoms.review", "Review report")
+    : t("health.homeTools.symptoms.detail", "Start check");
+  const medicineToolDetail = nextDue
+    ? medicationToday?.remaining === 1
+      ? nextDueIsTonight
+        ? t("health.homeTools.medicine.oneDueTonight", "1 due tonight")
+        : nextDueTime
+          ? t("health.homeTools.medicine.oneDueAt", "1 due {{time}}", { time: nextDueTime })
+          : t("health.homeTools.medicine.due", "{{count}} due", { count: 1 })
+      : nextDueTime
+        ? t("health.homeTools.medicine.nextDue", "{{name}} {{time}}", { name: nextDue.medication_name, time: nextDueTime })
+        : nextDue.medication_name
+    : medicationToday?.remaining
+      ? t("health.homeTools.medicine.due", "{{count}} due", { count: medicationToday.remaining })
+      : latestTaken?.medication_name || t("health.homeTools.medicine.detail", "Schedule");
+  const checklistMedicineDetail = hasMedicationRemaining
+    ? nextDueIsTonight
+      ? t("health.planLead.checklist.medicineTonight", "Due tonight")
+      : nextDueTime
+        ? t("health.planLead.checklist.medicineAt", "Due {{time}}", { time: nextDueTime })
+        : t("health.planLead.checklist.medicineDue", "Due today")
+    : missingMedicationSetup
+      ? t("health.planLead.checklist.medicineSetup", "Set schedule")
+      : medicationToday?.scheduled
+        ? t("health.planLead.checklist.medicineDone", "Done today")
+        : t("health.planLead.checklist.medicineNone", "No schedule");
+  const checklistSymptomsDetail = latestTriage
+    ? latestTriage.urgency === "monitor"
+      ? t("health.planLead.checklist.symptomsMonitor", "Monitor only")
+      : t("health.planLead.checklist.symptomsReview", "Review")
+    : t("health.planLead.checklist.symptomsStart", "Start check");
+  const checklistItems: HealthPlanChecklistItem[] = [
     {
-      id: "symptoms",
-      Icon: HeartPulse,
-      iconBg: "linear-gradient(135deg, #FFE7E7 0%, #FFF7F2 100%)",
-      iconColor: "#E74C43",
-      glow: "rgba(231,76,67,0.12)",
-      label: t("health.homeCards.symptoms.label", "My Symptoms"),
-      hint: t("health.homeCards.symptoms.hint", "Check how I feel"),
-      mobileLabel: t("health.homeCards.symptoms.mobileLabel", "Symptoms"),
-      mobileHint: t("health.homeCards.symptoms.mobileHint", "Check feelings"),
-      path: "/health/symptom-check",
-      agentMessage: "I want to talk about my symptoms",
-      action: () => guardPath("/health/symptom-check"),
+      id: "vitals",
+      Icon: Activity,
+      label: t("health.planLead.checklist.vitals", "Vitals"),
+      detail: !vitalsSnapshot.hasReading
+        ? t("health.planLead.checklist.vitalsAdd", "Add reading")
+        : vitalsSnapshot.needsReview
+          ? t("health.planLead.checklist.vitalsReview", "Review")
+          : t("health.planLead.checklist.vitalsStable", "Stable"),
+      iconBg: vitalsSnapshot.tone.iconBg,
+      iconColor: vitalsSnapshot.tone.text,
+      borderColor: vitalsSnapshot.tone.border,
+      onClick: () => navigate("/health/vitals"),
     },
     {
-      id: "medication",
+      id: "medicine",
       Icon: Pill,
-      iconBg: "linear-gradient(135deg, #FDF4FF 0%, #FFF7FE 100%)",
-      iconColor: "#86198F",
-      glow: "rgba(134,25,143,0.11)",
-      label: t("health.homeCards.medication.label", "My Medication"),
-      hint: t("health.homeCards.medication.hint", "Review my medicines"),
-      mobileLabel: t("health.homeCards.medication.mobileLabel", "Medication"),
-      mobileHint: t("health.homeCards.medication.mobileHint", "Review medicines"),
-      path: "/meds",
-      agentMessage: "I want to review my medications",
-      action: () => guardPath("/meds"),
+      label: t("health.planLead.checklist.medicine", "Medicine"),
+      detail: checklistMedicineDetail,
+      iconBg: hasMedicationRemaining || missingMedicationSetup ? "#F5D0FE" : "#ECFDF5",
+      iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
+      borderColor: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
+      onClick: () => guardPath("/meds"),
+    },
+    {
+      id: "checkin",
+      Icon: dailyCheckinToday?.status === "completed" ? CheckCircle2 : Calendar,
+      label: t("health.planLead.checklist.checkin", "Check-in"),
+      detail: dailyCheckinToday?.status === "completed"
+        ? t("health.planLead.checklist.checkinDone", "Done")
+        : dailyCheckinToday?.status
+          ? checkinStatusLabel
+          : t("health.planLead.checklist.checkinStart", "Start"),
+      iconBg: checkinTone.bg,
+      iconColor: checkinTone.text,
+      borderColor: dailyCheckinToday?.status === "overdue" ? "#FECACA" : dailyCheckinToday?.status === "completed" ? "#BBF7D0" : "#DDD6FE",
+      onClick: () => navigate(dailyCheckinToday?.status === "completed" ? "/health/check-ins" : "/health/check-in"),
+    },
+    ...(symptomNeedsAction ? [{
+      id: "symptoms",
+      Icon: HeartPulse,
+      label: t("health.planLead.checklist.symptoms", "Symptoms"),
+      detail: checklistSymptomsDetail,
+      iconBg: "#FFF1F2",
+      iconColor: "#E74C43",
+      borderColor: "#FECACA",
+      onClick: () => {
+        if (latestTriage) {
+          navigate(`/informes/${latestTriage.id}`);
+          return;
+        }
+        guardPath("/health/symptom-check");
+      },
+    }] : []),
+  ];
+  const healthOverview: HealthHomeOverview = {
+    planStatus: primaryInsight.title,
+    primaryInsight,
+    vitalsSnapshot,
+    planItems: checklistItems,
+    recommendedAction,
+    signalCards: [
+      ...(showCheckinSignal ? [{
+        id: "checkin",
+        Icon: checkinTone.Icon,
+        label: t("health.homeSignals.checkin.label", "Check-in"),
+        value: checkinValue,
+        detail: checkinDetail,
+        actionLabel: dailyCheckinToday?.status === "completed"
+          ? t("health.homeSignals.checkin.actionHistory", "History")
+          : t("health.homeSignals.checkin.actionStart", "Check in"),
+        iconBg: checkinTone.bg,
+        iconColor: checkinTone.text,
+        borderColor: "#BBF7D0",
+        shadow: "rgba(20,154,99,0.10)",
+        onClick: () => {
+          sendDoctorUserMessage("I want to review my daily check-in");
+          navigate(dailyCheckinToday?.status === "completed" ? "/health/check-ins" : "/health/check-in");
+        },
+      }] : []),
+      ...(showSymptomsSignal ? [{
+        id: "symptoms",
+        Icon: HeartPulse,
+        label: t("health.homeSignals.symptoms.label", "Symptoms"),
+        value: latestTriage?.chief_complaint
+          ? t("health.homeSignals.symptoms.careValue", "{{symptom}} care", { symptom: latestTriage.chief_complaint })
+          : t("health.homeSignals.symptoms.empty", "Quick body check"),
+        detail: latestTriage
+          ? symptomAdvice || t("health.homeSignals.symptoms.monitorDetail", "Open the advice if this changes")
+          : t("health.homeSignals.symptoms.emptyDetail", "Tell VYVA what feels different"),
+        actionLabel: latestTriage
+          ? t("health.homeSignals.symptoms.actionReport", "Open advice")
+          : t("health.homeSignals.symptoms.actionStart", "Check"),
+        iconBg: "#FFF1F2",
+        iconColor: "#E74C43",
+        borderColor: "#FECACA",
+        shadow: "rgba(231,76,67,0.10)",
+        onClick: () => {
+          sendDoctorUserMessage("I want to review my latest symptom check");
+          if (latestTriage) {
+            navigate(`/informes/${latestTriage.id}`);
+            return;
+          }
+          guardPath("/health/symptom-check");
+        },
+      }] : []),
+      ...(showMedicationSignal ? [{
+        id: "medication",
+        Icon: Pill,
+        label: t("health.homeSignals.medication.label", "Medicine"),
+        value: medicationToday?.remaining
+          ? medicineValue
+          : t("health.homeSignals.medication.empty", "Set medicine schedule"),
+        detail: medicationToday?.remaining
+          ? medicineDetail
+          : t("health.homeSignals.medication.emptyDetail", "Add times and reminders"),
+        actionLabel: medicationToday?.remaining
+          ? t("health.homeSignals.medication.action", "Review")
+          : t("health.homeSignals.medication.actionSetup", "Set up"),
+        iconBg: "#FDF4FF",
+        iconColor: "#86198F",
+        borderColor: "#E9D5FF",
+        shadow: "rgba(134,25,143,0.10)",
+        onClick: () => {
+          sendDoctorUserMessage("I want to review my medication status");
+          guardPath("/meds");
+        },
+      }] : []),
+    ],
+  };
+  const healthToolActions: HealthToolAction[] = [
+    {
+      id: "plan",
+      Icon: ClipboardList,
+      label: t("health.homeTools.plan.label", "Health Plan"),
+      detail: planToolDetail,
+      iconBg: "#F5F3FF",
+      iconColor: "#6B21A8",
+      onClick: () => {
+        sendDoctorUserMessage("I want to open my health plan");
+        navigate("/health/vitals");
+      },
     },
     {
       id: "vitals",
       Icon: Activity,
-      iconBg: "linear-gradient(135deg, #ECFDF5 0%, #F3FFF9 100%)",
-      iconColor: "#149A63",
-      glow: "rgba(20,154,99,0.11)",
-      label: t("health.homeCards.vitals.label", "My Vitals"),
-      hint: t("health.homeCards.vitals.hint", "Pulse, breathing, trends"),
-      mobileLabel: t("health.homeCards.vitals.mobileLabel", "Vitals"),
-      mobileHint: t("health.homeCards.vitals.mobileHint", "Pulse and trends"),
-      path: "/health/vitals",
-      agentMessage: "I want to check my health status",
-      action: () => navigate("/health/vitals"),
+      label: t("health.homeTools.vitals.label", "Vitals"),
+      detail: vitalsToolDetail,
+      iconBg: vitalsSnapshot.tone.iconBg,
+      iconColor: vitalsSnapshot.tone.text,
+      onClick: () => {
+        sendDoctorUserMessage("I want to check my vitals");
+        navigate("/health/vitals");
+      },
     },
     {
-      id: "health-plan",
-      Icon: Heart,
-      iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
-      iconColor: "#7C3AED",
-      glow: "rgba(124,58,237,0.13)",
-      label: t("health.homeCards.healthPlan.label", "My Health Plan"),
-      hint: t("health.homeCards.healthPlan.hint", "Check-ins and care plan"),
-      mobileLabel: t("health.homeCards.healthPlan.mobileLabel", "Health Plan"),
-      mobileHint: t("health.homeCards.healthPlan.mobileHint", "Check-ins"),
-      path: "/health/check-ins",
-      agentMessage: "I want to review my health plan",
-      action: () => navigate("/health/check-ins"),
+      id: "symptoms",
+      Icon: HeartPulse,
+      label: t("health.homeTools.symptoms.label", "Symptoms"),
+      detail: symptomsToolDetail,
+      iconBg: "#FFF1F2",
+      iconColor: "#E74C43",
+      onClick: () => {
+        sendDoctorUserMessage("I want to review symptoms");
+        if (latestTriage) {
+          navigate(`/informes/${latestTriage.id}`);
+          return;
+        }
+        guardPath("/health/symptom-check");
+      },
+    },
+    {
+      id: "medicine",
+      Icon: Pill,
+      label: t("health.homeTools.medicine.label", "Medicine"),
+      detail: medicineToolDetail,
+      iconBg: "#FDF4FF",
+      iconColor: "#86198F",
+      onClick: () => {
+        sendDoctorUserMessage("I want to open medicines");
+        guardPath("/meds");
+      },
     },
   ];
-
-  const handlePrimaryCardClick = (tile: (typeof PRIMARY_CARDS)[number]) => {
-    sendDoctorUserMessage(tile.agentMessage);
-    tile.action();
-  };
+  const PrimaryInsightIcon = healthOverview.primaryInsight.Icon;
+  const planLeadBadge =
+    healthOverview.vitalsSnapshot.needsReview || healthOverview.recommendedAction === "capture_vitals"
+      ? healthOverview.vitalsSnapshot.statusLabel
+      : t("health.planLead.todayBadge", "Today");
 
   const openVisualScan = () => {
     const shouldOpen = !visualScanOpen;
@@ -1809,14 +2758,6 @@ const HealthScreen = () => {
 
   const showLegacyHealthSections = import.meta.env.MODE === "legacy-health-sections";
 
-  const isSubscriptionLocked = (path?: string) => {
-    if (!path) return false;
-    const serviceId = serviceForPath(path);
-    if (!serviceId) return false;
-    const service = readiness?.services?.[serviceId];
-    return Boolean(service && !service.ready && service.missing.some((step) => step.section === "subscription"));
-  };
-
   return (
     <>
       <div className="vyva-page">
@@ -1829,6 +2770,7 @@ const HealthScreen = () => {
           voiceAgentSlug="health"
           talkLabel={t("health.talkToDoctor", "Connect with a real doctor")}
           mobileTalkLabel={t("health.talkToDoctorMobile", "Talk to doctor")}
+          compact
           onTalkClick={() => {
             if (doctorVoiceLive) {
               stopDoctorVoice();
@@ -1913,69 +2855,179 @@ const HealthScreen = () => {
           </section>
         ) : null}
 
-        <div className="mt-4 sm:mt-[22px]">
-          <ResponsiveGrid columns="two" gap="sm" className="grid-cols-2 max-[339px]:grid-cols-1 sm:grid-cols-2" data-testid="health-primary-grid">
-            {PRIMARY_CARDS.map((tile) => {
-              const locked = isSubscriptionLocked(tile.path);
-              const Icon = locked ? null : tile.Icon;
-              return (
+        <section
+          className="mt-4 overflow-hidden rounded-[26px] border border-[#DDD6FE] bg-[#FFFCF8] shadow-[0_18px_42px_rgba(107,33,168,0.12)] sm:mt-[22px]"
+          data-testid="health-plan-lead"
+        >
+          <div className="grid gap-0 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="order-1 p-4 pb-3 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                  {t("health.planLead.title", "Today's health plan")}
+                </span>
+                <span
+                  className="max-w-[58%] truncate rounded-full px-3 py-1 font-body text-[12px] font-black"
+                  style={{ background: healthOverview.primaryInsight.tone.iconBg, color: healthOverview.primaryInsight.tone.text }}
+                >
+                  {planLeadBadge}
+                </span>
+              </div>
+              <div className="mt-3 flex items-start gap-3" data-testid="health-plan-primary-insight">
+                <span
+                  className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]"
+                  style={{ background: healthOverview.primaryInsight.tone.iconBg, color: healthOverview.primaryInsight.tone.text }}
+                >
+                  <PrimaryInsightIcon size={24} strokeWidth={2.5} aria-hidden="true" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <p className="max-w-[34rem] font-body text-[24px] font-black leading-[1.05] text-vyva-text-1 sm:text-[28px]">
+                    {healthOverview.planStatus}
+                  </p>
+                  <p className="mt-1 max-w-[34rem] line-clamp-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {healthOverview.primaryInsight.detail}
+                  </p>
+                </span>
+              </div>
+              <HealthPlanChecklist items={healthOverview.planItems} />
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  key={tile.id}
-                  data-testid={`button-health-primary-${tile.id}`}
-                  onClick={() => handlePrimaryCardClick(tile)}
-                  aria-label={`${tile.label}. ${tile.hint}`}
-                  disabled={false}
-                  className={`vyva-tap group relative min-w-0 overflow-hidden rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] px-3 py-3 text-left transition-transform active:scale-[0.99] sm:min-h-[160px] sm:rounded-[28px] sm:px-4 sm:py-4 ${
-                    locked ? "opacity-80" : ""
-                  }`}
-                  style={{
-                    borderColor: "#EDE2D1",
-                    boxShadow: `0 16px 34px ${tile.glow}, 0 2px 10px rgba(43,31,24,0.05)`,
-                  }}
+                  data-testid="button-health-plan-open"
+                  onClick={openRecommendedHealthAction}
+                  disabled={markDoseTakenMutation.isPending}
+                  className="vyva-primary-action flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap px-5 text-[15px] sm:min-h-[52px] sm:text-[16px]"
                 >
-                  <div className="relative z-10 flex h-full min-w-0 flex-col justify-start gap-3 sm:gap-4">
-                    <div className="flex w-full items-start justify-between gap-2">
-                      <div
-                        className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-[18px] sm:h-[58px] sm:w-[58px] sm:rounded-[20px]"
-                        style={{ background: tile.iconBg, color: tile.iconColor }}
-                      >
-                        {Icon ? <Icon size={26} strokeWidth={2.5} aria-hidden="true" className="sm:h-[30px] sm:w-[30px]" /> : <Lock size={26} aria-hidden="true" />}
-                      </div>
-                      {locked ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2 py-1 font-body text-[10px] font-bold text-[#6B21A8] sm:px-2.5 sm:text-[11px]">
-                          <Lock size={12} strokeWidth={2.5} />
-                          Plan
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-auto min-w-0">
-                      <span
-                        data-testid={`button-health-primary-${tile.id}-mobile-label`}
-                        className="block font-body text-[18px] font-black leading-[1.08] text-vyva-text-1 [hyphens:none] [overflow-wrap:normal] max-[339px]:text-[20px] sm:hidden"
-                      >
-                        {tile.mobileLabel}
-                      </span>
-                      <span
-                        data-testid={`button-health-primary-${tile.id}-desktop-label`}
-                        className="hidden font-body text-[21px] font-extrabold leading-tight text-vyva-text-1 [hyphens:none] [overflow-wrap:normal] sm:block"
-                      >
-                        {tile.label}
-                      </span>
-                      <span
-                        data-testid={`button-health-primary-${tile.id}-desktop-hint`}
-                        className="mt-2 hidden font-body text-[14px] font-medium leading-snug text-vyva-text-2 [overflow-wrap:normal] sm:block"
-                      >
-                        {tile.hint}
-                      </span>
-                    </div>
-                  </div>
+                  {markDoseTakenMutation.isPending && canMarkNextMedicineTaken ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : null}
+                  {primaryActionLabel}
+                  {canMarkNextMedicineTaken ? <CheckCircle2 size={19} strokeWidth={2.7} aria-hidden="true" /> : <ChevronRight size={19} strokeWidth={2.7} aria-hidden="true" />}
                 </button>
-              );
-            })}
+                {canMarkNextMedicineTaken ? (
+                  <button
+                    type="button"
+                    data-testid="button-health-plan-review-medicine"
+                    onClick={() => guardPath("/meds")}
+                    className="vyva-secondary-action flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap px-5 text-[15px] sm:min-h-[52px] sm:text-[16px]"
+                  >
+                    <Pill size={18} strokeWidth={2.5} aria-hidden="true" />
+                    {t("health.planLead.medicationAction", "Review medicine")}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid="button-health-plan-checkin"
+                  onClick={() => navigate(dailyCheckinToday?.status === "completed" ? "/health/check-ins" : "/health/check-in")}
+                  className="vyva-secondary-action flex min-h-[48px] items-center justify-center gap-2 whitespace-nowrap px-5 text-[15px] sm:min-h-[52px] sm:text-[16px]"
+                >
+                  <Calendar size={18} strokeWidth={2.5} aria-hidden="true" />
+                  {dailyCheckinToday?.status === "completed"
+                    ? t("health.planLead.checkinHistoryAction", "View check-ins")
+                    : t("health.planLead.checkinAction", "Check in")}
+                </button>
+              </div>
+              {latestDataLabel ? (
+                <p data-testid="health-plan-updated-at" className="mt-3 font-body text-[12px] font-bold text-vyva-text-3">
+                  {latestDataLabel}
+                </p>
+              ) : null}
+            </div>
+            <div
+              className="order-2 border-t p-4 sm:p-5 lg:border-l lg:border-t-0"
+              style={{ background: healthOverview.vitalsSnapshot.tone.bg, borderColor: healthOverview.vitalsSnapshot.tone.border }}
+            >
+              <button
+                type="button"
+                onClick={() => navigate("/health/vitals")}
+                data-testid="health-plan-vitals-snapshot"
+                className="vyva-tap group flex h-full min-h-[160px] w-full flex-col rounded-[22px] border bg-white p-4 text-left shadow-[0_14px_30px_rgba(43,31,24,0.06)] transition-transform hover:-translate-y-0.5 sm:p-5"
+                style={{ borderColor: healthOverview.vitalsSnapshot.tone.border }}
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span className="font-body text-[12px] font-black uppercase tracking-[0.12em]" style={{ color: healthOverview.vitalsSnapshot.tone.text }}>
+                    {t("health.planLead.vitalsKicker", "Latest vitals")}
+                  </span>
+                  <span
+                    className="rounded-full px-3 py-1 font-body text-[12px] font-black"
+                    style={{ background: healthOverview.vitalsSnapshot.tone.iconBg, color: healthOverview.vitalsSnapshot.tone.text }}
+                  >
+                    {healthOverview.vitalsSnapshot.statusLabel}
+                  </span>
+                </span>
+                <span className="mt-4 flex items-start gap-3">
+                  <span
+                    className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] sm:h-14 sm:w-14 sm:rounded-[20px]"
+                    style={{ background: healthOverview.vitalsSnapshot.tone.iconBg, color: healthOverview.vitalsSnapshot.tone.text }}
+                  >
+                    <Activity size={25} strokeWidth={2.5} aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-body text-[28px] font-black leading-[1.04] text-vyva-text-1 sm:text-[32px]">
+                      {healthOverview.vitalsSnapshot.value}
+                    </span>
+                    <span className="mt-1 block font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                      {healthOverview.vitalsSnapshot.detail}
+                    </span>
+                  </span>
+                </span>
+                {healthOverview.vitalsSnapshot.secondaryValues.length ? (
+                  <span className="mt-3 flex flex-wrap gap-2">
+                    {healthOverview.vitalsSnapshot.secondaryValues.map((value) => (
+                      <span
+                        key={value}
+                        className="rounded-full px-3 py-1 font-body text-[12px] font-black"
+                        style={{ background: healthOverview.vitalsSnapshot.tone.iconBg, color: healthOverview.vitalsSnapshot.tone.text }}
+                      >
+                        {value}
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+                <span className="mt-auto flex justify-end pt-4">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F5F3FF] text-vyva-purple transition-transform group-hover:translate-x-0.5">
+                    <ChevronRight size={18} strokeWidth={2.7} aria-hidden="true" />
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-4" data-testid="health-tool-section">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                {t("health.homeTools.kicker", "Health tools")}
+              </p>
+              <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
+                {t("health.homeTools.title", "All health areas")}
+              </h2>
+            </div>
+          </div>
+          <ResponsiveGrid columns="two" gap="sm" className="grid-cols-2 lg:grid-cols-4" data-testid="health-tool-grid">
+            {healthToolActions.map((tool) => (
+              <HealthToolButton key={tool.id} tool={tool} />
+            ))}
           </ResponsiveGrid>
-        </div>
+        </section>
+
+        {healthOverview.signalCards.length ? (
+        <section className="mt-5" data-testid="health-signal-section">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                {t("health.homeSignals.kicker", "Today")}
+              </p>
+              <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                {t("health.homeSignals.title", "Worth doing today")}
+              </h2>
+            </div>
+          </div>
+          <ResponsiveGrid columns="two" gap="sm" className="grid-cols-1 sm:grid-cols-2" data-testid="health-signal-grid">
+            {healthOverview.signalCards.map((card) => (
+              <HealthSignalCard key={card.id} card={card} />
+            ))}
+          </ResponsiveGrid>
+        </section>
+        ) : null}
 
 
         {/* ── 3. Acciones rápidas ── */}

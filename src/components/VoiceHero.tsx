@@ -49,6 +49,7 @@ interface VoiceHeroProps {
   activeLabel?: string;
   connectingLabel?: string;
   mobileTalkLabel?: string;
+  compact?: boolean;
   voiceControls?: {
     status: "idle" | "connecting" | "connected";
     isSpeaking: boolean;
@@ -104,6 +105,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   activeLabel,
   connectingLabel,
   mobileTalkLabel,
+  compact = false,
   voiceControls,
 }) => {
   const { t } = useTranslation();
@@ -431,11 +433,11 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         />
       )}
 
-      <div className={`relative mt-[14px] overflow-hidden rounded-[28px] p-[24px_22px] hero-purple shadow-vyva-hero ${isHealthHero ? "max-sm:mt-3 max-sm:rounded-[26px] max-sm:p-[18px_18px]" : ""}`}>
+      <div className={`relative mt-[14px] overflow-hidden rounded-[28px] hero-purple shadow-vyva-hero ${compact ? "p-[18px_22px] sm:p-[18px_22px]" : "p-[24px_22px]"} ${isHealthHero ? "max-sm:mt-3 max-sm:rounded-[26px] max-sm:p-[18px_18px]" : ""}`}>
         <div className="absolute -right-[30px] -top-[30px] w-[130px] h-[130px] rounded-full pointer-events-none" style={{ background: "rgba(255,255,255,0.05)" }} />
 
         {/* Source row */}
-        <div className={`flex items-center justify-between mb-4 ${isHealthHero ? "max-sm:mb-3" : ""}`}>
+        <div className={`flex items-center justify-between ${compact ? "mb-2" : "mb-4"} ${isHealthHero ? "max-sm:mb-3" : ""}`}>
           {resolvedSourceText ? (
             <div className="flex min-w-0 items-center gap-2">
               <div className="w-[36px] h-[36px] rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.18)" }}>
@@ -471,7 +473,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 
         {/* Headline */}
         <h1
-          className="min-w-0 font-display text-[28px] font-normal italic leading-[1.22] text-white"
+          className={`min-w-0 font-display font-normal italic leading-[1.22] text-white ${compact ? "text-[24px] sm:text-[25px]" : "text-[28px]"}`}
           style={standardHeroHeadlineStyle}
         >
           <span className={isHealthHero ? "max-sm:text-[24px] max-sm:leading-[1.12]" : ""}>{resolvedHeadline}</span>
@@ -493,7 +495,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           onClick={handleTalk}
           disabled={isConnecting}
           data-testid="button-voice-hero-talk"
-          className={`mt-4 flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isHealthHero ? "max-sm:mt-3 max-sm:min-h-[52px] max-sm:px-4 max-sm:py-3" : ""} ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+          className={`${compact ? "mt-3 min-h-[50px] px-[18px] py-[11px]" : "mt-4 min-h-[60px] px-[20px] py-[14px]"} flex w-full items-center justify-center gap-2 rounded-full transition-all ${isHealthHero ? "max-sm:mt-3 max-sm:min-h-[52px] max-sm:px-4 max-sm:py-3" : ""} ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
           style={{
             background: isActive ? "rgba(52,211,153,0.2)" : isBrainHero ? "#FFFFFF" : "rgba(255,255,255,0.13)",
             border: isActive ? "1px solid rgba(52,211,153,0.4)" : isBrainHero ? "none" : "1px solid rgba(255,255,255,0.18)",
