@@ -1,14 +1,9 @@
 import { useState, useEffect } from "react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PurpleModal, VYVA_MODAL_PRIMARY_ACTION_CLASS } from "@/components/vyva-ui";
 import {
   MapPin,
   Phone,
@@ -92,19 +87,6 @@ function Field({
   );
 }
 
-function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : false
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return isDesktop;
-}
-
 export function MerchantDetailSheet({
   provider,
   categoryLabel,
@@ -116,7 +98,6 @@ export function MerchantDetailSheet({
   const [loadingPlace, setLoadingPlace] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mapError, setMapError] = useState(false);
-  const isDesktop = useIsDesktop();
 
   useEffect(() => {
     if (provider) {
@@ -175,7 +156,7 @@ export function MerchantDetailSheet({
     setForm((prev) => prev ? { ...prev, opening_hours: lines } : prev);
   };
 
-  if (!form) return null;
+  if (!open || !form) return null;
 
   const mapUrl = form.lat && form.lng
     ? `/api/places/staticmap?lat=${form.lat}&lng=${form.lng}`
@@ -184,24 +165,18 @@ export function MerchantDetailSheet({
   const mapsLink = form.google_maps_url
     || (form.google_place_id ? `https://www.google.com/maps/place/?q=place_id:${form.google_place_id}` : null);
 
-  const sheetSide = isDesktop ? "right" : "bottom";
-  const sheetClass = isDesktop
-    ? "w-[440px] h-full p-0 flex flex-col"
-    : "h-[90vh] rounded-t-[20px] p-0 flex flex-col";
-
   return (
-    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      <SheetContent
-        side={sheetSide}
-        className={sheetClass}
-        data-testid="sheet-merchant-detail"
-      >
-        <SheetHeader className="px-5 pt-5 pb-3 border-b border-vyva-border flex-shrink-0">
-          <SheetTitle className="font-display text-[18px] font-semibold text-vyva-text-1 text-left">
-            {form.name}
-          </SheetTitle>
-          <p className="font-body text-[13px] text-vyva-text-3 text-left">{categoryLabel}</p>
-        </SheetHeader>
+    <PurpleModal
+      Icon={MapPin}
+      kicker={categoryLabel}
+      title={form.name}
+      titleId="merchant-detail-title"
+      onClose={onClose}
+      closeLabel="Close"
+      panelTestId="sheet-merchant-detail"
+      size="wide"
+      bodyClassName="flex max-h-[calc(88vh-132px)] flex-col p-0"
+    >
 
         <Tabs defaultValue="place" className="flex-1 flex flex-col min-h-0">
           <TabsList className="mx-5 mt-3 flex-shrink-0 grid grid-cols-3 bg-vyva-cream rounded-full h-9">
@@ -211,7 +186,7 @@ export function MerchantDetailSheet({
           </TabsList>
 
           <div className="flex-1 overflow-y-auto">
-            {/* ── PLACE TAB ── */}
+            {/* Place tab */}
             <TabsContent value="place" className="px-5 pt-4 pb-6 space-y-4 mt-0">
               {mapUrl && !mapError ? (
                 <div className="rounded-[14px] overflow-hidden border border-vyva-border relative">
@@ -279,19 +254,19 @@ export function MerchantDetailSheet({
                   <Clock size={12} />
                   {loadingPlace && <Loader2 size={11} className="animate-spin text-vyva-text-3 ml-1" />}
                 </>}
-                hint="One line per day, e.g. Monday: 9am – 6pm. Auto-filled from Google when available."
+                hint="One line per day, e.g. Monday: 9am - 6pm. Auto-filled from Google when available."
               >
                 <Textarea
                   data-testid="input-merchant-opening-hours"
                   value={(form.opening_hours ?? []).join("\n")}
                   onChange={(e) => setHours(e.target.value)}
-                  placeholder={"Monday: 9am – 6pm\nTuesday: 9am – 6pm\n…"}
+                  placeholder={"Monday: 9am - 6pm\nTuesday: 9am - 6pm\n..."}
                   className="bg-white text-[13px] min-h-[140px] resize-none font-mono"
                 />
               </Field>
             </TabsContent>
 
-            {/* ── CONTACT TAB ── */}
+            {/* Contact tab */}
             <TabsContent value="contact" className="px-5 pt-4 pb-6 space-y-4 mt-0">
               <div
                 className="rounded-[14px] bg-vyva-cream border border-vyva-border px-4 py-3 font-body text-[12px] text-vyva-text-2"
@@ -343,7 +318,7 @@ export function MerchantDetailSheet({
               </Field>
             </TabsContent>
 
-            {/* ── MY PREFS TAB ── */}
+            {/* My prefs tab */}
             <TabsContent value="preferences" className="px-5 pt-4 pb-6 space-y-4 mt-0">
               <Field label="Usual order / regular items" icon={<ShoppingCart size={12} />}>
                 <Textarea
@@ -405,13 +380,11 @@ export function MerchantDetailSheet({
             data-testid="button-merchant-save"
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-3.5 rounded-full font-body text-[16px] font-semibold text-white disabled:opacity-40"
-            style={{ background: "#6B21A8" }}
+            className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
           >
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? "Saving..." : "Save changes"}
           </button>
         </div>
-      </SheetContent>
-    </Sheet>
+    </PurpleModal>
   );
 }

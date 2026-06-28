@@ -62,21 +62,13 @@ export interface HomeServiceQuestion {
   placeholderEs?: string;
 }
 
-const COMMON_QUESTIONS: HomeServiceQuestion[] = [
+const URGENCY_QUESTIONS: HomeServiceQuestion[] = [
   {
     key: "urgency",
     en: "How urgent is it?",
     es: "Que urgencia tiene?",
     kind: "choice",
     options: HOME_SERVICE_URGENCY_OPTIONS,
-  },
-  {
-    key: "problem_summary",
-    en: "What happened?",
-    es: "Que ha pasado?",
-    kind: "text",
-    placeholderEn: "Example: water leaking under the kitchen sink",
-    placeholderEs: "Ejemplo: fuga bajo el fregadero de la cocina",
   },
 ];
 
@@ -87,14 +79,6 @@ const FINISHING_QUESTIONS: HomeServiceQuestion[] = [
     es: "Que importa mas?",
     kind: "choice",
     options: HOME_SERVICE_COMMON_CRITERIA,
-  },
-  {
-    key: "access_notes",
-    en: "Any access notes?",
-    es: "Alguna nota de acceso?",
-    kind: "text",
-    placeholderEn: "Door code, lift, caregiver present, best time, or skip",
-    placeholderEs: "Codigo, ascensor, cuidador presente, mejor hora o saltar",
   },
 ];
 
@@ -178,25 +162,13 @@ const ELECTRICIAN_QUESTIONS: HomeServiceQuestion[] = [
     ],
   },
   {
-    key: "breaker_status",
-    en: "Has the breaker been checked?",
-    es: "Se ha revisado el cuadro electrico?",
-    kind: "choice",
-    options: [
-      { key: "tried_reset", en: "Tried reset", es: "He intentado rearmar" },
-      { key: "not_tried", en: "Not tried", es: "No lo he intentado" },
-      { key: "cannot_access", en: "Cannot access", es: "No puedo acceder" },
-      { key: "not_sure", en: "Not sure", es: "No lo se" },
-    ],
-  },
-  {
     key: "safety_risk",
-    en: "Any sparks, heat, or burning smell?",
-    es: "Hay chispas, calor u olor a quemado?",
+    en: "Is anyone in immediate danger?",
+    es: "Alguien esta en peligro inmediato?",
     kind: "choice",
     options: [
-      { key: "hazard", en: "Yes", es: "Si" },
-      { key: "no_visible_danger", en: "No visible danger", es: "No veo peligro" },
+      { key: "danger_now", en: "Yes", es: "Si" },
+      { key: "safe_for_now", en: "No", es: "No" },
       { key: "not_sure", en: "Not sure", es: "No lo se" },
     ],
   },
@@ -224,16 +196,25 @@ const FALLBACK_QUESTIONS: HomeServiceQuestion[] = [
   },
 ];
 
-export function homeServiceQuestionsFor(serviceType: HomeServiceType | string | null | undefined): HomeServiceQuestion[] {
+function shouldAskPoweredMedicalEquipment(answers: Record<string, string>) {
+  if (answers.medical_device) return true;
+  return answers.problem_type === "power_outage" || answers.scope === "whole_home" || answers.urgency === "now";
+}
+
+export function homeServiceQuestionsFor(
+  serviceType: HomeServiceType | string | null | undefined,
+  currentAnswers?: Record<string, unknown>,
+): HomeServiceQuestion[] {
   const type = normalizeHomeServiceType(serviceType);
+  const answers = compactRecord(currentAnswers);
   const specific = type === "plumber"
     ? PLUMBER_QUESTIONS
     : type === "electrician"
-      ? ELECTRICIAN_QUESTIONS
+      ? ELECTRICIAN_QUESTIONS.filter((question) => question.key !== "medical_device" || shouldAskPoweredMedicalEquipment(answers))
       : FALLBACK_QUESTIONS;
   return type === "other"
-    ? [...specific, ...COMMON_QUESTIONS, ...FINISHING_QUESTIONS]
-    : [...COMMON_QUESTIONS, ...specific, ...FINISHING_QUESTIONS];
+    ? [...specific, ...URGENCY_QUESTIONS, ...FINISHING_QUESTIONS]
+    : [...URGENCY_QUESTIONS, ...specific, ...FINISHING_QUESTIONS];
 }
 
 export function normalizeHomeServiceType(value: unknown): HomeServiceType {
@@ -310,7 +291,11 @@ export function detectHomeServiceSafetyFlags(input: {
   const answers = compactRecord(input.answers);
   if (urgency === "now") flags.add("urgent");
   if (type === "plumber" && answers.active_flooding === "yes") flags.add("active_water_damage");
-  if (type === "electrician" && answers.safety_risk === "hazard") flags.add("electrical_hazard");
+  if (type === "electrician" && answers.problem_type === "sparks_smell") flags.add("electrical_hazard");
+  if (type === "electrician" && (answers.safety_risk === "hazard" || answers.safety_risk === "danger_now")) {
+    flags.add("electrical_hazard");
+    flags.add("immediate_danger");
+  }
   if (type === "electrician" && answers.medical_device === "yes") flags.add("powered_medical_equipment");
   return Array.from(flags);
 }
@@ -327,7 +312,7 @@ export function buildHomeServiceResearchBrief(input: {
   const urgency = normalizeHomeServiceUrgency(input.urgency);
   const answers = compactRecord(input.answers);
   const criteria = compactCriteria(input.criteria);
-  const questions = homeServiceQuestionsFor(type);
+  const questions = homeServiceQuestionsFor(type, answers);
   const customServiceLabel = type === "other" && answers.service_needed && answers.service_needed !== "skip"
     ? answers.service_needed
     : "";

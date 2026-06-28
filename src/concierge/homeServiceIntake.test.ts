@@ -67,6 +67,35 @@ describe("home service intake", () => {
     expect(questions[1]).toMatchObject({ key: "urgency" });
   });
 
+  it("keeps electrician intake short and focused", () => {
+    const keys = homeServiceQuestionsFor("electrician").map((question) => question.key);
+
+    expect(keys).toEqual([
+      "urgency",
+      "problem_type",
+      "scope",
+      "safety_risk",
+      "criteria",
+    ]);
+    expect(keys).not.toContain("problem_summary");
+    expect(keys).not.toContain("breaker_status");
+    expect(keys).not.toContain("access_notes");
+  });
+
+  it("asks about powered medical equipment only when the electrical issue can affect power", () => {
+    expect(homeServiceQuestionsFor("electrician", {
+      urgency: "today",
+      problem_type: "socket_light",
+      scope: "one_fixture",
+    }).map((question) => question.key)).not.toContain("medical_device");
+
+    expect(homeServiceQuestionsFor("electrician", {
+      urgency: "today",
+      problem_type: "power_outage",
+      scope: "whole_home",
+    }).map((question) => question.key)).toContain("medical_device");
+  });
+
   it("uses the typed other-service name in the research brief", () => {
     const intake = buildHomeServiceIntake({
       origin: "app",

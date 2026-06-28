@@ -36,7 +36,6 @@ import {
   Users,
   UserRound,
   UserPlus,
-  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -44,6 +43,12 @@ import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { ListenButton } from "@/components/ListenButton";
+import {
+  PurpleModal,
+  PurpleModalOption,
+  VYVA_MODAL_PRIMARY_ACTION_CLASS,
+  VYVA_MODAL_SECONDARY_ACTION_CLASS,
+} from "@/components/vyva-ui";
 import {
   HealthWizardCard,
   HealthWizardChoiceTile,
@@ -2642,27 +2647,17 @@ function ReportShareSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/35 p-3 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="max-h-[88vh] w-full max-w-[620px] overflow-hidden rounded-t-[34px] bg-white shadow-[0_-16px_50px_rgba(63,45,35,0.22)] sm:rounded-[34px]">
-        <div className="flex items-start justify-between gap-4 border-b border-vyva-border bg-gradient-to-br from-[#F5F3FF] to-white p-5">
-          <div>
-            <p className="font-body text-[14px] font-bold uppercase tracking-[0.16em] text-vyva-purple">
-              {labels.preview}
-            </p>
-            <h2 className="mt-1 font-display text-[31px] leading-tight text-vyva-text-1">{labels.title}</h2>
-            <p className="mt-2 font-body text-[17px] leading-relaxed text-vyva-text-2">{labels.subtitle}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={labels.close}
-            className="vyva-tap flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#F5EFE7] text-vyva-text-2"
-          >
-            <X size={22} />
-          </button>
-        </div>
-
-        <div className="max-h-[64vh] overflow-y-auto p-5 pb-6">
+    <PurpleModal
+      Icon={Share2}
+      kicker={labels.preview}
+      title={labels.title}
+      subtitle={labels.subtitle}
+      titleId="checkin-share-title"
+      onClose={onClose}
+      closeLabel={labels.close}
+      size="wide"
+    >
+        <div className="grid gap-4">
           <div className="mb-4 rounded-[26px] border border-vyva-border bg-[#FAF9F6] p-4">
             <p className="mb-2 font-body text-[15px] font-bold uppercase tracking-[0.12em] text-vyva-purple">
               {shareUrlLoading ? labels.linkLoading : labels.linkReady}
@@ -2683,7 +2678,7 @@ function ReportShareSheet({
                 type="button"
                 onClick={onCopyLink}
                 disabled={!shareUrl && shareUrlLoading}
-                className="vyva-tap min-h-[52px] rounded-full bg-vyva-purple px-4 font-body text-[15px] font-bold text-white disabled:bg-vyva-text-3"
+                className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
               >
                 {labels.copyLink}
               </button>
@@ -2691,7 +2686,7 @@ function ReportShareSheet({
                 type="button"
                 onClick={() => shareUrl && window.open(shareUrl, "_blank", "noopener,noreferrer")}
                 disabled={!shareUrl}
-                className="vyva-tap min-h-[52px] rounded-full border border-vyva-border bg-white px-4 font-body text-[15px] font-bold text-vyva-text-1 disabled:text-vyva-text-3"
+                className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
               >
                 {labels.openLink}
               </button>
@@ -2729,10 +2724,9 @@ function ReportShareSheet({
 
             <ShareTargetButton target={newContactTarget} label={labels.newContact} onClick={onNativeShare} />
 
-            <button
-              type="button"
+            <PurpleModalOption
               onClick={onCopy}
-              className="vyva-tap flex min-h-[74px] items-center gap-4 rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-[0_8px_20px_rgba(63,45,35,0.06)]"
+              className="min-h-[74px] gap-4 p-4"
             >
               <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-vyva-purple-light text-vyva-purple">
                 <Copy size={24} />
@@ -2741,11 +2735,10 @@ function ReportShareSheet({
                 <span className="block font-body text-[18px] font-bold text-vyva-text-1">{labels.copy}</span>
                 <span className="block font-body text-[15px] text-vyva-text-2">{labels.native}</span>
               </span>
-            </button>
+            </PurpleModalOption>
           </div>
         </div>
-      </div>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -2760,10 +2753,9 @@ function ShareTargetButton({
 }) {
   const Icon = target.kind === "doctor" ? Stethoscope : target.kind === "caregiver" ? Users : UserPlus;
   return (
-    <button
-      type="button"
+    <PurpleModalOption
       onClick={onClick}
-      className="vyva-tap flex min-h-[78px] items-center gap-4 rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-[0_8px_20px_rgba(63,45,35,0.06)]"
+      className="min-h-[78px] gap-4 p-4"
     >
       <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-vyva-purple-light text-vyva-purple">
         <Icon size={24} />
@@ -2774,7 +2766,7 @@ function ShareTargetButton({
         <span className="block truncate font-body text-[15px] text-vyva-text-2">{target.detail}</span>
       </span>
       <Send size={22} className="flex-shrink-0 text-vyva-purple" />
-    </button>
+    </PurpleModalOption>
   );
 }
 

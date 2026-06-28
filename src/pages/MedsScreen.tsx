@@ -6,7 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
-import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
+import {
+  PurpleModal,
+  ResponsiveGrid,
+  SectionTitle,
+  VYVA_MODAL_PRIMARY_ACTION_CLASS,
+  VYVA_MODAL_SECONDARY_ACTION_CLASS,
+} from "@/components/vyva-ui";
 import { useToast } from "@/hooks/use-toast";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
@@ -15,32 +21,8 @@ import {
   medicationListSummary,
   medicationRefillShoppingState,
 } from "@/lib/medicationServiceActions";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 
 // ─── Unified medication shape ────────────────────────────────────────────────
@@ -2084,21 +2066,19 @@ const MedsScreen = () => {
         initialPrompt={assistantPrompt}
       />
 
-      <Sheet open={caseSheetOpen} onOpenChange={setCaseSheetOpen}>
-        <SheetContent
-          side="bottom"
-          className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
-          data-testid="sheet-meds-safety-case"
+      {caseSheetOpen ? (
+        <PurpleModal
+          Icon={ShieldCheck}
+          kicker={t("meds.safety.kicker", "Medication safety")}
+          title={reviewCase ? t("meds.safety.reviewCase", "Review safety case") : t("meds.safety.newCaseTitle", "New safety case")}
+          subtitle={t("meds.safety.caseDrawerSub", "Prepare a review packet. This does not submit anything to a regulator.")}
+          titleId="medication-safety-case-title"
+          onClose={() => setCaseSheetOpen(false)}
+          closeLabel={t("common.close", "Close")}
+          panelTestId="sheet-meds-safety-case"
+          size="wide"
+          bodyClassName="flex max-h-[calc(88vh-150px)] flex-col p-0"
         >
-          <SheetHeader className="flex-shrink-0 border-b border-vyva-border px-5 pb-4 pt-5">
-            <SheetTitle className="text-left font-display text-[24px] leading-tight text-vyva-text-1">
-              {reviewCase ? t("meds.safety.reviewCase", "Review safety case") : t("meds.safety.newCaseTitle", "New safety case")}
-            </SheetTitle>
-            <SheetDescription className="text-left font-body text-[14px] leading-snug text-vyva-text-2">
-              {t("meds.safety.caseDrawerSub", "Prepare a review packet. This does not submit anything to a regulator.")}
-            </SheetDescription>
-          </SheetHeader>
-
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {reviewCase?.missing_fields?.length ? (
               <div className="mb-4 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-3">
@@ -2300,7 +2280,7 @@ const MedsScreen = () => {
                 type="button"
                 onClick={() => saveSafetyCaseMutation.mutate()}
                 disabled={saveSafetyCaseMutation.isPending}
-                className="vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[15px] font-bold text-white disabled:opacity-60"
+                className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
               >
                 {saveSafetyCaseMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 {t("common.save", "Save")}
@@ -2312,23 +2292,28 @@ const MedsScreen = () => {
                   if (reviewCase?.id) exportSafetyCaseMutation.mutate(reviewCase.id);
                 }}
                 disabled={!reviewCase?.id || exportSafetyCaseMutation.isPending}
-                className="vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 font-body text-[15px] font-bold text-vyva-purple disabled:opacity-50"
+                className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
               >
                 {exportSafetyCaseMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                 {t("meds.safety.export", "Export packet")}
               </button>
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </PurpleModal>
+      ) : null}
 
-      {/* Edit Medication Dialog */}
-      <Dialog open={!!editMed} onOpenChange={(open) => { if (!open) setEditMed(null); }}>
-        <DialogContent className="max-w-sm mx-4">
-          <DialogHeader>
-            <DialogTitle>{t("meds.editMedTitle", "Edit Medication")}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-2">
+      {editMed ? (
+        <PurpleModal
+          Icon={Pencil}
+          kicker={t("meds.modalKicker", "Medication")}
+          title={t("meds.editMedTitle", "Edit medication")}
+          titleId="edit-medication-title"
+          onClose={() => setEditMed(null)}
+          closeLabel={t("common.close", "Close")}
+          panelTestId="modal-edit-medication"
+          size="narrow"
+        >
+          <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="edit-med-name">{t("meds.editName", "Medication name")}</Label>
               <Input
@@ -2360,11 +2345,11 @@ const MedsScreen = () => {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
             <button
               data-testid="button-edit-med-cancel"
               onClick={() => setEditMed(null)}
-              className="flex-1 py-2.5 rounded-full font-body text-[15px] font-medium border border-vyva-border text-vyva-text-1"
+              className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
             >
               {t("common.cancel", "Cancel")}
             </button>
@@ -2380,43 +2365,47 @@ const MedsScreen = () => {
                 });
               }}
               disabled={updateMutation.isPending || !editName.trim()}
-              className="flex-1 py-2.5 rounded-full font-body text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
-              style={{ background: "#6B21A8" }}
+              className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
             >
               {updateMutation.isPending ? t("common.saving", "Saving...") : t("common.save", "Save")}
             </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </PurpleModal>
+      ) : null}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteMed} onOpenChange={(open) => { if (!open) setDeleteMed(null); }}>
-        <AlertDialogContent className="max-w-sm mx-4">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("meds.deleteConfirmTitle", "Remove medication?")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("meds.deleteConfirmDesc", "{{name}} will be removed from your medication list. You can add it again at any time.", { name: deleteMed?.displayName ?? "" })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel
+      {deleteMed ? (
+        <PurpleModal
+          Icon={Trash2}
+          kicker={t("meds.modalKicker", "Medication")}
+          title={t("meds.deleteConfirmTitle", "Remove medication?")}
+          subtitle={t("meds.deleteConfirmDesc", "{{name}} will be removed from your medication list. You can add it again at any time.", { name: deleteMed.displayName })}
+          titleId="delete-medication-title"
+          onClose={() => setDeleteMed(null)}
+          closeLabel={t("common.close", "Close")}
+          panelTestId="modal-delete-medication"
+          size="narrow"
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
               data-testid="button-delete-med-cancel"
               onClick={() => setDeleteMed(null)}
+              className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
             >
               {t("common.cancel", "Cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
+            </button>
+            <button
+              type="button"
               data-testid="button-delete-med-confirm"
               onClick={() => { if (deleteMed) deleteMutation.mutate(deleteMed.id); }}
               disabled={deleteMutation.isPending}
-              className="font-body text-[15px] font-semibold"
-              style={{ background: "#DC2626" }}
+              className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} bg-[#B91C1C] shadow-[0_14px_28px_rgba(185,28,28,0.18)]`}
             >
               {deleteMutation.isPending ? t("common.removing", "Removing...") : t("meds.deleteConfirmAction", "Remove")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </button>
+          </div>
+        </PurpleModal>
+      ) : null}
     </div>
   );
 };
