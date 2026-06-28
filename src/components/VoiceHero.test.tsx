@@ -1,5 +1,5 @@
 import { act } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import VoiceHero from "./VoiceHero";
 
 const voiceMocks = vi.hoisted(() => ({
@@ -20,11 +20,13 @@ vi.mock("@/hooks/useVyvaVoice", () => ({
     stopVoice: voiceMocks.stopVoice,
     status: "idle",
     isSpeaking: false,
+    isPreparing: false,
     isConnecting: false,
     transcript: [],
     voiceSessionPhase: null,
     isMicMuted: false,
     setMicrophoneMuted: voiceMocks.setMicrophoneMuted,
+    voiceDiagnostics: [],
   }),
 }));
 
@@ -33,8 +35,21 @@ vi.mock("@/hooks/useHeroMessage", () => ({
 }));
 
 vi.mock("@/components/VoiceCallOverlay", () => ({
-  default: ({ connectionError, onRetry }: { connectionError?: string | null; onRetry?: () => void }) => (
+  default: ({
+    connectionError,
+    onMinimize,
+    onRetry,
+  }: {
+    connectionError?: string | null;
+    onMinimize?: () => void;
+    onRetry?: () => void;
+  }) => (
     <div data-testid="voice-call-overlay" data-error={connectionError ?? ""}>
+      {onMinimize && (
+        <button type="button" data-testid="button-minimize-call" onClick={onMinimize}>
+          Minimize
+        </button>
+      )}
       {onRetry && (
         <button type="button" data-testid="button-retry-call" onClick={onRetry}>
           Try again
@@ -62,12 +77,12 @@ describe("VoiceHero status dot", () => {
   it("shows browser online state instead of idle voice state", () => {
     render(<VoiceHero headline="Good evening" weatherData={null} />);
 
-    const signal = screen.getByTestId("button-voice-hero-signal");
-    expect(signal).toHaveAttribute("title", "Online");
-    expect(screen.getByTestId("voice-hero-signal-center")).toHaveStyle({ background: "#34D399" });
+    const statusDot = screen.getByTestId("voice-hero-status-dot");
+    expect(statusDot).toHaveAttribute("title", "Online");
+    expect(statusDot.querySelector("span")).toHaveStyle({ background: "#34D399" });
   });
 
-  it("uses one voice signal instead of the old avatar and mini status dot on the home hero", () => {
+  it("keeps the home hero avatar-free with only the small status dot up top", () => {
     render(
       <VoiceHero
         headline="Good morning"
@@ -77,11 +92,10 @@ describe("VoiceHero status dot", () => {
     );
 
     expect(screen.queryByAltText("VYVA")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-voice-hero-signal")).not.toHaveTextContent("V");
-    expect(screen.getByTestId("button-voice-hero-signal").querySelectorAll("svg")).toHaveLength(1);
-    expect(screen.queryByTestId("voice-hero-status-dot")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-voice-hero-signal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("voice-hero-status-dot").querySelectorAll("svg")).toHaveLength(0);
 
-    fireEvent.click(screen.getByTestId("button-voice-hero-signal"));
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
 
     expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, undefined);
   });
@@ -94,9 +108,9 @@ describe("VoiceHero status dot", () => {
       window.dispatchEvent(new Event("offline"));
     });
 
-    const signal = screen.getByTestId("button-voice-hero-signal");
-    expect(signal).toHaveAttribute("title", "Offline");
-    expect(screen.getByTestId("voice-hero-signal-center")).toHaveStyle({ background: "#EF4444" });
+    const statusDot = screen.getByTestId("voice-hero-status-dot");
+    expect(statusDot).toHaveAttribute("title", "Offline");
+    expect(statusDot.querySelector("span")).toHaveStyle({ background: "#EF4444" });
   });
 
   it("passes a specialist agent slug when starting voice from the CTA", () => {
@@ -211,7 +225,124 @@ describe("VoiceHero status dot", () => {
     expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument();
   });
 
-  it("keeps the focused overlay open when the voice connection fails", () => {
+  it("shows a checking label without opening the full overlay during voice readiness", () => {
+    render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay
+        voiceControls={{
+          status: "idle",
+          isSpeaking: false,
+          isPreparing: true,
+          isConnecting: false,
+          transcript: [],
+          onEnd: voiceMocks.stopVoice,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("button-voice-hero-talk")).toHaveTextContent("Checking voice...");
+    expect(screen.getByTestId("button-voice-hero-talk")).toBeDisabled();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
+  it("keeps readiness failures inline instead of opening the purple overlay", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isPreparing: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+    };
+    const { rerender } = render(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    rerender(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay
+        voiceControls={{
+          ...baseVoiceControls,
+          lastError: "Missing ElevenLabs API key",
+          voiceDiagnostics: [
+            { id: "browser_microphone", label: "Microphone", status: "passed", detail: "Microphone access granted" },
+            { id: "account_access", label: "Account access", status: "passed", detail: "Voice access verified" },
+            { id: "server_credentials", label: "Server key", status: "failed", detail: "Missing ElevenLabs API key" },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+    expect(screen.getByTestId("voice-hero-inline-error")).toHaveTextContent("Voice is not ready yet");
+    expect(screen.getByTestId("voice-hero-inline-error")).toHaveTextContent("Missing ElevenLabs API key");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Stopped at Server key");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Microphone");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("OK");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Server key");
+    expect(screen.getByTestId("voice-hero-diagnostics")).toHaveTextContent("Stopped");
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-retry"));
+
+    expect(voiceMocks.startVoice).toHaveBeenLastCalledWith("app_open", undefined, {
+      agentSlug: "main-vyva",
+    });
+  });
+
+  it("lets the user minimize the focused overlay without ending voice", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+    };
+    const { rerender } = render(
+      <VoiceHero
+        headline="Concierge"
+        contextHint="concierge"
+        voiceAgentSlug="concierge"
+        showVoiceOverlay={false}
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    rerender(
+      <VoiceHero
+        headline="Concierge"
+        contextHint="concierge"
+        voiceAgentSlug="concierge"
+        showVoiceOverlay={false}
+        voiceControls={{
+          ...baseVoiceControls,
+          status: "connected",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(voiceMocks.stopVoice).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
+  it("keeps the focused overlay open when the voice connection fails after connecting starts", async () => {
     const baseVoiceControls = {
       status: "idle" as const,
       isSpeaking: false,
@@ -239,6 +370,22 @@ describe("VoiceHero status dot", () => {
         showVoiceOverlay={false}
         voiceControls={{
           ...baseVoiceControls,
+          status: "connecting",
+          isConnecting: true,
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument());
+
+    rerender(
+      <VoiceHero
+        headline="Good morning"
+        contextHint="app_open"
+        voiceAgentSlug="main-vyva"
+        showVoiceOverlay={false}
+        voiceControls={{
+          ...baseVoiceControls,
           lastError: "Missing ElevenLabs API key",
         }}
       />,
@@ -247,7 +394,7 @@ describe("VoiceHero status dot", () => {
     expect(screen.getByTestId("voice-call-overlay")).toHaveAttribute("data-error", "Missing ElevenLabs API key");
   });
 
-  it("retries the same voice start payload from the error overlay", () => {
+  it("retries the same voice start payload from an inline readiness error", () => {
     const baseVoiceControls = {
       status: "idle" as const,
       isSpeaking: false,
@@ -268,9 +415,11 @@ describe("VoiceHero status dot", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("button-retry-call"));
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
 
-    expect(voiceMocks.startVoice).toHaveBeenCalledWith("app_open", undefined, {
+    fireEvent.click(screen.getByTestId("button-voice-hero-retry"));
+
+    expect(voiceMocks.startVoice).toHaveBeenLastCalledWith("app_open", undefined, {
       agentSlug: "main-vyva",
       dynamicVariables: { app_entrypoint: "home_open" },
       autoStartListening: true,

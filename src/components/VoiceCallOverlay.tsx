@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { RotateCcw, Mic, MicOff, PhoneOff } from "lucide-react";
-import { type TranscriptEntry, type VoiceConnectionErrorCode } from "@/hooks/useVyvaVoice";
+import { ChevronDown, RotateCcw, Mic, MicOff, PhoneOff } from "lucide-react";
+import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import ZamoraVoiceOrb, { type ZamoraOrbState } from "@/components/ZamoraVoiceOrb";
@@ -12,12 +12,14 @@ interface VoiceCallOverlayProps {
   isConnecting: boolean;
   transcript: TranscriptEntry[];
   onEnd: () => void;
+  onMinimize?: () => void;
   activeAction?: VoiceAppAction | null;
   voiceSessionPhase?: VoiceSessionPhase;
   isMicMuted?: boolean;
   onMicToggle?: (muted: boolean) => void;
   connectionError?: string | null;
   connectionErrorCode?: VoiceConnectionErrorCode | null;
+  voiceDiagnostics?: VoiceDiagnosticStep[];
   onRetry?: () => void;
 }
 
@@ -96,17 +98,34 @@ function safeConnectionErrorDetail(message?: string | null) {
     .slice(0, 180);
 }
 
+function diagnosticStatusLabel(step: VoiceDiagnosticStep) {
+  if (step.status === "failed") return "Stopped";
+  if (step.status === "passed") return "OK";
+  if (step.status === "running") return "Checking";
+  if (step.status === "skipped") return "Skipped";
+  return "Waiting";
+}
+
+function diagnosticTone(step: VoiceDiagnosticStep) {
+  if (step.status === "failed") return { background: "rgba(254,226,226,0.22)", color: "rgba(254,226,226,0.98)", border: "rgba(254,202,202,0.28)" };
+  if (step.status === "passed") return { background: "rgba(209,250,229,0.18)", color: "rgba(209,250,229,0.96)", border: "rgba(167,243,208,0.24)" };
+  if (step.status === "running") return { background: "rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.94)", border: "rgba(255,255,255,0.18)" };
+  return { background: "rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.56)", border: "rgba(255,255,255,0.10)" };
+}
+
 const VoiceCallOverlay = ({
   isSpeaking,
   isConnecting,
   transcript,
   onEnd,
+  onMinimize,
   activeAction,
   voiceSessionPhase,
   isMicMuted = false,
   onMicToggle,
   connectionError,
   connectionErrorCode,
+  voiceDiagnostics,
   onRetry,
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
@@ -225,6 +244,8 @@ const VoiceCallOverlay = ({
     : t("voiceHero.connectionErrorHelp", "Something stopped the voice from starting. Try again in a moment.");
   const speakerLabel = visibleWord ? "VYVA" : null;
   const currentOrbState = hasConnectionError ? "idle" : orbState(isSpeaking, isConnecting);
+  const visibleVoiceDiagnostics = (voiceDiagnostics ?? []).filter((step) => step.status !== "pending");
+  const failedVoiceDiagnostic = visibleVoiceDiagnostics.find((step) => step.status === "failed");
 
   const overlay = (
     <div
@@ -245,6 +266,44 @@ const VoiceCallOverlay = ({
         overflow: "hidden",
       }}
     >
+      {onMinimize && (
+        <button
+          type="button"
+          data-testid="button-minimize-call"
+          onClick={onMinimize}
+          aria-label={hasConnectionError ? "Back to app" : "Minimize voice"}
+          title={hasConnectionError ? "Back to app" : "Minimize"}
+          className="font-body"
+          style={{
+            position: "absolute",
+            top: "max(env(safe-area-inset-top, 0px), 18px)",
+            right: 18,
+            zIndex: 2,
+            minHeight: 42,
+            maxWidth: "calc(100vw - 36px)",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.2)",
+            background: "rgba(255,255,255,0.12)",
+            color: "rgba(255,255,255,0.92)",
+            padding: "9px 14px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            fontSize: 14,
+            fontWeight: 800,
+            lineHeight: 1,
+            cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <ChevronDown size={18} />
+          <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+            {hasConnectionError ? t("voiceHero.backToApp", "Back to app") : t("voiceHero.minimize", "Minimize")}
+          </span>
+        </button>
+      )}
+
       {/* Central transcript + indicator area */}
       <div
         style={{
@@ -326,6 +385,86 @@ const VoiceCallOverlay = ({
           >
             {errorDetailLabel}
           </p>
+        )}
+
+        {hasConnectionError && visibleVoiceDiagnostics.length > 0 && (
+          <div
+            data-testid="voice-call-diagnostics"
+            className="font-body"
+            style={{
+              width: "min(86vw, 500px)",
+              borderRadius: 20,
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(255,255,255,0.08)",
+              padding: "12px 14px",
+              color: "rgba(255,255,255,0.86)",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                color: "rgba(255,255,255,0.72)",
+                fontSize: 13,
+                lineHeight: 1.35,
+                fontWeight: 800,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {failedVoiceDiagnostic
+                ? t("voiceHero.diagnosticsStoppedAt", `Stopped at ${failedVoiceDiagnostic.label}`)
+                : t("voiceHero.diagnosticsChecking", "Voice checks")}
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 10,
+              }}
+            >
+              {visibleVoiceDiagnostics.map((step) => {
+                const tone = diagnosticTone(step);
+                return (
+                  <span
+                    key={step.id}
+                    title={step.detail}
+                    style={{
+                      display: "inline-flex",
+                      minWidth: 0,
+                      maxWidth: "100%",
+                      alignItems: "center",
+                      gap: 6,
+                      borderRadius: 999,
+                      border: `1px solid ${tone.border}`,
+                      background: tone.background,
+                      color: tone.color,
+                      padding: "6px 9px",
+                      fontSize: 12,
+                      lineHeight: 1,
+                      fontWeight: 800,
+                    }}
+                  >
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{step.label}</span>
+                    <span style={{ flexShrink: 0, opacity: 0.78 }}>{diagnosticStatusLabel(step)}</span>
+                  </span>
+                );
+              })}
+            </div>
+            {failedVoiceDiagnostic?.detail && (
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  color: "rgba(255,255,255,0.64)",
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  fontWeight: 600,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {failedVoiceDiagnostic.detail}
+              </p>
+            )}
+          </div>
         )}
 
         {activeAction && (
@@ -428,7 +567,15 @@ const VoiceCallOverlay = ({
           {statusLabel}
         </span>
 
-        <div style={{ display: "flex", gap: 12, width: "min(100%, 360px)", justifyContent: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            width: "min(100%, 420px)",
+            justifyContent: "center",
+          }}
+        >
           {hasConnectionError && onRetry && (
             <button
               data-testid="button-retry-call"
@@ -454,6 +601,34 @@ const VoiceCallOverlay = ({
             >
               <RotateCcw size={18} />
               {t("voiceHero.retryCall", "Try again")}
+            </button>
+          )}
+
+          {hasConnectionError && onMinimize && (
+            <button
+              data-testid="button-back-to-app"
+              onClick={onMinimize}
+              className="font-body"
+              style={{
+                minHeight: 52,
+                minWidth: 132,
+                background: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 100,
+                color: "white",
+                fontSize: 15,
+                fontWeight: 700,
+                padding: "12px 20px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <ChevronDown size={18} />
+              {t("voiceHero.backToApp", "Back to app")}
             </button>
           )}
 

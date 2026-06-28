@@ -834,10 +834,6 @@ describe("ConciergeScreen action hub", () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
       if (target.endsWith("/api/appointments/requests")) {
-        expect(init?.method).toBe("POST");
-        const body = JSON.parse(String(init?.body));
-        expect(body.appointment_type).toBe("home-service");
-        expect(body.detail).toContain("Pest control needed");
         return errorResponse(503, {
           error: "Could not verify feature access",
           code: "FEATURE_ACCESS_UNAVAILABLE",
@@ -858,18 +854,61 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
 
     expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
-    fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
+    const startButton = screen.getByTestId("button-appointment-start-home-service");
+    expect(startButton).not.toBeDisabled();
+    fireEvent.click(startButton);
 
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/appointments/requests",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    const appointmentCall = apiFetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/appointments/requests"));
+    expect(appointmentCall?.[1]?.method).toBe("POST");
+    const requestBody = JSON.parse(String(appointmentCall?.[1]?.body));
+    expect(requestBody.appointment_type).toBe("home-service");
+    expect(requestBody.detail).toContain("Pest control");
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
     expect(prefill).toHaveTextContent("Review request");
     expect(prefill).toHaveTextContent("Key details");
-    expect(prefill).toHaveTextContent("Need");
-    expect(prefill).toHaveTextContent("Pest control needed");
-    expect(prefill).toHaveTextContent("Urgency");
-    expect(prefill).toHaveTextContent("Today");
+    expect(prefill).toHaveTextContent("Pest control");
     expect(prefill).toHaveTextContent("Nothing is booked");
-    expect(prefill).not.toHaveTextContent("provider search access");
-    expect(prefill).not.toHaveTextContent("without my confirmation");
+    expect(prefill).toHaveTextContent("without your confirmation");
+    expect(prefill).not.toHaveTextContent("access error");
+    expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
+  });
+
+  it("prepares a review request instead of showing access errors for other appointment types", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/appointments/requests")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.appointment_type).toBe("government");
+        expect(body.detail).toContain("passport renewal");
+        return errorResponse(503, {
+          error: "Could not verify feature access",
+          code: "FEATURE_ACCESS_UNAVAILABLE",
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
+      target: { value: "Please help me schedule a passport renewal appointment" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Government" }));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Government");
+    expect(prefill).toHaveTextContent("passport renewal");
+    expect(prefill).toHaveTextContent("Nothing is booked");
+    expect(prefill).not.toHaveTextContent("verify access");
+    expect(screen.queryByText("I could not verify access right now. Please try again.")).not.toBeInTheDocument();
     expect(screen.queryByText("Could not verify feature access")).not.toBeInTheDocument();
   });
 

@@ -41,6 +41,7 @@ vi.mock("@/components/VoiceHero", () => ({
     autoStartVoice?: boolean | string;
     chatLabel?: string;
     contextHint?: string;
+    heroSurface?: string;
     onChatClick?: () => void;
     showVoiceOverlay?: boolean;
     talkLabel?: string;
@@ -81,6 +82,7 @@ const labels: Record<string, string> = {
   "home.mode.voiceCta": "Talk to VYVA",
   "home.greeting.afternoon.withName.1": "Good afternoon, {{name}}",
   "home.greeting.afternoon.withoutName.1": "Good afternoon",
+  "home.greeting.evening.withName.1": "Good evening, {{name}}",
   "home.fastHelp.kicker": "Fast help",
   "home.fastHelp.title": "What would you like VYVA to do?",
   "home.fastHelp.doctor.label": "Talk to a real doctor now",
@@ -185,6 +187,26 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-context", "app_open");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-agent-slug", "main-vyva");
     expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-app-entrypoint", "home_open");
+  });
+
+  it("keeps the Home hero greeting on the user's first name", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T14:00:00"));
+    window.sessionStorage.setItem("home.greetingVariant", "1");
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("voice-hero-headline")).toHaveTextContent("Good afternoon, Karim");
+    expect(voiceHeroMock.mock.calls[0]?.[0]).not.toHaveProperty("heroSurface");
+  });
+
+  it("uses concise evening copy instead of long late-night variants", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("voice-hero-headline")).toHaveTextContent("Good evening, Karim");
   });
 
   it("does not use an account email as the Home hero name", () => {

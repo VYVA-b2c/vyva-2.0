@@ -51,6 +51,11 @@ class SupabaseQuery {
     return this;
   }
 
+  gt(column, value) {
+    this.params.append(column, `gt.${formatValue(value)}`);
+    return this;
+  }
+
   gte(column, value) {
     this.params.append(column, `gte.${formatValue(value)}`);
     return this;
@@ -58,6 +63,16 @@ class SupabaseQuery {
 
   lt(column, value) {
     this.params.append(column, `lt.${formatValue(value)}`);
+    return this;
+  }
+
+  lte(column, value) {
+    this.params.append(column, `lte.${formatValue(value)}`);
+    return this;
+  }
+
+  in(column, values) {
+    this.params.append(column, `in.(${values.map(formatValue).join(",")})`);
     return this;
   }
 
@@ -90,7 +105,7 @@ class SupabaseQuery {
 
   async execute() {
     const config = await getSupabaseConfig();
-    if (!config) return { data: null, error: new Error("Supabase is not configured") };
+    if (!config) return this.executeBackendFallback();
 
     const url = `${config.url}/rest/v1/${this.table}?${this.params.toString()}`;
     const token = getToken();
@@ -119,6 +134,48 @@ class SupabaseQuery {
       }
 
       return { data: payload, error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  }
+
+  async executeBackendFallback() {
+    const token = getToken();
+
+    try {
+      const response = await fetch(`/api/games/supabase/${encodeURIComponent(this.table)}`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          method: this.method,
+          selectColumns: this.params.get("select") || "*",
+          filters: Array.from(this.params.entries())
+            .filter(([key]) => !["select", "order", "limit", "on_conflict"].includes(key))
+            .map(([column, expression]) => ({ column, expression })),
+          orderClause: this.params.get("order"),
+          limitCount: this.params.has("limit") ? Number(this.params.get("limit")) : null,
+          body: this.body,
+          onConflict: this.params.get("on_conflict"),
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        return { data: null, error: new Error(payload?.error ?? response.statusText) };
+      }
+
+      const data = payload?.data ?? null;
+      if (this.expectSingle) {
+        const rows = Array.isArray(data) ? data : data ? [data] : [];
+        if (rows.length === 0 && this.allowEmptySingle) return { data: null, error: null };
+        return { data: rows[0] ?? null, error: rows[0] ? null : new Error("No rows returned") };
+      }
+
+      return { data, error: null };
     } catch (error) {
       return { data: null, error };
     }

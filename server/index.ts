@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs/promises";
 import "dotenv/config";
 import { routerHandler } from "./routes/router.js";
-import { conversationTokenHandler } from "./routes/conversationToken.js";
+import { conversationReadinessHandler, conversationTokenHandler } from "./routes/conversationToken.js";
 import { voiceContextHandler } from "./routes/voiceContext.js";
 import { voiceRecommendationFeedbackHandler } from "./routes/voiceRecommendationFeedback.js";
 import {
@@ -31,6 +31,7 @@ import { adminRouter } from "./routes/admin.js";
 import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
+import adminLearningRouter from "./routes/adminLearning.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
@@ -82,6 +83,7 @@ import offersRouter, { analyzeOfferDocumentHandler } from "./routes/offers.js";
 import utilitiesRouter from "./routes/utilities.js";
 import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedCheckinReportHandler } from "./routes/checkins.js";
 import gamesRouter from "./routes/games.js";
+import learningRouter from "./routes/learning.js";
 import motivationRouter from "./routes/motivation.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
@@ -149,6 +151,7 @@ app.post("/api/voice-context", authMiddleware, requireUser, requireEntitlement("
 app.post("/api/voice/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceRecommendationFeedbackHandler);
 app.get("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), listOwnVoiceTimelineEventsHandler);
 app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), recordVoiceTimelineEventsHandler);
+app.post("/api/voice-readiness", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationReadinessHandler);
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
@@ -179,6 +182,7 @@ app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycle
 app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsRouter);
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);
+app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
 app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
@@ -207,6 +211,7 @@ app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("sym
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);
 app.use("/api/games", authMiddleware, requireUser, gamesRouter);
+app.use("/api/learning", authMiddleware, requireUser, learningRouter);
 app.use("/api/motivation", authMiddleware, requireUser, motivationRouter);
 app.get("/api/checkins/shared/:token", sharedCheckinReportHandler);
 app.post("/api/checkins/analyze", authMiddleware, requireUser, analyzeCheckinHandler);

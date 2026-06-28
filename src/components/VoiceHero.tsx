@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Keyboard, Mic, MessageCircle, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { type TranscriptEntry, type VoiceConnectionErrorCode, useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep, useVyvaVoice } from "@/hooks/useVyvaVoice";
 import { recordHeroEvent, type HeroSurface } from "@/lib/heroMessages";
 import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessage";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
+import { emitVoiceOverlayPresence } from "@/lib/voiceOverlayFocus";
 
 const WEATHER_EMOJI: Record<string, string> = {
   "weather.clear": "☀️",
@@ -51,6 +52,7 @@ interface VoiceHeroProps {
   voiceControls?: {
     status: "idle" | "connecting" | "connected";
     isSpeaking: boolean;
+    isPreparing?: boolean;
     isConnecting: boolean;
     transcript?: TranscriptEntry[];
     onEnd: () => void;
@@ -62,6 +64,7 @@ interface VoiceHeroProps {
     onMicToggle?: (muted: boolean) => void;
     lastError?: string | null;
     lastErrorCode?: VoiceConnectionErrorCode | null;
+    voiceDiagnostics?: VoiceDiagnosticStep[];
   };
 }
 
@@ -81,6 +84,22 @@ const homeHeadlineClampStyle: React.CSSProperties = {
 function readBrowserOnline() {
   if (typeof navigator === "undefined" || typeof navigator.onLine !== "boolean") return true;
   return navigator.onLine;
+}
+
+function voiceDiagnosticTone(step: VoiceDiagnosticStep) {
+  if (step.status === "failed") return "bg-red-100 text-red-700";
+  if (step.status === "passed") return "bg-emerald-100 text-emerald-700";
+  if (step.status === "running") return "bg-white/22 text-white";
+  if (step.status === "skipped") return "bg-white/12 text-white/64";
+  return "bg-white/10 text-white/58";
+}
+
+function voiceDiagnosticStatusLabel(step: VoiceDiagnosticStep) {
+  if (step.status === "failed") return "Stopped";
+  if (step.status === "passed") return "OK";
+  if (step.status === "running") return "Checking";
+  if (step.status === "skipped") return "Skipped";
+  return "Waiting";
 }
 
 const VoiceHero: React.FC<VoiceHeroProps> = ({
@@ -113,6 +132,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     stopVoice: internalStopVoice,
     status: internalStatus,
     isSpeaking: internalIsSpeaking,
+    isPreparing: internalIsPreparing,
     isConnecting: internalIsConnecting,
     transcript: internalTranscript,
     voiceSessionPhase: internalVoiceSessionPhase,
@@ -120,6 +140,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     setMicrophoneMuted: internalSetMicrophoneMuted,
     lastError: internalLastError,
     lastErrorCode: internalLastErrorCode,
+    voiceDiagnostics: internalVoiceDiagnostics,
   } = internalVoice;
   const dynamicHero = useHeroMessage(heroSurface, {
     ...heroContext,
@@ -138,6 +159,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 
   const voiceStatus = voiceControls?.status ?? internalStatus;
   const isSpeaking = voiceControls?.isSpeaking ?? internalIsSpeaking;
+  const isPreparing = voiceControls?.isPreparing ?? internalIsPreparing;
   const isConnecting = voiceControls?.isConnecting ?? internalIsConnecting;
   const transcript = voiceControls?.transcript ?? internalTranscript;
   const stopVoice = voiceControls?.onEnd ?? internalStopVoice;
@@ -146,6 +168,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const onMicToggle = voiceControls?.onMicToggle ?? internalSetMicrophoneMuted;
   const lastError = voiceControls?.lastError ?? internalLastError;
   const lastErrorCode = voiceControls?.lastErrorCode ?? internalLastErrorCode;
+  const voiceDiagnostics = voiceControls?.voiceDiagnostics ?? internalVoiceDiagnostics;
   const shouldShowOverlay = voiceControls?.showOverlay ?? showVoiceOverlay;
   const autoStartKey = typeof autoStartVoice === "string"
     ? autoStartVoice
@@ -154,12 +177,15 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
       : null;
   const [browserOnline, setBrowserOnline] = useState(readBrowserOnline);
   const [focusedVoiceOverlayRequested, setFocusedVoiceOverlayRequested] = useState(false);
+  const [focusedOverlayHasStarted, setFocusedOverlayHasStarted] = useState(false);
   const autoStartedRef = useRef<string | null>(null);
-  const focusedOverlaySawLiveSessionRef = useRef(false);
 
   const isActive = voiceStatus === "connected";
+  const isStarting = isPreparing || isConnecting;
   const hasConnectionError = Boolean(lastError && !isActive && !isConnecting);
-  const showOverlay = (shouldShowOverlay || focusedVoiceOverlayRequested) && (isActive || isConnecting || hasConnectionError);
+  const showOverlay = (shouldShowOverlay || focusedVoiceOverlayRequested) &&
+    (isActive || isConnecting || (hasConnectionError && focusedOverlayHasStarted));
+  const showInlineVoiceError = Boolean(hasConnectionError && !showOverlay);
 
   const voiceStartOptions = useMemo(
     () => voiceAgentSlug || voiceDynamicVariables || autoStartListening
@@ -188,6 +214,13 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   }, []);
 
   useEffect(() => {
+    emitVoiceOverlayPresence(showOverlay, "voice_hero");
+    return () => {
+      if (showOverlay) emitVoiceOverlayPresence(false, "voice_hero");
+    };
+  }, [showOverlay]);
+
+  useEffect(() => {
     if (!autoStartKey || voiceControls) return;
     if (autoStartedRef.current === autoStartKey) return;
     if (internalStatus !== "idle" || internalIsConnecting) return;
@@ -211,13 +244,18 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   useEffect(() => {
     if (!focusedVoiceOverlayRequested) return;
 
-    if (isActive || isConnecting || hasConnectionError) {
-      focusedOverlaySawLiveSessionRef.current = true;
+    if (isActive || isConnecting) {
+      if (!focusedOverlayHasStarted) setFocusedOverlayHasStarted(true);
       return;
     }
 
-    if (focusedOverlaySawLiveSessionRef.current) {
-      focusedOverlaySawLiveSessionRef.current = false;
+    if (hasConnectionError) {
+      if (!focusedOverlayHasStarted) setFocusedVoiceOverlayRequested(false);
+      return;
+    }
+
+    if (focusedOverlayHasStarted) {
+      setFocusedOverlayHasStarted(false);
       setFocusedVoiceOverlayRequested(false);
       return;
     }
@@ -227,15 +265,22 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     }, 5000);
 
     return () => window.clearTimeout(clearPendingOverlay);
-  }, [focusedVoiceOverlayRequested, hasConnectionError, isActive, isConnecting]);
+  }, [focusedOverlayHasStarted, focusedVoiceOverlayRequested, hasConnectionError, isActive, isConnecting]);
 
   const handleOverlayEnd = () => {
     setFocusedVoiceOverlayRequested(false);
+    setFocusedOverlayHasStarted(false);
     stopVoice();
+  };
+
+  const handleOverlayMinimize = () => {
+    setFocusedVoiceOverlayRequested(false);
+    setFocusedOverlayHasStarted(false);
   };
 
   const handleRetryVoice = () => {
     if (isActive || isConnecting) return;
+    setFocusedOverlayHasStarted(false);
     setFocusedVoiceOverlayRequested(true);
     void Promise.resolve(startVoice(resolvedContextHint, undefined, voiceStartOptions)).catch(() => {});
   };
@@ -254,11 +299,14 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 
     if (isActive) {
       setFocusedVoiceOverlayRequested(false);
+      setFocusedOverlayHasStarted(false);
       stopVoice();
     } else if (onTalkClick) {
+      setFocusedOverlayHasStarted(false);
       setFocusedVoiceOverlayRequested(true);
       onTalkClick();
     } else {
+      setFocusedOverlayHasStarted(false);
       setFocusedVoiceOverlayRequested(true);
       void Promise.resolve(startVoice(
         resolvedContextHint,
@@ -270,6 +318,8 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
 
   const statusLabel = isConnecting
     ? voiceControls?.connectingLabel ?? connectingLabel ?? t("voiceHero.connecting")
+    : isPreparing
+    ? t("voiceHero.preparing", "Checking voice...")
     : isActive
     ? voiceControls?.activeLabel ?? activeLabel ?? (voiceSessionPhase
         ? voiceSessionPhaseLabel(voiceSessionPhase)
@@ -277,7 +327,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           ? t("voiceHero.speaking")
           : t("voiceHero.listening"))
     : resolvedTalkLabel ?? t("voiceHero.talkToVyva");
-  const mobileStatusLabel = !isConnecting && !isActive && mobileTalkLabel ? mobileTalkLabel : statusLabel;
+  const mobileStatusLabel = !isStarting && !isActive && mobileTalkLabel ? mobileTalkLabel : statusLabel;
   const connectionLabel = browserOnline ? t("statusVitals.online", "Online") : t("statusVitals.offline", "Offline");
   const connectionColor = browserOnline ? "#34D399" : "#EF4444";
   const connectionHalo = browserOnline ? "rgba(52,211,153,0.24)" : "rgba(239,68,68,0.20)";
@@ -287,6 +337,57 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const standardHeroHeadlineStyle = isHealthHero
     ? { ...headlineClampStyle, overflowWrap: "normal" as const, wordBreak: "normal" as const }
     : headlineClampStyle;
+  const visibleVoiceDiagnostics = (voiceDiagnostics ?? []).filter((step) => step.status !== "pending");
+  const failedVoiceDiagnostic = visibleVoiceDiagnostics.find((step) => step.status === "failed");
+  const inlineErrorPanel = showInlineVoiceError ? (
+    <div
+      data-testid="voice-hero-inline-error"
+      className="relative z-10 mt-3 rounded-[20px] border border-white/20 bg-white/14 p-3 font-body text-white"
+      style={{ boxShadow: "0 12px 30px rgba(47,24,63,0.14)" }}
+    >
+      <p className="m-0 min-w-0 break-words text-[14px] font-bold leading-snug">
+        {t("voiceHero.inlineErrorTitle", "Voice is not ready yet")}
+      </p>
+      <p className="m-0 mt-1 min-w-0 break-words text-[13px] font-medium leading-snug text-white/72">
+        {lastError}
+      </p>
+      {visibleVoiceDiagnostics.length > 0 && (
+        <div data-testid="voice-hero-diagnostics" className="mt-3 rounded-[16px] bg-black/10 p-2">
+          <p className="m-0 text-[12px] font-extrabold leading-tight text-white/72">
+            {failedVoiceDiagnostic
+              ? t("voiceHero.diagnosticsStoppedAt", `Stopped at ${failedVoiceDiagnostic.label}`)
+              : t("voiceHero.diagnosticsChecking", "Voice checks")}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {visibleVoiceDiagnostics.map((step) => (
+              <span
+                key={step.id}
+                className={`inline-flex min-w-0 max-w-full items-center gap-1 rounded-full px-2 py-1 text-[11px] font-extrabold leading-tight ${voiceDiagnosticTone(step)}`}
+                title={step.detail}
+              >
+                <span className="min-w-0 break-words">{step.label}</span>
+                <span className="shrink-0 opacity-80">{voiceDiagnosticStatusLabel(step)}</span>
+              </span>
+            ))}
+          </div>
+          {failedVoiceDiagnostic?.detail && (
+            <p className="m-0 mt-2 min-w-0 break-words text-[12px] font-semibold leading-snug text-white/68">
+              {failedVoiceDiagnostic.detail}
+            </p>
+          )}
+        </div>
+      )}
+      <button
+        type="button"
+        data-testid="button-voice-hero-retry"
+        onClick={handleRetryVoice}
+        disabled={isStarting}
+        className="mt-3 inline-flex min-h-[40px] items-center justify-center rounded-full bg-white px-4 py-2 text-[14px] font-extrabold text-[#6B21A8] transition active:scale-95 disabled:opacity-60"
+      >
+        {t("voiceHero.retryCall", "Try again")}
+      </button>
+    </div>
+  ) : null;
 
   const weatherEmoji = weatherData?.description ? (WEATHER_EMOJI[weatherData.description] ?? "🌡️") : "🌡️";
   const weatherLabel = weatherData
@@ -302,53 +403,30 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             isConnecting={isConnecting}
             transcript={transcript}
             onEnd={handleOverlayEnd}
+            onMinimize={handleOverlayMinimize}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={onMicToggle}
             connectionError={lastError}
             connectionErrorCode={lastErrorCode}
+            voiceDiagnostics={voiceDiagnostics}
             onRetry={handleRetryVoice}
           />
         )}
 
         <div className="mt-[14px] rounded-[24px] relative overflow-visible hero-purple" style={{ paddingTop: "0" }}>
-          <button
-            type="button"
-            onClick={handleTalk}
-            disabled={isConnecting}
-            aria-label={statusLabel}
+          <div
+            className="absolute right-[16px] top-[14px] z-10 flex h-8 w-8 items-center justify-center rounded-full"
+            style={{ background: connectionHalo, border: `1px solid ${connectionBorder}` }}
+            aria-label={connectionLabel}
             title={connectionLabel}
-            data-testid="button-voice-hero-signal"
-            className={`absolute right-[18px] top-[18px] z-10 flex h-[58px] w-[58px] items-center justify-center rounded-[22px] transition active:scale-[0.98] disabled:opacity-70 sm:right-[22px] sm:top-[20px] sm:h-[64px] sm:w-[64px] ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
-            style={{
-              background: isActive
-                ? "linear-gradient(145deg, rgba(52,211,153,0.28), rgba(255,255,255,0.12))"
-                : "linear-gradient(145deg, rgba(255,255,255,0.30), rgba(255,255,255,0.12))",
-              border: isActive ? "1px solid rgba(52,211,153,0.50)" : "1px solid rgba(255,255,255,0.30)",
-              boxShadow: "0 14px 28px rgba(39, 13, 74, 0.20), inset 0 1px 0 rgba(255,255,255,0.30)",
-            }}
+            data-testid="voice-hero-status-dot"
           >
-            <span
-              aria-hidden="true"
-              className="absolute inset-[7px] rounded-[18px]"
-              style={{ background: "rgba(255,255,255,0.12)" }}
-            />
-            <span className="pointer-events-none absolute left-[12px] top-[10px] h-[12px] w-[20px] rounded-full bg-white/30 blur-[2px]" aria-hidden="true" />
-            {isActive ? (
-              <X size={24} strokeWidth={2.5} className="relative text-white" aria-hidden="true" />
-            ) : (
-              <Mic size={24} strokeWidth={2.5} className="relative text-white" aria-hidden="true" />
-            )}
-            <span
-              data-testid="voice-hero-signal-center"
-              className="absolute bottom-[10px] right-[10px] h-[10px] w-[10px] rounded-full border border-white/80 shadow-[0_0_0_3px_rgba(255,255,255,0.18)]"
-              style={{ background: connectionColor }}
-              aria-hidden="true"
-            />
-          </button>
+            <span className="h-2.5 w-2.5 rounded-full live-dot" style={{ background: connectionColor }} />
+          </div>
           <div className="flex min-h-[268px]">
             {/* Left column — text + CTA */}
-            <div className="flex-[0_0_62%] flex flex-col gap-0 px-[22px] pt-[30px] pb-[20px] min-w-0">
+            <div className="flex w-full min-w-0 flex-col gap-0 px-[22px] pb-[20px] pt-[30px]">
               {/* Headline */}
               <h1
                 className="mb-auto max-w-[12ch] min-w-0 font-display text-[30px] font-normal italic leading-[1.08] text-white"
@@ -360,9 +438,9 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
               {/* CTA button */}
               <button
                 onClick={handleTalk}
-                disabled={isConnecting}
+                disabled={isStarting}
                 data-testid="button-voice-hero-talk"
-                className={`relative z-10 mt-[24px] flex min-h-[74px] w-full items-center justify-center gap-3 rounded-full px-[26px] py-[18px] text-center transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
+                className={`relative z-10 mt-[24px] flex min-h-[76px] w-full items-center justify-center gap-3 rounded-full px-[28px] py-[18px] text-center transition-all ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
                 style={
                   isActive
                     ? {
@@ -381,12 +459,13 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
                   <Mic size={23} style={{ color: "#6B21A8" }} />
                 )}
                 <span
-                  className="min-w-0 max-w-full whitespace-nowrap font-body text-[clamp(17px,4.8vw,20px)] font-extrabold leading-tight"
+                  className="min-w-0 max-w-full whitespace-nowrap font-body text-[clamp(20px,5.4vw,24px)] font-extrabold leading-tight"
                   style={{ color: isActive ? "#ffffff" : "#6B21A8" }}
                 >
                   {statusLabel}
                 </span>
               </button>
+              {inlineErrorPanel}
               {onChatClick && (
                 <button
                   type="button"
@@ -428,11 +507,13 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           isConnecting={isConnecting}
           transcript={transcript}
           onEnd={handleOverlayEnd}
+          onMinimize={handleOverlayMinimize}
           voiceSessionPhase={voiceSessionPhase}
           isMicMuted={isMicMuted}
           onMicToggle={onMicToggle}
           connectionError={lastError}
           connectionErrorCode={lastErrorCode}
+          voiceDiagnostics={voiceDiagnostics}
           onRetry={handleRetryVoice}
         />
       )}
@@ -497,7 +578,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
         {/* Talk / Active button */}
         <button
           onClick={handleTalk}
-          disabled={isConnecting}
+          disabled={isStarting}
           data-testid="button-voice-hero-talk"
           className={`mt-4 flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full px-[20px] py-[14px] transition-all ${isHealthHero ? "max-sm:mt-3 max-sm:min-h-[52px] max-sm:px-4 max-sm:py-3" : ""} ${isActive ? (isSpeaking ? "mic-listening" : "mic-pulse-listening") : ""}`}
           style={{
@@ -523,6 +604,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             ) : statusLabel}
           </span>
         </button>
+        {inlineErrorPanel}
       </div>
     </>
   );

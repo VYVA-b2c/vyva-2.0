@@ -256,22 +256,15 @@ const HomeScreen = () => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour <= 11) return "morning";
     if (hour >= 12 && hour <= 16) return "afternoon";
-    if (hour >= 17 && hour <= 20) return "evening";
-    return "night";
+    return "evening";
   }, []);
 
   const greetingText = useMemo(() => {
     const period = timeGreetingKey;
-    const SESSION_KEY = "home.greetingVariant";
-    let variant = parseInt(sessionStorage.getItem(SESSION_KEY) || "0", 10);
-    if (!variant || variant < 1 || variant > 5) {
-      variant = Math.floor(Math.random() * 5) + 1;
-      sessionStorage.setItem(SESSION_KEY, String(variant));
-    }
     if (firstName) {
-      return t(`home.greeting.${period}.withName.${variant}`, { name: firstName });
+      return t(`home.greeting.${period}.withName.1`, { name: firstName });
     }
-    return t(`home.greeting.${period}.withoutName.${variant}`);
+    return t(`home.greeting.${period}.withoutName.1`);
   }, [firstName, timeGreetingKey, t]);
 
   const handleNavigate = (path: string, options?: NavigateOptions) => {
@@ -356,7 +349,6 @@ const HomeScreen = () => {
   return (
     <div className="vyva-page">
       <VoiceHero
-        heroSurface="home"
         headline={
           <span className="block">{greetingText}</span>
         }

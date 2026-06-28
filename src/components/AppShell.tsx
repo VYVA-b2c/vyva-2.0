@@ -2,9 +2,10 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
+import { AlertCircle, Maximize2, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
+import VoiceCallOverlay from "./VoiceCallOverlay";
 import VoiceActionCard from "./VoiceActionCard";
 import VoiceActionSimulator from "./VoiceActionSimulator";
 import MotivationMilestoneProvider from "./MotivationMilestoneProvider";
@@ -28,6 +29,10 @@ import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyCo
 import { apiFetch } from "@/lib/queryClient";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
+import {
+  VYVA_VOICE_OVERLAY_PRESENCE_EVENT,
+  type VoiceOverlayPresenceDetail,
+} from "@/lib/voiceOverlayFocus";
 
 type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
@@ -57,6 +62,7 @@ const WIDE_ROUTES = [
   "/activities",
   "/senses",
   "/activity",
+  "/learn",
   "/language",
   "/safe-home",
   "/scam-guard",
@@ -125,6 +131,7 @@ type VoiceSessionDockProps = {
   voiceSessionPhase: VoiceSessionPhase;
   isMicMuted: boolean;
   onMicToggle: (muted: boolean) => void;
+  onOpen: () => void;
 };
 
 const VoiceSessionDock = ({
@@ -135,6 +142,7 @@ const VoiceSessionDock = ({
   voiceSessionPhase,
   isMicMuted,
   onMicToggle,
+  onOpen,
 }: VoiceSessionDockProps) => {
   const latestEntry = transcript[transcript.length - 1];
   const canToggleMic = voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring";
@@ -152,17 +160,27 @@ const VoiceSessionDock = ({
         data-testid="voice-session-dock"
         className="pointer-events-auto flex w-full max-w-[480px] items-center gap-3 rounded-[24px] border border-vyva-border bg-white/95 px-3 py-3 shadow-[0_18px_48px_rgba(47,33,53,0.2)] backdrop-blur"
       >
-        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isMicMuted ? "bg-emerald-50 text-emerald-700" : "bg-vyva-purple text-white"}`}>
-          {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-            {label}
-          </p>
-          <p className="truncate font-body text-[14px] font-semibold text-vyva-text-1">
-            {latestEntry?.text || "Voice is active. You can keep using the page."}
-          </p>
-        </div>
+        <button
+          type="button"
+          onClick={onOpen}
+          data-testid="button-open-voice-overlay"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-[18px] text-left transition active:scale-[0.99]"
+          aria-label="Open voice screen"
+          title="Open voice screen"
+        >
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isMicMuted ? "bg-emerald-50 text-emerald-700" : "bg-vyva-purple text-white"}`}>
+            {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+              {label}
+            </p>
+            <p className="truncate font-body text-[14px] font-semibold text-vyva-text-1">
+              {latestEntry?.text || "Voice is active. You can keep using the page."}
+            </p>
+          </div>
+          <Maximize2 size={18} className="shrink-0 text-vyva-text-3" />
+        </button>
         {canToggleMic && (
           <button
             type="button"
@@ -281,8 +299,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const { profile } = useProfile();
   const { canUseService, guardPath } = useServiceGate();
   const [sosOpen, setSosOpen] = useState(false);
+  const [dockVoiceOverlayOpen, setDockVoiceOverlayOpen] = useState(false);
+  const [externalVoiceOverlayPresent, setExternalVoiceOverlayPresent] = useState(false);
   const lastVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
   const lastOpenedVoiceActionRef = useRef<{ key: string; at: number } | null>(null);
+  const previousPathRef = useRef(location.pathname);
   const {
     status,
     isConnecting,
@@ -294,6 +315,9 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     voiceSessionPhase,
     isMicMuted,
     setMicrophoneMuted,
+    lastError,
+    lastErrorCode,
+    voiceDiagnostics,
     sendContextUpdate,
     recordRecommendationFeedback,
   } = useVyvaVoice();
@@ -319,11 +343,16 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
   const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
+  const hasVoiceSessionSurface =
+    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
+  const showDockVoiceOverlay = dockVoiceOverlayOpen && hasVoiceSessionSurface;
+  const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
-    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring");
+    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring") && !isVoiceOverlayFocused;
   const suppressMilestonePopup = isFullScreen ||
     sosOpen ||
     showVoiceDock ||
+    isVoiceOverlayFocused ||
     location.pathname === "/sos" ||
     location.pathname.startsWith("/health/symptom") ||
     location.pathname.startsWith("/triage");
@@ -340,6 +369,29 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     retry: false,
   });
   const sosProfileContact = emergencyProfileContactFromState(onboardingState);
+
+  useEffect(() => {
+    const handleVoiceOverlayPresence = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? (event.detail as VoiceOverlayPresenceDetail | undefined)
+        : undefined;
+      setExternalVoiceOverlayPresent(Boolean(detail?.open));
+    };
+
+    window.addEventListener(VYVA_VOICE_OVERLAY_PRESENCE_EVENT, handleVoiceOverlayPresence);
+    return () => window.removeEventListener(VYVA_VOICE_OVERLAY_PRESENCE_EVENT, handleVoiceOverlayPresence);
+  }, []);
+
+  useEffect(() => {
+    if (!hasVoiceSessionSurface) setDockVoiceOverlayOpen(false);
+  }, [hasVoiceSessionSurface]);
+
+  useEffect(() => {
+    if (previousPathRef.current === location.pathname) return;
+
+    previousPathRef.current = location.pathname;
+    setDockVoiceOverlayOpen(false);
+  }, [location.pathname]);
 
   const openVoiceAppAction = useCallback((action: VoiceAppAction) => {
     const actionKey = `${action.id}:${action.route}`;
@@ -362,6 +414,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     });
 
     if (navigated) {
+      setDockVoiceOverlayOpen(false);
       void recordRecommendationFeedback("accepted", {
         source: "app_voice_action",
         voice_action_id: action.id,
@@ -531,6 +584,25 @@ const AppShell = ({ children }: { children: ReactNode }) => {
           />
         )}
         {!isFullScreen && !isVitalsRoute && <VoiceActionSimulator />}
+        {showDockVoiceOverlay && (
+          <VoiceCallOverlay
+            isSpeaking={isSpeaking}
+            isConnecting={isConnecting}
+            transcript={transcript}
+            onEnd={() => {
+              setDockVoiceOverlayOpen(false);
+              stopVoice();
+            }}
+            onMinimize={() => setDockVoiceOverlayOpen(false)}
+            activeAction={activeVoiceAction}
+            voiceSessionPhase={voiceSessionPhase}
+            isMicMuted={isMicMuted}
+            onMicToggle={setMicrophoneMuted}
+            connectionError={lastError}
+            connectionErrorCode={lastErrorCode}
+            voiceDiagnostics={voiceDiagnostics}
+          />
+        )}
         {showVoiceDock && (
           <VoiceSessionDock
             isSpeaking={isSpeaking}
@@ -540,6 +612,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={setMicrophoneMuted}
+            onOpen={() => setDockVoiceOverlayOpen(true)}
           />
         )}
       </div>

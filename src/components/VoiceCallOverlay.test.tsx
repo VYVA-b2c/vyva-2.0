@@ -1,7 +1,7 @@
 import { act, type ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import VoiceCallOverlay from "./VoiceCallOverlay";
-import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import type { TranscriptEntry, VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -14,6 +14,7 @@ const baseProps = {
   isConnecting: false,
   transcript: [] as TranscriptEntry[],
   onEnd: vi.fn(),
+  onMinimize: vi.fn(),
 };
 
 const canvasGradientMock = {
@@ -112,6 +113,7 @@ describe("VoiceCallOverlay word transcript", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     baseProps.onEnd.mockClear();
+    baseProps.onMinimize.mockClear();
     canvasMocks.forEach((mock) => mock.mockClear());
   });
 
@@ -180,21 +182,53 @@ describe("VoiceCallOverlay word transcript", () => {
     });
   });
 
+  it("minimizes the focused voice screen without ending the session", () => {
+    renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
+
+    fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
+    expect(baseProps.onEnd).not.toHaveBeenCalled();
+  });
+
   it("keeps the purple screen in an error state with retry available", () => {
     const onRetry = vi.fn();
+    const voiceDiagnostics: VoiceDiagnosticStep[] = [
+      { id: "browser_microphone", label: "Microphone", status: "passed", detail: "Microphone access granted" },
+      { id: "account_access", label: "Account access", status: "passed", detail: "Voice access verified" },
+      { id: "server_credentials", label: "Server key", status: "failed", detail: "Missing ElevenLabs API key" },
+    ];
     renderOverlay([], {
       connectionError: "Missing ElevenLabs API key",
       connectionErrorCode: "ELEVENLABS_API_KEY_MISSING",
+      voiceDiagnostics,
       onRetry,
     });
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice setup needed");
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("The ElevenLabs API key is missing on the server.");
     expect(screen.getByTestId("text-call-status")).toHaveTextContent("Setup needed");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped at Server key");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Microphone");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("OK");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Server key");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped");
 
     fireEvent.click(screen.getByTestId("button-retry-call"));
 
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a back-to-app escape when voice is in an error state", () => {
+    renderOverlay([], {
+      connectionError: "We could not verify access right now. Please try again.",
+      connectionErrorCode: "VOICE_ACCESS_UNAVAILABLE",
+    });
+
+    fireEvent.click(screen.getByTestId("button-back-to-app"));
+
+    expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
+    expect(baseProps.onEnd).not.toHaveBeenCalled();
   });
 
   it("shows a clear microphone permission message", () => {

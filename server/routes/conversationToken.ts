@@ -214,6 +214,12 @@ function envSlug(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
 }
 
+function readElevenLabsApiKey() {
+  return process.env.ELEVENLABS_API_KEY ||
+    process.env.VITE_ELEVENLABS_API_KEY ||
+    process.env.ELEVENLABS_CONVAI_API_KEY;
+}
+
 function buildRoomAgentKeys(roomSlug: string, agentSlug?: string) {
   const canonicalRoomSlug = resolveSocialRoomSlug(roomSlug);
   const slugKey = envSlug(canonicalRoomSlug);
@@ -280,13 +286,12 @@ export function resolveSocialAgentId(agentSlug?: string, roomSlug?: string) {
   };
 }
 
-export async function conversationTokenHandler(req: Request, res: Response) {
-  const { agent_id, agent_slug, room_slug } = req.body as {
-    agent_id?: string;
-    agent_slug?: string;
-    room_slug?: string;
-  };
-
+function resolveConversationAgent(body: {
+  agent_id?: string;
+  agent_slug?: string;
+  room_slug?: string;
+}) {
+  const { agent_id, agent_slug, room_slug } = body;
   const normalizedRoomSlug = normalizeSlug(room_slug);
   const explicitAgentId = agent_id?.trim();
   const resolved = normalizedRoomSlug
@@ -295,28 +300,85 @@ export async function conversationTokenHandler(req: Request, res: Response) {
     ? { agentId: explicitAgentId, resolvedSlug: normalizeSlug(agent_slug), source: "explicit" }
     : resolveSocialAgentId(agent_slug, room_slug);
 
+  return {
+    agentSlug: agent_slug,
+    roomSlug: room_slug,
+    normalizedRoomSlug,
+    resolved,
+  };
+}
+
+function sendMissingAgentResponse(
+  res: Response,
+  input: {
+    agentSlug?: string;
+    roomSlug?: string;
+    resolved: ReturnType<typeof resolveSocialAgentId> | { agentId?: string; resolvedSlug?: string; source: string; expectedKeys?: string[] };
+  },
+) {
+  console.warn("[conversationToken] No ElevenLabs agent configured", {
+    agent_slug: input.agentSlug,
+    room_slug: input.roomSlug,
+    resolved_slug: input.resolved.resolvedSlug,
+    source: input.resolved.source,
+    expected_keys: input.resolved.expectedKeys?.slice(0, 6),
+  });
+  return res.status(400).json({
+    error: "No ElevenLabs agent configured for this room yet.",
+    code: "ELEVENLABS_AGENT_MISSING",
+    room_slug: input.roomSlug,
+    agent_slug: input.agentSlug,
+    source: input.resolved.source,
+    agent_id_present: false,
+    expected_keys: input.resolved.expectedKeys?.slice(0, 6),
+  });
+}
+
+export async function conversationReadinessHandler(req: Request, res: Response) {
+  const { agentSlug, roomSlug, normalizedRoomSlug, resolved } = resolveConversationAgent(req.body as {
+    agent_id?: string;
+    agent_slug?: string;
+    room_slug?: string;
+  });
+
   if (!resolved.agentId) {
-    console.warn("[conversationToken] No ElevenLabs agent configured", {
-      agent_slug,
-      room_slug,
-      resolved_slug: resolved.resolvedSlug,
+    return sendMissingAgentResponse(res, { agentSlug, roomSlug, resolved });
+  }
+
+  if (!readElevenLabsApiKey()) {
+    return res.status(500).json({
+      error: "Missing ElevenLabs API key",
+      code: "ELEVENLABS_API_KEY_MISSING",
+      agent_slug: resolved.resolvedSlug,
+      room_slug: normalizedRoomSlug,
       source: resolved.source,
-      expected_keys: resolved.expectedKeys?.slice(0, 6),
-    });
-    return res.status(400).json({
-      error: "No ElevenLabs agent configured for this room yet.",
-      code: "ELEVENLABS_AGENT_MISSING",
-      room_slug,
-      agent_slug,
-      source: resolved.source,
-      expected_keys: resolved.expectedKeys?.slice(0, 6),
+      agent_id_present: true,
     });
   }
 
-  const ELEVENLABS_API_KEY =
-    process.env.ELEVENLABS_API_KEY ||
-    process.env.VITE_ELEVENLABS_API_KEY ||
-    process.env.ELEVENLABS_CONVAI_API_KEY;
+  return res.json({
+    ready: true,
+    agent_slug: resolved.resolvedSlug,
+    room_slug: normalizedRoomSlug,
+    source: resolved.source,
+    agent_id_present: true,
+  });
+}
+
+export async function conversationTokenHandler(req: Request, res: Response) {
+  const { agent_id, agent_slug, room_slug } = req.body as {
+    agent_id?: string;
+    agent_slug?: string;
+    room_slug?: string;
+  };
+
+  const { normalizedRoomSlug, resolved } = resolveConversationAgent({ agent_id, agent_slug, room_slug });
+
+  if (!resolved.agentId) {
+    return sendMissingAgentResponse(res, { agentSlug: agent_slug, roomSlug: room_slug, resolved });
+  }
+
+  const ELEVENLABS_API_KEY = readElevenLabsApiKey();
   if (!ELEVENLABS_API_KEY) {
     return res.status(500).json({
       error: "Missing ElevenLabs API key",

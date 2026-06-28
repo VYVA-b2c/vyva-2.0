@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, type LucideIcon } from "lucide-react";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, Phone, Store, HeartPulse, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
 import {
-  ActionCard,
   PurpleModal,
   ResponsiveGrid,
   SectionTitle,
@@ -25,6 +23,7 @@ import {
 } from "@/lib/medicationServiceActions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
@@ -37,7 +36,6 @@ type DisplayMed = {
   scheduledCountToday: number; // number of doses expected today
   nameForApi: string;   // canonical English name sent to /confirm
   scheduledTimeForApi: string; // first scheduled time or "anytime"
-  scheduledTimesForApi: string[];
   rawDosage: string;    // original dosage from DB, used to seed the edit form
   rawFrequency: string; // original frequency from DB, used to seed the edit form
 };
@@ -55,31 +53,151 @@ type DbMed = {
 
 type TodayResponse = { medications: DbMed[] };
 
-const MINUTE_MS = 60_000;
+type PersonalisationResponse = {
+  conditions?: string[];
+  hobbies?: string[];
+  hasMedications?: boolean;
+};
 
-function parseScheduledTimeForToday(value: string, now: Date) {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-  if (!match) return null;
+type SavedProvider = {
+  name?: string;
+  role?: string;
+  phone?: string;
+  address?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  online_order_url?: string;
+  website_uri?: string;
+  opening_hours?: string[];
+  notes?: string;
+};
 
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+type SavedProfileCondition = {
+  name?: string;
+  category?: string;
+};
 
-  const scheduled = new Date(now);
-  scheduled.setHours(hours, minutes, 0, 0);
-  return scheduled;
-}
+type SavedProfileMedication = {
+  name?: string;
+  medication_name?: string;
+  dosage?: string;
+  frequency?: string;
+  times?: string;
+};
 
-function formatDoseTime(date: Date, locale: string) {
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(date);
-  } catch {
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  }
-}
+type OnboardingStateResponse = {
+  profile?: {
+    conditions?: SavedProfileCondition[];
+    medications?: SavedProfileMedication[];
+    mobility_level?: string | null;
+    living_situation?: string | null;
+    data_sharing_consent?: {
+      conditions?: {
+        health_conditions?: string[];
+        mobility_level?: string | null;
+        living_situation?: string | null;
+      };
+      diet?: {
+        dietary_preferences?: string[];
+        dietary_notes?: string;
+      };
+      hobbies?: {
+        hobbies?: string[];
+      };
+      providers?: {
+        providers?: SavedProvider[];
+      };
+    };
+  } | null;
+};
+
+type MedicationSafetySeverity = "watch" | "attention" | "urgent";
+type MedicationSafetySignalType = "missed_dose_pattern" | "possible_side_effect" | "interaction_question" | "vitals_overlap" | "symptom_followup";
+type MedicationSafetyCaseStatus = "draft" | "needs_review" | "shared" | "closed" | "dismissed";
+
+type MedicationSafetySignal = {
+  id?: string;
+  signal_type: MedicationSafetySignalType;
+  severity: MedicationSafetySeverity;
+  title: string;
+  summary: string;
+  medication_name?: string | null;
+  source?: string | null;
+  evidence?: Array<Record<string, unknown>>;
+  status?: string | null;
+  detected_at?: string | null;
+};
+
+type MedicationSafetyCase = {
+  id: string;
+  status: MedicationSafetyCaseStatus;
+  severity: MedicationSafetySeverity;
+  signal_type: MedicationSafetySignalType;
+  suspected_medication?: string | null;
+  reaction?: string | null;
+  reaction_started_at?: string | null;
+  seriousness_flags?: string[];
+  outcome?: string | null;
+  action_taken?: string | null;
+  reporter_name?: string | null;
+  reporter_contact?: string | null;
+  reporter_role?: string | null;
+  narrative?: string | null;
+  evidence?: Array<Record<string, unknown>>;
+  missing_fields?: string[];
+  export_ready?: boolean;
+  updated_at?: string | null;
+};
+
+type MedicationSafetyResponse = {
+  summary: {
+    status: "steady" | "watch" | "needs_review";
+    severity: MedicationSafetySeverity;
+    title: string;
+    message: string;
+    signalCount: number;
+    openCaseCount: number;
+    lastAnalysedAt?: string | null;
+  };
+  signalCandidates: MedicationSafetySignal[];
+  signals: MedicationSafetySignal[];
+  openCases: MedicationSafetyCase[];
+  exportAvailability: {
+    canExport: boolean;
+    readyCount: number;
+    needsReviewCount: number;
+  };
+};
+
+type MedicationSafetyCaseForm = {
+  status: MedicationSafetyCaseStatus;
+  severity: MedicationSafetySeverity;
+  signal_type: MedicationSafetySignalType;
+  suspected_medication: string;
+  reaction: string;
+  reaction_started_at: string;
+  seriousness_flags: string[];
+  outcome: string;
+  action_taken: string;
+  reporter_name: string;
+  reporter_contact: string;
+  reporter_role: string;
+  narrative: string;
+};
+
+type DashboardTip = {
+  text: string;
+  context: string;
+};
+
+type DashboardProfileSignals = {
+  conditions: string[];
+  medications: string[];
+  mobilityLevel: string;
+  livingSituation: string;
+  hobbies: string[];
+  dietaryPreferences: string[];
+};
 
 export {
   medicationDoctorActionKinds,
@@ -123,6 +241,291 @@ function stopMedicationVoiceStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
 }
 
+const SERIOUSNESS_OPTIONS = [
+  { value: "hospitalization", label: "Hospitalization" },
+  { value: "life_threatening", label: "Life threatening" },
+  { value: "disability", label: "Disability" },
+  { value: "birth_defect", label: "Birth defect" },
+  { value: "death", label: "Death" },
+  { value: "other_medically_important", label: "Other medically important" },
+];
+
+function emptySafetyCaseForm(prefillMedication = ""): MedicationSafetyCaseForm {
+  return {
+    status: "draft",
+    severity: "attention",
+    signal_type: "possible_side_effect",
+    suspected_medication: prefillMedication,
+    reaction: "",
+    reaction_started_at: "",
+    seriousness_flags: [],
+    outcome: "",
+    action_taken: "",
+    reporter_name: "",
+    reporter_contact: "",
+    reporter_role: "patient_or_caregiver",
+    narrative: "",
+  };
+}
+
+function dateInputValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function formFromSafetyCase(safetyCase: MedicationSafetyCase): MedicationSafetyCaseForm {
+  return {
+    status: safetyCase.status ?? "draft",
+    severity: safetyCase.severity ?? "watch",
+    signal_type: safetyCase.signal_type ?? "possible_side_effect",
+    suspected_medication: safetyCase.suspected_medication ?? "",
+    reaction: safetyCase.reaction ?? "",
+    reaction_started_at: dateInputValue(safetyCase.reaction_started_at),
+    seriousness_flags: safetyCase.seriousness_flags ?? [],
+    outcome: safetyCase.outcome ?? "",
+    action_taken: safetyCase.action_taken ?? "",
+    reporter_name: safetyCase.reporter_name ?? "",
+    reporter_contact: safetyCase.reporter_contact ?? "",
+    reporter_role: safetyCase.reporter_role ?? "patient_or_caregiver",
+    narrative: safetyCase.narrative ?? "",
+  };
+}
+
+function safetyTone(severity?: MedicationSafetySeverity | string | null) {
+  if (severity === "urgent") return { bg: "#FEF2F2", color: "#B91C1C", border: "#FCA5A5" };
+  if (severity === "attention") return { bg: "#FEF3C7", color: "#92400E", border: "#FCD34D" };
+  return { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE" };
+}
+
+function signalTypeLabel(type: MedicationSafetySignalType | string) {
+  return type.replace(/_/g, " ");
+}
+
+function normalizeDashboardText(values: Array<string | null | undefined>) {
+  return values
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join(" ")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function hasAnyDashboardTerm(haystack: string, terms: string[]) {
+  return terms.some((term) => haystack.includes(term));
+}
+
+function cleanDashboardList(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (!trimmed) continue;
+    const key = normalizeDashboardText([trimmed]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(trimmed);
+  }
+
+  return cleaned;
+}
+
+function profileContextLabel(t: (key: string, options?: Record<string, unknown>) => string, conditions: string[], fallbackKey = "meds.dashboard.tipContextProfile") {
+  const visibleConditions = conditions.slice(0, 2);
+  if (visibleConditions.length > 0) {
+    return t("meds.dashboard.tipContextConditions", {
+      conditions: visibleConditions.join(" + "),
+      defaultValue: "Based on {{conditions}}",
+    });
+  }
+
+  return t(fallbackKey, { defaultValue: "Based on your saved profile" });
+}
+
+function buildDashboardHealthTip(
+  signals: DashboardProfileSignals,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): DashboardTip {
+  const conditionText = normalizeDashboardText(signals.conditions);
+  const medicationText = normalizeDashboardText(signals.medications);
+  const hasDiabetes = hasAnyDashboardTerm(conditionText, ["diabetes"]) || hasAnyDashboardTerm(medicationText, ["metformin", "insulin"]);
+  const hasBloodPressure = hasAnyDashboardTerm(conditionText, ["hypertension", "blood pressure", "high blood pressure"]) ||
+    hasAnyDashboardTerm(medicationText, ["atenolol", "amlodipine", "lisinopril", "losartan", "ramipril", "bisoprolol"]);
+  const hasBloodThinner = hasAnyDashboardTerm(medicationText, ["warfarin", "apixaban", "rivaroxaban", "edoxaban", "dabigatran", "clopidogrel", "aspirin"]);
+  const hasRespiratory = hasAnyDashboardTerm(conditionText, ["asthma", "copd", "bronchitis", "breathless"]) ||
+    hasAnyDashboardTerm(medicationText, ["salbutamol", "ventolin", "inhaler", "tiotropium", "fostair", "symbicort"]);
+  const hasStatin = hasAnyDashboardTerm(medicationText, ["atorvastatin", "simvastatin", "rosuvastatin", "pravastatin"]);
+  const context = profileContextLabel(t, signals.conditions);
+
+  if (hasDiabetes && hasBloodPressure) {
+    return {
+      context,
+      text: t("meds.dashboard.healthTipDiabetesBloodPressure", {
+        conditions: signals.conditions.slice(0, 2).join(" + ") || "diabetes + blood pressure",
+        defaultValue: "For {{conditions}}, use a meal cue for medicine checks and stand up slowly. Note shakiness, thirst, or dizziness.",
+      }),
+    };
+  }
+
+  if (hasDiabetes) {
+    return {
+      context,
+      text: t("meds.dashboard.healthTipDiabetes", {
+        defaultValue: "For diabetes, keep medicine checks close to your normal meal rhythm and ask for help if you feel shaky or unusually thirsty.",
+      }),
+    };
+  }
+
+  if (hasBloodPressure) {
+    return {
+      context,
+      text: t("meds.dashboard.healthTipBloodPressure", {
+        defaultValue: "For blood pressure, rise slowly after sitting and note dizziness, swelling, or headaches for your next health chat.",
+      }),
+    };
+  }
+
+  if (hasBloodThinner) {
+    return {
+      context: t("meds.dashboard.tipContextMedicines", { defaultValue: "Based on current medicines" }),
+      text: t("meds.dashboard.healthTipBloodThinner", {
+        defaultValue: "Because your medicines include aspirin or a blood thinner, keep an eye on unusual bruising or bleeding and check with a pharmacist before adding new painkillers.",
+      }),
+    };
+  }
+
+  if (hasRespiratory) {
+    return {
+      context,
+      text: t("meds.dashboard.healthTipRespiratory", {
+        defaultValue: "With breathing support in your profile, keep inhalers or breathing medicines easy to find and note any new breathlessness before your next health conversation.",
+      }),
+    };
+  }
+
+  if (hasStatin) {
+    return {
+      context: t("meds.dashboard.tipContextMedicines", { defaultValue: "Based on current medicines" }),
+      text: t("meds.dashboard.healthTipStatin", {
+        defaultValue: "Because a cholesterol medicine is on your list, make a note of new muscle pain or weakness so you can mention it to your pharmacist or doctor.",
+      }),
+    };
+  }
+
+  if (signals.conditions.length > 0) {
+    return {
+      context,
+      text: t("meds.dashboard.healthTipConditionFallback", {
+        conditions: signals.conditions.slice(0, 2).join(" + "),
+        defaultValue: "With {{conditions}} saved in your profile, keep a short note of how you feel after medicines so your next pharmacy or doctor chat is easier.",
+      }),
+    };
+  }
+
+  return {
+    context: t("meds.dashboard.tipContextRoutine", { defaultValue: "Based on today's medicine routine" }),
+    text: t("meds.dashboard.healthTipGeneric", {
+      defaultValue: "Keep medicines in the routine your doctor gave you, and ask a pharmacist before adding supplements or over-the-counter medicines.",
+    }),
+  };
+}
+
+function buildDashboardExerciseTip(
+  signals: DashboardProfileSignals,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): DashboardTip {
+  const conditionText = normalizeDashboardText(signals.conditions);
+  const medicationText = normalizeDashboardText(signals.medications);
+  const mobilityText = normalizeDashboardText([signals.mobilityLevel, signals.livingSituation]);
+  const hobbyText = normalizeDashboardText(signals.hobbies);
+  const hasDiabetes = hasAnyDashboardTerm(conditionText, ["diabetes"]) || hasAnyDashboardTerm(medicationText, ["metformin", "insulin"]);
+  const hasBloodPressure = hasAnyDashboardTerm(conditionText, ["hypertension", "blood pressure", "high blood pressure"]) ||
+    hasAnyDashboardTerm(medicationText, ["atenolol", "amlodipine", "lisinopril", "losartan", "ramipril", "bisoprolol"]);
+  const hasMobilityNeed = hasAnyDashboardTerm(conditionText, ["arthritis", "osteoporosis", "fall", "mobility", "frailty", "parkinson"]) ||
+    hasAnyDashboardTerm(mobilityText, ["limited", "reduced", "wheelchair", "walker", "stick", "cane", "fall", "unsteady", "slow"]);
+  const hasRespiratory = hasAnyDashboardTerm(conditionText, ["asthma", "copd", "bronchitis", "breathless"]) ||
+    hasAnyDashboardTerm(medicationText, ["salbutamol", "ventolin", "inhaler", "tiotropium", "fostair", "symbicort"]);
+
+  if (hasMobilityNeed) {
+    return {
+      context: t("meds.dashboard.tipContextMobility", { defaultValue: "Based on mobility level" }),
+      text: t("meds.dashboard.exerciseTipMobility", {
+        defaultValue: "For your mobility profile, try seated ankle circles or slow sit-to-stand practice beside a steady chair.",
+      }),
+    };
+  }
+
+  if (hasDiabetes && hasBloodPressure) {
+    return {
+      context: profileContextLabel(t, signals.conditions),
+      text: t("meds.dashboard.exerciseTipDiabetesBloodPressure", {
+        defaultValue: "For diabetes and blood pressure, choose 5 to 10 minutes of easy walking or seated marching after a meal, keeping the pace comfortable enough to talk.",
+      }),
+    };
+  }
+
+  if (hasDiabetes) {
+    return {
+      context: profileContextLabel(t, signals.conditions),
+      text: t("meds.dashboard.exerciseTipDiabetes", {
+        defaultValue: "For diabetes, a short gentle walk after a meal can support the routine; wear comfortable shoes and stop if you feel shaky or unwell.",
+      }),
+    };
+  }
+
+  if (hasBloodPressure) {
+    return {
+      context: profileContextLabel(t, signals.conditions),
+      text: t("meds.dashboard.exerciseTipBloodPressure", {
+        defaultValue: "For blood pressure, try a steady walk or chair marching and avoid holding your breath during strength movements.",
+      }),
+    };
+  }
+
+  if (hasRespiratory) {
+    return {
+      context: profileContextLabel(t, signals.conditions),
+      text: t("meds.dashboard.exerciseTipRespiratory", {
+        defaultValue: "For breathing support, try a slow walk with relaxed shoulders and pause for pursed-lip breathing if you feel short of breath.",
+      }),
+    };
+  }
+
+  if (hasAnyDashboardTerm(hobbyText, ["garden", "gardening", "plants"])) {
+    return {
+      context: t("meds.dashboard.tipContextHobby", { defaultValue: "Based on saved hobbies" }),
+      text: t("meds.dashboard.exerciseTipGardening", {
+        defaultValue: "Since gardening is in your profile, use it gently: water plants, tend pots, or walk the garden for 5 minutes without bending too long.",
+      }),
+    };
+  }
+
+  return {
+    context: t("meds.dashboard.tipContextProfile", { defaultValue: "Based on your saved profile" }),
+    text: t("meds.dashboard.exerciseTipGeneric", {
+      defaultValue: "Try 5 to 10 minutes of gentle walking or seated movement when you feel ready, and keep it easy enough to talk.",
+    }),
+  };
+}
+
+function isPharmacyProvider(provider: SavedProvider) {
+  return hasAnyDashboardTerm(
+    normalizeDashboardText([provider.role, provider.name, provider.notes]),
+    ["pharmacy", "farmacia", "drugstore", "chemist"],
+  );
+}
+
+function providerPhone(provider?: SavedProvider | null) {
+  return provider?.contact_phone?.trim() || provider?.phone?.trim() || "";
+}
+
+function formatProviderPhoneHref(phone: string) {
+  const cleaned = phone.replace(/[^\d+]/g, "");
+  return cleaned ? `tel:${cleaned}` : "";
+}
+
 const MedsScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
@@ -133,6 +536,16 @@ const MedsScreen = () => {
   // ─── Load today's medications from the DB ──────────────────────────────────
   const { data: todayData, isLoading: todayLoading } = useQuery<TodayResponse>({
     queryKey: ["/api/meds/adherence-report/today"],
+  });
+  const { data: personalisationData } = useQuery<PersonalisationResponse>({
+    queryKey: ["/api/profile/personalisation"],
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
+  const { data: onboardingState } = useQuery<OnboardingStateResponse>({
+    queryKey: ["/api/onboarding/state"],
+    retry: false,
+    staleTime: 10 * 60 * 1000,
   });
 
   const displayMeds: DisplayMed[] = (() => {
@@ -145,7 +558,6 @@ const MedsScreen = () => {
         scheduledCountToday: m.scheduledCountToday,
         nameForApi: m.medication_name,
         scheduledTimeForApi: m.scheduled_times?.[0] ?? "anytime",
-        scheduledTimesForApi: m.scheduled_times ?? [],
         rawDosage: m.dosage ?? "",
         rawFrequency: m.frequency ?? "",
       }));
@@ -184,10 +596,17 @@ const MedsScreen = () => {
   const medicationVoiceStreamRef = useRef<MediaStream | null>(null);
   const medicationVoiceChunksRef = useRef<Blob[]>([]);
   const medicationVoiceStopTimerRef = useRef<number | null>(null);
-  const [headlineIndex, setHeadlineIndex] = useState(0);
-  const [headlineVisible, setHeadlineVisible] = useState(true);
   const [remindersOpen, setRemindersOpen] = useState(false);
-  const [heroNow, setHeroNow] = useState(() => new Date());
+  const [safetyOpen, setSafetyOpen] = useState(false);
+  const [caseSheetOpen, setCaseSheetOpen] = useState(false);
+  const [reviewCase, setReviewCase] = useState<MedicationSafetyCase | null>(null);
+  const [caseForm, setCaseForm] = useState<MedicationSafetyCaseForm>(() => emptySafetyCaseForm());
+  const [caseExportText, setCaseExportText] = useState("");
+
+  const { data: safetyData, isLoading: safetyLoading, isError: safetyError } = useQuery<MedicationSafetyResponse>({
+    queryKey: ["/api/meds/safety"],
+    enabled: safetyOpen,
+  });
 
   // ─── Edit / Delete state ───────────────────────────────────────────────────
   const [editMed, setEditMed] = useState<DisplayMed | null>(null);
@@ -232,6 +651,82 @@ const MedsScreen = () => {
     },
     onError: () => {
       toast({ title: t("meds.deleteError", "Could not remove medication"), variant: "destructive" });
+    },
+  });
+
+  const analyseSafetyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiFetch("/api/meds/safety/analyse", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to analyse medication safety");
+      return res.json() as Promise<MedicationSafetyResponse>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/safety"] });
+      toast({ title: t("meds.safety.analyseSuccess", "Medication safety signals updated") });
+    },
+    onError: () => {
+      toast({ title: t("meds.safety.analyseError", "Could not analyse medication safety"), variant: "destructive" });
+    },
+  });
+
+  const saveSafetyCaseMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        ...caseForm,
+        suspected_medication: caseForm.suspected_medication.trim() || null,
+        reaction: caseForm.reaction.trim() || null,
+        reaction_started_at: caseForm.reaction_started_at || null,
+        outcome: caseForm.outcome.trim() || null,
+        action_taken: caseForm.action_taken.trim() || null,
+        reporter_name: caseForm.reporter_name.trim() || null,
+        reporter_contact: caseForm.reporter_contact.trim() || null,
+        reporter_role: caseForm.reporter_role.trim() || "patient_or_caregiver",
+        narrative: caseForm.narrative.trim() || null,
+      };
+      const endpoint = reviewCase?.id
+        ? `/api/meds/safety/cases/${reviewCase.id}`
+        : "/api/meds/safety/cases";
+      const res = await apiFetch(endpoint, {
+        method: reviewCase?.id ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Failed to save medication safety case");
+      return res.json() as Promise<{ case: MedicationSafetyCase; sent_to?: string[] }>;
+    },
+    onSuccess: (data) => {
+      setReviewCase(data.case);
+      setCaseForm(formFromSafetyCase(data.case));
+      setCaseExportText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/safety"] });
+      toast({
+        title: data.sent_to?.length
+          ? t("meds.safety.sharedSuccess", "Case shared with caregiver")
+          : t("meds.safety.saveSuccess", "Safety case saved"),
+      });
+    },
+    onError: () => {
+      toast({ title: t("meds.safety.saveError", "Could not save safety case"), variant: "destructive" });
+    },
+  });
+
+  const exportSafetyCaseMutation = useMutation({
+    mutationFn: async (caseId: string) => {
+      const res = await apiFetch(`/api/meds/safety/cases/${caseId}/export`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed to export medication safety case");
+      return res.json() as Promise<{
+        case: MedicationSafetyCase;
+        export: { human_readable_text: string; export_ready: boolean; missing_fields: string[] };
+      }>;
+    },
+    onSuccess: (data) => {
+      setReviewCase(data.case);
+      setCaseForm(formFromSafetyCase(data.case));
+      setCaseExportText(data.export.human_readable_text);
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/safety"] });
+      toast({ title: t("meds.safety.exportSuccess", "Audit-ready packet created") });
+    },
+    onError: () => {
+      toast({ title: t("meds.safety.exportError", "Could not export safety case"), variant: "destructive" });
     },
   });
 
@@ -287,11 +782,6 @@ const MedsScreen = () => {
     setConfirmedDoseCounts(new Map());
   }, [todayData]);
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setHeroNow(new Date()), MINUTE_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
   const effectiveTakenCount = (med: DisplayMed) =>
     Math.min(
       med.scheduledCountToday,
@@ -336,91 +826,55 @@ const MedsScreen = () => {
     0
   );
   const progressPercent = totalScheduledDoseCount > 0 ? (totalTakenDoseCount / totalScheduledDoseCount) * 100 : 0;
-  const rawHeadlines = t("meds.headlines", { returnObjects: true });
-  const headlines = Array.isArray(rawHeadlines) && rawHeadlines.length > 0 ? rawHeadlines as string[] : [];
-  const currentHeadline = headlines.length > 0 ? headlines[headlineIndex] : t("meds.headline");
-  const nextDoseReminder = pendingMeds
-    .map((med) => {
-      const scheduledTimes = med.scheduledTimesForApi
-        .map((time) => parseScheduledTimeForToday(time, heroNow))
-        .filter((time): time is Date => Boolean(time))
-        .sort((a, b) => a.getTime() - b.getTime());
-      const nextScheduledIndex = Math.min(effectiveTakenCount(med), Math.max(0, scheduledTimes.length - 1));
-      const scheduledAt = scheduledTimes[nextScheduledIndex] ?? null;
-
-      return {
-        med,
-        scheduledAt,
-        minutesUntil: scheduledAt
-          ? Math.round((scheduledAt.getTime() - heroNow.getTime()) / MINUTE_MS)
-          : null,
-      };
-    })
-    .sort((a, b) => {
-      const priority = (minutesUntil: number | null) =>
-        minutesUntil === null ? 2 : minutesUntil <= 0 ? 0 : 1;
-      const priorityDiff = priority(a.minutesUntil) - priority(b.minutesUntil);
-      if (priorityDiff !== 0) return priorityDiff;
-      if (a.minutesUntil === null || b.minutesUntil === null) return 0;
-      return a.minutesUntil - b.minutesUntil;
-    })[0] ?? null;
-  const allScheduledDosesDone = totalScheduledDoseCount > 0 && totalRemainingDoseCount === 0;
-  const medicationHeroHeadline = nextDoseReminder
-    ? t("meds.heroDoseHeadline", {
-        medication: nextDoseReminder.med.displayName,
-        defaultValue: "Don't forget your\n{{medication}}",
-      })
-    : allScheduledDosesDone
-      ? t("meds.heroAllDoneHeadline", {
-          defaultValue: "All medicines\ndone today",
-        })
-      : currentHeadline;
-  const medicationHeroSubtitle = nextDoseReminder
-    ? nextDoseReminder.minutesUntil === null
-      ? t("meds.heroDoseDueToday", {
-          defaultValue: "Due today. Tap Reminders when done.",
-        })
-      : nextDoseReminder.minutesUntil <= 0
-        ? t("meds.heroDoseDueNow", {
-            defaultValue: "Due now. Tap Reminders when done.",
-          })
-        : nextDoseReminder.minutesUntil < 60
-          ? t("meds.heroDoseDueInMinutes", {
-              count: Math.max(1, nextDoseReminder.minutesUntil),
-              defaultValue: "Due in {{count}} min. Tap Reminders when done.",
-            })
-          : t("meds.heroDoseDueAt", {
-              time: formatDoseTime(nextDoseReminder.scheduledAt ?? heroNow, language),
-              defaultValue: "Due at {{time}}. Tap Reminders when done.",
-            })
-    : allScheduledDosesDone
-      ? t("meds.heroAllDoneSub", {
-          defaultValue: "Nice work. Nothing else is due today.",
-        })
-      : todayLoading
-        ? t("meds.loadingSchedule", {
-            defaultValue: "Checking today's schedule...",
-          })
-        : todayData && displayMeds.length === 0
-          ? t("meds.noMedsScheduled")
-          : t("meds.takenToday", { taken: totalTakenDoseCount, total: totalScheduledDoseCount });
-  const hasPriorityHeroMessage = Boolean(nextDoseReminder) || allScheduledDosesDone;
-
-  useEffect(() => {
-    if (!headlines.length || hasPriorityHeroMessage) {
-      setHeadlineVisible(true);
-      return;
-    }
-    const fadeTimer = setTimeout(() => setHeadlineVisible(false), 3600);
-    const swapTimer = setTimeout(() => {
-      setHeadlineIndex((prev) => (prev + 1) % headlines.length);
-      setHeadlineVisible(true);
-    }, 3800);
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(swapTimer);
-    };
-  }, [hasPriorityHeroMessage, headlineIndex, headlines.length]);
+  const progressPercentRounded = Math.round(progressPercent);
+  const nextMedication = pendingMeds[0] ?? null;
+  const savedProviders = onboardingState?.profile?.data_sharing_consent?.providers?.providers ?? [];
+  const pharmacyProvider = useMemo(
+    () => savedProviders.find(isPharmacyProvider) ?? null,
+    [savedProviders],
+  );
+  const pharmacyPhone = providerPhone(pharmacyProvider);
+  const pharmacyPhoneHref = formatProviderPhoneHref(pharmacyPhone);
+  const profileConditions = cleanDashboardList([
+    ...(personalisationData?.conditions ?? []),
+    ...(onboardingState?.profile?.conditions?.map((condition) => condition.name) ?? []),
+    ...(onboardingState?.profile?.data_sharing_consent?.conditions?.health_conditions ?? []),
+  ]);
+  const profileMedications = cleanDashboardList([
+    ...displayMeds.map((med) => med.displayName),
+    ...(onboardingState?.profile?.medications?.map((med) => med.name ?? med.medication_name) ?? []),
+  ]);
+  const profileHobbies = cleanDashboardList([
+    ...(personalisationData?.hobbies ?? []),
+    ...(onboardingState?.profile?.data_sharing_consent?.hobbies?.hobbies ?? []),
+  ]);
+  const profileDietaryPreferences = cleanDashboardList([
+    ...(onboardingState?.profile?.data_sharing_consent?.diet?.dietary_preferences ?? []),
+    onboardingState?.profile?.data_sharing_consent?.diet?.dietary_notes,
+  ]);
+  const dashboardProfileSignals: DashboardProfileSignals = {
+    conditions: profileConditions,
+    medications: profileMedications,
+    mobilityLevel: onboardingState?.profile?.mobility_level ??
+      onboardingState?.profile?.data_sharing_consent?.conditions?.mobility_level ??
+      "",
+    livingSituation: onboardingState?.profile?.living_situation ??
+      onboardingState?.profile?.data_sharing_consent?.conditions?.living_situation ??
+      "",
+    hobbies: profileHobbies,
+    dietaryPreferences: profileDietaryPreferences,
+  };
+  const dashboardStatusText = todayLoading
+    ? t("meds.dashboard.loadingStatus", "Checking today's medicines")
+    : displayMeds.length === 0
+      ? t("meds.dashboard.emptyStatus", "Add medicines to start tracking today")
+      : totalRemainingDoseCount === 0
+        ? t("meds.dashboard.doneStatus", "All scheduled doses are done")
+        : progressPercentRounded >= 50
+          ? t("meds.dashboard.steadyStatus", "Today is mostly on track")
+          : t("meds.dashboard.watchStatus", "A few doses still need attention");
+  const healthTip = buildDashboardHealthTip(dashboardProfileSignals, t);
+  const exerciseTip = buildDashboardExerciseTip(dashboardProfileSignals, t);
 
   const ASSISTANT_ACTIONS = [
     {
@@ -664,12 +1118,65 @@ const MedsScreen = () => {
     });
   }
 
-  const primaryActions: Array<{
+  function openSafetyCaseSheet(safetyCase: MedicationSafetyCase) {
+    setReviewCase(safetyCase);
+    setCaseForm(formFromSafetyCase(safetyCase));
+    setCaseExportText("");
+    setCaseSheetOpen(true);
+  }
+
+  function openNewSafetyCaseSheet() {
+    const prefill = focusedMedication?.displayName ?? displayMeds[0]?.displayName ?? "";
+    setReviewCase(null);
+    setCaseForm(emptySafetyCaseForm(prefill));
+    setCaseExportText("");
+    setCaseSheetOpen(true);
+  }
+
+  function updateCaseForm<K extends keyof MedicationSafetyCaseForm>(key: K, value: MedicationSafetyCaseForm[K]) {
+    setCaseForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function toggleSeriousnessFlag(flag: string) {
+    setCaseForm((prev) => {
+      const hasFlag = prev.seriousness_flags.includes(flag);
+      return {
+        ...prev,
+        seriousness_flags: hasFlag
+          ? prev.seriousness_flags.filter((item) => item !== flag)
+          : [...prev.seriousness_flags, flag],
+      };
+    });
+  }
+
+  const safetySummary = safetyData?.summary;
+  const safetySummaryTone = safetyTone(safetySummary?.severity);
+  const visibleSafetySignals = [
+    ...(safetyData?.openCases?.map((safetyCase) => ({
+      id: safetyCase.id,
+      signal_type: safetyCase.signal_type,
+      severity: safetyCase.severity,
+      title: safetyCase.suspected_medication || signalTypeLabel(safetyCase.signal_type),
+      summary: safetyCase.reaction || safetyCase.missing_fields?.join(", ") || "Case needs review",
+      medication_name: safetyCase.suspected_medication,
+      source: "case",
+    })) ?? []),
+    ...(safetyData?.signals ?? []),
+    ...(safetyData?.signalCandidates ?? []),
+  ].slice(0, 5);
+  const safetyBadgeText = safetySummary
+    ? safetySummary.openCaseCount > 0
+      ? t("meds.safety.caseBadge", { count: safetySummary.openCaseCount, defaultValue: "{{count}} case" })
+      : safetySummary.signalCount > 0
+        ? t("meds.safety.signalBadge", { count: safetySummary.signalCount, defaultValue: "{{count}} signal" })
+        : t("meds.safety.steadyBadge", "Steady")
+    : t("meds.safety.steadyBadge", "Steady");
+
+  const shortcutActions: Array<{
     id: string;
     icon: LucideIcon;
     label: string;
     sub: string;
-    mobileSub: string;
     color: string;
     bg: string;
     onClick: () => void;
@@ -680,7 +1187,6 @@ const MedsScreen = () => {
       icon: Clock,
       label: t("meds.primary.reminders", "Reminders"),
       sub: t("meds.primary.remindersSub", "Review today's schedule and add medication reminders."),
-      mobileSub: t("meds.primary.remindersMobileSub", "Today's schedule"),
       color: "#7C3AED",
       bg: "#F5F3FF",
       onClick: () => setRemindersOpen((open) => !open),
@@ -691,7 +1197,6 @@ const MedsScreen = () => {
       icon: ShoppingCart,
       label: t("meds.primary.refills", "Refills"),
       sub: t("meds.primary.refillsSub", "Prepare repeat prescriptions or delivery."),
-      mobileSub: t("meds.primary.refillsMobileSub", "Pharmacy refills"),
       color: "#C9890A",
       bg: "#FEF3C7",
       onClick: openRefillSupport,
@@ -702,7 +1207,6 @@ const MedsScreen = () => {
       icon: AlertCircle,
       label: t("meds.primary.interactions", "Interactions"),
       sub: t("meds.primary.interactionsSub", "Check medicines and supplements."),
-      mobileSub: t("meds.primary.interactionsMobileSub", "Check the mix"),
       color: "#0A7C4E",
       bg: "#ECFDF5",
       onClick: () => openAssistant(
@@ -716,11 +1220,30 @@ const MedsScreen = () => {
       icon: BarChart2,
       label: t("meds.primary.adherence", "Adherence"),
       sub: t("meds.primary.adherenceSub", "See progress and missed doses."),
-      mobileSub: t("meds.primary.adherenceMobileSub", "Missed doses"),
       color: "#6B21A8",
       bg: "#EDE9FE",
       onClick: () => navigate("/meds/adherence-report"),
       testId: "button-meds-primary-adherence",
+    },
+    {
+      id: "safety",
+      icon: ShieldCheck,
+      label: t("meds.primary.safety", "Safety signals"),
+      sub: t("meds.primary.safetySub", "Review early signals and draft case packets."),
+      color: "#1D4ED8",
+      bg: "#EFF6FF",
+      onClick: () => setSafetyOpen((open) => !open),
+      testId: "button-meds-primary-safety",
+    },
+    {
+      id: "addByVoice",
+      icon: Mic,
+      label: medicationVoiceButtonLabel,
+      sub: t("meds.dashboard.addByVoiceSub", "Say a medicine name, dose, and routine."),
+      color: isRecordingMedicationVoice ? "#BE123C" : "#6B21A8",
+      bg: isRecordingMedicationVoice ? "#FEF2F2" : "#F5F3FF",
+      onClick: toggleMedicationVoiceCapture,
+      testId: "button-meds-primary-add-by-voice",
     },
   ];
 
@@ -733,18 +1256,283 @@ const MedsScreen = () => {
     }
   }
 
+  const adherenceValue = totalScheduledDoseCount > 0 ? `${progressPercentRounded}%` : "--";
+  const takenValue = totalScheduledDoseCount > 0 ? `${totalTakenDoseCount}/${totalScheduledDoseCount}` : "--";
+  const dashboardFocusNumber = todayLoading ? "..." : String(totalRemainingDoseCount);
+  const dashboardFocusLabel = displayMeds.length === 0
+    ? t("meds.dashboard.noPlanLabel", "No plan yet")
+    : totalRemainingDoseCount === 0
+      ? t("meds.dashboard.allClearLabel", "All clear today")
+      : t("meds.dashboard.dosesLeftLabel", "doses left today");
+  const nextDoseDueCount = nextMedication ? remainingDoseCount(nextMedication) : 0;
   return (
-    <div className="px-[22px]">
-      <VoiceHero
-        headline={<span style={{ opacity: headlineVisible ? 1 : 0, transition: "opacity 0.28s ease, transform 0.28s ease", display: "inline-block", transform: headlineVisible ? "translateY(0)" : "translateY(6px)" }}>{medicationHeroHeadline}</span>}
-        subtitle={medicationHeroSubtitle}
-        contextHint="medication reminder"
-        voiceAgentSlug="meds"
-      >
-        <div className="w-full h-[6px] rounded-full mt-3" style={{ background: "rgba(255,255,255,0.15)" }}>
-          <div className="h-full rounded-full transition-all" style={{ width: `${progressPercent}%`, background: "#34D399" }} />
+    <div className="px-[18px] pb-28 sm:px-[22px]">
+      <section className="mt-4" data-testid="section-meds-dashboard">
+        <article className="overflow-hidden rounded-[26px] border border-[#D9ECE4] bg-white shadow-[0_14px_32px_rgba(15,76,69,0.08)] sm:rounded-[30px]">
+          <div className="p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+                <Pill size={24} strokeWidth={2.4} aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h1 className="font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:text-[29px]">
+                  {t("meds.dashboard.title", "Medication dashboard")}
+                </h1>
+                <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2 sm:text-[16px]">
+                  {dashboardStatusText}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid items-start gap-3 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)]">
+              <div className="flex min-h-[118px] flex-col justify-between rounded-[24px] bg-[#123F3A] px-5 py-4 text-white sm:min-h-[132px] lg:min-h-[154px]" data-testid="metric-meds-due">
+                <p className="font-body text-[12px] font-black uppercase text-white/70">
+                  {t("meds.dashboard.focusNow", "Focus now")}
+                </p>
+                <div className="mt-3 flex items-end gap-3">
+                  <p className="font-body text-[68px] font-black leading-none [letter-spacing:0]">
+                    {dashboardFocusNumber}
+                  </p>
+                  <p className="mb-2 font-body text-[17px] font-black leading-tight text-white">
+                    {dashboardFocusLabel}
+                  </p>
+                </div>
+              </div>
+
+              <div className="min-w-0 rounded-[22px] border border-[#EFE6D8] bg-[#FCFBF8] p-4" data-testid="section-meds-next">
+                <p className="font-body text-[12px] font-black uppercase text-vyva-text-3">
+                  {t("meds.dashboard.nextMedicine", "Next medicine")}
+                </p>
+                {todayLoading ? (
+                  <p className="mt-1 font-body text-[20px] font-black text-vyva-text-1">
+                    {t("meds.dashboard.checkingSchedule", "Checking schedule...")}
+                  </p>
+                ) : nextMedication ? (
+                  <>
+                    <h2 className="mt-1 font-body text-[27px] font-black leading-tight text-vyva-text-1">
+                      {nextMedication.displayName}
+                    </h2>
+                    <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                      {nextMedication.displayNote || t("meds.dashboard.dailyRoutine", "Daily routine")}
+                      {" "}
+                      <span className="text-[#B45309]">
+                        {t("meds.dashboard.scheduledTime", { time: nextMedication.scheduledTimeForApi, defaultValue: "at {{time}}" })}
+                      </span>
+                    </p>
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <button
+                        data-testid="button-confirm-next-med"
+                        type="button"
+                        onClick={() => confirmMutation.mutate(nextMedication)}
+                        disabled={confirmMutation.isPending}
+                        className="vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-6 font-body text-[17px] font-black text-white shadow-[0_10px_22px_rgba(109,40,217,0.20)] disabled:opacity-60"
+                      >
+                        <Check size={19} aria-hidden="true" />
+                        {t("meds.dashboard.confirmNext", "Confirm taken")}
+                      </button>
+                      <span className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-[#FEF3C7] px-4 font-body text-[14px] font-black text-[#92400E]">
+                        {t("meds.dashboard.doseDue", { count: nextDoseDueCount, defaultValue: "{{count}} dose due" })}
+                      </span>
+                    </div>
+                  </>
+                ) : displayMeds.length > 0 ? (
+                  <div className="mt-1 text-emerald-800" data-testid="status-meds-dashboard-done">
+                    <p className="font-body text-[22px] font-black leading-tight">
+                      {t("meds.dashboard.allDoneTitle", "All scheduled doses are done")}
+                    </p>
+                    <p className="mt-1 font-body text-[14px] font-bold leading-snug">
+                      {t("meds.dashboard.allDoneSub", "Your medicine routine is complete for today.")}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-1">
+                    <p className="font-body text-[22px] font-black leading-tight text-vyva-text-1">
+                      {t("meds.noMedsTitle", "No medications added yet")}
+                    </p>
+                    <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                      {t("meds.noMedsSub", "Use the button below to add your medications by voice")}
+                    </p>
+                    <button
+                      data-testid="button-meds-dashboard-add-by-voice-empty"
+                      type="button"
+                      onClick={toggleMedicationVoiceCapture}
+                      disabled={isTranscribingMedicationVoice}
+                      className={`vyva-tap mt-4 inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full px-5 font-body text-[16px] font-black text-white disabled:cursor-wait disabled:opacity-70 ${
+                        isRecordingMedicationVoice ? "bg-[#BE123C]" : "bg-vyva-purple"
+                      }`}
+                      aria-label={medicationVoiceButtonLabel}
+                    >
+                      {isTranscribingMedicationVoice ? <Loader2 size={17} className="animate-spin" /> : <Mic size={17} />}
+                      {medicationVoiceButtonLabel}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div className="mt-3 rounded-[18px] border border-[#E1E8E4] bg-[#F8FEFC] px-4 py-3">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 font-body text-[13px] font-black text-vyva-text-2">
+                <span data-testid="metric-meds-taken">
+                  {t("meds.dashboard.takenToday", "Taken today")}: <span className="text-vyva-text-1">{takenValue}</span>
+                </span>
+                <span data-testid="metric-meds-adherence">
+                  {t("meds.dashboard.adherence", "Adherence")}: <span className="text-vyva-text-1">{adherenceValue}</span>
+                </span>
+                <span data-testid="metric-meds-count">
+                  {t("meds.dashboard.medicines", "Medicines")}: <span className="text-vyva-text-1">{displayMeds.length}</span>
+                </span>
+              </div>
+            </div>
+
+            <div
+              className="mt-3 rounded-[22px] border border-[#E1E8E4] bg-white p-4"
+              data-testid="section-meds-dashboard-tips"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+                  <Sparkles size={20} strokeWidth={2.4} aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                    {t("meds.dashboard.personalGuidance", "Personal guidance")}
+                  </h2>
+                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                    {t("meds.dashboard.guidanceSub", "Small steps matched to the health profile VYVA can see.")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="min-w-0 border-l-4 border-[#3B82F6] pl-3" data-testid="card-meds-health-tip">
+                  <div className="flex items-center gap-2">
+                    <HeartPulse size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#1D4ED8]" aria-hidden="true" />
+                    <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                      {t("meds.dashboard.healthTipTitle", "Health tip")}
+                    </h3>
+                  </div>
+                  <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#EFF6FF] px-2.5 font-body text-[11px] font-black leading-none text-[#1D4ED8]">
+                    {healthTip.context}
+                  </p>
+                  <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {healthTip.text}
+                  </p>
+                </div>
+                <div className="min-w-0 border-l-4 border-[#10B981] pl-3" data-testid="card-meds-exercise-tip">
+                  <div className="flex items-center gap-2">
+                    <Footprints size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#047857]" aria-hidden="true" />
+                    <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                      {t("meds.dashboard.exerciseTipTitle", "Exercise tip")}
+                    </h3>
+                  </div>
+                  <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#ECFDF5] px-2.5 font-body text-[11px] font-black leading-none text-[#047857]">
+                    {exerciseTip.context}
+                  </p>
+                  <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {exerciseTip.text}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="mt-3 flex min-w-0 flex-col justify-between rounded-[22px] border border-[#D9ECE4] bg-[#F8FEFC] p-4 sm:flex-row sm:items-center sm:gap-4"
+              data-testid="panel-meds-pharmacy"
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFEFF] text-[#0F766E]">
+                  <Store size={20} strokeWidth={2.4} aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[12px] font-black uppercase text-vyva-text-3">
+                    {t("meds.dashboard.pharmacy", "Pharmacy")}
+                  </p>
+                  <h2 className="mt-1 font-body text-[19px] font-black leading-tight text-vyva-text-1" data-testid="text-meds-pharmacy-name">
+                    {pharmacyProvider?.name || t("meds.dashboard.noPharmacyTitle", "No pharmacy saved yet")}
+                  </h2>
+                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                    {pharmacyPhone || pharmacyProvider?.address || t("meds.dashboard.noPharmacySub", "Add a pharmacy so contact details are ready.")}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-0 sm:min-w-[300px]">
+                {pharmacyPhoneHref ? (
+                  <a
+                    data-testid="link-meds-pharmacy-phone"
+                    href={pharmacyPhoneHref}
+                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                  >
+                    <Phone size={17} aria-hidden="true" />
+                    {t("meds.dashboard.callPharmacy", "Call pharmacy")}
+                  </a>
+                ) : (
+                  <button
+                    data-testid="button-meds-pharmacy-add"
+                    type="button"
+                    onClick={() => navigate("/onboarding/profile/providers")}
+                    className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#BDEBD8] bg-white px-3 font-body text-[14px] font-black text-[#047857]"
+                  >
+                    <Plus size={17} aria-hidden="true" />
+                    {t("meds.dashboard.addPharmacy", "Add pharmacy")}
+                  </button>
+                )}
+                <button
+                  data-testid="button-meds-pharmacy-order"
+                  type="button"
+                  onClick={openRefillSupport}
+                  className="vyva-tap inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-3 font-body text-[14px] font-black text-white"
+                >
+                  <ShoppingCart size={17} aria-hidden="true" />
+                  {t("meds.dashboard.orderRefill", "Order refill")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="mt-3" data-testid="section-meds-primary-actions">
+        <h2 className="sr-only">{t("meds.dashboard.actionsTitle", "What can I do next?")}</h2>
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          {shortcutActions.map((action) => {
+            const Icon = action.icon;
+            const selected = (action.id === "reminders" && remindersOpen) || (action.id === "safety" && safetyOpen);
+            return (
+              <button
+                key={action.id}
+                type="button"
+                data-testid={action.testId}
+                onClick={action.onClick}
+                disabled={action.id === "addByVoice" && isTranscribingMedicationVoice}
+                aria-expanded={
+                  action.id === "reminders"
+                    ? remindersOpen
+                    : action.id === "safety"
+                      ? safetyOpen
+                      : undefined
+                }
+                aria-label={action.id === "addByVoice" ? medicationVoiceButtonLabel : `${action.label}. ${action.sub}`}
+                className={`vyva-tap flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-[18px] border bg-white px-2 py-3 text-center shadow-[0_8px_18px_rgba(31,41,55,0.05)] transition ${selected ? "border-vyva-purple ring-2 ring-vyva-purple/20" : "border-[#E1E8E4]"}`}
+              >
+                <span
+                  className="flex h-9 w-9 items-center justify-center rounded-[14px]"
+                  style={{ background: action.bg, color: action.color }}
+                >
+                  <Icon size={19} strokeWidth={2.5} aria-hidden="true" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[12px] font-black leading-tight text-vyva-text-1 sm:text-[13px]">
+                    {action.label}
+                  </span>
+                  <span className="sr-only">
+                    {action.sub}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
         </div>
-      </VoiceHero>
+      </section>
 
       <VoiceActionFulfillmentPanel
         domain="meds"
@@ -799,32 +1587,202 @@ const MedsScreen = () => {
         </section>
       )}
 
-      <section className="mt-[22px]" data-testid="section-meds-primary-actions">
-        <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2" data-testid="grid-meds-primary-actions">
-          {primaryActions.map((action) => (
-            <ActionCard
-              key={action.id}
-              data-testid={action.testId}
-              icon={action.icon}
-              iconBg={action.bg}
-              iconColor={action.color}
-              title={action.label}
-              description={
-                <>
-                  <span className="sm:hidden">{action.mobileSub}</span>
-                  <span className="hidden sm:inline">{action.sub}</span>
-                </>
-              }
-              size="standard"
-              surface="white"
-              contentClassName="justify-start"
-              selected={action.id === "reminders" && remindersOpen}
-              aria-expanded={action.id === "reminders" ? remindersOpen : undefined}
-              onClick={action.onClick}
-            />
-          ))}
-        </ResponsiveGrid>
-      </section>
+      {safetyOpen ? (
+        <section className="mt-5" data-testid="section-meds-safety">
+          <SectionTitle
+            className="mb-3"
+            title={t("meds.safety.title", "Medication safety signals")}
+            subtitle={t("meds.safety.subtitle", "Early signal review and audit-ready case packets.")}
+            titleClassName="font-body text-[22px] font-extrabold not-italic"
+            action={(
+              <span
+                className="inline-flex min-h-[32px] items-center rounded-full border px-3 font-body text-[12px] font-bold"
+                style={{
+                  background: safetySummaryTone.bg,
+                  color: safetySummaryTone.color,
+                  borderColor: safetySummaryTone.border,
+                }}
+              >
+                {safetyBadgeText}
+              </span>
+            )}
+          />
+
+          <div className="vyva-card overflow-hidden">
+            {safetyLoading ? (
+              <div className="space-y-3 p-4">
+                <div className="h-4 w-2/3 animate-pulse rounded bg-gray-200" />
+                <div className="h-3 w-full animate-pulse rounded bg-gray-100" />
+                <div className="h-20 animate-pulse rounded-[18px] bg-gray-100" />
+              </div>
+            ) : safetyError ? (
+              <div className="flex items-start gap-3 p-4">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-red-50 text-red-600">
+                  <AlertCircle size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[16px] font-extrabold text-vyva-text-1">
+                    {t("meds.safety.loadErrorTitle", "Safety signals unavailable")}
+                  </p>
+                  <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                    {t("meds.safety.loadErrorSub", "Try again in a moment. Reminders and adherence are still available.")}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="border-b border-vyva-border bg-[#FFFCF8] p-4">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]"
+                      style={{ background: safetySummaryTone.bg, color: safetySummaryTone.color }}
+                    >
+                      <ShieldCheck size={22} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-body text-[17px] font-extrabold leading-tight text-vyva-text-1">
+                        {safetySummary?.title ?? t("meds.safety.steadyTitle", "No medication safety signals found")}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                        {safetySummary?.message ?? t("meds.safety.steadySub", "Today looks steady from the medication data VYVA can see.")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="rounded-[16px] bg-white p-3">
+                      <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">
+                        {t("meds.safety.statSignals", "Signals")}
+                      </p>
+                      <p className="mt-1 font-body text-[22px] font-black text-vyva-text-1">
+                        {safetySummary?.signalCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-[16px] bg-white p-3">
+                      <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">
+                        {t("meds.safety.statCases", "Cases")}
+                      </p>
+                      <p className="mt-1 font-body text-[22px] font-black text-vyva-text-1">
+                        {safetySummary?.openCaseCount ?? 0}
+                      </p>
+                    </div>
+                    <div className="rounded-[16px] bg-white p-3">
+                      <p className="font-body text-[11px] font-bold uppercase tracking-[0.06em] text-vyva-text-3">
+                        {t("meds.safety.statReady", "Ready")}
+                      </p>
+                      <p className="mt-1 font-body text-[22px] font-black text-vyva-text-1">
+                        {safetyData?.exportAvailability?.readyCount ?? 0}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 p-4">
+                  {visibleSafetySignals.length > 0 ? (
+                    visibleSafetySignals.map((signal, index) => {
+                      const tone = safetyTone(signal.severity);
+                      return (
+                        <div
+                          key={`${signal.id ?? signal.signal_type}-${index}`}
+                          className="rounded-[18px] border bg-white p-4"
+                          style={{ borderColor: tone.border }}
+                          data-testid={`card-meds-safety-signal-${index}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-body text-[15px] font-extrabold leading-tight text-vyva-text-1">
+                                {signal.title}
+                              </p>
+                              <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                                {signal.summary}
+                              </p>
+                              {signal.medication_name ? (
+                                <p className="mt-2 font-body text-[12px] font-bold text-vyva-purple">
+                                  {signal.medication_name}
+                                </p>
+                              ) : null}
+                            </div>
+                            <span
+                              className="inline-flex min-h-[28px] flex-shrink-0 items-center rounded-full px-2.5 font-body text-[11px] font-bold"
+                              style={{ background: tone.bg, color: tone.color }}
+                            >
+                              {signalTypeLabel(signal.signal_type)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-[18px] border border-vyva-border bg-white p-4 text-center">
+                      <p className="font-body text-[15px] font-extrabold text-vyva-text-1">
+                        {t("meds.safety.emptyTitle", "No case needed right now")}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
+                        {t("meds.safety.emptySub", "A single missed confirmation stays in reminders. Draft cases appear only for explicit or repeated signals.")}
+                      </p>
+                    </div>
+                  )}
+
+                  {safetyData?.openCases?.length ? (
+                    <div className="flex flex-col gap-2">
+                      {safetyData.openCases.map((safetyCase, index) => {
+                        const tone = safetyTone(safetyCase.severity);
+                        return (
+                          <button
+                            key={safetyCase.id}
+                            type="button"
+                            data-testid={`button-review-safety-case-${index}`}
+                            onClick={() => openSafetyCaseSheet(safetyCase)}
+                            className="vyva-tap flex min-h-[76px] w-full items-center gap-3 rounded-[18px] border bg-[#FCFBF8] px-4 py-3 text-left"
+                            style={{ borderColor: tone.border }}
+                          >
+                            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]" style={{ background: tone.bg, color: tone.color }}>
+                              <FileText size={20} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-body text-[15px] font-extrabold leading-tight text-vyva-text-1">
+                                {safetyCase.suspected_medication || t("meds.safety.caseFallback", "Medication safety case")}
+                              </span>
+                              <span className="mt-1 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                                {safetyCase.export_ready
+                                  ? t("meds.safety.readyToExport", "Ready to export")
+                                  : t("meds.safety.missingFields", { count: safetyCase.missing_fields?.length ?? 0, defaultValue: "{{count}} fields missing" })}
+                              </span>
+                            </span>
+                            <ChevronRight size={19} className="flex-shrink-0 text-vyva-text-3" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      data-testid="button-meds-safety-analyse"
+                      type="button"
+                      onClick={() => analyseSafetyMutation.mutate()}
+                      disabled={analyseSafetyMutation.isPending}
+                      className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[15px] font-bold text-white disabled:opacity-60"
+                    >
+                      {analyseSafetyMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+                      {t("meds.safety.analyse", "Analyse signals")}
+                    </button>
+                    <button
+                      data-testid="button-meds-safety-new-case"
+                      type="button"
+                      onClick={openNewSafetyCaseSheet}
+                      className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full border border-vyva-purple bg-white px-5 font-body text-[15px] font-bold text-vyva-purple"
+                    >
+                      <FileText size={16} />
+                      {t("meds.safety.newCase", "New side-effect note")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       {remindersOpen ? (
       <section className="mt-5" data-testid="section-meds-reminders">
@@ -1105,6 +2063,242 @@ const MedsScreen = () => {
         title={assistantTitle}
         initialPrompt={assistantPrompt}
       />
+
+      {caseSheetOpen ? (
+        <PurpleModal
+          Icon={ShieldCheck}
+          kicker={t("meds.safety.kicker", "Medication safety")}
+          title={reviewCase ? t("meds.safety.reviewCase", "Review safety case") : t("meds.safety.newCaseTitle", "New safety case")}
+          subtitle={t("meds.safety.caseDrawerSub", "Prepare a review packet. This does not submit anything to a regulator.")}
+          titleId="medication-safety-case-title"
+          onClose={() => setCaseSheetOpen(false)}
+          closeLabel={t("common.close", "Close")}
+          panelTestId="sheet-meds-safety-case"
+          size="wide"
+          bodyClassName="flex max-h-[calc(88vh-150px)] flex-col p-0"
+        >
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {reviewCase?.missing_fields?.length ? (
+              <div className="mb-4 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-3">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-amber-800">
+                  {t("meds.safety.missingTitle", "Missing for audit-ready export")}
+                </p>
+                <p className="mt-1 font-body text-[13px] leading-snug text-amber-800">
+                  {reviewCase.missing_fields.join(", ")}
+                </p>
+              </div>
+            ) : reviewCase ? (
+              <div className="mb-4 rounded-[16px] border border-emerald-200 bg-emerald-50 px-3 py-3">
+                <p className="font-body text-[13px] font-bold text-emerald-800">
+                  {t("meds.safety.readyTitle", "All export fields are filled")}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-status">{t("meds.safety.status", "Status")}</Label>
+                  <select
+                    id="safety-case-status"
+                    data-testid="select-safety-case-status"
+                    value={caseForm.status}
+                    onChange={(event) => updateCaseForm("status", event.target.value as MedicationSafetyCaseStatus)}
+                    className="h-10 rounded-md border border-vyva-border bg-white px-3 font-body text-[14px]"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="needs_review">Needs review</option>
+                    <option value="shared">Shared</option>
+                    <option value="closed">Closed</option>
+                    <option value="dismissed">Dismissed</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-severity">{t("meds.safety.severity", "Severity")}</Label>
+                  <select
+                    id="safety-case-severity"
+                    data-testid="select-safety-case-severity"
+                    value={caseForm.severity}
+                    onChange={(event) => updateCaseForm("severity", event.target.value as MedicationSafetySeverity)}
+                    className="h-10 rounded-md border border-vyva-border bg-white px-3 font-body text-[14px]"
+                  >
+                    <option value="watch">Watch</option>
+                    <option value="attention">Attention</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-med">{t("meds.safety.suspectedMedication", "Suspected medication")}</Label>
+                <Input
+                  id="safety-case-med"
+                  data-testid="input-safety-case-medication"
+                  value={caseForm.suspected_medication}
+                  onChange={(event) => updateCaseForm("suspected_medication", event.target.value)}
+                  placeholder={t("meds.safety.medicationPlaceholder", "e.g. Metformin")}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-reaction">{t("meds.safety.reaction", "Symptom or reaction")}</Label>
+                <Input
+                  id="safety-case-reaction"
+                  data-testid="input-safety-case-reaction"
+                  value={caseForm.reaction}
+                  onChange={(event) => updateCaseForm("reaction", event.target.value)}
+                  placeholder={t("meds.safety.reactionPlaceholder", "e.g. dizziness after taking dose")}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-started">{t("meds.safety.reactionStarted", "Reaction start date")}</Label>
+                <Input
+                  id="safety-case-started"
+                  data-testid="input-safety-case-started"
+                  type="date"
+                  value={caseForm.reaction_started_at}
+                  onChange={(event) => updateCaseForm("reaction_started_at", event.target.value)}
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 font-body text-[13px] font-bold text-vyva-text-1">
+                  {t("meds.safety.seriousness", "Seriousness assessment")}
+                </p>
+                <div className="grid grid-cols-1 gap-2">
+                  {SERIOUSNESS_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="flex min-h-[40px] items-center gap-3 rounded-[14px] border border-vyva-border bg-white px-3 py-2 font-body text-[13px] font-semibold text-vyva-text-1"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={caseForm.seriousness_flags.includes(option.value)}
+                        onChange={() => toggleSeriousnessFlag(option.value)}
+                        className="h-4 w-4 accent-vyva-purple"
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-outcome">{t("meds.safety.outcome", "Outcome")}</Label>
+                  <Input
+                    id="safety-case-outcome"
+                    data-testid="input-safety-case-outcome"
+                    value={caseForm.outcome}
+                    onChange={(event) => updateCaseForm("outcome", event.target.value)}
+                    placeholder={t("meds.safety.outcomePlaceholder", "e.g. improving")}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-action">{t("meds.safety.actionTaken", "Action taken")}</Label>
+                  <Input
+                    id="safety-case-action"
+                    data-testid="input-safety-case-action"
+                    value={caseForm.action_taken}
+                    onChange={(event) => updateCaseForm("action_taken", event.target.value)}
+                    placeholder={t("meds.safety.actionPlaceholder", "e.g. called pharmacist")}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-reporter">{t("meds.safety.reporterName", "Reporter name")}</Label>
+                  <Input
+                    id="safety-case-reporter"
+                    data-testid="input-safety-case-reporter"
+                    value={caseForm.reporter_name}
+                    onChange={(event) => updateCaseForm("reporter_name", event.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="safety-case-contact">{t("meds.safety.reporterContact", "Reporter contact")}</Label>
+                  <Input
+                    id="safety-case-contact"
+                    data-testid="input-safety-case-contact"
+                    value={caseForm.reporter_contact}
+                    onChange={(event) => updateCaseForm("reporter_contact", event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="safety-case-narrative">{t("meds.safety.narrative", "Narrative")}</Label>
+                <Textarea
+                  id="safety-case-narrative"
+                  data-testid="textarea-safety-case-narrative"
+                  value={caseForm.narrative}
+                  onChange={(event) => updateCaseForm("narrative", event.target.value)}
+                  placeholder={t("meds.safety.narrativePlaceholder", "Add context without guessing or diagnosing.")}
+                  className="min-h-[96px] rounded-[16px] font-body text-[14px]"
+                />
+              </div>
+
+              {reviewCase?.evidence?.length ? (
+                <div className="rounded-[16px] border border-vyva-border bg-[#FCFBF8] px-3 py-3">
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                    {t("meds.safety.evidence", "Evidence timeline")}
+                  </p>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {reviewCase.evidence.slice(0, 4).map((item, index) => (
+                      <p key={index} className="font-body text-[12px] leading-snug text-vyva-text-2">
+                        {JSON.stringify(item)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {caseExportText ? (
+                <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-3 py-3">
+                  <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.08em] text-emerald-800">
+                    {t("meds.safety.exportPacket", "Export packet")}
+                  </p>
+                  <Textarea
+                    readOnly
+                    value={caseExportText}
+                    className="min-h-[180px] rounded-[14px] bg-white font-mono text-[11px]"
+                    data-testid="textarea-safety-case-export"
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex-shrink-0 border-t border-vyva-border bg-white px-5 py-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                data-testid="button-safety-case-save"
+                type="button"
+                onClick={() => saveSafetyCaseMutation.mutate()}
+                disabled={saveSafetyCaseMutation.isPending}
+                className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+              >
+                {saveSafetyCaseMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                {t("common.save", "Save")}
+              </button>
+              <button
+                data-testid="button-safety-case-export"
+                type="button"
+                onClick={() => {
+                  if (reviewCase?.id) exportSafetyCaseMutation.mutate(reviewCase.id);
+                }}
+                disabled={!reviewCase?.id || exportSafetyCaseMutation.isPending}
+                className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
+              >
+                {exportSafetyCaseMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                {t("meds.safety.export", "Export packet")}
+              </button>
+            </div>
+          </div>
+        </PurpleModal>
+      ) : null}
 
       {editMed ? (
         <PurpleModal
