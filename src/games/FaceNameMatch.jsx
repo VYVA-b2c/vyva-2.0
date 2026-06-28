@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Loader2, Users } from "lucide-react";
-import { supabase } from "../lib/supabaseClient";
+import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
 import FaceAvatar from "./FaceAvatar";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
@@ -413,8 +413,8 @@ export default function FaceNameMatch({ userId, onExit }) {
   const loadUserState = useCallback(async () => {
     if (!userId) return defaultUserState(userId);
 
-    const { data, error } = await supabase
-      .from("face_name_user_state")
+    const { data, error } = await gameData
+      .table("face_name_user_state")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -423,8 +423,8 @@ export default function FaceNameMatch({ userId, onExit }) {
     if (data) return data;
 
     const initial = defaultUserState(userId);
-    const { data: created, error: upsertError } = await supabase
-      .from("face_name_user_state")
+    const { data: created, error: upsertError } = await gameData
+      .table("face_name_user_state")
       .upsert(initial, { onConflict: "user_id" })
       .single();
 
@@ -439,8 +439,8 @@ export default function FaceNameMatch({ userId, onExit }) {
     const start = localDayStart();
     const languageOrder = [...new Set([faceLanguage, "es", "en", "de"])];
 
-    const { data: todaySessions, error: todayError } = await supabase
-      .from("face_name_sessions")
+    const { data: todaySessions, error: todayError } = await gameData
+      .table("face_name_sessions")
       .select("set_id")
       .eq("user_id", userId)
       .gte("played_at", start.toISOString())
@@ -451,8 +451,8 @@ export default function FaceNameMatch({ userId, onExit }) {
     const playedToday = new Set((todaySessions ?? []).map((session) => session.set_id).filter(Boolean));
 
     for (const setLanguage of languageOrder) {
-      const { data: rows, error: setError } = await supabase
-        .from("face_name_sets")
+      const { data: rows, error: setError } = await gameData
+        .table("face_name_sets")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true)
@@ -465,8 +465,8 @@ export default function FaceNameMatch({ userId, onExit }) {
       if (unused.length) return resolveSetData(unused[Math.floor(Math.random() * unused.length)]);
 
       if (sets.length) {
-        const { data: history, error: historyError } = await supabase
-          .from("face_name_sessions")
+        const { data: history, error: historyError } = await gameData
+          .table("face_name_sessions")
           .select("set_id,played_at")
           .eq("user_id", userId)
           .eq("difficulty_tier", tier)
@@ -489,8 +489,8 @@ export default function FaceNameMatch({ userId, onExit }) {
 
   const resolveSetData = useCallback(async (setRow) => {
     const setPersonaIds = asArray(setRow.persona_ids);
-    const { data, error } = await supabase
-      .from("face_name_personas")
+    const { data, error } = await gameData
+      .table("face_name_personas")
       .select("*")
       .eq("is_active", true)
       .limit(100);
@@ -609,7 +609,7 @@ export default function FaceNameMatch({ userId, onExit }) {
       duration_seconds: Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)),
     };
 
-    const { data } = await supabase.from("face_name_sessions").insert(payload);
+    const { data } = await gameData.table("face_name_sessions").insert(payload);
     const savedSession = Array.isArray(data) ? data[0] : data;
 
     await recordCognitiveSession({
@@ -693,7 +693,7 @@ export default function FaceNameMatch({ userId, onExit }) {
 
     setUserState(next);
     if (userId && selectedSet?.id) {
-      await supabase.from("face_name_user_state").upsert(next, { onConflict: "user_id" });
+      await gameData.table("face_name_user_state").upsert(next, { onConflict: "user_id" });
     }
     return next;
   }, [selectedSet?.id, userId, userState]);

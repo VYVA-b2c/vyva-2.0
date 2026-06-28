@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import NumberTrails, { pickFreshNumberTrailConfig } from "./NumberTrails";
 
-const supabaseMock = vi.hoisted(() => {
+const gameDataMock = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
   const from = vi.fn(() => {
     const query: Record<string, unknown> = {};
@@ -29,9 +29,9 @@ const supabaseMock = vi.hoisted(() => {
   return { from, queue };
 });
 
-vi.mock("../lib/supabaseClient", () => ({
-  supabase: {
-    from: supabaseMock.from,
+vi.mock("./shared/gameDataApi", () => ({
+  gameData: {
+    table: gameDataMock.from,
   },
 }));
 
@@ -54,8 +54,8 @@ describe("NumberTrails", () => {
   beforeEach(() => {
     window.localStorage.clear();
     setLanguage("es");
-    supabaseMock.queue.length = 0;
-    supabaseMock.from.mockClear();
+    gameDataMock.queue.length = 0;
+    gameDataMock.from.mockClear();
   });
 
   it("plays a local practice trail, ignores an out-of-order tap, completes, and exits", async () => {
@@ -166,7 +166,7 @@ describe("NumberTrails", () => {
       is_active: true,
     };
 
-    supabaseMock.queue.push(
+    gameDataMock.queue.push(
       { data: userState, error: null },
       { data: [], error: null },
       { data: [config], error: null },

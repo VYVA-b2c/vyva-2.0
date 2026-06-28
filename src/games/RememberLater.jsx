@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
-import { supabase } from "../lib/supabaseClient";
+import { gameData } from "./shared/gameDataApi";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -375,8 +375,8 @@ export default function RememberLater({ userId, onExit }) {
       };
     }
 
-    const { data, error } = await supabase
-      .from("remember_later_user_state")
+    const { data, error } = await gameData
+      .table("remember_later_user_state")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -387,8 +387,8 @@ export default function RememberLater({ userId, onExit }) {
     }
 
     const fallback = getDefaultRememberLaterUserState(userId);
-    const saved = await supabase
-      .from("remember_later_user_state")
+    const saved = await gameData
+      .table("remember_later_user_state")
       .upsert(fallback, { onConflict: "user_id" })
       .select("*")
       .single();
@@ -405,14 +405,14 @@ export default function RememberLater({ userId, onExit }) {
 
     const { start, end } = localDayBounds();
     const [todaySessionsResult, roundsResult] = await Promise.all([
-      supabase
-        .from("remember_later_sessions")
+      gameData
+        .table("remember_later_sessions")
         .select("round_id")
         .eq("user_id", userId)
         .gte("played_at", start.toISOString())
         .lt("played_at", end.toISOString()),
-      supabase
-        .from("remember_later_rounds")
+      gameData
+        .table("remember_later_rounds")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true),
@@ -428,8 +428,8 @@ export default function RememberLater({ userId, onExit }) {
       return freshRound;
     }
 
-    const historyResult = await supabase
-      .from("remember_later_sessions")
+    const historyResult = await gameData
+      .table("remember_later_sessions")
       .select("round_id, played_at")
       .eq("user_id", userId)
       .not("round_id", "is", null)
@@ -503,8 +503,8 @@ export default function RememberLater({ userId, onExit }) {
       duration_seconds: result.duration_seconds,
     };
 
-    const saved = await supabase
-      .from("remember_later_sessions")
+    const saved = await gameData
+      .table("remember_later_sessions")
       .insert(payload)
       .select("*")
       .single();
@@ -557,8 +557,8 @@ export default function RememberLater({ userId, onExit }) {
     const next = getNextRememberLaterStateAfterSession(latestState, result);
     setUserState(next);
 
-    const saved = await supabase
-      .from("remember_later_user_state")
+    const saved = await gameData
+      .table("remember_later_user_state")
       .upsert(next, { onConflict: "user_id" })
       .select("*")
       .single();
@@ -670,8 +670,8 @@ export default function RememberLater({ userId, onExit }) {
       return;
     }
 
-    const saved = await supabase
-      .from("remember_later_user_state")
+    const saved = await gameData
+      .table("remember_later_user_state")
       .upsert(next, { onConflict: "user_id" })
       .select("*")
       .single();
