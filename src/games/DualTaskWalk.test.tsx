@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import DualTaskWalk from "./DualTaskWalk";
 
-const supabaseMock = vi.hoisted(() => {
+const gameDataMock = vi.hoisted(() => {
   const query: Record<string, unknown> = {
     data: [],
     error: null,
@@ -22,8 +22,10 @@ const supabaseMock = vi.hoisted(() => {
   };
 });
 
-vi.mock("../lib/supabaseClient", () => ({
-  supabase: supabaseMock,
+vi.mock("./shared/gameDataApi", () => ({
+  gameData: {
+    table: gameDataMock.from,
+  },
 }));
 
 vi.mock("./shared/brainCoachSessions", () => ({

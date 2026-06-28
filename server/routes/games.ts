@@ -2355,14 +2355,12 @@ async function upsertSupabaseCompatRows(
   return result.rows;
 }
 
-export async function supabaseCompatHandler(req: Request, res: Response) {
-  const table = req.params.table;
+async function runGameDataRequest(req: Request, res: Response, table: string, payload: SupabaseCompatPayload) {
   const access = SUPABASE_COMPAT_TABLES[table];
   if (!access) {
     return res.status(404).json({ error: "Table is not available through the backend adapter." });
   }
 
-  const payload = req.body as SupabaseCompatPayload;
   const method = String(payload.method ?? "GET").toUpperCase();
   const needsAdmin = access === "adminContent" && method !== "GET";
   if (access === "content" && method !== "GET") {
@@ -2403,7 +2401,26 @@ export async function supabaseCompatHandler(req: Request, res: Response) {
   }
 }
 
+export async function supabaseCompatHandler(req: Request, res: Response) {
+  return runGameDataRequest(req, res, req.params.table, req.body as SupabaseCompatPayload);
+}
+
+export async function gameDataQueryHandler(req: Request, res: Response) {
+  return runGameDataRequest(req, res, req.params.table, { ...(req.body as SupabaseCompatPayload), method: "GET" });
+}
+
+export async function gameDataCreateHandler(req: Request, res: Response) {
+  return runGameDataRequest(req, res, req.params.table, { ...(req.body as SupabaseCompatPayload), method: "POST" });
+}
+
+export async function gameDataUpdateHandler(req: Request, res: Response) {
+  return runGameDataRequest(req, res, req.params.table, { ...(req.body as SupabaseCompatPayload), method: "PATCH" });
+}
+
 const router = Router();
+router.post("/data/:table/query", gameDataQueryHandler);
+router.post("/data/:table", gameDataCreateHandler);
+router.patch("/data/:table", gameDataUpdateHandler);
 router.post("/supabase/:table", supabaseCompatHandler);
 router.get("/curious-minds/content", curiousMindsContentHandler);
 router.post("/curious-minds/sessions", curiousMindsSessionHandler);

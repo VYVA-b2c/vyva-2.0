@@ -85,6 +85,7 @@ import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedChe
 import gamesRouter from "./routes/games.js";
 import learningRouter from "./routes/learning.js";
 import motivationRouter from "./routes/motivation.js";
+import { dbHealthHandler } from "./routes/dbHealth.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
@@ -186,6 +187,7 @@ app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRo
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
 app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
+app.get("/api/health/db", authMiddleware, requireAdminUser, dbHealthHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
