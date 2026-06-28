@@ -296,6 +296,7 @@ const accountSubscriptionUpdateSchema = z.object({
   account_id: z.string().optional().nullable(),
   account_source: z.enum(["legacy", "supabase"]).optional().nullable(),
   account_email: z.string().email().optional().nullable().or(z.literal("")),
+  account_phone: z.string().optional().nullable(),
   subscription_tier: z.string().min(1).optional(),
   tier: z.string().min(1).optional(),
   subscription_status: z.string().min(1).optional().default("active"),
@@ -1312,6 +1313,93 @@ async function syncSubscriptionForPhone(input: {
           set: input.profilePatch,
         });
     }
+  }
+
+  return ids;
+}
+
+async function profileIdsForAccountIds(accountIds: string[]) {
+  const ids = new Set<string>();
+  if (accountIds.length === 0) return ids;
+
+  let accountRows: Array<Pick<typeof users.$inferSelect, "id" | "active_profile_id">> = [];
+  try {
+    accountRows = await db
+      .select({ id: users.id, active_profile_id: users.active_profile_id })
+      .from(users)
+      .where(inArray(users.id, accountIds));
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+
+  for (const accountId of accountIds) ids.add(accountId);
+  for (const row of accountRows) {
+    ids.add(row.id);
+    if (row.active_profile_id) ids.add(row.active_profile_id);
+  }
+
+  if (accountRows.length) {
+    try {
+      const membershipRows = await db
+        .select({ profile_id: profileMemberships.profile_id })
+        .from(profileMemberships)
+        .where(and(
+          inArray(profileMemberships.user_id, accountRows.map((account) => account.id)),
+          eq(profileMemberships.status, "active"),
+        ));
+      for (const row of membershipRows) ids.add(row.profile_id);
+    } catch (error) {
+      if (!isMissingRelationError(error)) throw error;
+    }
+  }
+
+  return ids;
+}
+
+async function syncSubscriptionForAccessIdentity(input: {
+  email?: string | null;
+  phone?: string | null;
+  seedProfileId: string;
+  profilePatch: Partial<typeof profiles.$inferInsert>;
+  accountIds?: Array<string | null | undefined>;
+  explicitProfileIds?: Array<string | null | undefined>;
+}) {
+  const profileIds = new Set<string>([input.seedProfileId]);
+  for (const profileId of input.explicitProfileIds ?? []) {
+    if (profileId) profileIds.add(profileId);
+  }
+
+  if (normalizedEmail(input.email)) {
+    for (const profileId of await syncSubscriptionForEmail({
+      email: input.email ?? null,
+      seedProfileId: input.seedProfileId,
+      profilePatch: input.profilePatch,
+    })) {
+      profileIds.add(profileId);
+    }
+  }
+
+  if (normalizedPhoneOrNull(input.phone)) {
+    for (const profileId of await syncSubscriptionForPhone({
+      phone: input.phone ?? null,
+      seedProfileId: input.seedProfileId,
+      profilePatch: input.profilePatch,
+    })) {
+      profileIds.add(profileId);
+    }
+  }
+
+  const accountIds = Array.from(new Set((input.accountIds ?? []).filter((id): id is string => Boolean(id))));
+  for (const profileId of await profileIdsForAccountIds(accountIds)) {
+    profileIds.add(profileId);
+  }
+
+  const ids = Array.from(profileIds);
+  if (ids.length) {
+    await db
+      .update(profiles)
+      .set(input.profilePatch)
+      .where(inArray(profiles.id, ids));
   }
 
   return ids;
@@ -2741,11 +2829,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
   const subscriptionEmail = normalizedEmail(parsed.data.account_email) ?? normalizedEmail(profile.email);
-  const syncedProfileIds = await syncSubscriptionForEmail({
-    email: subscriptionEmail,
-    seedProfileId: profile.id,
-    profilePatch,
-  });
+  const subscriptionPhone = normalizedPhoneOrNull(parsed.data.account_phone) ?? normalizedPhoneOrNull(profile.phone_number) ?? normalizedPhoneOrNull(profile.whatsapp_number);
 
   let syncedAccountId: string | null = null;
   let syncedActiveProfileId: string | null = null;
@@ -2813,7 +2897,17 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
     }
   }
 
+  const syncedProfileIds = await syncSubscriptionForAccessIdentity({
+    email: subscriptionEmail,
+    phone: subscriptionPhone,
+    seedProfileId: profile.id,
+    profilePatch,
+    accountIds: [syncedAccountId ?? parsed.data.account_id],
+    explicitProfileIds: [syncedActiveProfileId],
+  });
+
   await syncIntakeTiersForProfiles(syncedProfileIds, subscriptionEmail, subscriptionTier);
+  await syncIntakeTiersForPhone(syncedProfileIds, subscriptionPhone, subscriptionTier);
 
   try {
     await recordEvent({
@@ -2997,21 +3091,19 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
       await repairLegacyAccountWithoutActiveProfile(accountMapping, userId);
     }
 
-    if (normalizedEmail(nextEmail)) {
-      for (const profileId of await syncSubscriptionForEmail({
-        email: nextEmail,
-        seedProfileId: userId,
-        profilePatch: subscriptionPatch,
-      })) profileIds.add(profileId);
-      await syncIntakeTiersForProfiles(Array.from(profileIds), nextEmail, profilePatch.subscription_tier);
-    } else {
-      for (const profileId of await syncSubscriptionForPhone({
-        phone: nextPhone,
-        seedProfileId: userId,
-        profilePatch: subscriptionPatch,
-      })) profileIds.add(profileId);
-      await syncIntakeTiersForPhone(Array.from(profileIds), nextPhone, profilePatch.subscription_tier);
+    for (const profileId of await syncSubscriptionForAccessIdentity({
+      email: nextEmail,
+      phone: nextPhone,
+      seedProfileId: userId,
+      profilePatch: subscriptionPatch,
+      accountIds: mapping.mappings.map((accountMapping) => accountMapping.login_uid),
+      explicitProfileIds: Array.from(profileIds),
+    })) {
+      profileIds.add(profileId);
     }
+
+    await syncIntakeTiersForProfiles(Array.from(profileIds), nextEmail, profilePatch.subscription_tier);
+    await syncIntakeTiersForPhone(Array.from(profileIds), nextPhone, profilePatch.subscription_tier);
 
     if (profileIds.size > 0) {
       await db
