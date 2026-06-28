@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, Phone, Store, HeartPulse, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
@@ -382,7 +382,7 @@ function buildDashboardHealthTip(
       context,
       text: t("meds.dashboard.healthTipDiabetesBloodPressure", {
         conditions: signals.conditions.slice(0, 2).join(" + ") || "diabetes + blood pressure",
-        defaultValue: "For {{conditions}}, use a meal cue for medicine checks and stand up slowly. Note shakiness, thirst, or dizziness.",
+        defaultValue: "For {{conditions}}: check medicines with meals, stand up slowly, and note dizziness or shakiness.",
       }),
     };
   }
@@ -391,7 +391,7 @@ function buildDashboardHealthTip(
     return {
       context,
       text: t("meds.dashboard.healthTipDiabetes", {
-        defaultValue: "For diabetes, keep medicine checks close to your normal meal rhythm and ask for help if you feel shaky or unusually thirsty.",
+        defaultValue: "For diabetes: pair medicine checks with meals and note shakiness or unusual thirst.",
       }),
     };
   }
@@ -400,7 +400,7 @@ function buildDashboardHealthTip(
     return {
       context,
       text: t("meds.dashboard.healthTipBloodPressure", {
-        defaultValue: "For blood pressure, rise slowly after sitting and note dizziness, swelling, or headaches for your next health chat.",
+        defaultValue: "For blood pressure: stand up slowly and note dizziness, swelling, or headaches.",
       }),
     };
   }
@@ -409,7 +409,7 @@ function buildDashboardHealthTip(
     return {
       context: t("meds.dashboard.tipContextMedicines", { defaultValue: "Based on current medicines" }),
       text: t("meds.dashboard.healthTipBloodThinner", {
-        defaultValue: "Because your medicines include aspirin or a blood thinner, keep an eye on unusual bruising or bleeding and check with a pharmacist before adding new painkillers.",
+        defaultValue: "Because a blood thinner is on your list, watch for unusual bruising and ask before adding painkillers.",
       }),
     };
   }
@@ -418,7 +418,7 @@ function buildDashboardHealthTip(
     return {
       context,
       text: t("meds.dashboard.healthTipRespiratory", {
-        defaultValue: "With breathing support in your profile, keep inhalers or breathing medicines easy to find and note any new breathlessness before your next health conversation.",
+        defaultValue: "For breathing support: keep inhalers easy to reach and note any new breathlessness.",
       }),
     };
   }
@@ -427,7 +427,7 @@ function buildDashboardHealthTip(
     return {
       context: t("meds.dashboard.tipContextMedicines", { defaultValue: "Based on current medicines" }),
       text: t("meds.dashboard.healthTipStatin", {
-        defaultValue: "Because a cholesterol medicine is on your list, make a note of new muscle pain or weakness so you can mention it to your pharmacist or doctor.",
+        defaultValue: "Because a cholesterol medicine is on your list, note new muscle pain or weakness.",
       }),
     };
   }
@@ -437,7 +437,7 @@ function buildDashboardHealthTip(
       context,
       text: t("meds.dashboard.healthTipConditionFallback", {
         conditions: signals.conditions.slice(0, 2).join(" + "),
-        defaultValue: "With {{conditions}} saved in your profile, keep a short note of how you feel after medicines so your next pharmacy or doctor chat is easier.",
+        defaultValue: "For {{conditions}}: keep a quick note of how you feel after medicines.",
       }),
     };
   }
@@ -445,7 +445,7 @@ function buildDashboardHealthTip(
   return {
     context: t("meds.dashboard.tipContextRoutine", { defaultValue: "Based on today's medicine routine" }),
     text: t("meds.dashboard.healthTipGeneric", {
-      defaultValue: "Keep medicines in the routine your doctor gave you, and ask a pharmacist before adding supplements or over-the-counter medicines.",
+      defaultValue: "Keep medicines in the routine your doctor gave you, and ask before adding supplements.",
     }),
   };
 }
@@ -470,7 +470,7 @@ function buildDashboardExerciseTip(
     return {
       context: t("meds.dashboard.tipContextMobility", { defaultValue: "Based on mobility level" }),
       text: t("meds.dashboard.exerciseTipMobility", {
-        defaultValue: "For your mobility profile, try seated ankle circles or slow sit-to-stand practice beside a steady chair.",
+        defaultValue: "Movement: seated ankle circles or slow sit-to-stand beside a steady chair.",
       }),
     };
   }
@@ -479,7 +479,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipDiabetesBloodPressure", {
-        defaultValue: "For diabetes and blood pressure, choose 5 to 10 minutes of easy walking or seated marching after a meal, keeping the pace comfortable enough to talk.",
+        defaultValue: "Movement: 5 minutes of easy walking or seated marching after a meal.",
       }),
     };
   }
@@ -488,7 +488,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipDiabetes", {
-        defaultValue: "For diabetes, a short gentle walk after a meal can support the routine; wear comfortable shoes and stop if you feel shaky or unwell.",
+        defaultValue: "Movement: a short gentle walk after a meal, stopping if you feel shaky.",
       }),
     };
   }
@@ -497,7 +497,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipBloodPressure", {
-        defaultValue: "For blood pressure, try a steady walk or chair marching and avoid holding your breath during strength movements.",
+        defaultValue: "Movement: steady walking or chair marching without holding your breath.",
       }),
     };
   }
@@ -506,7 +506,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipRespiratory", {
-        defaultValue: "For breathing support, try a slow walk with relaxed shoulders and pause for pursed-lip breathing if you feel short of breath.",
+        defaultValue: "Movement: a slow walk with pauses for relaxed breathing.",
       }),
     };
   }
@@ -515,7 +515,7 @@ function buildDashboardExerciseTip(
     return {
       context: t("meds.dashboard.tipContextHobby", { defaultValue: "Based on saved hobbies" }),
       text: t("meds.dashboard.exerciseTipGardening", {
-        defaultValue: "Since gardening is in your profile, use it gently: water plants, tend pots, or walk the garden for 5 minutes without bending too long.",
+        defaultValue: "Movement: water plants or walk the garden for 5 minutes, without bending too long.",
       }),
     };
   }
@@ -523,7 +523,7 @@ function buildDashboardExerciseTip(
   return {
     context: t("meds.dashboard.tipContextProfile", { defaultValue: "Based on your saved profile" }),
     text: t("meds.dashboard.exerciseTipGeneric", {
-      defaultValue: "Try 5 to 10 minutes of gentle walking or seated movement when you feel ready, and keep it easy enough to talk.",
+      defaultValue: "Movement: 5 to 10 minutes of gentle walking or seated movement.",
     }),
   };
 }
@@ -1283,6 +1283,26 @@ const MedsScreen = () => {
       ? t("meds.dashboard.allClearLabel", "All clear today")
       : t("meds.dashboard.dosesLeftLabel", "doses left today");
   const nextDoseDueCount = nextMedication ? remainingDoseCount(nextMedication) : 0;
+  const dashboardSummaryText = todayLoading
+    ? t("meds.dashboard.loadingSummary", "Loading schedule and personal guidance.")
+    : displayMeds.length === 0
+      ? t("meds.dashboard.emptySummary", "No medicines are tracked here yet.")
+      : totalRemainingDoseCount === 0
+        ? t("meds.dashboard.doneSummary", {
+          taken: totalTakenDoseCount,
+          defaultValue: "{{taken}} doses confirmed today. Nothing else is due.",
+        })
+        : nextMedication
+          ? t("meds.dashboard.nextSummary", {
+            count: totalRemainingDoseCount,
+            medicine: nextMedication.displayName,
+            time: nextMedication.scheduledTimeForApi,
+            defaultValue: "{{count}} left today. Next: {{medicine}} at {{time}}.",
+          })
+          : t("meds.dashboard.attentionSummary", {
+            count: totalRemainingDoseCount,
+            defaultValue: "{{count}} doses still need attention today.",
+          });
   return (
     <div className="px-[18px] pb-28 sm:px-[22px]">
       <section className="mt-4" data-testid="section-meds-dashboard">
@@ -1390,7 +1410,10 @@ const MedsScreen = () => {
             </div>
 
             <div className="mt-3 rounded-[18px] border border-[#E1E8E4] bg-[#F8FEFC] px-4 py-3">
-              <div className="flex flex-wrap gap-x-4 gap-y-1 font-body text-[13px] font-black text-vyva-text-2">
+              <p className="font-body text-[15px] font-black leading-snug text-[#0F4C45]" data-testid="text-meds-dashboard-summary">
+                {dashboardSummaryText}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-body text-[13px] font-black text-vyva-text-2">
                 <span data-testid="metric-meds-taken">
                   {t("meds.dashboard.takenToday", "Taken today")}: <span className="text-vyva-text-1">{takenValue}</span>
                 </span>
@@ -1404,57 +1427,36 @@ const MedsScreen = () => {
             </div>
 
             <div
-              className="mt-3 rounded-[22px] border border-[#E1E8E4] bg-white p-4"
+              className="mt-3 rounded-[20px] border border-[#F0DEC3] bg-[#FFF9F0] p-4 sm:p-5"
               data-testid="section-meds-dashboard-tips"
             >
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
+              <div className="flex min-w-0 items-start gap-3" data-testid="card-meds-health-tip">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(109,40,217,0.09)]">
                   <Sparkles size={20} strokeWidth={2.4} aria-hidden="true" />
                 </div>
-                <div className="min-w-0">
-                  <h2 className="font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    {t("meds.dashboard.personalGuidance", "Personal guidance")}
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
+                    {t("meds.dashboard.personalGuidance", "Today's guidance")}
                   </h2>
-                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                    {t("meds.dashboard.guidanceSub", "Small steps matched to the health profile VYVA can see.")}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="min-w-0 border-l-4 border-[#3B82F6] pl-3" data-testid="card-meds-health-tip">
-                  <div className="flex items-center gap-2">
-                    <HeartPulse size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#1D4ED8]" aria-hidden="true" />
-                    <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
-                      {t("meds.dashboard.healthTipTitle", "Health tip")}
-                    </h3>
-                  </div>
-                  <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#EFF6FF] px-2.5 font-body text-[11px] font-black leading-none text-[#1D4ED8]">
-                    {healthTip.context}
-                  </p>
-                  <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                  <p className="mt-2 font-body text-[16px] font-black leading-snug text-vyva-text-1 sm:text-[17px]">
                     {healthTip.text}
                   </p>
-                </div>
-                <div className="min-w-0 border-l-4 border-[#10B981] pl-3" data-testid="card-meds-exercise-tip">
-                  <div className="flex items-center gap-2">
-                    <Footprints size={19} strokeWidth={2.4} className="flex-shrink-0 text-[#047857]" aria-hidden="true" />
-                    <h3 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
-                      {t("meds.dashboard.exerciseTipTitle", "Exercise tip")}
-                    </h3>
+
+                  <div
+                    className="mt-3 flex min-w-0 items-start gap-2 border-t border-[#ECD9BC] pt-3"
+                    data-testid="card-meds-exercise-tip"
+                  >
+                    <Footprints size={18} strokeWidth={2.4} className="mt-0.5 flex-shrink-0 text-[#047857]" aria-hidden="true" />
+                    <p className="font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                      {exerciseTip.text}
+                    </p>
                   </div>
-                  <p className="mt-1 inline-flex min-h-[24px] max-w-full items-center rounded-full bg-[#ECFDF5] px-2.5 font-body text-[11px] font-black leading-none text-[#047857]">
-                    {exerciseTip.context}
-                  </p>
-                  <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                    {exerciseTip.text}
-                  </p>
                 </div>
               </div>
             </div>
 
             <div
-              className="mt-3 flex min-w-0 flex-col justify-between rounded-[22px] border border-[#D9ECE4] bg-[#F8FEFC] p-4 sm:flex-row sm:items-center sm:gap-4"
+              className="mt-3 flex min-w-0 flex-col justify-between rounded-[20px] border border-[#D9ECE4] bg-[#FBFFFD] p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
               data-testid="panel-meds-pharmacy"
             >
               <div className="flex min-w-0 items-start gap-3">

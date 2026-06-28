@@ -30,6 +30,11 @@ const labels: Record<string, string> = {
   "meds.dashboard.doneStatus": "All scheduled doses are done",
   "meds.dashboard.steadyStatus": "Today is mostly on track",
   "meds.dashboard.watchStatus": "A few doses still need attention",
+  "meds.dashboard.loadingSummary": "Loading schedule and personal guidance.",
+  "meds.dashboard.emptySummary": "No medicines are tracked here yet.",
+  "meds.dashboard.doneSummary": "{{taken}} doses confirmed today. Nothing else is due.",
+  "meds.dashboard.nextSummary": "{{count}} left today. Next: {{medicine}} at {{time}}.",
+  "meds.dashboard.attentionSummary": "{{count}} doses still need attention today.",
   "meds.dashboard.focusNow": "Focus now",
   "meds.dashboard.noPlanLabel": "No plan yet",
   "meds.dashboard.allClearLabel": "All clear today",
@@ -63,31 +68,33 @@ const labels: Record<string, string> = {
   "meds.dashboard.callPharmacy": "Call pharmacy",
   "meds.dashboard.addPharmacy": "Add pharmacy",
   "meds.dashboard.orderRefill": "Order refill",
-  "meds.dashboard.personalGuidance": "Personal guidance",
-  "meds.dashboard.guidanceSub": "Small steps matched to the health profile VYVA can see.",
+  "meds.dashboard.personalGuidance": "Today's guidance",
+  "meds.dashboard.guidanceMainLabel": "Most useful now",
+  "meds.dashboard.guidanceSub": "Chosen from the health profile, medicines, and today's schedule.",
   "meds.dashboard.healthTipTitle": "Health tip",
   "meds.dashboard.exerciseTipTitle": "Exercise tip",
+  "meds.dashboard.movementTitle": "Gentle movement",
   "meds.dashboard.tipContextConditions": "Based on {{conditions}}",
   "meds.dashboard.tipContextMedicines": "Based on current medicines",
   "meds.dashboard.tipContextMobility": "Based on mobility level",
   "meds.dashboard.tipContextHobby": "Based on saved hobbies",
   "meds.dashboard.tipContextProfile": "Based on your saved profile",
   "meds.dashboard.tipContextRoutine": "Based on today's medicine routine",
-  "meds.dashboard.healthTipDiabetesBloodPressure": "For {{conditions}}, use a meal cue for medicine checks and stand up slowly. Note shakiness, thirst, or dizziness.",
-  "meds.dashboard.healthTipBloodPressure": "For blood pressure, rise slowly after sitting and note dizziness, swelling, or headaches for your next health chat.",
-  "meds.dashboard.healthTipDiabetes": "For diabetes, keep medicine checks close to your normal meal rhythm and ask for help if you feel shaky or unusually thirsty.",
-  "meds.dashboard.healthTipBloodThinner": "Because your medicines include aspirin or a blood thinner, keep an eye on unusual bruising or bleeding and check with a pharmacist before adding new painkillers.",
-  "meds.dashboard.healthTipRespiratory": "With breathing support in your profile, keep inhalers or breathing medicines easy to find and note any new breathlessness before your next health conversation.",
-  "meds.dashboard.healthTipStatin": "Because a cholesterol medicine is on your list, make a note of new muscle pain or weakness so you can mention it to your pharmacist or doctor.",
-  "meds.dashboard.healthTipConditionFallback": "With {{conditions}} saved in your profile, keep a short note of how you feel after medicines so your next pharmacy or doctor chat is easier.",
-  "meds.dashboard.healthTipGeneric": "Keep medicines in the routine your doctor gave you, and ask a pharmacist before adding supplements or over-the-counter medicines.",
-  "meds.dashboard.exerciseTipMobility": "For your mobility profile, try seated ankle circles or slow sit-to-stand practice beside a steady chair.",
-  "meds.dashboard.exerciseTipDiabetesBloodPressure": "For diabetes and blood pressure, choose 5 to 10 minutes of easy walking or seated marching after a meal, keeping the pace comfortable enough to talk.",
-  "meds.dashboard.exerciseTipDiabetes": "For diabetes, a short gentle walk after a meal can support the routine; wear comfortable shoes and stop if you feel shaky or unwell.",
-  "meds.dashboard.exerciseTipBloodPressure": "For blood pressure, try a steady walk or chair marching and avoid holding your breath during strength movements.",
-  "meds.dashboard.exerciseTipRespiratory": "For breathing support, try a slow walk with relaxed shoulders and pause for pursed-lip breathing if you feel short of breath.",
-  "meds.dashboard.exerciseTipGardening": "Since gardening is in your profile, use it gently: water plants, tend pots, or walk the garden for 5 minutes without bending too long.",
-  "meds.dashboard.exerciseTipGeneric": "Try 5 to 10 minutes of gentle walking or seated movement when you feel ready, and keep it easy enough to talk.",
+  "meds.dashboard.healthTipDiabetesBloodPressure": "For {{conditions}}: check medicines with meals, stand up slowly, and note dizziness or shakiness.",
+  "meds.dashboard.healthTipBloodPressure": "For blood pressure: stand up slowly and note dizziness, swelling, or headaches.",
+  "meds.dashboard.healthTipDiabetes": "For diabetes: pair medicine checks with meals and note shakiness or unusual thirst.",
+  "meds.dashboard.healthTipBloodThinner": "Because a blood thinner is on your list, watch for unusual bruising and ask before adding painkillers.",
+  "meds.dashboard.healthTipRespiratory": "For breathing support: keep inhalers easy to reach and note any new breathlessness.",
+  "meds.dashboard.healthTipStatin": "Because a cholesterol medicine is on your list, note new muscle pain or weakness.",
+  "meds.dashboard.healthTipConditionFallback": "For {{conditions}}: keep a quick note of how you feel after medicines.",
+  "meds.dashboard.healthTipGeneric": "Keep medicines in the routine your doctor gave you, and ask before adding supplements.",
+  "meds.dashboard.exerciseTipMobility": "Movement: seated ankle circles or slow sit-to-stand beside a steady chair.",
+  "meds.dashboard.exerciseTipDiabetesBloodPressure": "Movement: 5 minutes of easy walking or seated marching after a meal.",
+  "meds.dashboard.exerciseTipDiabetes": "Movement: a short gentle walk after a meal, stopping if you feel shaky.",
+  "meds.dashboard.exerciseTipBloodPressure": "Movement: steady walking or chair marching without holding your breath.",
+  "meds.dashboard.exerciseTipRespiratory": "Movement: a slow walk with pauses for relaxed breathing.",
+  "meds.dashboard.exerciseTipGardening": "Movement: water plants or walk the garden for 5 minutes, without bending too long.",
+  "meds.dashboard.exerciseTipGeneric": "Movement: 5 to 10 minutes of gentle walking or seated movement.",
   "meds.dashboard.actionsTitle": "What can I do next?",
   "meds.dashboard.addByVoiceSub": "Say a medicine name, dose, and routine.",
   "meds.safety.title": "Medication safety signals",
@@ -393,10 +400,12 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("metric-meds-due")).toHaveTextContent("0");
     expect(screen.getByTestId("metric-meds-adherence")).toHaveTextContent("--");
     expect(screen.getByTestId("metric-meds-count")).toHaveTextContent("0");
+    expect(screen.getByTestId("text-meds-dashboard-summary")).toHaveTextContent("No medicines are tracked here yet.");
     expect(screen.getByTestId("section-meds-next")).toHaveTextContent("No medications added yet");
     expect(screen.getByTestId("panel-meds-pharmacy")).toHaveTextContent("No pharmacy saved yet");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Health tip");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Exercise tip");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Today's guidance");
+    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Movement:");
+    expect(screen.getByTestId("section-meds-dashboard-tips")).not.toHaveTextContent("Most useful now");
     expect(
       screen.getByTestId("section-meds-dashboard-tips").compareDocumentPosition(screen.getByTestId("panel-meds-pharmacy")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -464,13 +473,14 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("metric-meds-due")).toHaveTextContent("1");
     expect(screen.getByTestId("metric-meds-adherence")).toHaveTextContent("67%");
     expect(screen.getByTestId("metric-meds-count")).toHaveTextContent("2");
+    expect(screen.getByTestId("text-meds-dashboard-summary")).toHaveTextContent("1 left today. Next: Metformin at 08:00.");
     expect(screen.getByTestId("section-meds-next")).toHaveTextContent("Metformin");
     expect(screen.getByTestId("text-meds-pharmacy-name")).toHaveTextContent("Farmacia Central");
     expect(screen.getByTestId("link-meds-pharmacy-phone")).toHaveAttribute("href", "tel:+34600111222");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Based on Type 2 diabetes");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("normal meal rhythm");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Based on Type 2 diabetes");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("short gentle walk after a meal");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("For diabetes");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("pair medicine checks with meals");
+    expect(screen.getByTestId("card-meds-health-tip")).not.toHaveTextContent("Based on Type 2 diabetes");
+    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Movement: a short gentle walk after a meal");
   });
 
   it("uses richer saved health profile signals for combined conditions and mobility", async () => {
@@ -497,11 +507,11 @@ describe("MedsScreen schedule actions", () => {
       },
     });
 
-    expect(await screen.findByTestId("card-meds-health-tip")).toHaveTextContent("Based on Type 2 diabetes + High blood pressure");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("meal cue");
+    expect(await screen.findByTestId("card-meds-health-tip")).toHaveTextContent("For Type 2 diabetes + High blood pressure");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("check medicines with meals");
     expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("stand up slowly");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Based on mobility level");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("seated ankle circles");
+    expect(screen.getByTestId("card-meds-exercise-tip")).not.toHaveTextContent("Based on mobility level");
+    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Movement: seated ankle circles");
   });
 
   it("confirms the next pending medicine from the dashboard", async () => {
