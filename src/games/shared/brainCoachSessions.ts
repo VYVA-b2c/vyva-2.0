@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { apiFetch } from "@/lib/queryClient";
 
 export const BRAIN_COACH_SESSION_FALLBACK_KEY = "vyva-brain-coach-session-fallback";
 
@@ -61,24 +61,23 @@ function clampPercent(value: number | null | undefined) {
 
 function normalizeRecord(record: CognitiveSessionRecord) {
   return {
-    user_id: record.userId,
-    activity_type: record.activityType,
+    activityType: record.activityType,
     domain: record.domain,
-    secondary_domain: record.secondaryDomain ?? null,
+    secondaryDomain: record.secondaryDomain ?? null,
     difficulty: Math.max(1, clampInteger(record.difficulty, 1, 100)),
-    difficulty_scale: record.difficultyScale ?? "level",
+    difficultyScale: record.difficultyScale ?? "level",
     completed: record.completed,
     abandoned: record.abandoned ?? false,
     score: clampInteger(record.score, 0),
-    accuracy_pct: clampPercent(record.accuracyPct),
-    speed_pct: clampPercent(record.speedPct),
-    duration_seconds: clampInteger(record.durationSeconds, 0, 24 * 60 * 60),
-    played_at: record.playedAt ?? new Date().toISOString(),
+    accuracyPct: clampPercent(record.accuracyPct),
+    speedPct: clampPercent(record.speedPct),
+    durationSeconds: clampInteger(record.durationSeconds, 0, 24 * 60 * 60),
+    playedAt: record.playedAt ?? new Date().toISOString(),
     language: record.language ?? "es",
     source: record.source ?? "app",
-    source_table: record.sourceTable ?? null,
-    source_session_id: record.sourceSessionId ?? null,
-    client_result_id: record.clientResultId ?? null,
+    sourceTable: record.sourceTable ?? null,
+    sourceSessionId: record.sourceSessionId ?? null,
+    clientResultId: record.clientResultId ?? null,
     metadata: record.metadata ?? {},
   };
 }
@@ -104,11 +103,16 @@ export async function recordCognitiveSession(record: CognitiveSessionRecord): Pr
   }
 
   const payload = normalizeRecord(record);
-  const { error } = await supabase.from("cognitive_session_index").insert(payload);
+  const response = await apiFetch("/api/games/sessions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 
-  if (error) {
-    console.warn("[brain-coach] Session index fallback:", error.message);
-    saveFallback(record, error.message);
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null) as { error?: string } | null;
+    const message = detail?.error ?? "Session index could not be saved.";
+    console.warn("[brain-coach] Session index fallback:", message);
+    saveFallback(record, message);
     return { persisted: false };
   }
 
