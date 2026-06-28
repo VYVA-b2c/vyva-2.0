@@ -8,6 +8,8 @@
     "dev:server": "tsx server/index.ts",
     "dev:client": "vite",
     "preview:adherence": "node scripts/preview-adherence-report.mjs",
+    "db:audit": "node scripts/db-audit.mjs",
+    "db:audit:json": "node scripts/db-audit.mjs --json",
     "db:push": "drizzle-kit push",
     "db:auth": "node scripts/apply-auth-schema.mjs",
     "db:concierge": "node scripts/apply-concierge-schema.mjs",
