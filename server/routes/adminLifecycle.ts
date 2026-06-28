@@ -2841,6 +2841,10 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   const profilePatch: Partial<typeof profiles.$inferInsert> = {
     subscription_tier: subscriptionTier,
     subscription_status: subscriptionStatus,
+    account_status: "enabled",
+    disabled_at: null,
+    disabled_reason: null,
+    disabled_by: null,
     updated_at: new Date(),
   };
   if (trialEndsAt !== undefined) profilePatch.trial_ends_at = trialEndsAt;
@@ -3123,6 +3127,10 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     const subscriptionPatch: Partial<typeof profiles.$inferInsert> = {
       subscription_tier: profilePatch.subscription_tier,
       subscription_status: "active",
+      account_status: "enabled",
+      disabled_at: null,
+      disabled_reason: null,
+      disabled_by: null,
       updated_at: new Date(),
     };
     const profileIds = new Set<string>([userId]);
