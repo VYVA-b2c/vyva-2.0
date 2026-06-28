@@ -220,6 +220,21 @@ function normalizeLessonImport(raw: unknown) {
   });
 }
 
+function importDatabaseDetails(error: unknown) {
+  if (!error || typeof error !== "object") return [];
+  const { code } = error as { code?: string };
+  if (code === "42P10") {
+    return ["The learning library database needs its unique save rule repaired. Republish with the latest migration, then upload the pack again."];
+  }
+  if (code === "23505") {
+    return ["The pack conflicts with existing learning content. Check for duplicate category slugs or lesson external IDs."];
+  }
+  if (code === "42703") {
+    return ["The learning library database is missing a required column. Run the database audit and repair before uploading again."];
+  }
+  return [];
+}
+
 async function listCategoriesHandler(_req: Request, res: Response) {
   try {
     const rows = await db
@@ -475,48 +490,56 @@ async function importContentPackHandler(req: Request, res: Response) {
 
     await db.transaction(async (tx) => {
       for (const category of categories) {
-        await tx
-          .insert(learningCategories)
-          .values(category)
-          .onConflictDoUpdate({
-            target: learningCategories.slug,
-            set: {
-              label: category.label,
-              description: category.description,
-              color: category.color,
-              icon: category.icon,
-              sortOrder: category.sortOrder,
-              isActive: category.isActive,
-              updatedAt: now,
-            },
-          });
+        const categoryPatch = {
+          label: category.label,
+          description: category.description,
+          color: category.color,
+          icon: category.icon,
+          sortOrder: category.sortOrder,
+          isActive: category.isActive,
+          updatedAt: now,
+        };
+        const updated = await tx
+          .update(learningCategories)
+          .set(categoryPatch)
+          .where(eq(learningCategories.slug, category.slug))
+          .returning({ id: learningCategories.id });
+        if (updated.length === 0) {
+          await tx
+            .insert(learningCategories)
+            .values(category);
+        }
       }
 
       for (const lesson of lessons) {
         const statusPatch = lessonPatchForStatus(lesson.status, reviewer);
-        await tx
-          .insert(learningLessons)
-          .values({
-            ...lesson,
-            ...statusPatch,
-          })
-          .onConflictDoUpdate({
-            target: learningLessons.externalId,
-            set: {
-              categorySlug: lesson.categorySlug,
-              language: lesson.language,
-              title: lesson.title,
-              hook: lesson.hook,
-              body: lesson.body,
-              reflectionPrompt: lesson.reflectionPrompt,
-              sourceNotes: lesson.sourceNotes ?? null,
-              estimatedMinutes: lesson.estimatedMinutes,
-              difficulty: lesson.difficulty,
-              tags: lesson.tags,
+        const lessonPatch = {
+          categorySlug: lesson.categorySlug,
+          language: lesson.language,
+          title: lesson.title,
+          hook: lesson.hook,
+          body: lesson.body,
+          reflectionPrompt: lesson.reflectionPrompt,
+          sourceNotes: lesson.sourceNotes ?? null,
+          estimatedMinutes: lesson.estimatedMinutes,
+          difficulty: lesson.difficulty,
+          tags: lesson.tags,
+          ...statusPatch,
+          updatedAt: now,
+        };
+        const updated = await tx
+          .update(learningLessons)
+          .set(lessonPatch)
+          .where(eq(learningLessons.externalId, lesson.externalId))
+          .returning({ id: learningLessons.id });
+        if (updated.length === 0) {
+          await tx
+            .insert(learningLessons)
+            .values({
+              ...lesson,
               ...statusPatch,
-              updatedAt: now,
-            },
-          });
+            });
+        }
       }
     });
 
@@ -532,7 +555,11 @@ async function importContentPackHandler(req: Request, res: Response) {
     });
   } catch (error) {
     console.error("[admin] learning import failed:", error);
-    return res.status(500).json({ error: "Learning content pack could not be imported." });
+    const details = importDatabaseDetails(error);
+    return res.status(500).json({
+      error: "Learning content pack could not be imported.",
+      ...(details.length > 0 ? { details } : {}),
+    });
   }
 }
 
