@@ -125,11 +125,11 @@ function collectMigrationExpectations() {
     }
 
     for (const statement of splitSqlStatements(sql)) {
-      const alterMatch = statement.match(/alter\s+table\s+(?:if\s+exists\s+)?(?:(?<schema>"?[a-z_][\w]*"?)[.])?(?<table>"?[a-z_][\w]*"?)/i);
+      const alterMatch = statement.match(/alter\s+table\s+(?<optional>if\s+exists\s+)?(?:(?<schema>"?[a-z_][\w]*"?)[.])?(?<table>"?[a-z_][\w]*"?)/i);
       const schema = normalizeIdentifier(alterMatch?.groups?.schema);
       const table = normalizeIdentifier(alterMatch?.groups?.table);
       if (!alterMatch || !isPublicSchema(schema)) continue;
-      addTable(expectedTables, table);
+      if (!alterMatch.groups?.optional) addTable(expectedTables, table);
 
       const columnRegex = /add\s+column\s+(?:if\s+not\s+exists\s+)?"?(?<column>[a-z_][\w]*)"?/gi;
       for (const columnMatch of statement.matchAll(columnRegex)) {
