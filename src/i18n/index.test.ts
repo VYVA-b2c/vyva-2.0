@@ -169,12 +169,12 @@ describe("language persistence", () => {
 
   it("keeps compact Health mobile labels localized", () => {
     const expected = {
-      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent health summaries", "Take or upload an image", "Find the right expert"],
-      es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Toma o sube imagen", "Encuentra experto"],
-      fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Photo ou image", "Trouver le bon expert"],
-      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild aufnehmen", "Passenden Experten finden"],
-      it: ["Parla col medico", "Sintomi", "Farmaci", "Parametri", "Piano salute", "Serve aiuto?", "Riepiloghi recenti", "Scatta o carica immagine", "Trova l'esperto giusto"],
-      pt: ["Falar com medico", "Sintomas", "Medicacao", "Sinais vitais", "Plano saude", "Precisa de ajuda?", "Resumos recentes", "Tire ou carregue imagem", "Encontrar especialista"],
+      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent summaries", "Image review", "Right expert"],
+      es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Revision de imagen", "Experto adecuado"],
+      fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Revue image", "Bon expert"],
+      de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild prufen", "Passender Experte"],
+      it: ["Parla col medico", "Sintomi", "Farmaci", "Parametri", "Piano salute", "Serve aiuto?", "Riepiloghi recenti", "Revisione immagine", "Esperto giusto"],
+      pt: ["Falar com medico", "Sintomas", "Medicacao", "Sinais vitais", "Plano saude", "Precisa de ajuda?", "Resumos recentes", "Rever imagem", "Especialista certo"],
     } as const;
 
     for (const [language, labels] of Object.entries(expected)) {

@@ -52,8 +52,23 @@ function dosesPerDay(scheduledTimes: string[] | null | undefined): number {
   return scheduledTimes && scheduledTimes.length > 0 ? scheduledTimes.length : 1;
 }
 
+function scheduledTimesForDay(scheduledTimes: string[] | null | undefined): string[] {
+  return scheduledTimes && scheduledTimes.length > 0 ? scheduledTimes : ["anytime"];
+}
+
+function scheduledTimeSortKey(value: string): number {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 function takenDoseCount(rows: Array<{ status: string }>): number {
   return rows.filter((row) => row.status === "taken").length;
+}
+
+function adherenceTimestamp(row: typeof medicationAdherence.$inferSelect): Date {
+  const value = row.confirmed_taken_at ?? row.created_at;
+  return value instanceof Date ? value : new Date(value);
 }
 
 function dateKeyFor(value: Date | string): string {
@@ -1004,12 +1019,62 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       };
     });
 
+    const latestTakenRow = rowsLast30
+      .filter((r) => r.status === "taken")
+      .sort((a, b) => adherenceTimestamp(b).getTime() - adherenceTimestamp(a).getTime())[0];
+    const latestTaken = latestTakenRow
+      ? {
+          medication_name: latestTakenRow.medication_name,
+          scheduled_time: latestTakenRow.scheduled_time,
+          confirmed_taken_at: adherenceTimestamp(latestTakenRow).toISOString(),
+        }
+      : null;
+    const todayTakenByName = new Map<string, number>();
+    for (const row of rowsLast30) {
+      if (row.status !== "taken" || dateKeyFor(row.created_at) !== today) continue;
+      todayTakenByName.set(row.medication_name, (todayTakenByName.get(row.medication_name) ?? 0) + 1);
+    }
+    const pendingDoses: Array<{ medication_name: string; scheduled_time: string; sortKey: number }> = [];
+    const todayMedicationStatuses = medRows.map((med) => {
+      const scheduledTimes = scheduledTimesForDay(med.scheduled_times);
+      const scheduled = scheduledTimes.length;
+      const taken = todayTakenByName.get(med.medication_name) ?? 0;
+      const remaining = Math.max(0, scheduled - taken);
+      for (let index = taken; index < scheduled; index++) {
+        pendingDoses.push({
+          medication_name: med.medication_name,
+          scheduled_time: scheduledTimes[index] ?? scheduledTimes[0] ?? "anytime",
+          sortKey: scheduledTimeSortKey(scheduledTimes[index] ?? scheduledTimes[0] ?? "anytime"),
+        });
+      }
+      return { scheduled, taken, remaining };
+    });
+    const todayScheduled = todayMedicationStatuses.reduce((sum, med) => sum + med.scheduled, 0);
+    const todayTaken = todayMedicationStatuses.reduce((sum, med) => sum + Math.min(med.taken, med.scheduled), 0);
+    const todayRemaining = todayMedicationStatuses.reduce((sum, med) => sum + med.remaining, 0);
+    const nextDueDose = pendingDoses.sort((a, b) => a.sortKey - b.sortKey)[0] ?? null;
+
     return res.json({
       hasLogs,
       weekPct,
       monthPct,
       perMedication,
       sevenDayDates,
+      latestTaken,
+      nextDue: nextDueDose
+        ? {
+            medication_name: nextDueDose.medication_name,
+            scheduled_time: nextDueDose.scheduled_time,
+          }
+        : null,
+      todaySummary: {
+        taken: todayTaken,
+        scheduled: todayScheduled,
+        remaining: todayRemaining,
+        medicationCount: medRows.length,
+        completedMedicationCount: todayMedicationStatuses.filter((med) => med.remaining === 0).length,
+        pendingMedicationCount: todayMedicationStatuses.filter((med) => med.remaining > 0).length,
+      },
     });
   } catch (err) {
     console.error("[meds/adherence-report GET]", err);
