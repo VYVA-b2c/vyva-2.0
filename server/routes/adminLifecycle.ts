@@ -1356,6 +1356,47 @@ async function profileIdsForAccountIds(accountIds: string[]) {
   return ids;
 }
 
+async function applySubscriptionPatchToProfiles(input: {
+  ids: string[];
+  profilePatch: Partial<typeof profiles.$inferInsert>;
+  email?: string | null;
+  phone?: string | null;
+}) {
+  const ids = Array.from(new Set(input.ids.filter(Boolean)));
+  if (!ids.length) return ids;
+
+  await db
+    .update(profiles)
+    .set(input.profilePatch)
+    .where(inArray(profiles.id, ids));
+
+  const existingRows = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(inArray(profiles.id, ids));
+  const existingIds = new Set(existingRows.map((row) => row.id));
+  const missingIds = ids.filter((id) => !existingIds.has(id));
+  const email = normalizedEmail(input.email);
+  const phone = normalizedPhoneOrNull(input.phone);
+
+  for (const id of missingIds) {
+    await db
+      .insert(profiles)
+      .values({
+        id,
+        email: email ?? undefined,
+        phone_number: phone ?? undefined,
+        ...input.profilePatch,
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: input.profilePatch,
+      });
+  }
+
+  return ids;
+}
+
 async function syncSubscriptionForAccessIdentity(input: {
   email?: string | null;
   phone?: string | null;
@@ -1395,12 +1436,12 @@ async function syncSubscriptionForAccessIdentity(input: {
   }
 
   const ids = Array.from(profileIds);
-  if (ids.length) {
-    await db
-      .update(profiles)
-      .set(input.profilePatch)
-      .where(inArray(profiles.id, ids));
-  }
+  await applySubscriptionPatchToProfiles({
+    ids,
+    profilePatch: input.profilePatch,
+    email: input.email,
+    phone: input.phone,
+  });
 
   return ids;
 }
@@ -2928,13 +2969,15 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
     if (!isMissingRelationError(error)) throw error;
   }
 
+  const freshProfile = await profileById(profile.id) ?? profile;
+  const effectiveProfile = syncedActiveProfileId ? await profileById(syncedActiveProfileId) : freshProfile;
   const subscriptionSync = await syncProfileEntitlement({
-    profile,
-    profileId: profile.id,
+    profile: effectiveProfile ?? freshProfile,
+    profileId: (effectiveProfile ?? freshProfile).id,
     accountUserId: syncedAccountId,
     email: subscriptionEmail,
-    phone: profile.phone_number,
-    whatsapp: profile.whatsapp_number,
+    phone: (effectiveProfile ?? freshProfile).phone_number ?? subscriptionPhone,
+    whatsapp: (effectiveProfile ?? freshProfile).whatsapp_number,
     repairProfile: false,
   });
 
@@ -2943,18 +2986,18 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       account_id: syncedAccountId,
       account_source: parsed.data.account_source ?? null,
       active_profile_id: syncedActiveProfileId,
-      is_active_profile: syncedActiveProfileId === profile.id,
-      profile_id: profile.id,
-      profile_email: profile.email,
-      full_name: profile.full_name,
-      preferred_name: profile.preferred_name,
-      subscription_status: profile.subscription_status,
-      subscription_tier: normalizeSubscriptionTier(profile.subscription_tier),
-      stored_subscription_tier: profile.subscription_tier,
-      trial_ends_at: profile.trial_ends_at,
-      account_status: profile.account_status,
-      profile_role: profile.role,
-      updated_at: profile.updated_at,
+      is_active_profile: syncedActiveProfileId === freshProfile.id,
+      profile_id: freshProfile.id,
+      profile_email: freshProfile.email,
+      full_name: freshProfile.full_name,
+      preferred_name: freshProfile.preferred_name,
+      subscription_status: freshProfile.subscription_status,
+      subscription_tier: normalizeSubscriptionTier(freshProfile.subscription_tier),
+      stored_subscription_tier: freshProfile.subscription_tier,
+      trial_ends_at: freshProfile.trial_ends_at,
+      account_status: freshProfile.account_status,
+      profile_role: freshProfile.role,
+      updated_at: freshProfile.updated_at,
       synced_profile_ids: syncedProfileIds,
       ...subscriptionAdminFields(subscriptionSync),
     },
@@ -3105,12 +3148,12 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     await syncIntakeTiersForProfiles(Array.from(profileIds), nextEmail, profilePatch.subscription_tier);
     await syncIntakeTiersForPhone(Array.from(profileIds), nextPhone, profilePatch.subscription_tier);
 
-    if (profileIds.size > 0) {
-      await db
-        .update(profiles)
-        .set(subscriptionPatch)
-        .where(inArray(profiles.id, Array.from(profileIds)));
-    }
+    await applySubscriptionPatchToProfiles({
+      ids: Array.from(profileIds),
+      profilePatch: subscriptionPatch,
+      email: nextEmail,
+      phone: nextPhone,
+    });
     syncedProfileIds = Array.from(profileIds);
   }
 
@@ -3122,24 +3165,28 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     phone: nextPhone,
   });
 
-  await recordEvent({
-    intakeId: intake.id,
-    userId,
-    eventType: "admin_profile_updated",
-    channel: "admin",
-    metadata: {
-      previous_subscription_tier: existingProfile.subscription_tier,
-      subscription_tier: profilePatch.subscription_tier ?? existingProfile.subscription_tier,
-      previous_subscription_status: existingProfile.subscription_status,
-      subscription_status: profilePatch.subscription_status ?? existingProfile.subscription_status,
-      synced_profile_ids: syncedProfileIds,
-      account_mappings: freshMapping.mappings.map((item) => ({
-        source: item.source,
-        login_uid: item.login_uid,
-        effective_profile_id: item.effective_profile_id,
-      })),
-    },
-  });
+  try {
+    await recordEvent({
+      intakeId: intake.id,
+      userId,
+      eventType: "admin_profile_updated",
+      channel: "admin",
+      metadata: {
+        previous_subscription_tier: existingProfile.subscription_tier,
+        subscription_tier: profilePatch.subscription_tier ?? existingProfile.subscription_tier,
+        previous_subscription_status: existingProfile.subscription_status,
+        subscription_status: profilePatch.subscription_status ?? existingProfile.subscription_status,
+        synced_profile_ids: syncedProfileIds,
+        account_mappings: freshMapping.mappings.map((item) => ({
+          source: item.source,
+          login_uid: item.login_uid,
+          effective_profile_id: item.effective_profile_id,
+        })),
+      },
+    });
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
 
   return res.json({
     intake: updatedIntake,
