@@ -414,7 +414,7 @@ export default function LearningLibraryAdminPage() {
             <input
               id="learning-content-pack-upload"
               type="file"
-              accept="application/json,.json"
+              accept="application/json,text/plain,.json,.txt"
               className="sr-only"
               disabled={importing}
               onChange={(event) => {
@@ -428,7 +428,7 @@ export default function LearningLibraryAdminPage() {
               className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 py-2 text-sm font-bold text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
             >
               {importing ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
-              Upload pack
+              Upload JSON/TXT
             </label>
             <button
               type="button"
@@ -449,7 +449,7 @@ export default function LearningLibraryAdminPage() {
               <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Content template</p>
               <h2 id="learning-template-title" className="mt-1 text-lg font-black text-[#2f2135]">Learning library JSON</h2>
               <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
-                Download a ready-to-fill file with the current categories, one sample lesson, and every field needed for bulk upload.
+                Download a ready-to-fill file with the current categories, one sample lesson, and every field needed for bulk upload. Upload accepts .json files or plain .txt files containing JSON.
               </p>
             </div>
             <button

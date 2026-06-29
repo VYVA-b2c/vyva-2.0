@@ -54,6 +54,90 @@ export const DB_HEALTH_REQUIRED_TABLES = [
   "learning_program_events",
 ] as const;
 
+export const DB_HEALTH_REQUIRED_LEARNING_COLUMNS = {
+  learning_categories: [
+    "id",
+    "slug",
+    "label",
+    "description",
+    "color",
+    "icon",
+    "sort_order",
+    "is_active",
+    "created_at",
+    "updated_at",
+  ],
+  learning_lessons: [
+    "id",
+    "external_id",
+    "category_slug",
+    "language",
+    "title",
+    "hook",
+    "body",
+    "reflection_prompt",
+    "source_notes",
+    "estimated_minutes",
+    "difficulty",
+    "tags",
+    "status",
+    "is_active",
+    "reviewed_at",
+    "reviewed_by",
+    "published_at",
+    "published_by",
+    "archived_at",
+    "archived_by",
+    "created_at",
+    "updated_at",
+  ],
+  learning_programs: [
+    "id",
+    "user_id",
+    "status",
+    "interests",
+    "pace",
+    "daily_time",
+    "lesson_length_minutes",
+    "language",
+    "start_date",
+    "end_date",
+    "completed_at",
+    "created_at",
+    "updated_at",
+  ],
+  learning_program_items: [
+    "id",
+    "program_id",
+    "user_id",
+    "lesson_id",
+    "program_day",
+    "scheduled_date",
+    "status",
+    "completed_at",
+    "saved_at",
+    "skipped_at",
+    "created_at",
+    "updated_at",
+  ],
+  learning_program_events: [
+    "id",
+    "program_id",
+    "program_item_id",
+    "lesson_id",
+    "user_id",
+    "event_type",
+    "source",
+    "metadata",
+    "created_at",
+  ],
+} as const;
+
+export const DB_HEALTH_REQUIRED_LEARNING_UNIQUE_KEYS = [
+  { table: "learning_categories", columns: ["slug"] },
+  { table: "learning_lessons", columns: ["external_id"] },
+] as const;
+
 function hasDirectSupabaseConfig() {
   return Boolean(
     process.env.VITE_SUPABASE_URL ||
@@ -63,8 +147,33 @@ function hasDirectSupabaseConfig() {
   );
 }
 
+function requiredLearningColumnNames() {
+  return Object.entries(DB_HEALTH_REQUIRED_LEARNING_COLUMNS).flatMap(([table, columns]) =>
+    columns.map((column) => `${table}.${column}`),
+  );
+}
+
+function requiredLearningTableNames() {
+  return Object.keys(DB_HEALTH_REQUIRED_LEARNING_COLUMNS);
+}
+
+function normalizeIndexColumns(indexdef: unknown) {
+  if (typeof indexdef !== "string") return [];
+  const match = indexdef.match(/using\s+\w+\s*\(([^)]+)\)/i) ?? indexdef.match(/\(([^)]+)\)/);
+  if (!match?.[1]) return [];
+  return match[1]
+    .split(",")
+    .map((column) => column.trim().replace(/"/g, "").toLowerCase())
+    .filter(Boolean);
+}
+
+function learningUniqueKeySignature(table: string, columns: readonly string[]) {
+  return `${table}.${columns.join("+")}`;
+}
+
 export async function loadDbHealth() {
-  const [pingResult, tableResult] = await Promise.all([
+  const learningTables = requiredLearningTableNames();
+  const [pingResult, tableResult, columnResult, indexResult] = await Promise.all([
     pool.query("select now() as checked_at"),
     pool.query(
       `
@@ -75,13 +184,44 @@ export async function loadDbHealth() {
       `,
       [DB_HEALTH_REQUIRED_TABLES],
     ),
+    pool.query(
+      `
+        select table_name, column_name
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = any($1::text[])
+      `,
+      [learningTables],
+    ),
+    pool.query(
+      `
+        select tablename as table_name, indexname as index_name, indexdef
+        from pg_indexes
+        where schemaname = 'public'
+          and tablename = any($1::text[])
+      `,
+      [learningTables],
+    ),
   ]);
 
   const existing = new Set(tableResult.rows.map((row) => String(row.table_name)));
   const missingTables = DB_HEALTH_REQUIRED_TABLES.filter((table) => !existing.has(table));
+  const existingLearningColumns = new Set(
+    columnResult.rows.map((row) => `${String(row.table_name)}.${String(row.column_name)}`),
+  );
+  const missingLearningColumns = requiredLearningColumnNames().filter((column) => !existingLearningColumns.has(column));
+  const uniqueLearningKeys = new Set(
+    indexResult.rows
+      .filter((row) => typeof row.indexdef === "string" && /\bunique\b/i.test(row.indexdef))
+      .map((row) => learningUniqueKeySignature(String(row.table_name), normalizeIndexColumns(row.indexdef))),
+  );
+  const missingLearningUniqueKeys = DB_HEALTH_REQUIRED_LEARNING_UNIQUE_KEYS
+    .filter((key) => !uniqueLearningKeys.has(learningUniqueKeySignature(key.table, key.columns)))
+    .map((key) => learningUniqueKeySignature(key.table, key.columns));
+  const missingLearningMigrationPieces = missingLearningColumns.length + missingLearningUniqueKeys.length;
 
   return {
-    ok: missingTables.length === 0,
+    ok: missingTables.length === 0 && missingLearningMigrationPieces === 0,
     database: {
       connected: true,
       checkedAt: pingResult.rows[0]?.checked_at ?? null,
@@ -91,6 +231,12 @@ export async function loadDbHealth() {
     requiredTableCount: DB_HEALTH_REQUIRED_TABLES.length,
     missingTableCount: missingTables.length,
     missingTables,
+    requiredLearningColumnCount: requiredLearningColumnNames().length,
+    missingLearningColumnCount: missingLearningColumns.length,
+    missingLearningColumns,
+    requiredLearningUniqueKeyCount: DB_HEALTH_REQUIRED_LEARNING_UNIQUE_KEYS.length,
+    missingLearningUniqueKeyCount: missingLearningUniqueKeys.length,
+    missingLearningUniqueKeys,
   };
 }
 

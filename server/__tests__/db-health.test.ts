@@ -10,7 +10,11 @@ const dbMock = vi.hoisted(() => ({
 
 vi.mock("../db.js", () => dbMock);
 
-import { DB_HEALTH_REQUIRED_TABLES, dbHealthHandler } from "../routes/dbHealth.js";
+import {
+  DB_HEALTH_REQUIRED_LEARNING_COLUMNS,
+  DB_HEALTH_REQUIRED_TABLES,
+  dbHealthHandler,
+} from "../routes/dbHealth.js";
 
 function buildApp() {
   const app = express();
@@ -20,6 +24,29 @@ function buildApp() {
 
 const app = buildApp();
 const originalEnv = { ...process.env };
+
+function learningColumnRows(skipColumn?: string) {
+  return Object.entries(DB_HEALTH_REQUIRED_LEARNING_COLUMNS).flatMap(([table_name, columns]) =>
+    columns
+      .map((column_name) => ({ table_name, column_name }))
+      .filter((row) => `${row.table_name}.${row.column_name}` !== skipColumn),
+  );
+}
+
+function learningUniqueIndexRows(omitExternalId = false) {
+  return [
+    {
+      table_name: "learning_categories",
+      index_name: "learning_categories_slug_key",
+      indexdef: "CREATE UNIQUE INDEX learning_categories_slug_key ON public.learning_categories USING btree (slug)",
+    },
+    ...(omitExternalId ? [] : [{
+      table_name: "learning_lessons",
+      index_name: "idx_learning_lessons_external_id_unique",
+      indexdef: "CREATE UNIQUE INDEX idx_learning_lessons_external_id_unique ON public.learning_lessons USING btree (external_id)",
+    }]),
+  ];
+}
 
 describe("database health route", () => {
   beforeEach(() => {
@@ -38,7 +65,16 @@ describe("database health route", () => {
   it("reports required table coverage without exposing connection details", async () => {
     dbMock.pool.query.mockImplementation(async (sql: string) => {
       if (sql.includes("select now()")) return { rows: [{ checked_at: "2026-06-28T10:00:00.000Z" }] };
-      return { rows: DB_HEALTH_REQUIRED_TABLES.map((table_name) => ({ table_name })) };
+      if (sql.includes("information_schema.tables")) {
+        return { rows: DB_HEALTH_REQUIRED_TABLES.map((table_name) => ({ table_name })) };
+      }
+      if (sql.includes("information_schema.columns")) {
+        return { rows: learningColumnRows() };
+      }
+      if (sql.includes("pg_indexes")) {
+        return { rows: learningUniqueIndexRows() };
+      }
+      return { rows: [] };
     });
 
     const res = await request(app).get("/api/health/db").expect(200);
@@ -52,8 +88,39 @@ describe("database health route", () => {
       supabaseDirectConfigPresent: false,
       missingTableCount: 0,
       missingTables: [],
+      missingLearningColumnCount: 0,
+      missingLearningColumns: [],
+      missingLearningUniqueKeyCount: 0,
+      missingLearningUniqueKeys: [],
     });
     expect(JSON.stringify(res.body)).not.toContain("postgres://example");
+  });
+
+  it("reports missing learning columns and unique keys", async () => {
+    dbMock.pool.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("select now()")) return { rows: [{ checked_at: "2026-06-28T10:00:00.000Z" }] };
+      if (sql.includes("information_schema.tables")) {
+        return { rows: DB_HEALTH_REQUIRED_TABLES.map((table_name) => ({ table_name })) };
+      }
+      if (sql.includes("information_schema.columns")) {
+        return { rows: learningColumnRows("learning_lessons.external_id") };
+      }
+      if (sql.includes("pg_indexes")) {
+        return { rows: learningUniqueIndexRows(true) };
+      }
+      return { rows: [] };
+    });
+
+    const res = await request(app).get("/api/health/db").expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: false,
+      missingTableCount: 0,
+      missingLearningColumnCount: 1,
+      missingLearningColumns: ["learning_lessons.external_id"],
+      missingLearningUniqueKeyCount: 1,
+      missingLearningUniqueKeys: ["learning_lessons.external_id"],
+    });
   });
 
   it("returns a clear unhealthy response when the database query fails", async () => {
