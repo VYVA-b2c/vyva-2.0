@@ -76,6 +76,10 @@ async function loadEntitlementProfile(profileId: string): Promise<EntitlementPro
   throw new Error("Unable to load entitlement profile");
 }
 
+function isPlanIndependentFeature(feature: EntitlementFeature) {
+  return feature === "voice_assistant";
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -142,6 +146,16 @@ export async function hasTierEntitlement(userId: string, feature: EntitlementFea
     repairTrigger: "has_tier_entitlement",
   });
   const tier = normalizeSubscriptionTier(subscriptionSync.effectiveTier);
+  if (isPlanIndependentFeature(feature)) {
+    return {
+      allowed: true,
+      profileId,
+      tier,
+      subscriptionStatus: subscriptionSync.effectiveStatus,
+      reason: null,
+    };
+  }
+
   const entitlement = await entitlementForTier(tier);
   const allowed = Boolean(entitlement?.is_active && entitlement[feature]);
   return {
@@ -212,6 +226,12 @@ export function requireEntitlement(feature: EntitlementFeature) {
         repairTrigger: `require_entitlement:${feature}`,
       });
       const tier = normalizeSubscriptionTier(subscriptionSync.effectiveTier);
+      if (isPlanIndependentFeature(feature)) {
+        req.entitlement = { profileId, tier, feature };
+        next();
+        return;
+      }
+
       const entitlement = await entitlementForTier(tier);
       if (!entitlement?.is_active || !entitlement[feature]) {
         res.status(403).json({
