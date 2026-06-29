@@ -554,7 +554,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
       ...(!hasGp ? [setupStep("gp", "Add GP details in case follow-up is needed.")] : []),
     ];
     const medicationGate = gate(hasMedicationForServices, medicationMissing);
-    const voiceEnabled = Boolean(entitlements?.is_active && entitlements.voice_assistant);
+    const voiceEnabled = true;
     const medicationEnabled = Boolean(entitlements?.is_active && entitlements.medication_tracking);
     const symptomCheckEnabled = true;
     const conciergeEnabled = Boolean(entitlements?.is_active && entitlements.concierge);

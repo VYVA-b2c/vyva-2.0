@@ -71,6 +71,18 @@ describe("requireEntitlement account/profile diagnostics", () => {
       needsProfileSetup: false,
       needsProfileSelection: false,
     });
+    mocks.syncProfileEntitlement.mockResolvedValue({
+      effectiveTier: "free",
+      effectiveStatus: "active",
+    });
+    mocks.entitlementForTier.mockResolvedValue({
+      is_active: true,
+      voice_assistant: false,
+      medication_tracking: false,
+      symptom_check: false,
+      concierge: false,
+      caregiver_dashboard: false,
+    });
   });
 
   it("returns a distinct code when no active profile is selected", async () => {
@@ -123,5 +135,19 @@ describe("requireEntitlement account/profile diagnostics", () => {
       account_status: "disabled",
       nextRoute: "/settings/subscription",
     });
+  });
+
+  it("allows voice after profile access passes even when stale plan rows disable voice", async () => {
+    mockProfileLookup({ id: "profile-1", account_status: "enabled" });
+
+    const res = await request(buildApp()).get("/voice").expect(200);
+
+    expect(res.body).toEqual({ ok: true });
+    expect(mocks.syncProfileEntitlement).toHaveBeenCalledWith(expect.objectContaining({
+      profileId: "profile-1",
+      accountUserId: "account-user-1",
+      repairTrigger: "require_entitlement:voice_assistant",
+    }));
+    expect(mocks.entitlementForTier).not.toHaveBeenCalled();
   });
 });
