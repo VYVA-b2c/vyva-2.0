@@ -286,6 +286,7 @@ const VoiceCallOverlay = ({
         flexDirection: "column",
         alignItems: "center",
         background: "linear-gradient(160deg, #1A0040 0%, #3D0D82 40%, #6B21A8 80%, #8B3FC8 100%)",
+        boxSizing: "border-box",
         paddingLeft: 24,
         paddingRight: 24,
         paddingTop: "max(env(safe-area-inset-top, 0px), 52px)",
@@ -340,8 +341,10 @@ const VoiceCallOverlay = ({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          gap: 18,
-          paddingBottom: 150,
+          gap: 14,
+          boxSizing: "border-box",
+          paddingTop: "clamp(12px, 5vh, 54px)",
+          paddingBottom: "clamp(104px, 17vh, 168px)",
         }}
       >
         <div
@@ -391,10 +394,25 @@ const VoiceCallOverlay = ({
             opacity: wordVisible ? 1 : 0,
             transform: wordVisible ? "scale(1) translateY(0)" : "scale(0.94) translateY(10px)",
             minHeight: visibleWord ? "clamp(70px, 18vw, 130px)" : 48,
+            margin: 0,
           }}
         >
           {visibleWord ?? emptyTranscriptLabel}
         </p>
+
+        <span
+          data-testid="text-call-status"
+          className="font-body"
+          style={{
+            color: "rgba(255,255,255,0.56)",
+            fontSize: 13,
+            letterSpacing: "0.03em",
+            minHeight: 18,
+            marginTop: visibleWord ? -2 : 2,
+          }}
+        >
+          {statusLabel}
+        </span>
 
         {hasConnectionError && (
           <p
@@ -569,23 +587,10 @@ const VoiceCallOverlay = ({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 20,
+          gap: 12,
           paddingBottom: 8,
         }}
       >
-        {/* Status label */}
-        <span
-          data-testid="text-call-status"
-          className="font-body"
-          style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: 13,
-            letterSpacing: "0.03em",
-          }}
-        >
-          {statusLabel}
-        </span>
-
         <div
           style={{
             display: "flex",
