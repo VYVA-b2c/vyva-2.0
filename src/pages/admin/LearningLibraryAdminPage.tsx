@@ -244,6 +244,27 @@ function parseLearningContentPackText(text: string) {
   }
 }
 
+function responseErrorMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") return fallback;
+  const body = payload as Record<string, unknown>;
+  const primary =
+    typeof body.error === "string" && body.error.trim()
+      ? body.error.trim()
+      : typeof body.message === "string" && body.message.trim()
+        ? body.message.trim()
+        : fallback;
+  const details = [
+    ...(Array.isArray(body.details)
+      ? body.details.map((detail) => typeof detail === "string" ? detail.trim() : "").filter(Boolean)
+      : typeof body.details === "string" && body.details.trim()
+        ? [body.details.trim()]
+        : []),
+    ...(typeof body.detail === "string" && body.detail.trim() ? [body.detail.trim()] : []),
+  ].filter((detail, index, all) => detail !== primary && all.indexOf(detail) === index);
+
+  return [primary, ...details].join(" ");
+}
+
 export default function LearningLibraryAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -281,8 +302,8 @@ export default function LearningLibraryAdminPage() {
         categoriesResponse.json().catch(() => ({})),
         lessonsResponse.json().catch(() => ({})),
       ]);
-      if (!categoriesResponse.ok) throw new Error(categoriesPayload?.error ?? "Could not load categories.");
-      if (!lessonsResponse.ok) throw new Error(lessonsPayload?.error ?? "Could not load lessons.");
+      if (!categoriesResponse.ok) throw new Error(responseErrorMessage(categoriesPayload, "Could not load categories."));
+      if (!lessonsResponse.ok) throw new Error(responseErrorMessage(lessonsPayload, "Could not load lessons."));
       const nextCategories = (categoriesPayload.categories ?? []) as Category[];
       const nextLessons = (lessonsPayload.lessons ?? []) as Lesson[];
       setCategories(nextCategories);
@@ -319,7 +340,7 @@ export default function LearningLibraryAdminPage() {
         body: JSON.stringify(draftToPayload(nextDraft)),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error ?? "Lesson could not be saved.");
+      if (!response.ok) throw new Error(responseErrorMessage(payload, "Lesson could not be saved."));
       const saved = payload.lesson as Lesson;
       setLessons((current) => {
         const exists = current.some((lesson) => lesson.id === saved.id);
@@ -346,7 +367,7 @@ export default function LearningLibraryAdminPage() {
     try {
       const response = await apiFetch(`/api/admin/learning/lessons/${draft.id}/${action}`, { method: "PATCH" });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error ?? `Lesson could not be ${action}ed.`);
+      if (!response.ok) throw new Error(responseErrorMessage(payload, `Lesson could not be ${action}ed.`));
       const saved = payload.lesson as Lesson;
       setLessons((current) => current.map((lesson) => lesson.id === saved.id ? saved : lesson));
       setDraft(lessonToDraft(saved));
@@ -376,8 +397,7 @@ export default function LearningLibraryAdminPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const details = Array.isArray(payload?.details) ? ` ${payload.details.join(" ")}` : "";
-        throw new Error(`${payload?.error ?? "Content pack could not be imported."}${details}`);
+        throw new Error(responseErrorMessage(payload, "Content pack could not be imported."));
       }
       const summary = payload.summary ?? {};
       setSelectedId("");

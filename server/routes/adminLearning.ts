@@ -220,9 +220,28 @@ function normalizeLessonImport(raw: unknown) {
   });
 }
 
+function nestedErrorField(error: unknown, field: string, seen = new Set<unknown>()): unknown {
+  if (!error || typeof error !== "object" || seen.has(error)) return undefined;
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+  if (record[field] !== undefined) return record[field];
+  return nestedErrorField(record.cause, field, seen);
+}
+
 function importDatabaseDetails(error: unknown) {
   if (!error || typeof error !== "object") return [];
-  const { code } = error as { code?: string };
+  const code = nestedErrorField(error, "code");
+  const hostname = nestedErrorField(error, "hostname");
+  const message = error instanceof Error ? error.message : String(error);
+  const nestedMessage = nestedErrorField(error, "message");
+  const combinedMessage = [message, typeof nestedMessage === "string" ? nestedMessage : ""].join(" ");
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || combinedMessage.includes("ENOTFOUND")) {
+    const hostLabel = typeof hostname === "string" && hostname.trim() ? ` (${hostname})` : "";
+    return [`The app database host${hostLabel} cannot be reached from this environment. Check DATABASE_URL or local network access, restart the API, and try again.`];
+  }
+  if (code === "ECONNREFUSED" || code === "ETIMEDOUT" || code === "ECONNRESET") {
+    return ["The app database connection was refused or timed out. Check that the database is running and reachable, restart the API, and try again."];
+  }
   if (code === "42P01") {
     return ["The learning library database tables are missing. Run migrations/0045_learning_program.sql, then upload the pack again."];
   }

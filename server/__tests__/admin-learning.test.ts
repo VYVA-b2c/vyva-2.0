@@ -168,4 +168,42 @@ describe("admin learning import", () => {
       expect.objectContaining({ externalId: "technology-lesson-080", categorySlug: "technology" }),
     ]));
   });
+
+  it("returns a database reachability detail when import queries cannot connect", async () => {
+    dbMock.db.select.mockReset();
+    dbMock.db.select.mockImplementation(() => ({
+      from: () => ({
+        limit: async () => {
+          const cause = Object.assign(new Error("getaddrinfo ENOTFOUND helium"), {
+            code: "ENOTFOUND",
+            hostname: "helium",
+          });
+          const error = new Error("Failed query");
+          (error as Error & { cause?: unknown }).cause = cause;
+          throw error;
+        },
+      }),
+    }));
+
+    const response = await request(app)
+      .post("/api/admin/learning/import")
+      .send({
+        schema_version: "learning_content_pack_v1",
+        categories: [
+          {
+            slug: "science",
+            label: "Science",
+          },
+        ],
+        lessons: [],
+      })
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      error: "Learning content pack could not be imported.",
+      details: [
+        expect.stringContaining("The app database host (helium) cannot be reached"),
+      ],
+    });
+  });
 });

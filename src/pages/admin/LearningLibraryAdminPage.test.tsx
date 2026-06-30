@@ -177,6 +177,41 @@ describe("LearningLibraryAdminPage", () => {
     expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Import complete.");
   });
 
+  it("shows backend upload details when a content pack cannot be imported", async () => {
+    mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response(lessonPayload));
+      if (url === "/api/admin/learning/import" && options?.method === "POST") {
+        return Promise.resolve(response({
+          error: "Learning content pack could not be imported.",
+          details: [
+            "The app database host (helium) cannot be reached from this environment. Check DATABASE_URL or local network access, restart the API, and try again.",
+          ],
+        }, false));
+      }
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Learning library" });
+
+    const pack = {
+      schema_version: "learning_content_pack_v1",
+      categories: [{ slug: "science", label: "Science" }],
+      lessons: [],
+    };
+    const file = new File([JSON.stringify(pack)], "learning-pack.json", { type: "application/json" });
+    fireEvent.change(screen.getByTestId("input-admin-learning-import"), { target: { files: [file] } });
+
+    expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Learning content pack could not be imported.");
+    expect(screen.getByTestId("admin-learning-message")).toHaveTextContent("The app database host (helium) cannot be reached");
+  });
+
   it("downloads a learning library template with the current categories", async () => {
     const createObjectUrl = vi.fn(() => "blob:learning-template");
     const revokeObjectUrl = vi.fn();

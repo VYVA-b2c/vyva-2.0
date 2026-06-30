@@ -10,6 +10,37 @@ function isSuperAdminEmail(value: unknown): boolean {
   return typeof value === "string" && value.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
 }
 
+function nestedErrorField(error: unknown, field: string, seen = new Set<unknown>()): unknown {
+  if (!error || typeof error !== "object" || seen.has(error)) return undefined;
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+  if (record[field] !== undefined) return record[field];
+  return nestedErrorField(record.cause, field, seen);
+}
+
+function databaseUnavailableDetail(error: unknown): string | null {
+  const code = nestedErrorField(error, "code");
+  const hostname = nestedErrorField(error, "hostname");
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const nestedMessage = nestedErrorField(error, "message");
+  const combinedMessage = [message, typeof nestedMessage === "string" ? nestedMessage : ""].join(" ");
+
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || combinedMessage.includes("ENOTFOUND")) {
+    const hostLabel = typeof hostname === "string" && hostname.trim() ? ` (${hostname})` : "";
+    return `The app database host${hostLabel} cannot be reached from this environment. Check DATABASE_URL or local network access, restart the API, and try again.`;
+  }
+
+  if (code === "ECONNREFUSED" || code === "ETIMEDOUT" || code === "ECONNRESET") {
+    return "The app database connection was refused or timed out. Check that the database is running and reachable, restart the API, and try again.";
+  }
+
+  if (combinedMessage.includes("DATABASE_URL")) {
+    return "DATABASE_URL is missing or invalid for the API server. Set it to a reachable PostgreSQL database, restart the API, and try again.";
+  }
+
+  return null;
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -118,19 +149,33 @@ export async function requireAdminUser(
     import("../../shared/schema.js"),
   ]);
 
-  const [profile] = await db
-    .select({ role: profiles.role, email: profiles.email })
-    .from(profiles)
-    .where(eq(profiles.id, req.user.id))
-    .limit(1);
+  let profile: { role: string; email: string | null } | undefined;
+  let account: { email: string | null } | undefined;
 
-  const [account] = req.user.email
-    ? []
-    : await db
-        .select({ email: users.email })
-        .from(users)
-        .where(eq(users.id, req.user.id))
-        .limit(1);
+  try {
+    [profile] = await db
+      .select({ role: profiles.role, email: profiles.email })
+      .from(profiles)
+      .where(eq(profiles.id, req.user.id))
+      .limit(1);
+
+    [account] = req.user.email
+      ? []
+      : await db
+          .select({ email: users.email })
+          .from(users)
+          .where(eq(users.id, req.user.id))
+          .limit(1);
+  } catch (error) {
+    console.error("[auth] admin guard database lookup failed:", error);
+    const detail = databaseUnavailableDetail(error);
+    res.status(503).json({
+      error: "Admin database could not be reached.",
+      code: "ADMIN_DATABASE_UNAVAILABLE",
+      ...(detail ? { details: [detail] } : {}),
+    });
+    return;
+  }
 
   const isSuperAdmin =
     isSuperAdminEmail(req.user.email) ||
