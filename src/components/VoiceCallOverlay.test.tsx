@@ -131,6 +131,7 @@ describe("VoiceCallOverlay word transcript", () => {
     expect(screen.getByTestId("text-call-transcript")).not.toHaveClass("font-display");
     expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
+    expect(screen.getByTestId("text-call-status")).toHaveTextContent("voiceHero.listening");
 
     act(() => {
       vi.advanceTimersByTime(450);
@@ -179,6 +180,7 @@ describe("VoiceCallOverlay word transcript", () => {
       fontSize: "clamp(56px, 16vw, 118px)",
       maxWidth: "90vw",
       overflowWrap: "anywhere",
+      margin: "0",
     });
   });
 
