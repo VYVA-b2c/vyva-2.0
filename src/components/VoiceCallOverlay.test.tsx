@@ -130,7 +130,7 @@ describe("VoiceCallOverlay word transcript", () => {
     expect(screen.getByTestId("text-call-transcript")).toHaveClass("font-body");
     expect(screen.getByTestId("text-call-transcript")).not.toHaveClass("font-display");
     expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
-    expect(screen.getByTestId("voice-indicator-zamora-orb")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
 
     act(() => {
       vi.advanceTimersByTime(450);
