@@ -573,14 +573,6 @@ const VoiceCallOverlay = ({
           paddingBottom: 8,
         }}
       >
-        {/* Voice indicator */}
-        <div
-          data-testid="voice-indicator"
-          style={{ position: "relative", width: 92, height: 92 }}
-        >
-          <ZamoraVoiceOrb state={currentOrbState} size={92} testId="voice-indicator-zamora-orb" />
-        </div>
-
         {/* Status label */}
         <span
           data-testid="text-call-status"
