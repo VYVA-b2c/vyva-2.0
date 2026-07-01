@@ -3618,7 +3618,8 @@ adminLifecycleRouter.post("/intakes/:id/send-link", async (req: Request, res: Re
   if (!requireAdmin(req, res)) return;
   const result = await lifecycleService.sendIntakeLink(req.params.id, publicBaseUrl(req));
   if (!result) return res.status(404).json({ error: "Intake not found" });
-  return res.json(result);
+  const dispatchResult = await dispatchCommunicationsByIds([result.communication.id]);
+  return res.json({ ...result, delivery: dispatchResult.results[0] ?? null });
 });
 
 adminLifecycleRouter.get("/consent", async (req: Request, res: Response) => {
