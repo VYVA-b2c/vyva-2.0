@@ -21,6 +21,7 @@ import {
   cleanLabel,
   combineDateTimeLocal,
   consentStatusLabel,
+  contactNumberValue,
   emptyScheduledEvent,
   entryPointLabel,
   formatDate,
@@ -29,6 +30,7 @@ import {
   keywordsToText,
   languageOptions,
   lifecycleStatusLabel,
+  looksLikeContactEmail,
   stringValue,
   subscriptionStatusOptions,
   tierLabel,
@@ -55,14 +57,11 @@ function cleanContact(value?: string | null) {
 }
 
 function looksLikeEmail(value?: string | null) {
-  return Boolean(cleanContact(value)?.includes("@"));
+  return looksLikeContactEmail(value);
 }
 
 function phoneContact(value?: string | null) {
-  const contact = cleanContact(value);
-  if (!contact || looksLikeEmail(contact)) return null;
-  const digits = contact.replace(/\D/g, "");
-  return digits.length >= 6 ? contact : null;
+  return contactNumberValue(value) || null;
 }
 
 function contactKey(value?: string | null) {
@@ -637,7 +636,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
               {visibleSelectionCount > 0 && !allVisibleSelected && <span className="sr-only">{visibleSelectionCount} visible users selected</span>}
             </th>
           )}
-          <th>Name</th>{!compact && <th>Mobile</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
+          <th>Name</th>{!compact && <th>Contact number</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
         </tr></thead>
         <tbody>
           {users.length === 0 && (
@@ -995,7 +994,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
               <Field label="Full name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
               <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Phone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
+                <Field label="Contact number"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
                 <Field label="WhatsApp"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
               </div>
               <Field label="Email"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></Field>

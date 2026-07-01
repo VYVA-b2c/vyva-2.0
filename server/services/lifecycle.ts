@@ -615,8 +615,7 @@ function fallbackLifecyclePhone(input: {
   if (phone) return phone;
   const whatsapp = normalizePhone(input.whatsapp ?? "");
   if (whatsapp) return whatsapp;
-  const email = normalizeEmail(input.email);
-  return email || `${input.prefix}:${input.id}`;
+  return `${input.prefix}:${input.id}`;
 }
 
 function channelForIntakeLink(intake: Intake) {
