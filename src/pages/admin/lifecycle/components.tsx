@@ -74,8 +74,8 @@ function contactKey(value?: string | null) {
   return `text:${contact.toLowerCase()}`;
 }
 
-function lifecycleUserPhone(user: Intake) {
-  return phoneContact(user.profile_phone) ?? phoneContact(user.login_phone) ?? phoneContact(user.phone);
+function lifecycleUserMobile(user: Intake) {
+  return phoneContact(user.login_phone) ?? phoneContact(user.profile_phone) ?? phoneContact(user.phone);
 }
 
 function lifecycleIdentityRows(user: Intake) {
@@ -637,7 +637,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
               {visibleSelectionCount > 0 && !allVisibleSelected && <span className="sr-only">{visibleSelectionCount} visible users selected</span>}
             </th>
           )}
-          <th>Name</th>{!compact && <th>Phone</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
+          <th>Name</th>{!compact && <th>Mobile</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
         </tr></thead>
         <tbody>
           {users.length === 0 && (
@@ -689,7 +689,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                   </div>
                 )}
               </td>
-              {!compact && <td className="px-3 py-3">{lifecycleUserPhone(user) ?? "-"}</td>}
+              {!compact && <td className="px-3 py-3">{lifecycleUserMobile(user) ?? "-"}</td>}
               <td className="px-3 py-3">{userTypeLabel(user.user_type)}</td>
               <td className="px-3 py-3">
                 <span>{entryPointLabel(user.entry_point)}</span>
