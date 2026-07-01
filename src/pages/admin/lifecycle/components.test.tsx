@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { IntakeTable } from "./components";
+import { IntakeTable, UserDetailModal } from "./components";
 import type { Intake } from "./shared";
 
 function intake(overrides: Partial<Intake>): Intake {
@@ -55,7 +55,7 @@ describe("IntakeTable", () => {
       />,
     );
 
-    expect(screen.getByRole("columnheader", { name: "Mobile" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Contact number" })).toBeInTheDocument();
     expect(screen.getByText("+34 600 111 222")).toBeInTheDocument();
   });
 
@@ -72,5 +72,86 @@ describe("IntakeTable", () => {
     const row = screen.getByText("No Mobile").closest("tr");
     expect(row).not.toBeNull();
     expect(within(row as HTMLTableRowElement).getByText("-")).toBeInTheDocument();
+  });
+
+  it("does not treat an email fallback as a contact number", () => {
+    render(
+      <IntakeTable
+        users={[intake({ id: "email-only", name: "Email Only", phone: "hassanassad04@gmail.com", email: "hassanassad04@gmail.com" })]}
+        onView={vi.fn()}
+        onTriggerConsent={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByText("Email Only").closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLTableRowElement).getByText("-")).toBeInTheDocument();
+  });
+});
+
+describe("UserDetailModal", () => {
+  it("keeps email-only records out of the name and contact number fields", () => {
+    render(
+      <UserDetailModal
+        detail={{
+          intake: intake({
+            id: "email-detail",
+            name: "hassanassad04@gmail.com",
+            phone: "hassanassad04@gmail.com",
+            email: "hassanassad04@gmail.com",
+          }),
+          profile: null,
+          account_mappings: [],
+          communications: [],
+          lifecycle_events: [],
+          consent_attempts: [],
+          scheduled_events: [],
+        }}
+        draft={{
+          full_name: "",
+          preferred_name: "",
+          phone_number: "",
+          whatsapp_number: "",
+          email: "hassanassad04@gmail.com",
+          language: "es",
+          timezone: "Europe/Madrid",
+          caregiver_name: "",
+          caregiver_contact: "",
+          tier: "free",
+          organization_id: "",
+        }}
+        setDraft={vi.fn()}
+        organizations={[]}
+        planOptions={[{ value: "free", label: "Free" }]}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+        newEvent={{
+          event_type: "custom",
+          title: "",
+          description: "",
+          channel: "app",
+          scheduled_for: "",
+          scheduled_date: "",
+          scheduled_time: "",
+          timezone: "Europe/Madrid",
+          recurrence: "none",
+          status: "upcoming",
+          source: "admin",
+        }}
+        setNewEvent={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEventStatus={vi.fn()}
+        onEventTime={vi.fn()}
+        onSupportSave={vi.fn()}
+        onSupportStatus={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Full name")).toHaveValue("");
+    expect(screen.getByLabelText("Contact number")).toHaveValue("");
+    expect(screen.getByLabelText("Email")).toHaveValue("hassanassad04@gmail.com");
   });
 });

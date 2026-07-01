@@ -34,7 +34,12 @@ import {
   rememberCareTeamInviteReturnPath,
 } from "@/lib/careTeamInviteReturn";
 import { apiFetch, queryClient } from "@/lib/queryClient";
-import { stageToRoute } from "@/lib/onboardingRoute";
+import {
+  defaultSignedInRoute,
+  isCaregiverRoutingUser,
+  routeAfterOnboardingStage,
+  safeReturnPathForActiveProfile,
+} from "@/lib/onboardingRoute";
 import { currentSignupInviteId, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
 import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
@@ -1379,8 +1384,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       navigate("/admin/lifecycle", { replace: true });
       return;
     }
-    if (inviteReturnPath) {
-      navigate(inviteReturnPath, { replace: true });
+    const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, user);
+    if (inviteDestination) {
+      navigate(inviteDestination, { replace: true });
       return;
     }
     if (user.needsProfileSelection) {
@@ -1391,15 +1397,20 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       navigate("/onboarding/who-for", { replace: true });
       return;
     }
-    if (from) {
-      navigate(from, { replace: true });
+    const returnDestination = safeReturnPathForActiveProfile(from, user);
+    if (returnDestination) {
+      navigate(returnDestination, { replace: true });
+      return;
+    }
+    if (isCaregiverRoutingUser(user)) {
+      navigate(defaultSignedInRoute(user), { replace: true });
       return;
     }
     queryClient
       .fetchQuery({ queryKey: ["/api/onboarding/state"] })
       .then((data: { onboardingState?: { current_stage?: string }; profile?: { current_stage?: string } }) => {
         const stage = data?.onboardingState?.current_stage ?? data?.profile?.current_stage;
-        navigate(stageToRoute(stage), { replace: true });
+        navigate(routeAfterOnboardingStage(stage, user), { replace: true });
       })
       .catch(() => navigate("/onboarding/basics", { replace: true }));
   }, [adminOnly, from, inviteReturnPath, isLoading, user, navigate]);
@@ -1482,11 +1493,13 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         const setupFor = rememberSetupIntent();
         const inviteId = currentSignupInviteId(location.search);
         trackSignupInviteEvent(inviteId, "profile_started", { destination: "/", keepalive: true });
-        await register({ ...authContactPayload(true), setup_for: setupFor }, password);
-        if (inviteReturnPath) {
-          navigate(inviteReturnPath, { replace: true });
-        } else if (from) {
-          navigate(from, { replace: true });
+        const registeredUser = await register({ ...authContactPayload(true), setup_for: setupFor }, password);
+        const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, registeredUser);
+        const returnDestination = safeReturnPathForActiveProfile(from, registeredUser);
+        if (inviteDestination) {
+          navigate(inviteDestination, { replace: true });
+        } else if (returnDestination) {
+          navigate(returnDestination, { replace: true });
         } else {
           navigate(setupFor === "someone_else" ? "/onboarding/proxy-setup" : "/onboarding/basics", {
             replace: true,
@@ -1494,11 +1507,15 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           });
         }
       } else {
-        await login(authContactPayload(), password);
-        if (inviteReturnPath) {
-          navigate(inviteReturnPath, { replace: true });
-        } else if (from) {
-          navigate(from, { replace: true });
+        const signedInUser = await login(authContactPayload(), password);
+        const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, signedInUser);
+        const returnDestination = safeReturnPathForActiveProfile(from, signedInUser);
+        if (inviteDestination) {
+          navigate(inviteDestination, { replace: true });
+        } else if (returnDestination) {
+          navigate(returnDestination, { replace: true });
+        } else if (isCaregiverRoutingUser(signedInUser)) {
+          navigate(defaultSignedInRoute(signedInUser), { replace: true });
         } else {
           const data = await queryClient.fetchQuery({ queryKey: ["/api/onboarding/state"] }).catch(() => null);
           const stage =
@@ -1506,7 +1523,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               ?.onboardingState?.current_stage ??
             (data as { onboardingState?: { current_stage?: string }; profile?: { current_stage?: string } } | null)
               ?.profile?.current_stage;
-          navigate(stageToRoute(stage), { replace: true });
+          navigate(routeAfterOnboardingStage(stage, signedInUser), { replace: true });
         }
       }
     } catch (err) {

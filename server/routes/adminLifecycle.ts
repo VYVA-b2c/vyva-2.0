@@ -228,6 +228,26 @@ const profileUpdateSchema = z.object({
   sync_profile_ids: z.array(z.string().uuid()).optional().default([]),
 });
 
+const caregiverInviteSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().optional().nullable().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().nullable().or(z.literal("")),
+  whatsapp: z.string().trim().max(40).optional().nullable().or(z.literal("")),
+  role: z.enum(["caregiver", "family", "family_member", "doctor", "carer"]).optional().default("caregiver"),
+  relationship: z.string().trim().max(120).optional().nullable().or(z.literal("")),
+  permissions: z.object({
+    daily_summary: z.boolean().optional(),
+    safety_alerts: z.boolean().optional(),
+    health_alerts: z.boolean().optional(),
+    mood_updates: z.boolean().optional(),
+    medication_alerts: z.boolean().optional(),
+    dashboard_access: z.boolean().optional(),
+    health_reports: z.boolean().optional(),
+    vital_signs: z.boolean().optional(),
+    journal_summaries: z.boolean().optional(),
+  }).optional().default({}),
+});
+
 const scheduledEventAdminSchema = z.object({
   event_type: z.string().min(1).default("custom"),
   title: z.string().min(1),
@@ -628,6 +648,61 @@ async function communicationProviderStatus() {
 
 function signupPhoneInviteChannel(): "sms" | "whatsapp" {
   return communicationsProviderConfig("whatsapp").configured ? "whatsapp" : "sms";
+}
+
+type AdminCareTeamRole = "caregiver" | "family_member" | "doctor";
+
+function normalizeCaregiverInviteRole(role: string): AdminCareTeamRole {
+  if (role === "family" || role === "family_member") return "family_member";
+  if (role === "doctor") return "doctor";
+  return "caregiver";
+}
+
+function cleanOptionalContact(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function caregiverInviteDefaults(role: AdminCareTeamRole) {
+  if (role === "doctor") {
+    return {
+      daily_summary: true,
+      safety_alerts: true,
+      health_alerts: true,
+      mood_updates: false,
+      medication_alerts: false,
+      dashboard_access: true,
+      health_reports: true,
+      vital_signs: true,
+      journal_summaries: false,
+    };
+  }
+
+  if (role === "family_member") {
+    return {
+      daily_summary: true,
+      safety_alerts: true,
+      health_alerts: false,
+      mood_updates: true,
+      medication_alerts: false,
+      dashboard_access: true,
+      health_reports: false,
+      vital_signs: false,
+      journal_summaries: true,
+    };
+  }
+
+  return {
+    daily_summary: true,
+    safety_alerts: true,
+    health_alerts: true,
+    mood_updates: true,
+    medication_alerts: true,
+    dashboard_access: true,
+    health_reports: true,
+    vital_signs: true,
+    journal_summaries: true,
+  };
 }
 
 function isMissingRelationError(error: unknown): boolean {
@@ -3031,13 +3106,16 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       ? or(eq(accessLinks.intake_id, intake.id), eq(accessLinks.user_id, userId))
       : eq(accessLinks.intake_id, intake.id);
 
-    const [communicationRows, lifecycleRows, consentRows, accessLinkRows, scheduledRows, support] = await Promise.all([
+    const [communicationRows, lifecycleRows, consentRows, accessLinkRows, scheduledRows, support, careTeamInviteRows] = await Promise.all([
       optionalAdminRows(db.select().from(communicationsLog).where(userCommunicationWhere).orderBy(desc(communicationsLog.created_at)).limit(100)),
       optionalAdminRows(db.select().from(lifecycleEvents).where(userEventWhere).orderBy(desc(lifecycleEvents.created_at)).limit(100)),
       optionalAdminRows(db.select().from(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)).orderBy(desc(consentAttempts.created_at)).limit(50)),
       optionalAdminRows(db.select().from(accessLinks).where(userAccessLinkWhere).orderBy(desc(accessLinks.created_at)).limit(50)),
       scheduledItemsForUser(userId),
       scheduledSupportForUser(userId),
+      userId
+        ? optionalAdminRows(db.select().from(teamInvitations).where(eq(teamInvitations.senior_id, userId)).orderBy(desc(teamInvitations.created_at)).limit(50))
+        : Promise.resolve([]),
     ]);
 
     return res.json({
@@ -3054,10 +3132,151 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       scheduled_support: support.schedules,
       interaction_logs: support.logs,
       consent_audit_logs: support.audit_logs,
+      care_team_invitations: careTeamInviteRows,
     });
   } catch (error) {
     console.error("[admin-lifecycle] user details failed", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Could not load user details" });
+  }
+});
+
+adminLifecycleRouter.post("/users/:id/caregiver-invite", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = caregiverInviteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid caregiver invite" });
+
+  try {
+    const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+    if (!intake) return res.status(404).json({ error: "User intake not found" });
+
+    const userId = targetUserIdForIntake(intake);
+    if (!userId) return res.status(400).json({ error: "Create or link the elder app profile before inviting a caregiver." });
+
+    const profile = await profileById(userId);
+    if (!profile) return res.status(404).json({ error: "Linked elder profile not found" });
+
+    const data = parsed.data;
+    const role = normalizeCaregiverInviteRole(data.role);
+    const email = cleanOptionalContact(data.email)?.toLowerCase() ?? null;
+    const phone = cleanOptionalContact(data.phone) ? normalizePhone(data.phone ?? "") || null : null;
+    const whatsapp = cleanOptionalContact(data.whatsapp) ? normalizePhone(data.whatsapp ?? "") || null : null;
+    const relationship = cleanOptionalContact(data.relationship);
+    if (!email && !phone && !whatsapp) {
+      return res.status(400).json({ error: "Add at least one caregiver email, phone, or WhatsApp number." });
+    }
+
+    const permissions = { ...caregiverInviteDefaults(role), ...data.permissions };
+    const inviteToken = randomUUID();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    const [invitation] = await db
+      .insert(teamInvitations)
+      .values({
+        senior_id: userId,
+        invitee_name: data.name,
+        invitee_phone: phone,
+        invitee_email: email,
+        invitee_whatsapp: whatsapp,
+        role,
+        relationship,
+        invite_token: inviteToken,
+        invite_channel: "admin_template",
+        status: "pending",
+        expires_at: expiresAt,
+        can_receive_daily_digest: Boolean(permissions.daily_summary),
+        can_receive_safety_alerts: Boolean(permissions.safety_alerts),
+        can_receive_health_alerts: Boolean(permissions.health_alerts),
+        can_receive_mood_alerts: Boolean(permissions.mood_updates),
+        can_receive_medication_alerts: Boolean(permissions.medication_alerts),
+        can_view_dashboard: Boolean(permissions.dashboard_access),
+        can_view_health_reports: Boolean(permissions.health_reports),
+        can_view_vital_signs: Boolean(permissions.vital_signs),
+        can_view_journal_summaries: Boolean(permissions.journal_summaries),
+      })
+      .returning();
+
+    const seniorName = profile.full_name ?? profile.preferred_name ?? intake.name;
+    const baseUrl = publicBaseUrl(req).replace(/\/+$/, "");
+    const inviteUrl = `${baseUrl}/care-team/invite/${encodeURIComponent(inviteToken)}`;
+    const body = `VYVA: ${seniorName || "someone you support"} invited you to their care team. Review and accept securely: ${inviteUrl}`;
+    const phoneRecipient = phone ?? whatsapp;
+    const deliveryChannel = signupPhoneInviteChannel();
+    const recipients = [
+      ...(email ? [{ channel: "email", recipient: email }] : []),
+      ...(phoneRecipient ? [{ channel: deliveryChannel, recipient: phoneRecipient }] : []),
+    ];
+    const dedupedRecipients = Array.from(
+      new Map(recipients.map((item) => [`${item.channel}:${item.recipient.toLowerCase()}`, item])).values(),
+    );
+
+    const communicationRows: Array<typeof communicationsLog.$inferInsert> = dedupedRecipients.map((target) => ({
+      intake_id: intake.id,
+      user_id: userId,
+      channel: target.channel,
+      recipient: target.recipient,
+      purpose: "care_team_invite",
+      status: "queued",
+      body,
+      metadata: {
+        url: inviteUrl,
+        subject: `${seniorName || "VYVA"} invited you to their VYVA care team`,
+        invitation_id: invitation.id,
+        senior_id: userId,
+        senior_name: seniorName,
+        invitee_name: invitation.invitee_name,
+        recipient_name: invitation.invitee_name,
+        target_role: invitation.role,
+        relationship: invitation.relationship,
+        shared_by_admin: req.user?.email ?? req.user?.id ?? null,
+      },
+    }));
+
+    const communications = communicationRows.length
+      ? await db.insert(communicationsLog).values(communicationRows).returning()
+      : [];
+    const dispatchResult = communications.length
+      ? await dispatchCommunicationsByIds(communications.map((item) => item.id))
+      : { processed: 0, results: [] };
+    const sent = dispatchResult.results.filter((item) => item.status === "sent").length;
+    const failed = dispatchResult.results.filter((item) => item.status === "failed").length;
+
+    await lifecycleService.recordLifecycleEvent({
+      intakeId: intake.id,
+      userId,
+      eventType: "caregiver_invite_sent",
+      fromStatus: intake.status,
+      toStatus: intake.status,
+      channel: "admin_template",
+      metadata: {
+        invitation_id: invitation.id,
+        invitee_name: invitation.invitee_name,
+        target_role: invitation.role,
+        relationship,
+        queued: communications.length,
+        sent,
+        failed,
+      },
+    });
+
+    return res.status(201).json({
+      invitation,
+      invite_url: inviteUrl,
+      delivery: {
+        queued: communications.length,
+        sent,
+        failed,
+        results: dispatchResult.results.map((item) => ({
+          id: item.id,
+          channel: item.channel,
+          recipient: item.recipient,
+          status: item.status,
+          ...(item.error ? { error: item.error } : {}),
+        })),
+      },
+      communications,
+    });
+  } catch (error) {
+    console.error("[admin-lifecycle] caregiver invite failed", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Could not send caregiver invite" });
   }
 });
 
@@ -3618,7 +3837,8 @@ adminLifecycleRouter.post("/intakes/:id/send-link", async (req: Request, res: Re
   if (!requireAdmin(req, res)) return;
   const result = await lifecycleService.sendIntakeLink(req.params.id, publicBaseUrl(req));
   if (!result) return res.status(404).json({ error: "Intake not found" });
-  return res.json(result);
+  const dispatchResult = await dispatchCommunicationsByIds([result.communication.id]);
+  return res.json({ ...result, delivery: dispatchResult.results[0] ?? null });
 });
 
 adminLifecycleRouter.get("/consent", async (req: Request, res: Response) => {

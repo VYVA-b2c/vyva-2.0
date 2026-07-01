@@ -46,10 +46,10 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   lastSeenAt: string | null;
-  login: (identifier: string | AuthIdentifier, password: string) => Promise<void>;
-  register: (identifier: string | AuthIdentifier, password: string) => Promise<void>;
+  login: (identifier: string | AuthIdentifier, password: string) => Promise<AuthUser>;
+  register: (identifier: string | AuthIdentifier, password: string) => Promise<AuthUser>;
   requestMagicLink: (identifier: string | AuthIdentifier) => Promise<MagicLinkResponse>;
-  loginWithMagicToken: (magicToken: string) => Promise<void>;
+  loginWithMagicToken: (magicToken: string) => Promise<AuthUser>;
   refreshCurrentUser: () => Promise<AuthUser | null>;
   logout: () => Promise<void>;
 }
@@ -162,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLastSeenAt(prevSeenAt);
     if (u.language) setAccountLanguage(u.language);
     queryClient.prefetchQuery({ queryKey: ONBOARDING_STATE_KEY });
+    return u;
   }, []);
 
   const logout = useCallback(async () => {
@@ -231,8 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const session = await signInWithSupabase(email, password);
         const currentUser = await loadCurrentUser(session.token, { userId: session.userId, email: session.email });
-        applyToken(currentUser.token ?? session.token, currentUser.user, currentUser.prevSeenAt);
-        return;
+        return applyToken(currentUser.token ?? session.token, currentUser.user, currentUser.prevSeenAt);
       } catch {
         // Fall back to VYVA's backend auth so regular email/password accounts
         // are not blocked by Supabase confirmation or SMTP setup.
@@ -249,7 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(apiErrorMessage(data, "Login failed"));
-    applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
+    return applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
   }, [applyToken]);
 
   const register = useCallback(async (identifier: string | AuthIdentifier, password: string) => {
@@ -264,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(apiErrorMessage(data, "Registration failed"));
-    applyToken(data.token, responseUser(data), null);
+    return applyToken(data.token, responseUser(data), null);
   }, [applyToken]);
 
   const requestMagicLink = useCallback(async (identifier: string | AuthIdentifier) => {
@@ -292,7 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(apiErrorMessage(data, "This sign-in link did not work"));
-    applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
+    return applyToken(data.token, responseUser(data), data.prevSeenAt ?? null);
   }, [applyToken]);
 
   return (

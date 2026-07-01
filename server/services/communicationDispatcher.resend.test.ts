@@ -27,4 +27,40 @@ describe("Resend email dispatch", () => {
       reply_to: "reply@vyva.life",
     });
   });
+
+  it("keeps inline signup invite attachments on the Resend payload", () => {
+    const payload = buildResendEmailRequest(
+      {
+        id: "communication-2",
+        recipient: "gm@4cksa.com",
+        body: "Join VYVA",
+      } as CommunicationLog,
+      {
+        subject: "Join VYVA",
+        text: "Join VYVA",
+        html: '<img src="cid:vyva-logo-en" alt="VYVA">',
+        attachments: [{
+          filename: "vyva-logo-en.png",
+          content: "base64-logo",
+          type: "image/png",
+          disposition: "inline",
+          content_id: "vyva-logo-en",
+        }],
+      },
+      "invites@vyva.life",
+      "reply@vyva.life",
+      "GM",
+    );
+
+    expect(payload).toMatchObject({
+      from: "VYVA <invites@vyva.life>",
+      to: ["GM <gm@4cksa.com>"],
+      attachments: [{
+        filename: "vyva-logo-en.png",
+        content: "base64-logo",
+        content_type: "image/png",
+        content_id: "vyva-logo-en",
+      }],
+    });
+  });
 });

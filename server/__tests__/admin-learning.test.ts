@@ -206,4 +206,36 @@ describe("admin learning import", () => {
       ],
     });
   });
+
+  it("returns a schema drift detail when learning text columns are still json", async () => {
+    const cause = Object.assign(new Error('invalid input syntax for type json'), {
+      code: "22P02",
+      detail: 'Token "Temporary" is invalid.',
+      where: "JSON data, line 1: Temporary",
+    });
+    const error = new Error("Failed query");
+    (error as Error & { cause?: unknown }).cause = cause;
+    dbMock.db.transaction.mockRejectedValue(error);
+
+    const response = await request(app)
+      .post("/api/admin/learning/import")
+      .send({
+        schema_version: "learning_content_pack_v1",
+        categories: [
+          {
+            slug: "science",
+            label: "Science",
+          },
+        ],
+        lessons: [],
+      })
+      .expect(500);
+
+    expect(response.body).toMatchObject({
+      error: "Learning content pack could not be imported.",
+      details: [
+        expect.stringContaining("one or more lesson/category text fields are still JSON columns"),
+      ],
+    });
+  });
 });

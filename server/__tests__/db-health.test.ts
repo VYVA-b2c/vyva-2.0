@@ -12,6 +12,7 @@ vi.mock("../db.js", () => dbMock);
 
 import {
   DB_HEALTH_REQUIRED_LEARNING_COLUMNS,
+  DB_HEALTH_REQUIRED_LEARNING_COLUMN_TYPES,
   DB_HEALTH_REQUIRED_TABLES,
   dbHealthHandler,
 } from "../routes/dbHealth.js";
@@ -25,10 +26,16 @@ function buildApp() {
 const app = buildApp();
 const originalEnv = { ...process.env };
 
-function learningColumnRows(skipColumn?: string) {
+function learningColumnRows(skipColumn?: string, typeOverrides: Record<string, string> = {}) {
   return Object.entries(DB_HEALTH_REQUIRED_LEARNING_COLUMNS).flatMap(([table_name, columns]) =>
     columns
-      .map((column_name) => ({ table_name, column_name }))
+      .map((column_name) => ({
+        table_name,
+        column_name,
+        udt_name:
+          typeOverrides[`${table_name}.${column_name}`] ??
+          DB_HEALTH_REQUIRED_LEARNING_COLUMN_TYPES[table_name as keyof typeof DB_HEALTH_REQUIRED_LEARNING_COLUMN_TYPES][column_name as never],
+      }))
       .filter((row) => `${row.table_name}.${row.column_name}` !== skipColumn),
   );
 }
@@ -90,6 +97,8 @@ describe("database health route", () => {
       missingTables: [],
       missingLearningColumnCount: 0,
       missingLearningColumns: [],
+      wrongLearningColumnTypeCount: 0,
+      wrongLearningColumnTypes: [],
       missingLearningUniqueKeyCount: 0,
       missingLearningUniqueKeys: [],
     });
@@ -120,6 +129,31 @@ describe("database health route", () => {
       missingLearningColumns: ["learning_lessons.external_id"],
       missingLearningUniqueKeyCount: 1,
       missingLearningUniqueKeys: ["learning_lessons.external_id"],
+    });
+  });
+
+  it("reports drifted learning column types", async () => {
+    dbMock.pool.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("select now()")) return { rows: [{ checked_at: "2026-06-28T10:00:00.000Z" }] };
+      if (sql.includes("information_schema.tables")) {
+        return { rows: DB_HEALTH_REQUIRED_TABLES.map((table_name) => ({ table_name })) };
+      }
+      if (sql.includes("information_schema.columns")) {
+        return { rows: learningColumnRows(undefined, { "learning_categories.description": "jsonb" }) };
+      }
+      if (sql.includes("pg_indexes")) {
+        return { rows: learningUniqueIndexRows() };
+      }
+      return { rows: [] };
+    });
+
+    const res = await request(app).get("/api/health/db").expect(200);
+
+    expect(res.body).toMatchObject({
+      ok: false,
+      missingLearningColumnCount: 0,
+      wrongLearningColumnTypeCount: 1,
+      wrongLearningColumnTypes: ["learning_categories.description expected text, found jsonb"],
     });
   });
 
