@@ -138,6 +138,85 @@ export const DB_HEALTH_REQUIRED_LEARNING_UNIQUE_KEYS = [
   { table: "learning_lessons", columns: ["external_id"] },
 ] as const;
 
+export const DB_HEALTH_REQUIRED_LEARNING_COLUMN_TYPES = {
+  learning_categories: {
+    id: "uuid",
+    slug: "text",
+    label: "text",
+    description: "text",
+    color: "text",
+    icon: "text",
+    sort_order: "int4",
+    is_active: "bool",
+    created_at: "timestamptz",
+    updated_at: "timestamptz",
+  },
+  learning_lessons: {
+    id: "uuid",
+    external_id: "text",
+    category_slug: "text",
+    language: "text",
+    title: "text",
+    hook: "text",
+    body: "text",
+    reflection_prompt: "text",
+    source_notes: "text",
+    estimated_minutes: "int4",
+    difficulty: "text",
+    tags: "_text",
+    status: "text",
+    is_active: "bool",
+    reviewed_at: "timestamptz",
+    reviewed_by: "text",
+    published_at: "timestamptz",
+    published_by: "text",
+    archived_at: "timestamptz",
+    archived_by: "text",
+    created_at: "timestamptz",
+    updated_at: "timestamptz",
+  },
+  learning_programs: {
+    id: "uuid",
+    user_id: "text",
+    status: "text",
+    interests: "_text",
+    pace: "text",
+    daily_time: "text",
+    lesson_length_minutes: "int4",
+    language: "text",
+    start_date: "date",
+    end_date: "date",
+    completed_at: "timestamptz",
+    created_at: "timestamptz",
+    updated_at: "timestamptz",
+  },
+  learning_program_items: {
+    id: "uuid",
+    program_id: "uuid",
+    user_id: "text",
+    lesson_id: "uuid",
+    program_day: "int4",
+    scheduled_date: "date",
+    status: "text",
+    completed_at: "timestamptz",
+    saved_at: "timestamptz",
+    skipped_at: "timestamptz",
+    created_at: "timestamptz",
+    updated_at: "timestamptz",
+  },
+  learning_program_events: {
+    id: "uuid",
+    program_id: "uuid",
+    program_item_id: "uuid",
+    lesson_id: "uuid",
+    user_id: "text",
+    event_type: "text",
+    source: "text",
+    metadata: "jsonb",
+    created_at: "timestamptz",
+  },
+} as const;
+
 function hasDirectSupabaseConfig() {
   return Boolean(
     process.env.VITE_SUPABASE_URL ||
@@ -150,6 +229,15 @@ function hasDirectSupabaseConfig() {
 function requiredLearningColumnNames() {
   return Object.entries(DB_HEALTH_REQUIRED_LEARNING_COLUMNS).flatMap(([table, columns]) =>
     columns.map((column) => `${table}.${column}`),
+  );
+}
+
+function requiredLearningColumnTypes() {
+  return Object.entries(DB_HEALTH_REQUIRED_LEARNING_COLUMN_TYPES).flatMap(([table, columns]) =>
+    Object.entries(columns).map(([column, expectedType]) => ({
+      key: `${table}.${column}`,
+      expectedType,
+    })),
   );
 }
 
@@ -186,7 +274,7 @@ export async function loadDbHealth() {
     ),
     pool.query(
       `
-        select table_name, column_name
+        select table_name, column_name, udt_name
         from information_schema.columns
         where table_schema = 'public'
           and table_name = any($1::text[])
@@ -209,7 +297,19 @@ export async function loadDbHealth() {
   const existingLearningColumns = new Set(
     columnResult.rows.map((row) => `${String(row.table_name)}.${String(row.column_name)}`),
   );
+  const existingLearningColumnTypes = new Map(
+    columnResult.rows.map((row) => [
+      `${String(row.table_name)}.${String(row.column_name)}`,
+      String(row.udt_name),
+    ]),
+  );
   const missingLearningColumns = requiredLearningColumnNames().filter((column) => !existingLearningColumns.has(column));
+  const wrongLearningColumnTypes = requiredLearningColumnTypes()
+    .filter((column) => {
+      const actualType = existingLearningColumnTypes.get(column.key);
+      return actualType !== undefined && actualType !== column.expectedType;
+    })
+    .map((column) => `${column.key} expected ${column.expectedType}, found ${existingLearningColumnTypes.get(column.key)}`);
   const uniqueLearningKeys = new Set(
     indexResult.rows
       .filter((row) => typeof row.indexdef === "string" && /\bunique\b/i.test(row.indexdef))
@@ -218,7 +318,8 @@ export async function loadDbHealth() {
   const missingLearningUniqueKeys = DB_HEALTH_REQUIRED_LEARNING_UNIQUE_KEYS
     .filter((key) => !uniqueLearningKeys.has(learningUniqueKeySignature(key.table, key.columns)))
     .map((key) => learningUniqueKeySignature(key.table, key.columns));
-  const missingLearningMigrationPieces = missingLearningColumns.length + missingLearningUniqueKeys.length;
+  const missingLearningMigrationPieces =
+    missingLearningColumns.length + missingLearningUniqueKeys.length + wrongLearningColumnTypes.length;
 
   return {
     ok: missingTables.length === 0 && missingLearningMigrationPieces === 0,
@@ -234,6 +335,8 @@ export async function loadDbHealth() {
     requiredLearningColumnCount: requiredLearningColumnNames().length,
     missingLearningColumnCount: missingLearningColumns.length,
     missingLearningColumns,
+    wrongLearningColumnTypeCount: wrongLearningColumnTypes.length,
+    wrongLearningColumnTypes,
     requiredLearningUniqueKeyCount: DB_HEALTH_REQUIRED_LEARNING_UNIQUE_KEYS.length,
     missingLearningUniqueKeyCount: missingLearningUniqueKeys.length,
     missingLearningUniqueKeys,
