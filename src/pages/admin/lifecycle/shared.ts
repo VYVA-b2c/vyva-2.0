@@ -163,6 +163,74 @@ export type ScheduledSupport = {
 
 export type JsonRecord = Record<string, unknown>;
 
+export type CareTeamInvitation = {
+  id: string;
+  created_at?: string;
+  updated_at?: string;
+  senior_id: string;
+  invitee_name: string;
+  invitee_phone?: string | null;
+  invitee_email?: string | null;
+  invitee_whatsapp?: string | null;
+  role: "caregiver" | "family_member" | "friend" | "doctor" | "gp";
+  relationship?: string | null;
+  status: "pending" | "accepted" | "declined" | "revoked" | "expired";
+  expires_at?: string;
+  accepted_at?: string | null;
+  accepted_user_id?: string | null;
+  can_receive_daily_digest?: boolean;
+  can_receive_safety_alerts?: boolean;
+  can_receive_health_alerts?: boolean;
+  can_receive_mood_alerts?: boolean;
+  can_receive_medication_alerts?: boolean;
+  can_view_dashboard?: boolean;
+  can_view_health_reports?: boolean;
+  can_view_vital_signs?: boolean;
+  can_view_journal_summaries?: boolean;
+};
+
+export type CaregiverInviteRole = "caregiver" | "family" | "doctor";
+
+export type CaregiverInviteDraft = {
+  name: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  role: CaregiverInviteRole;
+  relationship: string;
+  permissions: {
+    daily_summary: boolean;
+    safety_alerts: boolean;
+    health_alerts: boolean;
+    mood_updates: boolean;
+    medication_alerts: boolean;
+    dashboard_access: boolean;
+    health_reports: boolean;
+    vital_signs: boolean;
+    journal_summaries: boolean;
+  };
+};
+
+export const defaultCaregiverInviteDraft: CaregiverInviteDraft = {
+  name: "",
+  email: "",
+  phone: "",
+  whatsapp: "",
+  role: "caregiver",
+  relationship: "",
+  permissions: {
+    daily_summary: true,
+    safety_alerts: true,
+    health_alerts: true,
+    mood_updates: true,
+    medication_alerts: true,
+    dashboard_access: true,
+    health_reports: true,
+    vital_signs: true,
+    journal_summaries: true,
+  },
+};
+
 export type FunnelStage = {
   key: string;
   label: string;
@@ -293,6 +361,7 @@ export type UserDetail = {
   scheduled_support?: ScheduledSupport[];
   interaction_logs?: JsonRecord[];
   consent_audit_logs?: JsonRecord[];
+  care_team_invitations?: CareTeamInvitation[];
 };
 
 export type HomePlanCardAdmin = {

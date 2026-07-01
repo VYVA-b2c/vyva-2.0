@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import {
   type AccountSubscription,
+  type CaregiverInviteDraft,
   type Communication,
   type CommunicationProviderStatus,
   type EntryPointMetric,
@@ -905,7 +906,32 @@ export function AccountSubscriptionsSection({
   );
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, deleting = false, restoring = false, scheduleBusyAction = null, onClose, onSave, onToggle, onDelete, onRestore, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
+type CaregiverInvitePermissionKey = keyof CaregiverInviteDraft["permissions"];
+
+const caregiverInvitePermissionOptions: Array<{ key: CaregiverInvitePermissionKey; label: string }> = [
+  { key: "dashboard_access", label: "Dashboard access" },
+  { key: "safety_alerts", label: "Safety alerts" },
+  { key: "medication_alerts", label: "Medication alerts" },
+  { key: "health_alerts", label: "Health alerts" },
+  { key: "vital_signs", label: "Vital signs" },
+  { key: "daily_summary", label: "Daily summary" },
+  { key: "mood_updates", label: "Mood updates" },
+  { key: "journal_summaries", label: "Journal summaries" },
+];
+
+function careTeamRoleLabel(role?: string | null) {
+  if (role === "family_member") return "Family";
+  if (role === "gp") return "GP";
+  return cleanLabel(role ?? "caregiver") || "Caregiver";
+}
+
+function careTeamInviteStatusClass(status?: string | null) {
+  if (status === "accepted") return "bg-[#ecfdf3] text-[#087443]";
+  if (status === "revoked" || status === "declined" || status === "expired") return "bg-[#fff3e8] text-[#8a4a00]";
+  return "bg-[#f4eafe] text-purple-700";
+}
+
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, caregiverInviteDraft, setCaregiverInviteDraft, caregiverInviteBusy = false, deleting = false, restoring = false, scheduleBusyAction = null, onClose, onSave, onSendCaregiverInvite, onToggle, onDelete, onRestore, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
@@ -913,11 +939,15 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   planOptions: Array<{ value: string; label: string }>;
   statusMessage?: string;
   saving?: boolean;
+  caregiverInviteDraft: CaregiverInviteDraft;
+  setCaregiverInviteDraft: (next: CaregiverInviteDraft) => void;
+  caregiverInviteBusy?: boolean;
   scheduleBusyAction?: string | null;
   deleting?: boolean;
   restoring?: boolean;
   onClose: () => void;
   onSave: () => void;
+  onSendCaregiverInvite: () => void;
   onToggle: (enable: boolean) => void;
   onDelete: () => void;
   onRestore?: () => void;
@@ -946,6 +976,17 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "activity" | "communications" | "schedule">("profile");
   const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
   const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
+  const careTeamInvitations = detail.care_team_invitations ?? [];
+  const caregiverInviteHasContact = Boolean(
+    caregiverInviteDraft.email.trim() || caregiverInviteDraft.phone.trim() || caregiverInviteDraft.whatsapp.trim(),
+  );
+  const caregiverInviteReady = Boolean(caregiverInviteDraft.name.trim() && caregiverInviteHasContact);
+  function updateCaregiverInvitePermission(key: CaregiverInvitePermissionKey, value: boolean) {
+    setCaregiverInviteDraft({
+      ...caregiverInviteDraft,
+      permissions: { ...caregiverInviteDraft.permissions, [key]: value },
+    });
+  }
   const detailTabs = [
     { id: "profile" as const, label: "Profile" },
     { id: "access" as const, label: "Access" },
@@ -1001,6 +1042,120 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Caregiver name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
                 <Field label="Caregiver contact"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
+              </div>
+              <div className="border-t border-[#eadfd5] pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-black text-[#2f2135]">Caregiver access</h4>
+                    <p className="mt-1 text-sm text-[#7d6b65]">Invite a caregiver to this elder's real care-team dashboard.</p>
+                  </div>
+                  <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black text-purple-700">
+                    {careTeamInvitations.length} invite{careTeamInvitations.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <Field label="Invitee name">
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.name}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, name: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Relationship">
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.relationship}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, relationship: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Email" optional>
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.email}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, email: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Phone" optional>
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.phone}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, phone: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="WhatsApp" optional>
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.whatsapp}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, whatsapp: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Role">
+                    <select
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.role}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, role: event.target.value as CaregiverInviteDraft["role"] })}
+                    >
+                      <option value="caregiver">Caregiver</option>
+                      <option value="family">Family</option>
+                      <option value="doctor">Doctor</option>
+                    </select>
+                  </Field>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {caregiverInvitePermissionOptions.map((option) => (
+                    <label key={option.key} className="flex items-center gap-2 rounded-xl border border-[#eadfd5] px-3 py-2 text-sm font-bold text-[#4d4351]">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-purple-700"
+                        checked={Boolean(caregiverInviteDraft.permissions[option.key])}
+                        onChange={(event) => updateCaregiverInvitePermission(option.key, event.target.checked)}
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={caregiverInviteBusy || !caregiverInviteReady}
+                    onClick={onSendCaregiverInvite}
+                  >
+                    {caregiverInviteBusy ? "Sending..." : "Send caregiver invite"}
+                  </button>
+                  {!caregiverInviteReady && (
+                    <span className="text-sm font-bold text-[#8b7a73]">Name plus email, phone, or WhatsApp required.</span>
+                  )}
+                </div>
+                <div className="mt-4 border-t border-[#eadfd5] pt-3">
+                  {careTeamInvitations.length === 0 && (
+                    <p className="text-sm font-semibold text-[#7d6b65]">No caregiver invitations yet.</p>
+                  )}
+                  {careTeamInvitations.slice(0, 5).map((invite) => (
+                    <div key={invite.id} className="border-b border-[#eadfd5] py-3 last:border-b-0">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-black text-[#2f2135]">{invite.invitee_name}</p>
+                          <p className="break-words text-sm text-[#7d6b65]">
+                            {[invite.invitee_email, invite.invitee_phone, invite.invitee_whatsapp].filter(Boolean).join(" - ") || "No contact saved"}
+                          </p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${careTeamInviteStatusClass(invite.status)}`}>
+                          {cleanLabel(invite.status)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-[#7d6b65]">
+                        {careTeamRoleLabel(invite.role)}{invite.relationship ? ` - ${invite.relationship}` : ""} - {invite.accepted_at ? `Accepted ${formatDate(invite.accepted_at)}` : `Expires ${formatDate(invite.expires_at)}`}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {invite.can_view_dashboard && <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">Dashboard</span>}
+                        {invite.can_receive_safety_alerts && <span className="rounded-full bg-[#ecfdf3] px-2.5 py-1 text-xs font-black text-[#087443]">Safety</span>}
+                        {invite.can_receive_medication_alerts && <span className="rounded-full bg-[#fff3e8] px-2.5 py-1 text-xs font-black text-[#8a4a00]">Meds</span>}
+                        {invite.can_view_vital_signs && <span className="rounded-full bg-[#eef6ff] px-2.5 py-1 text-xs font-black text-[#0f5f8f]">Vitals</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>

@@ -14,6 +14,8 @@ import {
 } from "./lifecycle/components";
 import {
   type BulkPreviewResponse,
+  type CareTeamInvitation,
+  type CaregiverInviteDraft,
   type Communication,
   type CommunicationProviderStatus,
   type ConsentAttempt,
@@ -31,6 +33,7 @@ import {
   contactNumberValue,
   countryCodeOptions,
   csvToRows,
+  defaultCaregiverInviteDraft,
   emailAddressValue,
   emptyIntakeForm,
   emptyScheduledEvent,
@@ -352,8 +355,13 @@ export default function LifecycleAdminPage() {
   const [orgDraft, setOrgDraft] = useState({ name: "", default_tier: "free" });
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
   const [selectedDraft, setSelectedDraft] = useState<JsonRecord>({});
+  const [caregiverInviteDraft, setCaregiverInviteDraft] = useState<CaregiverInviteDraft>({
+    ...defaultCaregiverInviteDraft,
+    permissions: { ...defaultCaregiverInviteDraft.permissions },
+  });
   const [userDetailMessage, setUserDetailMessage] = useState("");
   const [savingUserDetail, setSavingUserDetail] = useState(false);
+  const [sendingCaregiverInvite, setSendingCaregiverInvite] = useState(false);
   const [newEvent, setNewEvent] = useState(emptyScheduledEvent);
   const [bulkOrg, setBulkOrg] = useState<Organization | null>(null);
   const [bulkRows, setBulkRows] = useState<Record<string, string>[]>([]);
@@ -1062,6 +1070,16 @@ export default function LifecycleAdminPage() {
         tier: profileTier ?? intake.tier,
         organization_id: intake.organization_id ?? "",
       });
+      const caregiverName = profileNameValue(detailProfile.caregiver_name);
+      const caregiverContact = stringValue(detailProfile.caregiver_contact) ?? "";
+      const caregiverContactIsEmail = caregiverContact.includes("@");
+      setCaregiverInviteDraft({
+        ...defaultCaregiverInviteDraft,
+        permissions: { ...defaultCaregiverInviteDraft.permissions },
+        name: caregiverName,
+        email: caregiverContactIsEmail ? caregiverContact : "",
+        phone: caregiverContact && !caregiverContactIsEmail ? caregiverContact : "",
+      });
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not open this user.");
     } finally {
@@ -1117,6 +1135,66 @@ export default function LifecycleAdminPage() {
       setUserDetailMessage(errorMessage);
     } finally {
       setSavingUserDetail(false);
+    }
+  }
+
+  async function sendCaregiverInvite() {
+    if (!selectedUser) return;
+    setSendingCaregiverInvite(true);
+    setUserDetailMessage("");
+    try {
+      const data = await api(`/users/${selectedUser.intake.id}/caregiver-invite`, {
+        method: "POST",
+        body: JSON.stringify(caregiverInviteDraft),
+      });
+      const delivery = data.delivery && typeof data.delivery === "object" && !Array.isArray(data.delivery)
+        ? data.delivery as JsonRecord
+        : {};
+      const queued = Number(delivery.queued ?? 0);
+      const sent = Number(delivery.sent ?? 0);
+      const failed = Number(delivery.failed ?? 0);
+      const inviteeName = caregiverInviteDraft.name.trim() || "Caregiver";
+      const confirmation = failed > 0
+        ? `${inviteeName}'s invite was created, but ${failed} delivery attempt${failed === 1 ? "" : "s"} failed.`
+        : sent > 0
+          ? `${inviteeName}'s caregiver invite was sent.`
+          : `${inviteeName}'s caregiver invite was queued.`;
+      const invitation = data.invitation && typeof data.invitation === "object" && !Array.isArray(data.invitation)
+        ? data.invitation as CareTeamInvitation
+        : null;
+      const communications = Array.isArray(data.communications) ? data.communications as Communication[] : [];
+      setSelectedUser((current) => {
+        if (!current || current.intake.id !== selectedUser.intake.id) return current;
+        return {
+          ...current,
+          care_team_invitations: invitation
+            ? [invitation, ...(current.care_team_invitations ?? [])]
+            : current.care_team_invitations,
+          communications: communications.length ? [...communications, ...current.communications] : current.communications,
+        };
+      });
+      setCaregiverInviteDraft({
+        ...defaultCaregiverInviteDraft,
+        permissions: { ...defaultCaregiverInviteDraft.permissions },
+      });
+      setMessage("");
+      setUserDetailMessage(confirmation);
+      showActionReceipt({
+        tone: failed > 0 ? "warning" : "success",
+        label: failed > 0 ? "Check delivery" : "Invite sent",
+        title: confirmation,
+        details: [
+          `Created a care-team invitation tied to ${selectedUser.intake.name}'s app profile.`,
+          queued > 0 ? `${queued} message${queued === 1 ? "" : "s"} queued for delivery.` : "No delivery messages were queued.",
+        ],
+      });
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not send caregiver invite.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setSendingCaregiverInvite(false);
     }
   }
 
@@ -2129,11 +2207,15 @@ export default function LifecycleAdminPage() {
           planOptions={planOptions}
           statusMessage={userDetailMessage}
           saving={savingUserDetail}
+          caregiverInviteDraft={caregiverInviteDraft}
+          setCaregiverInviteDraft={setCaregiverInviteDraft}
+          caregiverInviteBusy={sendingCaregiverInvite}
           scheduleBusyAction={busyAction}
           deleting={busyAction === `delete:${selectedUser.intake.id}`}
           restoring={busyAction === `restore:${selectedUser.intake.id}`}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
+          onSendCaregiverInvite={sendCaregiverInvite}
           onToggle={(enable) => toggleUser(selectedUser.intake, enable)}
           onDelete={() => deleteUser(selectedUser.intake)}
           onRestore={() => restoreUser(selectedUser.intake)}
