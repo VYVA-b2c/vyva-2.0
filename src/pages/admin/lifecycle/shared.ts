@@ -191,6 +191,41 @@ export function stringValue(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+function cleanContactValue(value: unknown) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+export function looksLikeContactEmail(value: unknown) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanContactValue(value));
+}
+
+export function contactNumberValue(...values: unknown[]) {
+  for (const value of values) {
+    const contact = cleanContactValue(value);
+    if (!contact || looksLikeContactEmail(contact) || contact.includes(":")) continue;
+    const digits = contact.replace(/\D/g, "");
+    if (digits.length >= 6) return contact;
+  }
+  return "";
+}
+
+export function emailAddressValue(...values: unknown[]) {
+  for (const value of values) {
+    const contact = cleanContactValue(value);
+    if (looksLikeContactEmail(contact)) return contact.toLowerCase();
+  }
+  return "";
+}
+
+export function profileNameValue(...values: unknown[]) {
+  for (const value of values) {
+    const name = cleanContactValue(value);
+    if (!name || looksLikeContactEmail(name) || name.includes(":")) continue;
+    return name;
+  }
+  return "";
+}
+
 export function cleanLabel(value: string | null | undefined) {
   return (value || "")
     .replace(/[_-]+/g, " ")
