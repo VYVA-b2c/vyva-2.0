@@ -69,6 +69,8 @@ type AdminActionNotice = {
   details: string[];
   secondaryAction?: {
     label: string;
+    busyLabel?: string;
+    busyKey?: string;
     onClick: () => void;
   };
 };
@@ -375,6 +377,16 @@ export default function LifecycleAdminPage() {
     setAdminActionNotice(notice);
   }
 
+  function viewCommunicationsAction() {
+    return {
+      label: "View communications",
+      onClick: () => {
+        setAdminActionNotice(null);
+        setActiveTab("communications");
+      },
+    };
+  }
+
   async function refresh() {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => value && params.set(key, value));
@@ -486,17 +498,74 @@ export default function LifecycleAdminPage() {
         },
       }),
     });
+    const createdIntake = data.intake as Intake;
     showActionReceipt({
       tone: "success",
       label: "Created",
-      title: `${data.intake.name} was added to Users.`,
+      title: `${createdIntake.name} was added to Users.`,
       details: [
-        `${entryPointLabel(data.intake.entry_point ?? newIntake.entry_point)} intake created.`,
-        `Tier set to ${tierLabel(data.intake.tier ?? newIntake.tier)}.`,
+        `${entryPointLabel(createdIntake.entry_point ?? newIntake.entry_point)} intake created.`,
+        `Tier set to ${tierLabel(createdIntake.tier ?? newIntake.tier)}.`,
+        "Send the invite so they can access their account.",
       ],
+      secondaryAction: {
+        label: "Send invite",
+        busyLabel: "Sending...",
+        busyKey: `send-invite:${createdIntake.id}`,
+        onClick: () => { void sendIntakeInvite(createdIntake); },
+      },
     });
     setNewIntake(emptyIntakeForm);
     await refresh();
+  }
+
+  async function sendIntakeInvite(intake: Intake) {
+    const busyKey = `send-invite:${intake.id}`;
+    setBusyAction(busyKey);
+    setMessage("");
+    try {
+      const data = await api(`/intakes/${intake.id}/send-link`, { method: "POST" });
+      const communication = recordValue(data.communication);
+      const delivery = recordValue(data.delivery);
+      const deliveryStatus = stringValue(delivery.status);
+      const channel = cleanLabel(stringValue(delivery.channel) ?? stringValue(communication.channel) ?? "invite");
+      const recipient = stringValue(delivery.recipient) ?? stringValue(communication.recipient);
+
+      if (deliveryStatus === "failed") {
+        showActionReceipt({
+          tone: "error",
+          label: "Failed",
+          title: `Invite failed for ${intake.name}.`,
+          details: [
+            stringValue(delivery.error) ?? "The invite link was created, but delivery failed.",
+          ],
+          secondaryAction: viewCommunicationsAction(),
+        });
+        await refresh();
+        return;
+      }
+
+      showActionReceipt({
+        tone: "success",
+        label: "Invite sent",
+        title: `Invite sent to ${intake.name}.`,
+        details: [
+          recipient ? `Secure access link sent by ${channel} to ${recipient}.` : "Secure access link sent.",
+        ],
+        secondaryAction: viewCommunicationsAction(),
+      });
+      await refresh();
+    } catch (err) {
+      showActionReceipt({
+        tone: "error",
+        label: "Failed",
+        title: `Invite failed for ${intake.name}.`,
+        details: [err instanceof Error ? err.message : "Could not send the invite link."],
+        secondaryAction: viewCommunicationsAction(),
+      });
+    } finally {
+      setBusyAction((current) => current === busyKey ? null : current);
+    }
   }
 
   function compactRecipientName(value: string) {
@@ -1437,6 +1506,10 @@ export default function LifecycleAdminPage() {
         && newIntake.elder_phone.trim()
       ))
   );
+  const adminSecondaryActionBusy = Boolean(
+    adminActionNotice?.secondaryAction?.busyKey
+      && busyAction === adminActionNotice.secondaryAction.busyKey
+  );
   const operationalSummary = recordValue(summary?.operational);
   const operationalCount = (key: string, fallback?: unknown) => (
     summary ? numberValue(operationalSummary[key], fallback === undefined ? 0 : fallback) : "-"
@@ -2130,10 +2203,13 @@ export default function LifecycleAdminPage() {
               {adminActionNotice.secondaryAction && (
                 <button
                   type="button"
-                  className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] hover:border-purple-200 hover:text-purple-700"
+                  className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135] hover:border-purple-200 hover:text-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={adminSecondaryActionBusy}
                   onClick={adminActionNotice.secondaryAction.onClick}
                 >
-                  {adminActionNotice.secondaryAction.label}
+                  {adminSecondaryActionBusy
+                    ? adminActionNotice.secondaryAction.busyLabel ?? "Working..."
+                    : adminActionNotice.secondaryAction.label}
                 </button>
               )}
               <button
