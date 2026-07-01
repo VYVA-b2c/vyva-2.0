@@ -20,8 +20,13 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/i18n";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import MasterDashboardLayout, {
+  type MasterDashboardCard,
+  type MasterFastHelpAction,
+} from "@/components/MasterDashboardLayout";
 import { BottomSheet, EmptyState } from "@/components/vyva-ui";
-import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
+import { SECTION_VOICE_AUTO_START_KEY, useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
+import { incrementChatNavigationCount } from "@/lib/personaliseCards";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import {
@@ -659,114 +664,153 @@ const SocialHub = () => {
     return () => window.clearInterval(timer);
   }, [canRotateRooms, selectedRoom, showNextRooms]);
 
+  const openChat = () => {
+    incrementChatNavigationCount();
+    navigate("/chat", { state: { [SECTION_VOICE_AUTO_START_KEY]: true } });
+  };
+  const openRoom = (slug: string) => navigate(`/social-rooms/${slug}`);
+  const communityCards: MasterDashboardCard[] = [
+    {
+      id: "match",
+      icon: HeartHandshake,
+      title: t("community.master.cards.match", "Match"),
+      detail: t("community.master.cards.matchDetail", "Find people like me"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "card-social-primary-match",
+    },
+    {
+      id: "rooms",
+      icon: Users,
+      title: t("community.master.cards.rooms", "Rooms"),
+      detail: t("community.master.cards.roomsDetail", "Join a live table"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "card-social-primary-rooms",
+    },
+    {
+      id: "activities",
+      icon: Footprints,
+      title: t("community.master.cards.activities", "Activities"),
+      detail: t("community.master.cards.activitiesDetail", "Movement and clubs"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => navigate("/social-rooms/activities"),
+      testId: "card-social-primary-activities",
+    },
+    {
+      id: "share",
+      icon: Share2,
+      title: t("community.master.cards.share", "Share"),
+      detail: t("community.master.cards.shareDetail", "A memory or song"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "card-social-primary-share",
+    },
+  ];
+  const communityFastHelpActions: MasterFastHelpAction[] = [
+    {
+      id: "join-room",
+      icon: Users,
+      label: t("community.master.fastHelp.joinRoom", "Join a room"),
+      detail: t("community.master.fastHelp.joinRoomDetail", "Kitchen table"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "button-social-fast-help-join-room",
+    },
+    {
+      id: "find-match",
+      icon: HeartHandshake,
+      label: t("community.master.fastHelp.findMatch", "Find a match"),
+      detail: t("community.master.fastHelp.findMatchDetail", "People and interests"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "button-social-fast-help-find-match",
+    },
+    {
+      id: "morning-movement",
+      icon: Footprints,
+      label: t("community.master.fastHelp.morningMovement", "Morning movement"),
+      detail: t("community.master.fastHelp.morningMovementDetail", "Gentle activity"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => openRoom("morning-movement"),
+      testId: "button-social-fast-help-morning-movement",
+    },
+    {
+      id: "music-room",
+      icon: Music2,
+      label: t("community.master.fastHelp.musicRoom", "Music room"),
+      detail: t("community.master.fastHelp.musicRoomDetail", "Songs and company"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => openRoom("music-room"),
+      testId: "button-social-fast-help-music-room",
+    },
+    {
+      id: "reading-club",
+      icon: BookOpen,
+      label: t("community.master.fastHelp.readingClub", "Reading club"),
+      detail: t("community.master.fastHelp.readingClubDetail", "Stories and chat"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: () => openRoom("reading-club"),
+      testId: "button-social-fast-help-reading-club",
+    },
+    {
+      id: "garden-table",
+      icon: Leaf,
+      label: t("community.master.fastHelp.gardenTable", "Garden table"),
+      detail: t("community.master.fastHelp.gardenTableDetail", "Calm conversation"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
+      onClick: () => openRoom("garden-corner"),
+      testId: "button-social-fast-help-garden-table",
+    },
+    {
+      id: "nearby-activities",
+      icon: Calendar,
+      label: t("community.master.fastHelp.nearbyActivities", "Nearby activities"),
+      detail: t("community.master.fastHelp.nearbyActivitiesDetail", "What is on"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => navigate("/social-rooms/activities"),
+      testId: "button-social-fast-help-nearby-activities",
+    },
+    {
+      id: "share-memory",
+      icon: Share2,
+      label: t("community.master.fastHelp.shareMemory", "Share a memory"),
+      detail: t("community.master.fastHelp.shareMemoryDetail", "Post to a room"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "button-social-fast-help-share-memory",
+    },
+  ];
+
   return (
-    <div className="vyva-page">
+    <>
       <SocialStyles />
-
-      <header>
-        <VoiceHero
-          heroSurface="social"
-          sourceText={copy.dayLabel}
-          headline={copy.chooseRoom}
-          subtitle={copy.chooseRoomSubtitle}
-          contextHint="social rooms"
-          voiceAgentSlug="companion"
-          autoStartVoice={autoStartVoice ? "companion" : false}
-          showVoiceOverlay={false}
-          activeLabel={t("voiceHero.endCall", "Pause listening")}
-        />
-      </header>
-
-      <VoiceActionFulfillmentPanel
-        domain="social"
-        actionTypes={["social.rooms"]}
-        title={copy.chooseRoom}
-        description={entryCopy.focusDescription}
-        highlights={[
-          ...(fastHelpRooms.length > 0 ? [{ label: "Rooms", value: fastHelpRooms.length, tone: "good" as const }] : []),
-        ]}
-        className="mt-5"
+      <MasterDashboardLayout
+        testId="community-master-layout"
+        cardGridTestId="social-primary-cards"
+        fastHelpTestId="social-fast-help"
+        fastHelpTitle={t("community.master.fastHelpTitle", "Fast help")}
+        hero={{
+          icon: MessageCircleHeart,
+          eyebrow: t("community.master.heroEyebrow", "Community"),
+          title: t("community.master.heroTitle", "Community ready"),
+          action: {
+            label: t("community.master.heroAction", "Talk to VYVA"),
+            onClick: openChat,
+            testId: "button-community-hero-talk",
+          },
+          testId: "community-master-hero",
+          tone: {
+            iconBg: "#EFF6FF",
+            iconColor: "#2563EB",
+            border: "#BFDBFE",
+            surface: "#FFFFFF",
+          },
+        }}
+        cards={communityCards}
+        fastHelpActions={communityFastHelpActions}
       />
-
-      <section className="mt-[22px]" data-testid="social-primary-cards">
-        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
-          {entryCopy.cards.map((card) => (
-            <SocialPrimaryCardView
-              key={card.id}
-              card={card}
-              onSelect={card.id === "activities" ? () => navigate("/social-rooms/activities") : undefined}
-            />
-          ))}
-        </div>
-      </section>
-
-      <main
-        id="social-rooms-list"
-        className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
-        data-testid="social-fast-help"
-      >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-              {entryCopy.fastHelpKicker}
-            </p>
-            <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-              <span className="sm:hidden">{entryCopy.fastHelpTitleMobile}</span>
-              <span className="hidden sm:inline">{entryCopy.fastHelpTitle}</span>
-            </h2>
-          </div>
-
-          {canRotateRooms ? (
-            <div className="flex shrink-0 items-center gap-2 pt-1">
-              <FastHelpDots count={fastHelpWindowCount} activeIndex={fastHelpWindowIndex} />
-              <button
-                type="button"
-                onClick={showNextRooms}
-                aria-label={moreRoomsLabel}
-                title={moreRoomsLabel}
-                data-testid="button-social-rooms-next"
-                className="vyva-tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D8C8FB] bg-white text-[#6D28D9] shadow-[0_10px_22px_rgba(109,40,217,0.12)]"
-              >
-                <ChevronRight size={23} strokeWidth={2.6} aria-hidden="true" />
-              </button>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="grid grid-cols-1 gap-3">
-          {isLoading && (
-            <EmptyState title={loadingRoomsLabel} className="text-[#6E5A8A]" />
-          )}
-
-          {isError && !fastHelpRooms.length && (
-            <EmptyState icon={Users} title={copy.noRooms} />
-          )}
-
-          {!isLoading && !isError && !fastHelpRooms.length && (
-            <EmptyState icon={Users} title={copy.noRooms} />
-          )}
-
-          {!isLoading && visibleFastHelpRooms.map((room) => (
-            <FastHelpRoomRow
-              key={`${fastHelpWindowIndex}:${room.slug}`}
-              room={room}
-              language={language}
-              onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
-            />
-          ))}
-        </div>
-      </main>
-
-      {selectedRoom && (
-        <RoomDetailSheet
-          room={selectedRoom}
-          language={language}
-          togetherLanguage={togetherLanguage}
-          onClose={() => setSelectedRoomSlug(null)}
-          onEnter={(slug) => navigate(`/social-rooms/${slug}`)}
-        />
-      )}
-    </div>
+    </>
   );
 };
 

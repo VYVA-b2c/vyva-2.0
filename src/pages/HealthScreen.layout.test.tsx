@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HealthScreen from "./HealthScreen";
@@ -237,91 +237,50 @@ describe("HealthScreen home-style layout", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the personalised plan, live signal cards, and fast-help actions", async () => {
+  it("renders the approved master dashboard with a VYVA voice invitation", async () => {
     renderHealthScreen();
 
-    expect(screen.getByTestId("voice-hero")).toBeInTheDocument();
-    expect(screen.getByTestId("voice-hero")).toHaveAttribute("data-mobile-talk-label", "Talk to doctor");
-    expect(mocks.voiceHero).toHaveBeenCalledWith(expect.objectContaining({
-      voiceAgentSlug: "health",
-    }));
-    expect(screen.queryByTestId("daily-checkin-status-card")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("health-master-layout")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-hero")).not.toBeInTheDocument();
+    expect(mocks.voiceHero).not.toHaveBeenCalled();
 
-    expect(await screen.findByTestId("health-plan-lead")).toHaveTextContent("Today's health plan");
-    expect(screen.getByTestId("health-plan-lead")).toHaveTextContent("Metformin due at");
-    expect(screen.getByTestId("health-plan-primary-insight")).toHaveTextContent("1 dose left today");
-    expect(screen.getByTestId("health-plan-primary-insight")).toHaveTextContent("Vitals stable");
-    expect(screen.getByTestId("health-plan-primary-insight")).not.toHaveTextContent("Pulse: 72 bpm");
-    expect(screen.getByTestId("health-plan-primary-insight")).not.toHaveTextContent("Metformin last");
-    expect(screen.getByTestId("health-plan-lead")).not.toHaveTextContent("No urgent action");
-    expect(screen.getByTestId("health-plan-lead")).not.toHaveTextContent("Metformin last taken");
-    expect(screen.getByTestId("health-plan-vitals-snapshot")).toHaveTextContent("Pulse: 72 bpm");
-    expect(screen.getByTestId("health-plan-vitals-snapshot")).toHaveTextContent("Stable");
-    expect(screen.getByTestId("health-plan-checklist")).toHaveTextContent("Vitals");
-    expect(screen.getByTestId("button-health-plan-step-vitals")).toHaveTextContent("Stable");
-    expect(screen.getByTestId("button-health-plan-step-medicine")).toHaveTextContent("Due tonight");
-    expect(screen.getByTestId("button-health-plan-step-checkin")).toHaveTextContent("Done");
-    expect(screen.queryByTestId("button-health-plan-step-symptoms")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-health-plan-open")).toHaveTextContent("Mark taken");
-    expect(screen.getByTestId("button-health-plan-review-medicine")).toHaveTextContent("Review medicine");
-    expect(screen.getByTestId("health-plan-updated-at")).toHaveTextContent("Updated");
-    expect(screen.queryByTestId("health-primary-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("health-master-hero")).toHaveTextContent("Health Plan");
+    expect(screen.getByTestId("health-master-hero")).toHaveTextContent("Health Plan Ready");
+    expect(screen.getByTestId("button-health-hero-talk")).toHaveTextContent("Talk to VYVA");
 
-    expect(screen.getByTestId("health-tool-section")).toHaveTextContent("All health areas");
-    expect(screen.getByTestId("button-health-tool-plan")).toHaveTextContent("Health Plan");
-    expect(screen.getByTestId("button-health-tool-plan")).toHaveTextContent("1 step left");
+    const cardGrid = screen.getByTestId("health-master-cards");
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("Medicine"));
+    expect(within(cardGrid).getAllByRole("button")).toHaveLength(4);
+    expect(screen.queryByTestId("button-health-tool-plan")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Vitals");
-    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Pulse stable");
-    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Symptoms");
-    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Monitor only");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Pulse: 72 bpm");
     expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("Medicine");
-    expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due tonight");
+    expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due");
+    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Symptoms");
+    expect(screen.getByTestId("button-health-tool-reports")).toHaveTextContent("Prevention");
+    expect(screen.getByTestId("button-health-tool-reports")).toHaveTextContent("Follow-up: Mild dizziness");
 
+    expect(screen.queryByTestId("health-plan-lead")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("health-tool-section")).not.toBeInTheDocument();
     expect(screen.queryByTestId("health-signal-section")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("health-signal-grid")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-health-signal-plan")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-health-signal-vitals")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-health-signal-checkin")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-health-signal-symptoms")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-health-signal-medication")).not.toBeInTheDocument();
 
     expect(screen.getByTestId("health-fast-help")).toHaveTextContent("Fast help");
-    expect(screen.getByTestId("health-fast-help")).toHaveTextContent("Need help now?");
-    expect(screen.getByTestId("button-health-fast-reports")).toHaveTextContent("My Reports");
-    expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveTextContent("Visual Health Scan");
-    expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveAttribute("aria-expanded", "false");
+    expect(within(screen.getByTestId("health-fast-help")).getAllByRole("button")).toHaveLength(3);
+    expect(screen.getByTestId("button-health-fast-safety-signs")).toHaveTextContent("Safety signs");
+    expect(screen.getByTestId("button-health-fast-explain-plan")).toHaveTextContent("Explain my plan");
+    expect(screen.getByTestId("button-health-fast-open-latest-report")).toHaveTextContent("Open latest report");
     expect(screen.queryByTestId("section-health-visual-scan")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-health-fast-specialist")).toHaveTextContent("Find a Specialist");
   });
 
-  it("keeps plan, signal cards, and fast-help actions wired", async () => {
+  it("keeps the master hero, cards, and fast-help actions wired", async () => {
     renderHealthScreen();
 
-    await screen.findByTestId("health-plan-lead");
-    await waitFor(() => expect(screen.getByTestId("button-health-plan-open")).toHaveTextContent("Mark taken"));
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due"));
 
-    fireEvent.click(screen.getByTestId("button-health-plan-open"));
-    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
-      "/api/meds/adherence-report/confirm",
-      expect.objectContaining({ method: "POST" }),
-    ));
-    const confirmOptions = mocks.apiFetch.mock.calls[0]?.[1] as RequestInit;
-    expect(JSON.parse(String(confirmOptions.body))).toEqual({
-      medication_name: "Metformin",
-      scheduled_time: "20:00",
-    });
-    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith(expect.objectContaining({
-      description: "Metformin marked taken.",
-    })));
-
-    fireEvent.click(screen.getByTestId("button-health-plan-review-medicine"));
-    expect(mocks.guardPath).toHaveBeenCalledWith("/meds");
-
-    fireEvent.click(screen.getByTestId("button-health-plan-checkin"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/health/check-ins");
-
-    fireEvent.click(screen.getByTestId("button-health-tool-plan"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/health/vitals");
+    fireEvent.click(screen.getByTestId("button-health-hero-talk"));
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
+      state: expect.objectContaining({ autoStartVoice: true }),
+    }));
 
     fireEvent.click(screen.getByTestId("button-health-tool-vitals"));
     expect(mocks.navigate).toHaveBeenCalledWith("/health/vitals");
@@ -332,24 +291,19 @@ describe("HealthScreen home-style layout", () => {
     fireEvent.click(screen.getByTestId("button-health-tool-medicine"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/meds");
 
-    expect(screen.queryByTestId("button-health-signal-checkin")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("health-plan-vitals-snapshot"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/health/vitals");
-
-    expect(screen.queryByTestId("button-health-signal-symptoms")).not.toBeInTheDocument();
-
-    expect(screen.queryByTestId("button-health-signal-medication")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("button-health-fast-reports"));
+    fireEvent.click(screen.getByTestId("button-health-tool-reports"));
     expect(mocks.navigate).toHaveBeenCalledWith("/informes");
 
-    fireEvent.click(screen.getByTestId("button-health-fast-specialist"));
-    expect(screen.getByTestId("section-health-specialist")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-health-fast-safety-signs"));
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/symptom-check");
 
-    fireEvent.click(screen.getByTestId("button-health-fast-visual-scan"));
-    expect(screen.getByTestId("button-health-fast-visual-scan")).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByTestId("section-health-visual-scan")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-health-fast-explain-plan"));
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
+      state: expect.objectContaining({ autoStartVoice: true }),
+    }));
+
+    fireEvent.click(screen.getByTestId("button-health-fast-open-latest-report"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/informes/triage-1");
   });
 
   it("opens the specialist provider finder from the specialist URL flag", () => {
@@ -403,30 +357,20 @@ describe("HealthScreen home-style layout", () => {
       },
     });
 
-    expect(await screen.findByTestId("health-plan-lead")).toHaveTextContent("Add one BP reading");
-    expect(screen.getByTestId("health-plan-primary-insight")).toHaveTextContent("Start your baseline");
-    expect(screen.getByTestId("health-plan-vitals-snapshot")).toHaveTextContent("Add vitals");
-    expect(screen.getByTestId("button-health-plan-open")).toHaveTextContent("Capture vitals");
-    expect(screen.getByTestId("button-health-plan-step-vitals")).toHaveTextContent("Add reading");
-    expect(screen.getByTestId("button-health-plan-step-medicine")).toHaveTextContent("Set schedule");
-    expect(screen.getByTestId("button-health-plan-step-checkin")).toHaveTextContent("Ready now");
-    expect(screen.getByTestId("button-health-plan-step-symptoms")).toHaveTextContent("Start check");
-    expect(screen.queryByTestId("button-health-signal-plan")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-health-signal-vitals")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-health-signal-checkin")).toHaveTextContent("Ready now");
-    expect(screen.getByTestId("button-health-signal-symptoms")).toHaveTextContent("Quick body check");
-    expect(screen.getByTestId("button-health-signal-symptoms")).toHaveTextContent("Tell VYVA what feels different");
-    expect(screen.getByTestId("button-health-signal-medication")).toHaveTextContent("Set medicine schedule");
-    expect(screen.getByTestId("button-health-signal-medication")).toHaveTextContent("Add times and reminders");
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Add vitals"));
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Add vitals");
+    expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("Schedule");
+    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Start check");
+    expect(screen.getByTestId("button-health-tool-reports")).toHaveTextContent("Risks and next steps");
+    expect(screen.queryByTestId("button-health-signal-checkin")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-health-signal-symptoms")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-health-signal-medication")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("health-plan-vitals-snapshot"));
+    fireEvent.click(screen.getByTestId("button-health-tool-vitals"));
     expect(mocks.navigate).toHaveBeenCalledWith("/health/vitals");
 
-    fireEvent.click(screen.getByTestId("button-health-signal-symptoms"));
+    fireEvent.click(screen.getByTestId("button-health-tool-symptoms"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/health/symptom-check");
-
-    fireEvent.click(screen.getByTestId("button-health-plan-checkin"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/health/check-in");
   });
 
   it("lets abnormal vitals take over the primary health plan status", async () => {
@@ -456,13 +400,11 @@ describe("HealthScreen home-style layout", () => {
       "/api/meds/adherence-report": medicineDueNowReport,
     });
 
-    expect(await screen.findByTestId("health-plan-lead")).toHaveTextContent("Today's health plan");
-    expect(screen.getByTestId("health-plan-lead")).toHaveTextContent("Vitals need review");
-    expect(screen.getByTestId("health-plan-lead")).toHaveTextContent("Blood pressure is higher than usual.");
-    expect(screen.getByTestId("health-plan-vitals-snapshot")).toHaveTextContent("BP 168/96 mmHg");
-    expect(screen.getByTestId("health-plan-vitals-snapshot")).toHaveTextContent("Needs review");
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Needs review"));
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("BP 168/96 mmHg");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Needs review");
     expect(screen.queryByTestId("button-health-signal-vitals")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-health-signal-medication")).toHaveTextContent("1 due");
+    expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due");
   });
 
   it("lets urgent symptom follow-up take over when vitals are steady", async () => {
@@ -484,11 +426,10 @@ describe("HealthScreen home-style layout", () => {
       "/api/meds/adherence-report": medicineDueNowReport,
     });
 
-    expect(await screen.findByTestId("health-plan-lead")).toHaveTextContent("Review symptom follow-up");
-    expect(screen.getByTestId("health-plan-lead")).toHaveTextContent("Chest tightness");
-    expect(screen.getByTestId("button-health-plan-open")).toHaveTextContent("Open report");
-    expect(screen.getByTestId("health-plan-vitals-snapshot")).toHaveTextContent("Pulse: 72 bpm");
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Chest tightness"));
+    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Chest tightness");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Pulse: 72 bpm");
     expect(screen.queryByTestId("button-health-signal-symptoms")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-health-signal-medication")).toHaveTextContent("1 due");
+    expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due");
   });
 });
