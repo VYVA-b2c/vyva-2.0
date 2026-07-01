@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams, useNavigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
+import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import AppShell from "./components/AppShell";
@@ -439,12 +440,29 @@ function RootRoute() {
 
   if (isLoading) return <div className="min-h-screen bg-[#F8F4EF]" />;
   if (!user) return <LandingPage />;
+  if (isCaregiverRoutingUser(user)) {
+    return <Navigate to={CAREGIVER_DASHBOARD_ROUTE} replace />;
+  }
 
   return (
     <AppShell>
       <HomeScreen />
     </AppShell>
   );
+}
+
+function CaregiverRouteGuard() {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (
+    isCaregiverRoutingUser(user) &&
+    !isCaregiverAccessibleAppPath(location.pathname)
+  ) {
+    return <Navigate to={CAREGIVER_DASHBOARD_ROUTE} replace />;
+  }
+
+  return <Outlet />;
 }
 
 function getInteractiveLabel(element: Element): string {
@@ -554,6 +572,7 @@ const App = () => (
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route path="/admin/curated-activities" element={<AdminRoute><CuratedActivitiesAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
+                  <Route element={<CaregiverRouteGuard />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
                   <Route element={<OnboardingGuard />}>
                     <Route path="/onboarding" element={<WelcomeScreen />} />
@@ -622,6 +641,7 @@ const App = () => (
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
+                  </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />
                     </Routes>

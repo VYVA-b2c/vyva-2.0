@@ -73,6 +73,7 @@ import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import scheduledSupportRouter from "./routes/scheduledSupport.js";
+import caregiverDashboardRouter from "./routes/caregiverDashboard.js";
 import caregiverBrainCoachRouter from "./routes/caregiverBrainCoach.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
@@ -200,6 +201,7 @@ app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.use("/api", authMiddleware, scheduledSupportRouter);
+app.use("/api/caregiver/dashboard", authMiddleware, requireUser, caregiverDashboardRouter);
 app.use("/api/caregiver/brain-coach", authMiddleware, caregiverBrainCoachRouter);
 // Also mount at /api/meds so that PATCH /api/meds/:id and DELETE /api/meds/:id
 // work as specified. Requests to /api/meds/adherence-report/... are matched
