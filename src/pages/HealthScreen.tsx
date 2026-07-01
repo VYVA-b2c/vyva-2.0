@@ -35,8 +35,13 @@ import {
   CheckCircle2,
   Loader2,
   ShoppingBasket,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
+import MasterDashboardLayout, {
+  type MasterDashboardCard,
+  type MasterFastHelpAction,
+} from "@/components/MasterDashboardLayout";
 import VoiceHero from "@/components/VoiceHero";
 import { ResponsiveGrid, SectionTitle } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -2683,11 +2688,93 @@ const HealthScreen = () => {
       },
     },
   ];
-  const PrimaryInsightIcon = healthOverview.primaryInsight.Icon;
-  const planLeadBadge =
-    healthOverview.vitalsSnapshot.needsReview || healthOverview.recommendedAction === "capture_vitals"
-      ? healthOverview.vitalsSnapshot.statusLabel
-      : t("health.planLead.todayBadge", "Today");
+  const preventionCardDetail = latestTriage?.chief_complaint
+    ? t("health.master.cards.preventionLatest", "Follow-up: {{topic}}", { topic: latestTriage.chief_complaint })
+    : t("health.master.cards.preventionDetail", "Risks and next steps");
+
+  const healthMasterCards: MasterDashboardCard[] = [
+    {
+      id: "medicine",
+      icon: Pill,
+      title: t("health.master.cards.medicine", "Medicine"),
+      detail: medicineToolDetail,
+      accent: medicationToday?.scheduled
+        ? t("health.master.cards.medicineProgress", "{{taken}}/{{total}} taken", {
+          taken: medicationToday.taken ?? 0,
+          total: medicationToday.scheduled,
+        })
+        : undefined,
+      tone: {
+        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
+        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
+        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
+        surface: "#FFFFFF",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to open medicines");
+        guardPath("/meds");
+      },
+      testId: "button-health-tool-medicine",
+    },
+    {
+      id: "vitals",
+      icon: Activity,
+      title: t("health.master.cards.vitals", "Vitals"),
+      detail: healthOverview.vitalsSnapshot.value,
+      accent: healthOverview.vitalsSnapshot.statusLabel,
+      tone: {
+        iconBg: healthOverview.vitalsSnapshot.tone.iconBg,
+        iconColor: healthOverview.vitalsSnapshot.tone.text,
+        border: healthOverview.vitalsSnapshot.tone.border,
+        surface: healthOverview.vitalsSnapshot.tone.bg,
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to check my vitals");
+        navigate("/health/vitals");
+      },
+      testId: "button-health-tool-vitals",
+    },
+    {
+      id: "symptoms",
+      icon: HeartPulse,
+      title: t("health.master.cards.symptoms", "Symptoms"),
+      detail: latestTriage?.chief_complaint || symptomsToolDetail,
+      accent: symptomsToolDetail,
+      tone: {
+        iconBg: "#FFF1F2",
+        iconColor: "#E74C43",
+        border: "#FECACA",
+        surface: "#FFFFFF",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to review symptoms");
+        if (latestTriage) {
+          navigate(`/informes/${latestTriage.id}`);
+          return;
+        }
+        guardPath("/health/symptom-check");
+      },
+      testId: "button-health-tool-symptoms",
+    },
+    {
+      id: "reports",
+      icon: ShieldCheck,
+      title: t("health.master.cards.prevention", "Prevention"),
+      detail: preventionCardDetail,
+      accent: latestTriage ? t("health.master.cards.preventionReady", "Review ready") : undefined,
+      tone: {
+        iconBg: "#ECFDF5",
+        iconColor: "#047857",
+        border: "#BBF7D0",
+        surface: "#FFFFFF",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to review prevention and health reports");
+        navigate("/informes");
+      },
+      testId: "button-health-tool-reports",
+    },
+  ];
 
   const openVisualScan = () => {
     const shouldOpen = !visualScanOpen;
@@ -2717,42 +2804,135 @@ const HealthScreen = () => {
     }
   };
 
-  const FAST_HELP_ACTIONS = [
+  const healthFastHelpActions: MasterFastHelpAction[] = [
     {
-      id: "reports",
-      Icon: ClipboardList,
-      iconBg: "#EEF6FF",
-      iconColor: "#2563EB",
-      border: "#BFDBFE",
-      shadow: "rgba(37,99,235,0.10)",
-      label: t("health.fastHelp.reports.label", "My Reports"),
-      sub: t("health.fastHelp.reports.sub", "View health summaries and recent checks"),
-      subMobile: t("health.fastHelp.reports.subMobile", "Recent health summaries"),
-      action: () => navigate("/informes"),
+      id: "safety-signs",
+      icon: AlertTriangle,
+      label: t("health.master.fastHelp.safetySigns", "Safety signs"),
+      detail: t("health.master.fastHelp.safetySignsDetail", "Know when to get help"),
+      tone: {
+        iconBg: "#FEF2F2",
+        iconColor: "#B91C1C",
+        border: "#FECACA",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to check safety signs and next steps");
+        guardPath("/health/symptom-check");
+      },
+      testId: "button-health-fast-safety-signs",
+      pinned: true,
     },
     {
-      id: "visual-scan",
-      Icon: Camera,
-      iconBg: "#FFFBEB",
-      iconColor: "#C9890A",
-      border: "#FDE68A",
-      shadow: "rgba(201,137,10,0.10)",
-      label: t("health.fastHelp.visualScan.label", "Visual Health Scan"),
-      sub: t("health.fastHelp.visualScan.sub", "Take or upload an image for review"),
-      subMobile: t("health.fastHelp.visualScan.subMobile", "Take or upload an image"),
-      action: openVisualScan,
+      id: "explain-plan",
+      icon: Stethoscope,
+      label: t("health.master.fastHelp.explainPlan", "Explain my plan"),
+      detail: t("health.master.fastHelp.explainPlanDetail", "What matters today"),
+      tone: {
+        iconBg: "#F5F3FF",
+        iconColor: "#6B21A8",
+        border: "#DDD6FE",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("Please explain my health plan for today");
+        guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
+      },
+      testId: "button-health-fast-explain-plan",
     },
     {
-      id: "specialist",
-      Icon: UserSearch,
-      iconBg: "#F5F3FF",
-      iconColor: "#7C3AED",
-      border: "#DDD6FE",
-      shadow: "rgba(124,58,237,0.10)",
-      label: t("health.fastHelp.specialist.label", "Find a Specialist"),
-      sub: t("health.fastHelp.specialist.sub", "Connect with the right expert"),
-      subMobile: t("health.fastHelp.specialist.subMobile", "Find the right expert"),
-      action: openSpecialistPanel,
+      id: "latest-report",
+      icon: ClipboardList,
+      label: t("health.master.fastHelp.openLatestReport", "Open latest report"),
+      detail: t("health.master.fastHelp.openLatestReportDetail", "Reports and summaries"),
+      tone: {
+        iconBg: "#EFF6FF",
+        iconColor: "#2563EB",
+        border: "#BFDBFE",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to open my latest health report");
+        navigate(latestTriage ? `/informes/${latestTriage.id}` : "/informes");
+      },
+      testId: "button-health-fast-open-latest-report",
+    },
+    {
+      id: "add-vitals",
+      icon: Activity,
+      label: t("health.master.fastHelp.addVitals", "Add vitals"),
+      detail: t("health.master.fastHelp.addVitalsDetail", "Blood pressure or pulse"),
+      tone: {
+        iconBg: "#FFF7ED",
+        iconColor: "#B45309",
+        border: "#FED7AA",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to add vitals");
+        navigate("/health/vitals");
+      },
+      testId: "button-health-fast-add-vitals",
+    },
+    {
+      id: "review-medicine",
+      icon: Pill,
+      label: t("health.master.fastHelp.reviewMedicine", "Review medicine"),
+      detail: t("health.master.fastHelp.reviewMedicineDetail", "Doses and reminders"),
+      tone: {
+        iconBg: "#FDF4FF",
+        iconColor: "#86198F",
+        border: "#E9D5FF",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to review my medicines");
+        guardPath("/meds");
+      },
+      testId: "button-health-fast-review-medicine",
+    },
+    {
+      id: "check-symptoms",
+      icon: HeartPulse,
+      label: t("health.master.fastHelp.checkSymptoms", "Check symptoms"),
+      detail: t("health.master.fastHelp.checkSymptomsDetail", "Tell VYVA what changed"),
+      tone: {
+        iconBg: "#FFF1F2",
+        iconColor: "#E74C43",
+        border: "#FECACA",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to ask about a symptom");
+        guardPath("/health/symptom-check");
+      },
+      testId: "button-health-fast-check-symptoms",
+    },
+    {
+      id: "doctor-note",
+      icon: Phone,
+      label: t("health.master.fastHelp.doctorNote", "Doctor note"),
+      detail: t("health.master.fastHelp.doctorNoteDetail", "Prepare what to say"),
+      tone: {
+        iconBg: "#EEF6FF",
+        iconColor: "#2563EB",
+        border: "#BFDBFE",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("Help me prepare a short note for my doctor");
+        guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
+      },
+      testId: "button-health-fast-doctor-note",
+    },
+    {
+      id: "share-summary",
+      icon: Share2,
+      label: t("health.master.fastHelp.shareSummary", "Share summary"),
+      detail: t("health.master.fastHelp.shareSummaryDetail", "Open reports"),
+      tone: {
+        iconBg: "#ECFDF5",
+        iconColor: "#047857",
+        border: "#BBF7D0",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to share a health summary");
+        navigate("/informes");
+      },
+      testId: "button-health-fast-share-summary",
     },
   ];
 
@@ -2760,7 +2940,45 @@ const HealthScreen = () => {
 
   return (
     <>
-      <div className="vyva-page">
+      <MasterDashboardLayout
+        testId="health-master-layout"
+        cardGridTestId="health-master-cards"
+        fastHelpTestId="health-fast-help"
+        fastHelpTitle={t("health.fastHelp.kicker", "Fast help")}
+        hero={{
+          icon: Stethoscope,
+          eyebrow: t("health.master.heroEyebrow", "Health Plan"),
+          title: t("health.master.heroTitle", "Health Plan Ready"),
+          action: {
+            label: doctorVoiceLive
+              ? t("health.master.pauseVyva", "Pause VYVA")
+              : doctorVoiceConnecting
+                ? t("health.master.connectingVyva", "Connecting...")
+                : t("health.master.talkToVyva", "Talk to VYVA"),
+            onClick: () => {
+              if (doctorVoiceLive) {
+                stopDoctorVoice();
+                return;
+              }
+              guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
+            },
+            testId: "button-health-hero-talk",
+            disabled: doctorVoiceConnecting,
+            isLoading: doctorVoiceConnecting,
+          },
+          testId: "health-master-hero",
+          tone: {
+            iconBg: "#F5F3FF",
+            iconColor: "#6B21A8",
+            border: "#DDD6FE",
+            surface: "#FFFFFF",
+          },
+        }}
+        cards={healthMasterCards}
+        fastHelpActions={healthFastHelpActions}
+      >
+        {showLegacyHealthSections ? (
+          <>
 
         {/* ── 1. Hero ── */}
         <VoiceHero
@@ -3099,6 +3317,9 @@ const HealthScreen = () => {
             })}
           </div>
         </section>
+
+          </>
+        ) : null}
 
         {(visualScanOpen || woundResult) && (
           <div
@@ -3941,7 +4162,7 @@ const HealthScreen = () => {
           </div>
         </div> : null}
 
-      </div>
+      </MasterDashboardLayout>
 
       {/* Hidden file input for visual health scan */}
       <input

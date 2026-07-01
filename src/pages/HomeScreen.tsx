@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, ClipboardCheck, MessageCircle, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
+import MasterDashboardLayout, {
+  type MasterDashboardCard,
+  type MasterFastHelpAction,
+} from "@/components/MasterDashboardLayout";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
@@ -74,7 +78,7 @@ function homeDoctorMailto(email: string | undefined | null, subject: string, bod
 
 const HOME_AGENT_CARDS: HomeAgentCard[] = [
   { id: "health", icon: Heart, path: "/health", theme: "pink" },
-  { id: "cognitive", icon: Brain, path: "/activities", theme: "purple" },
+  { id: "cognitive", icon: Brain, path: "/mind-memory", theme: "purple" },
   { id: "social", icon: Users, path: "/social-rooms", theme: "blue" },
   { id: "concierge", icon: ConciergeBell, path: "/concierge", theme: "green" },
 ];
@@ -86,8 +90,8 @@ const HOME_FAST_ACTIONS: Array<Pick<HomeFastAction, "id" | "icon" | "tone">> = [
 ];
 
 const HOME_AGENT_MOBILE_COPY: Record<HomeAgentCard["id"], { title: string; subtitle: string }> = {
-  health: { title: "Health", subtitle: "Symptoms and care" },
-  cognitive: { title: "My Brain", subtitle: "Memory and focus" },
+  health: { title: "Health Plan", subtitle: "Care today" },
+  cognitive: { title: "Mind & Memory", subtitle: "Memory and reflexes" },
   social: { title: "Community", subtitle: "Rooms and chats" },
   concierge: { title: "Concierge", subtitle: "Help and errands" },
 };
@@ -346,151 +350,143 @@ const HomeScreen = () => {
     return Boolean(service && !service.ready && service.missing.some((step) => step.section === "subscription"));
   };
 
+  const homeMasterCards: MasterDashboardCard[] = [
+    {
+      id: "health",
+      icon: Heart,
+      title: t("home.master.cards.health", "Health Plan"),
+      detail: t("home.master.cards.healthDetail", "Medication, vitals, symptoms"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/health"),
+      testId: "card-home-agent-health",
+    },
+    {
+      id: "mind-memory",
+      icon: Brain,
+      title: t("home.master.cards.mindMemory", "Mind & Memory"),
+      detail: t("home.master.cards.mindMemoryDetail", "Memory, reflexes, thinking"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/mind-memory"),
+      testId: "card-home-agent-cognitive",
+    },
+    {
+      id: "community",
+      icon: Users,
+      title: t("home.master.cards.community", "Community"),
+      detail: t("home.master.cards.communityDetail", "Rooms, matches, activities"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/social-rooms"),
+      testId: "card-home-agent-social",
+    },
+    {
+      id: "concierge",
+      icon: ConciergeBell,
+      title: t("home.master.cards.concierge", "Concierge"),
+      detail: t("home.master.cards.conciergeDetail", "Help, rides, orders, schedules"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => handleNavigate("/concierge"),
+      testId: "card-home-agent-concierge",
+    },
+  ];
+
+  const homeMasterFastHelpActions: MasterFastHelpAction[] = [
+    {
+      id: "ask-vyva",
+      icon: Mic,
+      label: t("home.master.fastHelp.askVyva", "Ask VYVA"),
+      detail: t("home.master.fastHelp.askVyvaDetail", "Talk through anything"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => handleNavigate("/chat", SECTION_VOICE_AUTO_START_OPTIONS),
+      testId: "button-home-fast-ask-vyva",
+    },
+    {
+      id: "review-today",
+      icon: ClipboardCheck,
+      label: t("home.master.fastHelp.reviewToday", "Review today"),
+      detail: t("home.master.fastHelp.reviewTodayDetail", "Open your plan"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: () => handleNavigate("/health"),
+      testId: "button-home-fast-review-today",
+    },
+    {
+      id: "mind-check",
+      icon: Brain,
+      label: t("home.master.fastHelp.mindCheck", "Mind check"),
+      detail: t("home.master.fastHelp.mindCheckDetail", "Memory or mood"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => handleNavigate("/mind-memory"),
+      testId: "button-home-fast-mind-check",
+    },
+    {
+      id: "join-community",
+      icon: Users,
+      label: t("home.master.fastHelp.joinCommunity", "Join community"),
+      detail: t("home.master.fastHelp.joinCommunityDetail", "Rooms and activities"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => handleNavigate("/social-rooms"),
+      testId: "button-home-fast-join-community",
+    },
+    {
+      id: "concierge-help",
+      icon: ConciergeBell,
+      label: t("home.master.fastHelp.conciergeHelp", "Get concierge help"),
+      detail: t("home.master.fastHelp.conciergeHelpDetail", "Errands or booking"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => handleNavigate("/concierge"),
+      testId: "button-home-fast-concierge-help",
+    },
+    {
+      id: "call-doctor",
+      icon: Stethoscope,
+      label: t("home.master.fastHelp.callDoctor", "Call doctor"),
+      detail: t("home.master.fastHelp.callDoctorDetail", "Prepare next step"),
+      tone: { iconBg: "#EEF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => handleNavigate("/health/doctor", {
+        state: {
+          autoStartVoice: true,
+          latestSymptomReport: homeDoctorContext,
+        },
+      }),
+      testId: "button-home-fast-call-doctor",
+    },
+    {
+      id: "safety-help",
+      icon: ShieldCheck,
+      label: t("home.master.fastHelp.safetyHelp", "Safety help"),
+      detail: t("home.master.fastHelp.safetyHelpDetail", "Home or scam worry"),
+      tone: { iconBg: "#FEF2F2", iconColor: "#B91C1C", border: "#FECACA" },
+      onClick: () => handleNavigate("/safe-home"),
+      testId: "button-home-fast-safety-help",
+      pinned: true,
+    },
+  ];
+
   return (
-    <div className="vyva-page">
-      <VoiceHero
-        headline={
-          <span className="block">{greetingText}</span>
-        }
-        weatherData={weatherData}
-        contextHint="app_open"
-        voiceAgentSlug="main-vyva"
-        voiceDynamicVariables={{ app_entrypoint: "home_open" }}
-        canStartVoice={() => canUseService("chat", "/")}
-        autoStartListening
-        showVoiceOverlay
-        talkLabel={t("home.mode.voiceCta", "Talk to VYVA")}
-      />
-
-      <div className="mt-[22px]">
-        <ResponsiveGrid columns="two" gap="sm" className="min-[340px]:grid-cols-2">
-          {HOME_AGENT_CARDS.map((card) => {
-            const theme = HOME_AGENT_THEMES[card.theme];
-            const Icon = card.icon;
-            const locked = isSubscriptionLocked(card.path);
-            return (
-              <ActionCard
-                key={card.id}
-                data-testid={`card-home-agent-${card.id}`}
-                aria-label={t(`home.voiceCards.${card.id}.micLabel`)}
-                onClick={() => handleAgentCardOpen(card)}
-                title={
-                  <>
-                    <span className="sm:hidden">
-                      {t(`home.voiceCards.${card.id}.mobileTitle`, HOME_AGENT_MOBILE_COPY[card.id].title)}
-                    </span>
-                    <span className="hidden sm:inline">
-                      {t(`home.voiceCards.${card.id}.title`)}
-                    </span>
-                  </>
-                }
-                description={
-                  <>
-                    <span className="sm:hidden">
-                      {t(`home.voiceCards.${card.id}.mobileSubtitle`, HOME_AGENT_MOBILE_COPY[card.id].subtitle)}
-                    </span>
-                    <span className="hidden sm:inline">
-                      {t(`home.voiceCards.${card.id}.subtitle`)}
-                    </span>
-                  </>
-                }
-                icon={Icon}
-                iconBg={theme.iconBg}
-                iconColor={theme.iconColor}
-                size="standard"
-                contentClassName="justify-start"
-                locked={locked}
-                style={{
-                  borderColor: "#EDE2D1",
-                  boxShadow: `0 16px 34px ${theme.glow}, 0 2px 10px rgba(43,31,24,0.05)`,
-                }}
-                badge={locked ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[#F4EAFE] px-2.5 py-1 font-body text-[11px] font-bold text-[#6B21A8]">
-                    <Lock size={12} strokeWidth={2.5} />
-                    Plan
-                  </span>
-                ) : null}
-              />
-            );
-          })}
-        </ResponsiveGrid>
-      </div>
-
-      <section
-        className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
-        data-testid="home-fast-help"
-      >
-        <div className="mb-4">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-            {t("home.fastHelp.kicker", "Fast help")}
-          </p>
-          <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-            <span className="sm:hidden">{t("home.fastHelp.titleMobile", "Need help now?")}</span>
-            <span className="hidden sm:inline">{t("home.fastHelp.title", "What do you need now?")}</span>
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 gap-3">
-          {homeFastActions.map((action) => {
-            const theme = HOME_FAST_ACTION_THEMES[action.tone];
-            const Icon = action.icon;
-            const content = (
-              <>
-                <span
-                  className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
-                  style={{ background: theme.iconBg, color: theme.iconColor }}
-                >
-                  <Icon size={24} strokeWidth={2.4} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    <span className="sm:hidden">{action.mobileLabel ?? action.label}</span>
-                    <span className="hidden sm:inline">{action.label}</span>
-                  </span>
-                  <span className="mt-1 block max-w-[24rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    <span className="sm:hidden">{action.mobileSub ?? action.sub}</span>
-                    <span className="hidden sm:inline">{action.sub}</span>
-                  </span>
-                </span>
-              </>
-            );
-            const className = "vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5";
-            const style = {
-              borderColor: theme.border,
-              boxShadow: `0 10px 24px ${theme.shadow}`,
-            };
-
-            if (action.href) {
-              return (
-                <a
-                  key={action.id}
-                  data-testid={`button-home-fast-${action.id}`}
-                  href={action.href}
-                  aria-label={action.label}
-                  className={className}
-                  style={style}
-                >
-                  {content}
-                </a>
-              );
-            }
-
-            return (
-              <button
-                key={action.id}
-                type="button"
-                data-testid={`button-home-fast-${action.id}`}
-                aria-label={action.label}
-                onClick={() => handleFastActionOpen(action)}
-                className={className}
-                style={style}
-              >
-                {content}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-    </div>
+    <MasterDashboardLayout
+      testId="home-master-layout"
+      cardGridTestId="home-pillar-cards"
+      fastHelpTestId="home-fast-help"
+      fastHelpTitle={t("home.fastHelp.kicker", "Fast help")}
+      hero={{
+        icon: MessageCircle,
+        eyebrow: t("home.master.heroEyebrow", "Today"),
+        title: greetingText,
+        action: {
+          label: t("home.mode.voiceCta", "Talk to VYVA"),
+          onClick: () => handleNavigate("/chat", SECTION_VOICE_AUTO_START_OPTIONS),
+          testId: "button-home-hero-talk",
+        },
+        testId: "home-master-hero",
+        tone: {
+          iconBg: "#F5F3FF",
+          iconColor: "#6B21A8",
+          border: "#DDD6FE",
+          surface: "#FFFFFF",
+        },
+      }}
+      cards={homeMasterCards}
+      fastHelpActions={homeMasterFastHelpActions}
+    />
   );
 };
 

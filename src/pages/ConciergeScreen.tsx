@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Send,
   Loader2,
+  ConciergeBell,
   Car,
   Calendar,
   Wrench,
@@ -23,6 +24,7 @@ import {
   FileUp,
   Mic,
   PackageCheck,
+  ShoppingBasket,
   PiggyBank,
   Building2,
   PencilLine,
@@ -53,6 +55,10 @@ import {
 } from "@/components/vyva-ui";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import MasterDashboardLayout, {
+  type MasterDashboardCard,
+  type MasterFastHelpAction,
+} from "@/components/MasterDashboardLayout";
 import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import { useVoiceActionFulfillment } from "@/hooks/useVoiceActionFulfillment";
 import { useLanguage } from "@/i18n";
@@ -674,6 +680,12 @@ const APPOINTMENT_TYPE_CHIPS = [
   },
 ] as const;
 
+const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
+  "medical",
+  "government",
+  "personal-care",
+]);
+
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
 const CHAT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const HOME_SERVICE_GUIDE_STORAGE_KEY = "vyva_concierge_home_service_guide_hidden_v1";
@@ -706,10 +718,10 @@ function chatHistoryKey(locale: string) {
 const PRIMARY_CONCIERGE_CARDS = [
   {
     key: "service",
-    fallback: "Find a Service",
-    descriptionFallback: "Plumber, repairs, cleaning, care",
+    fallback: "Help",
+    descriptionFallback: "Home service, forms, legal/admin, care",
     mobileFallback: "Help",
-    mobileDescriptionFallback: "Repairs and care",
+    mobileDescriptionFallback: "Forms, care, home",
     Icon: Wrench,
     iconColor: "#B45309",
     iconBg: "linear-gradient(135deg, #FFF1D6 0%, #FFF7ED 100%)",
@@ -717,10 +729,10 @@ const PRIMARY_CONCIERGE_CARDS = [
   },
   {
     key: "ride",
-    fallback: "Book a Ride",
-    descriptionFallback: "Taxi, medical transport, getting home",
+    fallback: "Ride",
+    descriptionFallback: "Now, later, medical transport",
     mobileFallback: "Ride",
-    mobileDescriptionFallback: "Taxi or transport",
+    mobileDescriptionFallback: "Now or later",
     Icon: Car,
     iconColor: "#149A63",
     iconBg: "linear-gradient(135deg, #DDF8EA 0%, #F1FBF5 100%)",
@@ -728,8 +740,8 @@ const PRIMARY_CONCIERGE_CARDS = [
   },
   {
     key: "delivery",
-    fallback: "Place Order",
-    descriptionFallback: "Groceries, pharmacy, food, essentials",
+    fallback: "Order",
+    descriptionFallback: "Groceries, essentials, prepared meals",
     mobileFallback: "Order",
     mobileDescriptionFallback: "Food and essentials",
     Icon: PackageCheck,
@@ -739,10 +751,10 @@ const PRIMARY_CONCIERGE_CARDS = [
   },
   {
     key: "appointment",
-    fallback: "Book Appointment",
-    descriptionFallback: "Doctor, salon, government, restaurant",
+    fallback: "Schedule",
+    descriptionFallback: "Medical, government, personal care",
     mobileFallback: "Schedule",
-    mobileDescriptionFallback: "Doctor, salon, office",
+    mobileDescriptionFallback: "Medical and admin",
     Icon: Calendar,
     iconColor: "#6B21A8",
     iconBg: "linear-gradient(135deg, #ECE4FF 0%, #F8F2FF 100%)",
@@ -2418,8 +2430,31 @@ const ConciergeScreen = () => {
     setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
   }
 
-  function prepareRideRequest() {
-    const message = t(
+  function openScheduleAssistant(chipKey?: AppointmentType) {
+    const chip = chipKey ? APPOINTMENT_TYPE_CHIPS.find((item) => item.key === chipKey) ?? null : null;
+    setAppointmentOpen(true);
+    setOffersOpen(false);
+    setAppointmentError(null);
+    setSelectedAppointmentChip(chip);
+    setAppointmentNote("");
+    resetHomeServiceIntake("app", null);
+    setAppointmentRequest(null);
+    setAppointmentOptions([]);
+    setAppointmentDiscovery(null);
+    setSelectedAppointmentOptionId(null);
+    setAppointmentAttemptResult(null);
+    setAppointmentNotice(null);
+  }
+
+  function openHelpRequest() {
+    clearAppointmentAssistantState();
+    prepareConciergeRequest(isSpanish
+      ? "Necesito ayuda de Concierge. Preguntame si es servicio en casa, rellenar un formulario, ayuda legal o administrativa, o encontrar cuidados. No contactes ni envies nada sin mi confirmacion."
+      : "I need Concierge help. Ask whether this is home service, filling a form, legal or admin help, or finding care. Do not contact or submit anything without my confirmation.");
+  }
+
+  function prepareRideRequest(messageOverride?: string, requestedTime = "now") {
+    const message = messageOverride ?? t(
       "concierge.fastHelp.ridePrefill",
       "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
     );
@@ -2432,7 +2467,7 @@ const ConciergeScreen = () => {
     setTransportResult(null);
     setTransportError(null);
     setTransportNotice(null);
-    setTransportTime("now");
+    setTransportTime(requestedTime);
     setTransportDetailsOpen(false);
     setOffersOpen(false);
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -2453,7 +2488,7 @@ const ConciergeScreen = () => {
 
   function handlePrimaryConciergeCard(key: (typeof PRIMARY_CONCIERGE_CARDS)[number]["key"]) {
     if (key === "service") {
-      openHomeServiceAssistant();
+      openHelpRequest();
       return;
     }
     if (key === "ride") {
@@ -2481,7 +2516,7 @@ const ConciergeScreen = () => {
       return;
     }
     if (key === "appointment") {
-      openAppointmentAssistant();
+      openScheduleAssistant();
       return;
     }
   }
@@ -3079,28 +3114,260 @@ const ConciergeScreen = () => {
     setIsRightNowHidden(false);
   }
 
-  return (
-    <div className="vyva-page flex flex-col">
-      <VoiceHero
-        sourceText={t("concierge.voiceSource", "Concierge")}
-        headline={t("concierge.headline", "What do you need done?")}
-        subtitle={t("concierge.subtitle", "VYVA compares options and asks before booking, ordering, or contacting anyone.")}
-        contextHint="concierge services rides appointments delivery trips events"
-        voiceAgentSlug="concierge"
-        autoStartVoice={autoStartVoice ? "concierge" : false}
-        showVoiceOverlay={false}
-        activeLabel={t("voiceHero.endCall", "Pause listening")}
-      />
+  function openConciergeChat() {
+    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
-      <VoiceActionFulfillmentPanel
-        domain="concierge"
-        actionTypes={["concierge.appointment_help", "concierge.home_service", "concierge.task"]}
-        title={isSpanish ? "Gestion preparada" : "Task context ready"}
-        description={isSpanish
-          ? "VYVA puede usar la peticion, la fecha, el proveedor y la ubicacion antes de confirmar cualquier accion."
-          : "VYVA can use the request, date, provider, and location before confirming any action."}
-        className="order-[30] mt-5"
-      />
+  function openShoppingHelp(kind: "groceries" | "essentials" | "prepared-meals" | "pharmacy" = "groceries") {
+    const orderCopy = {
+      groceries: {
+        category: "groceries",
+        needText: isSpanish
+          ? "Ayudame con la compra de alimentos. No compres ni contactes sin mi confirmacion."
+          : "Help me with groceries. Do not buy or contact anyone without my confirmation.",
+        sourceRecommendation: isSpanish
+          ? "VYVA prepara opciones de compra y pide confirmacion antes de cualquier pedido."
+          : "VYVA prepares grocery options and asks for confirmation before any order.",
+      },
+      essentials: {
+        category: "groceries",
+        needText: isSpanish
+          ? "Ayudame a pedir productos esenciales para casa. No compres ni contactes sin mi confirmacion."
+          : "Help me order essential household items. Do not buy or contact anyone without my confirmation.",
+        sourceRecommendation: isSpanish
+          ? "VYVA prepara productos esenciales y pide confirmacion antes de cualquier pedido."
+          : "VYVA prepares essential-item options and asks for confirmation before any order.",
+      },
+      "prepared-meals": {
+        category: "groceries",
+        needText: isSpanish
+          ? "Ayudame a encontrar comidas preparadas o entrega de comida sencilla. No compres ni contactes sin mi confirmacion."
+          : "Help me find prepared meals or simple meal delivery. Do not buy or contact anyone without my confirmation.",
+        sourceRecommendation: isSpanish
+          ? "VYVA prepara opciones de comidas preparadas y pide confirmacion antes de cualquier pedido."
+          : "VYVA prepares prepared-meal options and asks for confirmation before any order.",
+      },
+      pharmacy: {
+        category: "pharmacy_basics",
+        needText: isSpanish
+          ? "Ayudame a preparar un pedido o recarga de farmacia. No compres ni contactes sin mi confirmacion."
+          : "Help me prepare a pharmacy order or refill. Do not buy or contact anyone without my confirmation.",
+        sourceRecommendation: isSpanish
+          ? "VYVA prepara opciones de farmacia y pide confirmacion antes de cualquier pedido."
+          : "VYVA prepares pharmacy options and asks for confirmation before any order.",
+      },
+    }[kind];
+
+    navigate("/concierge/shopping", {
+      state: {
+        shoppingPrefill: {
+          needText: orderCopy.needText,
+          category: orderCopy.category,
+          priorities: ["delivery", "simplicity", "safety"],
+          constraints: isSpanish
+            ? ["confirmar antes de contactar o pedir"]
+            : ["confirm before contacting or ordering"],
+          sourceRecommendation: orderCopy.sourceRecommendation,
+        },
+      },
+    });
+  }
+
+  const conciergeMasterCards: MasterDashboardCard[] = [
+    {
+      id: "help",
+      icon: HeartHandshake,
+      title: t("concierge.master.cards.help", "Help"),
+      detail: t("concierge.master.cards.helpDetail", "Home service, forms, legal/admin, care"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
+      onClick: openHelpRequest,
+      testId: "button-concierge-card-service",
+    },
+    {
+      id: "ride",
+      icon: Car,
+      title: t("concierge.master.cards.ride", "Ride"),
+      detail: t("concierge.master.cards.rideDetail", "Now, later, medical transport"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => prepareRideRequest(),
+      testId: "button-concierge-card-ride",
+    },
+    {
+      id: "order",
+      icon: PackageCheck,
+      title: t("concierge.master.cards.order", "Order"),
+      detail: t("concierge.master.cards.orderDetail", "Groceries, essentials, prepared meals"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
+      onClick: () => openShoppingHelp("groceries"),
+      testId: "button-concierge-card-delivery",
+    },
+    {
+      id: "schedule",
+      icon: Calendar,
+      title: t("concierge.master.cards.schedule", "Schedule"),
+      detail: t("concierge.master.cards.scheduleDetail", "Medical, government, personal care"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      onClick: () => openScheduleAssistant(),
+      testId: "button-concierge-card-appointment",
+    },
+  ];
+
+  const conciergeMasterFastHelpActions: MasterFastHelpAction[] = [
+    {
+      id: "home-service",
+      icon: Home,
+      label: t("concierge.master.fastHelp.homeService", "Home service"),
+      detail: t("concierge.master.fastHelp.homeServiceDetail", "Repairs or help at home"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: openHomeServiceAssistant,
+      testId: "button-concierge-fast-home-service",
+    },
+    {
+      id: "fill-form",
+      icon: FileText,
+      label: t("concierge.master.fastHelp.fillForm", "Fill a form"),
+      detail: t("concierge.master.fastHelp.fillFormDetail", "Prepare before submit"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => prepareConciergeRequest(isSpanish
+        ? "Ayudame a rellenar un formulario. Prepara respuestas, marca lo que falte y deten antes de enviar para que yo confirme."
+        : "Help me fill a form. Prepare answers, flag anything missing, and stop before submitting so I can confirm."),
+      testId: "button-concierge-fast-fill-form",
+    },
+    {
+      id: "find-care",
+      icon: HeartHandshake,
+      label: t("concierge.master.fastHelp.findCare", "Find care"),
+      detail: t("concierge.master.fastHelp.findCareDetail", "Compare care support"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => openSavingsPanel(isSpanish
+        ? "comparar apoyo en casa, centros de dia, residencias o compania"
+        : "compare home support, day centres, residences, or companionship"),
+      testId: "button-concierge-fast-find-care",
+    },
+    {
+      id: "legal-admin-help",
+      icon: Scale,
+      label: t("concierge.master.fastHelp.legalAdminHelp", "Legal/admin help"),
+      detail: t("concierge.master.fastHelp.legalAdminHelpDetail", "Documents and options"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
+      onClick: () => prepareConciergeRequest(isSpanish
+        ? "Ayudame con una tarea legal o administrativa. Resume opciones, documentos necesarios y proximos pasos. No contactes ni envies nada sin mi confirmacion."
+        : "Help me with a legal or admin task. Summarize options, needed documents, and next steps. Do not contact or submit anything without my confirmation."),
+      testId: "button-concierge-fast-legal-admin",
+    },
+    {
+      id: "ride-now",
+      icon: Car,
+      label: t("concierge.master.fastHelp.rideNow", "Ride now"),
+      detail: t("concierge.master.fastHelp.rideNowDetail", "Compare immediate rides"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => prepareRideRequest(undefined, "now"),
+      testId: "button-concierge-fast-ride-now",
+    },
+    {
+      id: "ride-later",
+      icon: Car,
+      label: t("concierge.master.fastHelp.rideLater", "Ride later"),
+      detail: t("concierge.master.fastHelp.rideLaterDetail", "Plan pickup time"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => prepareRideRequest(isSpanish
+        ? "Ayudame a planear un transporte para mas tarde. Preguntame destino, hora, movilidad y preferencia. No reserves nada sin mi confirmacion."
+        : "Help me plan transport for later. Ask for destination, time, mobility needs, and preferences. Do not book anything without my confirmation.", "tomorrow morning"),
+      testId: "button-concierge-fast-ride-later",
+    },
+    {
+      id: "medical-transport",
+      icon: Car,
+      label: t("concierge.master.fastHelp.medicalTransport", "Medical transport"),
+      detail: t("concierge.master.fastHelp.medicalTransportDetail", "Clinic-safe options"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => prepareRideRequest(isSpanish
+        ? "Ayudame a encontrar transporte medico o accesible para una cita de salud. Preguntame hora, destino y necesidades de movilidad. No reserves nada sin mi confirmacion."
+        : "Help me find medical or accessible transport for a health appointment. Ask for time, destination, and mobility needs. Do not book anything without my confirmation.", "for my appointment time"),
+      testId: "button-concierge-fast-medical-transport",
+    },
+    {
+      id: "groceries",
+      icon: ShoppingBasket,
+      label: t("concierge.master.fastHelp.groceries", "Groceries"),
+      detail: t("concierge.master.fastHelp.groceriesDetail", "Food shopping"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => openShoppingHelp("groceries"),
+      testId: "button-concierge-fast-groceries",
+    },
+    {
+      id: "essentials",
+      icon: PackageCheck,
+      label: t("concierge.master.fastHelp.essentials", "Essentials"),
+      detail: t("concierge.master.fastHelp.essentialsDetail", "Household basics"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => openShoppingHelp("essentials"),
+      testId: "button-concierge-fast-essentials",
+    },
+    {
+      id: "prepared-meals",
+      icon: PackageCheck,
+      label: t("concierge.master.fastHelp.preparedMeals", "Prepared meals"),
+      detail: t("concierge.master.fastHelp.preparedMealsDetail", "Simple meal delivery"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => openShoppingHelp("prepared-meals"),
+      testId: "button-concierge-fast-prepared-meals",
+    },
+    {
+      id: "medical-schedule",
+      icon: Calendar,
+      label: t("concierge.master.fastHelp.medicalSchedule", "Medical"),
+      detail: t("concierge.master.fastHelp.medicalScheduleDetail", "Doctor or clinic"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => openScheduleAssistant("medical"),
+      testId: "button-concierge-fast-medical-schedule",
+    },
+    {
+      id: "government-schedule",
+      icon: Building2,
+      label: t("concierge.master.fastHelp.governmentSchedule", "Government"),
+      detail: t("concierge.master.fastHelp.governmentScheduleDetail", "Official appointments"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => openScheduleAssistant("government"),
+      testId: "button-concierge-fast-government-schedule",
+    },
+    {
+      id: "personal-care-schedule",
+      icon: UserRound,
+      label: t("concierge.master.fastHelp.personalCareSchedule", "Personal care"),
+      detail: t("concierge.master.fastHelp.personalCareScheduleDetail", "Hair, podiatry, wellness"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => openScheduleAssistant("personal-care"),
+      testId: "button-concierge-fast-personal-care-schedule",
+    },
+  ];
+
+  return (
+    <MasterDashboardLayout
+      testId="concierge-master-layout"
+      cardGridTestId="concierge-master-cards"
+      fastHelpTestId="concierge-fast-help"
+      fastHelpTitle={t("concierge.fastHelp.kicker", "Fast help")}
+      hero={{
+        icon: ConciergeBell,
+        eyebrow: t("concierge.master.heroEyebrow", "Concierge"),
+        title: t("concierge.master.heroTitle", "Concierge ready"),
+        action: {
+          label: t("concierge.master.heroAction", "Talk to VYVA"),
+          onClick: openConciergeChat,
+          testId: "button-concierge-hero-talk",
+        },
+        testId: "concierge-master-hero",
+        tone: {
+          iconBg: "#ECFDF5",
+          iconColor: "#047857",
+          border: "#BBF7D0",
+          surface: "#FFFFFF",
+        },
+      }}
+      cards={conciergeMasterCards}
+      fastHelpActions={conciergeMasterFastHelpActions}
+    >
 
       {routePrefill?.kind === "ride" && routePrefillMeta && (
         <section
@@ -3791,82 +4058,6 @@ const ConciergeScreen = () => {
       </section>
 
       <section className="order-[10] mt-[22px] flex flex-col" data-testid="concierge-guided-hub">
-        <ResponsiveGrid columns="two" gap="sm" className="order-1 min-[340px]:grid-cols-2">
-          {PRIMARY_CONCIERGE_CARDS.map(({ key, fallback, descriptionFallback, mobileFallback, mobileDescriptionFallback, Icon, iconColor, iconBg, glow }) => (
-            <ActionCard
-              key={key}
-              data-testid={`button-concierge-card-${key}`}
-              aria-label={t(`concierge.primaryCards.${key}.label`, fallback)}
-              onClick={() => handlePrimaryConciergeCard(key)}
-              title={
-                <>
-                  <span className="sm:hidden">{t(`concierge.primaryCards.${key}.mobile`, mobileFallback)}</span>
-                  <span className="hidden sm:inline">{t(`concierge.primaryCards.${key}.label`, fallback)}</span>
-                </>
-              }
-              description={
-                <>
-                  <span className="sm:hidden">{t(`concierge.primaryCards.${key}.mobileSub`, mobileDescriptionFallback)}</span>
-                  <span className="hidden sm:inline">{t(`concierge.primaryCards.${key}.sub`, descriptionFallback)}</span>
-                </>
-              }
-              icon={Icon}
-              iconBg={iconBg}
-              iconColor={iconColor}
-              size="standard"
-              surface="warm"
-              contentClassName="justify-start"
-              style={{
-                borderColor: "#EDE2D1",
-                boxShadow: `0 16px 34px ${glow}, 0 2px 10px rgba(43,31,24,0.05)`,
-              }}
-            />
-          ))}
-        </ResponsiveGrid>
-
-        <section
-          className="order-3 mt-4 rounded-[24px] border border-[#EDE2D1] bg-[#FFFCF8] p-4 shadow-[0_14px_32px_rgba(60,38,20,0.07)] sm:mt-[18px] sm:rounded-[28px] sm:p-5"
-          data-testid="concierge-fast-help"
-        >
-          <div className="mb-4">
-            <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-              {t("concierge.fastHelp.kicker", "Fast help")}
-            </p>
-            <h2 className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
-              <span className="sm:hidden">{t("concierge.fastHelp.titleMobile", "Need help now?")}</span>
-              <span className="hidden sm:inline">{t("concierge.fastHelp.title", "What do you need now?")}</span>
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 gap-3">
-            {CONCIERGE_FAST_HELP_ACTIONS.map(({ key, fallbackTitle, fallbackSubtitle, mobileFallbackSubtitle, Icon, color, bg, border, shadow }) => (
-              <button
-                key={key}
-                type="button"
-                data-testid={`button-concierge-fast-${key}`}
-                aria-label={t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
-                onClick={() => handleFastHelpAction(key)}
-                className="vyva-tap flex min-h-[76px] w-full items-center gap-3 rounded-[20px] border bg-white px-3 py-3 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.98] sm:min-h-[86px] sm:gap-4 sm:rounded-[22px] sm:px-4 sm:py-4"
-                style={{ borderColor: border, boxShadow: `0 10px 24px ${shadow}` }}
-              >
-                <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[16px] sm:h-14 sm:w-14 sm:rounded-[18px]" style={{ background: bg, color }}>
-                  <Icon size={22} strokeWidth={2.4} className="sm:h-6 sm:w-6" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1 sm:text-[18px]">
-                    {t(`concierge.fastHelp.actions.${key}.label`, fallbackTitle)}
-                  </span>
-                  <span className="mt-1 block max-w-[28rem] font-body text-[13px] font-semibold leading-snug text-vyva-text-2 sm:hidden">
-                    {t(`concierge.fastHelp.actions.${key}.mobileSub`, mobileFallbackSubtitle)}
-                  </span>
-                  <span className="mt-1 hidden max-w-[28rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2 sm:block">
-                    {t(`concierge.fastHelp.actions.${key}.sub`, fallbackSubtitle)}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-
         {appointmentOpen && (
           <PurpleModal
             Icon={AppointmentPanelIcon}
@@ -4236,7 +4427,7 @@ const ConciergeScreen = () => {
                     {isSpanish ? "Tipo de cita" : "Appointment type"}
                   </PurpleModalSectionLabel>
                   <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {APPOINTMENT_TYPE_CHIPS.map((chip) => {
+                    {APPOINTMENT_TYPE_CHIPS.filter((chip) => SCHEDULE_APPOINTMENT_TYPE_KEYS.has(chip.key)).map((chip) => {
                       const isSelectedAppointmentChip = appointmentIntentType === chip.key;
                       return (
                         <PurpleModalOption
@@ -5361,7 +5552,7 @@ const ConciergeScreen = () => {
         )}
       </section>
 
-    </div>
+    </MasterDashboardLayout>
   );
 };
 
