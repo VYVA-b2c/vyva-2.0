@@ -234,7 +234,14 @@ function importDatabaseDetails(error: unknown) {
   const hostname = nestedErrorField(error, "hostname");
   const message = error instanceof Error ? error.message : String(error);
   const nestedMessage = nestedErrorField(error, "message");
-  const combinedMessage = [message, typeof nestedMessage === "string" ? nestedMessage : ""].join(" ");
+  const detail = nestedErrorField(error, "detail");
+  const where = nestedErrorField(error, "where");
+  const combinedMessage = [
+    message,
+    typeof nestedMessage === "string" ? nestedMessage : "",
+    typeof detail === "string" ? detail : "",
+    typeof where === "string" ? where : "",
+  ].join(" ");
   if (code === "ENOTFOUND" || code === "EAI_AGAIN" || combinedMessage.includes("ENOTFOUND")) {
     const hostLabel = typeof hostname === "string" && hostname.trim() ? ` (${hostname})` : "";
     return [`The app database host${hostLabel} cannot be reached from this environment. Check DATABASE_URL or local network access, restart the API, and try again.`];
@@ -247,6 +254,9 @@ function importDatabaseDetails(error: unknown) {
   }
   if (code === "42P10") {
     return ["The learning library database needs its unique save rule repaired. Republish with the latest migration, then upload the pack again."];
+  }
+  if (code === "22P02" && combinedMessage.toLowerCase().includes("json")) {
+    return ["The learning library database has drifted from the app schema: one or more lesson/category text fields are still JSON columns. Run migrations/0049_align_learning_text_columns.sql, then upload the pack again."];
   }
   if (code === "23505") {
     return ["The pack conflicts with existing learning content. Check for duplicate category slugs or lesson external IDs."];
