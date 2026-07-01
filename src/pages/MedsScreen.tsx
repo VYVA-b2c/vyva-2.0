@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, BarChart2, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
@@ -364,7 +364,7 @@ function buildDashboardHealthTip(
       context,
       text: t("meds.dashboard.healthTipDiabetesBloodPressure", {
         conditions: signals.conditions.slice(0, 2).join(" + ") || "diabetes + blood pressure",
-        defaultValue: "For {{conditions}}: check medicines with meals, stand up slowly, and note dizziness or shakiness.",
+        defaultValue: "Diabetes + blood pressure: meals, stand slowly.",
       }),
     };
   }
@@ -373,7 +373,7 @@ function buildDashboardHealthTip(
     return {
       context,
       text: t("meds.dashboard.healthTipDiabetes", {
-        defaultValue: "For diabetes: pair medicine checks with meals and note shakiness or unusual thirst.",
+        defaultValue: "Diabetes: pair checks with meals.",
       }),
     };
   }
@@ -382,7 +382,7 @@ function buildDashboardHealthTip(
     return {
       context,
       text: t("meds.dashboard.healthTipBloodPressure", {
-        defaultValue: "For blood pressure: stand up slowly and note dizziness, swelling, or headaches.",
+        defaultValue: "Blood pressure: stand up slowly.",
       }),
     };
   }
@@ -391,7 +391,7 @@ function buildDashboardHealthTip(
     return {
       context: t("meds.dashboard.tipContextMedicines", { defaultValue: "Based on current medicines" }),
       text: t("meds.dashboard.healthTipBloodThinner", {
-        defaultValue: "Because a blood thinner is on your list, watch for unusual bruising and ask before adding painkillers.",
+        defaultValue: "Blood thinner: watch unusual bruising.",
       }),
     };
   }
@@ -400,7 +400,7 @@ function buildDashboardHealthTip(
     return {
       context,
       text: t("meds.dashboard.healthTipRespiratory", {
-        defaultValue: "For breathing support: keep inhalers easy to reach and note any new breathlessness.",
+        defaultValue: "Breathing: keep inhaler close.",
       }),
     };
   }
@@ -409,7 +409,7 @@ function buildDashboardHealthTip(
     return {
       context: t("meds.dashboard.tipContextMedicines", { defaultValue: "Based on current medicines" }),
       text: t("meds.dashboard.healthTipStatin", {
-        defaultValue: "Because a cholesterol medicine is on your list, note new muscle pain or weakness.",
+        defaultValue: "Cholesterol med: note muscle pain.",
       }),
     };
   }
@@ -419,7 +419,7 @@ function buildDashboardHealthTip(
       context,
       text: t("meds.dashboard.healthTipConditionFallback", {
         conditions: signals.conditions.slice(0, 2).join(" + "),
-        defaultValue: "For {{conditions}}: keep a quick note of how you feel after medicines.",
+        defaultValue: "{{conditions}}: note how you feel.",
       }),
     };
   }
@@ -427,7 +427,7 @@ function buildDashboardHealthTip(
   return {
     context: t("meds.dashboard.tipContextRoutine", { defaultValue: "Based on today's medicine routine" }),
     text: t("meds.dashboard.healthTipGeneric", {
-      defaultValue: "Keep medicines in the routine your doctor gave you, and ask before adding supplements.",
+      defaultValue: "Keep your usual medicine routine.",
     }),
   };
 }
@@ -452,7 +452,7 @@ function buildDashboardExerciseTip(
     return {
       context: t("meds.dashboard.tipContextMobility", { defaultValue: "Based on mobility level" }),
       text: t("meds.dashboard.exerciseTipMobility", {
-        defaultValue: "Movement: seated ankle circles or slow sit-to-stand beside a steady chair.",
+        defaultValue: "Move: seated ankle circles.",
       }),
     };
   }
@@ -461,7 +461,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipDiabetesBloodPressure", {
-        defaultValue: "Movement: 5 minutes of easy walking or seated marching after a meal.",
+        defaultValue: "Move: 5 easy minutes after a meal.",
       }),
     };
   }
@@ -470,7 +470,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipDiabetes", {
-        defaultValue: "Movement: a short gentle walk after a meal, stopping if you feel shaky.",
+        defaultValue: "Move: gentle walk after a meal.",
       }),
     };
   }
@@ -479,7 +479,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipBloodPressure", {
-        defaultValue: "Movement: steady walking or chair marching without holding your breath.",
+        defaultValue: "Move: steady walk or chair march.",
       }),
     };
   }
@@ -488,7 +488,7 @@ function buildDashboardExerciseTip(
     return {
       context: profileContextLabel(t, signals.conditions),
       text: t("meds.dashboard.exerciseTipRespiratory", {
-        defaultValue: "Movement: a slow walk with pauses for relaxed breathing.",
+        defaultValue: "Move: slow walk with breathing pauses.",
       }),
     };
   }
@@ -497,7 +497,7 @@ function buildDashboardExerciseTip(
     return {
       context: t("meds.dashboard.tipContextHobby", { defaultValue: "Based on saved hobbies" }),
       text: t("meds.dashboard.exerciseTipGardening", {
-        defaultValue: "Movement: water plants or walk the garden for 5 minutes, without bending too long.",
+        defaultValue: "Move: water plants or garden walk.",
       }),
     };
   }
@@ -505,7 +505,7 @@ function buildDashboardExerciseTip(
   return {
     context: t("meds.dashboard.tipContextProfile", { defaultValue: "Based on your saved profile" }),
     text: t("meds.dashboard.exerciseTipGeneric", {
-      defaultValue: "Movement: 5 to 10 minutes of gentle walking or seated movement.",
+      defaultValue: "Move: gentle walk or seated movement.",
     }),
   };
 }
@@ -864,15 +864,6 @@ const MedsScreen = () => {
     hobbies: profileHobbies,
     dietaryPreferences: profileDietaryPreferences,
   };
-  const dashboardStatusText = todayLoading
-    ? t("meds.dashboard.loadingStatus", "Checking today's medicines")
-    : displayMeds.length === 0
-      ? t("meds.dashboard.emptyStatus", "Add medicines to start tracking today")
-      : totalRemainingDoseCount === 0
-        ? t("meds.dashboard.doneStatus", "All scheduled doses are done")
-        : progressPercentRounded >= 50
-          ? t("meds.dashboard.steadyStatus", "Today is mostly on track")
-          : t("meds.dashboard.watchStatus", "A few doses still need attention");
   const healthTip = buildDashboardHealthTip(dashboardProfileSignals, t);
   const exerciseTip = buildDashboardExerciseTip(dashboardProfileSignals, t);
 
@@ -1172,81 +1163,6 @@ const MedsScreen = () => {
         : t("meds.safety.steadyBadge", "Steady")
     : t("meds.safety.steadyBadge", "Steady");
 
-  const shortcutActions: Array<{
-    id: string;
-    icon: LucideIcon;
-    label: string;
-    sub: string;
-    color: string;
-    bg: string;
-    onClick: () => void;
-    testId: string;
-  }> = [
-    {
-      id: "reminders",
-      icon: Clock,
-      label: t("meds.primary.reminders", "Reminders"),
-      sub: t("meds.primary.remindersSub", "Review today's schedule and add medication reminders."),
-      color: "#7C3AED",
-      bg: "#F5F3FF",
-      onClick: () => setRemindersOpen((open) => !open),
-      testId: "button-meds-primary-reminders",
-    },
-    {
-      id: "refills",
-      icon: ShoppingCart,
-      label: t("meds.primary.refills", "Refills"),
-      sub: t("meds.primary.refillsSub", "Prepare repeat prescriptions or delivery."),
-      color: "#C9890A",
-      bg: "#FEF3C7",
-      onClick: openRefillSupport,
-      testId: "button-meds-primary-refills",
-    },
-    {
-      id: "interactions",
-      icon: AlertCircle,
-      label: t("meds.primary.interactions", "Interactions"),
-      sub: t("meds.primary.interactionsSub", "Check medicines and supplements."),
-      color: "#0A7C4E",
-      bg: "#ECFDF5",
-      onClick: () => openAssistant(
-        t("meds.assistant.interactions.prompt", { medNames }),
-        t("meds.assistant.interactions.sheetTitle"),
-      ),
-      testId: "button-meds-primary-interactions",
-    },
-    {
-      id: "adherence",
-      icon: BarChart2,
-      label: t("meds.primary.adherence", "Adherence"),
-      sub: t("meds.primary.adherenceSub", "See progress and missed doses."),
-      color: "#6B21A8",
-      bg: "#EDE9FE",
-      onClick: () => navigate("/meds/adherence-report"),
-      testId: "button-meds-primary-adherence",
-    },
-    {
-      id: "safety",
-      icon: ShieldCheck,
-      label: t("meds.primary.safety", "Safety signals"),
-      sub: t("meds.primary.safetySub", "Review early signals and draft case packets."),
-      color: "#1D4ED8",
-      bg: "#EFF6FF",
-      onClick: () => setSafetyOpen((open) => !open),
-      testId: "button-meds-primary-safety",
-    },
-    {
-      id: "addByVoice",
-      icon: Mic,
-      label: medicationVoiceButtonLabel,
-      sub: t("meds.dashboard.addByVoiceSub", "Say a medicine name, dose, and routine."),
-      color: isRecordingMedicationVoice ? "#BE123C" : "#6B21A8",
-      bg: isRecordingMedicationVoice ? "#FEF2F2" : "#F5F3FF",
-      onClick: toggleMedicationVoiceCapture,
-      testId: "button-meds-primary-add-by-voice",
-    },
-  ];
-
   async function confirmAllRemainingDoses(meds: DisplayMed[]) {
     for (const med of meds) {
       const remaining = remainingDoseCount(med);
@@ -1264,26 +1180,36 @@ const MedsScreen = () => {
     : totalRemainingDoseCount === 0
       ? t("meds.dashboard.allClearLabel", "All clear today")
       : t("meds.dashboard.dosesLeftLabel", "doses left today");
-  const nextDoseDueCount = nextMedication ? remainingDoseCount(nextMedication) : 0;
-  const dashboardSummaryText = todayLoading
-    ? t("meds.dashboard.loadingSummary", "Loading schedule and personal guidance.")
+  const dashboardPriorityTitle = todayLoading
+    ? t("meds.dashboard.priorityLoadingTitle", "Checking medicines")
     : displayMeds.length === 0
-      ? t("meds.dashboard.emptySummary", "No medicines are tracked here yet.")
+      ? t("meds.dashboard.priorityEmptyTitle", "No medicine plan yet")
       : totalRemainingDoseCount === 0
-        ? t("meds.dashboard.doneSummary", {
+        ? t("meds.dashboard.priorityDoneTitle", "All done today")
+        : totalRemainingDoseCount === 1
+          ? t("meds.dashboard.priorityNextTitleOne", "1 dose left today")
+          : t("meds.dashboard.priorityNextTitleMany", {
+            count: totalRemainingDoseCount,
+            defaultValue: "{{count}} doses left today",
+          });
+  const dashboardPrioritySub = todayLoading
+    ? t("meds.dashboard.priorityLoadingSub", "Loading today's schedule.")
+    : displayMeds.length === 0
+      ? t("meds.dashboard.priorityEmptySub", "Add medicines to start tracking today.")
+      : totalRemainingDoseCount === 0
+        ? t("meds.dashboard.priorityDoneSub", {
           taken: totalTakenDoseCount,
-          defaultValue: "{{taken}} doses confirmed today. Nothing else is due.",
+          defaultValue: "{{taken}} doses confirmed. Nothing else is due.",
         })
         : nextMedication
-          ? t("meds.dashboard.nextSummary", {
-            count: totalRemainingDoseCount,
+          ? t("meds.dashboard.priorityNextSub", {
             medicine: nextMedication.displayName,
             time: nextMedication.scheduledTimeForApi,
-            defaultValue: "{{count}} left today. Next: {{medicine}} at {{time}}.",
+            defaultValue: "Next: {{medicine}} at {{time}}.",
           })
-          : t("meds.dashboard.attentionSummary", {
+          : t("meds.dashboard.priorityAttentionSub", {
             count: totalRemainingDoseCount,
-            defaultValue: "{{count}} doses still need attention today.",
+            defaultValue: "{{count}} doses still need attention.",
           });
   return (
     <div className="px-[18px] pb-28 sm:px-[22px]">
@@ -1295,107 +1221,118 @@ const MedsScreen = () => {
                 <Pill size={24} strokeWidth={2.4} aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:text-[29px]">
+                <p className="font-body text-[12px] font-black uppercase leading-none text-vyva-text-3">
                   {t("meds.dashboard.title", "Medication dashboard")}
+                </p>
+                <h1 className="mt-1 font-body text-[27px] font-black leading-tight text-vyva-text-1 sm:text-[34px]" data-testid="text-meds-priority-title">
+                  {dashboardPriorityTitle}
                 </h1>
-                <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2 sm:text-[16px]">
-                  {dashboardStatusText}
+                <p className="mt-1 font-body text-[16px] font-black leading-snug text-[#0F4C45]" data-testid="text-meds-priority-sub">
+                  {dashboardPrioritySub}
                 </p>
               </div>
             </div>
 
-            <div className="mt-4 grid items-start gap-3 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)]">
-              <div className="flex min-h-[118px] flex-col justify-between rounded-[24px] bg-[#123F3A] px-5 py-4 text-white sm:min-h-[132px] lg:min-h-[154px]" data-testid="metric-meds-due">
-                <p className="font-body text-[12px] font-black uppercase text-white/70">
-                  {t("meds.dashboard.focusNow", "Focus now")}
-                </p>
-                <div className="mt-3 flex items-end gap-3">
-                  <p className="font-body text-[68px] font-black leading-none [letter-spacing:0]">
+            <div
+              className="mt-4 rounded-[24px] bg-[#123F3A] p-4 text-white sm:p-5"
+              data-testid="section-meds-priority"
+            >
+              <div className="grid gap-4 lg:grid-cols-[160px_minmax(0,1fr)_auto] lg:items-center">
+                <div className="flex items-end gap-3" data-testid="metric-meds-due">
+                  <p className="font-body text-[72px] font-black leading-none [letter-spacing:0] sm:text-[82px]">
                     {dashboardFocusNumber}
                   </p>
-                  <p className="mb-2 font-body text-[17px] font-black leading-tight text-white">
+                  <p className="mb-2 max-w-[110px] font-body text-[17px] font-black leading-tight text-white/90">
                     {dashboardFocusLabel}
                   </p>
                 </div>
-              </div>
 
-              <div className="min-w-0 rounded-[22px] border border-[#EFE6D8] bg-[#FCFBF8] p-4" data-testid="section-meds-next">
-                <p className="font-body text-[12px] font-black uppercase text-vyva-text-3">
-                  {t("meds.dashboard.nextMedicine", "Next medicine")}
-                </p>
-                {todayLoading ? (
-                  <p className="mt-1 font-body text-[20px] font-black text-vyva-text-1">
-                    {t("meds.dashboard.checkingSchedule", "Checking schedule...")}
+                <div className="min-w-0" data-testid="section-meds-next">
+                  <p className="font-body text-[12px] font-black uppercase text-white/60">
+                    {t("meds.dashboard.nextMedicine", "Next medicine")}
                   </p>
-                ) : nextMedication ? (
-                  <>
-                    <h2 className="mt-1 font-body text-[27px] font-black leading-tight text-vyva-text-1">
-                      {nextMedication.displayName}
-                    </h2>
-                    <p className="mt-1 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-                      {nextMedication.displayNote || t("meds.dashboard.dailyRoutine", "Daily routine")}
-                      {" "}
-                      <span className="text-[#B45309]">
-                        {t("meds.dashboard.scheduledTime", { time: nextMedication.scheduledTimeForApi, defaultValue: "at {{time}}" })}
-                      </span>
+                  {todayLoading ? (
+                    <p className="mt-1 font-body text-[22px] font-black text-white">
+                      {t("meds.dashboard.checkingSchedule", "Checking schedule...")}
                     </p>
-                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <button
-                        data-testid="button-confirm-next-med"
-                        type="button"
-                        onClick={() => confirmMutation.mutate(nextMedication)}
-                        disabled={confirmMutation.isPending}
-                        className="vyva-tap inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-6 font-body text-[17px] font-black text-white shadow-[0_10px_22px_rgba(109,40,217,0.20)] disabled:opacity-60"
-                      >
-                        <Check size={19} aria-hidden="true" />
-                        {t("meds.dashboard.confirmNext", "Confirm taken")}
-                      </button>
-                      <span className="inline-flex min-h-[38px] items-center justify-center rounded-full bg-[#FEF3C7] px-4 font-body text-[14px] font-black text-[#92400E]">
-                        {t("meds.dashboard.doseDue", { count: nextDoseDueCount, defaultValue: "{{count}} dose due" })}
-                      </span>
+                  ) : nextMedication ? (
+                    <>
+                      <h2 className="mt-1 font-body text-[30px] font-black leading-tight text-white sm:text-[34px]">
+                        {nextMedication.displayName}
+                      </h2>
+                      <p className="mt-1 font-body text-[15px] font-bold leading-snug text-white/78 sm:text-[16px]">
+                        {nextMedication.displayNote || t("meds.dashboard.dailyRoutine", "Daily routine")}
+                        {" "}
+                        <span className="text-[#FDE68A]">
+                          {t("meds.dashboard.scheduledTime", { time: nextMedication.scheduledTimeForApi, defaultValue: "at {{time}}" })}
+                        </span>
+                      </p>
+                    </>
+                  ) : displayMeds.length > 0 ? (
+                    <div className="mt-1 text-white" data-testid="status-meds-dashboard-done">
+                      <p className="font-body text-[22px] font-black leading-tight">
+                        {t("meds.dashboard.allDoneTitle", "All scheduled doses are done")}
+                      </p>
+                      <p className="mt-1 font-body text-[14px] font-bold leading-snug text-white/78">
+                        {t("meds.dashboard.allDoneSub", "Your medicine routine is complete for today.")}
+                      </p>
                     </div>
-                  </>
-                ) : displayMeds.length > 0 ? (
-                  <div className="mt-1 text-emerald-800" data-testid="status-meds-dashboard-done">
-                    <p className="font-body text-[22px] font-black leading-tight">
-                      {t("meds.dashboard.allDoneTitle", "All scheduled doses are done")}
-                    </p>
-                    <p className="mt-1 font-body text-[14px] font-bold leading-snug">
-                      {t("meds.dashboard.allDoneSub", "Your medicine routine is complete for today.")}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mt-1">
-                    <p className="font-body text-[22px] font-black leading-tight text-vyva-text-1">
-                      {t("meds.noMedsTitle", "No medications added yet")}
-                    </p>
-                    <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                      {t("meds.noMedsSub", "Use the button below to add your medications by voice")}
-                    </p>
-                    <button
-                      data-testid="button-meds-dashboard-add-by-voice-empty"
-                      type="button"
-                      onClick={toggleMedicationVoiceCapture}
-                      disabled={isTranscribingMedicationVoice}
-                      className={`vyva-tap mt-4 inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full px-5 font-body text-[16px] font-black text-white disabled:cursor-wait disabled:opacity-70 ${
-                        isRecordingMedicationVoice ? "bg-[#BE123C]" : "bg-vyva-purple"
-                      }`}
-                      aria-label={medicationVoiceButtonLabel}
-                    >
-                      {isTranscribingMedicationVoice ? <Loader2 size={17} className="animate-spin" /> : <Mic size={17} />}
-                      {medicationVoiceButtonLabel}
-                    </button>
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <div className="mt-1">
+                      <p className="font-body text-[22px] font-black leading-tight text-white">
+                        {t("meds.noMedsTitle", "No medications added yet")}
+                      </p>
+                      <p className="mt-1 font-body text-[14px] font-bold leading-snug text-white/78">
+                        {t("meds.noMedsSub", "Use the button below to add your medications by voice")}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
+                <div className="lg:justify-self-end">
+                  {nextMedication ? (
+                    <button
+                      data-testid="button-confirm-next-med"
+                      type="button"
+                      onClick={() => confirmMutation.mutate(nextMedication)}
+                      disabled={confirmMutation.isPending}
+                      className="vyva-tap inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-white px-6 font-body text-[17px] font-black text-[#123F3A] shadow-[0_10px_22px_rgba(0,0,0,0.12)] disabled:opacity-60 lg:w-auto"
+                    >
+                      <Check size={19} aria-hidden="true" />
+                      {t("meds.dashboard.confirmNext", "Confirm taken")}
+                    </button>
+                  ) : displayMeds.length === 0 && !todayLoading ? (
+                    <div className="flex flex-col items-stretch gap-2 lg:items-end">
+                      <button
+                        data-testid="button-meds-dashboard-add-by-voice-empty"
+                        type="button"
+                        onClick={toggleMedicationVoiceCapture}
+                        disabled={isTranscribingMedicationVoice}
+                        className={`vyva-tap mt-1 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full px-5 font-body text-[16px] font-black text-white disabled:cursor-wait disabled:opacity-70 lg:w-auto ${
+                          isRecordingMedicationVoice ? "bg-[#BE123C]" : "bg-vyva-purple"
+                        }`}
+                        aria-label={medicationVoiceButtonLabel}
+                      >
+                        {isTranscribingMedicationVoice ? <Loader2 size={17} className="animate-spin" /> : <Mic size={17} />}
+                        {medicationVoiceButtonLabel}
+                      </button>
+                      {medicationVoiceStatus ? (
+                        <p
+                          role={medicationVoiceError ? "alert" : "status"}
+                          data-testid="meds-voice-status"
+                          className={`max-w-[17rem] px-2 text-center font-body text-[12px] font-bold leading-snug lg:text-right ${medicationVoiceError ? "text-[#FECACA]" : "text-white/78"}`}
+                        >
+                          {medicationVoiceStatus}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             <div className="mt-3 rounded-[18px] border border-[#E1E8E4] bg-[#F8FEFC] px-4 py-3">
-              <p className="font-body text-[15px] font-black leading-snug text-[#0F4C45]" data-testid="text-meds-dashboard-summary">
-                {dashboardSummaryText}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-body text-[13px] font-black text-vyva-text-2">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 font-body text-[13px] font-black text-vyva-text-2">
                 <span data-testid="metric-meds-taken">
                   {t("meds.dashboard.takenToday", "Taken today")}: <span className="text-vyva-text-1">{takenValue}</span>
                 </span>
@@ -1409,33 +1346,78 @@ const MedsScreen = () => {
             </div>
 
             <div
-              className="mt-3 rounded-[20px] border border-[#F0DEC3] bg-[#FFF9F0] p-4 sm:p-5"
+              className="mt-3 rounded-[18px] border border-[#F0DEC3] bg-[#FFF9F0] p-3 sm:p-4"
               data-testid="section-meds-dashboard-tips"
             >
-              <div className="flex min-w-0 items-start gap-3" data-testid="card-meds-health-tip">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(109,40,217,0.09)]">
-                  <Sparkles size={20} strokeWidth={2.4} aria-hidden="true" />
+              <div className="flex min-w-0 items-start gap-2.5" data-testid="card-meds-health-tip">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-white text-vyva-purple shadow-[0_8px_18px_rgba(109,40,217,0.08)]">
+                  <Sparkles size={18} strokeWidth={2.4} aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-body text-[20px] font-black leading-tight text-vyva-text-1 sm:text-[22px]">
-                    {t("meds.dashboard.personalGuidance", "Today's guidance")}
+                  <h2 className="font-body text-[18px] font-black leading-tight text-vyva-text-1 sm:text-[19px]">
+                    {t("meds.dashboard.personalGuidance", "Guidance")}
                   </h2>
-                  <p className="mt-2 font-body text-[16px] font-black leading-snug text-vyva-text-1 sm:text-[17px]">
+                  <p className="mt-1 font-body text-[15px] font-black leading-snug text-vyva-text-1 sm:text-[16px]">
                     {healthTip.text}
                   </p>
 
                   <div
-                    className="mt-3 flex min-w-0 items-start gap-2 border-t border-[#ECD9BC] pt-3"
+                    className="mt-2 flex min-w-0 items-start gap-2 border-t border-[#ECD9BC] pt-2"
                     data-testid="card-meds-exercise-tip"
                   >
-                    <Footprints size={18} strokeWidth={2.4} className="mt-0.5 flex-shrink-0 text-[#047857]" aria-hidden="true" />
-                    <p className="font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    <Footprints size={16} strokeWidth={2.4} className="mt-0.5 flex-shrink-0 text-[#047857]" aria-hidden="true" />
+                    <p className="font-body text-[13px] font-bold leading-snug text-vyva-text-2 sm:text-[14px]">
                       {exerciseTip.text}
                     </p>
                   </div>
                 </div>
               </div>
             </div>
+
+            <section
+              className="mt-3 rounded-[18px] border border-[#E6E0F4] bg-white p-3"
+              data-testid="section-meds-can-help"
+            >
+              <h2 className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                {t("meds.fastHelpKicker", "Fast help")}
+              </h2>
+
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {ASSISTANT_ACTIONS.map((action) => {
+                  const Icon = action.icon;
+
+                  return (
+                    <button
+                      key={action.id}
+                      data-testid={`button-assistant-${action.id}`}
+                      onClick={() => openAssistant(action.prompt, action.sheetTitle)}
+                      aria-label={`${action.label}. ${action.sub}`}
+                      className="vyva-tap flex min-h-[54px] w-full items-center gap-2 rounded-[16px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
+                      style={{
+                        borderColor: action.border,
+                        boxShadow: `0 8px 18px ${action.shadow}`,
+                      }}
+                    >
+                      <span
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px]"
+                        style={{ background: action.bg, color: action.color }}
+                      >
+                        <Icon size={18} strokeWidth={2.4} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-body text-[13px] font-black leading-tight text-vyva-text-1">
+                          {action.label}
+                        </span>
+                        <span className="sr-only">
+                          {action.sub}
+                        </span>
+                      </span>
+                      <ChevronRight size={17} strokeWidth={2.5} className="shrink-0 text-vyva-text-3" aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
 
             <div
               className="mt-3 flex min-w-0 flex-col justify-between rounded-[20px] border border-[#D9ECE4] bg-[#FBFFFD] p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
@@ -1491,49 +1473,6 @@ const MedsScreen = () => {
             </div>
           </div>
         </article>
-      </section>
-
-      <section className="mt-3" data-testid="section-meds-primary-actions">
-        <h2 className="sr-only">{t("meds.dashboard.actionsTitle", "What can I do next?")}</h2>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-          {shortcutActions.map((action) => {
-            const Icon = action.icon;
-            const selected = (action.id === "reminders" && remindersOpen) || (action.id === "safety" && safetyOpen);
-            return (
-              <button
-                key={action.id}
-                type="button"
-                data-testid={action.testId}
-                onClick={action.onClick}
-                disabled={action.id === "addByVoice" && isTranscribingMedicationVoice}
-                aria-expanded={
-                  action.id === "reminders"
-                    ? remindersOpen
-                    : action.id === "safety"
-                      ? safetyOpen
-                      : undefined
-                }
-                aria-label={action.id === "addByVoice" ? medicationVoiceButtonLabel : `${action.label}. ${action.sub}`}
-                className={`vyva-tap flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-[18px] border bg-white px-2 py-3 text-center shadow-[0_8px_18px_rgba(31,41,55,0.05)] transition ${selected ? "border-vyva-purple ring-2 ring-vyva-purple/20" : "border-[#E1E8E4]"}`}
-              >
-                <span
-                  className="flex h-9 w-9 items-center justify-center rounded-[14px]"
-                  style={{ background: action.bg, color: action.color }}
-                >
-                  <Icon size={19} strokeWidth={2.5} aria-hidden="true" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-body text-[12px] font-black leading-tight text-vyva-text-1 sm:text-[13px]">
-                    {action.label}
-                  </span>
-                  <span className="sr-only">
-                    {action.sub}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
       </section>
 
       <VoiceActionFulfillmentPanel
@@ -2009,55 +1948,6 @@ const MedsScreen = () => {
         </div>
       </section>
       ) : null}
-
-      <section
-        className="mb-6 mt-6 rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
-        data-testid="section-meds-can-help"
-      >
-        <div className="mb-4">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-            {t("meds.fastHelpKicker", "Fast help")}
-          </p>
-          <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-            {t("meds.canHelpWith", "I can help you with")}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3">
-          {ASSISTANT_ACTIONS.map((action) => {
-            const Icon = action.icon;
-
-            return (
-              <button
-                key={action.id}
-                data-testid={`button-assistant-${action.id}`}
-                onClick={() => openAssistant(action.prompt, action.sheetTitle)}
-                className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
-                style={{
-                  borderColor: action.border,
-                  boxShadow: `0 10px 24px ${action.shadow}`,
-                }}
-              >
-                <span
-                  className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[18px]"
-                  style={{ background: action.bg, color: action.color }}
-                >
-                  <Icon size={24} strokeWidth={2.4} aria-hidden="true" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                    {action.label}
-                  </span>
-                  <span className="mt-1 block max-w-[26rem] font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                    {action.sub}
-                  </span>
-                </span>
-                <ChevronRight size={22} strokeWidth={2.5} className="shrink-0 text-vyva-text-3" aria-hidden="true" />
-              </button>
-            );
-          })}
-        </div>
-      </section>
 
       <MedsAssistantSheet
         open={assistantOpen}
