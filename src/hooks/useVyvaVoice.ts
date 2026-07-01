@@ -705,6 +705,7 @@ function useVyvaVoiceController() {
 
       userClosingRef.current = true;
       teardown();
+      userClosingRef.current = false;
       releaseVoiceInstance(voiceInstanceIdRef.current);
       setVoiceStatus("idle");
       setIsConnecting(false);
@@ -949,6 +950,8 @@ function useVyvaVoiceController() {
       options?: StartVoiceOptions,
     ) => {
       if (statusRef.current !== "idle" || isPreparingRef.current) return;
+      // Manual teardown invalidates old callbacks before they can clear this flag.
+      userClosingRef.current = false;
       const sessionGeneration = sessionGenerationRef.current + 1;
       sessionGenerationRef.current = sessionGeneration;
       const isCurrentSession = () => sessionGenerationRef.current === sessionGeneration && !userClosingRef.current;
@@ -1484,6 +1487,7 @@ function useVyvaVoiceController() {
   const stopVoice = useCallback(() => {
     userClosingRef.current = true;
     teardown();
+    userClosingRef.current = false;
     releaseVoiceInstance(voiceInstanceIdRef.current);
     setVoiceStatus("idle");
     setIsSpeaking(false);
