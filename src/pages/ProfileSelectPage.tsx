@@ -5,7 +5,7 @@ import { CheckCircle2, Loader2, UserRound } from "lucide-react";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch, queryClient } from "@/lib/queryClient";
-import { stageToRoute } from "@/lib/onboardingRoute";
+import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverProfileRole, routeAfterOnboardingStage } from "@/lib/onboardingRoute";
 
 type ProfileChoice = {
   profileId: string;
@@ -23,6 +23,10 @@ type LinkedProfilesResponse = {
   needsProfileSetup: boolean;
   needsProfileSelection: boolean;
   profiles: ProfileChoice[];
+};
+
+type ActiveProfileRoutingUser = {
+  activeProfileRole?: string | null;
 };
 
 function profileName(profile: ProfileChoice) {
@@ -61,7 +65,7 @@ export default function ProfileSelectPage() {
     retry: false,
   });
 
-  const continueToApp = useCallback(async () => {
+  const continueToApp = useCallback(async (user?: ActiveProfileRoutingUser | null) => {
     const state = await queryClient.fetchQuery({
       queryKey: ["/api/onboarding/state"],
     }).catch(() => null);
@@ -70,7 +74,7 @@ export default function ProfileSelectPage() {
         ?.onboardingState?.current_stage ??
       (state as { onboardingState?: { current_stage?: string }; profile?: { current_stage?: string } } | null)
         ?.profile?.current_stage;
-    navigate(stageToRoute(stage), { replace: true });
+    navigate(routeAfterOnboardingStage(stage, user), { replace: true });
   }, [navigate]);
 
   async function selectProfile(profileId: string) {
@@ -85,9 +89,9 @@ export default function ProfileSelectPage() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Could not switch profile");
-      await refreshCurrentUser();
+      const refreshedUser = await refreshCurrentUser();
       await queryClient.invalidateQueries({ queryKey: ["/api/profile/linked-profiles"] });
-      await continueToApp();
+      await continueToApp({ activeProfileRole: body.activeProfileRole ?? refreshedUser?.activeProfileRole });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not switch profile");
     } finally {
@@ -102,6 +106,10 @@ export default function ProfileSelectPage() {
       return;
     }
     if (data.profiles.length <= 1 && !data.needsProfileSelection) {
+      if (isCaregiverProfileRole(data.profiles[0]?.role)) {
+        navigate(CAREGIVER_DASHBOARD_ROUTE, { replace: true });
+        return;
+      }
       void continueToApp();
     }
   }, [continueToApp, data, isLoading, navigate]);

@@ -315,6 +315,23 @@ export const insertProfileMembershipSchema = createInsertSchema(profileMembershi
 export type InsertProfileMembership = z.infer<typeof insertProfileMembershipSchema>;
 export type ProfileMembership = typeof profileMemberships.$inferSelect;
 
+export const caregiverDashboardNotes = pgTable("caregiver_dashboard_notes", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  profile_id:        text("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  caregiver_user_id: text("caregiver_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  note:              text("note").notNull(),
+  concern_tag:       text("concern_tag"),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("caregiver_dashboard_notes_profile_created_idx").on(t.profile_id, t.created_at.desc()),
+  index("caregiver_dashboard_notes_caregiver_created_idx").on(t.caregiver_user_id, t.created_at.desc()),
+]);
+
+export const insertCaregiverDashboardNoteSchema = createInsertSchema(caregiverDashboardNotes).omit({ id: true, created_at: true, updated_at: true });
+export type InsertCaregiverDashboardNote = z.infer<typeof insertCaregiverDashboardNoteSchema>;
+export type CaregiverDashboardNote = typeof caregiverDashboardNotes.$inferSelect;
+
 
 // ============================================================
 // EXISTING TABLE: session_state — extended with channel fields
@@ -2697,6 +2714,7 @@ export const schema = {
   sessionExchanges,
   agentDifficulty,
   caregiverAlerts,
+  caregiverDashboardNotes,
   medicationAdherence,
   checkinSessions,
   checkinTrendState,

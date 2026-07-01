@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "../db.js";
 import { requireUser } from "../middleware/auth.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { resolveDomainAccess } from "../lib/caregiverDomainAccess.js";
 import {
   buildDailySafetyCheck,
   DAILY_SAFETY_RULE_VERSION,
@@ -1066,6 +1067,16 @@ router.get("/history", async (req: Request, res: Response) => {
 router.get("/caregiver/latest-alerts", async (req: Request, res: Response) => {
   const profileId = await resolveProfileId(req);
   try {
+    const access = await resolveDomainAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      domain: "safety",
+      requiredPermission: "view_alerts",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!access) return res.status(403).json({ error: "Caregiver safety alert access is not enabled." });
+
     const [alerts, analysis] = await Promise.all([
       getLatestAlerts(profileId, 5),
       getLatestAnalysis(profileId),
