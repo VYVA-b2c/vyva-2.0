@@ -738,7 +738,6 @@ function useVyvaVoiceController() {
     async (
       activeAgentId: string | undefined,
       shouldResolveAgentOnServer: boolean,
-      systemPrompt: string | undefined,
       options: StartVoiceOptions | undefined,
     ): Promise<PartialOptions> => {
       try {
@@ -748,7 +747,6 @@ function useVyvaVoiceController() {
             ...(activeAgentId ? { agent_id: activeAgentId } : {}),
             ...(options?.agentSlug ? { agent_slug: options.agentSlug } : {}),
             ...(options?.roomSlug ? { room_slug: options.roomSlug } : {}),
-            ...(systemPrompt ? { prompt_override: systemPrompt } : {}),
           }),
         });
         if (!res.ok) {
@@ -1134,7 +1132,6 @@ function useVyvaVoiceController() {
         const sessionOptions = await fetchSessionOptions(
           activeAgentId,
           shouldResolveAgentOnServer,
-          resolvedSystemPrompt,
           options,
         );
         updateVoiceDiagnostic("session_token", "passed", "Signed URL received");
@@ -1258,9 +1255,6 @@ function useVyvaVoiceController() {
                 : "Feedback could not be recorded.";
             },
           },
-          overrides: resolvedSystemPrompt
-            ? { agent: { prompt: { prompt: resolvedSystemPrompt } } }
-            : undefined,
           onConversationCreated: (createdConversation) => {
             if (!isCurrentSession()) {
               void createdConversation.endSession().catch(() => {});
@@ -1282,6 +1276,13 @@ function useVyvaVoiceController() {
             setIsMicMuted(skipMicrophone ? true : !autoStartListening);
             setIsTransferring(false);
             transferPendingRef.current = false;
+            if (resolvedSystemPrompt?.trim()) {
+              try {
+                conversationRef.current?.sendContextualUpdate(resolvedSystemPrompt);
+              } catch (error) {
+                console.warn("[VYVA] Failed to send initial voice context:", error);
+              }
+            }
             recordVoiceTimelineEvent({
               kind: "session_connected",
               title: "Voice session connected",

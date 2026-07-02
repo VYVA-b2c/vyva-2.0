@@ -1808,7 +1808,13 @@ const SignosScreen = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/chat?mode=voice&q=${encodeURIComponent(guideQuery)}`)}
+              onClick={() => navigate("/health/doctor", {
+                state: {
+                  autoStartVoice: true,
+                  latestSymptomReport: guideQuery,
+                  source: "vitals_guided_plan",
+                },
+              })}
               className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-5 font-body text-[15px] font-black text-[#6B21A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[54px] sm:text-[16px]"
             >
               <Mic size={19} />
