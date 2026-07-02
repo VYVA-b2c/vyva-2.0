@@ -1452,7 +1452,14 @@ const en = {
     },
   },
   home: {
+    nudge: {
+      text: "Not sure where to start?",
+      action: "Ask VYVA",
+      aria: "Ask VYVA where to start",
+    },
     fastHelp: {
+      rotate: "More",
+      rotateAria: "Show different fast help choices",
       ride: {
         label: "Find transport",
         sub: "Compare safe ways to get there.",

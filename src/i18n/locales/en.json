@@ -382,9 +382,16 @@
         "openLabel": "Open concierge"
       }
     },
+    "nudge": {
+      "text": "Not sure where to start?",
+      "action": "Ask VYVA",
+      "aria": "Ask VYVA where to start"
+    },
     "fastHelp": {
       "kicker": "Fast help",
       "title": "What would you like VYVA to do?",
+      "rotate": "More",
+      "rotateAria": "Show different fast help choices",
       "doctor": {
         "label": "Talk to a real doctor now",
         "sub": "Get live medical help."

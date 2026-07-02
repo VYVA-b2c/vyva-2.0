@@ -6,7 +6,7 @@ import HomeScreen from "./HomeScreen";
 const guardPathMock = vi.fn();
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
-const profileMock = vi.hoisted(() => ({ firstName: "Karim" }));
+const profileMock = vi.hoisted(() => ({ firstName: "Karim", withGpContact: true }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -19,11 +19,13 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 vi.mock("@/contexts/ProfileContext", () => ({
   useProfile: () => ({
     firstName: profileMock.firstName,
-    profile: {
-      gpName: "Dr Garcia",
-      gpPhone: "+34 612 345 678",
-      gpEmail: "gp@example.com",
-    },
+    profile: profileMock.withGpContact
+      ? {
+          gpName: "Dr Garcia",
+          gpPhone: "+34 612 345 678",
+          gpEmail: "gp@example.com",
+        }
+      : {},
   }),
 }));
 
@@ -87,6 +89,8 @@ const labels: Record<string, string> = {
   "home.fastHelp.title": "What would you like VYVA to do?",
   "home.fastHelp.doctor.label": "Talk to a real doctor now",
   "home.fastHelp.doctor.sub": "Get live medical help.",
+  "home.fastHelp.rotate": "More",
+  "home.fastHelp.rotateAria": "Show different fast help choices",
   "home.fastHelp.appointment.label": "Schedule an appointment",
   "home.fastHelp.appointment.sub": "Let VYVA arrange it with you.",
   "home.fastHelp.ride.label": "Find transport",
@@ -94,6 +98,9 @@ const labels: Record<string, string> = {
   "home.fastHelp.doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
   "home.fastHelp.appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
   "home.fastHelp.ridePrefill": "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+  "home.nudge.text": "Not sure where to start?",
+  "home.nudge.action": "Ask VYVA",
+  "home.nudge.aria": "Ask VYVA where to start",
   "meds.callGpNamed": "Call {{name}}",
   "meds.callGp": "Call GP",
   "meds.callGpSub": "Speak to your practice now.",
@@ -134,6 +141,7 @@ describe("Home fast service actions", () => {
     vi.clearAllMocks();
     voiceHeroMock.mockClear();
     profileMock.firstName = "Karim";
+    profileMock.withGpContact = true;
     window.localStorage.clear();
     window.sessionStorage.clear();
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -159,17 +167,50 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
     expect(screen.getByTestId("card-home-agent-health")).toBeInTheDocument();
     expect(screen.getByTestId("card-home-agent-social")).toBeInTheDocument();
+    expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Symptoms, meds and wellbeing");
+    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, focus and calm");
+    expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, chats and shared moments");
+    expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Bookings, errands and support");
+    expect(screen.getByTestId("home-start-nudge")).toHaveTextContent("Not sure where to start?");
+    expect(screen.getByTestId("home-start-nudge")).toHaveTextContent("Ask VYVA");
+  });
+
+  it("opens VYVA chat from the Home nudge", () => {
+    render(<HomeScreen />);
+
+    fireEvent.click(screen.getByTestId("home-start-nudge"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/chat", undefined);
   });
 
   it("renders direct fast-help buttons on Home", () => {
     render(<HomeScreen />);
 
     expect(screen.getByTestId("home-fast-help")).toHaveTextContent("Fast help");
+    expect(screen.getByTestId("button-home-fast-rotate")).toHaveTextContent("More");
     expect(screen.getByTestId("button-home-fast-callGp")).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("button-home-fast-callGp")).toHaveTextContent("Call Dr Garcia");
     expect(screen.getByTestId("button-home-fast-emailGp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
     expect(screen.getByTestId("button-home-fast-emailGp")).toHaveAttribute("href", expect.stringContaining("VYVA%20symptom%20report"));
     expect(screen.getByTestId("button-home-fast-doctor")).toHaveTextContent("Talk to a real doctor now");
+    expect(screen.queryByTestId("button-home-fast-appointment")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-ride")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-home-fast-rotate"));
+
+    expect(screen.getByTestId("button-home-fast-appointment")).toHaveTextContent("Schedule an appointment");
+    expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Find transport");
+    expect(screen.getByTestId("button-home-fast-callGp")).toHaveTextContent("Call Dr Garcia");
+    expect(screen.queryByTestId("button-home-fast-emailGp")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-fast-doctor")).not.toBeInTheDocument();
+  });
+
+  it("hides Fast help rotation when there are only three choices", () => {
+    profileMock.withGpContact = false;
+
+    render(<HomeScreen />);
+
+    expect(screen.queryByTestId("button-home-fast-rotate")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-home-fast-appointment")).toHaveTextContent("Schedule an appointment");
     expect(screen.getByTestId("button-home-fast-ride")).toHaveTextContent("Find transport");
   });
@@ -237,6 +278,7 @@ describe("Home fast service actions", () => {
   it("opens appointment and ride requests in Concierge with prepared confirmation-first context", () => {
     render(<HomeScreen />);
 
+    fireEvent.click(screen.getByTestId("button-home-fast-rotate"));
     fireEvent.click(screen.getByTestId("button-home-fast-appointment"));
     fireEvent.click(screen.getByTestId("button-home-fast-ride"));
 

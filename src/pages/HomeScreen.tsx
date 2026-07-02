@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, RotateCw, Sparkles, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import { ActionCard, ResponsiveGrid } from "@/components/vyva-ui";
@@ -98,6 +98,8 @@ const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { 
   ride: { label: "Find transport", sub: "Compare safe options" },
 };
 
+const HOME_FAST_HELP_VISIBLE_COUNT = 3;
+
 const SECTION_VOICE_AUTO_START_OPTIONS: NavigateOptions = {
   state: { [SECTION_VOICE_AUTO_START_KEY]: true },
 };
@@ -171,6 +173,7 @@ const HomeScreen = () => {
   const { guardPath, readiness } = useServiceGate();
   const { t } = useTranslation();
   const { firstName: profileFirstName, profile } = useProfile();
+  const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -305,7 +308,7 @@ const HomeScreen = () => {
     });
   };
 
-  const homeFastActions: HomeFastAction[] = [
+  const homeFastActions: HomeFastAction[] = useMemo(() => [
     ...(gpPhoneHref
       ? [{
           id: "callGp" as const,
@@ -337,7 +340,24 @@ const HomeScreen = () => {
       mobileLabel: t(`home.fastHelp.${action.id}.mobileLabel`, HOME_FAST_ACTION_MOBILE_COPY[action.id].label),
       mobileSub: t(`home.fastHelp.${action.id}.mobileSub`, HOME_FAST_ACTION_MOBILE_COPY[action.id].sub),
     })),
-  ];
+  ], [gpEmailHref, gpName, gpPhoneHref, t]);
+
+  useEffect(() => {
+    if (fastHelpStartIndex < homeFastActions.length) return;
+    setFastHelpStartIndex(0);
+  }, [fastHelpStartIndex, homeFastActions.length]);
+
+  const visibleFastActions = useMemo(() => {
+    if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return homeFastActions;
+    return Array.from({ length: HOME_FAST_HELP_VISIBLE_COUNT }, (_item, index) => (
+      homeFastActions[(fastHelpStartIndex + index) % homeFastActions.length]!
+    ));
+  }, [fastHelpStartIndex, homeFastActions]);
+
+  const rotateFastHelp = () => {
+    if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return;
+    setFastHelpStartIndex((current) => (current + HOME_FAST_HELP_VISIBLE_COUNT) % homeFastActions.length);
+  };
 
   const isSubscriptionLocked = (path: string) => {
     const serviceId = serviceForPath(path);
@@ -383,21 +403,11 @@ const HomeScreen = () => {
                     </span>
                   </>
                 }
-                description={
-                  <>
-                    <span className="sm:hidden">
-                      {t(`home.voiceCards.${card.id}.mobileSubtitle`, HOME_AGENT_MOBILE_COPY[card.id].subtitle)}
-                    </span>
-                    <span className="hidden sm:inline">
-                      {t(`home.voiceCards.${card.id}.subtitle`)}
-                    </span>
-                  </>
-                }
                 icon={Icon}
                 iconBg={theme.iconBg}
                 iconColor={theme.iconColor}
-                size="standard"
-                contentClassName="justify-start"
+                size="compact"
+                contentClassName="justify-center"
                 locked={locked}
                 style={{
                   borderColor: "#EDE2D1",
@@ -415,21 +425,53 @@ const HomeScreen = () => {
         </ResponsiveGrid>
       </div>
 
+      <button
+        type="button"
+        data-testid="home-start-nudge"
+        aria-label={t("home.nudge.aria", "Ask VYVA where to start")}
+        onClick={() => handleNavigate("/chat")}
+        className="vyva-tap mt-3 flex min-h-[58px] w-full items-center gap-3 rounded-[22px] border border-[#E4D7F4] bg-white px-4 text-left shadow-[0_12px_28px_rgba(107,33,168,0.08)] transition-transform active:scale-[0.99]"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#F3E8FF] text-[#6B21A8]">
+          <Sparkles size={22} strokeWidth={2.4} />
+        </span>
+        <span className="min-w-0 flex-1 font-body text-[16px] font-black leading-tight text-vyva-text-1">
+          {t("home.nudge.text", "Not sure where to start?")}
+        </span>
+        <span className="shrink-0 rounded-full bg-[#6B21A8] px-3 py-2 font-body text-[13px] font-black text-white">
+          {t("home.nudge.action", "Ask VYVA")}
+        </span>
+      </button>
+
       <section
         className="mt-[18px] rounded-[28px] border border-[#EDE2D1] bg-[#FFFCF8] p-5 shadow-[0_14px_32px_rgba(60,38,20,0.07)]"
         data-testid="home-fast-help"
       >
-        <div className="mb-4">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-            {t("home.fastHelp.kicker", "Fast help")}
-          </p>
-          <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
-            <span className="sm:hidden">{t("home.fastHelp.titleMobile", "Need help now?")}</span>
-            <span className="hidden sm:inline">{t("home.fastHelp.title", "What do you need now?")}</span>
-          </h2>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
+              {t("home.fastHelp.kicker", "Fast help")}
+            </p>
+            <h2 className="mt-1 font-body text-[22px] font-black leading-tight text-vyva-text-1">
+              <span className="sm:hidden">{t("home.fastHelp.titleMobile", "Need help now?")}</span>
+              <span className="hidden sm:inline">{t("home.fastHelp.title", "What do you need now?")}</span>
+            </h2>
+          </div>
+          {homeFastActions.length > HOME_FAST_HELP_VISIBLE_COUNT ? (
+            <button
+              type="button"
+              data-testid="button-home-fast-rotate"
+              aria-label={t("home.fastHelp.rotateAria", "Show different fast help choices")}
+              onClick={rotateFastHelp}
+              className="vyva-tap inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-[#E4D7F4] bg-white px-3 font-body text-[13px] font-black text-[#6B21A8] shadow-sm"
+            >
+              <RotateCw size={15} strokeWidth={2.5} />
+              {t("home.fastHelp.rotate", "More")}
+            </button>
+          ) : null}
         </div>
         <div className="grid grid-cols-1 gap-3">
-          {homeFastActions.map((action) => {
+          {visibleFastActions.map((action) => {
             const theme = HOME_FAST_ACTION_THEMES[action.tone];
             const Icon = action.icon;
             const content = (
