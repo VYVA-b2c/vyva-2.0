@@ -376,6 +376,12 @@ export type UserDetail = {
   consent_attempts: ConsentAttempt[];
   scheduled_events: ScheduledEvent[];
   scheduled_support?: ScheduledSupport[];
+  support_profile?: {
+    medications?: JsonRecord[];
+    providers?: JsonRecord[];
+    channel_preferences?: JsonRecord | null;
+    channel_preferences_saved?: boolean;
+  };
   interaction_logs?: JsonRecord[];
   consent_audit_logs?: JsonRecord[];
   care_team_invitations?: CareTeamInvitation[];

@@ -63,6 +63,46 @@ afterEach(async () => {
 });
 
 describe("Admin lifecycle profile updates", () => {
+  it("returns all editable profile fields for the admin detail drawer", async () => {
+    const profileId = await createProfile({
+      full_name: "Detail Elder",
+      preferred_name: "Detail",
+      date_of_birth: "1945-02-03",
+      email: "detail-elder@example.com",
+      phone_number: "+34600000003",
+      whatsapp_number: "+34600000004",
+      language: "en",
+      timezone: "Europe/London",
+      caregiver_name: "Mary Helper",
+      caregiver_contact: "mary@example.com",
+    });
+    const intake = await createIntake({
+      name: "Detail Elder",
+      user_id: profileId,
+      elder_user_id: profileId,
+      phone: "+34600000003",
+      email: "detail-elder@example.com",
+    });
+
+    const response = await request(app)
+      .get(`/api/admin/lifecycle/users/${intake.id}/details`)
+      .expect(200);
+
+    expect(response.body.profile).toMatchObject({
+      id: profileId,
+      full_name: "Detail Elder",
+      preferred_name: "Detail",
+      date_of_birth: "1945-02-03",
+      email: "detail-elder@example.com",
+      phone_number: "+34600000003",
+      whatsapp_number: "+34600000004",
+      language: "en",
+      timezone: "Europe/London",
+      caregiver_name: "Mary Helper",
+      caregiver_contact: "mary@example.com",
+    });
+  });
+
   it("rejects phone numbers already used by another profile", async () => {
     await createProfile({
       full_name: "Existing Elder",

@@ -163,6 +163,24 @@ function recordValue(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
 }
 
+function userDetailDraft(detailProfile: JsonRecord, detailIntake: Intake, fallbackIntake: Intake, primaryMapping?: LoginMapping): JsonRecord {
+  const profileTier = stringValue(detailProfile.subscription_tier);
+  return {
+    full_name: profileNameValue(detailProfile.full_name, detailProfile.preferred_name, detailIntake.name, fallbackIntake.name),
+    preferred_name: profileNameValue(detailProfile.preferred_name),
+    date_of_birth: stringValue(detailProfile.date_of_birth) ?? "",
+    email: emailAddressValue(detailProfile.email, detailIntake.email, fallbackIntake.email, primaryMapping?.login_email, fallbackIntake.login_email, detailIntake.phone, fallbackIntake.phone),
+    phone_number: contactNumberValue(detailProfile.phone_number, detailIntake.profile_phone, fallbackIntake.profile_phone, primaryMapping?.login_phone, fallbackIntake.login_phone, detailIntake.phone, fallbackIntake.phone),
+    whatsapp_number: contactNumberValue(detailProfile.whatsapp_number),
+    language: stringValue(detailProfile.language) ?? "es",
+    timezone: stringValue(detailProfile.timezone) ?? "Europe/Madrid",
+    caregiver_name: stringValue(detailProfile.caregiver_name) ?? "",
+    caregiver_contact: stringValue(detailProfile.caregiver_contact) ?? "",
+    tier: profileTier ?? fallbackIntake.tier,
+    organization_id: detailIntake.organization_id ?? fallbackIntake.organization_id ?? "",
+  };
+}
+
 function numberValue(value: unknown, fallback: unknown = 0) {
   const number = typeof value === "number" ? value : Number(value);
   const fallbackNumber = typeof fallback === "number" ? fallback : Number(fallback);
@@ -1054,23 +1072,9 @@ export default function LifecycleAdminPage() {
       const data = await api(`/users/${intake.id}/details`);
       const detailIntake = (data.intake && typeof data.intake === "object" ? data.intake : intake) as Intake;
       const detailProfile = recordValue(data.profile);
-      const profileTier = stringValue(detailProfile.subscription_tier);
       const primaryMapping = Array.isArray(data.account_mappings) ? data.account_mappings[0] as LoginMapping | undefined : undefined;
       setSelectedUser(data);
-      setSelectedDraft({
-        full_name: profileNameValue(detailProfile.full_name, detailProfile.preferred_name, detailIntake.name, intake.name),
-        preferred_name: profileNameValue(detailProfile.preferred_name),
-        date_of_birth: detailProfile.date_of_birth ?? "",
-        email: emailAddressValue(detailProfile.email, detailIntake.email, intake.email, primaryMapping?.login_email, intake.login_email, detailIntake.phone, intake.phone),
-        phone_number: contactNumberValue(detailProfile.phone_number, detailIntake.profile_phone, intake.profile_phone, primaryMapping?.login_phone, intake.login_phone, detailIntake.phone, intake.phone),
-        whatsapp_number: contactNumberValue(detailProfile.whatsapp_number),
-        language: detailProfile.language ?? "es",
-        timezone: detailProfile.timezone ?? "Europe/Madrid",
-        caregiver_name: detailProfile.caregiver_name ?? "",
-        caregiver_contact: detailProfile.caregiver_contact ?? "",
-        tier: profileTier ?? intake.tier,
-        organization_id: intake.organization_id ?? "",
-      });
+      setSelectedDraft(userDetailDraft(detailProfile, detailIntake, intake, primaryMapping));
       const caregiverName = profileNameValue(detailProfile.caregiver_name);
       const caregiverContact = stringValue(detailProfile.caregiver_contact) ?? "";
       const caregiverContactIsEmail = caregiverContact.includes("@");
@@ -1107,6 +1111,10 @@ export default function LifecycleAdminPage() {
         method: "PATCH",
         body: JSON.stringify(profilePayload),
       });
+      const nextIntake = (data.intake && typeof data.intake === "object" ? data.intake : selectedUser.intake) as Intake;
+      const nextProfile = recordValue(data.profile);
+      const nextMappings = Array.isArray(data.account_mappings) ? data.account_mappings as LoginMapping[] : selectedUser.account_mappings;
+      const nextPrimaryMapping = nextMappings?.[0];
       const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
       const confirmation = `Changes saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`;
       setMessage("");
@@ -1120,11 +1128,12 @@ export default function LifecycleAdminPage() {
           "The Users table will refresh with the latest status and tier.",
         ],
       });
+      setSelectedDraft(userDetailDraft(nextProfile, nextIntake, selectedUser.intake, nextPrimaryMapping));
       setSelectedUser({
         ...selectedUser,
-        intake: data.intake,
-        profile: data.profile,
-        account_mappings: data.account_mappings ?? selectedUser.account_mappings,
+        intake: nextIntake,
+        profile: data.profile ?? selectedUser.profile,
+        account_mappings: nextMappings,
         account_mapping_warnings: data.account_mapping_warnings ?? selectedUser.account_mapping_warnings,
         account_match_field: data.account_match_field ?? selectedUser.account_match_field,
         synced_profile_ids: data.synced_profile_ids ?? selectedUser.synced_profile_ids,
