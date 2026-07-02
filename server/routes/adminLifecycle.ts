@@ -250,6 +250,12 @@ const caregiverInviteSchema = z.object({
   }).optional().default({}),
 });
 
+const loginAccountDeleteSchema = z.object({
+  confirm: z.literal("DELETE_LOGIN_ACCOUNT"),
+  source: z.enum(["legacy", "supabase"]),
+  login_uid: z.string().trim().min(1),
+});
+
 const scheduledEventAdminSchema = z.object({
   event_type: z.string().min(1).default("custom"),
   title: z.string().min(1),
@@ -1773,6 +1779,7 @@ function lifecycleActivityAction(eventType: string) {
     duplicate_merged: "Merged duplicate user",
     intake_created: "Created intake",
     link_sent: "Sent invite link",
+    login_account_deleted: "Deleted login account",
     organization_archived: "Archived organization",
     organization_assigned: "Assigned organization",
     organization_created: "Created organization",
@@ -1887,6 +1894,13 @@ async function clearLifecycleDeletedProfileMarkers(scope: LifecycleIdentityScope
     eq(profiles.account_status, "disabled"),
     eq(profiles.disabled_reason, "Deleted from lifecycle admin"),
   )).returning({ id: profiles.id }));
+}
+
+function isOwnedProfileMembership(membership: typeof profileMemberships.$inferSelect | undefined | null) {
+  if (!membership) return false;
+  return membership.role === "elder"
+    || membership.is_primary === true
+    || (membership.relationship ?? "").trim().toLowerCase() === "self";
 }
 
 async function bestEffortAdminDelete(label: string, query: Promise<unknown>, cleanupErrors: string[]) {
@@ -3647,6 +3661,251 @@ adminLifecycleRouter.post("/users/:id/enable", async (req: Request, res: Respons
     metadata: { matched_profile_ids: enabledProfiles.map((profile) => profile.id) },
   });
   return res.json({ profile: enabledProfiles[0] ?? null, profiles: enabledProfiles });
+});
+
+adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = loginAccountDeleteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Type DELETE LOGIN before deleting the login account." });
+
+  const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+  if (!intake) return res.status(404).json({ error: "User intake not found" });
+
+  const userId = targetUserIdForIntake(intake);
+  const lifecycleProfile = await profileById(userId);
+  const mappingResult = await resolveLoginMappings({
+    intake,
+    lifecycleProfile,
+  });
+  const mapping = mappingResult.mappings.find((item) => (
+    item.source === parsed.data.source && item.login_uid === parsed.data.login_uid
+  ));
+  if (!mapping) return res.status(404).json({ error: "That login account is no longer linked to this user. Refresh and try again." });
+  if (mapping.source !== "legacy") {
+    return res.status(409).json({ error: "This is an external auth account. Delete it in the auth provider first, then refresh VYVA." });
+  }
+
+  const [account] = await db.select().from(users).where(eq(users.id, mapping.login_uid)).limit(1);
+  if (!account) return res.status(404).json({ error: "Login account not found. Refresh and try again." });
+  if (account.id === req.user?.id) return res.status(409).json({ error: "You cannot delete the login account you are currently using." });
+  if (isSuperAdminEmail(account.email)) return res.status(403).json({ error: "The super admin login account cannot be deleted from here." });
+
+  const deletedAt = new Date();
+  const deletedBy = req.user?.email ?? req.user?.id ?? "admin";
+  const membershipRows = await optionalAdminRows(
+    db.select().from(profileMemberships).where(eq(profileMemberships.user_id, account.id)),
+  );
+  const membershipByProfile = new Map(membershipRows.map((membership) => [membership.profile_id, membership]));
+  const ownedProfileIds = new Set<string>([account.id]);
+
+  for (const membership of membershipRows) {
+    if (isOwnedProfileMembership(membership)) ownedProfileIds.add(membership.profile_id);
+  }
+
+  const activeMembership = account.active_profile_id ? membershipByProfile.get(account.active_profile_id) : null;
+  if (account.active_profile_id && (!activeMembership || isOwnedProfileMembership(activeMembership))) {
+    ownedProfileIds.add(account.active_profile_id);
+  }
+
+  const effectiveMembership = mapping.effective_profile_id ? membershipByProfile.get(mapping.effective_profile_id) : null;
+  if (
+    mapping.effective_profile_id
+    && (
+      mapping.effective_profile_id === account.id
+      || !effectiveMembership
+      || isOwnedProfileMembership(effectiveMembership)
+    )
+  ) {
+    ownedProfileIds.add(mapping.effective_profile_id);
+  }
+
+  const ownedProfileIdList = Array.from(ownedProfileIds);
+  const ownedProfileRows = ownedProfileIdList.length
+    ? await optionalAdminRows(
+      db
+        .select({
+          id: profiles.id,
+          email: profiles.email,
+          phone_number: profiles.phone_number,
+          whatsapp_number: profiles.whatsapp_number,
+        })
+        .from(profiles)
+        .where(inArray(profiles.id, ownedProfileIdList)),
+    )
+    : [];
+  const deleteEmails = new Set<string>();
+  const deletePhones = new Set<string>();
+  addNormalizedEmail(deleteEmails, account.email);
+  addNormalizedPhone(deletePhones, account.phone_number);
+  for (const profile of ownedProfileRows) {
+    addNormalizedEmail(deleteEmails, profile.email);
+    addNormalizedPhone(deletePhones, profile.phone_number);
+    addNormalizedPhone(deletePhones, profile.whatsapp_number);
+  }
+
+  const deleteScope = {
+    ids: Array.from(new Set([account.id, ...ownedProfileIdList])),
+    emails: Array.from(deleteEmails),
+    phones: Array.from(deletePhones),
+  };
+  const intakeWhere = lifecycleIntakeIdentityWhere({
+    selectedIntakeId: intake.id,
+    ids: deleteScope.ids,
+    emails: deleteScope.emails,
+    phones: deleteScope.phones,
+  });
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const intakesToHide = await tx.select().from(userIntakes).where(intakeWhere);
+      const intakesById = new Map<string, typeof userIntakes.$inferSelect>();
+      for (const row of intakesToHide) intakesById.set(row.id, row);
+      intakesById.set(intake.id, intake);
+
+      const hiddenIntakeIds: string[] = [];
+      for (const row of intakesById.values()) {
+        const [hiddenIntake] = await tx.update(userIntakes).set({
+          status: "dropped",
+          journey_step: "admin_deleted",
+          dropped_at: deletedAt,
+          last_activity_at: deletedAt,
+          updated_at: deletedAt,
+          metadata: {
+            ...jsonRecord(row.metadata),
+            hidden_from_lifecycle: true,
+            deleted_from_lifecycle: true,
+            login_account_deleted: true,
+            login_account_deleted_at: deletedAt.toISOString(),
+            login_account_deleted_by: deletedBy,
+            deleted_identity: {
+              user_id: row.user_id,
+              elder_user_id: row.elder_user_id,
+              family_user_id: row.family_user_id,
+              name: row.name,
+              email: row.email,
+              phone: row.phone,
+            },
+            deleted_login_account: {
+              id: account.id,
+              email: account.email,
+              phone_number: account.phone_number,
+            },
+            released_login_contacts: [account.email, account.phone_number].filter(Boolean),
+            remove_from_users: true,
+            app_access_changed: true,
+          },
+        }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
+        if (hiddenIntake) hiddenIntakeIds.push(hiddenIntake.id);
+      }
+
+      const disabledProfiles = ownedProfileIdList.length
+        ? await tx.update(profiles).set({
+          account_status: "disabled",
+          disabled_at: deletedAt,
+          disabled_reason: "Login account deleted by admin",
+          disabled_by: deletedBy,
+          email: null,
+          phone_number: null,
+          whatsapp_number: null,
+          updated_at: deletedAt,
+        }).where(inArray(profiles.id, ownedProfileIdList)).returning({ id: profiles.id })
+        : [];
+
+      const revokedProfileMemberships = ownedProfileIdList.length
+        ? await tx.update(profileMemberships).set({
+          status: "revoked",
+          updated_at: deletedAt,
+        }).where(and(
+          inArray(profileMemberships.profile_id, ownedProfileIdList),
+          sql`${profileMemberships.user_id} <> ${account.id}`,
+          sql`${profileMemberships.status} <> 'revoked'`,
+        )).returning({ id: profileMemberships.id })
+        : [];
+
+      const resetAcceptedInvites = await tx.update(teamInvitations).set({
+        status: "pending",
+        accepted_at: null,
+        accepted_user_id: null,
+        updated_at: deletedAt,
+      }).where(eq(teamInvitations.accepted_user_id, account.id)).returning({ id: teamInvitations.id });
+
+      const revokedSeniorInvites = ownedProfileIdList.length
+        ? await tx.update(teamInvitations).set({
+          status: "revoked",
+          revoked_at: deletedAt,
+          revoked_reason: "Senior login account deleted by admin",
+          updated_at: deletedAt,
+        }).where(and(
+          inArray(teamInvitations.senior_id, ownedProfileIdList),
+          sql`${teamInvitations.status} in ('pending', 'accepted')`,
+        )).returning({ id: teamInvitations.id })
+        : [];
+
+      const linkClauses: SQL[] = [eq(accessLinks.user_id, account.id)];
+      if (ownedProfileIdList.length) linkClauses.push(inArray(accessLinks.user_id, ownedProfileIdList));
+      if (hiddenIntakeIds.length) linkClauses.push(inArray(accessLinks.intake_id, hiddenIntakeIds));
+      const revokedAccessLinks = await tx.update(accessLinks).set({
+        revoked_at: deletedAt,
+      }).where(and(
+        or(...linkClauses)!,
+        sql`${accessLinks.revoked_at} is null`,
+      )).returning({ id: accessLinks.id });
+
+      const clearedActiveProfiles = ownedProfileIdList.length
+        ? await tx.update(users).set({ active_profile_id: null }).where(inArray(users.active_profile_id, ownedProfileIdList)).returning({ id: users.id })
+        : [];
+
+      const deletedAccounts = await tx.delete(users).where(eq(users.id, account.id)).returning({ id: users.id });
+      if (deletedAccounts.length !== 1) {
+        throw new Error("Login account could not be deleted. Refresh and try again.");
+      }
+
+      await tx.insert(lifecycleEvents).values({
+        intake_id: intake.id,
+        user_id: account.id,
+        event_type: "login_account_deleted",
+        from_status: intake.status,
+        to_status: "dropped",
+        channel: "admin",
+        metadata: {
+          deleted_by: deletedBy,
+          deleted_at: deletedAt.toISOString(),
+          login_uid: account.id,
+          released_email: account.email,
+          released_phone_number: account.phone_number,
+          owned_profile_ids: ownedProfileIdList,
+          disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
+          hidden_intake_ids: hiddenIntakeIds,
+          revoked_profile_membership_count: revokedProfileMemberships.length,
+          reset_care_team_invite_count: resetAcceptedInvites.length,
+          revoked_senior_invite_count: revokedSeniorInvites.length,
+          revoked_access_link_count: revokedAccessLinks.length,
+          cleared_active_profile_count: clearedActiveProfiles.length,
+        },
+      });
+
+      return {
+        deleted_login_account: {
+          id: account.id,
+          email: account.email,
+          phone_number: account.phone_number,
+        },
+        released_contacts: [account.email, account.phone_number].filter((value): value is string => Boolean(value)),
+        hidden_intake_ids: hiddenIntakeIds,
+        disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
+        revoked_profile_membership_count: revokedProfileMemberships.length,
+        reset_care_team_invite_count: resetAcceptedInvites.length,
+        revoked_senior_invite_count: revokedSeniorInvites.length,
+        revoked_access_link_count: revokedAccessLinks.length,
+        cleared_active_profile_count: clearedActiveProfiles.length,
+      };
+    });
+
+    return res.json(result);
+  } catch (error) {
+    console.error("[admin-lifecycle] delete login account failed", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Could not delete the login account." });
+  }
 });
 
 adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) => {

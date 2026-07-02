@@ -197,6 +197,9 @@ function lifecycleActivityCopy(eventType: string, row: JsonRecord) {
   if (eventType === "signup_invite_profile_completed") {
     return { label: "Profile completed", detail: "Recipient saved their profile details from the invite flow." };
   }
+  if (eventType === "login_account_deleted") {
+    return { label: "Login account deleted", detail: "Admin deleted the login account and released its email/mobile." };
+  }
   if (eventType === "admin_profile_updated") {
     const tierChanged = previousTier && nextTier && previousTier !== nextTier;
     return {
@@ -440,7 +443,7 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
   ]);
   const tierEvent = latestTierEvent(detail);
   const tierMetadata = jsonObject(tierEvent?.metadata);
-  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored"]);
+  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored", "login_account_deleted"]);
   const accessOrRemovalType = stringValue(accessOrRemovalEvent?.event_type);
   const accessOrRemovalCopy = accessOrRemovalEvent
     ? lifecycleActivityCopy(accessOrRemovalType ?? "lifecycle_event", accessOrRemovalEvent)
@@ -479,7 +482,7 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
       label: "Access / removal",
       done: Boolean(accessOrRemovalEvent),
       detail: accessOrRemovalEvent ? `${accessOrRemovalCopy?.label ?? "Lifecycle update"} at ${formatDate(stringValue(accessOrRemovalEvent.created_at))}` : "No app-access disable or user removal event.",
-      tone: accessOrRemovalEvent && ["user_disabled", "user_deleted"].includes(accessOrRemovalType ?? "") ? "danger" : "success",
+      tone: accessOrRemovalEvent && ["user_disabled", "user_deleted", "login_account_deleted"].includes(accessOrRemovalType ?? "") ? "danger" : "success",
     },
     {
       label: "Consent",
@@ -1133,7 +1136,7 @@ function UserSupportInfoTab({ detail }: { detail: UserDetail }) {
   );
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, caregiverInviteDraft, setCaregiverInviteDraft, caregiverInviteBusy = false, deleting = false, restoring = false, scheduleBusyAction = null, onClose, onSave, onSendCaregiverInvite, onToggle, onDelete, onRestore, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, caregiverInviteDraft, setCaregiverInviteDraft, caregiverInviteBusy = false, deleting = false, restoring = false, deletingLoginUid = null, scheduleBusyAction = null, onClose, onSave, onSendCaregiverInvite, onToggle, onDelete, onRestore, onDeleteLoginAccount, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
@@ -1147,12 +1150,14 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   scheduleBusyAction?: string | null;
   deleting?: boolean;
   restoring?: boolean;
+  deletingLoginUid?: string | null;
   onClose: () => void;
   onSave: () => void;
   onSendCaregiverInvite: () => void;
   onToggle: (enable: boolean) => void;
   onDelete: () => void;
   onRestore?: () => void;
+  onDeleteLoginAccount?: (mapping: LoginMapping) => void;
   newEvent: typeof emptyScheduledEvent;
   setNewEvent: (next: typeof emptyScheduledEvent) => void;
   onCreateEvent: () => void;
@@ -1429,6 +1434,24 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                         <p key={warning} className="rounded-xl bg-[#fff3e8] px-3 py-2 font-bold text-[#8a4a00]">{warning}</p>
                       ))}
                     </div>
+                  )}
+                  {onDeleteLoginAccount && mapping.source === "legacy" && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#eadfd5] pt-3">
+                      <button
+                        type="button"
+                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={Boolean(deletingLoginUid)}
+                        onClick={() => onDeleteLoginAccount(mapping)}
+                      >
+                        {deletingLoginUid === mapping.login_uid ? "Deleting login..." : "Delete login account"}
+                      </button>
+                      <span className="text-xs font-bold text-[#8b7a73]">Frees this email/mobile for a new signup.</span>
+                    </div>
+                  )}
+                  {mapping.source === "supabase" && (
+                    <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-xs font-bold text-purple-800">
+                      External auth login. Delete it in the auth provider, then refresh this drawer.
+                    </p>
                   )}
                 </article>
               ))}
