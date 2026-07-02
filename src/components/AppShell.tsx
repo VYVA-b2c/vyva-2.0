@@ -23,6 +23,7 @@ import {
   type VoiceUserMessageDetail,
 } from "@/lib/voiceNavigation";
 import { useServiceGate } from "@/hooks/useServiceGate";
+import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { useToastSurface } from "@/hooks/useToastSurface";
 import { useVoiceActionContext } from "@/contexts/VoiceActionContext";
 import { emergencyContactForCountry, sanitizePhoneHref } from "@/lib/emergencyContacts";
@@ -331,8 +332,12 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
-  const isChatTypeMode =
-    location.pathname === "/chat" && new URLSearchParams(location.search).get("mode") !== "voice";
+  const routeState = location.state as Record<string, unknown> | null;
+  const chatModeParam = new URLSearchParams(location.search).get("mode");
+  const isChatVoiceMode =
+    location.pathname === "/chat" &&
+    (chatModeParam === "voice" || routeState?.[SECTION_VOICE_AUTO_START_KEY] === true);
+  const isChatTypeMode = location.pathname === "/chat" && !isChatVoiceMode;
   const shellMaxWidthClassName = isFullScreen
     ? "max-w-none"
     : isVitalsRoute

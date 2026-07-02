@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Settings, Square, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 
 const ChatScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const {
@@ -27,7 +29,9 @@ const ChatScreen = () => {
   const pendingRef = useRef<string | null>(searchParams.get("q"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const isVoiceMode = searchParams.get("mode") === "voice";
+  const routeState = location.state as Record<string, unknown> | null;
+  const hasRouteVoiceAutoStart = routeState?.[SECTION_VOICE_AUTO_START_KEY] === true;
+  const isVoiceMode = searchParams.get("mode") === "voice" || hasRouteVoiceAutoStart;
 
   useEffect(() => {
     void startVoice("companion", undefined, {
@@ -38,6 +42,13 @@ const ChatScreen = () => {
       },
     });
   }, [isVoiceMode, startVoice]);
+
+  useEffect(() => {
+    if (!hasRouteVoiceAutoStart) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("mode", "voice");
+    navigate(`${location.pathname}?${nextParams.toString()}`, { replace: true, state: null });
+  }, [hasRouteVoiceAutoStart, location.pathname, navigate, searchParams]);
 
   useEffect(() => {
     if (status === "connected" && pendingRef.current) {
