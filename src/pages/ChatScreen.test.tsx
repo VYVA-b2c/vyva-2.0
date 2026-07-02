@@ -22,7 +22,19 @@ vi.mock("@/hooks/useVyvaVoice", () => ({
     transcript: [],
     status: "idle",
     isConnecting: false,
+    isSpeaking: false,
+    voiceSessionPhase: "idle",
+    isMicMuted: true,
+    setMicrophoneMuted: vi.fn(),
+    lastError: null,
+    lastErrorCode: null,
   }),
+}));
+
+vi.mock("@/components/VoiceCallOverlay", () => ({
+  default: ({ isConnecting }: { isConnecting: boolean }) => (
+    <div data-testid="voice-call-overlay" data-connecting={String(isConnecting)} />
+  ),
 }));
 
 function LocationProbe() {
@@ -69,25 +81,21 @@ describe("ChatScreen", () => {
     expect(screen.queryByTestId("button-chat-mode-voice")).not.toBeInTheDocument();
   });
 
-  it("normalizes legacy voice mode links to typed chat without starting listening", async () => {
+  it("renders only the focused voice overlay for voice mode links", async () => {
     renderChat("/chat?mode=voice&q=hello");
 
-    await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/chat?mode=type&q=hello");
-    });
+    expect(screen.getByTestId("location")).toHaveTextContent("/chat?mode=voice&q=hello");
+    expect(screen.getByTestId("voice-call-overlay")).toHaveAttribute("data-connecting", "true");
+    expect(screen.queryByText("chat.started")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("input-chat-type")).not.toBeInTheDocument();
 
     await waitFor(() => expect(voiceMocks.startVoice).toHaveBeenCalled());
     expect(voiceMocks.startVoice).toHaveBeenLastCalledWith("companion", undefined, {
-      skipMicrophone: true,
-      autoStartListening: false,
+      skipMicrophone: false,
+      autoStartListening: true,
       dynamicVariables: {
-        app_entrypoint: "chat_type_mode",
+        app_entrypoint: "chat_voice_mode",
       },
     });
-    expect(voiceMocks.startVoice).not.toHaveBeenCalledWith(
-      "companion",
-      undefined,
-      expect.objectContaining({ autoStartListening: true }),
-    );
   });
 });

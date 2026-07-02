@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Settings, Square, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 
 const ChatScreen = () => {
   const navigate = useNavigate();
@@ -15,30 +16,28 @@ const ChatScreen = () => {
     transcript,
     status,
     isConnecting,
+    isSpeaking,
+    voiceSessionPhase,
+    isMicMuted,
+    setMicrophoneMuted,
+    lastError,
+    lastErrorCode,
   } = useVyvaVoice();
   const [text, setText] = useState("");
   const pendingRef = useRef<string | null>(searchParams.get("q"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const isLegacyVoiceMode = searchParams.get("mode") === "voice";
+  const isVoiceMode = searchParams.get("mode") === "voice";
 
   useEffect(() => {
-    if (!isLegacyVoiceMode) return;
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set("mode", "type");
-    navigate(`/chat?${nextParams.toString()}`, { replace: true });
-  }, [isLegacyVoiceMode, navigate, searchParams]);
-
-  useEffect(() => {
-    if (isLegacyVoiceMode) return;
     void startVoice("companion", undefined, {
-      skipMicrophone: true,
-      autoStartListening: false,
+      skipMicrophone: !isVoiceMode,
+      autoStartListening: isVoiceMode,
       dynamicVariables: {
-        app_entrypoint: "chat_type_mode",
+        app_entrypoint: isVoiceMode ? "chat_voice_mode" : "chat_type_mode",
       },
     });
-  }, [isLegacyVoiceMode, startVoice]);
+  }, [isVoiceMode, startVoice]);
 
   useEffect(() => {
     if (status === "connected" && pendingRef.current) {
@@ -62,6 +61,38 @@ const ChatScreen = () => {
     : status === "connected"
     ? t("chat.mode.typeStatus", "Text mode")
     : t("chat.tapToConnect");
+
+  const handleEndVoiceMode = () => {
+    stopVoice();
+    navigate("/", { replace: true });
+  };
+
+  const handleRetryVoiceMode = () => {
+    stopVoice();
+    void startVoice("companion", undefined, {
+      autoStartListening: true,
+      dynamicVariables: {
+        app_entrypoint: "chat_voice_mode",
+      },
+    });
+  };
+
+  if (isVoiceMode) {
+    return (
+      <VoiceCallOverlay
+        isSpeaking={isSpeaking}
+        isConnecting={isConnecting || (status === "idle" && !lastError)}
+        transcript={transcript}
+        onEnd={handleEndVoiceMode}
+        voiceSessionPhase={voiceSessionPhase}
+        isMicMuted={isMicMuted}
+        onMicToggle={setMicrophoneMuted}
+        connectionError={lastError}
+        connectionErrorCode={lastErrorCode}
+        onRetry={handleRetryVoiceMode}
+      />
+    );
+  }
 
   return (
     <div
