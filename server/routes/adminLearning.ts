@@ -223,6 +223,53 @@ function normalizeLessonImport(raw: unknown) {
   });
 }
 
+function translationEntriesValue(row: Record<string, unknown>) {
+  const translations = row.translations;
+  if (Array.isArray(translations)) {
+    return translations.map((translation, index) => ({
+      label: `translation ${index + 1}`,
+      language: stringValue(asObject(translation), ["language"]),
+      row: asObject(translation),
+    }));
+  }
+  if (translations && typeof translations === "object") {
+    return Object.entries(translations as Record<string, unknown>).map(([language, translation]) => ({
+      label: language,
+      language,
+      row: asObject(translation),
+    }));
+  }
+  return [];
+}
+
+function expandLessonImportRows(raw: unknown, index: number, errors: string[]) {
+  const row = asObject(raw);
+  if (row.translations === undefined) return [raw];
+
+  const translations = translationEntriesValue(row);
+  if (translations.length === 0) {
+    errors.push(`Lesson row ${index + 1} translations must be an object keyed by language or an array of translations.`);
+    return [];
+  }
+
+  const baseExternalId = stringValue(row, ["externalIdBase", "external_id_base", "externalId", "external_id"]);
+  if (!baseExternalId) {
+    errors.push(`Lesson row ${index + 1} needs external_id_base when using translations.`);
+    return [];
+  }
+
+  return translations.map((translation) => {
+    const language = normalizeLearningLanguage(translation.language || stringValue(translation.row, ["language"], "en"));
+    const externalId = stringValue(translation.row, ["externalId", "external_id"], `${baseExternalId}-${language}`);
+    return {
+      ...row,
+      ...translation.row,
+      externalId,
+      language,
+    };
+  });
+}
+
 function nestedErrorField(error: unknown, field: string, seen = new Set<unknown>()): unknown {
   if (!error || typeof error !== "object" || seen.has(error)) return undefined;
   seen.add(error);
@@ -507,7 +554,8 @@ async function importContentPackHandler(req: Request, res: Response) {
     return parsed.data;
   }).filter((category): category is z.infer<typeof categoryBodySchema> => Boolean(category));
 
-  const lessons = lessonsRaw.map((lesson, index) => {
+  const expandedLessonsRaw = lessonsRaw.flatMap((lesson, index) => expandLessonImportRows(lesson, index, errors));
+  const lessons = expandedLessonsRaw.map((lesson, index) => {
     const parsed = normalizeLessonImport(lesson);
     if (!parsed.success) {
       errors.push(`Lesson row ${index + 1} is invalid.`);

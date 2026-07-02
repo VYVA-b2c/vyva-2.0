@@ -109,6 +109,57 @@ describe("admin learning import", () => {
     ]));
   });
 
+  it("expands grouped lesson translations into language-specific lessons", async () => {
+    const response = await request(app)
+      .post("/api/admin/learning/import")
+      .send({
+        schema_version: "learning_content_pack_v1",
+        categories: [
+          {
+            slug: "science",
+            label: "Science",
+          },
+        ],
+        lessons: [
+          {
+            external_id_base: "science-soap-cleaning-001",
+            category_slug: "science",
+            estimated_minutes: 3,
+            difficulty: "easy",
+            tags: ["chemistry", "cleaning"],
+            status: "draft",
+            is_active: false,
+            translations: {
+              en: {
+                title: "Why Soap Helps Water Do More",
+                hook: "Soap turns an ordinary rinse into a tiny act of chemistry.",
+                body: "Soap has two different sides that help water carry oil away.",
+                reflection_prompt: "What simple household tool quietly does more than people notice?",
+                source_notes: "General chemistry background.",
+              },
+              es: {
+                title: "Por que el jabon ayuda al agua",
+                hook: "El jabon convierte un enjuague comun en un pequeno acto de quimica.",
+                body: "El jabon tiene dos lados diferentes que ayudan al agua a llevarse el aceite.",
+                reflection_prompt: "Que herramienta sencilla hace mas de lo que parece?",
+                source_notes: "Revision de contenido en espanol.",
+              },
+            },
+          },
+        ],
+      })
+      .expect(200);
+
+    expect(response.body.summary).toMatchObject({
+      categoriesCreated: 1,
+      lessonsCreated: 2,
+    });
+    expect(dbMock.insertedValues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ externalId: "science-soap-cleaning-001-en", language: "en", title: "Why Soap Helps Water Do More" }),
+      expect.objectContaining({ externalId: "science-soap-cleaning-001-es", language: "es", title: "Por que el jabon ayuda al agua" }),
+    ]));
+  });
+
   it("imports a full 80 lesson pack without rejecting valid rows", async () => {
     const categories = [
       "science",

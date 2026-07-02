@@ -229,22 +229,62 @@ function buildLearningContentTemplate(categories: Category[]) {
 
   return {
     schema_version: "learning_content_pack_v1",
+    supported_languages: coverageLanguages,
+    upload_format: "grouped_translations",
     categories: templateCategories,
     lessons: [
       {
-        external_id: `${sampleCategory.slug}-lesson-001`,
+        external_id_base: `${sampleCategory.slug}-lesson-001`,
         category_slug: sampleCategory.slug,
-        language: "en",
-        title: "Replace with a clear lesson title",
-        hook: "Open with one inviting sentence that makes the topic feel worth learning.",
-        body: "Write a short, warm learning snippet. Keep it practical, accurate, and easy to finish in a few minutes.",
-        reflection_prompt: "End with one gentle question that helps the learner connect the idea to memory or daily life.",
-        source_notes: "Add source, citation, reviewer note, or internal provenance here.",
         estimated_minutes: 3,
         difficulty: "easy",
         tags: ["starter", sampleCategory.slug],
         status: "draft",
         is_active: false,
+        translations: {
+          en: {
+            title: "Replace with a clear English lesson title",
+            hook: "Open with one inviting English sentence that makes the topic feel worth learning.",
+            body: "Write a short, warm English learning snippet. Keep it practical, accurate, and easy to finish in a few minutes.",
+            reflection_prompt: "End with one gentle English question that helps the learner connect the idea to memory or daily life.",
+            source_notes: "Add source, citation, reviewer note, or internal provenance here.",
+          },
+          es: {
+            title: "Replace with the Spanish lesson title",
+            hook: "Write the Spanish hook for this lesson.",
+            body: "Write the Spanish learning snippet for this lesson.",
+            reflection_prompt: "Write the Spanish reflection prompt for this lesson.",
+            source_notes: "Optional Spanish reviewer note or source.",
+          },
+          fr: {
+            title: "Replace with the French lesson title",
+            hook: "Write the French hook for this lesson.",
+            body: "Write the French learning snippet for this lesson.",
+            reflection_prompt: "Write the French reflection prompt for this lesson.",
+            source_notes: "Optional French reviewer note or source.",
+          },
+          de: {
+            title: "Replace with the German lesson title",
+            hook: "Write the German hook for this lesson.",
+            body: "Write the German learning snippet for this lesson.",
+            reflection_prompt: "Write the German reflection prompt for this lesson.",
+            source_notes: "Optional German reviewer note or source.",
+          },
+          it: {
+            title: "Replace with the Italian lesson title",
+            hook: "Write the Italian hook for this lesson.",
+            body: "Write the Italian learning snippet for this lesson.",
+            reflection_prompt: "Write the Italian reflection prompt for this lesson.",
+            source_notes: "Optional Italian reviewer note or source.",
+          },
+          pt: {
+            title: "Replace with the Portuguese lesson title",
+            hook: "Write the Portuguese hook for this lesson.",
+            body: "Write the Portuguese learning snippet for this lesson.",
+            reflection_prompt: "Write the Portuguese reflection prompt for this lesson.",
+            source_notes: "Optional Portuguese reviewer note or source.",
+          },
+        },
       },
     ],
   };
@@ -645,7 +685,7 @@ export default function LearningLibraryAdminPage() {
               <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Content template</p>
               <h2 id="learning-template-title" className="mt-1 text-lg font-black text-[#2f2135]">Learning library JSON</h2>
               <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
-                Download a ready-to-fill file with the current categories, one sample lesson, and every field needed for bulk upload. Upload accepts .json files or plain .txt files containing JSON.
+                Download a ready-to-fill multilingual file with the current categories, one sample lesson, and every field needed for bulk upload. Upload accepts .json files or plain .txt files containing JSON.
               </p>
             </div>
             <button
@@ -660,8 +700,8 @@ export default function LearningLibraryAdminPage() {
           </div>
           <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-[#7d6b65]">
             <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{categories.length || defaultTemplateCategories.length} categories</span>
-            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">JSON upload format</span>
-            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">Add categories by slug</span>
+            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageLanguages.length} languages</span>
+            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">Grouped translations</span>
           </div>
         </section>
 

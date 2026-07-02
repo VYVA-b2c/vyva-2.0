@@ -398,6 +398,8 @@ describe("LearningLibraryAdminPage", () => {
       const blob = createObjectUrl.mock.calls[0][0] as Blob;
       const template = JSON.parse(await blob.text());
       expect(template.schema_version).toBe("learning_content_pack_v1");
+      expect(template.supported_languages).toEqual(["en", "es", "fr", "de", "it", "pt"]);
+      expect(template.upload_format).toBe("grouped_translations");
       expect(template.categories).toEqual([
         expect.objectContaining({
           slug: "music",
@@ -408,9 +410,16 @@ describe("LearningLibraryAdminPage", () => {
       ]);
       expect(template.lessons[0]).toEqual(expect.objectContaining({
         category_slug: "music",
-        external_id: "music-lesson-001",
+        external_id_base: "music-lesson-001",
         status: "draft",
         is_active: false,
+      }));
+      expect(template.lessons[0].translations.en).toEqual(expect.objectContaining({
+        title: "Replace with a clear English lesson title",
+        reflection_prompt: expect.any(String),
+      }));
+      expect(template.lessons[0].translations.es).toEqual(expect.objectContaining({
+        title: "Replace with the Spanish lesson title",
       }));
       expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Learning library template download started.");
     } finally {
