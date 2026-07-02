@@ -277,7 +277,9 @@ export default function LearningLibraryAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [bulkPublishing, setBulkPublishing] = useState(false);
   const [message, setMessage] = useState("");
+  const [editorMessage, setEditorMessage] = useState("");
 
   const selectedLesson = useMemo(() => lessons.find((lesson) => lesson.id === selectedId) ?? null, [lessons, selectedId]);
 
@@ -290,9 +292,9 @@ export default function LearningLibraryAdminPage() {
     return `/api/admin/learning/lessons?${params.toString()}`;
   }, [categoryFilter, languageFilter, search, statusFilter]);
 
-  async function loadData() {
+  async function loadData(options: { clearMessage?: boolean } = {}) {
     setLoading(true);
-    setMessage("");
+    if (options.clearMessage !== false) setMessage("");
     try {
       const [categoriesResponse, lessonsResponse] = await Promise.all([
         apiFetch("/api/admin/learning/categories"),
@@ -308,10 +310,12 @@ export default function LearningLibraryAdminPage() {
       const nextLessons = (lessonsPayload.lessons ?? []) as Lesson[];
       setCategories(nextCategories);
       setLessons(nextLessons);
-      if (!selectedId && nextLessons[0]) {
+      const selectedLessonIsVisible = selectedId ? nextLessons.some((lesson) => lesson.id === selectedId) : false;
+      if ((!selectedId || !selectedLessonIsVisible) && nextLessons[0]) {
         setSelectedId(nextLessons[0].id);
         setDraft(lessonToDraft(nextLessons[0]));
-      } else if (!selectedId && !nextLessons[0]) {
+      } else if ((!selectedId || !selectedLessonIsVisible) && !nextLessons[0]) {
+        setSelectedId("");
         setDraft(emptyLesson(nextCategories[0]?.slug ?? "general_knowledge"));
       }
     } catch (error) {
@@ -334,6 +338,7 @@ export default function LearningLibraryAdminPage() {
     const nextDraft = nextStatus ? { ...draft, status: nextStatus, isActive: nextStatus === "published" } : draft;
     setSaving(true);
     setMessage("");
+    setEditorMessage("");
     try {
       const response = await apiFetch(nextDraft.id ? `/api/admin/learning/lessons/${nextDraft.id}` : "/api/admin/learning/lessons", {
         method: nextDraft.id ? "PATCH" : "POST",
@@ -348,9 +353,13 @@ export default function LearningLibraryAdminPage() {
       });
       setSelectedId(saved.id);
       setDraft(lessonToDraft(saved));
-      setMessage(nextStatus === "published" ? "Lesson published." : nextStatus === "archived" ? "Lesson archived." : "Lesson saved.");
+      const nextMessage = nextStatus === "published" ? "Lesson published." : nextStatus === "archived" ? "Lesson archived." : "Lesson saved.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Lesson could not be saved.");
+      const nextMessage = error instanceof Error ? error.message : "Lesson could not be saved.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
     } finally {
       setSaving(false);
     }
@@ -364,16 +373,23 @@ export default function LearningLibraryAdminPage() {
 
     setSaving(true);
     setMessage("");
+    setEditorMessage("");
     try {
       const response = await apiFetch(`/api/admin/learning/lessons/${draft.id}/${action}`, { method: "PATCH" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(responseErrorMessage(payload, `Lesson could not be ${action}ed.`));
       const saved = payload.lesson as Lesson;
       setLessons((current) => current.map((lesson) => lesson.id === saved.id ? saved : lesson));
+      setSelectedId(saved.id);
       setDraft(lessonToDraft(saved));
-      setMessage(action === "publish" ? "Lesson published." : "Lesson archived.");
+      const nextMessage = action === "publish" ? "Lesson published." : "Lesson archived.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+      void loadData({ clearMessage: false });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Lesson could not be updated.");
+      const nextMessage = error instanceof Error ? error.message : "Lesson could not be updated.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
     } finally {
       setSaving(false);
     }
@@ -382,12 +398,36 @@ export default function LearningLibraryAdminPage() {
   const startNewLesson = () => {
     setSelectedId("");
     setDraft(emptyLesson(categories[0]?.slug ?? "general_knowledge"));
+    setEditorMessage("");
   };
+
+  async function bulkPublishDrafts() {
+    setBulkPublishing(true);
+    setMessage("");
+    setEditorMessage("");
+    try {
+      const response = await apiFetch("/api/admin/learning/lessons/bulk-publish", { method: "PATCH" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(responseErrorMessage(payload, "Lessons could not be published."));
+      await loadData({ clearMessage: false });
+      const count = payload.summary?.lessonsPublished ?? 0;
+      const nextMessage = count === 1 ? "Published 1 draft lesson." : `Published ${count} draft lessons.`;
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Lessons could not be published.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+    } finally {
+      setBulkPublishing(false);
+    }
+  }
 
   async function importContentPack(file: File | null | undefined) {
     if (!file) return;
     setImporting(true);
     setMessage("");
+    setEditorMessage("");
     try {
       const text = await file.text();
       const pack = parseLearningContentPackText(text);
@@ -421,6 +461,7 @@ export default function LearningLibraryAdminPage() {
     link.remove();
     URL.revokeObjectURL(url);
     setMessage("Learning library template download started.");
+    setEditorMessage("");
   }
 
   return (
@@ -458,6 +499,16 @@ export default function LearningLibraryAdminPage() {
             >
               <FilePlus2 size={16} />
               Create lesson
+            </button>
+            <button
+              type="button"
+              disabled={bulkPublishing || saving || importing}
+              onClick={() => void bulkPublishDrafts()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+              data-testid="button-admin-learning-bulk-publish"
+            >
+              {bulkPublishing ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+              Publish all drafts
             </button>
           </div>
         </AdminPageHeader>
@@ -630,6 +681,15 @@ export default function LearningLibraryAdminPage() {
             </div>
 
             <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              {editorMessage ? (
+                <p
+                  className="rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2 text-sm font-black text-[#5b4a46] sm:col-span-3"
+                  role="status"
+                  data-testid="admin-learning-editor-message"
+                >
+                  {editorMessage}
+                </p>
+              ) : null}
               <button
                 type="button"
                 disabled={saving}
