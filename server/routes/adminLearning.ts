@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { learningCategories, learningLessons } from "../../shared/schema.js";
@@ -432,6 +432,26 @@ async function publishLessonHandler(req: Request, res: Response) {
   }
 }
 
+async function bulkPublishDraftLessonsHandler(req: Request, res: Response) {
+  try {
+    const rows = await db
+      .update(learningLessons)
+      .set({ ...lessonPatchForStatus("published", actor(req)), updatedAt: new Date() })
+      .where(inArray(learningLessons.status, ["draft", "review"]))
+      .returning();
+
+    return res.json({
+      summary: {
+        lessonsPublished: rows.length,
+      },
+      lessons: rows.map(serializeLesson),
+    });
+  } catch (error) {
+    console.error("[admin] learning lessons bulk publish failed:", error);
+    return res.status(500).json({ error: "Learning lessons could not be published." });
+  }
+}
+
 async function archiveLessonHandler(req: Request, res: Response) {
   try {
     const [row] = await db
@@ -602,6 +622,7 @@ router.patch("/categories/:slug", updateCategoryHandler);
 router.post("/import", importContentPackHandler);
 router.get("/lessons", listLessonsHandler);
 router.post("/lessons", createLessonHandler);
+router.patch("/lessons/bulk-publish", bulkPublishDraftLessonsHandler);
 router.patch("/lessons/:id", updateLessonHandler);
 router.patch("/lessons/:id/publish", publishLessonHandler);
 router.patch("/lessons/:id/archive", archiveLessonHandler);
