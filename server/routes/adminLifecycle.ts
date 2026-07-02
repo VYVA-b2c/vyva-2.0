@@ -5,6 +5,7 @@ import { and, desc, eq, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { selectProfileIdByPhoneDigitsFromDatabaseColumns } from "../lib/profileReadCompatibility.js";
 import * as lifecycleService from "../services/lifecycle.js";
 import { triggerCallbackOnboardingCall } from "../services/callbackOnboarding.js";
 import { dispatchCommunicationsByIds, dispatchQueuedCommunications } from "../services/communicationDispatcher.js";
@@ -66,6 +67,7 @@ import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 export const adminLifecycleRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
+const DUPLICATE_PROFILE_PHONE_ERROR = "That phone number is already used on another profile. Choose a different profile phone number.";
 
 function requireAdmin(req: Request, res: Response): boolean {
   if (!req.user || req.user.role !== "admin") {
@@ -796,6 +798,19 @@ function phoneDigits(value: string | null): string | null {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
   return digits ? digits : null;
+}
+
+function samePhoneDigits(left: string | null, right: string | null): boolean {
+  const leftDigits = phoneDigits(left);
+  const rightDigits = phoneDigits(right);
+  return Boolean(leftDigits && rightDigits && leftDigits === rightDigits);
+}
+
+function isUniqueViolation(err: unknown, hints: string[]): boolean {
+  const error = err as { code?: unknown; constraint?: unknown; detail?: unknown; message?: unknown };
+  if (error.code !== "23505") return false;
+  const text = `${error.constraint ?? ""} ${error.detail ?? ""} ${error.message ?? ""}`.toLowerCase();
+  return hints.some((hint) => text.includes(hint.toLowerCase()));
 }
 
 function addIfPresent(target: Set<string>, value: string | null | undefined) {
@@ -3298,18 +3313,28 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     .limit(1);
   if (!existingProfile) return res.status(404).json({ error: "Linked profile not found" });
 
+  const nextProfilePhone = data.phone_number !== undefined ? normalizedPhoneOrNull(data.phone_number) : null;
+  const existingProfilePhone = normalizedPhoneOrNull(existingProfile.phone_number);
+  if (nextProfilePhone && !samePhoneDigits(nextProfilePhone, existingProfilePhone)) {
+    const nextProfilePhoneDigits = phoneDigits(nextProfilePhone);
+    if (nextProfilePhoneDigits) {
+      const phoneOwner = await selectProfileIdByPhoneDigitsFromDatabaseColumns(nextProfilePhoneDigits, userId);
+      if (phoneOwner) return res.status(409).json({ error: DUPLICATE_PROFILE_PHONE_ERROR });
+    }
+  }
+
   const nextEmail = data.email !== undefined
     ? data.email || null
     : existingProfile.email ?? intake.email ?? null;
   const nextPhone = data.phone_number !== undefined
-    ? data.phone_number || null
+    ? nextProfilePhone
     : existingProfile.phone_number ?? intake.phone;
   const profilePatch: Partial<typeof profiles.$inferInsert> = { updated_at: new Date() };
   if (data.full_name !== undefined) profilePatch.full_name = data.full_name;
   if (data.preferred_name !== undefined) profilePatch.preferred_name = data.preferred_name || null;
   if (data.date_of_birth !== undefined) profilePatch.date_of_birth = data.date_of_birth || null;
   if (data.email !== undefined) profilePatch.email = data.email || null;
-  if (data.phone_number !== undefined) profilePatch.phone_number = data.phone_number || null;
+  if (data.phone_number !== undefined) profilePatch.phone_number = nextProfilePhone;
   if (data.whatsapp_number !== undefined) profilePatch.whatsapp_number = data.whatsapp_number || null;
   if (data.language !== undefined) profilePatch.language = data.language || "es";
   if (data.timezone !== undefined) profilePatch.timezone = data.timezone || "Europe/Madrid";
@@ -3320,15 +3345,23 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     profilePatch.subscription_status = "active";
   }
 
-  const [profile] = await db
-    .update(profiles)
-    .set(profilePatch)
-    .where(eq(profiles.id, userId))
-    .returning();
+  let profile: typeof profiles.$inferSelect | undefined;
+  try {
+    [profile] = await db
+      .update(profiles)
+      .set(profilePatch)
+      .where(eq(profiles.id, userId))
+      .returning();
+  } catch (error) {
+    if (isUniqueViolation(error, ["phone_number", "profiles_phone_number", "profiles_phone_number_digits_unique"])) {
+      return res.status(409).json({ error: DUPLICATE_PROFILE_PHONE_ERROR });
+    }
+    throw error;
+  }
 
   const intakePatch: Partial<typeof userIntakes.$inferInsert> = { updated_at: new Date(), last_activity_at: new Date() };
   if (data.full_name !== undefined) intakePatch.name = data.full_name;
-  if (data.phone_number !== undefined) intakePatch.phone = normalizePhone(data.phone_number ?? intake.phone);
+  if (data.phone_number !== undefined) intakePatch.phone = nextProfilePhone ?? normalizePhone(data.phone_number ?? intake.phone);
   if (data.email !== undefined) intakePatch.email = data.email || null;
   if (data.tier !== undefined || data.subscription_tier !== undefined) intakePatch.tier = normalizeSubscriptionTier(data.tier ?? data.subscription_tier);
   if (data.organization_id !== undefined) intakePatch.organization_id = data.organization_id ?? null;
