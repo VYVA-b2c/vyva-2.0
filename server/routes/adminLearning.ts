@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { learningCategories, learningLessons } from "../../shared/schema.js";
@@ -25,6 +25,9 @@ const lessonBodySchema = z.object({
 });
 
 const lessonPatchSchema = lessonBodySchema.partial();
+const bulkPublishBodySchema = z.object({
+  lessonIds: z.array(z.string().trim().min(1)).max(500).optional(),
+}).optional();
 
 const categoryBodySchema = z.object({
   slug: z.string().trim().min(1).max(80).regex(/^[a-z0-9_]+$/),
@@ -433,11 +436,29 @@ async function publishLessonHandler(req: Request, res: Response) {
 }
 
 async function bulkPublishDraftLessonsHandler(req: Request, res: Response) {
+  const parsed = bulkPublishBodySchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Selected lessons are invalid." });
+
+  const hasSelection = Array.isArray(parsed.data?.lessonIds);
+  const lessonIds = [...new Set(parsed.data?.lessonIds ?? [])];
+  if (hasSelection && lessonIds.length === 0) {
+    return res.json({
+      summary: {
+        lessonsPublished: 0,
+      },
+      lessons: [],
+    });
+  }
+
   try {
+    const publishableStatus = inArray(learningLessons.status, ["draft", "review"]);
+    const whereClause = hasSelection
+      ? and(inArray(learningLessons.id, lessonIds), publishableStatus)
+      : publishableStatus;
     const rows = await db
       .update(learningLessons)
       .set({ ...lessonPatchForStatus("published", actor(req)), updatedAt: new Date() })
-      .where(inArray(learningLessons.status, ["draft", "review"]))
+      .where(whereClause)
       .returning();
 
     return res.json({

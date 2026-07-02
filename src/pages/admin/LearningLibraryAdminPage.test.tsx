@@ -176,6 +176,62 @@ describe("LearningLibraryAdminPage", () => {
     await waitFor(() => expect(screen.getAllByText("published").length).toBeGreaterThan(0));
   });
 
+  it("publishes selected draft lessons", async () => {
+    const secondLesson = {
+      ...lessonPayload.lessons[0],
+      id: "lesson-2",
+      externalId: "music-rhythm-002",
+      title: "How rhythm helps attention",
+      hook: "A steady beat can make attention easier to hold.",
+    };
+    const publishedSecondLesson = {
+      ...secondLesson,
+      status: "published",
+      isActive: true,
+      publishedAt: "2026-06-24T10:00:00.000Z",
+      publishedBy: "admin@example.com",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    };
+    let selectedPublished = false;
+    mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) {
+        return Promise.resolve(response({
+          lessons: selectedPublished ? [lessonPayload.lessons[0], publishedSecondLesson] : [lessonPayload.lessons[0], secondLesson],
+        }));
+      }
+      if (url === "/api/admin/learning/lessons/bulk-publish" && options?.method === "PATCH") {
+        selectedPublished = true;
+        return Promise.resolve(response({
+          summary: { lessonsPublished: 1 },
+          lessons: [publishedSecondLesson],
+        }));
+      }
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("How rhythm helps attention")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("checkbox-admin-learning-select-lesson-2"));
+    fireEvent.click(screen.getByTestId("button-admin-learning-publish-selected"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
+      "/api/admin/learning/lessons/bulk-publish",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ lessonIds: ["lesson-2"] }),
+      },
+    ));
+    expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Published 1 selected lesson.");
+    expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Published 1 selected lesson.");
+  });
+
   it("uploads a learning content pack", async () => {
     mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
       if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
