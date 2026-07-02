@@ -532,11 +532,6 @@ export default function AccountSettings() {
           title={t("settings.account.title")}
           kicker="Your details"
           description={t("settings.account.subtitle")}
-          badges={[
-            { label: accountCopy.firstName, color: "purple" },
-            { label: t("settings.account.phone"), color: "green" },
-            { label: t("settings.account.language"), color: "blue" },
-          ]}
         />
 
         <div
