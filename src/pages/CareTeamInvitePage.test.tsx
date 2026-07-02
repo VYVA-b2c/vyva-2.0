@@ -40,7 +40,7 @@ function validInvite(overrides: Record<string, unknown> = {}) {
       status: "pending",
       canAccept: true,
       seniorDisplayName: "Elena Senior",
-      inviteeName: "Mary Caregiver",
+      inviteeName: "mary caregiver",
       role: "caregiver",
       relationship: "daughter",
       expiresAt: "2026-06-08T00:00:00.000Z",
