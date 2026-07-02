@@ -232,6 +232,44 @@ describe("LearningLibraryAdminPage", () => {
     expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Published 1 selected lesson.");
   });
 
+  it("shows language coverage across the full lesson library", async () => {
+    const englishDraft = lessonPayload.lessons[0];
+    const spanishPublished = {
+      ...lessonPayload.lessons[0],
+      id: "lesson-es",
+      externalId: "music-memory-001-es",
+      language: "es",
+      title: "Por que la musica se queda en la memoria",
+      status: "published",
+      isActive: true,
+      publishedAt: "2026-06-24T10:00:00.000Z",
+      publishedBy: "admin@example.com",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    };
+
+    mocks.apiFetch.mockImplementation((url: string) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url === "/api/admin/learning/lessons?status=all&category=all&language=all") {
+        return Promise.resolve(response({ lessons: [englishDraft, spanishPublished] }));
+      }
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response({ lessons: [englishDraft] }));
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("admin-learning-coverage")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-en")).toHaveTextContent("0 live");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-en")).toHaveTextContent("1 draft");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-es")).toHaveTextContent("1 live");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-es")).toHaveTextContent("1 total");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-fr")).toHaveTextContent("missing");
+  });
+
   it("uploads a learning content pack", async () => {
     mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
       if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
