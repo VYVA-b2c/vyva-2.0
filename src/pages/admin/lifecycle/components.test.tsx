@@ -260,4 +260,110 @@ describe("UserDetailModal", () => {
     expect(screen.getByLabelText("Contact number")).toHaveValue("");
     expect(screen.getByLabelText("Email")).toHaveValue("hassanassad04@gmail.com");
   });
+
+  it("shows broader user-owned profile data as read-only support info", () => {
+    render(
+      <UserDetailModal
+        detail={{
+          intake: intake({ id: "support-detail", name: "Ada Mobile" }),
+          profile: {
+            address_line_1: "Calle Mayor 1",
+            city: "Madrid",
+            country_code: "ES",
+            gp_name: "Dr Gomez",
+            gp_phone: "+34 910 000 000",
+            known_allergies: ["Penicillin"],
+            data_sharing_consent: {
+              conditions: { health_conditions: ["Diabetes"], mobility_level: "Uses cane" },
+              emergency: {
+                emergency_name: "Hassan",
+                emergency_role: "Son",
+                emergency_phone: "+34 612 345 678",
+              },
+              health_devices: {
+                devices: [{ id: "bp_cuff", deviceName: "Blood pressure cuff", status: "ready" }],
+              },
+            },
+          },
+          support_profile: {
+            medications: [{ id: "med-1", medication_name: "Metformin", dosage: "500mg", frequency: "Daily" }],
+            providers: [{ id: "provider-1", name: "Madrid Clinic", category: "clinic", phone: "+34 911 111 111" }],
+            channel_preferences: {
+              preferred_checkin_channel: "voice_outbound",
+              preferred_reminder_channel: "whatsapp_outbound",
+              support_mode: "human_supported",
+              voice_available_from: "09:00",
+              voice_available_until: "20:00",
+              whatsapp_available_from: "08:00",
+              whatsapp_available_until: "21:00",
+              max_outbound_calls_per_day: 2,
+              max_whatsapp_messages_per_day: null,
+            },
+            channel_preferences_saved: true,
+          },
+          account_mappings: [],
+          communications: [],
+          lifecycle_events: [],
+          consent_attempts: [],
+          scheduled_events: [],
+        }}
+        draft={{
+          full_name: "Ada Mobile",
+          preferred_name: "",
+          date_of_birth: "",
+          phone_number: "+34 612 345 678",
+          whatsapp_number: "",
+          email: "ada@example.com",
+          language: "es",
+          timezone: "Europe/Madrid",
+          caregiver_name: "",
+          caregiver_contact: "",
+          tier: "free",
+          organization_id: "",
+        }}
+        setDraft={vi.fn()}
+        organizations={[]}
+        planOptions={[{ value: "free", label: "Free" }]}
+        caregiverInviteDraft={caregiverInviteDraft()}
+        setCaregiverInviteDraft={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onSendCaregiverInvite={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+        newEvent={{
+          event_type: "custom",
+          title: "",
+          description: "",
+          channel: "app",
+          scheduled_for: "",
+          scheduled_date: "",
+          scheduled_time: "",
+          timezone: "Europe/Madrid",
+          recurrence: "none",
+          status: "upcoming",
+          source: "admin",
+        }}
+        setNewEvent={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEventStatus={vi.fn()}
+        onEventTime={vi.fn()}
+        onSupportSave={vi.fn()}
+        onSupportStatus={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Support info" }));
+
+    expect(screen.getByText("Read-only user-owned profile context from the app.")).toBeInTheDocument();
+    expect(screen.getByText("Calle Mayor 1, Madrid, ES")).toBeInTheDocument();
+    expect(screen.getByText("Hassan - Son - +34 612 345 678")).toBeInTheDocument();
+    expect(screen.getByText("Diabetes")).toBeInTheDocument();
+    expect(screen.getByText("Penicillin")).toBeInTheDocument();
+    expect(screen.getByText("Metformin - 500mg, Daily")).toBeInTheDocument();
+    expect(screen.getByText("Madrid Clinic - Clinic - +34 911 111 111")).toBeInTheDocument();
+    expect(screen.getByText("Blood Pressure Cuff - Ready")).toBeInTheDocument();
+    expect(screen.getByText("Human Supported")).toBeInTheDocument();
+    expect(screen.getByText("2 calls/day - Unlimited")).toBeInTheDocument();
+  });
 });

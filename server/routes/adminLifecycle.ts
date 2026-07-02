@@ -393,6 +393,85 @@ async function scheduledSupportForUser(userId: string | null) {
   }
 }
 
+const adminChannelPreferenceDefaults = {
+  preferred_checkin_channel: "voice_outbound",
+  preferred_reminder_channel: "whatsapp_outbound",
+  support_mode: "ai_powered",
+  voice_available_from: "08:00",
+  voice_available_until: "21:00",
+  whatsapp_available_from: "07:00",
+  whatsapp_available_until: "22:00",
+  max_outbound_calls_per_day: 1,
+  max_whatsapp_messages_per_day: 5,
+};
+
+function adminConsentRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readAdminContactSupportMode(consent: unknown) {
+  const communication = adminConsentRecord(adminConsentRecord(consent).communication_preferences);
+  return communication.contact_support_mode === "human_supported" ? "human_supported" : adminChannelPreferenceDefaults.support_mode;
+}
+
+function serializeAdminChannelPreferences(row: typeof userChannelPreferences.$inferSelect | null | undefined, consent: unknown) {
+  return {
+    preferred_checkin_channel: row?.preferred_checkin_channel ?? adminChannelPreferenceDefaults.preferred_checkin_channel,
+    preferred_reminder_channel: row?.preferred_reminder_channel ?? adminChannelPreferenceDefaults.preferred_reminder_channel,
+    support_mode: readAdminContactSupportMode(consent),
+    voice_available_from: row?.voice_available_from ?? adminChannelPreferenceDefaults.voice_available_from,
+    voice_available_until: row?.voice_available_until ?? adminChannelPreferenceDefaults.voice_available_until,
+    whatsapp_available_from: row?.whatsapp_available_from ?? adminChannelPreferenceDefaults.whatsapp_available_from,
+    whatsapp_available_until: row?.whatsapp_available_until ?? adminChannelPreferenceDefaults.whatsapp_available_until,
+    max_outbound_calls_per_day: row?.max_outbound_calls_per_day ?? adminChannelPreferenceDefaults.max_outbound_calls_per_day,
+    max_whatsapp_messages_per_day: row?.max_whatsapp_messages_per_day ?? adminChannelPreferenceDefaults.max_whatsapp_messages_per_day,
+  };
+}
+
+async function supportProfileForUser(userId: string | null, profile: { data_sharing_consent?: unknown } | null) {
+  if (!userId) {
+    return {
+      medications: [],
+      providers: [],
+      channel_preferences: serializeAdminChannelPreferences(null, profile?.data_sharing_consent),
+      channel_preferences_saved: false,
+    };
+  }
+
+  const [medicationRows, providerRows, channelRows] = await Promise.all([
+    optionalAdminRows(
+      db
+        .select()
+        .from(userMedications)
+        .where(and(eq(userMedications.user_id, userId), eq(userMedications.active, true)))
+        .orderBy(desc(userMedications.created_at))
+        .limit(100),
+    ),
+    optionalAdminRows(
+      db
+        .select()
+        .from(userProviders)
+        .where(and(eq(userProviders.user_id, userId), eq(userProviders.is_active, true)))
+        .orderBy(desc(userProviders.updated_at))
+        .limit(100),
+    ),
+    optionalAdminRows(
+      db
+        .select()
+        .from(userChannelPreferences)
+        .where(eq(userChannelPreferences.user_id, userId))
+        .limit(1),
+    ),
+  ]);
+
+  return {
+    medications: medicationRows,
+    providers: providerRows,
+    channel_preferences: serializeAdminChannelPreferences(channelRows[0], profile?.data_sharing_consent),
+    channel_preferences_saved: channelRows.length > 0,
+  };
+}
+
 function normalizePhone(phone: string): string {
   const trimmed = phone.trim();
   if (trimmed.startsWith("+")) return trimmed.replace(/[^\d+]/g, "");
@@ -840,6 +919,16 @@ const adminProfileSelect = {
   timezone: profiles.timezone,
   caregiver_name: profiles.caregiver_name,
   caregiver_contact: profiles.caregiver_contact,
+  address_line_1: profiles.address_line_1,
+  city: profiles.city,
+  region: profiles.region,
+  postcode: profiles.postcode,
+  gp_name: profiles.gp_name,
+  gp_phone: profiles.gp_phone,
+  gp_email: profiles.gp_email,
+  gp_address: profiles.gp_address,
+  known_allergies: profiles.known_allergies,
+  data_sharing_consent: profiles.data_sharing_consent,
   stripe_subscription_id: profiles.stripe_subscription_id,
   subscription_status: profiles.subscription_status,
   subscription_tier: profiles.subscription_tier,
@@ -3127,13 +3216,14 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       ? or(eq(accessLinks.intake_id, intake.id), eq(accessLinks.user_id, userId))
       : eq(accessLinks.intake_id, intake.id);
 
-    const [communicationRows, lifecycleRows, consentRows, accessLinkRows, scheduledRows, support, careTeamInviteRows] = await Promise.all([
+    const [communicationRows, lifecycleRows, consentRows, accessLinkRows, scheduledRows, support, supportProfile, careTeamInviteRows] = await Promise.all([
       optionalAdminRows(db.select().from(communicationsLog).where(userCommunicationWhere).orderBy(desc(communicationsLog.created_at)).limit(100)),
       optionalAdminRows(db.select().from(lifecycleEvents).where(userEventWhere).orderBy(desc(lifecycleEvents.created_at)).limit(100)),
       optionalAdminRows(db.select().from(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)).orderBy(desc(consentAttempts.created_at)).limit(50)),
       optionalAdminRows(db.select().from(accessLinks).where(userAccessLinkWhere).orderBy(desc(accessLinks.created_at)).limit(50)),
       scheduledItemsForUser(userId),
       scheduledSupportForUser(userId),
+      supportProfileForUser(userId, profile),
       userId
         ? optionalAdminRows(db.select().from(teamInvitations).where(eq(teamInvitations.senior_id, userId)).orderBy(desc(teamInvitations.created_at)).limit(50))
         : Promise.resolve([]),
@@ -3151,6 +3241,7 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       access_links: accessLinkRows,
       scheduled_events: scheduledRows,
       scheduled_support: support.schedules,
+      support_profile: supportProfile,
       interaction_logs: support.logs,
       consent_audit_logs: support.audit_logs,
       care_team_invitations: careTeamInviteRows,
