@@ -256,6 +256,7 @@ const ChatScreen = () => {
           onMicToggle={setMicrophoneMuted}
           connectionError={lastError}
           connectionErrorCode={lastErrorCode}
+          onType={handleEndVoiceMode}
           onRetry={() => {
             void startVoice("companion", undefined, {
               autoStartListening: true,

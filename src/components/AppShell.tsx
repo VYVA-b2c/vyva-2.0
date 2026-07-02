@@ -33,6 +33,7 @@ import {
   VYVA_VOICE_OVERLAY_PRESENCE_EVENT,
   type VoiceOverlayPresenceDetail,
 } from "@/lib/voiceOverlayFocus";
+import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 
 type AppShellLayout = "compact" | "wide" | "vitals" | "fullscreen";
 
@@ -384,6 +385,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    const handleOpenSos = () => {
+      if (canUseService("sos", "/sos")) setSosOpen(true);
+    };
+
+    window.addEventListener(VYVA_OPEN_SOS_EVENT, handleOpenSos);
+    return () => window.removeEventListener(VYVA_OPEN_SOS_EVENT, handleOpenSos);
+  }, [canUseService]);
+
+  useEffect(() => {
     if (!hasVoiceSessionSurface) setDockVoiceOverlayOpen(false);
   }, [hasVoiceSessionSurface]);
 
@@ -602,6 +612,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             connectionError={lastError}
             connectionErrorCode={lastErrorCode}
             voiceDiagnostics={voiceDiagnostics}
+            onType={() => setDockVoiceOverlayOpen(false)}
           />
         )}
         {showVoiceDock && (

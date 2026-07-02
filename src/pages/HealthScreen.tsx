@@ -107,6 +107,18 @@ type ReportsSummary = {
   todayMeds: { taken: number; total: number; adherencePct: number | null };
 };
 
+type PreventionFocusResponse = {
+  focus: "Heart" | "Falls" | "Diabetes" | "Medicine" | "Follow-up" | "Plan";
+  headline: string;
+  why: string[];
+  todayAction: string;
+  helpSigns: string[];
+  primaryRoute: string;
+  secondaryRoute?: string;
+  confidence: "strong" | "moderate" | "limited";
+  generatedAt: string;
+};
+
 type ProfileContactsResponse = {
   country?: string | null;
   gpPhone?: string | null;
@@ -839,6 +851,38 @@ function compactVitalsSubject(value: string) {
   if (beforeColon && beforeColon.length < value.length) return beforeColon;
   const firstWord = value.split(/\s+/)[0]?.trim();
   return firstWord || value;
+}
+
+function compactVitalsCardTag(value: string) {
+  const trimmed = value.replace(/\s+/g, " ").trim();
+  if (!trimmed) return "";
+
+  const bpMatch = trimmed.match(/^BP\s+([0-9.]+)\/([0-9.]+)/i);
+  if (bpMatch) return `BP ${bpMatch[1]}/${bpMatch[2]}`;
+
+  const labeledReadingMatch = trimmed.match(/^([^:]+):\s*([0-9.]+)\s*([^\s]+)?/);
+  if (labeledReadingMatch) {
+    const rawLabel = labeledReadingMatch[1].trim();
+    const label = /^oxygen$/i.test(rawLabel) ? "SpO2" : rawLabel;
+    const unit = labeledReadingMatch[3]?.trim() ?? "";
+    const compactUnit = unit === "%" || unit === "C" || unit === "kg" ? unit : "";
+    return `${label} ${labeledReadingMatch[2]}${compactUnit}`;
+  }
+
+  return trimmed
+    .replace(/\s*mmHg\b/gi, "")
+    .replace(/\s*bpm\b/gi, "")
+    .replace(/:\s*/g, " ");
+}
+
+function formatHealthCardDateTag(value: string | null | undefined, todayLabel: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  return date.toDateString() === now.toDateString()
+    ? todayLabel
+    : date.toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
 function scheduledTimeHour(value?: string | null) {
@@ -1639,6 +1683,11 @@ const HealthScreen = () => {
   });
   const { data: latestVitalsData } = useQuery<LatestVitalsResponse>({
     queryKey: ["/api/vitals-engine/latest"],
+    retry: false,
+    staleTime: 60 * 1000,
+  });
+  const { data: preventionFocus } = useQuery<PreventionFocusResponse>({
+    queryKey: ["/api/health/prevention"],
     retry: false,
     staleTime: 60 * 1000,
   });
@@ -2474,6 +2523,15 @@ const HealthScreen = () => {
       ? t("health.homeTools.symptoms.monitorOnly", "Monitor only")
       : t("health.homeTools.symptoms.review", "Review report")
     : t("health.homeTools.symptoms.detail", "Start check");
+  const symptomsCardAccent = latestTriage
+    ? formatHealthCardDateTag(
+      latestTriage.created_at,
+      t("health.master.cards.today", "Today"),
+    ) || t("health.master.cards.symptomsReview", "Review")
+    : t("health.master.cards.symptomsStart", "Start");
+  const vitalsCardAccent = !vitalsSnapshot.hasReading
+    ? t("health.master.cards.vitalsAdd", "Add")
+    : compactVitalsCardTag(vitalsSnapshot.value);
   const medicineToolDetail = nextDue
     ? medicationToday?.remaining === 1
       ? nextDueIsTonight
@@ -2487,6 +2545,16 @@ const HealthScreen = () => {
     : medicationToday?.remaining
       ? t("health.homeTools.medicine.due", "{{count}} due", { count: medicationToday.remaining })
       : latestTaken?.medication_name || t("health.homeTools.medicine.detail", "Schedule");
+  const medicineCardAccent = hasMedicationRemaining
+    ? medicationDueShort || medicineToolDetail
+    : missingMedicationSetup
+      ? medicineToolDetail
+      : medicationToday?.scheduled
+        ? t("health.master.cards.medicineProgress", "{{taken}}/{{total}} taken", {
+          taken: medicationToday.taken ?? 0,
+          total: medicationToday.scheduled,
+        })
+        : undefined;
   const checklistMedicineDetail = hasMedicationRemaining
     ? nextDueIsTonight
       ? t("health.planLead.checklist.medicineTonight", "Due tonight")
@@ -2688,9 +2756,10 @@ const HealthScreen = () => {
       },
     },
   ];
-  const preventionCardDetail = latestTriage?.chief_complaint
+  const preventionCardDetail = preventionFocus?.headline ?? (latestTriage?.chief_complaint
     ? t("health.master.cards.preventionLatest", "Follow-up: {{topic}}", { topic: latestTriage.chief_complaint })
-    : t("health.master.cards.preventionDetail", "Risks and next steps");
+    : t("health.master.cards.preventionDetail", "Risks and next steps"));
+  const preventionCardAccent = preventionFocus?.focus ?? t("health.master.cards.preventionReady", "Plan");
 
   const healthMasterCards: MasterDashboardCard[] = [
     {
@@ -2698,12 +2767,7 @@ const HealthScreen = () => {
       icon: Pill,
       title: t("health.master.cards.medicine", "Medicine"),
       detail: medicineToolDetail,
-      accent: medicationToday?.scheduled
-        ? t("health.master.cards.medicineProgress", "{{taken}}/{{total}} taken", {
-          taken: medicationToday.taken ?? 0,
-          total: medicationToday.scheduled,
-        })
-        : undefined,
+      accent: medicineCardAccent,
       tone: {
         iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
         iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
@@ -2721,7 +2785,7 @@ const HealthScreen = () => {
       icon: Activity,
       title: t("health.master.cards.vitals", "Vitals"),
       detail: healthOverview.vitalsSnapshot.value,
-      accent: healthOverview.vitalsSnapshot.statusLabel,
+      accent: vitalsCardAccent,
       tone: {
         iconBg: healthOverview.vitalsSnapshot.tone.iconBg,
         iconColor: healthOverview.vitalsSnapshot.tone.text,
@@ -2739,7 +2803,7 @@ const HealthScreen = () => {
       icon: HeartPulse,
       title: t("health.master.cards.symptoms", "Symptoms"),
       detail: latestTriage?.chief_complaint || symptomsToolDetail,
-      accent: symptomsToolDetail,
+      accent: symptomsCardAccent,
       tone: {
         iconBg: "#FFF1F2",
         iconColor: "#E74C43",
@@ -2757,11 +2821,11 @@ const HealthScreen = () => {
       testId: "button-health-tool-symptoms",
     },
     {
-      id: "reports",
+      id: "prevention",
       icon: ShieldCheck,
       title: t("health.master.cards.prevention", "Prevention"),
       detail: preventionCardDetail,
-      accent: latestTriage ? t("health.master.cards.preventionReady", "Review ready") : undefined,
+      accent: preventionCardAccent,
       tone: {
         iconBg: "#ECFDF5",
         iconColor: "#047857",
@@ -2769,10 +2833,10 @@ const HealthScreen = () => {
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to review prevention and health reports");
-        navigate("/informes");
+        sendDoctorUserMessage("I want to review my prevention focus");
+        navigate("/health/prevention");
       },
-      testId: "button-health-tool-reports",
+      testId: "button-health-tool-prevention",
     },
   ];
 
@@ -2825,7 +2889,7 @@ const HealthScreen = () => {
     {
       id: "explain-plan",
       icon: Stethoscope,
-      label: t("health.master.fastHelp.explainPlan", "Explain my plan"),
+      label: t("health.master.fastHelp.explainPlan", "Explain plan"),
       detail: t("health.master.fastHelp.explainPlanDetail", "What matters today"),
       tone: {
         iconBg: "#F5F3FF",
@@ -2841,7 +2905,7 @@ const HealthScreen = () => {
     {
       id: "latest-report",
       icon: ClipboardList,
-      label: t("health.master.fastHelp.openLatestReport", "Open latest report"),
+      label: t("health.master.fastHelp.openLatestReport", "Latest report"),
       detail: t("health.master.fastHelp.openLatestReportDetail", "Reports and summaries"),
       tone: {
         iconBg: "#EFF6FF",
@@ -2873,7 +2937,7 @@ const HealthScreen = () => {
     {
       id: "review-medicine",
       icon: Pill,
-      label: t("health.master.fastHelp.reviewMedicine", "Review medicine"),
+      label: t("health.master.fastHelp.reviewMedicine", "Medicine"),
       detail: t("health.master.fastHelp.reviewMedicineDetail", "Doses and reminders"),
       tone: {
         iconBg: "#FDF4FF",
@@ -2889,7 +2953,7 @@ const HealthScreen = () => {
     {
       id: "check-symptoms",
       icon: HeartPulse,
-      label: t("health.master.fastHelp.checkSymptoms", "Check symptoms"),
+      label: t("health.master.fastHelp.checkSymptoms", "Symptoms"),
       detail: t("health.master.fastHelp.checkSymptomsDetail", "Tell VYVA what changed"),
       tone: {
         iconBg: "#FFF1F2",
@@ -2921,7 +2985,7 @@ const HealthScreen = () => {
     {
       id: "share-summary",
       icon: Share2,
-      label: t("health.master.fastHelp.shareSummary", "Share summary"),
+      label: t("health.master.fastHelp.shareSummary", "Share"),
       detail: t("health.master.fastHelp.shareSummaryDetail", "Open reports"),
       tone: {
         iconBg: "#ECFDF5",

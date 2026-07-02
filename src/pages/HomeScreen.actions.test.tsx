@@ -156,6 +156,9 @@ describe("Home fast service actions", () => {
   });
 
   it("renders the four pillar launcher without the old movement routine card", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+
     render(<HomeScreen />);
 
     expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();

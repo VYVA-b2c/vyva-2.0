@@ -282,6 +282,14 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
     setFocusedOverlayHasStarted(false);
   };
 
+  const handleOverlayType = () => {
+    handleOverlayMinimize();
+    if (onChatClick) {
+      stopVoice();
+      onChatClick();
+    }
+  };
+
   const handleRetryVoice = () => {
     if (isActive || isConnecting) return;
     setFocusedOverlayHasStarted(false);
@@ -417,6 +425,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             connectionErrorCode={lastErrorCode}
             voiceDiagnostics={voiceDiagnostics}
             onRetry={handleRetryVoice}
+            onType={handleOverlayType}
           />
         )}
 
@@ -521,6 +530,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           connectionErrorCode={lastErrorCode}
           voiceDiagnostics={voiceDiagnostics}
           onRetry={handleRetryVoice}
+          onType={handleOverlayType}
         />
       )}
 

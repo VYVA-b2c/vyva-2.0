@@ -429,7 +429,7 @@ const HomeScreen = () => {
     {
       id: "concierge-help",
       icon: ConciergeBell,
-      label: t("home.master.fastHelp.conciergeHelp", "Get concierge help"),
+      label: t("home.master.fastHelp.conciergeHelp", "Concierge help"),
       detail: t("home.master.fastHelp.conciergeHelpDetail", "Errands or booking"),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
       onClick: () => handleNavigate("/concierge"),
