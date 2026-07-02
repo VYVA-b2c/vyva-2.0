@@ -28,6 +28,7 @@ import {
   type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
+  caregiverInviteWithProfileDefaults,
   cleanLabel,
   consentStatusLabel,
   contactNumberValue,
@@ -162,6 +163,24 @@ function recordValue(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
 }
 
+function userDetailDraft(detailProfile: JsonRecord, detailIntake: Intake, fallbackIntake: Intake, primaryMapping?: LoginMapping): JsonRecord {
+  const profileTier = stringValue(detailProfile.subscription_tier);
+  return {
+    full_name: profileNameValue(detailProfile.full_name, detailProfile.preferred_name, detailIntake.name, fallbackIntake.name),
+    preferred_name: profileNameValue(detailProfile.preferred_name),
+    date_of_birth: stringValue(detailProfile.date_of_birth) ?? "",
+    email: emailAddressValue(detailProfile.email, detailIntake.email, fallbackIntake.email, primaryMapping?.login_email, fallbackIntake.login_email, detailIntake.phone, fallbackIntake.phone),
+    phone_number: contactNumberValue(detailProfile.phone_number, detailIntake.profile_phone, fallbackIntake.profile_phone, primaryMapping?.login_phone, fallbackIntake.login_phone, detailIntake.phone, fallbackIntake.phone),
+    whatsapp_number: contactNumberValue(detailProfile.whatsapp_number),
+    language: stringValue(detailProfile.language) ?? "es",
+    timezone: stringValue(detailProfile.timezone) ?? "Europe/Madrid",
+    caregiver_name: stringValue(detailProfile.caregiver_name) ?? "",
+    caregiver_contact: stringValue(detailProfile.caregiver_contact) ?? "",
+    tier: profileTier ?? fallbackIntake.tier,
+    organization_id: detailIntake.organization_id ?? fallbackIntake.organization_id ?? "",
+  };
+}
+
 function numberValue(value: unknown, fallback: unknown = 0) {
   const number = typeof value === "number" ? value : Number(value);
   const fallbackNumber = typeof fallback === "number" ? fallback : Number(fallback);
@@ -229,6 +248,25 @@ function deleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice 
     details: [
       "The lifecycle row is hidden and protected from backfill.",
       "App access was not changed. Use Disable app access separately if needed.",
+    ],
+  };
+}
+
+function loginAccountDeleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice {
+  const releasedContacts = stringArray(result.released_contacts);
+  const disabledProfileIds = stringArray(result.disabled_profile_ids);
+  const revokedMembershipCount = numberValue(result.revoked_profile_membership_count);
+  const resetInviteCount = numberValue(result.reset_care_team_invite_count);
+  const revokedInviteCount = numberValue(result.revoked_senior_invite_count);
+
+  return {
+    tone: "warning",
+    label: "Deleted",
+    title: `${intake.name}'s login account was deleted.`,
+    details: [
+      releasedContacts.length ? `Released: ${releasedContacts.join(", ")}.` : "Released the login contact.",
+      disabledProfileIds.length ? `Closed ${disabledProfileIds.length} owned profile${disabledProfileIds.length === 1 ? "" : "s"}.` : "No owned app profile needed closing.",
+      `${revokedMembershipCount} care-team membership${revokedMembershipCount === 1 ? "" : "s"} revoked; ${resetInviteCount + revokedInviteCount} invitation${resetInviteCount + revokedInviteCount === 1 ? "" : "s"} updated.`,
     ],
   };
 }
@@ -1053,23 +1091,9 @@ export default function LifecycleAdminPage() {
       const data = await api(`/users/${intake.id}/details`);
       const detailIntake = (data.intake && typeof data.intake === "object" ? data.intake : intake) as Intake;
       const detailProfile = recordValue(data.profile);
-      const profileTier = stringValue(detailProfile.subscription_tier);
       const primaryMapping = Array.isArray(data.account_mappings) ? data.account_mappings[0] as LoginMapping | undefined : undefined;
       setSelectedUser(data);
-      setSelectedDraft({
-        full_name: profileNameValue(detailProfile.full_name, detailProfile.preferred_name, detailIntake.name, intake.name),
-        preferred_name: profileNameValue(detailProfile.preferred_name),
-        date_of_birth: detailProfile.date_of_birth ?? "",
-        email: emailAddressValue(detailProfile.email, detailIntake.email, intake.email, primaryMapping?.login_email, intake.login_email, detailIntake.phone, intake.phone),
-        phone_number: contactNumberValue(detailProfile.phone_number, detailIntake.profile_phone, intake.profile_phone, primaryMapping?.login_phone, intake.login_phone, detailIntake.phone, intake.phone),
-        whatsapp_number: contactNumberValue(detailProfile.whatsapp_number),
-        language: detailProfile.language ?? "es",
-        timezone: detailProfile.timezone ?? "Europe/Madrid",
-        caregiver_name: detailProfile.caregiver_name ?? "",
-        caregiver_contact: detailProfile.caregiver_contact ?? "",
-        tier: profileTier ?? intake.tier,
-        organization_id: intake.organization_id ?? "",
-      });
+      setSelectedDraft(userDetailDraft(detailProfile, detailIntake, intake, primaryMapping));
       const caregiverName = profileNameValue(detailProfile.caregiver_name);
       const caregiverContact = stringValue(detailProfile.caregiver_contact) ?? "";
       const caregiverContactIsEmail = caregiverContact.includes("@");
@@ -1106,6 +1130,10 @@ export default function LifecycleAdminPage() {
         method: "PATCH",
         body: JSON.stringify(profilePayload),
       });
+      const nextIntake = (data.intake && typeof data.intake === "object" ? data.intake : selectedUser.intake) as Intake;
+      const nextProfile = recordValue(data.profile);
+      const nextMappings = Array.isArray(data.account_mappings) ? data.account_mappings as LoginMapping[] : selectedUser.account_mappings;
+      const nextPrimaryMapping = nextMappings?.[0];
       const syncedCount = Array.isArray(data.synced_profile_ids) ? data.synced_profile_ids.length : 1;
       const confirmation = `Changes saved${syncedCount > 1 ? ` across ${syncedCount} linked profiles` : ""}.`;
       setMessage("");
@@ -1119,11 +1147,12 @@ export default function LifecycleAdminPage() {
           "The Users table will refresh with the latest status and tier.",
         ],
       });
+      setSelectedDraft(userDetailDraft(nextProfile, nextIntake, selectedUser.intake, nextPrimaryMapping));
       setSelectedUser({
         ...selectedUser,
-        intake: data.intake,
-        profile: data.profile,
-        account_mappings: data.account_mappings ?? selectedUser.account_mappings,
+        intake: nextIntake,
+        profile: data.profile ?? selectedUser.profile,
+        account_mappings: nextMappings,
         account_mapping_warnings: data.account_mapping_warnings ?? selectedUser.account_mapping_warnings,
         account_match_field: data.account_match_field ?? selectedUser.account_match_field,
         synced_profile_ids: data.synced_profile_ids ?? selectedUser.synced_profile_ids,
@@ -1140,12 +1169,13 @@ export default function LifecycleAdminPage() {
 
   async function sendCaregiverInvite() {
     if (!selectedUser) return;
+    const caregiverInvitePayload = caregiverInviteWithProfileDefaults(caregiverInviteDraft, selectedDraft);
     setSendingCaregiverInvite(true);
     setUserDetailMessage("");
     try {
       const data = await api(`/users/${selectedUser.intake.id}/caregiver-invite`, {
         method: "POST",
-        body: JSON.stringify(caregiverInviteDraft),
+        body: JSON.stringify(caregiverInvitePayload),
       });
       const delivery = data.delivery && typeof data.delivery === "object" && !Array.isArray(data.delivery)
         ? data.delivery as JsonRecord
@@ -1153,7 +1183,7 @@ export default function LifecycleAdminPage() {
       const queued = Number(delivery.queued ?? 0);
       const sent = Number(delivery.sent ?? 0);
       const failed = Number(delivery.failed ?? 0);
-      const inviteeName = caregiverInviteDraft.name.trim() || "Caregiver";
+      const inviteeName = caregiverInvitePayload.name.trim() || "Caregiver";
       const confirmation = failed > 0
         ? `${inviteeName}'s invite was created, but ${failed} delivery attempt${failed === 1 ? "" : "s"} failed.`
         : sent > 0
@@ -1246,6 +1276,43 @@ export default function LifecycleAdminPage() {
       await refresh();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Could not remove this user from Users.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function deleteLoginAccount(mapping: LoginMapping) {
+    if (!selectedUser) return;
+    if (mapping.source !== "legacy") {
+      setUserDetailMessage("Delete this external auth account in the auth provider, then refresh VYVA.");
+      return;
+    }
+
+    const loginLabel = mapping.login_email || mapping.login_phone || mapping.login_uid;
+    const confirmation = window.prompt(`Delete login account ${loginLabel}? This frees its email/mobile for a new signup and revokes this login's access. Type DELETE LOGIN to continue.`);
+    if (confirmation !== "DELETE LOGIN") return;
+
+    setBusyAction(`delete-login:${mapping.login_uid}`);
+    setUserDetailMessage("");
+    setAdminActionNotice(null);
+    try {
+      const result = await api(`/users/${selectedUser.intake.id}/delete-login-account`, {
+        method: "POST",
+        body: JSON.stringify({
+          confirm: "DELETE_LOGIN_ACCOUNT",
+          source: mapping.source,
+          login_uid: mapping.login_uid,
+        }),
+      });
+      setUsers((current) => current.filter((user) => shouldKeepAfterDelete(user, selectedUser.intake, result)));
+      setSelectedUser(null);
+      setMessage("");
+      showActionReceipt(loginAccountDeleteNoticeFor(selectedUser.intake, result));
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not delete this login account.";
       setMessage(errorMessage);
       setUserDetailMessage(errorMessage);
     } finally {
@@ -2213,12 +2280,14 @@ export default function LifecycleAdminPage() {
           scheduleBusyAction={busyAction}
           deleting={busyAction === `delete:${selectedUser.intake.id}`}
           restoring={busyAction === `restore:${selectedUser.intake.id}`}
+          deletingLoginUid={busyAction?.startsWith("delete-login:") ? busyAction.slice("delete-login:".length) : null}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
           onSendCaregiverInvite={sendCaregiverInvite}
           onToggle={(enable) => toggleUser(selectedUser.intake, enable)}
           onDelete={() => deleteUser(selectedUser.intake)}
           onRestore={() => restoreUser(selectedUser.intake)}
+          onDeleteLoginAccount={deleteLoginAccount}
           newEvent={newEvent}
           setNewEvent={setNewEvent}
           onCreateEvent={createScheduledEventForUser}

@@ -96,6 +96,21 @@ describe("useVyvaVoice", () => {
         return jsonResponse({ dynamic_variables: {} });
       }
 
+      if (url === "/api/router") {
+        return jsonResponse({
+          agent_id: "agent_router",
+          system_prompt_override: "Use the health voice context without overriding the ElevenLabs prompt.",
+          dynamic_variables: { routing_domain: "health" },
+          session_data: {
+            domain: "health",
+            intent_confidence: 0.91,
+            session_id: "voice-session-test",
+            turn_count: 1,
+            last_agent: null,
+          },
+        });
+      }
+
       if (url === "/api/elevenlabs-conversation-token") {
         return jsonResponse({ signed_url: "wss://example.test/voice-session" });
       }
@@ -159,5 +174,38 @@ describe("useVyvaVoice", () => {
 
     expect(voiceMocks.startSession).toHaveBeenCalledTimes(2);
     expect(createdConversations).toHaveLength(2);
+  });
+
+  it("does not send prompt overrides when router returns voice context", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("health questions", undefined, {
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as { overrides?: unknown } | undefined;
+    expect(sessionOptions).toBeDefined();
+    expect(sessionOptions).not.toHaveProperty("overrides");
+
+    const tokenCall = voiceMocks.apiFetch.mock.calls.find(([url]) => url === "/api/elevenlabs-conversation-token");
+    expect(tokenCall).toBeDefined();
+    const tokenBody = JSON.parse(((tokenCall?.[1] as RequestInit | undefined)?.body as string | undefined) ?? "{}");
+    expect(tokenBody).not.toHaveProperty("prompt_override");
+    expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(
+      "Use the health voice context without overriding the ElevenLabs prompt.",
+    );
   });
 });

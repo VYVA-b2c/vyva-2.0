@@ -294,6 +294,23 @@ export function profileNameValue(...values: unknown[]) {
   return "";
 }
 
+export function caregiverInviteWithProfileDefaults(invite: CaregiverInviteDraft, profileDraft: JsonRecord): CaregiverInviteDraft {
+  const caregiverName = profileNameValue(profileDraft.caregiver_name);
+  const caregiverContact = cleanContactValue(profileDraft.caregiver_contact);
+  const caregiverEmail = emailAddressValue(caregiverContact);
+  const caregiverPhone = caregiverEmail ? "" : contactNumberValue(caregiverContact);
+
+  return {
+    ...invite,
+    name: invite.name.trim() || caregiverName,
+    email: invite.email.trim() || caregiverEmail,
+    phone: invite.phone.trim() || caregiverPhone,
+    whatsapp: invite.whatsapp.trim(),
+    relationship: invite.relationship.trim(),
+    permissions: { ...invite.permissions },
+  };
+}
+
 export function cleanLabel(value: string | null | undefined) {
   return (value || "")
     .replace(/[_-]+/g, " ")
@@ -359,6 +376,12 @@ export type UserDetail = {
   consent_attempts: ConsentAttempt[];
   scheduled_events: ScheduledEvent[];
   scheduled_support?: ScheduledSupport[];
+  support_profile?: {
+    medications?: JsonRecord[];
+    providers?: JsonRecord[];
+    channel_preferences?: JsonRecord | null;
+    channel_preferences_saved?: boolean;
+  };
   interaction_logs?: JsonRecord[];
   consent_audit_logs?: JsonRecord[];
   care_team_invitations?: CareTeamInvitation[];

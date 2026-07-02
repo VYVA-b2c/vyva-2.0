@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { learningCategories, learningLessons } from "../../shared/schema.js";
@@ -25,6 +25,9 @@ const lessonBodySchema = z.object({
 });
 
 const lessonPatchSchema = lessonBodySchema.partial();
+const bulkPublishBodySchema = z.object({
+  lessonIds: z.array(z.string().trim().min(1)).max(500).optional(),
+}).optional();
 
 const categoryBodySchema = z.object({
   slug: z.string().trim().min(1).max(80).regex(/^[a-z0-9_]+$/),
@@ -432,6 +435,44 @@ async function publishLessonHandler(req: Request, res: Response) {
   }
 }
 
+async function bulkPublishDraftLessonsHandler(req: Request, res: Response) {
+  const parsed = bulkPublishBodySchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Selected lessons are invalid." });
+
+  const hasSelection = Array.isArray(parsed.data?.lessonIds);
+  const lessonIds = [...new Set(parsed.data?.lessonIds ?? [])];
+  if (hasSelection && lessonIds.length === 0) {
+    return res.json({
+      summary: {
+        lessonsPublished: 0,
+      },
+      lessons: [],
+    });
+  }
+
+  try {
+    const publishableStatus = inArray(learningLessons.status, ["draft", "review"]);
+    const whereClause = hasSelection
+      ? and(inArray(learningLessons.id, lessonIds), publishableStatus)
+      : publishableStatus;
+    const rows = await db
+      .update(learningLessons)
+      .set({ ...lessonPatchForStatus("published", actor(req)), updatedAt: new Date() })
+      .where(whereClause)
+      .returning();
+
+    return res.json({
+      summary: {
+        lessonsPublished: rows.length,
+      },
+      lessons: rows.map(serializeLesson),
+    });
+  } catch (error) {
+    console.error("[admin] learning lessons bulk publish failed:", error);
+    return res.status(500).json({ error: "Learning lessons could not be published." });
+  }
+}
+
 async function archiveLessonHandler(req: Request, res: Response) {
   try {
     const [row] = await db
@@ -602,6 +643,7 @@ router.patch("/categories/:slug", updateCategoryHandler);
 router.post("/import", importContentPackHandler);
 router.get("/lessons", listLessonsHandler);
 router.post("/lessons", createLessonHandler);
+router.patch("/lessons/bulk-publish", bulkPublishDraftLessonsHandler);
 router.patch("/lessons/:id", updateLessonHandler);
 router.patch("/lessons/:id/publish", publishLessonHandler);
 router.patch("/lessons/:id/archive", archiveLessonHandler);

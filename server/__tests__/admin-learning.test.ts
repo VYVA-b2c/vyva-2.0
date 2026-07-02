@@ -6,6 +6,7 @@ const dbMock = vi.hoisted(() => ({
   insertedValues: [] as unknown[],
   db: {
     select: vi.fn(),
+    update: vi.fn(),
     transaction: vi.fn(),
   },
 }));
@@ -44,6 +45,7 @@ describe("admin learning import", () => {
   beforeEach(() => {
     dbMock.insertedValues = [];
     dbMock.db.select.mockReset();
+    dbMock.db.update.mockReset();
     dbMock.db.transaction.mockReset();
     dbMock.db.select
       .mockReturnValueOnce({
@@ -235,6 +237,136 @@ describe("admin learning import", () => {
       error: "Learning content pack could not be imported.",
       details: [
         expect.stringContaining("one or more lesson/category text fields are still JSON columns"),
+      ],
+    });
+  });
+
+  it("bulk publishes draft and review lessons", async () => {
+    const now = new Date("2026-06-24T10:00:00.000Z");
+    const returning = vi.fn(async () => [
+      {
+        id: "lesson-1",
+        externalId: "music-memory-001",
+        categorySlug: "music",
+        language: "en",
+        title: "Why music sticks in memory",
+        hook: "A melody gives memory a rhythm to walk on.",
+        body: "Music combines pattern, repetition, emotion, and timing.",
+        reflectionPrompt: "What song can you remember from long ago?",
+        sourceNotes: "Starter curated library",
+        estimatedMinutes: 3,
+        difficulty: "easy",
+        tags: ["music", "memory"],
+        status: "published",
+        isActive: true,
+        reviewedAt: now,
+        reviewedBy: "admin",
+        publishedAt: now,
+        publishedBy: "admin",
+        archivedAt: null,
+        archivedBy: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "lesson-2",
+        externalId: "science-soap-001",
+        categorySlug: "science",
+        language: "en",
+        title: "Why soap helps water do more",
+        hook: "Soap changes how water meets oil.",
+        body: "Soap molecules can connect with oil and water at the same time.",
+        reflectionPrompt: "Where did you see chemistry quietly helping today?",
+        sourceNotes: "General chemistry background.",
+        estimatedMinutes: 3,
+        difficulty: "easy",
+        tags: ["science"],
+        status: "published",
+        isActive: true,
+        reviewedAt: now,
+        reviewedBy: "admin",
+        publishedAt: now,
+        publishedBy: "admin",
+        archivedAt: null,
+        archivedBy: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    const where = vi.fn(() => ({ returning }));
+    const set = vi.fn(() => ({ where }));
+    dbMock.db.update.mockReturnValue({ set });
+
+    const response = await request(app)
+      .patch("/api/admin/learning/lessons/bulk-publish")
+      .expect(200);
+
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      status: "published",
+      isActive: true,
+      reviewedBy: "admin",
+      publishedBy: "admin",
+    }));
+    expect(where).toHaveBeenCalledTimes(1);
+    expect(returning).toHaveBeenCalledTimes(1);
+    expect(response.body).toMatchObject({
+      summary: { lessonsPublished: 2 },
+      lessons: [
+        expect.objectContaining({ id: "lesson-1", status: "published", isActive: true }),
+        expect.objectContaining({ id: "lesson-2", status: "published", isActive: true }),
+      ],
+    });
+  });
+
+  it("bulk publishes only selected lessons when IDs are provided", async () => {
+    const now = new Date("2026-06-24T10:00:00.000Z");
+    const returning = vi.fn(async () => [
+      {
+        id: "lesson-2",
+        externalId: "science-soap-001",
+        categorySlug: "science",
+        language: "en",
+        title: "Why soap helps water do more",
+        hook: "Soap changes how water meets oil.",
+        body: "Soap molecules can connect with oil and water at the same time.",
+        reflectionPrompt: "Where did you see chemistry quietly helping today?",
+        sourceNotes: "General chemistry background.",
+        estimatedMinutes: 3,
+        difficulty: "easy",
+        tags: ["science"],
+        status: "published",
+        isActive: true,
+        reviewedAt: now,
+        reviewedBy: "admin",
+        publishedAt: now,
+        publishedBy: "admin",
+        archivedAt: null,
+        archivedBy: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    const where = vi.fn(() => ({ returning }));
+    const set = vi.fn(() => ({ where }));
+    dbMock.db.update.mockReturnValue({ set });
+
+    const response = await request(app)
+      .patch("/api/admin/learning/lessons/bulk-publish")
+      .send({ lessonIds: ["lesson-2", "lesson-2"] })
+      .expect(200);
+
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      status: "published",
+      isActive: true,
+      reviewedBy: "admin",
+      publishedBy: "admin",
+    }));
+    expect(where).toHaveBeenCalledTimes(1);
+    expect(returning).toHaveBeenCalledTimes(1);
+    expect(response.body).toMatchObject({
+      summary: { lessonsPublished: 1 },
+      lessons: [
+        expect.objectContaining({ id: "lesson-2", status: "published", isActive: true }),
       ],
     });
   });

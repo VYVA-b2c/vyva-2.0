@@ -19,6 +19,7 @@ import {
   accountStatusLabel,
   callbackMetadata,
   callbackScheduledLabel,
+  caregiverInviteWithProfileDefaults,
   cleanLabel,
   combineDateTimeLocal,
   consentStatusLabel,
@@ -195,6 +196,9 @@ function lifecycleActivityCopy(eventType: string, row: JsonRecord) {
   }
   if (eventType === "signup_invite_profile_completed") {
     return { label: "Profile completed", detail: "Recipient saved their profile details from the invite flow." };
+  }
+  if (eventType === "login_account_deleted") {
+    return { label: "Login account deleted", detail: "Admin deleted the login account and released its email/mobile." };
   }
   if (eventType === "admin_profile_updated") {
     const tierChanged = previousTier && nextTier && previousTier !== nextTier;
@@ -439,7 +443,7 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
   ]);
   const tierEvent = latestTierEvent(detail);
   const tierMetadata = jsonObject(tierEvent?.metadata);
-  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored"]);
+  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored", "login_account_deleted"]);
   const accessOrRemovalType = stringValue(accessOrRemovalEvent?.event_type);
   const accessOrRemovalCopy = accessOrRemovalEvent
     ? lifecycleActivityCopy(accessOrRemovalType ?? "lifecycle_event", accessOrRemovalEvent)
@@ -478,7 +482,7 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
       label: "Access / removal",
       done: Boolean(accessOrRemovalEvent),
       detail: accessOrRemovalEvent ? `${accessOrRemovalCopy?.label ?? "Lifecycle update"} at ${formatDate(stringValue(accessOrRemovalEvent.created_at))}` : "No app-access disable or user removal event.",
-      tone: accessOrRemovalEvent && ["user_disabled", "user_deleted"].includes(accessOrRemovalType ?? "") ? "danger" : "success",
+      tone: accessOrRemovalEvent && ["user_disabled", "user_deleted", "login_account_deleted"].includes(accessOrRemovalType ?? "") ? "danger" : "success",
     },
     {
       label: "Consent",
@@ -931,7 +935,208 @@ function careTeamInviteStatusClass(status?: string | null) {
   return "bg-[#f4eafe] text-purple-700";
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, caregiverInviteDraft, setCaregiverInviteDraft, caregiverInviteBusy = false, deleting = false, restoring = false, scheduleBusyAction = null, onClose, onSave, onSendCaregiverInvite, onToggle, onDelete, onRestore, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
+function cleanText(value: unknown) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function textArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(cleanText).filter(Boolean);
+}
+
+function recordArray(value: unknown): JsonRecord[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is JsonRecord => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    : [];
+}
+
+function firstText(record: JsonRecord, keys: string[]) {
+  for (const key of keys) {
+    const text = cleanText(record[key]);
+    if (text) return text;
+  }
+  return "";
+}
+
+function uniqueTexts(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const value of values) {
+    const text = cleanText(value);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    items.push(text);
+  }
+  return items;
+}
+
+function supportValue(value: unknown, fallback = "Not added") {
+  const text = cleanText(value);
+  return text || fallback;
+}
+
+function formatAddress(profile: JsonRecord) {
+  return uniqueTexts([
+    stringValue(profile.address_line_1),
+    stringValue(profile.city),
+    stringValue(profile.region),
+    stringValue(profile.postcode),
+    stringValue(profile.country_code),
+  ]).join(", ");
+}
+
+function conditionItems(consent: JsonRecord) {
+  const section = jsonObject(consent.conditions);
+  const conditionNames = recordArray(section.conditions).map((item) => firstText(item, ["name", "label"]));
+  return uniqueTexts([...textArray(section.health_conditions), ...conditionNames]);
+}
+
+function deviceItems(consent: JsonRecord) {
+  const healthDeviceSection = jsonObject(consent.health_devices);
+  const healthDevices = recordArray(healthDeviceSection.devices).map((device) => {
+    const name = firstText(device, ["deviceName", "name", "id"]);
+    const status = cleanText(device.status);
+    return status && name ? `${cleanLabel(name)} - ${cleanLabel(status)}` : cleanLabel(name);
+  });
+  const onboardingDeviceSection = jsonObject(consent.devices);
+  return uniqueTexts([...healthDevices, ...textArray(onboardingDeviceSection.devices)]);
+}
+
+function medicationSummary(medication: JsonRecord) {
+  const name = firstText(medication, ["medication_name", "name"]);
+  const details = uniqueTexts([
+    stringValue(medication.dosage),
+    stringValue(medication.frequency),
+    Array.isArray(medication.scheduled_times) ? medication.scheduled_times.join(", ") : stringValue(medication.times),
+  ]);
+  return details.length ? `${name} - ${details.join(", ")}` : name;
+}
+
+function providerSummary(provider: JsonRecord) {
+  const name = firstText(provider, ["name", "provider_name"]);
+  const role = firstText(provider, ["category", "role"]);
+  const contacts = uniqueTexts([stringValue(provider.phone), stringValue(provider.email), stringValue(provider.whatsapp)]);
+  return uniqueTexts([name, role ? cleanLabel(role) : "", contacts.join(", ")]).join(" - ");
+}
+
+function contactChannelLabel(value: unknown) {
+  const channel = cleanText(value);
+  if (channel === "voice_outbound") return "Phone call";
+  if (channel === "whatsapp_outbound") return "WhatsApp";
+  if (channel === "voice_app") return "In-app voice";
+  return cleanLabel(channel || "Not set");
+}
+
+function contactLimitLabel(value: unknown, unit: string) {
+  if (value === null) return "Unlimited";
+  if (typeof value === "number") return `${value} ${unit}${value === 1 ? "" : "s"}/day`;
+  return supportValue(value);
+}
+
+function ReadOnlyValue({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2.5">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{label}</p>
+      <p className="mt-1 break-words text-sm font-bold text-[#2f2135]">{value || "Not added"}</p>
+    </div>
+  );
+}
+
+function ReadOnlyList({ label, items, empty = "Not added" }: { label: string; items: string[]; empty?: string }) {
+  return (
+    <div className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2.5">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{label}</p>
+      {items.length ? (
+        <ul className="mt-1 grid gap-1 text-sm font-bold text-[#2f2135]">
+          {items.map((item) => <li key={item} className="break-words">{item}</li>)}
+        </ul>
+      ) : (
+        <p className="mt-1 text-sm font-bold text-[#7d6b65]">{empty}</p>
+      )}
+    </div>
+  );
+}
+
+function UserSupportInfoTab({ detail }: { detail: UserDetail }) {
+  const profile = detail.profile ?? {};
+  const supportProfile = detail.support_profile ?? {};
+  const consent = jsonObject(profile.data_sharing_consent);
+  const emergency = jsonObject(consent.emergency);
+  const conditions = jsonObject(consent.conditions);
+  const cognitive = jsonObject(consent.cognitive);
+  const diet = jsonObject(consent.diet);
+  const hobbies = jsonObject(consent.hobbies);
+  const channelPreferences = jsonObject(supportProfile.channel_preferences);
+  const medications = (supportProfile.medications ?? []).map(medicationSummary).filter(Boolean);
+  const providers = (supportProfile.providers ?? []).map(providerSummary).filter(Boolean);
+  const allergies = textArray(profile.known_allergies);
+  const address = formatAddress(profile);
+  const gpContact = uniqueTexts([stringValue(profile.gp_phone), stringValue(profile.gp_email)]).join(" - ");
+  const emergencyContact = uniqueTexts([
+    firstText(emergency, ["emergency_name", "name"]),
+    firstText(emergency, ["emergency_role", "relationship"]),
+    firstText(emergency, ["emergency_phone", "primary_phone"]),
+  ]).join(" - ");
+  const lifestyleItems = uniqueTexts([
+    ...textArray(diet.dietary_preferences),
+    ...textArray(hobbies.hobbies),
+    stringValue(diet.dietary_notes),
+    stringValue(cognitive.cognitive_notes),
+    stringValue(conditions.mobility_level),
+    stringValue(conditions.living_situation),
+  ]);
+
+  return (
+    <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-xl font-black">Support info</h3>
+          <p className="mt-1 text-sm text-[#7d6b65]">Read-only user-owned profile context from the app.</p>
+        </div>
+        <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black text-purple-700">Read-only</span>
+      </div>
+      <p className="mt-3 rounded-xl bg-[#fff3e8] px-3 py-2 text-sm font-bold text-[#8a4a00]">
+        These details are shown for support context. The user should update them from their app unless a dedicated admin support flow is added.
+      </p>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <ReadOnlyValue label="Home address" value={address} />
+        <ReadOnlyValue label="Emergency contact" value={emergencyContact} />
+        <ReadOnlyValue label="GP" value={supportValue(profile.gp_name)} />
+        <ReadOnlyValue label="GP contact" value={gpContact || supportValue(profile.gp_address)} />
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <ReadOnlyList label="Conditions" items={conditionItems(consent)} />
+        <ReadOnlyList label="Allergies" items={allergies} empty={jsonObject(consent.allergies).no_known_allergies === true ? "No known allergies" : "Not added"} />
+        <ReadOnlyList label="Medications" items={medications} empty={jsonObject(consent.medications).no_known_medications === true ? "No known medications" : "Not added"} />
+        <ReadOnlyList label="Providers" items={providers} />
+        <ReadOnlyList label="Health devices" items={deviceItems(consent)} />
+        <ReadOnlyList label="Lifestyle and notes" items={lifestyleItems} />
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="font-black">Notifications and contact</h4>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">
+            {supportProfile.channel_preferences_saved ? "User-set" : "Default"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <ReadOnlyValue label="Check-ins" value={contactChannelLabel(channelPreferences.preferred_checkin_channel)} />
+          <ReadOnlyValue label="Reminders" value={contactChannelLabel(channelPreferences.preferred_reminder_channel)} />
+          <ReadOnlyValue label="Support mode" value={cleanLabel(supportValue(channelPreferences.support_mode))} />
+          <ReadOnlyValue label="Voice hours" value={`${supportValue(channelPreferences.voice_available_from)} to ${supportValue(channelPreferences.voice_available_until)}`} />
+          <ReadOnlyValue label="WhatsApp hours" value={`${supportValue(channelPreferences.whatsapp_available_from)} to ${supportValue(channelPreferences.whatsapp_available_until)}`} />
+          <ReadOnlyValue label="Daily limits" value={`${contactLimitLabel(channelPreferences.max_outbound_calls_per_day, "call")} - ${contactLimitLabel(channelPreferences.max_whatsapp_messages_per_day, "message")}`} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, caregiverInviteDraft, setCaregiverInviteDraft, caregiverInviteBusy = false, deleting = false, restoring = false, deletingLoginUid = null, scheduleBusyAction = null, onClose, onSave, onSendCaregiverInvite, onToggle, onDelete, onRestore, onDeleteLoginAccount, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
@@ -945,12 +1150,14 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   scheduleBusyAction?: string | null;
   deleting?: boolean;
   restoring?: boolean;
+  deletingLoginUid?: string | null;
   onClose: () => void;
   onSave: () => void;
   onSendCaregiverInvite: () => void;
   onToggle: (enable: boolean) => void;
   onDelete: () => void;
   onRestore?: () => void;
+  onDeleteLoginAccount?: (mapping: LoginMapping) => void;
   newEvent: typeof emptyScheduledEvent;
   setNewEvent: (next: typeof emptyScheduledEvent) => void;
   onCreateEvent: () => void;
@@ -973,14 +1180,15 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
     : "No login match";
   const newEventDate = newEvent.scheduled_date || toDateInputValue(newEvent.scheduled_for);
   const newEventTime = newEvent.scheduled_time || toTimeInputValue(newEvent.scheduled_for);
-  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "activity" | "communications" | "schedule">("profile");
+  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "support" | "activity" | "communications" | "schedule">("profile");
   const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
   const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
   const careTeamInvitations = detail.care_team_invitations ?? [];
+  const effectiveCaregiverInviteDraft = caregiverInviteWithProfileDefaults(caregiverInviteDraft, draft);
   const caregiverInviteHasContact = Boolean(
-    caregiverInviteDraft.email.trim() || caregiverInviteDraft.phone.trim() || caregiverInviteDraft.whatsapp.trim(),
+    effectiveCaregiverInviteDraft.email || effectiveCaregiverInviteDraft.phone || effectiveCaregiverInviteDraft.whatsapp,
   );
-  const caregiverInviteReady = Boolean(caregiverInviteDraft.name.trim() && caregiverInviteHasContact);
+  const caregiverInviteReady = Boolean(effectiveCaregiverInviteDraft.name && caregiverInviteHasContact);
   function updateCaregiverInvitePermission(key: CaregiverInvitePermissionKey, value: boolean) {
     setCaregiverInviteDraft({
       ...caregiverInviteDraft,
@@ -990,6 +1198,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const detailTabs = [
     { id: "profile" as const, label: "Profile" },
     { id: "access" as const, label: "Access" },
+    { id: "support" as const, label: "Support info" },
     { id: "activity" as const, label: "Activity" },
     { id: "communications" as const, label: "Communications" },
     { id: "schedule" as const, label: "Schedule" },
@@ -1033,7 +1242,10 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
             </div>
             <div className="mt-4 grid gap-3">
               <Field label="Full name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
-              <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
+                <Field label="Date of birth"><input className="w-full rounded-xl border px-3 py-2.5" type="date" value={draft.date_of_birth ?? ""} onChange={(e) => setDraft({ ...draft, date_of_birth: e.target.value })} /></Field>
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Contact number"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
                 <Field label="WhatsApp"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
@@ -1043,7 +1255,17 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <Field label="Caregiver name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
                 <Field label="Caregiver contact"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
               </div>
-              <div className="border-t border-[#eadfd5] pt-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+                <Field label="Timezone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.timezone ?? "Europe/Madrid"} onChange={(e) => setDraft({ ...draft, timezone: e.target.value })} /></Field>
+              </div>
+              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save profile"}</button></div>
+              {statusMessage && (
+                <p className={`rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                  {statusMessage}
+                </p>
+              )}
+              <div className="mt-2 border-t border-[#eadfd5] pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h4 className="font-black text-[#2f2135]">Caregiver access</h4>
@@ -1058,6 +1280,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                     <input
                       className="w-full rounded-xl border px-3 py-2.5"
                       value={caregiverInviteDraft.name}
+                      placeholder={caregiverInviteDraft.name ? undefined : effectiveCaregiverInviteDraft.name}
                       onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, name: event.target.value })}
                     />
                   </Field>
@@ -1072,6 +1295,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                     <input
                       className="w-full rounded-xl border px-3 py-2.5"
                       value={caregiverInviteDraft.email}
+                      placeholder={caregiverInviteDraft.email ? undefined : effectiveCaregiverInviteDraft.email}
                       onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, email: event.target.value })}
                     />
                   </Field>
@@ -1079,6 +1303,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                     <input
                       className="w-full rounded-xl border px-3 py-2.5"
                       value={caregiverInviteDraft.phone}
+                      placeholder={caregiverInviteDraft.phone ? undefined : effectiveCaregiverInviteDraft.phone}
                       onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, phone: event.target.value })}
                     />
                   </Field>
@@ -1157,16 +1382,6 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   ))}
                 </div>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-                <Field label="Timezone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.timezone ?? "Europe/Madrid"} onChange={(e) => setDraft({ ...draft, timezone: e.target.value })} /></Field>
-              </div>
-              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save profile"}</button></div>
-              {statusMessage && (
-                <p className={`rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
-                  {statusMessage}
-                </p>
-              )}
             </div>
           </section>}
 
@@ -1220,6 +1435,24 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                       ))}
                     </div>
                   )}
+                  {onDeleteLoginAccount && mapping.source === "legacy" && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#eadfd5] pt-3">
+                      <button
+                        type="button"
+                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={Boolean(deletingLoginUid)}
+                        onClick={() => onDeleteLoginAccount(mapping)}
+                      >
+                        {deletingLoginUid === mapping.login_uid ? "Deleting login..." : "Delete login account"}
+                      </button>
+                      <span className="text-xs font-bold text-[#8b7a73]">Frees this email/mobile for a new signup.</span>
+                    </div>
+                  )}
+                  {mapping.source === "supabase" && (
+                    <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-xs font-bold text-purple-800">
+                      External auth login. Delete it in the auth provider, then refresh this drawer.
+                    </p>
+                  )}
                 </article>
               ))}
             </div>
@@ -1238,6 +1471,8 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
               </p>
             )}
           </section>}
+
+          {activeDetailTab === "support" && <UserSupportInfoTab detail={detail} />}
 
           {activeDetailTab === "schedule" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">

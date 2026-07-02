@@ -46,6 +46,9 @@ type LessonDraft = Omit<Lesson, "id" | "reviewedAt" | "reviewedBy" | "publishedA
   tagsText: string;
 };
 
+const coverageLanguages = ["en", "es", "fr", "de", "it", "pt"] as const;
+type CoverageLanguage = typeof coverageLanguages[number];
+
 const emptyLesson = (categorySlug = "general_knowledge"): LessonDraft => ({
   externalId: null,
   categorySlug,
@@ -94,6 +97,26 @@ function statusClass(status: LessonStatus) {
   if (status === "archived") return "bg-slate-100 text-slate-600";
   if (status === "review") return "bg-sky-50 text-sky-700";
   return "bg-amber-50 text-amber-800";
+}
+
+function isPublishableStatus(status: LessonStatus) {
+  return status === "draft" || status === "review";
+}
+
+function isCoverageLanguage(value: string): value is CoverageLanguage {
+  return coverageLanguages.includes(value as CoverageLanguage);
+}
+
+function normalizeCoverageLanguage(language: string) {
+  const normalized = language.toLowerCase().split(/[-_]/)[0] ?? "";
+  return isCoverageLanguage(normalized) ? normalized : null;
+}
+
+function coverageCellClass(counts: { published: number; pending: number; archived: number; total: number }) {
+  if (counts.published > 0) return "border-emerald-100 bg-emerald-50 text-emerald-800";
+  if (counts.pending > 0) return "border-amber-100 bg-amber-50 text-amber-800";
+  if (counts.archived > 0) return "border-slate-100 bg-slate-50 text-slate-600";
+  return "border-[#eadfd5] bg-[#FFFCF8] text-[#8b7a73]";
 }
 
 function formatDate(value: string | null) {
@@ -268,7 +291,9 @@ function responseErrorMessage(payload: unknown, fallback: string) {
 export default function LearningLibraryAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [coverageLessons, setCoverageLessons] = useState<Lesson[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedLessonIds, setSelectedLessonIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<LessonDraft>(emptyLesson());
   const [statusFilter, setStatusFilter] = useState<LessonStatus | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -277,9 +302,64 @@ export default function LearningLibraryAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [bulkPublishing, setBulkPublishing] = useState(false);
   const [message, setMessage] = useState("");
+  const [editorMessage, setEditorMessage] = useState("");
 
   const selectedLesson = useMemo(() => lessons.find((lesson) => lesson.id === selectedId) ?? null, [lessons, selectedId]);
+  const selectedLessonIdSet = useMemo(() => new Set(selectedLessonIds), [selectedLessonIds]);
+  const publishableVisibleLessonIds = useMemo(
+    () => lessons.filter((lesson) => isPublishableStatus(lesson.status)).map((lesson) => lesson.id),
+    [lessons],
+  );
+  const publishableVisibleLessonIdSet = useMemo(() => new Set(publishableVisibleLessonIds), [publishableVisibleLessonIds]);
+  const selectedPublishableLessonIds = useMemo(
+    () => selectedLessonIds.filter((id) => publishableVisibleLessonIdSet.has(id)),
+    [publishableVisibleLessonIdSet, selectedLessonIds],
+  );
+  const allVisibleDraftsSelected = publishableVisibleLessonIds.length > 0 && publishableVisibleLessonIds.every((id) => selectedLessonIdSet.has(id));
+  const coverageRows = useMemo(() => {
+    return categories.map((category) => {
+      const languages = coverageLanguages.reduce((accumulator, language) => {
+        accumulator[language] = { published: 0, pending: 0, archived: 0, total: 0 };
+        return accumulator;
+      }, {} as Record<CoverageLanguage, { published: number; pending: number; archived: number; total: number }>);
+
+      for (const lesson of coverageLessons) {
+        if (lesson.categorySlug !== category.slug) continue;
+        const language = normalizeCoverageLanguage(lesson.language);
+        if (!language) continue;
+        const counts = languages[language];
+        counts.total += 1;
+        if (lesson.status === "published" && lesson.isActive) {
+          counts.published += 1;
+        } else if (isPublishableStatus(lesson.status)) {
+          counts.pending += 1;
+        } else {
+          counts.archived += 1;
+        }
+      }
+
+      return {
+        category,
+        total: Object.values(languages).reduce((sum, counts) => sum + counts.total, 0),
+        languages,
+      };
+    });
+  }, [categories, coverageLessons]);
+  const coverageSummary = useMemo(() => {
+    return coverageLessons.reduce(
+      (summary, lesson) => {
+        const language = normalizeCoverageLanguage(lesson.language);
+        if (!language) return summary;
+        summary.total += 1;
+        if (lesson.status === "published" && lesson.isActive) summary.published += 1;
+        if (isPublishableStatus(lesson.status)) summary.pending += 1;
+        return summary;
+      },
+      { total: 0, published: 0, pending: 0 },
+    );
+  }, [coverageLessons]);
 
   const lessonQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -290,28 +370,34 @@ export default function LearningLibraryAdminPage() {
     return `/api/admin/learning/lessons?${params.toString()}`;
   }, [categoryFilter, languageFilter, search, statusFilter]);
 
-  async function loadData() {
+  async function loadData(options: { clearMessage?: boolean } = {}) {
     setLoading(true);
-    setMessage("");
+    if (options.clearMessage !== false) setMessage("");
     try {
-      const [categoriesResponse, lessonsResponse] = await Promise.all([
+      const [categoriesResponse, lessonsResponse, coverageResponse] = await Promise.all([
         apiFetch("/api/admin/learning/categories"),
         apiFetch(lessonQuery),
+        apiFetch("/api/admin/learning/lessons?status=all&category=all&language=all"),
       ]);
-      const [categoriesPayload, lessonsPayload] = await Promise.all([
+      const [categoriesPayload, lessonsPayload, coveragePayload] = await Promise.all([
         categoriesResponse.json().catch(() => ({})),
         lessonsResponse.json().catch(() => ({})),
+        coverageResponse.json().catch(() => ({})),
       ]);
       if (!categoriesResponse.ok) throw new Error(responseErrorMessage(categoriesPayload, "Could not load categories."));
       if (!lessonsResponse.ok) throw new Error(responseErrorMessage(lessonsPayload, "Could not load lessons."));
+      if (!coverageResponse.ok) throw new Error(responseErrorMessage(coveragePayload, "Could not load language coverage."));
       const nextCategories = (categoriesPayload.categories ?? []) as Category[];
       const nextLessons = (lessonsPayload.lessons ?? []) as Lesson[];
       setCategories(nextCategories);
       setLessons(nextLessons);
-      if (!selectedId && nextLessons[0]) {
+      setCoverageLessons((coveragePayload.lessons ?? []) as Lesson[]);
+      const selectedLessonIsVisible = selectedId ? nextLessons.some((lesson) => lesson.id === selectedId) : false;
+      if ((!selectedId || !selectedLessonIsVisible) && nextLessons[0]) {
         setSelectedId(nextLessons[0].id);
         setDraft(lessonToDraft(nextLessons[0]));
-      } else if (!selectedId && !nextLessons[0]) {
+      } else if ((!selectedId || !selectedLessonIsVisible) && !nextLessons[0]) {
+        setSelectedId("");
         setDraft(emptyLesson(nextCategories[0]?.slug ?? "general_knowledge"));
       }
     } catch (error) {
@@ -330,10 +416,39 @@ export default function LearningLibraryAdminPage() {
     if (selectedLesson) setDraft(lessonToDraft(selectedLesson));
   }, [selectedLesson]);
 
+  useEffect(() => {
+    const visibleLessonIds = new Set(lessons.map((lesson) => lesson.id));
+    setSelectedLessonIds((current) => {
+      const next = current.filter((id) => visibleLessonIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [lessons]);
+
+  function toggleLessonSelection(lessonId: string) {
+    setSelectedLessonIds((current) => (
+      current.includes(lessonId)
+        ? current.filter((id) => id !== lessonId)
+        : [...current, lessonId]
+    ));
+  }
+
+  function toggleVisibleDraftSelection() {
+    setSelectedLessonIds((current) => {
+      const next = new Set(current);
+      if (allVisibleDraftsSelected) {
+        for (const lessonId of publishableVisibleLessonIds) next.delete(lessonId);
+      } else {
+        for (const lessonId of publishableVisibleLessonIds) next.add(lessonId);
+      }
+      return [...next];
+    });
+  }
+
   async function saveLesson(nextStatus?: LessonStatus) {
     const nextDraft = nextStatus ? { ...draft, status: nextStatus, isActive: nextStatus === "published" } : draft;
     setSaving(true);
     setMessage("");
+    setEditorMessage("");
     try {
       const response = await apiFetch(nextDraft.id ? `/api/admin/learning/lessons/${nextDraft.id}` : "/api/admin/learning/lessons", {
         method: nextDraft.id ? "PATCH" : "POST",
@@ -346,11 +461,19 @@ export default function LearningLibraryAdminPage() {
         const exists = current.some((lesson) => lesson.id === saved.id);
         return exists ? current.map((lesson) => lesson.id === saved.id ? saved : lesson) : [saved, ...current];
       });
+      setCoverageLessons((current) => {
+        const exists = current.some((lesson) => lesson.id === saved.id);
+        return exists ? current.map((lesson) => lesson.id === saved.id ? saved : lesson) : [saved, ...current];
+      });
       setSelectedId(saved.id);
       setDraft(lessonToDraft(saved));
-      setMessage(nextStatus === "published" ? "Lesson published." : nextStatus === "archived" ? "Lesson archived." : "Lesson saved.");
+      const nextMessage = nextStatus === "published" ? "Lesson published." : nextStatus === "archived" ? "Lesson archived." : "Lesson saved.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Lesson could not be saved.");
+      const nextMessage = error instanceof Error ? error.message : "Lesson could not be saved.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
     } finally {
       setSaving(false);
     }
@@ -364,16 +487,24 @@ export default function LearningLibraryAdminPage() {
 
     setSaving(true);
     setMessage("");
+    setEditorMessage("");
     try {
       const response = await apiFetch(`/api/admin/learning/lessons/${draft.id}/${action}`, { method: "PATCH" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(responseErrorMessage(payload, `Lesson could not be ${action}ed.`));
       const saved = payload.lesson as Lesson;
       setLessons((current) => current.map((lesson) => lesson.id === saved.id ? saved : lesson));
+      setCoverageLessons((current) => current.map((lesson) => lesson.id === saved.id ? saved : lesson));
+      setSelectedId(saved.id);
       setDraft(lessonToDraft(saved));
-      setMessage(action === "publish" ? "Lesson published." : "Lesson archived.");
+      const nextMessage = action === "publish" ? "Lesson published." : "Lesson archived.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+      void loadData({ clearMessage: false });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Lesson could not be updated.");
+      const nextMessage = error instanceof Error ? error.message : "Lesson could not be updated.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
     } finally {
       setSaving(false);
     }
@@ -382,12 +513,46 @@ export default function LearningLibraryAdminPage() {
   const startNewLesson = () => {
     setSelectedId("");
     setDraft(emptyLesson(categories[0]?.slug ?? "general_knowledge"));
+    setEditorMessage("");
   };
+
+  async function bulkPublishDrafts(lessonIds?: string[]) {
+    const selectedIds = lessonIds ? [...new Set(lessonIds)] : [];
+    const hasSelection = selectedIds.length > 0;
+    setBulkPublishing(true);
+    setMessage("");
+    setEditorMessage("");
+    try {
+      const response = await apiFetch("/api/admin/learning/lessons/bulk-publish", {
+        method: "PATCH",
+        ...(hasSelection ? { body: JSON.stringify({ lessonIds: selectedIds }) } : {}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(responseErrorMessage(payload, "Lessons could not be published."));
+      await loadData({ clearMessage: false });
+      const count = payload.summary?.lessonsPublished ?? 0;
+      const nextMessage = hasSelection
+        ? count === 1 ? "Published 1 selected lesson." : `Published ${count} selected lessons.`
+        : count === 1 ? "Published 1 draft lesson." : `Published ${count} draft lessons.`;
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+      if (hasSelection) {
+        setSelectedLessonIds((current) => current.filter((id) => !selectedIds.includes(id)));
+      }
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Lessons could not be published.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+    } finally {
+      setBulkPublishing(false);
+    }
+  }
 
   async function importContentPack(file: File | null | undefined) {
     if (!file) return;
     setImporting(true);
     setMessage("");
+    setEditorMessage("");
     try {
       const text = await file.text();
       const pack = parseLearningContentPackText(text);
@@ -421,6 +586,7 @@ export default function LearningLibraryAdminPage() {
     link.remove();
     URL.revokeObjectURL(url);
     setMessage("Learning library template download started.");
+    setEditorMessage("");
   }
 
   return (
@@ -459,6 +625,16 @@ export default function LearningLibraryAdminPage() {
               <FilePlus2 size={16} />
               Create lesson
             </button>
+            <button
+              type="button"
+              disabled={bulkPublishing || saving || importing}
+              onClick={() => void bulkPublishDrafts()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+              data-testid="button-admin-learning-bulk-publish"
+            >
+              {bulkPublishing ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+              Publish all drafts
+            </button>
           </div>
         </AdminPageHeader>
         <AdminMenu />
@@ -495,6 +671,74 @@ export default function LearningLibraryAdminPage() {
           </p>
         ) : null}
 
+        <section
+          className="mt-5 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-labelledby="learning-coverage-title"
+          data-testid="admin-learning-coverage"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Content coverage</p>
+              <h2 id="learning-coverage-title" className="mt-1 text-lg font-black text-[#2f2135]">Language coverage</h2>
+              <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
+                Published lesson availability by category and language. English remains the fallback when a learner's language is missing.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-black text-[#7d6b65]">
+              <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageSummary.published} live</span>
+              <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageSummary.pending} draft</span>
+              <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageSummary.total} total</span>
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <div className="min-w-[760px]">
+              <div className="grid grid-cols-[180px_repeat(6,minmax(86px,1fr))] gap-2 px-1 text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">
+                <span>Category</span>
+                {coverageLanguages.map((language) => <span key={language}>{language.toUpperCase()}</span>)}
+              </div>
+              <div className="mt-2 grid gap-2">
+                {coverageRows.length === 0 ? (
+                  <div className="rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] px-4 py-6 text-center text-sm font-bold text-[#7d6b65]">
+                    Coverage appears after categories load.
+                  </div>
+                ) : coverageRows.map((row) => (
+                  <div
+                    key={row.category.slug}
+                    className="grid grid-cols-[180px_repeat(6,minmax(86px,1fr))] items-stretch gap-2"
+                  >
+                    <div className="rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2">
+                      <p className="truncate text-sm font-black text-[#2f2135]">{row.category.label}</p>
+                      <p className="mt-0.5 text-xs font-bold text-[#8b7a73]">{row.total} lesson{row.total === 1 ? "" : "s"}</p>
+                    </div>
+                    {coverageLanguages.map((language) => {
+                      const counts = row.languages[language];
+                      const detail = counts.total === 0
+                        ? "missing"
+                        : counts.pending > 0
+                          ? `${counts.pending} draft`
+                          : counts.archived > 0 && counts.published === 0
+                            ? `${counts.archived} archived`
+                            : `${counts.total} total`;
+
+                      return (
+                        <div
+                          key={`${row.category.slug}-${language}`}
+                          className={`rounded-xl border px-3 py-2 ${coverageCellClass(counts)}`}
+                          data-testid={`admin-learning-coverage-cell-${row.category.slug}-${language}`}
+                        >
+                          <p className="text-sm font-black">{counts.published > 0 ? `${counts.published} live` : "0 live"}</p>
+                          <p className="mt-0.5 text-xs font-bold opacity-80">{detail}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
           <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="grid gap-3 lg:grid-cols-[1fr_160px_160px_160px]">
@@ -524,9 +768,37 @@ export default function LearningLibraryAdminPage() {
                 {["en", "es", "fr", "de", "it", "pt"].map((language) => <option key={language} value={language}>{language.toUpperCase()}</option>)}
               </select>
             </div>
+            <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-bold text-[#7d6b65]">
+                {selectedPublishableLessonIds.length > 0
+                  ? `${selectedPublishableLessonIds.length} draft lesson${selectedPublishableLessonIds.length === 1 ? "" : "s"} selected`
+                  : publishableVisibleLessonIds.length > 0 ? `${publishableVisibleLessonIds.length} visible draft lesson${publishableVisibleLessonIds.length === 1 ? "" : "s"} can be selected` : "No visible drafts to publish"}
+              </p>
+              <button
+                type="button"
+                disabled={bulkPublishing || selectedPublishableLessonIds.length === 0}
+                onClick={() => void bulkPublishDrafts(selectedPublishableLessonIds)}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                data-testid="button-admin-learning-publish-selected"
+              >
+                {bulkPublishing && selectedPublishableLessonIds.length > 0 ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                Publish selected
+              </button>
+            </div>
 
             <div className="mt-4 overflow-hidden rounded-2xl border border-[#eadfd5]">
-              <div className="grid grid-cols-[1fr_130px_100px_90px] bg-[#FBF8F5] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">
+              <div className="grid grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center bg-[#FBF8F5] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">
+                <label className="flex h-5 w-5 items-center justify-center" title="Select visible drafts">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleDraftsSelected}
+                    disabled={publishableVisibleLessonIds.length === 0}
+                    onChange={toggleVisibleDraftSelection}
+                    className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700"
+                    aria-label="Select visible draft lessons"
+                    data-testid="checkbox-admin-learning-select-visible-drafts"
+                  />
+                </label>
                 <span>Lessons</span>
                 <span>Category</span>
                 <span>Status</span>
@@ -545,14 +817,35 @@ export default function LearningLibraryAdminPage() {
               ) : lessons.map((lesson) => {
                 const category = categories.find((candidate) => candidate.slug === lesson.categorySlug);
                 const active = lesson.id === draft.id;
+                const publishable = isPublishableStatus(lesson.status);
+                const selectedForPublish = selectedLessonIdSet.has(lesson.id);
                 return (
-                  <button
+                  <div
                     key={lesson.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedId(lesson.id)}
-                    className={`grid min-h-[82px] w-full grid-cols-[1fr_130px_100px_90px] items-center gap-3 border-t border-[#eadfd5] px-4 py-3 text-left transition ${active ? "bg-[#F5F3FF]" : "bg-white hover:bg-[#FFFCF8]"}`}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedId(lesson.id);
+                      }
+                    }}
+                    className={`grid min-h-[82px] w-full grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center gap-3 border-t border-[#eadfd5] px-4 py-3 text-left transition ${active ? "bg-[#F5F3FF]" : "bg-white hover:bg-[#FFFCF8]"}`}
                     data-testid={`button-admin-learning-lesson-${lesson.id}`}
                   >
+                    <label className="flex h-8 w-8 items-center justify-center" title={publishable ? "Select for publishing" : "Already published or archived"}>
+                      <input
+                        type="checkbox"
+                        checked={selectedForPublish}
+                        disabled={!publishable}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleLessonSelection(lesson.id)}
+                        className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700 disabled:opacity-40"
+                        aria-label={`Select ${lesson.title} for publishing`}
+                        data-testid={`checkbox-admin-learning-select-${lesson.id}`}
+                      />
+                    </label>
                     <span className="min-w-0">
                       <span className="block truncate text-[15px] font-black text-[#2f2135]">{lesson.title}</span>
                       <span className="mt-1 block truncate text-xs font-semibold text-[#7d6b65]">{lesson.hook}</span>
@@ -560,7 +853,7 @@ export default function LearningLibraryAdminPage() {
                     <span className="truncate text-sm font-bold text-[#5b4a46]">{category?.label ?? lesson.categorySlug}</span>
                     <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-black ${statusClass(lesson.status)}`}>{lesson.status}</span>
                     <span className="text-xs font-bold text-[#7d6b65]">{formatDate(lesson.updatedAt)}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -630,6 +923,15 @@ export default function LearningLibraryAdminPage() {
             </div>
 
             <div className="mt-5 grid gap-2 sm:grid-cols-3">
+              {editorMessage ? (
+                <p
+                  className="rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2 text-sm font-black text-[#5b4a46] sm:col-span-3"
+                  role="status"
+                  data-testid="admin-learning-editor-message"
+                >
+                  {editorMessage}
+                </p>
+              ) : null}
               <button
                 type="button"
                 disabled={saving}

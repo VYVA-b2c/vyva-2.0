@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Settings, Square, ArrowUp, Mic, Keyboard } from "lucide-react";
+import { ChevronLeft, Settings, Square, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
-
-type ChatMode = "type" | "voice";
 
 const ChatScreen = () => {
   const navigate = useNavigate();
@@ -29,17 +27,17 @@ const ChatScreen = () => {
   const pendingRef = useRef<string | null>(searchParams.get("q"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const chatMode: ChatMode = searchParams.get("mode") === "voice" ? "voice" : "type";
+  const isVoiceMode = searchParams.get("mode") === "voice";
 
   useEffect(() => {
     void startVoice("companion", undefined, {
-      skipMicrophone: chatMode === "type",
-      autoStartListening: chatMode === "voice",
+      skipMicrophone: !isVoiceMode,
+      autoStartListening: isVoiceMode,
       dynamicVariables: {
-        app_entrypoint: chatMode === "voice" ? "chat_voice_mode" : "chat_type_mode",
+        app_entrypoint: isVoiceMode ? "chat_voice_mode" : "chat_type_mode",
       },
     });
-  }, [chatMode, startVoice]);
+  }, [isVoiceMode, startVoice]);
 
   useEffect(() => {
     if (status === "connected" && pendingRef.current) {
@@ -58,24 +56,43 @@ const ChatScreen = () => {
     setText("");
   };
 
-  const handleModeChange = (nextMode: ChatMode) => {
-    if (nextMode === chatMode) return;
-    stopVoice();
-    navigate(`/chat?mode=${nextMode}`, { replace: true });
-  };
-
-  const handleEndVoiceMode = () => {
-    stopVoice();
-    navigate("/chat?mode=type", { replace: true });
-  };
-
   const connectionLabel = isConnecting
     ? t("chat.connecting")
     : status === "connected"
-    ? chatMode === "voice"
-      ? t("chat.mode.voiceStatus", "Voice mode")
-      : t("chat.mode.typeStatus", "Text mode")
+    ? t("chat.mode.typeStatus", "Text mode")
     : t("chat.tapToConnect");
+
+  const handleEndVoiceMode = () => {
+    stopVoice();
+    navigate("/", { replace: true });
+  };
+
+  const handleRetryVoiceMode = () => {
+    stopVoice();
+    void startVoice("companion", undefined, {
+      autoStartListening: true,
+      dynamicVariables: {
+        app_entrypoint: "chat_voice_mode",
+      },
+    });
+  };
+
+  if (isVoiceMode) {
+    return (
+      <VoiceCallOverlay
+        isSpeaking={isSpeaking}
+        isConnecting={isConnecting || (status === "idle" && !lastError)}
+        transcript={transcript}
+        onEnd={handleEndVoiceMode}
+        voiceSessionPhase={voiceSessionPhase}
+        isMicMuted={isMicMuted}
+        onMicToggle={setMicrophoneMuted}
+        connectionError={lastError}
+        connectionErrorCode={lastErrorCode}
+        onRetry={handleRetryVoiceMode}
+      />
+    );
+  }
 
   return (
     <div
@@ -101,45 +118,6 @@ const ChatScreen = () => {
           </div>
         </div>
         <div className="w-9 h-9" />
-      </div>
-
-      <div
-        className="mx-4 mb-2 grid grid-cols-2 gap-2 rounded-[20px] p-1.5 flex-shrink-0"
-        style={{
-          background: "rgba(255,255,255,0.08)",
-          border: "1px solid rgba(255,255,255,0.13)",
-        }}
-        data-testid="chat-mode-toggle"
-        aria-label={t("chat.mode.label", "Choose chat mode")}
-      >
-        <button
-          type="button"
-          data-testid="button-chat-mode-type"
-          aria-pressed={chatMode === "type"}
-          onClick={() => handleModeChange("type")}
-          className="flex min-h-[46px] items-center justify-center gap-2 rounded-[16px] px-3 font-body text-[14px] font-black transition"
-          style={{
-            background: chatMode === "type" ? "rgba(255,255,255,0.92)" : "transparent",
-            color: chatMode === "type" ? "#5B12A0" : "rgba(255,255,255,0.72)",
-          }}
-        >
-          <Keyboard size={17} strokeWidth={2.5} />
-          {t("chat.mode.type", "Type")}
-        </button>
-        <button
-          type="button"
-          data-testid="button-chat-mode-voice"
-          aria-pressed={chatMode === "voice"}
-          onClick={() => handleModeChange("voice")}
-          className="flex min-h-[46px] items-center justify-center gap-2 rounded-[16px] px-3 font-body text-[14px] font-black transition"
-          style={{
-            background: chatMode === "voice" ? "rgba(255,255,255,0.92)" : "transparent",
-            color: chatMode === "voice" ? "#5B12A0" : "rgba(255,255,255,0.72)",
-          }}
-        >
-          <Mic size={17} strokeWidth={2.5} />
-          {t("chat.mode.voice", "Voice")}
-        </button>
       </div>
 
       {/* Messages */}
