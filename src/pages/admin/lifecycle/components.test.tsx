@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IntakeTable, UserDetailModal } from "./components";
-import { caregiverInviteWithProfileDefaults, defaultCaregiverInviteDraft, type CaregiverInviteDraft, type Intake } from "./shared";
+import { caregiverInviteWithProfileDefaults, defaultCaregiverInviteDraft, type CaregiverInviteDraft, type Intake, type LoginMapping } from "./shared";
 
 function intake(overrides: Partial<Intake>): Intake {
   return {
@@ -99,6 +99,82 @@ describe("IntakeTable", () => {
 });
 
 describe("UserDetailModal", () => {
+  it("exposes a separate delete login account action on legacy login mappings", () => {
+    const onDeleteLoginAccount = vi.fn();
+    const mapping: LoginMapping = {
+      source: "legacy",
+      login_uid: "login-123",
+      login_email: "hassan@mokadigital.net",
+      effective_profile_id: "profile-123",
+      effective_subscription_tier: "free",
+      effective_subscription_status: "active",
+    };
+
+    render(
+      <UserDetailModal
+        detail={{
+          intake: intake({ id: "delete-login-detail", name: "Hassan" }),
+          profile: null,
+          account_mappings: [mapping],
+          communications: [],
+          lifecycle_events: [],
+          consent_attempts: [],
+          scheduled_events: [],
+          care_team_invitations: [],
+        }}
+        draft={{
+          full_name: "Hassan",
+          preferred_name: "",
+          date_of_birth: "",
+          phone_number: "",
+          whatsapp_number: "",
+          email: "hassan@mokadigital.net",
+          language: "es",
+          timezone: "Europe/Madrid",
+          caregiver_name: "",
+          caregiver_contact: "",
+          tier: "free",
+          organization_id: "",
+        }}
+        setDraft={vi.fn()}
+        organizations={[]}
+        planOptions={[{ value: "free", label: "Free" }]}
+        caregiverInviteDraft={caregiverInviteDraft()}
+        setCaregiverInviteDraft={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onSendCaregiverInvite={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+        onDeleteLoginAccount={onDeleteLoginAccount}
+        newEvent={{
+          event_type: "custom",
+          title: "",
+          description: "",
+          channel: "app",
+          scheduled_for: "",
+          scheduled_date: "",
+          scheduled_time: "",
+          timezone: "Europe/Madrid",
+          recurrence: "none",
+          status: "upcoming",
+          source: "admin",
+        }}
+        setNewEvent={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEventStatus={vi.fn()}
+        onEventTime={vi.fn()}
+        onSupportSave={vi.fn()}
+        onSupportStatus={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Access" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete login account" }));
+
+    expect(onDeleteLoginAccount).toHaveBeenCalledWith(mapping);
+  });
+
   it("uses caregiver profile details as caregiver invite defaults", () => {
     const onSendCaregiverInvite = vi.fn();
 

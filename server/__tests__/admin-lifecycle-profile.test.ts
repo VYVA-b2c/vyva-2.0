@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { adminLifecycleRouter } from "../routes/adminLifecycle.js";
 import { db } from "../db.js";
-import { profiles, userIntakes } from "../../shared/schema.js";
+import { accessLinks, profileMemberships, profiles, teamInvitations, userIntakes, users } from "../../shared/schema.js";
 
 function buildApp() {
   const app = express();
@@ -21,6 +21,9 @@ function buildApp() {
 const app = buildApp();
 const createdProfileIds = new Set<string>();
 const createdIntakeIds = new Set<string>();
+const createdUserIds = new Set<string>();
+const createdInvitationIds = new Set<string>();
+const createdAccessLinkIds = new Set<string>();
 
 async function createProfile(values: Partial<typeof profiles.$inferInsert> = {}) {
   const profileId = typeof values.id === "string" ? values.id : randomUUID();
@@ -51,14 +54,37 @@ async function createIntake(values: Partial<typeof userIntakes.$inferInsert> = {
   return intake;
 }
 
+async function createUser(values: Partial<typeof users.$inferInsert> = {}) {
+  const userId = typeof values.id === "string" ? values.id : randomUUID();
+  createdUserIds.add(userId);
+  await db.insert(users).values({
+    id: userId,
+    password_hash: "test-password-hash",
+    ...values,
+  });
+  return userId;
+}
+
 afterEach(async () => {
+  for (const inviteId of createdInvitationIds) {
+    await db.delete(teamInvitations).where(eq(teamInvitations.id, inviteId));
+  }
+  for (const linkId of createdAccessLinkIds) {
+    await db.delete(accessLinks).where(eq(accessLinks.id, linkId));
+  }
   for (const intakeId of createdIntakeIds) {
     await db.delete(userIntakes).where(eq(userIntakes.id, intakeId));
+  }
+  for (const userId of createdUserIds) {
+    await db.delete(users).where(eq(users.id, userId));
   }
   for (const profileId of createdProfileIds) {
     await db.delete(profiles).where(eq(profiles.id, profileId));
   }
+  createdInvitationIds.clear();
+  createdAccessLinkIds.clear();
   createdIntakeIds.clear();
+  createdUserIds.clear();
   createdProfileIds.clear();
 });
 
@@ -134,5 +160,147 @@ describe("Admin lifecycle profile updates", () => {
       .limit(1);
 
     expect(targetProfile?.phone_number).toBe("+34600000002");
+  });
+
+  it("deletes a linked legacy login account and releases its email for caregiver signup", async () => {
+    const accountId = randomUUID();
+    const caregiverAccountId = randomUUID();
+    const email = `delete-login-${randomUUID()}@example.com`;
+    const phone = `+346${String(Date.now()).slice(-8)}`;
+    await createUser({
+      id: accountId,
+      email,
+      phone_number: phone,
+      active_profile_id: accountId,
+    });
+    await createUser({
+      id: caregiverAccountId,
+      email: `caregiver-${randomUUID()}@example.com`,
+      active_profile_id: accountId,
+    });
+    await createProfile({
+      id: accountId,
+      full_name: "Delete Login",
+      email,
+      phone_number: phone,
+      account_status: "enabled",
+    });
+    await db.insert(profileMemberships).values({
+      user_id: accountId,
+      profile_id: accountId,
+      role: "elder",
+      relationship: "self",
+      is_primary: true,
+      accepted_at: new Date(),
+    });
+    await db.insert(profileMemberships).values({
+      user_id: caregiverAccountId,
+      profile_id: accountId,
+      role: "caregiver",
+      relationship: "son",
+      status: "active",
+      accepted_at: new Date(),
+    });
+    const intake = await createIntake({
+      name: "Delete Login",
+      user_id: accountId,
+      elder_user_id: accountId,
+      phone,
+      email,
+      status: "active",
+      journey_step: "profile_completed",
+    });
+    const [invitation] = await db.insert(teamInvitations).values({
+      senior_id: accountId,
+      invitee_name: "Care Helper",
+      invitee_email: `helper-${randomUUID()}@example.com`,
+      role: "caregiver",
+      invite_token: randomUUID(),
+      invite_channel: "email",
+      status: "pending",
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }).returning({ id: teamInvitations.id });
+    createdInvitationIds.add(invitation.id);
+    const [accessLink] = await db.insert(accessLinks).values({
+      token: randomUUID(),
+      user_id: accountId,
+      intake_id: intake.id,
+      link_type: "trial",
+      tier: "free",
+      destination: "/onboarding",
+      target_role: "elder",
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    }).returning({ id: accessLinks.id });
+    createdAccessLinkIds.add(accessLink.id);
+
+    const response = await request(app)
+      .post(`/api/admin/lifecycle/users/${intake.id}/delete-login-account`)
+      .send({
+        confirm: "DELETE_LOGIN_ACCOUNT",
+        source: "legacy",
+        login_uid: accountId,
+      })
+      .expect(200);
+
+    expect(response.body.deleted_login_account).toMatchObject({ id: accountId, email, phone_number: phone });
+    expect(response.body.released_contacts).toContain(email);
+
+    const [deletedAccount] = await db.select().from(users).where(eq(users.id, accountId)).limit(1);
+    expect(deletedAccount).toBeUndefined();
+
+    const [closedProfile] = await db
+      .select({
+        account_status: profiles.account_status,
+        disabled_reason: profiles.disabled_reason,
+        email: profiles.email,
+        phone_number: profiles.phone_number,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, accountId))
+      .limit(1);
+    expect(closedProfile).toMatchObject({
+      account_status: "disabled",
+      disabled_reason: "Login account deleted by admin",
+      email: null,
+      phone_number: null,
+    });
+
+    const [revokedMembership] = await db
+      .select({ status: profileMemberships.status })
+      .from(profileMemberships)
+      .where(eq(profileMemberships.user_id, caregiverAccountId))
+      .limit(1);
+    expect(revokedMembership?.status).toBe("revoked");
+
+    const [revokedInvitation] = await db
+      .select({ status: teamInvitations.status })
+      .from(teamInvitations)
+      .where(eq(teamInvitations.id, invitation.id))
+      .limit(1);
+    expect(revokedInvitation?.status).toBe("revoked");
+
+    const [revokedLink] = await db
+      .select({ revoked_at: accessLinks.revoked_at })
+      .from(accessLinks)
+      .where(eq(accessLinks.id, accessLink.id))
+      .limit(1);
+    expect(revokedLink?.revoked_at).toBeTruthy();
+
+    const [hiddenIntake] = await db
+      .select({ journey_step: userIntakes.journey_step, metadata: userIntakes.metadata })
+      .from(userIntakes)
+      .where(eq(userIntakes.id, intake.id))
+      .limit(1);
+    expect(hiddenIntake?.journey_step).toBe("admin_deleted");
+    expect(hiddenIntake?.metadata).toMatchObject({
+      login_account_deleted: true,
+      app_access_changed: true,
+    });
+
+    const replacementId = await createUser({
+      email,
+      password_hash: "replacement-password-hash",
+    });
+    expect(replacementId).toBeTruthy();
   });
 });

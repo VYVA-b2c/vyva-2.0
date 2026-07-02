@@ -252,6 +252,25 @@ function deleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice 
   };
 }
 
+function loginAccountDeleteNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice {
+  const releasedContacts = stringArray(result.released_contacts);
+  const disabledProfileIds = stringArray(result.disabled_profile_ids);
+  const revokedMembershipCount = numberValue(result.revoked_profile_membership_count);
+  const resetInviteCount = numberValue(result.reset_care_team_invite_count);
+  const revokedInviteCount = numberValue(result.revoked_senior_invite_count);
+
+  return {
+    tone: "warning",
+    label: "Deleted",
+    title: `${intake.name}'s login account was deleted.`,
+    details: [
+      releasedContacts.length ? `Released: ${releasedContacts.join(", ")}.` : "Released the login contact.",
+      disabledProfileIds.length ? `Closed ${disabledProfileIds.length} owned profile${disabledProfileIds.length === 1 ? "" : "s"}.` : "No owned app profile needed closing.",
+      `${revokedMembershipCount} care-team membership${revokedMembershipCount === 1 ? "" : "s"} revoked; ${resetInviteCount + revokedInviteCount} invitation${resetInviteCount + revokedInviteCount === 1 ? "" : "s"} updated.`,
+    ],
+  };
+}
+
 function restoreNoticeFor(intake: Intake, result: JsonRecord): AdminActionNotice {
   const scopeErrors = stringArray(result.scope_errors);
   return {
@@ -1264,6 +1283,43 @@ export default function LifecycleAdminPage() {
     }
   }
 
+  async function deleteLoginAccount(mapping: LoginMapping) {
+    if (!selectedUser) return;
+    if (mapping.source !== "legacy") {
+      setUserDetailMessage("Delete this external auth account in the auth provider, then refresh VYVA.");
+      return;
+    }
+
+    const loginLabel = mapping.login_email || mapping.login_phone || mapping.login_uid;
+    const confirmation = window.prompt(`Delete login account ${loginLabel}? This frees its email/mobile for a new signup and revokes this login's access. Type DELETE LOGIN to continue.`);
+    if (confirmation !== "DELETE LOGIN") return;
+
+    setBusyAction(`delete-login:${mapping.login_uid}`);
+    setUserDetailMessage("");
+    setAdminActionNotice(null);
+    try {
+      const result = await api(`/users/${selectedUser.intake.id}/delete-login-account`, {
+        method: "POST",
+        body: JSON.stringify({
+          confirm: "DELETE_LOGIN_ACCOUNT",
+          source: mapping.source,
+          login_uid: mapping.login_uid,
+        }),
+      });
+      setUsers((current) => current.filter((user) => shouldKeepAfterDelete(user, selectedUser.intake, result)));
+      setSelectedUser(null);
+      setMessage("");
+      showActionReceipt(loginAccountDeleteNoticeFor(selectedUser.intake, result));
+      await refresh();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Could not delete this login account.";
+      setMessage(errorMessage);
+      setUserDetailMessage(errorMessage);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function restoreUser(intake: Intake) {
     const confirmed = window.confirm(`Restore ${intake.name} to Users? This makes the lifecycle row visible again. App access will not be changed.`);
     if (!confirmed) return;
@@ -2224,12 +2280,14 @@ export default function LifecycleAdminPage() {
           scheduleBusyAction={busyAction}
           deleting={busyAction === `delete:${selectedUser.intake.id}`}
           restoring={busyAction === `restore:${selectedUser.intake.id}`}
+          deletingLoginUid={busyAction?.startsWith("delete-login:") ? busyAction.slice("delete-login:".length) : null}
           onClose={() => setSelectedUser(null)}
           onSave={saveUserDetail}
           onSendCaregiverInvite={sendCaregiverInvite}
           onToggle={(enable) => toggleUser(selectedUser.intake, enable)}
           onDelete={() => deleteUser(selectedUser.intake)}
           onRestore={() => restoreUser(selectedUser.intake)}
+          onDeleteLoginAccount={deleteLoginAccount}
           newEvent={newEvent}
           setNewEvent={setNewEvent}
           onCreateEvent={createScheduledEventForUser}
