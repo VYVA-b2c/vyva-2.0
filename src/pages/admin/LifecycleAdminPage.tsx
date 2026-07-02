@@ -28,6 +28,7 @@ import {
   type ScheduledSupport,
   type SubscriptionPlanAdmin,
   type UserDetail,
+  caregiverInviteWithProfileDefaults,
   cleanLabel,
   consentStatusLabel,
   contactNumberValue,
@@ -1140,12 +1141,13 @@ export default function LifecycleAdminPage() {
 
   async function sendCaregiverInvite() {
     if (!selectedUser) return;
+    const caregiverInvitePayload = caregiverInviteWithProfileDefaults(caregiverInviteDraft, selectedDraft);
     setSendingCaregiverInvite(true);
     setUserDetailMessage("");
     try {
       const data = await api(`/users/${selectedUser.intake.id}/caregiver-invite`, {
         method: "POST",
-        body: JSON.stringify(caregiverInviteDraft),
+        body: JSON.stringify(caregiverInvitePayload),
       });
       const delivery = data.delivery && typeof data.delivery === "object" && !Array.isArray(data.delivery)
         ? data.delivery as JsonRecord
@@ -1153,7 +1155,7 @@ export default function LifecycleAdminPage() {
       const queued = Number(delivery.queued ?? 0);
       const sent = Number(delivery.sent ?? 0);
       const failed = Number(delivery.failed ?? 0);
-      const inviteeName = caregiverInviteDraft.name.trim() || "Caregiver";
+      const inviteeName = caregiverInvitePayload.name.trim() || "Caregiver";
       const confirmation = failed > 0
         ? `${inviteeName}'s invite was created, but ${failed} delivery attempt${failed === 1 ? "" : "s"} failed.`
         : sent > 0

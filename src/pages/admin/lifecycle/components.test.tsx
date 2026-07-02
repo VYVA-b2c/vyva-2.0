@@ -1,7 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IntakeTable, UserDetailModal } from "./components";
-import type { Intake } from "./shared";
+import { caregiverInviteWithProfileDefaults, defaultCaregiverInviteDraft, type CaregiverInviteDraft, type Intake } from "./shared";
 
 function intake(overrides: Partial<Intake>): Intake {
   return {
@@ -33,6 +33,14 @@ function intake(overrides: Partial<Intake>): Intake {
     activated_at: null,
     dropped_at: null,
     last_activity_at: null,
+    ...overrides,
+  };
+}
+
+function caregiverInviteDraft(overrides: Partial<CaregiverInviteDraft> = {}): CaregiverInviteDraft {
+  return {
+    ...defaultCaregiverInviteDraft,
+    permissions: { ...defaultCaregiverInviteDraft.permissions },
     ...overrides,
   };
 }
@@ -91,6 +99,98 @@ describe("IntakeTable", () => {
 });
 
 describe("UserDetailModal", () => {
+  it("uses caregiver profile details as caregiver invite defaults", () => {
+    const onSendCaregiverInvite = vi.fn();
+
+    render(
+      <UserDetailModal
+        detail={{
+          intake: intake({ id: "caregiver-detail", name: "Karim Assad" }),
+          profile: null,
+          account_mappings: [],
+          communications: [],
+          lifecycle_events: [],
+          consent_attempts: [],
+          scheduled_events: [],
+          care_team_invitations: [],
+        }}
+        draft={{
+          full_name: "Karim Assad",
+          preferred_name: "",
+          phone_number: "+34 612 345 678",
+          whatsapp_number: "",
+          email: "karim@example.com",
+          language: "es",
+          timezone: "Europe/Madrid",
+          caregiver_name: "Hassan",
+          caregiver_contact: "hassan@mokadigital.net",
+          tier: "premium",
+          organization_id: "",
+        }}
+        setDraft={vi.fn()}
+        organizations={[]}
+        planOptions={[{ value: "premium", label: "Premium" }]}
+        caregiverInviteDraft={caregiverInviteDraft()}
+        setCaregiverInviteDraft={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onSendCaregiverInvite={onSendCaregiverInvite}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+        newEvent={{
+          event_type: "custom",
+          title: "",
+          description: "",
+          channel: "app",
+          scheduled_for: "",
+          scheduled_date: "",
+          scheduled_time: "",
+          timezone: "Europe/Madrid",
+          recurrence: "none",
+          status: "upcoming",
+          source: "admin",
+        }}
+        setNewEvent={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEventStatus={vi.fn()}
+        onEventTime={vi.fn()}
+        onSupportSave={vi.fn()}
+        onSupportStatus={vi.fn()}
+      />,
+    );
+
+    const sendButton = screen.getByRole("button", { name: "Send caregiver invite" });
+    expect(sendButton).toBeEnabled();
+    expect(screen.queryByText("Name plus email, phone, or WhatsApp required.")).not.toBeInTheDocument();
+
+    fireEvent.click(sendButton);
+    expect(onSendCaregiverInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps caregiver profile contact into the caregiver invite payload", () => {
+    expect(
+      caregiverInviteWithProfileDefaults(caregiverInviteDraft(), {
+        caregiver_name: "Hassan",
+        caregiver_contact: "hassan@mokadigital.net",
+      }),
+    ).toMatchObject({
+      name: "Hassan",
+      email: "hassan@mokadigital.net",
+      phone: "",
+    });
+
+    expect(
+      caregiverInviteWithProfileDefaults(caregiverInviteDraft(), {
+        caregiver_name: "Hassan",
+        caregiver_contact: "+34 612 345 678",
+      }),
+    ).toMatchObject({
+      name: "Hassan",
+      email: "",
+      phone: "+34 612 345 678",
+    });
+  });
+
   it("keeps email-only records out of the name and contact number fields", () => {
     render(
       <UserDetailModal
@@ -124,8 +224,11 @@ describe("UserDetailModal", () => {
         setDraft={vi.fn()}
         organizations={[]}
         planOptions={[{ value: "free", label: "Free" }]}
+        caregiverInviteDraft={caregiverInviteDraft()}
+        setCaregiverInviteDraft={vi.fn()}
         onClose={vi.fn()}
         onSave={vi.fn()}
+        onSendCaregiverInvite={vi.fn()}
         onToggle={vi.fn()}
         onDelete={vi.fn()}
         newEvent={{

@@ -19,6 +19,7 @@ import {
   accountStatusLabel,
   callbackMetadata,
   callbackScheduledLabel,
+  caregiverInviteWithProfileDefaults,
   cleanLabel,
   combineDateTimeLocal,
   consentStatusLabel,
@@ -977,10 +978,11 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
   const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
   const careTeamInvitations = detail.care_team_invitations ?? [];
+  const effectiveCaregiverInviteDraft = caregiverInviteWithProfileDefaults(caregiverInviteDraft, draft);
   const caregiverInviteHasContact = Boolean(
-    caregiverInviteDraft.email.trim() || caregiverInviteDraft.phone.trim() || caregiverInviteDraft.whatsapp.trim(),
+    effectiveCaregiverInviteDraft.email || effectiveCaregiverInviteDraft.phone || effectiveCaregiverInviteDraft.whatsapp,
   );
-  const caregiverInviteReady = Boolean(caregiverInviteDraft.name.trim() && caregiverInviteHasContact);
+  const caregiverInviteReady = Boolean(effectiveCaregiverInviteDraft.name && caregiverInviteHasContact);
   function updateCaregiverInvitePermission(key: CaregiverInvitePermissionKey, value: boolean) {
     setCaregiverInviteDraft({
       ...caregiverInviteDraft,
@@ -1058,6 +1060,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                     <input
                       className="w-full rounded-xl border px-3 py-2.5"
                       value={caregiverInviteDraft.name}
+                      placeholder={caregiverInviteDraft.name ? undefined : effectiveCaregiverInviteDraft.name}
                       onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, name: event.target.value })}
                     />
                   </Field>
@@ -1072,6 +1075,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                     <input
                       className="w-full rounded-xl border px-3 py-2.5"
                       value={caregiverInviteDraft.email}
+                      placeholder={caregiverInviteDraft.email ? undefined : effectiveCaregiverInviteDraft.email}
                       onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, email: event.target.value })}
                     />
                   </Field>
@@ -1079,6 +1083,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                     <input
                       className="w-full rounded-xl border px-3 py-2.5"
                       value={caregiverInviteDraft.phone}
+                      placeholder={caregiverInviteDraft.phone ? undefined : effectiveCaregiverInviteDraft.phone}
                       onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, phone: event.target.value })}
                     />
                   </Field>
