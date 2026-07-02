@@ -133,7 +133,8 @@ describe("SocialHub home-style layout", () => {
     expect(within(primaryCards).getByText("Activities")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Share")).toBeInTheDocument();
     expect(primaryCards).not.toHaveTextContent("Participate");
-    expect(primaryCards).toHaveTextContent("Movement and clubs");
+    expect(primaryCards).not.toHaveTextContent("Movement and clubs");
+    expect(screen.getByTestId("card-social-primary-activities")).toHaveAccessibleName("Activities. Movement and clubs");
     expect(primaryCards).not.toHaveTextContent("Challenge");
     expect(primaryCards).not.toHaveTextContent("Learn");
     expect(screen.queryByTestId("button-social-quick-challenge")).not.toBeInTheDocument();

@@ -154,9 +154,12 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Schedule");
     expect(screen.queryByRole("button", { name: "Plan a Trip" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Find Events" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-concierge-card-service")).toHaveTextContent("Home service, forms, legal/admin, care");
-    expect(screen.getByTestId("button-concierge-card-delivery")).toHaveTextContent("Groceries, essentials, prepared meals");
-    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveTextContent("Medical, government, personal care");
+    expect(screen.getByTestId("button-concierge-card-service")).not.toHaveTextContent("Home service, forms, legal/admin, care");
+    expect(screen.getByTestId("button-concierge-card-service")).toHaveAccessibleName("Help. Home service, forms, legal/admin, care");
+    expect(screen.getByTestId("button-concierge-card-delivery")).not.toHaveTextContent("Groceries, essentials, prepared meals");
+    expect(screen.getByTestId("button-concierge-card-delivery")).toHaveAccessibleName("Order. Groceries, essentials, prepared meals");
+    expect(screen.getByTestId("button-concierge-card-appointment")).not.toHaveTextContent("Medical, government, personal care");
+    expect(screen.getByTestId("button-concierge-card-appointment")).toHaveAccessibleName("Schedule. Medical, government, personal care");
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("button-concierge-fast-home-service")).toHaveTextContent("Home service");
     expect(screen.getByTestId("button-concierge-fast-fill-form")).toHaveTextContent("Fill a form");

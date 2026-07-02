@@ -147,6 +147,17 @@ function renderHealthScreen(initialEntries = ["/health"], overrides: Record<stri
       ],
       latest_alert: null,
     },
+    "/api/health/prevention": {
+      focus: "Follow-up",
+      headline: "Follow-up today.",
+      why: ["Latest symptom report: Mild dizziness."],
+      todayAction: "Open the latest report and ask VYVA what to watch.",
+      helpSigns: ["Symptoms get worse", "Trouble breathing"],
+      primaryRoute: "/informes/triage-1",
+      secondaryRoute: "/health/doctor",
+      confidence: "moderate",
+      generatedAt: "2026-06-27T08:40:00.000Z",
+    },
     "/api/checkins/today": {
       status: "completed",
       date_key: "2026-06-27",
@@ -253,12 +264,19 @@ describe("HealthScreen home-style layout", () => {
     expect(within(cardGrid).getAllByRole("button")).toHaveLength(4);
     expect(screen.queryByTestId("button-health-tool-plan")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Vitals");
-    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Pulse: 72 bpm");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Pulse 72");
+    expect(screen.getByTestId("button-health-tool-vitals")).not.toHaveTextContent("Pulse: 72 bpm");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveAccessibleName("Vitals. Pulse: 72 bpm");
     expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("Medicine");
     expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due");
     expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Symptoms");
-    expect(screen.getByTestId("button-health-tool-reports")).toHaveTextContent("Prevention");
-    expect(screen.getByTestId("button-health-tool-reports")).toHaveTextContent("Follow-up: Mild dizziness");
+    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent(
+      new Date("2026-06-27T08:30:00.000Z").toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+    );
+    expect(screen.getByTestId("button-health-tool-prevention")).toHaveTextContent("Prevention");
+    expect(screen.getByTestId("button-health-tool-prevention")).toHaveTextContent("Follow-up");
+    expect(screen.getByTestId("button-health-tool-prevention")).not.toHaveTextContent("Follow-up today.");
+    expect(screen.getByTestId("button-health-tool-prevention")).toHaveAccessibleName("Prevention. Follow-up today.");
 
     expect(screen.queryByTestId("health-plan-lead")).not.toBeInTheDocument();
     expect(screen.queryByTestId("health-tool-section")).not.toBeInTheDocument();
@@ -267,8 +285,10 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("health-fast-help")).toHaveTextContent("Fast help");
     expect(within(screen.getByTestId("health-fast-help")).getAllByRole("button")).toHaveLength(3);
     expect(screen.getByTestId("button-health-fast-safety-signs")).toHaveTextContent("Safety signs");
-    expect(screen.getByTestId("button-health-fast-explain-plan")).toHaveTextContent("Explain my plan");
-    expect(screen.getByTestId("button-health-fast-open-latest-report")).toHaveTextContent("Open latest report");
+    expect(screen.getByTestId("button-health-fast-explain-plan")).toHaveTextContent("Explain plan");
+    expect(screen.getByTestId("button-health-fast-explain-plan")).toHaveTextContent("What matters today");
+    expect(screen.getByTestId("button-health-fast-open-latest-report")).toHaveTextContent("Latest report");
+    expect(screen.getByTestId("button-health-fast-open-latest-report")).toHaveTextContent("Reports and summaries");
     expect(screen.queryByTestId("section-health-visual-scan")).not.toBeInTheDocument();
   });
 
@@ -291,8 +311,8 @@ describe("HealthScreen home-style layout", () => {
     fireEvent.click(screen.getByTestId("button-health-tool-medicine"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/meds");
 
-    fireEvent.click(screen.getByTestId("button-health-tool-reports"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/informes");
+    fireEvent.click(screen.getByTestId("button-health-tool-prevention"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/health/prevention");
 
     fireEvent.click(screen.getByTestId("button-health-fast-safety-signs"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/health/symptom-check");
@@ -331,6 +351,17 @@ describe("HealthScreen home-style layout", () => {
         },
       },
       "/api/vitals-engine/latest": { analysis: null, recent_readings: [], latest_alert: null },
+      "/api/health/prevention": {
+        focus: "Plan",
+        headline: "Prevention ready.",
+        why: ["No strong warning pattern stands out right now."],
+        todayAction: "Do one quick check-in.",
+        helpSigns: ["Sudden chest pain", "Trouble breathing", "New confusion"],
+        primaryRoute: "/health/check-in",
+        secondaryRoute: "/health/doctor",
+        confidence: "limited",
+        generatedAt: "2026-06-27T08:40:00.000Z",
+      },
       "/api/checkins/today": {
         status: "due_now",
         date_key: "2026-06-27",
@@ -357,11 +388,14 @@ describe("HealthScreen home-style layout", () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Add vitals"));
-    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Add vitals");
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Add"));
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Add");
+    expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("Medicine");
     expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("Schedule");
-    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Start check");
-    expect(screen.getByTestId("button-health-tool-reports")).toHaveTextContent("Risks and next steps");
+    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Start");
+    expect(screen.getByTestId("button-health-tool-prevention")).toHaveTextContent("Plan");
+    expect(screen.getByTestId("button-health-tool-prevention")).not.toHaveTextContent("Prevention ready.");
+    expect(screen.getByTestId("button-health-tool-prevention")).toHaveAccessibleName("Prevention. Prevention ready.");
     expect(screen.queryByTestId("button-health-signal-checkin")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-health-signal-symptoms")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-health-signal-medication")).not.toBeInTheDocument();
@@ -400,9 +434,10 @@ describe("HealthScreen home-style layout", () => {
       "/api/meds/adherence-report": medicineDueNowReport,
     });
 
-    await waitFor(() => expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Needs review"));
-    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("BP 168/96 mmHg");
-    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Needs review");
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("BP 168/96"));
+    expect(screen.getByTestId("button-health-tool-vitals")).not.toHaveTextContent("BP 168/96 mmHg");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveAccessibleName("Vitals. BP 168/96 mmHg");
+    expect(screen.getByTestId("button-health-tool-vitals")).not.toHaveTextContent("Needs review");
     expect(screen.queryByTestId("button-health-signal-vitals")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due");
   });
@@ -426,10 +461,37 @@ describe("HealthScreen home-style layout", () => {
       "/api/meds/adherence-report": medicineDueNowReport,
     });
 
-    await waitFor(() => expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Chest tightness"));
-    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Chest tightness");
-    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Pulse: 72 bpm");
+    const olderSymptomTag = new Date("2026-06-27T08:30:00.000Z").toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent(olderSymptomTag));
+    expect(screen.getByTestId("button-health-tool-symptoms")).not.toHaveTextContent("Chest tightness");
+    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveAccessibleName("Symptoms. Chest tightness");
+    expect(screen.getByTestId("button-health-tool-symptoms")).not.toHaveTextContent("Review");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveTextContent("Pulse 72");
+    expect(screen.getByTestId("button-health-tool-vitals")).not.toHaveTextContent("Pulse: 72 bpm");
+    expect(screen.getByTestId("button-health-tool-vitals")).toHaveAccessibleName("Vitals. Pulse: 72 bpm");
     expect(screen.queryByTestId("button-health-signal-symptoms")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due");
+  });
+
+  it("uses Today for same-day symptom report tags", async () => {
+    renderHealthScreen(["/health"], {
+      "/api/reports/summary": {
+        latestTriage: {
+          id: "triage-today",
+          chief_complaint: "Mild dizziness",
+          symptoms: ["Dizzy"],
+          urgency: "monitor",
+          recommendations: ["Rest and monitor"],
+          bpm: 72,
+          respiratory_rate: null,
+          created_at: new Date().toISOString(),
+        },
+        latestVitals: null,
+        todayMeds: { taken: 0, total: 0, adherencePct: null },
+      },
+    });
+
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-symptoms")).toHaveTextContent("Today"));
+    expect(screen.getByTestId("button-health-tool-symptoms")).toHaveAccessibleName("Symptoms. Mild dizziness");
   });
 });

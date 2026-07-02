@@ -139,6 +139,7 @@ export default function MasterDashboardLayout({
   return (
     <div className="vyva-page pb-32 sm:pb-12" data-testid={testId}>
       <section
+        aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className="mt-4 overflow-hidden rounded-[26px] border bg-white p-4 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"
         style={{ borderColor: heroTone.border, background: heroTone.surface ?? "#FFFFFF" }}
         data-testid={hero.testId}
@@ -151,14 +152,11 @@ export default function MasterDashboardLayout({
             <HeroIcon size={23} strokeWidth={2.5} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-body text-[12px] font-black uppercase leading-none text-vyva-text-3">
-              {hero.eyebrow}
-            </span>
-            <h1 className="mt-1 font-body text-[28px] font-black leading-tight text-vyva-text-1 sm:text-[34px]">
+            <h1 className="font-body text-[30px] font-black leading-[1.05] text-vyva-text-1 sm:text-[36px]">
               {hero.title}
             </h1>
             {hero.subtitle ? (
-              <p className="mt-1 font-body text-[16px] font-black leading-snug text-[#0F4C45]">
+              <p className="mt-1 line-clamp-1 font-body text-[15px] font-extrabold leading-snug text-[#0F4C45]">
                 {hero.subtitle}
               </p>
             ) : null}
@@ -181,14 +179,15 @@ export default function MasterDashboardLayout({
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
+            const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
             return (
               <button
                 key={card.id}
                 type="button"
                 onClick={card.onClick}
                 data-testid={card.testId}
-                aria-label={`${card.title}. ${card.detail}`}
-                className="vyva-tap group flex min-h-[112px] flex-col items-start justify-between rounded-[20px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(31,41,55,0.05)] transition-transform hover:-translate-y-0.5 sm:min-h-[118px] sm:p-4"
+                aria-label={cardAriaLabel}
+                className="vyva-tap group flex min-h-[92px] flex-col items-start justify-between rounded-[20px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(31,41,55,0.05)] transition-transform hover:-translate-y-0.5 sm:min-h-[104px] sm:p-4"
                 style={{ borderColor: card.tone.border, background: card.tone.surface ?? "#FFFFFF" }}
               >
                 <span className="flex w-full items-start justify-between gap-2">
@@ -200,19 +199,16 @@ export default function MasterDashboardLayout({
                   </span>
                   {card.accent ? (
                     <span
-                      className="min-w-0 truncate rounded-full px-2 py-1 font-body text-[11px] font-black"
+                      className="min-w-0 max-w-[76px] rounded-full px-1.5 py-1 text-center font-body text-[10px] font-black leading-none sm:max-w-[92px] sm:px-2 sm:text-[11px]"
                       style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
                     >
                       {card.accent}
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-3 min-w-0">
+                <span className="mt-3 min-w-0 pr-1">
                   <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1">
                     {card.title}
-                  </span>
-                  <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                    {card.detail}
                   </span>
                 </span>
               </button>
@@ -240,12 +236,14 @@ export default function MasterDashboardLayout({
         <div className="mt-3 grid gap-2">
           {visibleFastHelpActions.map((action) => {
             const Icon = action.icon;
+            const actionAriaLabel = action.detail ? `${action.label}. ${action.detail}` : action.label;
             return (
               <button
                 key={action.id}
                 type="button"
                 data-testid={action.testId}
                 onClick={action.onClick}
+                aria-label={actionAriaLabel}
                 aria-expanded={action.expanded}
                 aria-controls={action.controls}
                 className="vyva-tap flex min-h-[56px] items-center gap-3 rounded-[17px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5"

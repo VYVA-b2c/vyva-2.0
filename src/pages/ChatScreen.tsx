@@ -234,6 +234,28 @@ const ChatScreen = () => {
         </div>
       </div>
 
+      {chatMode === "voice" && (status === "connected" || isConnecting || lastError) && (
+        <VoiceCallOverlay
+          isSpeaking={isSpeaking}
+          isConnecting={isConnecting}
+          transcript={transcript}
+          onEnd={handleEndVoiceMode}
+          voiceSessionPhase={voiceSessionPhase}
+          isMicMuted={isMicMuted}
+          onMicToggle={setMicrophoneMuted}
+          connectionError={lastError}
+          connectionErrorCode={lastErrorCode}
+          onType={handleEndVoiceMode}
+          onRetry={() => {
+            void startVoice("companion", undefined, {
+              autoStartListening: true,
+              dynamicVariables: {
+                app_entrypoint: "chat_voice_mode",
+              },
+            });
+          }}
+        />
+      )}
     </div>
   );
 };
