@@ -1,7 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams, useNavigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
+import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import AppShell from "./components/AppShell";
@@ -38,8 +39,10 @@ const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
+const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
 const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
+const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
 const ActivitiesScreen = lazy(() => import("./pages/ActivitiesScreen"));
 const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
 const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
@@ -439,12 +442,29 @@ function RootRoute() {
 
   if (isLoading) return <div className="min-h-screen bg-[#F8F4EF]" />;
   if (!user) return <LandingPage />;
+  if (isCaregiverRoutingUser(user)) {
+    return <Navigate to={CAREGIVER_DASHBOARD_ROUTE} replace />;
+  }
 
   return (
     <AppShell>
       <HomeScreen />
     </AppShell>
   );
+}
+
+function CaregiverRouteGuard() {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (
+    isCaregiverRoutingUser(user) &&
+    !isCaregiverAccessibleAppPath(location.pathname)
+  ) {
+    return <Navigate to={CAREGIVER_DASHBOARD_ROUTE} replace />;
+  }
+
+  return <Outlet />;
 }
 
 function getInteractiveLabel(element: Element): string {
@@ -554,6 +574,7 @@ const App = () => (
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route path="/admin/curated-activities" element={<AdminRoute><CuratedActivitiesAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
+                  <Route element={<CaregiverRouteGuard />}>
                   <Route path="/profiles/select" element={<ProfileSelectPage />} />
                   <Route element={<OnboardingGuard />}>
                     <Route path="/onboarding" element={<WelcomeScreen />} />
@@ -578,6 +599,7 @@ const App = () => (
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
+                  <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/check-in" element={<AppShell><CheckHowIFeelScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
@@ -595,6 +617,7 @@ const App = () => (
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
                   <Route path="/activities" element={<AppShell><ActivitiesScreen /></AppShell>} />
                   <Route path="/activities/relax-breathe" element={<AppShell><RelaxBreatheScreen /></AppShell>} />
                   <Route path="/learn" element={<AppShell><LearnSomethingNewPage /></AppShell>} />
@@ -622,6 +645,7 @@ const App = () => (
                   <Route path="/safe-home" element={<AppShell><SafeHomeScreen /></AppShell>} />
                   <Route path="/scam-guard" element={<AppShell><ScamGuardScreen /></AppShell>} />
                   <Route path="/history" element={<AppShell><HistoryScreen /></AppShell>} />
+                  </Route>
                 </Route>
                 <Route path="*" element={<NotFound />} />
                     </Routes>

@@ -77,7 +77,6 @@ const ActivitiesScreen = () => {
     retry: false,
   });
   const streak = brainCoachProgress?.summary?.streakDays ?? 0;
-  const completedTodayCount = brainCoachProgress?.today?.completedCount ?? 0;
   const caregiverNudge = dailyPlan?.caregiverNudge ?? null;
   const visibleCaregiverNudge = caregiverNudge?.status === "dismissed" ? null : caregiverNudge;
 
@@ -321,30 +320,6 @@ const ActivitiesScreen = () => {
           )}
         </section>
       )}
-
-      <section
-        className="mt-[14px] flex items-center gap-3 rounded-[22px] border border-[#EDE2D1] bg-[#FFFCF8] px-4 py-3"
-        data-testid="brain-coach-progress-summary"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
-          <BrainCircuit size={20} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-            {t("brain.progressSummary", "Brain Coach progress")}
-          </span>
-          <span className="mt-0.5 block truncate font-body text-[15px] font-extrabold text-vyva-text-1">
-            {streak > 0
-              ? t("brain.progressStreak", "{{count}} day streak", { count: streak })
-              : t("brain.progressStart", "Start with one short activity")}
-          </span>
-        </span>
-        {completedTodayCount > 0 && (
-          <span className="shrink-0 rounded-full bg-[#D1FAE5] px-3 py-1 font-body text-[12px] font-black text-[#047857]">
-            {t("brain.doneTodayShort", "Today done")}
-          </span>
-        )}
-      </section>
 
       <section className="mt-[18px]" data-testid="section-activities-primary-actions">
         <SectionTitle

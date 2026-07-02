@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import {
   type AccountSubscription,
+  type CaregiverInviteDraft,
   type Communication,
   type CommunicationProviderStatus,
   type EntryPointMetric,
@@ -18,9 +19,11 @@ import {
   accountStatusLabel,
   callbackMetadata,
   callbackScheduledLabel,
+  caregiverInviteWithProfileDefaults,
   cleanLabel,
   combineDateTimeLocal,
   consentStatusLabel,
+  contactNumberValue,
   emptyScheduledEvent,
   entryPointLabel,
   formatDate,
@@ -29,6 +32,7 @@ import {
   keywordsToText,
   languageOptions,
   lifecycleStatusLabel,
+  looksLikeContactEmail,
   stringValue,
   subscriptionStatusOptions,
   tierLabel,
@@ -55,14 +59,11 @@ function cleanContact(value?: string | null) {
 }
 
 function looksLikeEmail(value?: string | null) {
-  return Boolean(cleanContact(value)?.includes("@"));
+  return looksLikeContactEmail(value);
 }
 
 function phoneContact(value?: string | null) {
-  const contact = cleanContact(value);
-  if (!contact || looksLikeEmail(contact)) return null;
-  const digits = contact.replace(/\D/g, "");
-  return digits.length >= 6 ? contact : null;
+  return contactNumberValue(value) || null;
 }
 
 function contactKey(value?: string | null) {
@@ -74,8 +75,8 @@ function contactKey(value?: string | null) {
   return `text:${contact.toLowerCase()}`;
 }
 
-function lifecycleUserPhone(user: Intake) {
-  return phoneContact(user.profile_phone) ?? phoneContact(user.login_phone) ?? phoneContact(user.phone);
+function lifecycleUserMobile(user: Intake) {
+  return phoneContact(user.login_phone) ?? phoneContact(user.profile_phone) ?? phoneContact(user.phone);
 }
 
 function lifecycleIdentityRows(user: Intake) {
@@ -195,6 +196,9 @@ function lifecycleActivityCopy(eventType: string, row: JsonRecord) {
   }
   if (eventType === "signup_invite_profile_completed") {
     return { label: "Profile completed", detail: "Recipient saved their profile details from the invite flow." };
+  }
+  if (eventType === "login_account_deleted") {
+    return { label: "Login account deleted", detail: "Admin deleted the login account and released its email/mobile." };
   }
   if (eventType === "admin_profile_updated") {
     const tierChanged = previousTier && nextTier && previousTier !== nextTier;
@@ -439,7 +443,7 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
   ]);
   const tierEvent = latestTierEvent(detail);
   const tierMetadata = jsonObject(tierEvent?.metadata);
-  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored"]);
+  const accessOrRemovalEvent = latestLifecycleEvent(detail, ["user_disabled", "user_enabled", "user_deleted", "user_restored", "login_account_deleted"]);
   const accessOrRemovalType = stringValue(accessOrRemovalEvent?.event_type);
   const accessOrRemovalCopy = accessOrRemovalEvent
     ? lifecycleActivityCopy(accessOrRemovalType ?? "lifecycle_event", accessOrRemovalEvent)
@@ -478,7 +482,7 @@ function AuditMilestones({ detail }: { detail: UserDetail }) {
       label: "Access / removal",
       done: Boolean(accessOrRemovalEvent),
       detail: accessOrRemovalEvent ? `${accessOrRemovalCopy?.label ?? "Lifecycle update"} at ${formatDate(stringValue(accessOrRemovalEvent.created_at))}` : "No app-access disable or user removal event.",
-      tone: accessOrRemovalEvent && ["user_disabled", "user_deleted"].includes(accessOrRemovalType ?? "") ? "danger" : "success",
+      tone: accessOrRemovalEvent && ["user_disabled", "user_deleted", "login_account_deleted"].includes(accessOrRemovalType ?? "") ? "danger" : "success",
     },
     {
       label: "Consent",
@@ -637,7 +641,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
               {visibleSelectionCount > 0 && !allVisibleSelected && <span className="sr-only">{visibleSelectionCount} visible users selected</span>}
             </th>
           )}
-          <th>Name</th>{!compact && <th>Phone</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
+          <th>Name</th>{!compact && <th>Contact number</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
         </tr></thead>
         <tbody>
           {users.length === 0 && (
@@ -689,7 +693,7 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                   </div>
                 )}
               </td>
-              {!compact && <td className="px-3 py-3">{lifecycleUserPhone(user) ?? "-"}</td>}
+              {!compact && <td className="px-3 py-3">{lifecycleUserMobile(user) ?? "-"}</td>}
               <td className="px-3 py-3">{userTypeLabel(user.user_type)}</td>
               <td className="px-3 py-3">
                 <span>{entryPointLabel(user.entry_point)}</span>
@@ -906,7 +910,233 @@ export function AccountSubscriptionsSection({
   );
 }
 
-export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, deleting = false, restoring = false, scheduleBusyAction = null, onClose, onSave, onToggle, onDelete, onRestore, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
+type CaregiverInvitePermissionKey = keyof CaregiverInviteDraft["permissions"];
+
+const caregiverInvitePermissionOptions: Array<{ key: CaregiverInvitePermissionKey; label: string }> = [
+  { key: "dashboard_access", label: "Dashboard access" },
+  { key: "safety_alerts", label: "Safety alerts" },
+  { key: "medication_alerts", label: "Medication alerts" },
+  { key: "health_alerts", label: "Health alerts" },
+  { key: "vital_signs", label: "Vital signs" },
+  { key: "daily_summary", label: "Daily summary" },
+  { key: "mood_updates", label: "Mood updates" },
+  { key: "journal_summaries", label: "Journal summaries" },
+];
+
+function careTeamRoleLabel(role?: string | null) {
+  if (role === "family_member") return "Family";
+  if (role === "gp") return "GP";
+  return cleanLabel(role ?? "caregiver") || "Caregiver";
+}
+
+function careTeamInviteStatusClass(status?: string | null) {
+  if (status === "accepted") return "bg-[#ecfdf3] text-[#087443]";
+  if (status === "revoked" || status === "declined" || status === "expired") return "bg-[#fff3e8] text-[#8a4a00]";
+  return "bg-[#f4eafe] text-purple-700";
+}
+
+function cleanText(value: unknown) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+}
+
+function textArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(cleanText).filter(Boolean);
+}
+
+function recordArray(value: unknown): JsonRecord[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is JsonRecord => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    : [];
+}
+
+function firstText(record: JsonRecord, keys: string[]) {
+  for (const key of keys) {
+    const text = cleanText(record[key]);
+    if (text) return text;
+  }
+  return "";
+}
+
+function uniqueTexts(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const value of values) {
+    const text = cleanText(value);
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    seen.add(key);
+    items.push(text);
+  }
+  return items;
+}
+
+function supportValue(value: unknown, fallback = "Not added") {
+  const text = cleanText(value);
+  return text || fallback;
+}
+
+function formatAddress(profile: JsonRecord) {
+  return uniqueTexts([
+    stringValue(profile.address_line_1),
+    stringValue(profile.city),
+    stringValue(profile.region),
+    stringValue(profile.postcode),
+    stringValue(profile.country_code),
+  ]).join(", ");
+}
+
+function conditionItems(consent: JsonRecord) {
+  const section = jsonObject(consent.conditions);
+  const conditionNames = recordArray(section.conditions).map((item) => firstText(item, ["name", "label"]));
+  return uniqueTexts([...textArray(section.health_conditions), ...conditionNames]);
+}
+
+function deviceItems(consent: JsonRecord) {
+  const healthDeviceSection = jsonObject(consent.health_devices);
+  const healthDevices = recordArray(healthDeviceSection.devices).map((device) => {
+    const name = firstText(device, ["deviceName", "name", "id"]);
+    const status = cleanText(device.status);
+    return status && name ? `${cleanLabel(name)} - ${cleanLabel(status)}` : cleanLabel(name);
+  });
+  const onboardingDeviceSection = jsonObject(consent.devices);
+  return uniqueTexts([...healthDevices, ...textArray(onboardingDeviceSection.devices)]);
+}
+
+function medicationSummary(medication: JsonRecord) {
+  const name = firstText(medication, ["medication_name", "name"]);
+  const details = uniqueTexts([
+    stringValue(medication.dosage),
+    stringValue(medication.frequency),
+    Array.isArray(medication.scheduled_times) ? medication.scheduled_times.join(", ") : stringValue(medication.times),
+  ]);
+  return details.length ? `${name} - ${details.join(", ")}` : name;
+}
+
+function providerSummary(provider: JsonRecord) {
+  const name = firstText(provider, ["name", "provider_name"]);
+  const role = firstText(provider, ["category", "role"]);
+  const contacts = uniqueTexts([stringValue(provider.phone), stringValue(provider.email), stringValue(provider.whatsapp)]);
+  return uniqueTexts([name, role ? cleanLabel(role) : "", contacts.join(", ")]).join(" - ");
+}
+
+function contactChannelLabel(value: unknown) {
+  const channel = cleanText(value);
+  if (channel === "voice_outbound") return "Phone call";
+  if (channel === "whatsapp_outbound") return "WhatsApp";
+  if (channel === "voice_app") return "In-app voice";
+  return cleanLabel(channel || "Not set");
+}
+
+function contactLimitLabel(value: unknown, unit: string) {
+  if (value === null) return "Unlimited";
+  if (typeof value === "number") return `${value} ${unit}${value === 1 ? "" : "s"}/day`;
+  return supportValue(value);
+}
+
+function ReadOnlyValue({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2.5">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{label}</p>
+      <p className="mt-1 break-words text-sm font-bold text-[#2f2135]">{value || "Not added"}</p>
+    </div>
+  );
+}
+
+function ReadOnlyList({ label, items, empty = "Not added" }: { label: string; items: string[]; empty?: string }) {
+  return (
+    <div className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2.5">
+      <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{label}</p>
+      {items.length ? (
+        <ul className="mt-1 grid gap-1 text-sm font-bold text-[#2f2135]">
+          {items.map((item) => <li key={item} className="break-words">{item}</li>)}
+        </ul>
+      ) : (
+        <p className="mt-1 text-sm font-bold text-[#7d6b65]">{empty}</p>
+      )}
+    </div>
+  );
+}
+
+function UserSupportInfoTab({ detail }: { detail: UserDetail }) {
+  const profile = detail.profile ?? {};
+  const supportProfile = detail.support_profile ?? {};
+  const consent = jsonObject(profile.data_sharing_consent);
+  const emergency = jsonObject(consent.emergency);
+  const conditions = jsonObject(consent.conditions);
+  const cognitive = jsonObject(consent.cognitive);
+  const diet = jsonObject(consent.diet);
+  const hobbies = jsonObject(consent.hobbies);
+  const channelPreferences = jsonObject(supportProfile.channel_preferences);
+  const medications = (supportProfile.medications ?? []).map(medicationSummary).filter(Boolean);
+  const providers = (supportProfile.providers ?? []).map(providerSummary).filter(Boolean);
+  const allergies = textArray(profile.known_allergies);
+  const address = formatAddress(profile);
+  const gpContact = uniqueTexts([stringValue(profile.gp_phone), stringValue(profile.gp_email)]).join(" - ");
+  const emergencyContact = uniqueTexts([
+    firstText(emergency, ["emergency_name", "name"]),
+    firstText(emergency, ["emergency_role", "relationship"]),
+    firstText(emergency, ["emergency_phone", "primary_phone"]),
+  ]).join(" - ");
+  const lifestyleItems = uniqueTexts([
+    ...textArray(diet.dietary_preferences),
+    ...textArray(hobbies.hobbies),
+    stringValue(diet.dietary_notes),
+    stringValue(cognitive.cognitive_notes),
+    stringValue(conditions.mobility_level),
+    stringValue(conditions.living_situation),
+  ]);
+
+  return (
+    <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-xl font-black">Support info</h3>
+          <p className="mt-1 text-sm text-[#7d6b65]">Read-only user-owned profile context from the app.</p>
+        </div>
+        <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black text-purple-700">Read-only</span>
+      </div>
+      <p className="mt-3 rounded-xl bg-[#fff3e8] px-3 py-2 text-sm font-bold text-[#8a4a00]">
+        These details are shown for support context. The user should update them from their app unless a dedicated admin support flow is added.
+      </p>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <ReadOnlyValue label="Home address" value={address} />
+        <ReadOnlyValue label="Emergency contact" value={emergencyContact} />
+        <ReadOnlyValue label="GP" value={supportValue(profile.gp_name)} />
+        <ReadOnlyValue label="GP contact" value={gpContact || supportValue(profile.gp_address)} />
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <ReadOnlyList label="Conditions" items={conditionItems(consent)} />
+        <ReadOnlyList label="Allergies" items={allergies} empty={jsonObject(consent.allergies).no_known_allergies === true ? "No known allergies" : "Not added"} />
+        <ReadOnlyList label="Medications" items={medications} empty={jsonObject(consent.medications).no_known_medications === true ? "No known medications" : "Not added"} />
+        <ReadOnlyList label="Providers" items={providers} />
+        <ReadOnlyList label="Health devices" items={deviceItems(consent)} />
+        <ReadOnlyList label="Lifestyle and notes" items={lifestyleItems} />
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="font-black">Notifications and contact</h4>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-purple-700">
+            {supportProfile.channel_preferences_saved ? "User-set" : "Default"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <ReadOnlyValue label="Check-ins" value={contactChannelLabel(channelPreferences.preferred_checkin_channel)} />
+          <ReadOnlyValue label="Reminders" value={contactChannelLabel(channelPreferences.preferred_reminder_channel)} />
+          <ReadOnlyValue label="Support mode" value={cleanLabel(supportValue(channelPreferences.support_mode))} />
+          <ReadOnlyValue label="Voice hours" value={`${supportValue(channelPreferences.voice_available_from)} to ${supportValue(channelPreferences.voice_available_until)}`} />
+          <ReadOnlyValue label="WhatsApp hours" value={`${supportValue(channelPreferences.whatsapp_available_from)} to ${supportValue(channelPreferences.whatsapp_available_until)}`} />
+          <ReadOnlyValue label="Daily limits" value={`${contactLimitLabel(channelPreferences.max_outbound_calls_per_day, "call")} - ${contactLimitLabel(channelPreferences.max_whatsapp_messages_per_day, "message")}`} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function UserDetailModal({ detail, draft, setDraft, organizations, planOptions, statusMessage, saving = false, caregiverInviteDraft, setCaregiverInviteDraft, caregiverInviteBusy = false, deleting = false, restoring = false, deletingLoginUid = null, scheduleBusyAction = null, onClose, onSave, onSendCaregiverInvite, onToggle, onDelete, onRestore, onDeleteLoginAccount, newEvent, setNewEvent, onCreateEvent, onEventStatus, onEventTime, onSupportSave, onSupportStatus }: {
   detail: UserDetail;
   draft: JsonRecord;
   setDraft: (next: JsonRecord) => void;
@@ -914,14 +1144,20 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   planOptions: Array<{ value: string; label: string }>;
   statusMessage?: string;
   saving?: boolean;
+  caregiverInviteDraft: CaregiverInviteDraft;
+  setCaregiverInviteDraft: (next: CaregiverInviteDraft) => void;
+  caregiverInviteBusy?: boolean;
   scheduleBusyAction?: string | null;
   deleting?: boolean;
   restoring?: boolean;
+  deletingLoginUid?: string | null;
   onClose: () => void;
   onSave: () => void;
-  onToggle: () => void;
+  onSendCaregiverInvite: () => void;
+  onToggle: (enable: boolean) => void;
   onDelete: () => void;
   onRestore?: () => void;
+  onDeleteLoginAccount?: (mapping: LoginMapping) => void;
   newEvent: typeof emptyScheduledEvent;
   setNewEvent: (next: typeof emptyScheduledEvent) => void;
   onCreateEvent: () => void;
@@ -930,25 +1166,39 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   onSupportSave: (schedule: ScheduledSupport, draft: SupportScheduleDraft) => void;
   onSupportStatus: (schedule: ScheduledSupport, action: "pause" | "resume") => void;
 }) {
-  const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled";
   const removed = !isVisibleLifecycleUser(detail.intake);
   const primaryMapping = detail.account_mappings?.[0];
+  const activeProfileDisabled = primaryMapping?.effective_account_status === "disabled";
+  const disabled = detail.profile?.account_status === "disabled" || detail.intake.account_status === "disabled" || activeProfileDisabled;
   const selectedTier = String(draft.tier ?? "free").toLowerCase();
   const appTier = primaryMapping?.effective_subscription_tier?.toLowerCase() ?? null;
   const hasTierMismatch = Boolean(appTier && selectedTier && appTier !== selectedTier);
   const hasSubscriptionMismatch = Boolean(primaryMapping?.subscription_mismatch);
-  const accessMismatch = hasTierMismatch || hasSubscriptionMismatch;
+  const accessMismatch = hasTierMismatch || hasSubscriptionMismatch || activeProfileDisabled;
   const appAccessText = primaryMapping
-    ? `${tierLabel(primaryMapping.effective_subscription_tier ?? "Unknown")}${primaryMapping.effective_subscription_status ? ` (${lifecycleStatusLabel(primaryMapping.effective_subscription_status)})` : ""}`
+    ? `${tierLabel(primaryMapping.effective_subscription_tier ?? "Unknown")}${primaryMapping.effective_subscription_status ? ` (${lifecycleStatusLabel(primaryMapping.effective_subscription_status)})` : ""}${activeProfileDisabled ? " - Disabled" : ""}`
     : "No login match";
   const newEventDate = newEvent.scheduled_date || toDateInputValue(newEvent.scheduled_for);
   const newEventTime = newEvent.scheduled_time || toTimeInputValue(newEvent.scheduled_for);
-  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "activity" | "communications" | "schedule">("profile");
+  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "support" | "activity" | "communications" | "schedule">("profile");
   const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
   const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
+  const careTeamInvitations = detail.care_team_invitations ?? [];
+  const effectiveCaregiverInviteDraft = caregiverInviteWithProfileDefaults(caregiverInviteDraft, draft);
+  const caregiverInviteHasContact = Boolean(
+    effectiveCaregiverInviteDraft.email || effectiveCaregiverInviteDraft.phone || effectiveCaregiverInviteDraft.whatsapp,
+  );
+  const caregiverInviteReady = Boolean(effectiveCaregiverInviteDraft.name && caregiverInviteHasContact);
+  function updateCaregiverInvitePermission(key: CaregiverInvitePermissionKey, value: boolean) {
+    setCaregiverInviteDraft({
+      ...caregiverInviteDraft,
+      permissions: { ...caregiverInviteDraft.permissions, [key]: value },
+    });
+  }
   const detailTabs = [
     { id: "profile" as const, label: "Profile" },
     { id: "access" as const, label: "Access" },
+    { id: "support" as const, label: "Support info" },
     { id: "activity" as const, label: "Activity" },
     { id: "communications" as const, label: "Communications" },
     { id: "schedule" as const, label: "Schedule" },
@@ -992,9 +1242,12 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
             </div>
             <div className="mt-4 grid gap-3">
               <Field label="Full name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
-              <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
               <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Phone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
+                <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
+                <Field label="Date of birth"><input className="w-full rounded-xl border px-3 py-2.5" type="date" value={draft.date_of_birth ?? ""} onChange={(e) => setDraft({ ...draft, date_of_birth: e.target.value })} /></Field>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Contact number"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
                 <Field label="WhatsApp"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
               </div>
               <Field label="Email"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></Field>
@@ -1012,6 +1265,123 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   {statusMessage}
                 </p>
               )}
+              <div className="mt-2 border-t border-[#eadfd5] pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-black text-[#2f2135]">Caregiver access</h4>
+                    <p className="mt-1 text-sm text-[#7d6b65]">Invite a caregiver to this elder's real care-team dashboard.</p>
+                  </div>
+                  <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black text-purple-700">
+                    {careTeamInvitations.length} invite{careTeamInvitations.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <Field label="Invitee name">
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.name}
+                      placeholder={caregiverInviteDraft.name ? undefined : effectiveCaregiverInviteDraft.name}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, name: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Relationship">
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.relationship}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, relationship: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Email" optional>
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.email}
+                      placeholder={caregiverInviteDraft.email ? undefined : effectiveCaregiverInviteDraft.email}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, email: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Phone" optional>
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.phone}
+                      placeholder={caregiverInviteDraft.phone ? undefined : effectiveCaregiverInviteDraft.phone}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, phone: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="WhatsApp" optional>
+                    <input
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.whatsapp}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, whatsapp: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Role">
+                    <select
+                      className="w-full rounded-xl border px-3 py-2.5"
+                      value={caregiverInviteDraft.role}
+                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, role: event.target.value as CaregiverInviteDraft["role"] })}
+                    >
+                      <option value="caregiver">Caregiver</option>
+                      <option value="family">Family</option>
+                      <option value="doctor">Doctor</option>
+                    </select>
+                  </Field>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {caregiverInvitePermissionOptions.map((option) => (
+                    <label key={option.key} className="flex items-center gap-2 rounded-xl border border-[#eadfd5] px-3 py-2 text-sm font-bold text-[#4d4351]">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-purple-700"
+                        checked={Boolean(caregiverInviteDraft.permissions[option.key])}
+                        onChange={(event) => updateCaregiverInvitePermission(option.key, event.target.checked)}
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={caregiverInviteBusy || !caregiverInviteReady}
+                    onClick={onSendCaregiverInvite}
+                  >
+                    {caregiverInviteBusy ? "Sending..." : "Send caregiver invite"}
+                  </button>
+                  {!caregiverInviteReady && (
+                    <span className="text-sm font-bold text-[#8b7a73]">Name plus email, phone, or WhatsApp required.</span>
+                  )}
+                </div>
+                <div className="mt-4 border-t border-[#eadfd5] pt-3">
+                  {careTeamInvitations.length === 0 && (
+                    <p className="text-sm font-semibold text-[#7d6b65]">No caregiver invitations yet.</p>
+                  )}
+                  {careTeamInvitations.slice(0, 5).map((invite) => (
+                    <div key={invite.id} className="border-b border-[#eadfd5] py-3 last:border-b-0">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-black text-[#2f2135]">{invite.invitee_name}</p>
+                          <p className="break-words text-sm text-[#7d6b65]">
+                            {[invite.invitee_email, invite.invitee_phone, invite.invitee_whatsapp].filter(Boolean).join(" - ") || "No contact saved"}
+                          </p>
+                        </div>
+                        <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${careTeamInviteStatusClass(invite.status)}`}>
+                          {cleanLabel(invite.status)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-[#7d6b65]">
+                        {careTeamRoleLabel(invite.role)}{invite.relationship ? ` - ${invite.relationship}` : ""} - {invite.accepted_at ? `Accepted ${formatDate(invite.accepted_at)}` : `Expires ${formatDate(invite.expires_at)}`}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {invite.can_view_dashboard && <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">Dashboard</span>}
+                        {invite.can_receive_safety_alerts && <span className="rounded-full bg-[#ecfdf3] px-2.5 py-1 text-xs font-black text-[#087443]">Safety</span>}
+                        {invite.can_receive_medication_alerts && <span className="rounded-full bg-[#fff3e8] px-2.5 py-1 text-xs font-black text-[#8a4a00]">Meds</span>}
+                        {invite.can_view_vital_signs && <span className="rounded-full bg-[#eef6ff] px-2.5 py-1 text-xs font-black text-[#0f5f8f]">Vitals</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>}
 
@@ -1027,7 +1397,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
             </div>
             {primaryMapping && (
               <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${accessMismatch ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
-                {primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save access to sync this user to the selected tier." : "Admin and app access are aligned.")}
+                {(primaryMapping.warnings ?? [])[0] ?? primaryMapping.subscription_warning ?? (hasTierMismatch ? "Save access to sync this user to the selected tier." : "Admin and app access are aligned.")}
               </p>
             )}
             {!primaryMapping && (
@@ -1065,12 +1435,30 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                       ))}
                     </div>
                   )}
+                  {onDeleteLoginAccount && mapping.source === "legacy" && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#eadfd5] pt-3">
+                      <button
+                        type="button"
+                        className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={Boolean(deletingLoginUid)}
+                        onClick={() => onDeleteLoginAccount(mapping)}
+                      >
+                        {deletingLoginUid === mapping.login_uid ? "Deleting login..." : "Delete login account"}
+                      </button>
+                      <span className="text-xs font-bold text-[#8b7a73]">Frees this email/mobile for a new signup.</span>
+                    </div>
+                  )}
+                  {mapping.source === "supabase" && (
+                    <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-xs font-bold text-purple-800">
+                      External auth login. Delete it in the auth provider, then refresh this drawer.
+                    </p>
+                  )}
                 </article>
               ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting || restoring} onClick={onSave}>{saving ? "Saving..." : "Save access"}</button>
-              {!removed && <button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting || restoring} onClick={onToggle}>{disabled ? "Enable app access" : "Disable app access"}</button>}
+              {!removed && <button type="button" className="rounded-xl border px-5 py-2.5 font-bold disabled:opacity-60" disabled={deleting || restoring} onClick={() => onToggle(disabled)}>{disabled ? "Enable app access" : "Disable app access"}</button>}
               {removed ? (
                 <button type="button" className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 font-bold text-emerald-800 disabled:opacity-60" disabled={restoring || !onRestore} onClick={onRestore}>{restoring ? "Restoring..." : "Restore to Users"}</button>
               ) : (
@@ -1083,6 +1471,8 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
               </p>
             )}
           </section>}
+
+          {activeDetailTab === "support" && <UserSupportInfoTab detail={detail} />}
 
           {activeDetailTab === "schedule" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">

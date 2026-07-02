@@ -55,6 +55,8 @@ const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
     phoneRequired: "El numero de telefono es obligatorio.",
     requiredFieldsMissing: "Completa los campos obligatorios.",
     genderInferred: "Sugerido por el nombre; puedes cambiarlo.",
+    signInEmail: "Email de acceso",
+    profileEmail: "Email de contacto (opcional)",
     saved: "Datos de la cuenta guardados",
     saveError: "No se pudieron guardar los datos de la cuenta",
     defaultName: "Maria",
@@ -71,6 +73,8 @@ const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
     phoneRequired: "Phone number is required.",
     requiredFieldsMissing: "Please complete the required fields.",
     genderInferred: "Suggested from the name; you can change it.",
+    signInEmail: "Sign-in email",
+    profileEmail: "Contact email (optional)",
     saved: "Account details saved",
     saveError: "Could not save account details",
     defaultName: "Maria",
@@ -87,6 +91,8 @@ const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
     phoneRequired: "Le numero de telephone est obligatoire.",
     requiredFieldsMissing: "Veuillez remplir les champs obligatoires.",
     genderInferred: "Suggere a partir du prenom; vous pouvez le modifier.",
+    signInEmail: "Email de connexion",
+    profileEmail: "Email de contact (optionnel)",
     saved: "Informations du compte enregistrees",
     saveError: "Impossible d'enregistrer les informations du compte",
     defaultName: "Maria",
@@ -103,6 +109,8 @@ const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
     phoneRequired: "Die Telefonnummer ist erforderlich.",
     requiredFieldsMissing: "Bitte fullen Sie die Pflichtfelder aus.",
     genderInferred: "Aus dem Namen vorgeschlagen; Sie konnen es andern.",
+    signInEmail: "Anmelde-E-Mail",
+    profileEmail: "Kontakt-E-Mail (optional)",
     saved: "Kontodaten gespeichert",
     saveError: "Die Kontodaten konnten nicht gespeichert werden",
     defaultName: "Maria",
@@ -119,6 +127,8 @@ const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
     phoneRequired: "Il numero di telefono e obbligatorio.",
     requiredFieldsMissing: "Completa i campi obbligatori.",
     genderInferred: "Suggerito dal nome; puoi modificarlo.",
+    signInEmail: "Email di accesso",
+    profileEmail: "Email di contatto (opzionale)",
     saved: "Dati dell'account salvati",
     saveError: "Impossibile salvare i dati dell'account",
     defaultName: "Maria",
@@ -135,6 +145,8 @@ const ACCOUNT_LANGUAGE_COPY: Record<LanguageCode, Record<string, string>> = {
     phoneRequired: "O numero de telefone e obrigatorio.",
     requiredFieldsMissing: "Preencha os campos obrigatorios.",
     genderInferred: "Sugerido a partir do nome; pode alterar.",
+    signInEmail: "Email de acesso",
+    profileEmail: "Email de contacto (opcional)",
     saved: "Dados da conta guardados",
     saveError: "Nao foi possivel guardar os dados da conta",
     defaultName: "Maria",
@@ -342,6 +354,7 @@ export default function AccountSettings() {
   const profileQuery = useQuery<ProfileResponse | null>({
     queryKey: ["/api/profile"],
   });
+  const accountEmail = profileQuery.data?.accountEmail?.trim() ?? "";
 
   useEffect(() => {
     if (!profileQuery.data) return;
@@ -532,11 +545,6 @@ export default function AccountSettings() {
           title={t("settings.account.title")}
           kicker="Your details"
           description={t("settings.account.subtitle")}
-          badges={[
-            { label: accountCopy.firstName, color: "purple" },
-            { label: t("settings.account.phone"), color: "green" },
-            { label: t("settings.account.language"), color: "blue" },
-          ]}
         />
 
         <div
@@ -751,7 +759,22 @@ export default function AccountSettings() {
           />
         </FormField>
 
-        <FormField htmlFor="email" label={t("settings.account.email")} {...fieldMeta}>
+        {accountEmail ? (
+          <div className="space-y-2">
+            <label htmlFor="account_email" className="font-body text-[15px] font-extrabold leading-tight text-vyva-text-2">
+              {accountCopy.signInEmail}
+            </label>
+            <Input
+              id="account_email"
+              type="email"
+              value={accountEmail}
+              readOnly
+              className={`${accountInputClassName} cursor-default bg-[#F7F4FA] text-[#62576A]`}
+            />
+          </div>
+        ) : null}
+
+        <FormField htmlFor="email" label={accountEmail ? accountCopy.profileEmail : t("settings.account.email")} {...fieldMeta}>
           <Input
             id="email"
             type="email"

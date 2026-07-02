@@ -1,10 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../db.js";
-import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { getActiveProfileContext, type ActiveProfileContext } from "../lib/profileAccess.js";
 import { entitlementForTier, normalizeSubscriptionTier } from "../lib/plans.js";
 import { profiles } from "../../shared/schema.js";
 import { syncProfileEntitlement } from "../lib/entitlementSync.js";
+import { missingColumnName, omitColumns } from "../lib/dbCompatibility.js";
 
 export type EntitlementFeature =
   | "voice_assistant"
@@ -21,6 +22,64 @@ const FEATURE_LABELS: Record<EntitlementFeature, string> = {
   caregiver_dashboard: "caregiver dashboard",
 };
 
+type EntitlementProfile = typeof profiles.$inferSelect;
+
+const ENTITLEMENT_PROFILE_DEFAULTS = {
+  account_status: "enabled",
+  subscription_tier: "free",
+  subscription_status: "active",
+  stripe_subscription_id: null,
+  trial_ends_at: null,
+  email: null,
+  phone_number: null,
+  whatsapp_number: null,
+};
+
+const ENTITLEMENT_PROFILE_COLUMNS = {
+  id: profiles.id,
+  account_status: profiles.account_status,
+  subscription_tier: profiles.subscription_tier,
+  subscription_status: profiles.subscription_status,
+  stripe_subscription_id: profiles.stripe_subscription_id,
+  trial_ends_at: profiles.trial_ends_at,
+  email: profiles.email,
+  phone_number: profiles.phone_number,
+  whatsapp_number: profiles.whatsapp_number,
+};
+
+async function loadEntitlementProfile(profileId: string): Promise<EntitlementProfile | null> {
+  const omittedColumns = new Set<string>();
+  const optionalColumns = new Set(Object.keys(ENTITLEMENT_PROFILE_DEFAULTS));
+
+  for (let attempt = 0; attempt <= optionalColumns.size; attempt += 1) {
+    try {
+      const [profile] = await db
+        .select(omitColumns(ENTITLEMENT_PROFILE_COLUMNS, omittedColumns))
+        .from(profiles)
+        .where(eq(profiles.id, profileId))
+        .limit(1);
+
+      if (!profile) return null;
+      return {
+        ...ENTITLEMENT_PROFILE_DEFAULTS,
+        ...profile,
+        id: profile.id,
+      } as EntitlementProfile;
+    } catch (error) {
+      const column = missingColumnName(error);
+      if (!column || !optionalColumns.has(column) || omittedColumns.has(column)) throw error;
+      omittedColumns.add(column);
+      console.warn(`[entitlements] profile column ${column} unavailable; using default for feature access.`);
+    }
+  }
+
+  throw new Error("Unable to load entitlement profile");
+}
+
+function isPlanIndependentFeature(feature: EntitlementFeature) {
+  return feature === "voice_assistant";
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -33,21 +92,46 @@ declare global {
   }
 }
 
-async function activeProfileForRequest(req: Request) {
+type EntitlementErrorContext = ActiveProfileContext & {
+  usedDevFallback?: boolean;
+};
+
+async function activeProfileContextForRequest(req: Request): Promise<EntitlementErrorContext | null> {
   if (!req.user?.id) return null;
   const context = await getActiveProfileContext(req.user.id);
-  if (context.profileId) return context.profileId;
-  return process.env.NODE_ENV !== "production" ? req.user.id : null;
+  if (context.profileId || process.env.NODE_ENV === "production") return context;
+  return {
+    ...context,
+    profileId: req.user.id,
+    profileCount: Math.max(context.profileCount, 1),
+    needsProfileSetup: false,
+    usedDevFallback: true,
+  };
+}
+
+function entitlementContextPayload(
+  context: EntitlementErrorContext | null,
+  feature: EntitlementFeature,
+  profileId?: string | null,
+) {
+  const resolvedProfileId = profileId ?? context?.profileId ?? null;
+  return {
+    feature,
+    account_user_id: context?.accountUserId ?? null,
+    active_profile_id: context?.profileId ?? null,
+    profile_id: resolvedProfileId,
+    active_profile_role: context?.role ?? null,
+    profile_count: context?.profileCount ?? 0,
+    needs_profile_setup: context?.needsProfileSetup ?? false,
+    needs_profile_selection: context?.needsProfileSelection ?? false,
+    used_dev_fallback: context?.usedDevFallback ?? false,
+  };
 }
 
 export async function hasTierEntitlement(userId: string, feature: EntitlementFeature) {
   const context = await getActiveProfileContext(userId);
   const profileId = context.profileId ?? userId;
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.id, profileId))
-    .limit(1);
+  const profile = await loadEntitlementProfile(profileId);
 
   if (!profile || profile.account_status === "disabled") {
     return { allowed: false, profileId, tier: "free", reason: "profile_unavailable" as const };
@@ -62,6 +146,16 @@ export async function hasTierEntitlement(userId: string, feature: EntitlementFea
     repairTrigger: "has_tier_entitlement",
   });
   const tier = normalizeSubscriptionTier(subscriptionSync.effectiveTier);
+  if (isPlanIndependentFeature(feature)) {
+    return {
+      allowed: true,
+      profileId,
+      tier,
+      subscriptionStatus: subscriptionSync.effectiveStatus,
+      reason: null,
+    };
+  }
+
   const entitlement = await entitlementForTier(tier);
   const allowed = Boolean(entitlement?.is_active && entitlement[feature]);
   return {
@@ -81,10 +175,13 @@ export function requireEntitlement(feature: EntitlementFeature) {
     }
 
     try {
-      const profileId = await activeProfileForRequest(req);
+      const activeContext = await activeProfileContextForRequest(req);
+      const profileId = activeContext?.profileId ?? null;
       if (!profileId) {
         res.status(409).json({
           error: "No care profile selected",
+          code: "ACTIVE_PROFILE_REQUIRED",
+          ...entitlementContextPayload(activeContext, feature),
           nextRoute: "/onboarding/who-for",
         });
         return;
@@ -96,16 +193,25 @@ export function requireEntitlement(feature: EntitlementFeature) {
         return;
       }
 
-      const [profile] = await db
-        .select()
-        .from(profiles)
-        .where(eq(profiles.id, profileId))
-        .limit(1);
+      const profile = await loadEntitlementProfile(profileId);
 
-      if (!profile || profile.account_status === "disabled") {
+      if (!profile) {
+        res.status(409).json({
+          error: "Active care profile was not found",
+          code: "ACTIVE_PROFILE_NOT_FOUND",
+          ...entitlementContextPayload(activeContext, feature, profileId),
+          nextRoute: "/onboarding/who-for",
+        });
+        return;
+      }
+
+      if (profile.account_status === "disabled") {
         res.status(403).json({
-          error: "Account is not enabled for this feature",
+          error: "Account access is disabled for the active profile",
+          code: "ACCOUNT_ACCESS_DISABLED",
           feature,
+          ...entitlementContextPayload(activeContext, feature, profileId),
+          account_status: profile.account_status,
           nextRoute: "/settings/subscription",
         });
         return;
@@ -120,6 +226,12 @@ export function requireEntitlement(feature: EntitlementFeature) {
         repairTrigger: `require_entitlement:${feature}`,
       });
       const tier = normalizeSubscriptionTier(subscriptionSync.effectiveTier);
+      if (isPlanIndependentFeature(feature)) {
+        req.entitlement = { profileId, tier, feature };
+        next();
+        return;
+      }
+
       const entitlement = await entitlementForTier(tier);
       if (!entitlement?.is_active || !entitlement[feature]) {
         res.status(403).json({

@@ -1,6 +1,94 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
+import type { ReactNode } from "react";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import AppShell, { emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
+import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
+
+const voiceState = vi.hoisted(() => ({
+  status: "idle" as "idle" | "connecting" | "connected",
+  isConnecting: false,
+  isSpeaking: false,
+  transcript: [] as Array<{ from: "user" | "vyva"; text: string; timestamp: number }>,
+  voiceSessionPhase: "idle" as VoiceSessionPhase,
+  isMicMuted: false,
+  lastError: null as string | null,
+  lastErrorCode: null as string | null,
+  voiceDiagnostics: [],
+  stopVoice: vi.fn(),
+  setMicrophoneMuted: vi.fn(),
+  startVoice: vi.fn(),
+  beginVoiceTransfer: vi.fn(),
+  sendContextUpdate: vi.fn(),
+  recordRecommendationFeedback: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useQuery: () => ({ data: null, isLoading: false }),
+  };
+});
+
+vi.mock("@/hooks/useVyvaVoice", () => ({
+  useVyvaVoice: () => voiceState,
+}));
+
+vi.mock("@/contexts/ProfileContext", () => ({
+  useProfile: () => ({ profile: { country: "US" } }),
+}));
+
+vi.mock("@/hooks/useServiceGate", () => ({
+  useServiceGate: () => ({
+    canUseService: () => true,
+    guardPath: vi.fn(() => true),
+    readiness: { services: {} },
+  }),
+}));
+
+vi.mock("@/hooks/useToastSurface", () => ({
+  useToastSurface: () => ({ current: null }),
+}));
+
+vi.mock("@/contexts/VoiceActionContext", () => ({
+  useVoiceActionContext: () => ({
+    activeAction: null,
+    completeActiveAction: vi.fn(),
+    dismissActiveAction: vi.fn(),
+  }),
+}));
+
+vi.mock("./StatusBar", () => ({
+  default: () => <div data-testid="status-bar" />,
+}));
+
+vi.mock("./BottomNav", () => ({
+  default: () => <nav data-testid="bottom-nav" />,
+}));
+
+vi.mock("./VoiceActionSimulator", () => ({
+  default: () => null,
+}));
+
+vi.mock("./MotivationMilestoneProvider", () => ({
+  default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock("./VoiceCallOverlay", () => ({
+  default: ({ onEnd, onMinimize }: { onEnd: () => void; onMinimize?: () => void }) => (
+    <div data-testid="voice-call-overlay">
+      {onMinimize && (
+        <button type="button" data-testid="button-minimize-call" onClick={onMinimize}>
+          Minimize
+        </button>
+      )}
+      <button type="button" data-testid="button-end-call" onClick={onEnd}>
+        End
+      </button>
+    </div>
+  ),
+}));
 
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
@@ -84,5 +172,48 @@ describe("app shell route layout", () => {
     ["/onboarding/profile/health", "compact"],
   ] as const)("classifies %s as %s", (pathname, layout) => {
     expect(getAppShellLayout(pathname)).toBe(layout);
+  });
+});
+
+describe("app shell voice dock", () => {
+  function renderShell(path = "/") {
+    return render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
+        <AppShell>
+          <div>Page content</div>
+        </AppShell>
+      </MemoryRouter>,
+    );
+  }
+
+  beforeEach(() => {
+    voiceState.status = "connected";
+    voiceState.isConnecting = false;
+    voiceState.isSpeaking = false;
+    voiceState.transcript = [{ from: "vyva", text: "Hello Karim", timestamp: 1 }];
+    voiceState.voiceSessionPhase = "listening";
+    voiceState.isMicMuted = false;
+    voiceState.lastError = null;
+    voiceState.lastErrorCode = null;
+    voiceState.stopVoice.mockClear();
+    voiceState.setMicrophoneMuted.mockClear();
+  });
+
+  it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
+    renderShell();
+
+    expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-open-voice-overlay"));
+
+    expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-session-dock")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+    expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
+    expect(voiceState.stopVoice).not.toHaveBeenCalled();
   });
 });

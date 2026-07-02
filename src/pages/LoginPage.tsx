@@ -14,9 +14,14 @@ import {
   ShieldCheck,
   UserRound,
   UsersRound,
-  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  PurpleModal,
+  PurpleModalOption,
+  VYVA_MODAL_PRIMARY_ACTION_CLASS,
+  VYVA_MODAL_SECONDARY_ACTION_CLASS,
+} from "@/components/vyva-ui";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { VyvaWordmark } from "@/components/VyvaWordmark";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,7 +34,12 @@ import {
   rememberCareTeamInviteReturnPath,
 } from "@/lib/careTeamInviteReturn";
 import { apiFetch, queryClient } from "@/lib/queryClient";
-import { stageToRoute } from "@/lib/onboardingRoute";
+import {
+  defaultSignedInRoute,
+  isCaregiverRoutingUser,
+  routeAfterOnboardingStage,
+  safeReturnPathForActiveProfile,
+} from "@/lib/onboardingRoute";
 import { currentSignupInviteId, trackSignupInviteEvent } from "@/lib/signupInviteAudit";
 import { setBootstrapLanguage, useLanguage } from "@/i18n";
 import { LANGUAGES, type LanguageCode } from "@/i18n/languages";
@@ -1374,8 +1384,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       navigate("/admin/lifecycle", { replace: true });
       return;
     }
-    if (inviteReturnPath) {
-      navigate(inviteReturnPath, { replace: true });
+    const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, user);
+    if (inviteDestination) {
+      navigate(inviteDestination, { replace: true });
       return;
     }
     if (user.needsProfileSelection) {
@@ -1386,15 +1397,20 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       navigate("/onboarding/who-for", { replace: true });
       return;
     }
-    if (from) {
-      navigate(from, { replace: true });
+    const returnDestination = safeReturnPathForActiveProfile(from, user);
+    if (returnDestination) {
+      navigate(returnDestination, { replace: true });
+      return;
+    }
+    if (isCaregiverRoutingUser(user)) {
+      navigate(defaultSignedInRoute(user), { replace: true });
       return;
     }
     queryClient
       .fetchQuery({ queryKey: ["/api/onboarding/state"] })
       .then((data: { onboardingState?: { current_stage?: string }; profile?: { current_stage?: string } }) => {
         const stage = data?.onboardingState?.current_stage ?? data?.profile?.current_stage;
-        navigate(stageToRoute(stage), { replace: true });
+        navigate(routeAfterOnboardingStage(stage, user), { replace: true });
       })
       .catch(() => navigate("/onboarding/basics", { replace: true }));
   }, [adminOnly, from, inviteReturnPath, isLoading, user, navigate]);
@@ -1477,11 +1493,13 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         const setupFor = rememberSetupIntent();
         const inviteId = currentSignupInviteId(location.search);
         trackSignupInviteEvent(inviteId, "profile_started", { destination: "/", keepalive: true });
-        await register({ ...authContactPayload(true), setup_for: setupFor }, password);
-        if (inviteReturnPath) {
-          navigate(inviteReturnPath, { replace: true });
-        } else if (from) {
-          navigate(from, { replace: true });
+        const registeredUser = await register({ ...authContactPayload(true), setup_for: setupFor }, password);
+        const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, registeredUser);
+        const returnDestination = safeReturnPathForActiveProfile(from, registeredUser);
+        if (inviteDestination) {
+          navigate(inviteDestination, { replace: true });
+        } else if (returnDestination) {
+          navigate(returnDestination, { replace: true });
         } else {
           navigate(setupFor === "someone_else" ? "/onboarding/proxy-setup" : "/onboarding/basics", {
             replace: true,
@@ -1489,11 +1507,15 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           });
         }
       } else {
-        await login(authContactPayload(), password);
-        if (inviteReturnPath) {
-          navigate(inviteReturnPath, { replace: true });
-        } else if (from) {
-          navigate(from, { replace: true });
+        const signedInUser = await login(authContactPayload(), password);
+        const inviteDestination = safeReturnPathForActiveProfile(inviteReturnPath, signedInUser);
+        const returnDestination = safeReturnPathForActiveProfile(from, signedInUser);
+        if (inviteDestination) {
+          navigate(inviteDestination, { replace: true });
+        } else if (returnDestination) {
+          navigate(returnDestination, { replace: true });
+        } else if (isCaregiverRoutingUser(signedInUser)) {
+          navigate(defaultSignedInRoute(signedInUser), { replace: true });
         } else {
           const data = await queryClient.fetchQuery({ queryKey: ["/api/onboarding/state"] }).catch(() => null);
           const stage =
@@ -1501,7 +1523,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               ?.onboardingState?.current_stage ??
             (data as { onboardingState?: { current_stage?: string }; profile?: { current_stage?: string } } | null)
               ?.profile?.current_stage;
-          navigate(stageToRoute(stage), { replace: true });
+          navigate(routeAfterOnboardingStage(stage, signedInUser), { replace: true });
         }
       }
     } catch (err) {
@@ -1798,43 +1820,23 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       )}
 
       {isCallModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#2F183F]/55 px-4 py-5 backdrop-blur-sm sm:items-center sm:py-8"
-          role="presentation"
-          data-testid="modal-login-call-vyva"
+        <PurpleModal
+          Icon={PhoneCall}
+          kicker={callCopy.eyebrow}
+          title={callCopy.title}
+          subtitle={callCopy.subtitle}
+          titleId="call-modal-title"
+          onClose={closeCallModal}
+          closeLabel={callCopy.cancel}
+          modalTestId="modal-login-call-vyva"
+          size="wide"
         >
           <form
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="call-modal-title"
-            className="my-auto w-full max-w-[620px] rounded-[30px] border-2 border-[#E3D6C9] bg-[#FFFDF9] p-5 shadow-[0_34px_100px_rgba(47,24,63,0.34)] outline outline-1 outline-white/70 sm:rounded-[36px] sm:p-8"
+            className="grid gap-5"
             onSubmit={handleCallSubmit}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.22em] text-vyva-purple">
-                  {callCopy.eyebrow}
-                </p>
-                <h2 id="call-modal-title" className="mt-2 font-body text-[34px] font-black leading-tight text-[#2F183F] sm:text-[38px]">
-                  {callCopy.title}
-                </h2>
-                <p className="mt-3 max-w-[34rem] font-body text-[17px] leading-7 text-vyva-text-2">
-                  {callCopy.subtitle}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeCallModal}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.08)]"
-                aria-label={callCopy.cancel}
-                data-testid="button-call-close"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
             {callConfirmed ? (
-              <div className="mt-7 rounded-[28px] border-2 border-[#D8C2EF] bg-[#F4ECFF] p-5 text-center sm:p-6">
+              <div className="rounded-[24px] border border-[#D8B4FE] bg-[#F5F3FF] p-5 text-center sm:p-6">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-vyva-purple text-white">
                   <PhoneCall size={28} />
                 </div>
@@ -1850,7 +1852,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </a>
                 <a
                   href={`tel:${selectedCallNumber.e164}`}
-                  className="mt-6 inline-flex min-h-[60px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)] transition hover:bg-vyva-purple/92"
+                  className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-6`}
                   data-testid="button-call-now"
                 >
                   {callCopy.callNow}
@@ -1859,7 +1861,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 <button
                   type="button"
                   onClick={() => setCallConfirmed(false)}
-                  className="mt-4 min-h-[44px] font-body text-[15px] font-black text-vyva-purple"
+                  className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} mt-4`}
                   data-testid="button-call-change-country"
                 >
                   {callCopy.changeCountry}
@@ -1893,14 +1895,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                   <button
                     type="button"
                     onClick={closeCallModal}
-                    className="inline-flex min-h-[60px] items-center justify-center rounded-full border-2 border-[#E8DDF3] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
+                    className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
                     data-testid="button-call-cancel"
                   >
                     {callCopy.cancel}
                   </button>
                   <button
                     type="submit"
-                    className="inline-flex min-h-[60px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)] transition hover:bg-vyva-purple/92"
+                    className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
                     data-testid="button-call-submit"
                   >
                     {callCopy.confirm}
@@ -1910,51 +1912,29 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </>
             )}
           </form>
-        </div>
+        </PurpleModal>
       )}
 
       {isCallbackModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#2F183F]/55 px-4 py-5 backdrop-blur-sm sm:items-center sm:py-8"
-          role="presentation"
-          data-testid="modal-login-callback"
+        <PurpleModal
+          Icon={CalendarClock}
+          kicker={callbackCopy.eyebrow}
+          title={callbackCopy.title}
+          subtitle={callbackCopy.subtitle}
+          statusPill={callbackCopy.requiredNote}
+          titleId="callback-modal-title"
+          onClose={closeCallbackModal}
+          closeLabel={callbackCopy.cancel}
+          modalTestId="modal-login-callback"
+          size="wide"
         >
           <form
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="callback-modal-title"
-            className="my-auto max-h-[calc(100vh-40px)] w-full max-w-[680px] overflow-y-auto rounded-[30px] border-2 border-[#E3D6C9] bg-[#FFFDF9] p-5 shadow-[0_34px_100px_rgba(47,24,63,0.34)] outline outline-1 outline-white/70 sm:max-h-[calc(100vh-64px)] sm:rounded-[36px] sm:p-8"
+            className="grid gap-5"
             onSubmit={handleCallbackSubmit}
             noValidate
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.22em] text-vyva-purple">
-                  {callbackCopy.eyebrow}
-                </p>
-                <h2 id="callback-modal-title" className="mt-2 font-body text-[34px] font-black leading-tight text-[#2F183F] sm:text-[38px]">
-                  {callbackCopy.title}
-                </h2>
-                <p className="mt-3 max-w-[36rem] font-body text-[17px] leading-7 text-vyva-text-2">
-                  {callbackCopy.subtitle}
-                </p>
-                <p className="mt-3 inline-flex rounded-full bg-[#F4ECFF] px-4 py-2 font-body text-[14px] font-extrabold text-vyva-purple">
-                  {callbackCopy.requiredNote}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={closeCallbackModal}
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#E8DDF3] bg-white text-vyva-purple shadow-[0_10px_24px_rgba(76,46,22,0.12)]"
-                aria-label={callbackCopy.cancel}
-                data-testid="button-callback-close"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
             {callbackScheduledFor ? (
-              <div className="mt-7 rounded-[28px] border-2 border-[#BEEBD0] bg-[#F3FFF8] p-5 text-center shadow-[0_16px_36px_rgba(25,135,84,0.12)] sm:p-6">
+              <div className="rounded-[24px] border border-[#BEEBD0] bg-[#F3FFF8] p-5 text-center shadow-[0_16px_36px_rgba(25,135,84,0.12)] sm:p-6">
                 <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#E2F8EB] text-emerald-700">
                   <CheckCircle2 size={30} />
                 </span>
@@ -1975,7 +1955,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 <button
                   type="button"
                   onClick={closeCallbackModal}
-                  className="mt-6 inline-flex min-h-[60px] w-full items-center justify-center rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)]"
+                  className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-6`}
                   data-testid="button-callback-success-close"
                 >
                   {callbackCopy.closeSuccess}
@@ -2112,15 +2092,11 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                   const isSelected = callbackFor === option;
                   const Icon = option === "me" ? UserRound : UsersRound;
                   return (
-                    <button
+                    <PurpleModalOption
                       key={option}
-                      type="button"
                       onClick={() => setCallbackFor(option)}
-                      className={`flex min-h-[76px] items-center gap-3 rounded-[24px] border-2 p-4 text-left transition ${
-                        isSelected
-                          ? "border-vyva-purple bg-[#F4ECFF] shadow-[0_12px_28px_rgba(107,33,168,0.12)]"
-                          : "border-[#E8DDD2] bg-white hover:border-[#D8C2EF]"
-                      }`}
+                      selected={isSelected}
+                      className="min-h-[76px] gap-3 p-4"
                       aria-pressed={isSelected}
                       data-testid={`button-callback-for-${option}`}
                     >
@@ -2135,7 +2111,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                           {callbackCopy.options[option].subtitle}
                         </span>
                       </span>
-                    </button>
+                    </PurpleModalOption>
                   );
                 })}
               </fieldset>
@@ -2151,7 +2127,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               <button
                 type="button"
                 onClick={closeCallbackModal}
-                className="inline-flex min-h-[60px] items-center justify-center rounded-full border-2 border-[#E8DDF3] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
+                className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
                 data-testid="button-callback-cancel"
               >
                 {callbackCopy.cancel}
@@ -2159,7 +2135,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               <button
                 type="submit"
                 disabled={callbackLoading}
-                className="inline-flex min-h-[60px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_16px_36px_rgba(107,33,168,0.22)] transition hover:bg-vyva-purple/92"
+                className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
                 data-testid="button-callback-submit"
               >
                 {callbackLoading ? (
@@ -2178,7 +2154,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
               </>
             )}
           </form>
-        </div>
+        </PurpleModal>
       )}
 
       <div className="relative min-h-screen overflow-x-hidden bg-[#FBF8F3] text-vyva-text-1">

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Loader2, MousePointer2, Play, Route, Smile, Sparkles, Square, Timer, Zap } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
-import { supabase } from "../lib/supabaseClient";
+import { gameData } from "./shared/gameDataApi";
 import BrainGameResultActions from "./shared/BrainGameResultActions";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
@@ -640,8 +640,8 @@ export default function NumberTrails({ userId, onExit }) {
     const fallback = defaultUserState(userId);
     if (!userId) return fallback;
 
-    const existing = await supabase
-      .from("number_trails_user_state")
+    const existing = await gameData
+      .table("number_trails_user_state")
       .select("*")
       .eq("user_id", userId)
       .maybeSingle();
@@ -649,8 +649,8 @@ export default function NumberTrails({ userId, onExit }) {
     if (existing.error) throw existing.error;
     if (existing.data) return existing.data;
 
-    const created = await supabase
-      .from("number_trails_user_state")
+    const created = await gameData
+      .table("number_trails_user_state")
       .upsert(fallback, { onConflict: "user_id" })
       .single();
 
@@ -667,8 +667,8 @@ export default function NumberTrails({ userId, onExit }) {
     const languageOrder = [...new Set([gameLanguage, "es", "en", "de"])];
     const recentConfigIds = readStorageArray(RECENT_CONFIGS_KEY);
 
-    const todaySessions = await supabase
-      .from("number_trails_sessions")
+    const todaySessions = await gameData
+      .table("number_trails_sessions")
       .select("config_id")
       .eq("user_id", userId)
       .gte("played_at", start.toISOString())
@@ -678,8 +678,8 @@ export default function NumberTrails({ userId, onExit }) {
     const playedToday = (todaySessions.data ?? []).map((session) => session.config_id).filter(Boolean);
 
     for (const languageToUse of languageOrder) {
-      let query = supabase
-        .from("number_trails_configs")
+      let query = gameData
+        .table("number_trails_configs")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true)
@@ -699,8 +699,8 @@ export default function NumberTrails({ userId, onExit }) {
       }
     }
 
-    const history = await supabase
-      .from("number_trails_sessions")
+    const history = await gameData
+      .table("number_trails_sessions")
       .select("config_id,played_at")
       .eq("user_id", userId)
       .eq("difficulty_tier", tier)
@@ -717,8 +717,8 @@ export default function NumberTrails({ userId, onExit }) {
     }
 
     for (const languageToUse of languageOrder) {
-      const rows = await supabase
-        .from("number_trails_configs")
+      const rows = await gameData
+        .table("number_trails_configs")
         .select("*")
         .eq("difficulty_tier", tier)
         .eq("is_active", true)
@@ -787,7 +787,7 @@ export default function NumberTrails({ userId, onExit }) {
       score: result.score,
     };
 
-    const saved = await supabase.from("number_trails_sessions").insert(payload);
+    const saved = await gameData.table("number_trails_sessions").insert(payload);
     if (saved.error) {
       console.warn("Number Trails could not save the session.", saved.error);
     }
@@ -882,8 +882,8 @@ export default function NumberTrails({ userId, onExit }) {
     };
 
     setUserState(next);
-    const updated = await supabase
-      .from("number_trails_user_state")
+    const updated = await gameData
+      .table("number_trails_user_state")
       .upsert(next, { onConflict: "user_id" })
       .single();
 
@@ -967,7 +967,7 @@ export default function NumberTrails({ userId, onExit }) {
       abandoned: true,
       score: 0,
     };
-    const saved = await supabase.from("number_trails_sessions").insert(payload);
+    const saved = await gameData.table("number_trails_sessions").insert(payload);
     const savedSession = Array.isArray(saved.data) ? saved.data[0] : saved.data;
 
     await recordCognitiveSession({

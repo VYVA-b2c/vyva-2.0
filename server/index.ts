@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs/promises";
 import "dotenv/config";
 import { routerHandler } from "./routes/router.js";
-import { conversationTokenHandler } from "./routes/conversationToken.js";
+import { conversationReadinessHandler, conversationTokenHandler } from "./routes/conversationToken.js";
 import { voiceContextHandler } from "./routes/voiceContext.js";
 import { voiceRecommendationFeedbackHandler } from "./routes/voiceRecommendationFeedback.js";
 import {
@@ -73,9 +73,11 @@ import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import scheduledSupportRouter from "./routes/scheduledSupport.js";
+import caregiverDashboardRouter from "./routes/caregiverDashboard.js";
 import caregiverBrainCoachRouter from "./routes/caregiverBrainCoach.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
+import healthPreventionRouter from "./routes/healthPrevention.js";
 import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
@@ -85,6 +87,7 @@ import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedChe
 import gamesRouter from "./routes/games.js";
 import learningRouter from "./routes/learning.js";
 import motivationRouter from "./routes/motivation.js";
+import { dbHealthHandler } from "./routes/dbHealth.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
@@ -151,6 +154,7 @@ app.post("/api/voice-context", authMiddleware, requireUser, requireEntitlement("
 app.post("/api/voice/recommendations/feedback", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceRecommendationFeedbackHandler);
 app.get("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), listOwnVoiceTimelineEventsHandler);
 app.post("/api/voice/timeline-events", authMiddleware, requireUser, requireEntitlement("voice_assistant"), recordVoiceTimelineEventsHandler);
+app.post("/api/voice-readiness", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationReadinessHandler);
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
@@ -185,6 +189,7 @@ app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRo
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
 app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
+app.get("/api/health/db", authMiddleware, requireAdminUser, dbHealthHandler);
 app.use("/api/admin", authMiddleware, requireAdminUser, adminRouter);
 app.use("/api/hero-messages", heroMessagesRouter);
 app.use("/api/activity", authMiddleware, activityRouter);
@@ -197,6 +202,7 @@ app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.use("/api", authMiddleware, scheduledSupportRouter);
+app.use("/api/caregiver/dashboard", authMiddleware, requireUser, caregiverDashboardRouter);
 app.use("/api/caregiver/brain-coach", authMiddleware, caregiverBrainCoachRouter);
 // Also mount at /api/meds so that PATCH /api/meds/:id and DELETE /api/meds/:id
 // work as specified. Requests to /api/meds/adherence-report/... are matched
@@ -204,6 +210,7 @@ app.use("/api/caregiver/brain-coach", authMiddleware, caregiverBrainCoachRouter)
 app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
+app.use("/api/health", authMiddleware, requireUser, healthPreventionRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);

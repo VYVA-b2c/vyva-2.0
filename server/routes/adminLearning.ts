@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
 import { learningCategories, learningLessons } from "../../shared/schema.js";
@@ -25,6 +25,9 @@ const lessonBodySchema = z.object({
 });
 
 const lessonPatchSchema = lessonBodySchema.partial();
+const bulkPublishBodySchema = z.object({
+  lessonIds: z.array(z.string().trim().min(1)).max(500).optional(),
+}).optional();
 
 const categoryBodySchema = z.object({
   slug: z.string().trim().min(1).max(80).regex(/^[a-z0-9_]+$/),
@@ -220,6 +223,53 @@ function normalizeLessonImport(raw: unknown) {
   });
 }
 
+function nestedErrorField(error: unknown, field: string, seen = new Set<unknown>()): unknown {
+  if (!error || typeof error !== "object" || seen.has(error)) return undefined;
+  seen.add(error);
+  const record = error as Record<string, unknown>;
+  if (record[field] !== undefined) return record[field];
+  return nestedErrorField(record.cause, field, seen);
+}
+
+function importDatabaseDetails(error: unknown) {
+  if (!error || typeof error !== "object") return [];
+  const code = nestedErrorField(error, "code");
+  const hostname = nestedErrorField(error, "hostname");
+  const message = error instanceof Error ? error.message : String(error);
+  const nestedMessage = nestedErrorField(error, "message");
+  const detail = nestedErrorField(error, "detail");
+  const where = nestedErrorField(error, "where");
+  const combinedMessage = [
+    message,
+    typeof nestedMessage === "string" ? nestedMessage : "",
+    typeof detail === "string" ? detail : "",
+    typeof where === "string" ? where : "",
+  ].join(" ");
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN" || combinedMessage.includes("ENOTFOUND")) {
+    const hostLabel = typeof hostname === "string" && hostname.trim() ? ` (${hostname})` : "";
+    return [`The app database host${hostLabel} cannot be reached from this environment. Check DATABASE_URL or local network access, restart the API, and try again.`];
+  }
+  if (code === "ECONNREFUSED" || code === "ETIMEDOUT" || code === "ECONNRESET") {
+    return ["The app database connection was refused or timed out. Check that the database is running and reachable, restart the API, and try again."];
+  }
+  if (code === "42P01") {
+    return ["The learning library database tables are missing. Run migrations/0045_learning_program.sql, then upload the pack again."];
+  }
+  if (code === "42P10") {
+    return ["The learning library database needs its unique save rule repaired. Republish with the latest migration, then upload the pack again."];
+  }
+  if (code === "22P02" && combinedMessage.toLowerCase().includes("json")) {
+    return ["The learning library database has drifted from the app schema: one or more lesson/category text fields are still JSON columns. Run migrations/0049_align_learning_text_columns.sql, then upload the pack again."];
+  }
+  if (code === "23505") {
+    return ["The pack conflicts with existing learning content. Check for duplicate category slugs or lesson external IDs."];
+  }
+  if (code === "42703") {
+    return ["The learning library database is missing a required column. Run the database audit and repair before uploading again."];
+  }
+  return [];
+}
+
 async function listCategoriesHandler(_req: Request, res: Response) {
   try {
     const rows = await db
@@ -385,6 +435,44 @@ async function publishLessonHandler(req: Request, res: Response) {
   }
 }
 
+async function bulkPublishDraftLessonsHandler(req: Request, res: Response) {
+  const parsed = bulkPublishBodySchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Selected lessons are invalid." });
+
+  const hasSelection = Array.isArray(parsed.data?.lessonIds);
+  const lessonIds = [...new Set(parsed.data?.lessonIds ?? [])];
+  if (hasSelection && lessonIds.length === 0) {
+    return res.json({
+      summary: {
+        lessonsPublished: 0,
+      },
+      lessons: [],
+    });
+  }
+
+  try {
+    const publishableStatus = inArray(learningLessons.status, ["draft", "review"]);
+    const whereClause = hasSelection
+      ? and(inArray(learningLessons.id, lessonIds), publishableStatus)
+      : publishableStatus;
+    const rows = await db
+      .update(learningLessons)
+      .set({ ...lessonPatchForStatus("published", actor(req)), updatedAt: new Date() })
+      .where(whereClause)
+      .returning();
+
+    return res.json({
+      summary: {
+        lessonsPublished: rows.length,
+      },
+      lessons: rows.map(serializeLesson),
+    });
+  } catch (error) {
+    console.error("[admin] learning lessons bulk publish failed:", error);
+    return res.status(500).json({ error: "Learning lessons could not be published." });
+  }
+}
+
 async function archiveLessonHandler(req: Request, res: Response) {
   try {
     const [row] = await db
@@ -475,48 +563,56 @@ async function importContentPackHandler(req: Request, res: Response) {
 
     await db.transaction(async (tx) => {
       for (const category of categories) {
-        await tx
-          .insert(learningCategories)
-          .values(category)
-          .onConflictDoUpdate({
-            target: learningCategories.slug,
-            set: {
-              label: category.label,
-              description: category.description,
-              color: category.color,
-              icon: category.icon,
-              sortOrder: category.sortOrder,
-              isActive: category.isActive,
-              updatedAt: now,
-            },
-          });
+        const categoryPatch = {
+          label: category.label,
+          description: category.description,
+          color: category.color,
+          icon: category.icon,
+          sortOrder: category.sortOrder,
+          isActive: category.isActive,
+          updatedAt: now,
+        };
+        const updated = await tx
+          .update(learningCategories)
+          .set(categoryPatch)
+          .where(eq(learningCategories.slug, category.slug))
+          .returning({ id: learningCategories.id });
+        if (updated.length === 0) {
+          await tx
+            .insert(learningCategories)
+            .values(category);
+        }
       }
 
       for (const lesson of lessons) {
         const statusPatch = lessonPatchForStatus(lesson.status, reviewer);
-        await tx
-          .insert(learningLessons)
-          .values({
-            ...lesson,
-            ...statusPatch,
-          })
-          .onConflictDoUpdate({
-            target: learningLessons.externalId,
-            set: {
-              categorySlug: lesson.categorySlug,
-              language: lesson.language,
-              title: lesson.title,
-              hook: lesson.hook,
-              body: lesson.body,
-              reflectionPrompt: lesson.reflectionPrompt,
-              sourceNotes: lesson.sourceNotes ?? null,
-              estimatedMinutes: lesson.estimatedMinutes,
-              difficulty: lesson.difficulty,
-              tags: lesson.tags,
+        const lessonPatch = {
+          categorySlug: lesson.categorySlug,
+          language: lesson.language,
+          title: lesson.title,
+          hook: lesson.hook,
+          body: lesson.body,
+          reflectionPrompt: lesson.reflectionPrompt,
+          sourceNotes: lesson.sourceNotes ?? null,
+          estimatedMinutes: lesson.estimatedMinutes,
+          difficulty: lesson.difficulty,
+          tags: lesson.tags,
+          ...statusPatch,
+          updatedAt: now,
+        };
+        const updated = await tx
+          .update(learningLessons)
+          .set(lessonPatch)
+          .where(eq(learningLessons.externalId, lesson.externalId))
+          .returning({ id: learningLessons.id });
+        if (updated.length === 0) {
+          await tx
+            .insert(learningLessons)
+            .values({
+              ...lesson,
               ...statusPatch,
-              updatedAt: now,
-            },
-          });
+            });
+        }
       }
     });
 
@@ -532,7 +628,11 @@ async function importContentPackHandler(req: Request, res: Response) {
     });
   } catch (error) {
     console.error("[admin] learning import failed:", error);
-    return res.status(500).json({ error: "Learning content pack could not be imported." });
+    const details = importDatabaseDetails(error);
+    return res.status(500).json({
+      error: "Learning content pack could not be imported.",
+      ...(details.length > 0 ? { details } : {}),
+    });
   }
 }
 
@@ -543,6 +643,7 @@ router.patch("/categories/:slug", updateCategoryHandler);
 router.post("/import", importContentPackHandler);
 router.get("/lessons", listLessonsHandler);
 router.post("/lessons", createLessonHandler);
+router.patch("/lessons/bulk-publish", bulkPublishDraftLessonsHandler);
 router.patch("/lessons/:id", updateLessonHandler);
 router.patch("/lessons/:id/publish", publishLessonHandler);
 router.patch("/lessons/:id/archive", archiveLessonHandler);

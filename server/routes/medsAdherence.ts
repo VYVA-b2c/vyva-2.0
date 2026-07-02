@@ -15,6 +15,8 @@ import {
   vyvaPatternWindows,
 } from "../../shared/schema.js";
 import { requireUser } from "../middleware/auth.js";
+import { requireActiveProfileId } from "../lib/profileAccess.js";
+import { resolveDomainAccess } from "../lib/caregiverDomainAccess.js";
 import { z } from "zod";
 import {
   MEDICATION_SAFETY_CASE_STATUSES,
@@ -52,8 +54,23 @@ function dosesPerDay(scheduledTimes: string[] | null | undefined): number {
   return scheduledTimes && scheduledTimes.length > 0 ? scheduledTimes.length : 1;
 }
 
+function scheduledTimesForDay(scheduledTimes: string[] | null | undefined): string[] {
+  return scheduledTimes && scheduledTimes.length > 0 ? scheduledTimes : ["anytime"];
+}
+
+function scheduledTimeSortKey(value: string): number {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
 function takenDoseCount(rows: Array<{ status: string }>): number {
   return rows.filter((row) => row.status === "taken").length;
+}
+
+function adherenceTimestamp(row: typeof medicationAdherence.$inferSelect): Date {
+  const value = row.confirmed_taken_at ?? row.created_at;
+  return value instanceof Date ? value : new Date(value);
 }
 
 function dateKeyFor(value: Date | string): string {
@@ -585,6 +602,160 @@ function buildCasePatchValues(data: z.infer<typeof medicationSafetyCasePatchSche
   return patch;
 }
 
+async function resolveProfileParam(req: Request, res: Response, value: string): Promise<string | null> {
+  if (value === "me") return requireActiveProfileId(req.user!.id, res);
+  return value;
+}
+
+async function loadTodayMedications(userId: string) {
+  const todayStart = new Date(todayDateString() + "T00:00:00.000Z");
+
+  const [meds, todayLogs] = await Promise.all([
+    db
+      .select()
+      .from(userMedications)
+      .where(and(eq(userMedications.user_id, userId), eq(userMedications.active, true))),
+    db
+      .select()
+      .from(medicationAdherence)
+      .where(
+        and(
+          eq(medicationAdherence.user_id, userId),
+          gte(medicationAdherence.created_at, todayStart)
+        )
+      ),
+  ]);
+
+  const takenCountsByName = new Map<string, number>();
+  for (const log of todayLogs) {
+    if (log.status !== "taken") continue;
+    takenCountsByName.set(
+      log.medication_name,
+      (takenCountsByName.get(log.medication_name) ?? 0) + 1
+    );
+  }
+
+  return meds.map((m) => {
+    const scheduledCountToday = dosesPerDay(m.scheduled_times);
+    const takenCountToday = takenCountsByName.get(m.medication_name) ?? 0;
+
+    return {
+      id: m.id,
+      medication_name: m.medication_name,
+      dosage: m.dosage ?? null,
+      frequency: m.frequency ?? null,
+      scheduled_times: m.scheduled_times ?? [],
+      takenCountToday,
+      scheduledCountToday,
+      takenToday: takenCountToday >= scheduledCountToday,
+    };
+  });
+}
+
+async function loadSevenDayAdherence(userId: string) {
+  const sevenDayStart = daysAgo(6);
+  const today = todayDateString();
+  const sevenDayStartDate = dateKeyFor(sevenDayStart);
+  const [medRows, adherenceRows] = await Promise.all([
+    db
+      .select()
+      .from(userMedications)
+      .where(and(eq(userMedications.user_id, userId), eq(userMedications.active, true))),
+    db
+      .select()
+      .from(medicationAdherence)
+      .where(and(
+        eq(medicationAdherence.user_id, userId),
+        gte(medicationAdherence.created_at, sevenDayStart),
+      )),
+  ]);
+
+  const totalScheduled = medRows.length > 0
+    ? medRows.reduce((sum, med) => (
+        sum + dosesPerDay(med.scheduled_times) * activeDaysInWindow(med.created_at, sevenDayStartDate, today)
+      ), 0)
+    : adherenceRows.filter((row) => row.status === "taken" || row.status === "missed").length;
+  const totalTaken = adherenceRows.filter((row) => row.status === "taken").length;
+  const missedDoses = adherenceRows
+    .filter((row) => row.status === "missed")
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+    .map((row) => ({
+      medication_name: row.medication_name,
+      scheduled_time: row.scheduled_time,
+      date: dateKeyFor(row.created_at),
+    }));
+
+  return { totalScheduled, totalTaken, missedDoses };
+}
+
+async function loadMissedDosesSince(userId: string, since: Date) {
+  const rows = await db
+    .select()
+    .from(medicationAdherence)
+    .where(and(
+      eq(medicationAdherence.user_id, userId),
+      eq(medicationAdherence.status, "missed"),
+      gte(medicationAdherence.created_at, since),
+    ))
+    .orderBy(desc(medicationAdherence.created_at));
+
+  return rows.map((row) => ({
+    medication_name: row.medication_name,
+    scheduled_time: row.scheduled_time,
+    date: dateKeyFor(row.created_at),
+  }));
+}
+
+export async function caregiverMedsSummaryHandler(req: Request, res: Response) {
+  try {
+    const profileId = await resolveProfileParam(req, res, req.params.profileId);
+    if (!profileId) return;
+
+    const fullAccess = await resolveDomainAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      domain: "meds",
+      requiredPermission: "view_adherence",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+
+    if (fullAccess) {
+      const [medications, sevenDayAdherence] = await Promise.all([
+        loadTodayMedications(profileId),
+        loadSevenDayAdherence(profileId),
+      ]);
+
+      return res.json({
+        today: { medications },
+        sevenDayAdherence,
+        permissions: fullAccess.permissions,
+      });
+    }
+
+    const alertOnlyAccess = await resolveDomainAccess({
+      actorUserId: req.user!.id,
+      targetUserId: profileId,
+      domain: "meds",
+      requiredPermission: "receive_missed_dose_alerts",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!alertOnlyAccess) return res.status(403).json({ error: "Caregiver medication access is not enabled." });
+
+    const missedDoses = await loadMissedDosesSince(profileId, new Date(Date.now() - 24 * 60 * 60 * 1000));
+    return res.json({
+      sevenDayAdherence: { missedDoses },
+      permissions: alertOnlyAccess.permissions,
+    });
+  } catch (err) {
+    console.error("[meds/caregiver summary GET]", err);
+    return res.status(500).json({ error: "Failed to load caregiver medication summary" });
+  }
+}
+
+router.get("/caregiver/:profileId/summary", requireUser, caregiverMedsSummaryHandler);
+
 router.get("/today", requireUser, async (req: Request, res: Response) => {
   const userId = req.user!.id;
   const todayStart = new Date(todayDateString() + "T00:00:00.000Z");
@@ -1004,12 +1175,62 @@ router.get("/", requireUser, async (req: Request, res: Response) => {
       };
     });
 
+    const latestTakenRow = rowsLast30
+      .filter((r) => r.status === "taken")
+      .sort((a, b) => adherenceTimestamp(b).getTime() - adherenceTimestamp(a).getTime())[0];
+    const latestTaken = latestTakenRow
+      ? {
+          medication_name: latestTakenRow.medication_name,
+          scheduled_time: latestTakenRow.scheduled_time,
+          confirmed_taken_at: adherenceTimestamp(latestTakenRow).toISOString(),
+        }
+      : null;
+    const todayTakenByName = new Map<string, number>();
+    for (const row of rowsLast30) {
+      if (row.status !== "taken" || dateKeyFor(row.created_at) !== today) continue;
+      todayTakenByName.set(row.medication_name, (todayTakenByName.get(row.medication_name) ?? 0) + 1);
+    }
+    const pendingDoses: Array<{ medication_name: string; scheduled_time: string; sortKey: number }> = [];
+    const todayMedicationStatuses = medRows.map((med) => {
+      const scheduledTimes = scheduledTimesForDay(med.scheduled_times);
+      const scheduled = scheduledTimes.length;
+      const taken = todayTakenByName.get(med.medication_name) ?? 0;
+      const remaining = Math.max(0, scheduled - taken);
+      for (let index = taken; index < scheduled; index++) {
+        pendingDoses.push({
+          medication_name: med.medication_name,
+          scheduled_time: scheduledTimes[index] ?? scheduledTimes[0] ?? "anytime",
+          sortKey: scheduledTimeSortKey(scheduledTimes[index] ?? scheduledTimes[0] ?? "anytime"),
+        });
+      }
+      return { scheduled, taken, remaining };
+    });
+    const todayScheduled = todayMedicationStatuses.reduce((sum, med) => sum + med.scheduled, 0);
+    const todayTaken = todayMedicationStatuses.reduce((sum, med) => sum + Math.min(med.taken, med.scheduled), 0);
+    const todayRemaining = todayMedicationStatuses.reduce((sum, med) => sum + med.remaining, 0);
+    const nextDueDose = pendingDoses.sort((a, b) => a.sortKey - b.sortKey)[0] ?? null;
+
     return res.json({
       hasLogs,
       weekPct,
       monthPct,
       perMedication,
       sevenDayDates,
+      latestTaken,
+      nextDue: nextDueDose
+        ? {
+            medication_name: nextDueDose.medication_name,
+            scheduled_time: nextDueDose.scheduled_time,
+          }
+        : null,
+      todaySummary: {
+        taken: todayTaken,
+        scheduled: todayScheduled,
+        remaining: todayRemaining,
+        medicationCount: medRows.length,
+        completedMedicationCount: todayMedicationStatuses.filter((med) => med.remaining === 0).length,
+        pendingMedicationCount: todayMedicationStatuses.filter((med) => med.remaining > 0).length,
+      },
     });
   } catch (err) {
     console.error("[meds/adherence-report GET]", err);

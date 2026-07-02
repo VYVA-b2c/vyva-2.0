@@ -5,6 +5,7 @@ import { and, desc, eq, gte, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db, pool } from "../db.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { selectProfileIdByPhoneDigitsFromDatabaseColumns } from "../lib/profileReadCompatibility.js";
 import * as lifecycleService from "../services/lifecycle.js";
 import { triggerCallbackOnboardingCall } from "../services/callbackOnboarding.js";
 import { dispatchCommunicationsByIds, dispatchQueuedCommunications } from "../services/communicationDispatcher.js";
@@ -66,6 +67,7 @@ import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 export const adminLifecycleRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
+const DUPLICATE_PROFILE_PHONE_ERROR = "That phone number is already used on another profile. Choose a different profile phone number.";
 
 function requireAdmin(req: Request, res: Response): boolean {
   if (!req.user || req.user.role !== "admin") {
@@ -228,6 +230,32 @@ const profileUpdateSchema = z.object({
   sync_profile_ids: z.array(z.string().uuid()).optional().default([]),
 });
 
+const caregiverInviteSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().optional().nullable().or(z.literal("")),
+  phone: z.string().trim().max(40).optional().nullable().or(z.literal("")),
+  whatsapp: z.string().trim().max(40).optional().nullable().or(z.literal("")),
+  role: z.enum(["caregiver", "family", "family_member", "doctor", "carer"]).optional().default("caregiver"),
+  relationship: z.string().trim().max(120).optional().nullable().or(z.literal("")),
+  permissions: z.object({
+    daily_summary: z.boolean().optional(),
+    safety_alerts: z.boolean().optional(),
+    health_alerts: z.boolean().optional(),
+    mood_updates: z.boolean().optional(),
+    medication_alerts: z.boolean().optional(),
+    dashboard_access: z.boolean().optional(),
+    health_reports: z.boolean().optional(),
+    vital_signs: z.boolean().optional(),
+    journal_summaries: z.boolean().optional(),
+  }).optional().default({}),
+});
+
+const loginAccountDeleteSchema = z.object({
+  confirm: z.literal("DELETE_LOGIN_ACCOUNT"),
+  source: z.enum(["legacy", "supabase"]),
+  login_uid: z.string().trim().min(1),
+});
+
 const scheduledEventAdminSchema = z.object({
   event_type: z.string().min(1).default("custom"),
   title: z.string().min(1),
@@ -296,6 +324,7 @@ const accountSubscriptionUpdateSchema = z.object({
   account_id: z.string().optional().nullable(),
   account_source: z.enum(["legacy", "supabase"]).optional().nullable(),
   account_email: z.string().email().optional().nullable().or(z.literal("")),
+  account_phone: z.string().optional().nullable(),
   subscription_tier: z.string().min(1).optional(),
   tier: z.string().min(1).optional(),
   subscription_status: z.string().min(1).optional().default("active"),
@@ -368,6 +397,85 @@ async function scheduledSupportForUser(userId: string | null) {
     console.warn("[admin-lifecycle] optional scheduled support unavailable", error);
     return { schedules: [], logs: [], audit_logs: [] };
   }
+}
+
+const adminChannelPreferenceDefaults = {
+  preferred_checkin_channel: "voice_outbound",
+  preferred_reminder_channel: "whatsapp_outbound",
+  support_mode: "ai_powered",
+  voice_available_from: "08:00",
+  voice_available_until: "21:00",
+  whatsapp_available_from: "07:00",
+  whatsapp_available_until: "22:00",
+  max_outbound_calls_per_day: 1,
+  max_whatsapp_messages_per_day: 5,
+};
+
+function adminConsentRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function readAdminContactSupportMode(consent: unknown) {
+  const communication = adminConsentRecord(adminConsentRecord(consent).communication_preferences);
+  return communication.contact_support_mode === "human_supported" ? "human_supported" : adminChannelPreferenceDefaults.support_mode;
+}
+
+function serializeAdminChannelPreferences(row: typeof userChannelPreferences.$inferSelect | null | undefined, consent: unknown) {
+  return {
+    preferred_checkin_channel: row?.preferred_checkin_channel ?? adminChannelPreferenceDefaults.preferred_checkin_channel,
+    preferred_reminder_channel: row?.preferred_reminder_channel ?? adminChannelPreferenceDefaults.preferred_reminder_channel,
+    support_mode: readAdminContactSupportMode(consent),
+    voice_available_from: row?.voice_available_from ?? adminChannelPreferenceDefaults.voice_available_from,
+    voice_available_until: row?.voice_available_until ?? adminChannelPreferenceDefaults.voice_available_until,
+    whatsapp_available_from: row?.whatsapp_available_from ?? adminChannelPreferenceDefaults.whatsapp_available_from,
+    whatsapp_available_until: row?.whatsapp_available_until ?? adminChannelPreferenceDefaults.whatsapp_available_until,
+    max_outbound_calls_per_day: row?.max_outbound_calls_per_day ?? adminChannelPreferenceDefaults.max_outbound_calls_per_day,
+    max_whatsapp_messages_per_day: row?.max_whatsapp_messages_per_day ?? adminChannelPreferenceDefaults.max_whatsapp_messages_per_day,
+  };
+}
+
+async function supportProfileForUser(userId: string | null, profile: { data_sharing_consent?: unknown } | null) {
+  if (!userId) {
+    return {
+      medications: [],
+      providers: [],
+      channel_preferences: serializeAdminChannelPreferences(null, profile?.data_sharing_consent),
+      channel_preferences_saved: false,
+    };
+  }
+
+  const [medicationRows, providerRows, channelRows] = await Promise.all([
+    optionalAdminRows(
+      db
+        .select()
+        .from(userMedications)
+        .where(and(eq(userMedications.user_id, userId), eq(userMedications.active, true)))
+        .orderBy(desc(userMedications.created_at))
+        .limit(100),
+    ),
+    optionalAdminRows(
+      db
+        .select()
+        .from(userProviders)
+        .where(and(eq(userProviders.user_id, userId), eq(userProviders.is_active, true)))
+        .orderBy(desc(userProviders.updated_at))
+        .limit(100),
+    ),
+    optionalAdminRows(
+      db
+        .select()
+        .from(userChannelPreferences)
+        .where(eq(userChannelPreferences.user_id, userId))
+        .limit(1),
+    ),
+  ]);
+
+  return {
+    medications: medicationRows,
+    providers: providerRows,
+    channel_preferences: serializeAdminChannelPreferences(channelRows[0], profile?.data_sharing_consent),
+    channel_preferences_saved: channelRows.length > 0,
+  };
 }
 
 function normalizePhone(phone: string): string {
@@ -629,6 +737,61 @@ function signupPhoneInviteChannel(): "sms" | "whatsapp" {
   return communicationsProviderConfig("whatsapp").configured ? "whatsapp" : "sms";
 }
 
+type AdminCareTeamRole = "caregiver" | "family_member" | "doctor";
+
+function normalizeCaregiverInviteRole(role: string): AdminCareTeamRole {
+  if (role === "family" || role === "family_member") return "family_member";
+  if (role === "doctor") return "doctor";
+  return "caregiver";
+}
+
+function cleanOptionalContact(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function caregiverInviteDefaults(role: AdminCareTeamRole) {
+  if (role === "doctor") {
+    return {
+      daily_summary: true,
+      safety_alerts: true,
+      health_alerts: true,
+      mood_updates: false,
+      medication_alerts: false,
+      dashboard_access: true,
+      health_reports: true,
+      vital_signs: true,
+      journal_summaries: false,
+    };
+  }
+
+  if (role === "family_member") {
+    return {
+      daily_summary: true,
+      safety_alerts: true,
+      health_alerts: false,
+      mood_updates: true,
+      medication_alerts: false,
+      dashboard_access: true,
+      health_reports: false,
+      vital_signs: false,
+      journal_summaries: true,
+    };
+  }
+
+  return {
+    daily_summary: true,
+    safety_alerts: true,
+    health_alerts: true,
+    mood_updates: true,
+    medication_alerts: true,
+    dashboard_access: true,
+    health_reports: true,
+    vital_signs: true,
+    journal_summaries: true,
+  };
+}
+
 function isMissingRelationError(error: unknown): boolean {
   const maybeError = error as { code?: string; message?: string };
   return maybeError?.code === "42P01" || String(maybeError?.message ?? error).includes("does not exist");
@@ -662,6 +825,7 @@ type LoginMapping = {
   effective_profile_id: string | null;
   effective_profile_email: string | null;
   effective_profile_phone: string | null;
+  effective_account_status: string | null;
   effective_subscription_tier: string | null;
   effective_subscription_status: string | null;
   subscription_mismatch: boolean;
@@ -721,6 +885,19 @@ function phoneDigits(value: string | null): string | null {
   return digits ? digits : null;
 }
 
+function samePhoneDigits(left: string | null, right: string | null): boolean {
+  const leftDigits = phoneDigits(left);
+  const rightDigits = phoneDigits(right);
+  return Boolean(leftDigits && rightDigits && leftDigits === rightDigits);
+}
+
+function isUniqueViolation(err: unknown, hints: string[]): boolean {
+  const error = err as { code?: unknown; constraint?: unknown; detail?: unknown; message?: unknown };
+  if (error.code !== "23505") return false;
+  const text = `${error.constraint ?? ""} ${error.detail ?? ""} ${error.message ?? ""}`.toLowerCase();
+  return hints.some((hint) => text.includes(hint.toLowerCase()));
+}
+
 function addIfPresent(target: Set<string>, value: string | null | undefined) {
   if (value) target.add(value);
 }
@@ -739,9 +916,25 @@ const adminProfileSelect = {
   id: profiles.id,
   full_name: profiles.full_name,
   preferred_name: profiles.preferred_name,
+  date_of_birth: profiles.date_of_birth,
   email: profiles.email,
   phone_number: profiles.phone_number,
   whatsapp_number: profiles.whatsapp_number,
+  country_code: profiles.country_code,
+  language: profiles.language,
+  timezone: profiles.timezone,
+  caregiver_name: profiles.caregiver_name,
+  caregiver_contact: profiles.caregiver_contact,
+  address_line_1: profiles.address_line_1,
+  city: profiles.city,
+  region: profiles.region,
+  postcode: profiles.postcode,
+  gp_name: profiles.gp_name,
+  gp_phone: profiles.gp_phone,
+  gp_email: profiles.gp_email,
+  gp_address: profiles.gp_address,
+  known_allergies: profiles.known_allergies,
+  data_sharing_consent: profiles.data_sharing_consent,
   stripe_subscription_id: profiles.stripe_subscription_id,
   subscription_status: profiles.subscription_status,
   subscription_tier: profiles.subscription_tier,
@@ -1006,12 +1199,18 @@ async function profileById(profileId: string | null | undefined): Promise<typeof
   }
 }
 
-function buildMappingWarning(mapping: LoginMapping) {
-  if (!mapping.effective_profile_id) return "This login does not yet have an app profile.";
-  if (mapping.lifecycle_profile_id && mapping.lifecycle_profile_id !== mapping.effective_profile_id) {
-    return "Admin is editing a lifecycle profile, but the app reads a different active login profile.";
+function buildMappingWarnings(mapping: LoginMapping) {
+  const warnings: string[] = [];
+  if (!mapping.effective_profile_id) {
+    warnings.push("This login does not yet have an app profile.");
   }
-  return null;
+  if (mapping.effective_account_status === "disabled") {
+    warnings.push("The app reads this login's active profile as disabled. Enable app access before testing voice.");
+  }
+  if (mapping.lifecycle_profile_id && mapping.effective_profile_id && mapping.lifecycle_profile_id !== mapping.effective_profile_id) {
+    warnings.push("Admin is editing a lifecycle profile, but the app reads a different active login profile.");
+  }
+  return warnings;
 }
 
 function subscriptionAdminFields(sync: EntitlementSyncResult) {
@@ -1077,6 +1276,7 @@ async function resolveLoginMappings(input: {
       effective_profile_id: effectiveProfileId,
       effective_profile_email: effectiveProfile?.email ?? null,
       effective_profile_phone: effectiveProfile?.phone_number ?? null,
+      effective_account_status: effectiveProfile?.account_status ?? null,
       effective_subscription_tier: subscriptionSync.effectiveTier,
       effective_subscription_status: subscriptionSync.effectiveStatus,
       subscription_mismatch: subscriptionSync.profileTierMismatch,
@@ -1091,8 +1291,7 @@ async function resolveLoginMappings(input: {
       latest_entitlement_repair_summary: subscriptionSync.latestRepairSummary,
       warnings: [],
     };
-    const warning = buildMappingWarning(mapping);
-    if (warning) mapping.warnings.push(warning);
+    mapping.warnings.push(...buildMappingWarnings(mapping));
     if (mapping.subscription_warning) mapping.warnings.push(mapping.subscription_warning);
     mappings.push(mapping);
   }
@@ -1119,6 +1318,7 @@ async function resolveLoginMappings(input: {
       effective_profile_id: effectiveProfileId,
       effective_profile_email: effectiveProfile?.email ?? account.email ?? null,
       effective_profile_phone: effectiveProfile?.phone_number ?? account.phone_number ?? null,
+      effective_account_status: effectiveProfile?.account_status ?? null,
       effective_subscription_tier: subscriptionSync.effectiveTier,
       effective_subscription_status: subscriptionSync.effectiveStatus,
       subscription_mismatch: subscriptionSync.profileTierMismatch,
@@ -1133,8 +1333,7 @@ async function resolveLoginMappings(input: {
       latest_entitlement_repair_summary: subscriptionSync.latestRepairSummary,
       warnings: [],
     };
-    const warning = buildMappingWarning(mapping);
-    if (warning) mapping.warnings.push(warning);
+    mapping.warnings.push(...buildMappingWarnings(mapping));
     if (mapping.subscription_warning) mapping.warnings.push(mapping.subscription_warning);
     mappings.push(mapping);
   }
@@ -1310,6 +1509,134 @@ async function syncSubscriptionForPhone(input: {
   return ids;
 }
 
+async function profileIdsForAccountIds(accountIds: string[]) {
+  const ids = new Set<string>();
+  if (accountIds.length === 0) return ids;
+
+  let accountRows: Array<Pick<typeof users.$inferSelect, "id" | "active_profile_id">> = [];
+  try {
+    accountRows = await db
+      .select({ id: users.id, active_profile_id: users.active_profile_id })
+      .from(users)
+      .where(inArray(users.id, accountIds));
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
+
+  for (const accountId of accountIds) ids.add(accountId);
+  for (const row of accountRows) {
+    ids.add(row.id);
+    if (row.active_profile_id) ids.add(row.active_profile_id);
+  }
+
+  if (accountRows.length) {
+    try {
+      const membershipRows = await db
+        .select({ profile_id: profileMemberships.profile_id })
+        .from(profileMemberships)
+        .where(and(
+          inArray(profileMemberships.user_id, accountRows.map((account) => account.id)),
+          eq(profileMemberships.status, "active"),
+        ));
+      for (const row of membershipRows) ids.add(row.profile_id);
+    } catch (error) {
+      if (!isMissingRelationError(error)) throw error;
+    }
+  }
+
+  return ids;
+}
+
+async function applySubscriptionPatchToProfiles(input: {
+  ids: string[];
+  profilePatch: Partial<typeof profiles.$inferInsert>;
+  email?: string | null;
+  phone?: string | null;
+}) {
+  const ids = Array.from(new Set(input.ids.filter(Boolean)));
+  if (!ids.length) return ids;
+
+  await db
+    .update(profiles)
+    .set(input.profilePatch)
+    .where(inArray(profiles.id, ids));
+
+  const existingRows = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(inArray(profiles.id, ids));
+  const existingIds = new Set(existingRows.map((row) => row.id));
+  const missingIds = ids.filter((id) => !existingIds.has(id));
+  const email = normalizedEmail(input.email);
+  const phone = normalizedPhoneOrNull(input.phone);
+
+  for (const id of missingIds) {
+    await db
+      .insert(profiles)
+      .values({
+        id,
+        email: email ?? undefined,
+        phone_number: phone ?? undefined,
+        ...input.profilePatch,
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: input.profilePatch,
+      });
+  }
+
+  return ids;
+}
+
+async function syncSubscriptionForAccessIdentity(input: {
+  email?: string | null;
+  phone?: string | null;
+  seedProfileId: string;
+  profilePatch: Partial<typeof profiles.$inferInsert>;
+  accountIds?: Array<string | null | undefined>;
+  explicitProfileIds?: Array<string | null | undefined>;
+}) {
+  const profileIds = new Set<string>([input.seedProfileId]);
+  for (const profileId of input.explicitProfileIds ?? []) {
+    if (profileId) profileIds.add(profileId);
+  }
+
+  if (normalizedEmail(input.email)) {
+    for (const profileId of await syncSubscriptionForEmail({
+      email: input.email ?? null,
+      seedProfileId: input.seedProfileId,
+      profilePatch: input.profilePatch,
+    })) {
+      profileIds.add(profileId);
+    }
+  }
+
+  if (normalizedPhoneOrNull(input.phone)) {
+    for (const profileId of await syncSubscriptionForPhone({
+      phone: input.phone ?? null,
+      seedProfileId: input.seedProfileId,
+      profilePatch: input.profilePatch,
+    })) {
+      profileIds.add(profileId);
+    }
+  }
+
+  const accountIds = Array.from(new Set((input.accountIds ?? []).filter((id): id is string => Boolean(id))));
+  for (const profileId of await profileIdsForAccountIds(accountIds)) {
+    profileIds.add(profileId);
+  }
+
+  const ids = Array.from(profileIds);
+  await applySubscriptionPatchToProfiles({
+    ids,
+    profilePatch: input.profilePatch,
+    email: input.email,
+    phone: input.phone,
+  });
+
+  return ids;
+}
+
 async function syncIntakeTiersForProfiles(profileIds: string[], email: string | null, subscriptionTier: string) {
   const uniqueProfileIds = Array.from(new Set(profileIds)).filter(Boolean);
   try {
@@ -1452,6 +1779,7 @@ function lifecycleActivityAction(eventType: string) {
     duplicate_merged: "Merged duplicate user",
     intake_created: "Created intake",
     link_sent: "Sent invite link",
+    login_account_deleted: "Deleted login account",
     organization_archived: "Archived organization",
     organization_assigned: "Assigned organization",
     organization_created: "Created organization",
@@ -1566,6 +1894,13 @@ async function clearLifecycleDeletedProfileMarkers(scope: LifecycleIdentityScope
     eq(profiles.account_status, "disabled"),
     eq(profiles.disabled_reason, "Deleted from lifecycle admin"),
   )).returning({ id: profiles.id }));
+}
+
+function isOwnedProfileMembership(membership: typeof profileMemberships.$inferSelect | undefined | null) {
+  if (!membership) return false;
+  return membership.role === "elder"
+    || membership.is_primary === true
+    || (membership.relationship ?? "").trim().toLowerCase() === "self";
 }
 
 async function bestEffortAdminDelete(label: string, query: Promise<unknown>, cleanupErrors: string[]) {
@@ -2705,6 +3040,10 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   const profilePatch: Partial<typeof profiles.$inferInsert> = {
     subscription_tier: subscriptionTier,
     subscription_status: subscriptionStatus,
+    account_status: "enabled",
+    disabled_at: null,
+    disabled_reason: null,
+    disabled_by: null,
     updated_at: new Date(),
   };
   if (trialEndsAt !== undefined) profilePatch.trial_ends_at = trialEndsAt;
@@ -2734,11 +3073,7 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
   if (!profile) return res.status(404).json({ error: "Profile not found" });
 
   const subscriptionEmail = normalizedEmail(parsed.data.account_email) ?? normalizedEmail(profile.email);
-  const syncedProfileIds = await syncSubscriptionForEmail({
-    email: subscriptionEmail,
-    seedProfileId: profile.id,
-    profilePatch,
-  });
+  const subscriptionPhone = normalizedPhoneOrNull(parsed.data.account_phone) ?? normalizedPhoneOrNull(profile.phone_number) ?? normalizedPhoneOrNull(profile.whatsapp_number);
 
   let syncedAccountId: string | null = null;
   let syncedActiveProfileId: string | null = null;
@@ -2806,7 +3141,17 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
     }
   }
 
+  const syncedProfileIds = await syncSubscriptionForAccessIdentity({
+    email: subscriptionEmail,
+    phone: subscriptionPhone,
+    seedProfileId: profile.id,
+    profilePatch,
+    accountIds: [syncedAccountId ?? parsed.data.account_id],
+    explicitProfileIds: [syncedActiveProfileId],
+  });
+
   await syncIntakeTiersForProfiles(syncedProfileIds, subscriptionEmail, subscriptionTier);
+  await syncIntakeTiersForPhone(syncedProfileIds, subscriptionPhone, subscriptionTier);
 
   try {
     await recordEvent({
@@ -2827,13 +3172,15 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
     if (!isMissingRelationError(error)) throw error;
   }
 
+  const freshProfile = await profileById(profile.id) ?? profile;
+  const effectiveProfile = syncedActiveProfileId ? await profileById(syncedActiveProfileId) : freshProfile;
   const subscriptionSync = await syncProfileEntitlement({
-    profile,
-    profileId: profile.id,
+    profile: effectiveProfile ?? freshProfile,
+    profileId: (effectiveProfile ?? freshProfile).id,
     accountUserId: syncedAccountId,
     email: subscriptionEmail,
-    phone: profile.phone_number,
-    whatsapp: profile.whatsapp_number,
+    phone: (effectiveProfile ?? freshProfile).phone_number ?? subscriptionPhone,
+    whatsapp: (effectiveProfile ?? freshProfile).whatsapp_number,
     repairProfile: false,
   });
 
@@ -2842,18 +3189,18 @@ adminLifecycleRouter.patch("/account-subscriptions/:profileId", async (req: Requ
       account_id: syncedAccountId,
       account_source: parsed.data.account_source ?? null,
       active_profile_id: syncedActiveProfileId,
-      is_active_profile: syncedActiveProfileId === profile.id,
-      profile_id: profile.id,
-      profile_email: profile.email,
-      full_name: profile.full_name,
-      preferred_name: profile.preferred_name,
-      subscription_status: profile.subscription_status,
-      subscription_tier: normalizeSubscriptionTier(profile.subscription_tier),
-      stored_subscription_tier: profile.subscription_tier,
-      trial_ends_at: profile.trial_ends_at,
-      account_status: profile.account_status,
-      profile_role: profile.role,
-      updated_at: profile.updated_at,
+      is_active_profile: syncedActiveProfileId === freshProfile.id,
+      profile_id: freshProfile.id,
+      profile_email: freshProfile.email,
+      full_name: freshProfile.full_name,
+      preferred_name: freshProfile.preferred_name,
+      subscription_status: freshProfile.subscription_status,
+      subscription_tier: normalizeSubscriptionTier(freshProfile.subscription_tier),
+      stored_subscription_tier: freshProfile.subscription_tier,
+      trial_ends_at: freshProfile.trial_ends_at,
+      account_status: freshProfile.account_status,
+      profile_role: freshProfile.role,
+      updated_at: freshProfile.updated_at,
       synced_profile_ids: syncedProfileIds,
       ...subscriptionAdminFields(subscriptionSync),
     },
@@ -2883,13 +3230,17 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       ? or(eq(accessLinks.intake_id, intake.id), eq(accessLinks.user_id, userId))
       : eq(accessLinks.intake_id, intake.id);
 
-    const [communicationRows, lifecycleRows, consentRows, accessLinkRows, scheduledRows, support] = await Promise.all([
+    const [communicationRows, lifecycleRows, consentRows, accessLinkRows, scheduledRows, support, supportProfile, careTeamInviteRows] = await Promise.all([
       optionalAdminRows(db.select().from(communicationsLog).where(userCommunicationWhere).orderBy(desc(communicationsLog.created_at)).limit(100)),
       optionalAdminRows(db.select().from(lifecycleEvents).where(userEventWhere).orderBy(desc(lifecycleEvents.created_at)).limit(100)),
       optionalAdminRows(db.select().from(consentAttempts).where(eq(consentAttempts.intake_id, intake.id)).orderBy(desc(consentAttempts.created_at)).limit(50)),
       optionalAdminRows(db.select().from(accessLinks).where(userAccessLinkWhere).orderBy(desc(accessLinks.created_at)).limit(50)),
       scheduledItemsForUser(userId),
       scheduledSupportForUser(userId),
+      supportProfileForUser(userId, profile),
+      userId
+        ? optionalAdminRows(db.select().from(teamInvitations).where(eq(teamInvitations.senior_id, userId)).orderBy(desc(teamInvitations.created_at)).limit(50))
+        : Promise.resolve([]),
     ]);
 
     return res.json({
@@ -2904,12 +3255,154 @@ adminLifecycleRouter.get("/users/:id/details", async (req: Request, res: Respons
       access_links: accessLinkRows,
       scheduled_events: scheduledRows,
       scheduled_support: support.schedules,
+      support_profile: supportProfile,
       interaction_logs: support.logs,
       consent_audit_logs: support.audit_logs,
+      care_team_invitations: careTeamInviteRows,
     });
   } catch (error) {
     console.error("[admin-lifecycle] user details failed", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Could not load user details" });
+  }
+});
+
+adminLifecycleRouter.post("/users/:id/caregiver-invite", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = caregiverInviteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message ?? "Invalid caregiver invite" });
+
+  try {
+    const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+    if (!intake) return res.status(404).json({ error: "User intake not found" });
+
+    const userId = targetUserIdForIntake(intake);
+    if (!userId) return res.status(400).json({ error: "Create or link the elder app profile before inviting a caregiver." });
+
+    const profile = await profileById(userId);
+    if (!profile) return res.status(404).json({ error: "Linked elder profile not found" });
+
+    const data = parsed.data;
+    const role = normalizeCaregiverInviteRole(data.role);
+    const email = cleanOptionalContact(data.email)?.toLowerCase() ?? null;
+    const phone = cleanOptionalContact(data.phone) ? normalizePhone(data.phone ?? "") || null : null;
+    const whatsapp = cleanOptionalContact(data.whatsapp) ? normalizePhone(data.whatsapp ?? "") || null : null;
+    const relationship = cleanOptionalContact(data.relationship);
+    if (!email && !phone && !whatsapp) {
+      return res.status(400).json({ error: "Add at least one caregiver email, phone, or WhatsApp number." });
+    }
+
+    const permissions = { ...caregiverInviteDefaults(role), ...data.permissions };
+    const inviteToken = randomUUID();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    const [invitation] = await db
+      .insert(teamInvitations)
+      .values({
+        senior_id: userId,
+        invitee_name: data.name,
+        invitee_phone: phone,
+        invitee_email: email,
+        invitee_whatsapp: whatsapp,
+        role,
+        relationship,
+        invite_token: inviteToken,
+        invite_channel: "admin_template",
+        status: "pending",
+        expires_at: expiresAt,
+        can_receive_daily_digest: Boolean(permissions.daily_summary),
+        can_receive_safety_alerts: Boolean(permissions.safety_alerts),
+        can_receive_health_alerts: Boolean(permissions.health_alerts),
+        can_receive_mood_alerts: Boolean(permissions.mood_updates),
+        can_receive_medication_alerts: Boolean(permissions.medication_alerts),
+        can_view_dashboard: Boolean(permissions.dashboard_access),
+        can_view_health_reports: Boolean(permissions.health_reports),
+        can_view_vital_signs: Boolean(permissions.vital_signs),
+        can_view_journal_summaries: Boolean(permissions.journal_summaries),
+      })
+      .returning();
+
+    const seniorName = profile.full_name ?? profile.preferred_name ?? intake.name;
+    const baseUrl = publicBaseUrl(req).replace(/\/+$/, "");
+    const inviteUrl = `${baseUrl}/care-team/invite/${encodeURIComponent(inviteToken)}`;
+    const body = `VYVA: ${seniorName || "someone you support"} invited you to their care team. Review and accept securely: ${inviteUrl}`;
+    const phoneRecipient = phone ?? whatsapp;
+    const deliveryChannel = signupPhoneInviteChannel();
+    const recipients = [
+      ...(email ? [{ channel: "email", recipient: email }] : []),
+      ...(phoneRecipient ? [{ channel: deliveryChannel, recipient: phoneRecipient }] : []),
+    ];
+    const dedupedRecipients = Array.from(
+      new Map(recipients.map((item) => [`${item.channel}:${item.recipient.toLowerCase()}`, item])).values(),
+    );
+
+    const communicationRows: Array<typeof communicationsLog.$inferInsert> = dedupedRecipients.map((target) => ({
+      intake_id: intake.id,
+      user_id: userId,
+      channel: target.channel,
+      recipient: target.recipient,
+      purpose: "care_team_invite",
+      status: "queued",
+      body,
+      metadata: {
+        url: inviteUrl,
+        subject: `${seniorName || "VYVA"} invited you to their VYVA care team`,
+        invitation_id: invitation.id,
+        senior_id: userId,
+        senior_name: seniorName,
+        invitee_name: invitation.invitee_name,
+        recipient_name: invitation.invitee_name,
+        target_role: invitation.role,
+        relationship: invitation.relationship,
+        shared_by_admin: req.user?.email ?? req.user?.id ?? null,
+      },
+    }));
+
+    const communications = communicationRows.length
+      ? await db.insert(communicationsLog).values(communicationRows).returning()
+      : [];
+    const dispatchResult = communications.length
+      ? await dispatchCommunicationsByIds(communications.map((item) => item.id))
+      : { processed: 0, results: [] };
+    const sent = dispatchResult.results.filter((item) => item.status === "sent").length;
+    const failed = dispatchResult.results.filter((item) => item.status === "failed").length;
+
+    await lifecycleService.recordLifecycleEvent({
+      intakeId: intake.id,
+      userId,
+      eventType: "caregiver_invite_sent",
+      fromStatus: intake.status,
+      toStatus: intake.status,
+      channel: "admin_template",
+      metadata: {
+        invitation_id: invitation.id,
+        invitee_name: invitation.invitee_name,
+        target_role: invitation.role,
+        relationship,
+        queued: communications.length,
+        sent,
+        failed,
+      },
+    });
+
+    return res.status(201).json({
+      invitation,
+      invite_url: inviteUrl,
+      delivery: {
+        queued: communications.length,
+        sent,
+        failed,
+        results: dispatchResult.results.map((item) => ({
+          id: item.id,
+          channel: item.channel,
+          recipient: item.recipient,
+          status: item.status,
+          ...(item.error ? { error: item.error } : {}),
+        })),
+      },
+      communications,
+    });
+  } catch (error) {
+    console.error("[admin-lifecycle] caregiver invite failed", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Could not send caregiver invite" });
   }
 });
 
@@ -2931,18 +3424,28 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     .limit(1);
   if (!existingProfile) return res.status(404).json({ error: "Linked profile not found" });
 
+  const nextProfilePhone = data.phone_number !== undefined ? normalizedPhoneOrNull(data.phone_number) : null;
+  const existingProfilePhone = normalizedPhoneOrNull(existingProfile.phone_number);
+  if (nextProfilePhone && !samePhoneDigits(nextProfilePhone, existingProfilePhone)) {
+    const nextProfilePhoneDigits = phoneDigits(nextProfilePhone);
+    if (nextProfilePhoneDigits) {
+      const phoneOwner = await selectProfileIdByPhoneDigitsFromDatabaseColumns(nextProfilePhoneDigits, userId);
+      if (phoneOwner) return res.status(409).json({ error: DUPLICATE_PROFILE_PHONE_ERROR });
+    }
+  }
+
   const nextEmail = data.email !== undefined
     ? data.email || null
     : existingProfile.email ?? intake.email ?? null;
   const nextPhone = data.phone_number !== undefined
-    ? data.phone_number || null
+    ? nextProfilePhone
     : existingProfile.phone_number ?? intake.phone;
   const profilePatch: Partial<typeof profiles.$inferInsert> = { updated_at: new Date() };
   if (data.full_name !== undefined) profilePatch.full_name = data.full_name;
   if (data.preferred_name !== undefined) profilePatch.preferred_name = data.preferred_name || null;
   if (data.date_of_birth !== undefined) profilePatch.date_of_birth = data.date_of_birth || null;
   if (data.email !== undefined) profilePatch.email = data.email || null;
-  if (data.phone_number !== undefined) profilePatch.phone_number = data.phone_number || null;
+  if (data.phone_number !== undefined) profilePatch.phone_number = nextProfilePhone;
   if (data.whatsapp_number !== undefined) profilePatch.whatsapp_number = data.whatsapp_number || null;
   if (data.language !== undefined) profilePatch.language = data.language || "es";
   if (data.timezone !== undefined) profilePatch.timezone = data.timezone || "Europe/Madrid";
@@ -2953,15 +3456,23 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     profilePatch.subscription_status = "active";
   }
 
-  const [profile] = await db
-    .update(profiles)
-    .set(profilePatch)
-    .where(eq(profiles.id, userId))
-    .returning();
+  let profile: typeof profiles.$inferSelect | undefined;
+  try {
+    [profile] = await db
+      .update(profiles)
+      .set(profilePatch)
+      .where(eq(profiles.id, userId))
+      .returning();
+  } catch (error) {
+    if (isUniqueViolation(error, ["phone_number", "profiles_phone_number", "profiles_phone_number_digits_unique"])) {
+      return res.status(409).json({ error: DUPLICATE_PROFILE_PHONE_ERROR });
+    }
+    throw error;
+  }
 
   const intakePatch: Partial<typeof userIntakes.$inferInsert> = { updated_at: new Date(), last_activity_at: new Date() };
   if (data.full_name !== undefined) intakePatch.name = data.full_name;
-  if (data.phone_number !== undefined) intakePatch.phone = normalizePhone(data.phone_number ?? intake.phone);
+  if (data.phone_number !== undefined) intakePatch.phone = nextProfilePhone ?? normalizePhone(data.phone_number ?? intake.phone);
   if (data.email !== undefined) intakePatch.email = data.email || null;
   if (data.tier !== undefined || data.subscription_tier !== undefined) intakePatch.tier = normalizeSubscriptionTier(data.tier ?? data.subscription_tier);
   if (data.organization_id !== undefined) intakePatch.organization_id = data.organization_id ?? null;
@@ -2979,6 +3490,10 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     const subscriptionPatch: Partial<typeof profiles.$inferInsert> = {
       subscription_tier: profilePatch.subscription_tier,
       subscription_status: "active",
+      account_status: "enabled",
+      disabled_at: null,
+      disabled_reason: null,
+      disabled_by: null,
       updated_at: new Date(),
     };
     const profileIds = new Set<string>([userId]);
@@ -2990,28 +3505,26 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
       await repairLegacyAccountWithoutActiveProfile(accountMapping, userId);
     }
 
-    if (normalizedEmail(nextEmail)) {
-      for (const profileId of await syncSubscriptionForEmail({
-        email: nextEmail,
-        seedProfileId: userId,
-        profilePatch: subscriptionPatch,
-      })) profileIds.add(profileId);
-      await syncIntakeTiersForProfiles(Array.from(profileIds), nextEmail, profilePatch.subscription_tier);
-    } else {
-      for (const profileId of await syncSubscriptionForPhone({
-        phone: nextPhone,
-        seedProfileId: userId,
-        profilePatch: subscriptionPatch,
-      })) profileIds.add(profileId);
-      await syncIntakeTiersForPhone(Array.from(profileIds), nextPhone, profilePatch.subscription_tier);
+    for (const profileId of await syncSubscriptionForAccessIdentity({
+      email: nextEmail,
+      phone: nextPhone,
+      seedProfileId: userId,
+      profilePatch: subscriptionPatch,
+      accountIds: mapping.mappings.map((accountMapping) => accountMapping.login_uid),
+      explicitProfileIds: Array.from(profileIds),
+    })) {
+      profileIds.add(profileId);
     }
 
-    if (profileIds.size > 0) {
-      await db
-        .update(profiles)
-        .set(subscriptionPatch)
-        .where(inArray(profiles.id, Array.from(profileIds)));
-    }
+    await syncIntakeTiersForProfiles(Array.from(profileIds), nextEmail, profilePatch.subscription_tier);
+    await syncIntakeTiersForPhone(Array.from(profileIds), nextPhone, profilePatch.subscription_tier);
+
+    await applySubscriptionPatchToProfiles({
+      ids: Array.from(profileIds),
+      profilePatch: subscriptionPatch,
+      email: nextEmail,
+      phone: nextPhone,
+    });
     syncedProfileIds = Array.from(profileIds);
   }
 
@@ -3023,24 +3536,28 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
     phone: nextPhone,
   });
 
-  await recordEvent({
-    intakeId: intake.id,
-    userId,
-    eventType: "admin_profile_updated",
-    channel: "admin",
-    metadata: {
-      previous_subscription_tier: existingProfile.subscription_tier,
-      subscription_tier: profilePatch.subscription_tier ?? existingProfile.subscription_tier,
-      previous_subscription_status: existingProfile.subscription_status,
-      subscription_status: profilePatch.subscription_status ?? existingProfile.subscription_status,
-      synced_profile_ids: syncedProfileIds,
-      account_mappings: freshMapping.mappings.map((item) => ({
-        source: item.source,
-        login_uid: item.login_uid,
-        effective_profile_id: item.effective_profile_id,
-      })),
-    },
-  });
+  try {
+    await recordEvent({
+      intakeId: intake.id,
+      userId,
+      eventType: "admin_profile_updated",
+      channel: "admin",
+      metadata: {
+        previous_subscription_tier: existingProfile.subscription_tier,
+        subscription_tier: profilePatch.subscription_tier ?? existingProfile.subscription_tier,
+        previous_subscription_status: existingProfile.subscription_status,
+        subscription_status: profilePatch.subscription_status ?? existingProfile.subscription_status,
+        synced_profile_ids: syncedProfileIds,
+        account_mappings: freshMapping.mappings.map((item) => ({
+          source: item.source,
+          login_uid: item.login_uid,
+          effective_profile_id: item.effective_profile_id,
+        })),
+      },
+    });
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
 
   return res.json({
     intake: updatedIntake,
@@ -3144,6 +3661,251 @@ adminLifecycleRouter.post("/users/:id/enable", async (req: Request, res: Respons
     metadata: { matched_profile_ids: enabledProfiles.map((profile) => profile.id) },
   });
   return res.json({ profile: enabledProfiles[0] ?? null, profiles: enabledProfiles });
+});
+
+adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request, res: Response) => {
+  if (!requireAdmin(req, res)) return;
+  const parsed = loginAccountDeleteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Type DELETE LOGIN before deleting the login account." });
+
+  const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
+  if (!intake) return res.status(404).json({ error: "User intake not found" });
+
+  const userId = targetUserIdForIntake(intake);
+  const lifecycleProfile = await profileById(userId);
+  const mappingResult = await resolveLoginMappings({
+    intake,
+    lifecycleProfile,
+  });
+  const mapping = mappingResult.mappings.find((item) => (
+    item.source === parsed.data.source && item.login_uid === parsed.data.login_uid
+  ));
+  if (!mapping) return res.status(404).json({ error: "That login account is no longer linked to this user. Refresh and try again." });
+  if (mapping.source !== "legacy") {
+    return res.status(409).json({ error: "This is an external auth account. Delete it in the auth provider first, then refresh VYVA." });
+  }
+
+  const [account] = await db.select().from(users).where(eq(users.id, mapping.login_uid)).limit(1);
+  if (!account) return res.status(404).json({ error: "Login account not found. Refresh and try again." });
+  if (account.id === req.user?.id) return res.status(409).json({ error: "You cannot delete the login account you are currently using." });
+  if (isSuperAdminEmail(account.email)) return res.status(403).json({ error: "The super admin login account cannot be deleted from here." });
+
+  const deletedAt = new Date();
+  const deletedBy = req.user?.email ?? req.user?.id ?? "admin";
+  const membershipRows = await optionalAdminRows(
+    db.select().from(profileMemberships).where(eq(profileMemberships.user_id, account.id)),
+  );
+  const membershipByProfile = new Map(membershipRows.map((membership) => [membership.profile_id, membership]));
+  const ownedProfileIds = new Set<string>([account.id]);
+
+  for (const membership of membershipRows) {
+    if (isOwnedProfileMembership(membership)) ownedProfileIds.add(membership.profile_id);
+  }
+
+  const activeMembership = account.active_profile_id ? membershipByProfile.get(account.active_profile_id) : null;
+  if (account.active_profile_id && (!activeMembership || isOwnedProfileMembership(activeMembership))) {
+    ownedProfileIds.add(account.active_profile_id);
+  }
+
+  const effectiveMembership = mapping.effective_profile_id ? membershipByProfile.get(mapping.effective_profile_id) : null;
+  if (
+    mapping.effective_profile_id
+    && (
+      mapping.effective_profile_id === account.id
+      || !effectiveMembership
+      || isOwnedProfileMembership(effectiveMembership)
+    )
+  ) {
+    ownedProfileIds.add(mapping.effective_profile_id);
+  }
+
+  const ownedProfileIdList = Array.from(ownedProfileIds);
+  const ownedProfileRows = ownedProfileIdList.length
+    ? await optionalAdminRows(
+      db
+        .select({
+          id: profiles.id,
+          email: profiles.email,
+          phone_number: profiles.phone_number,
+          whatsapp_number: profiles.whatsapp_number,
+        })
+        .from(profiles)
+        .where(inArray(profiles.id, ownedProfileIdList)),
+    )
+    : [];
+  const deleteEmails = new Set<string>();
+  const deletePhones = new Set<string>();
+  addNormalizedEmail(deleteEmails, account.email);
+  addNormalizedPhone(deletePhones, account.phone_number);
+  for (const profile of ownedProfileRows) {
+    addNormalizedEmail(deleteEmails, profile.email);
+    addNormalizedPhone(deletePhones, profile.phone_number);
+    addNormalizedPhone(deletePhones, profile.whatsapp_number);
+  }
+
+  const deleteScope = {
+    ids: Array.from(new Set([account.id, ...ownedProfileIdList])),
+    emails: Array.from(deleteEmails),
+    phones: Array.from(deletePhones),
+  };
+  const intakeWhere = lifecycleIntakeIdentityWhere({
+    selectedIntakeId: intake.id,
+    ids: deleteScope.ids,
+    emails: deleteScope.emails,
+    phones: deleteScope.phones,
+  });
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const intakesToHide = await tx.select().from(userIntakes).where(intakeWhere);
+      const intakesById = new Map<string, typeof userIntakes.$inferSelect>();
+      for (const row of intakesToHide) intakesById.set(row.id, row);
+      intakesById.set(intake.id, intake);
+
+      const hiddenIntakeIds: string[] = [];
+      for (const row of intakesById.values()) {
+        const [hiddenIntake] = await tx.update(userIntakes).set({
+          status: "dropped",
+          journey_step: "admin_deleted",
+          dropped_at: deletedAt,
+          last_activity_at: deletedAt,
+          updated_at: deletedAt,
+          metadata: {
+            ...jsonRecord(row.metadata),
+            hidden_from_lifecycle: true,
+            deleted_from_lifecycle: true,
+            login_account_deleted: true,
+            login_account_deleted_at: deletedAt.toISOString(),
+            login_account_deleted_by: deletedBy,
+            deleted_identity: {
+              user_id: row.user_id,
+              elder_user_id: row.elder_user_id,
+              family_user_id: row.family_user_id,
+              name: row.name,
+              email: row.email,
+              phone: row.phone,
+            },
+            deleted_login_account: {
+              id: account.id,
+              email: account.email,
+              phone_number: account.phone_number,
+            },
+            released_login_contacts: [account.email, account.phone_number].filter(Boolean),
+            remove_from_users: true,
+            app_access_changed: true,
+          },
+        }).where(eq(userIntakes.id, row.id)).returning({ id: userIntakes.id });
+        if (hiddenIntake) hiddenIntakeIds.push(hiddenIntake.id);
+      }
+
+      const disabledProfiles = ownedProfileIdList.length
+        ? await tx.update(profiles).set({
+          account_status: "disabled",
+          disabled_at: deletedAt,
+          disabled_reason: "Login account deleted by admin",
+          disabled_by: deletedBy,
+          email: null,
+          phone_number: null,
+          whatsapp_number: null,
+          updated_at: deletedAt,
+        }).where(inArray(profiles.id, ownedProfileIdList)).returning({ id: profiles.id })
+        : [];
+
+      const revokedProfileMemberships = ownedProfileIdList.length
+        ? await tx.update(profileMemberships).set({
+          status: "revoked",
+          updated_at: deletedAt,
+        }).where(and(
+          inArray(profileMemberships.profile_id, ownedProfileIdList),
+          sql`${profileMemberships.user_id} <> ${account.id}`,
+          sql`${profileMemberships.status} <> 'revoked'`,
+        )).returning({ id: profileMemberships.id })
+        : [];
+
+      const resetAcceptedInvites = await tx.update(teamInvitations).set({
+        status: "pending",
+        accepted_at: null,
+        accepted_user_id: null,
+        updated_at: deletedAt,
+      }).where(eq(teamInvitations.accepted_user_id, account.id)).returning({ id: teamInvitations.id });
+
+      const revokedSeniorInvites = ownedProfileIdList.length
+        ? await tx.update(teamInvitations).set({
+          status: "revoked",
+          revoked_at: deletedAt,
+          revoked_reason: "Senior login account deleted by admin",
+          updated_at: deletedAt,
+        }).where(and(
+          inArray(teamInvitations.senior_id, ownedProfileIdList),
+          sql`${teamInvitations.status} in ('pending', 'accepted')`,
+        )).returning({ id: teamInvitations.id })
+        : [];
+
+      const linkClauses: SQL[] = [eq(accessLinks.user_id, account.id)];
+      if (ownedProfileIdList.length) linkClauses.push(inArray(accessLinks.user_id, ownedProfileIdList));
+      if (hiddenIntakeIds.length) linkClauses.push(inArray(accessLinks.intake_id, hiddenIntakeIds));
+      const revokedAccessLinks = await tx.update(accessLinks).set({
+        revoked_at: deletedAt,
+      }).where(and(
+        or(...linkClauses)!,
+        sql`${accessLinks.revoked_at} is null`,
+      )).returning({ id: accessLinks.id });
+
+      const clearedActiveProfiles = ownedProfileIdList.length
+        ? await tx.update(users).set({ active_profile_id: null }).where(inArray(users.active_profile_id, ownedProfileIdList)).returning({ id: users.id })
+        : [];
+
+      const deletedAccounts = await tx.delete(users).where(eq(users.id, account.id)).returning({ id: users.id });
+      if (deletedAccounts.length !== 1) {
+        throw new Error("Login account could not be deleted. Refresh and try again.");
+      }
+
+      await tx.insert(lifecycleEvents).values({
+        intake_id: intake.id,
+        user_id: account.id,
+        event_type: "login_account_deleted",
+        from_status: intake.status,
+        to_status: "dropped",
+        channel: "admin",
+        metadata: {
+          deleted_by: deletedBy,
+          deleted_at: deletedAt.toISOString(),
+          login_uid: account.id,
+          released_email: account.email,
+          released_phone_number: account.phone_number,
+          owned_profile_ids: ownedProfileIdList,
+          disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
+          hidden_intake_ids: hiddenIntakeIds,
+          revoked_profile_membership_count: revokedProfileMemberships.length,
+          reset_care_team_invite_count: resetAcceptedInvites.length,
+          revoked_senior_invite_count: revokedSeniorInvites.length,
+          revoked_access_link_count: revokedAccessLinks.length,
+          cleared_active_profile_count: clearedActiveProfiles.length,
+        },
+      });
+
+      return {
+        deleted_login_account: {
+          id: account.id,
+          email: account.email,
+          phone_number: account.phone_number,
+        },
+        released_contacts: [account.email, account.phone_number].filter((value): value is string => Boolean(value)),
+        hidden_intake_ids: hiddenIntakeIds,
+        disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
+        revoked_profile_membership_count: revokedProfileMemberships.length,
+        reset_care_team_invite_count: resetAcceptedInvites.length,
+        revoked_senior_invite_count: revokedSeniorInvites.length,
+        revoked_access_link_count: revokedAccessLinks.length,
+        cleared_active_profile_count: clearedActiveProfiles.length,
+      };
+    });
+
+    return res.json(result);
+  } catch (error) {
+    console.error("[admin-lifecycle] delete login account failed", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Could not delete the login account." });
+  }
 });
 
 adminLifecycleRouter.delete("/users/:id", async (req: Request, res: Response) => {
@@ -3464,7 +4226,8 @@ adminLifecycleRouter.post("/intakes/:id/send-link", async (req: Request, res: Re
   if (!requireAdmin(req, res)) return;
   const result = await lifecycleService.sendIntakeLink(req.params.id, publicBaseUrl(req));
   if (!result) return res.status(404).json({ error: "Intake not found" });
-  return res.json(result);
+  const dispatchResult = await dispatchCommunicationsByIds([result.communication.id]);
+  return res.json({ ...result, delivery: dispatchResult.results[0] ?? null });
 });
 
 adminLifecycleRouter.get("/consent", async (req: Request, res: Response) => {

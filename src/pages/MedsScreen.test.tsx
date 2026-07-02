@@ -30,6 +30,21 @@ const labels: Record<string, string> = {
   "meds.dashboard.doneStatus": "All scheduled doses are done",
   "meds.dashboard.steadyStatus": "Today is mostly on track",
   "meds.dashboard.watchStatus": "A few doses still need attention",
+  "meds.dashboard.loadingSummary": "Loading schedule and personal guidance.",
+  "meds.dashboard.emptySummary": "No medicines are tracked here yet.",
+  "meds.dashboard.doneSummary": "{{taken}} doses confirmed today. Nothing else is due.",
+  "meds.dashboard.nextSummary": "{{count}} left today. Next: {{medicine}} at {{time}}.",
+  "meds.dashboard.attentionSummary": "{{count}} doses still need attention today.",
+  "meds.dashboard.priorityLoadingTitle": "Checking medicines",
+  "meds.dashboard.priorityLoadingSub": "Loading today's schedule.",
+  "meds.dashboard.priorityEmptyTitle": "No medicine plan yet",
+  "meds.dashboard.priorityEmptySub": "Add medicines to start tracking today.",
+  "meds.dashboard.priorityDoneTitle": "All done today",
+  "meds.dashboard.priorityDoneSub": "{{taken}} doses confirmed. Nothing else is due.",
+  "meds.dashboard.priorityNextTitleOne": "1 dose left today",
+  "meds.dashboard.priorityNextTitleMany": "{{count}} doses left today",
+  "meds.dashboard.priorityNextSub": "Next: {{medicine}} at {{time}}.",
+  "meds.dashboard.priorityAttentionSub": "{{count}} doses still need attention.",
   "meds.dashboard.focusNow": "Focus now",
   "meds.dashboard.noPlanLabel": "No plan yet",
   "meds.dashboard.allClearLabel": "All clear today",
@@ -63,31 +78,33 @@ const labels: Record<string, string> = {
   "meds.dashboard.callPharmacy": "Call pharmacy",
   "meds.dashboard.addPharmacy": "Add pharmacy",
   "meds.dashboard.orderRefill": "Order refill",
-  "meds.dashboard.personalGuidance": "Personal guidance",
-  "meds.dashboard.guidanceSub": "Small steps matched to the health profile VYVA can see.",
+  "meds.dashboard.personalGuidance": "Guidance",
+  "meds.dashboard.guidanceMainLabel": "Most useful now",
+  "meds.dashboard.guidanceSub": "Chosen from the health profile, medicines, and today's schedule.",
   "meds.dashboard.healthTipTitle": "Health tip",
   "meds.dashboard.exerciseTipTitle": "Exercise tip",
+  "meds.dashboard.movementTitle": "Gentle movement",
   "meds.dashboard.tipContextConditions": "Based on {{conditions}}",
   "meds.dashboard.tipContextMedicines": "Based on current medicines",
   "meds.dashboard.tipContextMobility": "Based on mobility level",
   "meds.dashboard.tipContextHobby": "Based on saved hobbies",
   "meds.dashboard.tipContextProfile": "Based on your saved profile",
   "meds.dashboard.tipContextRoutine": "Based on today's medicine routine",
-  "meds.dashboard.healthTipDiabetesBloodPressure": "For {{conditions}}, use a meal cue for medicine checks and stand up slowly. Note shakiness, thirst, or dizziness.",
-  "meds.dashboard.healthTipBloodPressure": "For blood pressure, rise slowly after sitting and note dizziness, swelling, or headaches for your next health chat.",
-  "meds.dashboard.healthTipDiabetes": "For diabetes, keep medicine checks close to your normal meal rhythm and ask for help if you feel shaky or unusually thirsty.",
-  "meds.dashboard.healthTipBloodThinner": "Because your medicines include aspirin or a blood thinner, keep an eye on unusual bruising or bleeding and check with a pharmacist before adding new painkillers.",
-  "meds.dashboard.healthTipRespiratory": "With breathing support in your profile, keep inhalers or breathing medicines easy to find and note any new breathlessness before your next health conversation.",
-  "meds.dashboard.healthTipStatin": "Because a cholesterol medicine is on your list, make a note of new muscle pain or weakness so you can mention it to your pharmacist or doctor.",
-  "meds.dashboard.healthTipConditionFallback": "With {{conditions}} saved in your profile, keep a short note of how you feel after medicines so your next pharmacy or doctor chat is easier.",
-  "meds.dashboard.healthTipGeneric": "Keep medicines in the routine your doctor gave you, and ask a pharmacist before adding supplements or over-the-counter medicines.",
-  "meds.dashboard.exerciseTipMobility": "For your mobility profile, try seated ankle circles or slow sit-to-stand practice beside a steady chair.",
-  "meds.dashboard.exerciseTipDiabetesBloodPressure": "For diabetes and blood pressure, choose 5 to 10 minutes of easy walking or seated marching after a meal, keeping the pace comfortable enough to talk.",
-  "meds.dashboard.exerciseTipDiabetes": "For diabetes, a short gentle walk after a meal can support the routine; wear comfortable shoes and stop if you feel shaky or unwell.",
-  "meds.dashboard.exerciseTipBloodPressure": "For blood pressure, try a steady walk or chair marching and avoid holding your breath during strength movements.",
-  "meds.dashboard.exerciseTipRespiratory": "For breathing support, try a slow walk with relaxed shoulders and pause for pursed-lip breathing if you feel short of breath.",
-  "meds.dashboard.exerciseTipGardening": "Since gardening is in your profile, use it gently: water plants, tend pots, or walk the garden for 5 minutes without bending too long.",
-  "meds.dashboard.exerciseTipGeneric": "Try 5 to 10 minutes of gentle walking or seated movement when you feel ready, and keep it easy enough to talk.",
+  "meds.dashboard.healthTipDiabetesBloodPressure": "Diabetes + blood pressure: meals, stand slowly.",
+  "meds.dashboard.healthTipBloodPressure": "Blood pressure: stand up slowly.",
+  "meds.dashboard.healthTipDiabetes": "Diabetes: pair checks with meals.",
+  "meds.dashboard.healthTipBloodThinner": "Blood thinner: watch unusual bruising.",
+  "meds.dashboard.healthTipRespiratory": "Breathing: keep inhaler close.",
+  "meds.dashboard.healthTipStatin": "Cholesterol med: note muscle pain.",
+  "meds.dashboard.healthTipConditionFallback": "{{conditions}}: note how you feel.",
+  "meds.dashboard.healthTipGeneric": "Keep your usual medicine routine.",
+  "meds.dashboard.exerciseTipMobility": "Move: seated ankle circles.",
+  "meds.dashboard.exerciseTipDiabetesBloodPressure": "Move: 5 easy minutes after a meal.",
+  "meds.dashboard.exerciseTipDiabetes": "Move: gentle walk after a meal.",
+  "meds.dashboard.exerciseTipBloodPressure": "Move: steady walk or chair march.",
+  "meds.dashboard.exerciseTipRespiratory": "Move: slow walk with breathing pauses.",
+  "meds.dashboard.exerciseTipGardening": "Move: water plants or garden walk.",
+  "meds.dashboard.exerciseTipGeneric": "Move: gentle walk or seated movement.",
   "meds.dashboard.actionsTitle": "What can I do next?",
   "meds.dashboard.addByVoiceSub": "Say a medicine name, dose, and routine.",
   "meds.safety.title": "Medication safety signals",
@@ -388,15 +405,17 @@ describe("MedsScreen schedule actions", () => {
 
     expect(await screen.findByTestId("section-meds-dashboard")).toBeInTheDocument();
     expect(screen.getByText("Medication dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Add medicines to start tracking today")).toBeInTheDocument();
+    expect(screen.getByTestId("text-meds-priority-title")).toHaveTextContent("No medicine plan yet");
+    expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Add medicines to start tracking today.");
     expect(screen.getByTestId("metric-meds-taken")).toHaveTextContent("--");
     expect(screen.getByTestId("metric-meds-due")).toHaveTextContent("0");
     expect(screen.getByTestId("metric-meds-adherence")).toHaveTextContent("--");
     expect(screen.getByTestId("metric-meds-count")).toHaveTextContent("0");
     expect(screen.getByTestId("section-meds-next")).toHaveTextContent("No medications added yet");
     expect(screen.getByTestId("panel-meds-pharmacy")).toHaveTextContent("No pharmacy saved yet");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Health tip");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Exercise tip");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Guidance");
+    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Move:");
+    expect(screen.getByTestId("section-meds-dashboard-tips")).not.toHaveTextContent("Most useful now");
     expect(
       screen.getByTestId("section-meds-dashboard-tips").compareDocumentPosition(screen.getByTestId("panel-meds-pharmacy")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -405,15 +424,20 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.queryByTestId("status-no-medications")).not.toBeInTheDocument();
     expect(screen.queryByText("Medication")).not.toBeInTheDocument();
 
-    expect(screen.getByTestId("button-meds-primary-reminders")).toHaveTextContent("Reminders");
-    expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("Refills");
-    expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Interactions");
-    expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("Adherence");
-    expect(screen.getByTestId("button-meds-primary-safety")).toHaveTextContent("Safety signals");
-    expect(screen.getByTestId("button-meds-primary-add-by-voice")).toHaveTextContent("Add by voice");
+    expect(screen.queryByTestId("section-meds-primary-actions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-meds-primary-reminders")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-meds-primary-interactions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-meds-primary-adherence")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-meds-primary-safety")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-meds-primary-refills")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-meds-primary-add-by-voice")).not.toBeInTheDocument();
 
     expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("Fast help");
-    expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("I can help you with");
+    expect(screen.getAllByTestId("section-meds-can-help")).toHaveLength(1);
+    expect(
+      screen.getByTestId("section-meds-can-help").compareDocumentPosition(screen.getByTestId("panel-meds-pharmacy")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByTestId("button-assistant-naturalMedicine")).toHaveTextContent("Natural Options");
     expect(screen.getByTestId("button-assistant-advances")).toHaveTextContent("Medication Research");
     expect(screen.getByTestId("button-assistant-sideEffects")).toHaveTextContent("Side Effect Check");
@@ -459,7 +483,8 @@ describe("MedsScreen schedule actions", () => {
       ],
     });
 
-    expect(await screen.findByTestId("section-meds-dashboard")).toHaveTextContent("Today is mostly on track");
+    expect(await screen.findByTestId("section-meds-dashboard")).toHaveTextContent("1 dose left today");
+    expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Next: Metformin at 08:00.");
     expect(screen.getByTestId("metric-meds-taken")).toHaveTextContent("2/3");
     expect(screen.getByTestId("metric-meds-due")).toHaveTextContent("1");
     expect(screen.getByTestId("metric-meds-adherence")).toHaveTextContent("67%");
@@ -467,10 +492,11 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.getByTestId("section-meds-next")).toHaveTextContent("Metformin");
     expect(screen.getByTestId("text-meds-pharmacy-name")).toHaveTextContent("Farmacia Central");
     expect(screen.getByTestId("link-meds-pharmacy-phone")).toHaveAttribute("href", "tel:+34600111222");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Based on Type 2 diabetes");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("normal meal rhythm");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Based on Type 2 diabetes");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("short gentle walk after a meal");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Diabetes");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("pair checks with meals");
+    expect(screen.getByTestId("card-meds-health-tip")).not.toHaveTextContent("medicine checks");
+    expect(screen.getByTestId("card-meds-health-tip")).not.toHaveTextContent("Based on Type 2 diabetes");
+    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Move: gentle walk after a meal");
   });
 
   it("uses richer saved health profile signals for combined conditions and mobility", async () => {
@@ -497,11 +523,11 @@ describe("MedsScreen schedule actions", () => {
       },
     });
 
-    expect(await screen.findByTestId("card-meds-health-tip")).toHaveTextContent("Based on Type 2 diabetes + High blood pressure");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("meal cue");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("stand up slowly");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Based on mobility level");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("seated ankle circles");
+    expect(await screen.findByTestId("card-meds-health-tip")).toHaveTextContent("Diabetes + blood pressure");
+    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("meals, stand slowly");
+    expect(screen.getByTestId("card-meds-health-tip")).not.toHaveTextContent("stand up slowly");
+    expect(screen.getByTestId("card-meds-exercise-tip")).not.toHaveTextContent("Based on mobility level");
+    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Move: seated ankle circles");
   });
 
   it("confirms the next pending medicine from the dashboard", async () => {
@@ -560,139 +586,6 @@ describe("MedsScreen schedule actions", () => {
     );
   });
 
-  it("reveals the compact reminders add-by-voice area from the Reminders card", async () => {
-    renderMedsScreen();
-
-    fireEvent.click(await screen.findByTestId("button-meds-primary-reminders"));
-
-    expect(await screen.findByTestId("section-meds-reminders")).toBeInTheDocument();
-    expect(screen.getByText("Today's Schedule")).toBeInTheDocument();
-    expect(screen.getByTestId("status-no-medications")).toBeInTheDocument();
-    expect(screen.getByTestId("button-meds-add-by-voice-empty")).toBeInTheDocument();
-    expect(screen.queryByTestId("button-meds-add-by-voice")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-confirm-all-meds")).not.toBeInTheDocument();
-    expect(screen.getByTestId("button-meds-primary-add-by-voice")).toHaveTextContent("Add by voice");
-    expect(screen.queryByText("Done")).not.toBeInTheDocument();
-  });
-
-  it("navigates to the adherence report from the Adherence card", async () => {
-    renderMedsScreen();
-
-    fireEvent.click(await screen.findByTestId("button-meds-primary-adherence"));
-
-    expect(mocks.navigate).toHaveBeenCalledWith("/meds/adherence-report");
-  });
-
-  it("reveals the safety signal panel without opening reminders", async () => {
-    renderMedsScreen();
-
-    fireEvent.click(await screen.findByTestId("button-meds-primary-safety"));
-
-    expect(await screen.findByTestId("section-meds-safety")).toBeInTheDocument();
-    expect(screen.getByText("Medication safety signals")).toBeInTheDocument();
-    expect(screen.getByText("No case needed right now")).toBeInTheDocument();
-    expect(screen.getByTestId("button-meds-safety-analyse")).toHaveTextContent("Analyse signals");
-    expect(screen.getByTestId("button-meds-safety-new-case")).toHaveTextContent("New side-effect note");
-    expect(screen.queryByTestId("section-meds-reminders")).not.toBeInTheDocument();
-  });
-
-  it("opens a safety case drawer and exports an audit packet", async () => {
-    const safetyCase = {
-      id: "case-1",
-      status: "draft",
-      severity: "attention",
-      signal_type: "possible_side_effect",
-      suspected_medication: "Aspirin",
-      reaction: "Rash",
-      reaction_started_at: null,
-      seriousness_flags: [],
-      outcome: null,
-      action_taken: null,
-      reporter_name: null,
-      reporter_contact: null,
-      reporter_role: "patient_or_caregiver",
-      narrative: null,
-      evidence: [{ type: "manual_report" }],
-      missing_fields: ["Reaction start date"],
-      export_ready: false,
-    };
-    apiFetchMock.mockImplementation(async (url, init) => {
-      if (String(url).endsWith("/export")) {
-        return new Response(JSON.stringify({
-          case: { ...safetyCase, missing_fields: [], export_ready: true },
-          export: {
-            human_readable_text: "VYVA Medication Safety Case Packet\nAspirin",
-            export_ready: true,
-            missing_fields: [],
-          },
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
-      }
-      if (String(url).includes("/api/meds/safety/cases/case-1") && init?.method === "PATCH") {
-        return new Response(JSON.stringify({
-          case: { ...safetyCase, outcome: "Improving", missing_fields: [], export_ready: true },
-          sent_to: [],
-        }), { status: 200, headers: { "Content-Type": "application/json" } });
-      }
-      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
-    });
-
-    renderMedsScreen([], safetyResponse({
-      summary: {
-        status: "needs_review",
-        severity: "attention",
-        title: "1 medication safety case to review",
-        message: "Review the case details.",
-        signalCount: 1,
-        openCaseCount: 1,
-        lastAnalysedAt: null,
-      },
-      openCases: [safetyCase],
-      exportAvailability: {
-        canExport: true,
-        readyCount: 0,
-        needsReviewCount: 1,
-      },
-    }));
-
-    fireEvent.click(await screen.findByTestId("button-meds-primary-safety"));
-    fireEvent.click(await screen.findByTestId("button-review-safety-case-0"));
-
-    expect(await screen.findByTestId("sheet-meds-safety-case")).toBeInTheDocument();
-    expect(screen.getByTestId("input-safety-case-medication")).toHaveValue("Aspirin");
-    expect(screen.getAllByText("Reaction start date").length).toBeGreaterThanOrEqual(1);
-
-    fireEvent.change(screen.getByTestId("input-safety-case-outcome"), { target: { value: "Improving" } });
-    fireEvent.click(screen.getByTestId("button-safety-case-save"));
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/meds/safety/cases/case-1",
-      expect.objectContaining({ method: "PATCH" }),
-    ));
-
-    fireEvent.click(screen.getByTestId("button-safety-case-export"));
-    const exportText = await screen.findByTestId("textarea-safety-case-export") as HTMLTextAreaElement;
-    expect(exportText.value).toContain("VYVA Medication Safety Case Packet");
-  });
-
-  it("keeps the footer Add by voice action when medications exist", async () => {
-    renderMedsScreen([
-      {
-        id: "med-1",
-        medication_name: "Metformin",
-        dosage: "500mg",
-        frequency: "once_daily",
-        scheduled_times: ["08:00"],
-        takenToday: false,
-        takenCountToday: 0,
-        scheduledCountToday: 1,
-      },
-    ]);
-
-    fireEvent.click(await screen.findByTestId("button-meds-primary-reminders"));
-
-    expect(await screen.findByTestId("button-meds-add-by-voice")).toBeInTheDocument();
-    expect(screen.queryByTestId("button-meds-add-by-voice-empty")).not.toBeInTheDocument();
-  });
-
   it("starts inline voice capture and adds the parsed medication without opening a modal", async () => {
     installMediaRecorderMock();
     apiFetchMock.mockImplementation(async (url) => {
@@ -717,9 +610,7 @@ describe("MedsScreen schedule actions", () => {
 
     renderMedsScreen();
 
-    fireEvent.click(await screen.findByTestId("button-meds-primary-reminders"));
-
-    const voiceButton = await screen.findByTestId("button-meds-add-by-voice-empty");
+    const voiceButton = await screen.findByTestId("button-meds-dashboard-add-by-voice-empty");
     fireEvent.click(voiceButton);
     expect(await screen.findByTestId("meds-voice-status")).toHaveTextContent("Listening... tap again to stop.");
 
@@ -736,7 +627,10 @@ describe("MedsScreen schedule actions", () => {
         body: JSON.stringify({ transcript: "I take Metformin 500mg twice daily" }),
       }),
     ));
-    expect(await screen.findByText("Metformin")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
+      title: "Medication added",
+      description: "Metformin has been added to your list.",
+    }));
     expect(screen.queryByTestId("modal-voice-meds")).not.toBeInTheDocument();
   });
 });

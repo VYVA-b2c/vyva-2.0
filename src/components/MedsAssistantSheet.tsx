@@ -1,15 +1,9 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import { Send, Loader2, AlertTriangle } from "lucide-react";
+import { Send, Loader2, AlertTriangle, MessageCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PurpleModal } from "@/components/vyva-ui";
 import { useLanguage } from "@/i18n";
 
 const EN_DISCLAIMER =
@@ -132,20 +126,22 @@ const MedsAssistantSheet = ({
 
   const localizedDisclaimer = t("meds.disclaimer", EN_DISCLAIMER);
 
+  if (!open) return null;
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="bottom-[calc(env(safe-area-inset-bottom)+12px)] left-1/2 right-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-20px)] max-w-[430px] -translate-x-1/2 flex-col rounded-[28px] border border-[#E6DCCF] px-0 pb-0 shadow-[0_24px_70px_rgba(31,20,45,0.24)]"
-      >
-        <SheetHeader className="flex-shrink-0 border-b border-vyva-border px-5 pb-4 pt-5">
-          <SheetTitle className="text-left font-display text-[24px] leading-tight text-vyva-text-1">
-            {title}
-          </SheetTitle>
-          <SheetDescription className="text-left font-body text-[14px] leading-snug text-vyva-text-2">
-            Ask a follow-up question or read the answer here.
-          </SheetDescription>
-        </SheetHeader>
+    <PurpleModal
+      Icon={MessageCircle}
+      kicker={t("meds.assistantKicker", "Medication")}
+      title={title}
+      subtitle={t("meds.assistantSubtitle", "Ask a follow-up question or read the answer here.")}
+      titleId="meds-assistant-title"
+      onClose={() => onOpenChange(false)}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="modal-meds-assistant"
+      size="narrow"
+      bodyClassName="flex max-h-[calc(88vh-132px)] flex-col p-0"
+    >
+        <div className="flex min-h-[420px] flex-1 flex-col overflow-hidden">
 
         {/* Disclaimer banner */}
         <div className="mx-5 mt-4 flex flex-shrink-0 items-start gap-2 rounded-[16px] border border-amber-200 bg-amber-50 px-3 py-3">
@@ -241,8 +237,8 @@ const MedsAssistantSheet = ({
             )}
           </Button>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </PurpleModal>
   );
 };
 

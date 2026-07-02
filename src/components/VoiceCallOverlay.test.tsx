@@ -1,7 +1,8 @@
-import { act, type ComponentProps } from "react";
+import { type ComponentProps } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import VoiceCallOverlay from "./VoiceCallOverlay";
-import type { TranscriptEntry } from "@/hooks/useVyvaVoice";
+import type { TranscriptEntry, VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
+import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -14,6 +15,7 @@ const baseProps = {
   isConnecting: false,
   transcript: [] as TranscriptEntry[],
   onEnd: vi.fn(),
+  onMinimize: vi.fn(),
 };
 
 const canvasGradientMock = {
@@ -57,7 +59,7 @@ function renderOverlay(transcript: TranscriptEntry[], props: Partial<ComponentPr
   );
 }
 
-describe("VoiceCallOverlay word transcript", () => {
+describe("VoiceCallOverlay voice room", () => {
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
   const originalRequestAnimationFrame = window.requestAnimationFrame;
   const originalCancelAnimationFrame = window.cancelAnimationFrame;
@@ -112,6 +114,7 @@ describe("VoiceCallOverlay word transcript", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     baseProps.onEnd.mockClear();
+    baseProps.onMinimize.mockClear();
     canvasMocks.forEach((mock) => mock.mockClear());
   });
 
@@ -121,80 +124,140 @@ describe("VoiceCallOverlay word transcript", () => {
     vi.useRealTimers();
   });
 
-  it("shows VYVA transcript one word at a time", () => {
-    renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
-
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Hello");
-    expect(screen.getByTestId("text-call-transcript")).toHaveClass("font-body");
-    expect(screen.getByTestId("text-call-transcript")).not.toHaveClass("font-display");
-    expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
-    expect(screen.getByTestId("voice-indicator-zamora-orb")).toBeInTheDocument();
-
-    act(() => {
-      vi.advanceTimersByTime(450);
+  it("shows the calm voice room with one main message and a transcript preview", () => {
+    renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }], {
+      onMicToggle: vi.fn(),
+      onType: vi.fn(),
     });
 
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Karim");
+    expect(screen.getByTestId("voice-call-header")).toBeInTheDocument();
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("I'm listening");
+    expect(screen.getByTestId("text-call-transcript")).toHaveClass("font-body");
+    expect(screen.getByTestId("text-call-subtitle")).toHaveTextContent("Tell me what you need.");
+    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("VYVA: Hello Karim");
+    expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("text-call-speaker")).not.toBeInTheDocument();
+    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Listening");
+    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mute");
+    expect(screen.getByTestId("button-end-call")).toHaveTextContent("End");
+    expect(screen.getByTestId("button-type-call")).toHaveTextContent("Type");
   });
 
-  it("does not animate user transcript as the large word transcript", () => {
+  it("keeps user transcript as a small preview instead of a giant word", () => {
     renderOverlay([{ from: "user", text: "Hello VYVA", timestamp: 1 }]);
 
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("voiceHero.listening");
-    expect(screen.queryByTestId("text-call-speaker")).not.toBeInTheDocument();
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("I'm listening");
+    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("You: Hello VYVA");
   });
 
-  it("resets playback when a new VYVA transcript arrives", () => {
+  it("updates the transcript preview when a new transcript arrives", () => {
     const { rerender } = renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
 
-    act(() => {
-      vi.advanceTimersByTime(450);
-    });
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Karim");
+    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("VYVA: Hello Karim");
 
-    act(() => {
-      rerender(
-        <VoiceCallOverlay
-          {...baseProps}
-          transcript={[{ from: "vyva", text: "Welcome back", timestamp: 2 }]}
-        />,
-      );
-    });
+    rerender(
+      <VoiceCallOverlay
+        {...baseProps}
+        transcript={[{ from: "vyva", text: "Welcome back", timestamp: 2 }]}
+      />,
+    );
 
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Welcome");
+    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("VYVA: Welcome back");
   });
 
-  it("keeps the connecting fallback when no VYVA transcript is available", () => {
+  it("keeps the connecting state clear when no transcript is available", () => {
     renderOverlay([], { isConnecting: true });
 
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("voiceHero.connecting");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Getting ready");
+    expect(screen.getByTestId("text-call-subtitle")).toHaveTextContent("Opening voice with VYVA.");
   });
 
-  it("keeps long words contained with responsive transcript styles", () => {
+  it("keeps long transcript previews contained", () => {
     renderOverlay([{ from: "vyva", text: "Supercalifragilisticexpialidocious", timestamp: 1 }]);
 
+    expect(screen.getByTestId("text-call-transcript-preview")).toHaveStyle({
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+    });
     expect(screen.getByTestId("text-call-transcript")).toHaveStyle({
-      fontSize: "clamp(56px, 16vw, 118px)",
-      maxWidth: "90vw",
+      maxWidth: "min(100%, 540px)",
       overflowWrap: "anywhere",
+      margin: "0",
     });
   });
 
-  it("keeps the purple screen in an error state with retry available", () => {
+  it("minimizes the focused voice screen without ending the session", () => {
+    renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
+
+    fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
+    expect(baseProps.onEnd).not.toHaveBeenCalled();
+  });
+
+  it("calls the type escape when available", () => {
+    const onType = vi.fn();
+    renderOverlay([], { onType });
+
+    fireEvent.click(screen.getByTestId("button-type-call"));
+
+    expect(onType).toHaveBeenCalledTimes(1);
+    expect(baseProps.onMinimize).not.toHaveBeenCalled();
+  });
+
+  it("opens SOS through the shared shell event and minimizes the overlay", () => {
+    const onSos = vi.fn();
+    window.addEventListener(VYVA_OPEN_SOS_EVENT, onSos);
+
+    renderOverlay([]);
+    fireEvent.click(screen.getByTestId("button-voice-sos"));
+
+    expect(onSos).toHaveBeenCalledTimes(1);
+    expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener(VYVA_OPEN_SOS_EVENT, onSos);
+  });
+
+  it("keeps the warm voice room in an error state with retry available", () => {
     const onRetry = vi.fn();
+    const voiceDiagnostics: VoiceDiagnosticStep[] = [
+      { id: "browser_microphone", label: "Microphone", status: "passed", detail: "Microphone access granted" },
+      { id: "account_access", label: "Account access", status: "passed", detail: "Voice access verified" },
+      { id: "server_credentials", label: "Server key", status: "failed", detail: "Missing ElevenLabs API key" },
+    ];
     renderOverlay([], {
       connectionError: "Missing ElevenLabs API key",
       connectionErrorCode: "ELEVENLABS_API_KEY_MISSING",
+      voiceDiagnostics,
       onRetry,
     });
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Voice setup needed");
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("The ElevenLabs API key is missing on the server.");
     expect(screen.getByTestId("text-call-status")).toHaveTextContent("Setup needed");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped at Server key");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Microphone");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("OK");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Server key");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped");
 
     fireEvent.click(screen.getByTestId("button-retry-call"));
 
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers a back-to-app escape when voice is in an error state", () => {
+    renderOverlay([], {
+      connectionError: "We could not verify access right now. Please try again.",
+      connectionErrorCode: "VOICE_ACCESS_UNAVAILABLE",
+    });
+
+    fireEvent.click(screen.getByTestId("button-back-to-app"));
+
+    expect(baseProps.onMinimize).toHaveBeenCalledTimes(1);
+    expect(baseProps.onEnd).not.toHaveBeenCalled();
   });
 
   it("shows a clear microphone permission message", () => {
@@ -245,6 +308,26 @@ describe("VoiceCallOverlay word transcript", () => {
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Access check failed");
     expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("VYVA could not verify account access right now. Please try again.");
+  });
+
+  it("shows account profile access failures without blaming ElevenLabs", () => {
+    renderOverlay([], {
+      connectionError: "Account access is disabled for the active profile. Active profile: abc12345...7890. Status: disabled.",
+      connectionErrorCode: "VOICE_ACCOUNT_ACCESS_DISABLED",
+      voiceDiagnostics: [
+        { id: "browser_microphone", label: "Microphone", status: "passed", detail: "Microphone access granted" },
+        {
+          id: "account_access",
+          label: "Account access",
+          status: "failed",
+          detail: "Account access is disabled for the active profile. Active profile: abc12345...7890. Status: disabled.",
+        },
+      ],
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Account access failed");
+    expect(screen.getByTestId("text-call-error-detail")).toHaveTextContent("Account access is disabled for the active profile.");
+    expect(screen.getByTestId("voice-call-diagnostics")).toHaveTextContent("Stopped at Account access");
   });
 
   it("infers access verification failures from the server message", () => {

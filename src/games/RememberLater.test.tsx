@@ -9,7 +9,7 @@ import RememberLater, {
 } from "./RememberLater";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 
-const supabaseMock = vi.hoisted(() => {
+const gameDataMock = vi.hoisted(() => {
   const queue: Array<{ data: unknown; error: unknown }> = [];
   const calls: Array<{ table: string; type: string; payload?: unknown }> = [];
   const from = vi.fn((table: string) => {
@@ -41,9 +41,9 @@ const supabaseMock = vi.hoisted(() => {
   return { calls, from, queue };
 });
 
-vi.mock("../lib/supabaseClient", () => ({
-  supabase: {
-    from: supabaseMock.from,
+vi.mock("./shared/gameDataApi", () => ({
+  gameData: {
+    table: gameDataMock.from,
   },
 }));
 
@@ -146,9 +146,9 @@ describe("RememberLater component", () => {
   beforeEach(() => {
     window.localStorage.clear();
     setLanguage("en");
-    supabaseMock.calls.length = 0;
-    supabaseMock.queue.length = 0;
-    supabaseMock.from.mockClear();
+    gameDataMock.calls.length = 0;
+    gameDataMock.queue.length = 0;
+    gameDataMock.from.mockClear();
     vi.mocked(recordCognitiveSession).mockClear();
   });
 
@@ -157,7 +157,7 @@ describe("RememberLater component", () => {
       ...getDefaultRememberLaterUserState("user-1"),
       has_seen_tutorial: false,
     };
-    supabaseMock.queue.push(
+    gameDataMock.queue.push(
       { data: userState, error: null },
       { data: [], error: null },
       { data: [componentRound], error: null },
@@ -190,7 +190,7 @@ describe("RememberLater component", () => {
 
     expect(await screen.findByText(/You remembered without anyone reminding you/i)).toBeInTheDocument();
 
-    const savedSession = supabaseMock.calls.find((call) => call.table === "remember_later_sessions" && call.type === "insert");
+    const savedSession = gameDataMock.calls.find((call) => call.table === "remember_later_sessions" && call.type === "insert");
     expect(savedSession?.payload).toEqual(expect.objectContaining({
       round_id: "round-1",
       pm_hits: 1,

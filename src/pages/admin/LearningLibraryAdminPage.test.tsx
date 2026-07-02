@@ -79,19 +79,24 @@ afterEach(() => {
 
 describe("LearningLibraryAdminPage", () => {
   it("loads lessons and publishes the selected lesson", async () => {
+    const publishedLesson = {
+      ...lessonPayload.lessons[0],
+      status: "published",
+      isActive: true,
+      publishedAt: "2026-06-24T10:00:00.000Z",
+      publishedBy: "admin@example.com",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    };
+    let published = false;
     mocks.apiFetch.mockImplementation((url: string) => {
       if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
-      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response(lessonPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) {
+        return Promise.resolve(response({ lessons: [published ? publishedLesson : lessonPayload.lessons[0]] }));
+      }
       if (url === "/api/admin/learning/lessons/lesson-1/publish") {
+        published = true;
         return Promise.resolve(response({
-          lesson: {
-            ...lessonPayload.lessons[0],
-            status: "published",
-            isActive: true,
-            publishedAt: "2026-06-24T10:00:00.000Z",
-            publishedBy: "admin@example.com",
-            updatedAt: "2026-06-24T10:00:00.000Z",
-          },
+          lesson: publishedLesson,
         }));
       }
       return Promise.resolve(response({}));
@@ -114,6 +119,155 @@ describe("LearningLibraryAdminPage", () => {
       { method: "PATCH" },
     ));
     expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Lesson published.");
+    expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Lesson published.");
+    await waitFor(() => expect(screen.getAllByText("published").length).toBeGreaterThan(0));
+  });
+
+  it("bulk publishes draft lessons", async () => {
+    const secondLesson = {
+      ...lessonPayload.lessons[0],
+      id: "lesson-2",
+      externalId: "music-rhythm-002",
+      title: "How rhythm helps attention",
+      hook: "A steady beat can make attention easier to hold.",
+    };
+    const publishedLessons = [lessonPayload.lessons[0], secondLesson].map((lesson) => ({
+      ...lesson,
+      status: "published",
+      isActive: true,
+      publishedAt: "2026-06-24T10:00:00.000Z",
+      publishedBy: "admin@example.com",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    }));
+    let bulkPublished = false;
+    mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) {
+        return Promise.resolve(response({
+          lessons: bulkPublished ? publishedLessons : [lessonPayload.lessons[0], secondLesson],
+        }));
+      }
+      if (url === "/api/admin/learning/lessons/bulk-publish" && options?.method === "PATCH") {
+        bulkPublished = true;
+        return Promise.resolve(response({
+          summary: { lessonsPublished: 2 },
+          lessons: publishedLessons,
+        }));
+      }
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Why music sticks in memory")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-admin-learning-bulk-publish"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
+      "/api/admin/learning/lessons/bulk-publish",
+      { method: "PATCH" },
+    ));
+    expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Published 2 draft lessons.");
+    expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Published 2 draft lessons.");
+    await waitFor(() => expect(screen.getAllByText("published").length).toBeGreaterThan(0));
+  });
+
+  it("publishes selected draft lessons", async () => {
+    const secondLesson = {
+      ...lessonPayload.lessons[0],
+      id: "lesson-2",
+      externalId: "music-rhythm-002",
+      title: "How rhythm helps attention",
+      hook: "A steady beat can make attention easier to hold.",
+    };
+    const publishedSecondLesson = {
+      ...secondLesson,
+      status: "published",
+      isActive: true,
+      publishedAt: "2026-06-24T10:00:00.000Z",
+      publishedBy: "admin@example.com",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    };
+    let selectedPublished = false;
+    mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) {
+        return Promise.resolve(response({
+          lessons: selectedPublished ? [lessonPayload.lessons[0], publishedSecondLesson] : [lessonPayload.lessons[0], secondLesson],
+        }));
+      }
+      if (url === "/api/admin/learning/lessons/bulk-publish" && options?.method === "PATCH") {
+        selectedPublished = true;
+        return Promise.resolve(response({
+          summary: { lessonsPublished: 1 },
+          lessons: [publishedSecondLesson],
+        }));
+      }
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("How rhythm helps attention")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("checkbox-admin-learning-select-lesson-2"));
+    fireEvent.click(screen.getByTestId("button-admin-learning-publish-selected"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
+      "/api/admin/learning/lessons/bulk-publish",
+      {
+        method: "PATCH",
+        body: JSON.stringify({ lessonIds: ["lesson-2"] }),
+      },
+    ));
+    expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Published 1 selected lesson.");
+    expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Published 1 selected lesson.");
+  });
+
+  it("shows language coverage across the full lesson library", async () => {
+    const englishDraft = lessonPayload.lessons[0];
+    const spanishPublished = {
+      ...lessonPayload.lessons[0],
+      id: "lesson-es",
+      externalId: "music-memory-001-es",
+      language: "es",
+      title: "Por que la musica se queda en la memoria",
+      status: "published",
+      isActive: true,
+      publishedAt: "2026-06-24T10:00:00.000Z",
+      publishedBy: "admin@example.com",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    };
+
+    mocks.apiFetch.mockImplementation((url: string) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url === "/api/admin/learning/lessons?status=all&category=all&language=all") {
+        return Promise.resolve(response({ lessons: [englishDraft, spanishPublished] }));
+      }
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response({ lessons: [englishDraft] }));
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("admin-learning-coverage")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-en")).toHaveTextContent("0 live");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-en")).toHaveTextContent("1 draft");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-es")).toHaveTextContent("1 live");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-es")).toHaveTextContent("1 total");
+    expect(screen.getByTestId("admin-learning-coverage-cell-music-fr")).toHaveTextContent("missing");
   });
 
   it("uploads a learning content pack", async () => {
@@ -161,8 +315,11 @@ describe("LearningLibraryAdminPage", () => {
         is_active: false,
       }],
     };
-    const file = new File([JSON.stringify(pack)], "learning-pack.json", { type: "application/json" });
-    fireEvent.change(screen.getByTestId("input-admin-learning-import"), { target: { files: [file] } });
+    const uploadInput = screen.getByTestId("input-admin-learning-import");
+    expect(uploadInput).toHaveAttribute("accept", expect.stringContaining(".txt"));
+
+    const file = new File([`Here is the pack:\n\n\`\`\`json\n${JSON.stringify(pack)}\n\`\`\``], "learning-pack.txt", { type: "text/plain" });
+    fireEvent.change(uploadInput, { target: { files: [file] } });
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
       "/api/admin/learning/import",
@@ -172,6 +329,41 @@ describe("LearningLibraryAdminPage", () => {
       }),
     ));
     expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Import complete.");
+  });
+
+  it("shows backend upload details when a content pack cannot be imported", async () => {
+    mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response(lessonPayload));
+      if (url === "/api/admin/learning/import" && options?.method === "POST") {
+        return Promise.resolve(response({
+          error: "Learning content pack could not be imported.",
+          details: [
+            "The app database host (helium) cannot be reached from this environment. Check DATABASE_URL or local network access, restart the API, and try again.",
+          ],
+        }, false));
+      }
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Learning library" });
+
+    const pack = {
+      schema_version: "learning_content_pack_v1",
+      categories: [{ slug: "science", label: "Science" }],
+      lessons: [],
+    };
+    const file = new File([JSON.stringify(pack)], "learning-pack.json", { type: "application/json" });
+    fireEvent.change(screen.getByTestId("input-admin-learning-import"), { target: { files: [file] } });
+
+    expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Learning content pack could not be imported.");
+    expect(screen.getByTestId("admin-learning-message")).toHaveTextContent("The app database host (helium) cannot be reached");
   });
 
   it("downloads a learning library template with the current categories", async () => {

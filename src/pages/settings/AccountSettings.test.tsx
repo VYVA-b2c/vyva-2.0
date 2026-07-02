@@ -168,28 +168,30 @@ describe("AccountSettings", () => {
     expect(container.querySelector("#phone")).not.toHaveAttribute("placeholder", "+44 7700 900 123");
   });
 
-  it("does not put the sign-in email into the editable profile email field", async () => {
+  it("shows the sign-in email without putting it into the editable profile email field", async () => {
     mocks.apiFetch.mockResolvedValue(jsonResponse({ ok: true }));
     queryClient.setQueryData(["/api/profile"], profileResponse({
       email: "",
       accountEmail: "karim.assad@mokadigital.net",
     }));
-    renderAccountSettings();
+    const { container } = renderAccountSettings();
 
     expect(await screen.findByDisplayValue("Assad")).toBeInTheDocument();
-    expect(screen.queryByDisplayValue("karim.assad@mokadigital.net")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Sign-in email")).toHaveValue("karim.assad@mokadigital.net");
+    expect(container.querySelector("#email")).toHaveValue("");
   });
 
-  it("filters legacy profile email values that match the sign-in email", async () => {
+  it("shows filtered legacy profile emails as sign-in email only", async () => {
     mocks.apiFetch.mockResolvedValue(jsonResponse({ ok: true }));
     queryClient.setQueryData(["/api/profile"], profileResponse({
       email: "karim.assad@mokadigital.net",
       accountEmail: "karim.assad@mokadigital.net",
     }));
-    renderAccountSettings();
+    const { container } = renderAccountSettings();
 
     expect(await screen.findByDisplayValue("Assad")).toBeInTheDocument();
-    expect(screen.queryByDisplayValue("karim.assad@mokadigital.net")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Sign-in email")).toHaveValue("karim.assad@mokadigital.net");
+    expect(container.querySelector("#email")).toHaveValue("");
   });
 
   it("shows structured profile save errors instead of the generic fallback", async () => {

@@ -157,7 +157,7 @@ class SupabaseRestQuery {
   private async execute<T = unknown>(cardinality?: "single" | "maybeSingle"): Promise<QueryResult<T>> {
     const config = await getSupabaseConfig();
     if (!config) {
-      return { data: null, error: { message: "Supabase is not configured." } };
+      return this.executeBackendFallback<T>(cardinality);
     }
 
     const params = new URLSearchParams();
@@ -202,6 +202,52 @@ class SupabaseRestQuery {
           details: data,
         },
       };
+    }
+
+    return { data: data as T, error: null };
+  }
+
+  private async executeBackendFallback<T = unknown>(cardinality?: "single" | "maybeSingle"): Promise<QueryResult<T>> {
+    const token = getToken();
+    const response = await fetch(`/api/games/supabase/${encodeURIComponent(this.table)}`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        method: this.method,
+        selectColumns: this.selectColumns,
+        filters: this.filters,
+        orderClause: this.orderClause,
+        limitCount: this.limitCount,
+        body: this.body,
+        onConflict: this.onConflict,
+      }),
+    });
+
+    const payload = await response.json().catch(() => null) as { data?: unknown; error?: string } | null;
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          message: payload?.error ?? response.statusText,
+          details: payload,
+        },
+      };
+    }
+
+    const data = payload?.data ?? null;
+    if (cardinality) {
+      const rows = Array.isArray(data) ? data : data ? [data] : [];
+      if (rows.length === 0 && cardinality === "maybeSingle") {
+        return { data: null, error: null };
+      }
+      if (rows.length === 0) {
+        return { data: null, error: { message: "No rows returned." } };
+      }
+      return { data: rows[0] as T, error: null };
     }
 
     return { data: data as T, error: null };

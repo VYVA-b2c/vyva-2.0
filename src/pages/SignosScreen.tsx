@@ -44,6 +44,7 @@ import {
   HealthWizardShell,
   HealthWizardTopBar,
 } from "@/components/health/HealthWizard";
+import { PurpleModal, PurpleModalOption } from "@/components/vyva-ui";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
@@ -535,28 +536,17 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
   const activeMetric = METRIC_META[metricType];
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="w-full max-w-[520px] rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-[24px] italic leading-tight text-vyva-text-1">
-              {t("statusVitals.logTitle", "Log a reading")}
-            </h2>
-            <p className="mt-1 font-body text-[13px] text-vyva-text-2">
-              {t("statusVitals.logSubtitle", "Add a confirmed number from a device or manual check.")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
-            aria-label={t("common.close", "Close")}
-            data-testid="button-close-log-modal"
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <PurpleModal
+      Icon={activeMetric.Icon}
+      kicker={t("statusVitals.kicker", "Vitals")}
+      title={t("statusVitals.logTitle", "Log a reading")}
+      subtitle={t("statusVitals.logSubtitle", "Add a confirmed number from a device or manual check.")}
+      titleId="log-reading-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="log-reading-modal"
+      size="narrow"
+    >
 
         <div className="mb-5 grid grid-cols-3 gap-2">
           {(Object.keys(METRIC_META) as MetricType[]).map((key) => {
@@ -564,24 +554,20 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
             const Icon = meta.Icon;
             const active = metricType === key;
             return (
-              <button
+              <PurpleModalOption
                 key={key}
-                type="button"
                 onClick={() => {
                   setMetricType(key);
                   setValue("");
                 }}
-                className="flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-[18px] border px-2 py-3 active:scale-[0.98]"
-                style={{
-                  background: active ? meta.accent : "#F9F6F2",
-                  borderColor: active ? meta.accent : "#EDE5DB",
-                  color: active ? "#FFFFFF" : meta.accent,
-                }}
+                selected={active}
+                align="center"
+                className="min-h-[84px] flex-col gap-2 px-2 py-3 text-[11px]"
                 data-testid={`button-metric-select-${key}`}
               >
                 <Icon size={18} />
                 <span className="font-body text-[11px] font-bold leading-tight">{meta.unit}</span>
-              </button>
+              </PurpleModalOption>
             );
           })}
         </div>
@@ -608,8 +594,7 @@ function LogReadingModal({ onClose }: { onClose: () => void }) {
         >
           {mutation.isPending ? t("statusVitals.saving", "Saving...") : t("statusVitals.saveReading", "Save reading")}
         </button>
-      </section>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -813,24 +798,20 @@ function VitalsCaptureModal({
     }
   }, [onClose, proposed, queryClient, t, toast]);
 
+  const CaptureIcon = mode === "voice" ? Mic : mode === "photo" ? Camera : Keyboard;
+
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="max-h-[92vh] w-full max-w-[560px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="font-display text-[26px] italic leading-tight text-vyva-text-1">{title}</h2>
-            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{subtitle}</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
-            aria-label={t("common.close", "Close")}
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <PurpleModal
+      Icon={CaptureIcon}
+      kicker={t("statusVitals.kicker", "Vitals")}
+      title={title}
+      subtitle={subtitle}
+      titleId="vitals-capture-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      modalTestId="vitals-capture-modal"
+      size="default"
+    >
 
         {mode === "text" && (
           <div className="grid gap-3">
@@ -948,8 +929,7 @@ function VitalsCaptureModal({
             {error}
           </p>
         )}
-      </section>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -1038,28 +1018,17 @@ function BluetoothDeviceModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="max-h-[92vh] w-full max-w-[620px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="bluetooth-device-modal">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ color: device.accent, background: device.bg }}>
-              <Icon size={22} />
-            </span>
-            <div className="min-w-0">
-              <h2 className="font-display text-[26px] italic leading-tight text-vyva-text-1">{device.label}</h2>
-              <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{device.helper}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
-            aria-label={t("common.close", "Close")}
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <PurpleModal
+      Icon={Icon}
+      kicker={t("statusVitals.bluetooth.title", "Bluetooth device")}
+      title={device.label}
+      subtitle={device.helper}
+      titleId="bluetooth-device-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="bluetooth-device-modal"
+      size="wide"
+    >
 
         <div className="rounded-[24px] border border-[#EDE5DB] bg-[#FAF9F6] p-4">
           <div className="flex items-start gap-3">
@@ -1088,33 +1057,33 @@ function BluetoothDeviceModal({
         </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2">
-          <button
-            type="button"
+          <PurpleModalOption
             onClick={() => fallback("photo")}
-            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[#BFDBFE] bg-[#EFF6FF] px-2 font-body text-[12px] font-black text-[#1D4ED8]"
+            align="center"
+            className="min-h-[64px] flex-col gap-1 px-2 text-[12px]"
             data-testid="button-bluetooth-fallback-photo"
           >
             <Camera size={17} />
             {t("statusVitals.capture.photoShort", "Scan")}
-          </button>
-          <button
-            type="button"
+          </PurpleModalOption>
+          <PurpleModalOption
             onClick={() => fallback("voice")}
-            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[#FED7AA] bg-[#FFF7ED] px-2 font-body text-[12px] font-black text-[#B45309]"
+            align="center"
+            className="min-h-[64px] flex-col gap-1 px-2 text-[12px]"
             data-testid="button-bluetooth-fallback-voice"
           >
             <Mic size={17} />
             {t("statusVitals.capture.voiceShort", "Say")}
-          </button>
-          <button
-            type="button"
+          </PurpleModalOption>
+          <PurpleModalOption
             onClick={() => fallback("text")}
-            className="flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[#DDD6FE] bg-[#F5F3FF] px-2 font-body text-[12px] font-black text-[#6B21A8]"
+            align="center"
+            className="min-h-[64px] flex-col gap-1 px-2 text-[12px]"
             data-testid="button-bluetooth-fallback-type"
           >
             <Keyboard size={17} />
             {t("statusVitals.capture.typeShort", "Type")}
-          </button>
+          </PurpleModalOption>
         </div>
 
         {result?.clarification_prompt && (
@@ -1161,8 +1130,7 @@ function BluetoothDeviceModal({
             {error}
           </p>
         )}
-      </section>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -1280,32 +1248,17 @@ function FaceScanModal({
   }[status];
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/45 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="max-h-[92vh] w-full max-w-[620px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-8 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="face-scan-modal">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
-              <Video size={22} />
-            </span>
-            <div className="min-w-0">
-              <h2 className="font-display text-[26px] italic leading-tight text-vyva-text-1">
-                {t("statusVitals.faceScan.title", "Face scan")}
-              </h2>
-              <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-                {t("statusVitals.faceScan.subtitle", "Camera estimates are for wellness trends and always need confirmation.")}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
-            aria-label={t("common.close", "Close")}
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <PurpleModal
+      Icon={Video}
+      kicker={t("statusVitals.faceScan.kicker", "Face scan")}
+      title={t("statusVitals.faceScan.title", "Face scan")}
+      subtitle={t("statusVitals.faceScan.subtitle", "Camera estimates are for wellness trends and always need confirmation.")}
+      titleId="face-scan-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="face-scan-modal"
+      size="wide"
+    >
 
         <div className="overflow-hidden rounded-[26px] border border-[#EDE5DB] bg-[#151026]">
           <video ref={videoRef} playsInline muted className="h-[260px] w-full object-cover" style={{ transform: "scaleX(-1)" }} />
@@ -1376,8 +1329,7 @@ function FaceScanModal({
             {error}
           </p>
         )}
-      </section>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -1402,97 +1354,85 @@ function AddReadingSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-[88] flex items-end justify-center bg-black/40 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="max-h-[88vh] w-full max-w-[560px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-7 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="add-reading-sheet">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="font-display text-[27px] italic leading-tight text-vyva-text-1">
-              {t("statusVitals.addSheet.title", "Add a reading")}
-            </h2>
-            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-              {signalLabel
-                ? t("statusVitals.addSheet.signalSubtitle", { defaultValue: "Choose how to add {{label}}.", label: signalLabel })
-                : t("statusVitals.addSheet.subtitle", "Choose the easiest way. VYVA saves only after you confirm.")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
-            aria-label={t("common.close", "Close")}
-            data-testid="button-close-add-reading-sheet"
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <PurpleModal
+      Icon={Activity}
+      kicker={t("statusVitals.kicker", "Vitals")}
+      title={t("statusVitals.addSheet.title", "Add a reading")}
+      subtitle={
+        signalLabel
+          ? t("statusVitals.addSheet.signalSubtitle", { defaultValue: "Choose how to add {{label}}.", label: signalLabel })
+          : t("statusVitals.addSheet.subtitle", "Choose the easiest way. VYVA saves only after you confirm.")
+      }
+      titleId="add-reading-sheet-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="add-reading-sheet"
+      size="default"
+    >
 
         <div className="grid gap-3">
-          <button
-            type="button"
+          <PurpleModalOption
             onClick={() => {
               onClose();
               onFaceScan();
             }}
-            className="flex min-h-[70px] items-center gap-4 rounded-[22px] bg-[#6B21A8] p-4 text-left text-white shadow-[0_10px_24px_rgba(107,33,168,0.20)] active:scale-[0.98]"
+            className="min-h-[70px] gap-4 p-4"
             data-testid="button-open-face-scan"
           >
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white/15">
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-vyva-purple">
               <Video size={22} />
             </span>
             <span className="min-w-0">
               <span className="block font-body text-[17px] font-black leading-tight">{t("statusVitals.faceScan.action", "Face scan")}</span>
-              <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-white/80">{t("statusVitals.faceScan.actionHint", "Heart, breathing, HRV")}</span>
+              <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{t("statusVitals.faceScan.actionHint", "Heart, breathing, HRV")}</span>
             </span>
-          </button>
+          </PurpleModalOption>
 
-          <button
-            type="button"
+          <PurpleModalOption
             onClick={onConnectDevice}
-            className="flex min-h-[66px] items-center gap-4 rounded-[20px] border border-[#CFEFE4] bg-[#ECFDF5] p-4 text-left active:scale-[0.98]"
+            className="min-h-[66px] gap-4 p-4"
             data-testid="button-open-bluetooth-device"
           >
-            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#047857]">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-vyva-purple">
               <Bluetooth size={21} />
             </span>
             <span className="min-w-0">
               <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">{t("settings.healthDevices.title", "Health devices")}</span>
               <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{t("settings.healthDevices.addSheetHint", "Set up Bluetooth devices in Settings")}</span>
             </span>
-          </button>
+          </PurpleModalOption>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <button
-              type="button"
+            <PurpleModalOption
               onClick={() => captureWithSignal("voice")}
-              className="flex min-h-[62px] items-center justify-center gap-2 rounded-[18px] border border-[#FED7AA] bg-[#FFF7ED] px-3 font-body text-[14px] font-black text-vyva-text-1 active:scale-[0.98]"
+              align="center"
+              className="min-h-[62px] gap-2 px-3 text-[14px]"
               data-testid="button-vitals-say-reading"
             >
-              <Mic size={17} className="text-[#B45309]" />
+              <Mic size={17} />
               {t("statusVitals.hub.say", "Say reading")}
-            </button>
-            <button
-              type="button"
+            </PurpleModalOption>
+            <PurpleModalOption
               onClick={() => captureWithSignal("photo")}
-              className="flex min-h-[62px] items-center justify-center gap-2 rounded-[18px] border border-[#BFDBFE] bg-[#EFF6FF] px-3 font-body text-[14px] font-black text-vyva-text-1 active:scale-[0.98]"
+              align="center"
+              className="min-h-[62px] gap-2 px-3 text-[14px]"
               data-testid="button-vitals-snap-reading"
             >
-              <Camera size={17} className="text-[#1D4ED8]" />
+              <Camera size={17} />
               {t("statusVitals.hub.snapShort", "Scan")}
-            </button>
-            <button
-              type="button"
+            </PurpleModalOption>
+            <PurpleModalOption
               onClick={() => captureWithSignal("text")}
-              className="flex min-h-[62px] items-center justify-center gap-2 rounded-[18px] border border-[#DDD6FE] bg-[#F5F3FF] px-3 font-body text-[14px] font-black text-vyva-text-1 active:scale-[0.98]"
+              align="center"
+              className="min-h-[62px] gap-2 px-3 text-[14px]"
               data-testid="button-log-reading"
             >
-              <Keyboard size={17} className="text-[#6B21A8]" />
+              <Keyboard size={17} />
               {t("statusVitals.logAction", "Type reading")}
-            </button>
+            </PurpleModalOption>
           </div>
         </div>
-      </section>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -1513,28 +1453,17 @@ function ConnectDeviceSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-[88] flex items-end justify-center bg-black/40 px-0" onClick={(event) => event.currentTarget === event.target && onClose()}>
-      <section className="max-h-[88vh] w-full max-w-[660px] overflow-y-auto rounded-t-[30px] bg-white px-5 pb-7 pt-4 shadow-[0_-16px_40px_rgba(31,24,18,0.18)]" data-testid="connect-health-devices">
-        <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-[#E8DED4]" />
-        <div className="mb-5 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="font-display text-[27px] italic leading-tight text-vyva-text-1">
-              {t("statusVitals.devices.sheetTitle", "Connect device")}
-            </h2>
-            <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
-              {t("statusVitals.devices.sheetBody", "Try Bluetooth, or scan, say, or type the same reading.")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#F7F1E9]"
-            aria-label={t("common.close", "Close")}
-            data-testid="button-close-device-sheet"
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <PurpleModal
+      Icon={Bluetooth}
+      kicker={t("settings.healthDevices.kicker", "Health devices")}
+      title={t("statusVitals.devices.sheetTitle", "Connect device")}
+      subtitle={t("statusVitals.devices.sheetBody", "Try Bluetooth, or scan, say, or type the same reading.")}
+      titleId="connect-device-sheet-title"
+      onClose={onClose}
+      closeLabel={t("common.close", "Close")}
+      panelTestId="connect-health-devices"
+      size="wide"
+    >
 
         <div className="grid gap-2">
           {VITALS_DEVICE_CATALOG.map((device) => {
@@ -1542,7 +1471,7 @@ function ConnectDeviceSheet({
             return (
               <article
                 key={device.id}
-                className="rounded-[20px] border border-[#F0E7DE] bg-[#FFFCF8] p-3 shadow-[0_5px_14px_rgba(63,45,35,0.035)]"
+                className="rounded-[20px] border border-[#D8B4FE] bg-white p-3 shadow-[0_8px_18px_rgba(107,33,168,0.06)]"
                 data-testid={`device-card-${device.id}`}
               >
                 <div className="flex min-w-0 items-start gap-3">
@@ -1554,7 +1483,7 @@ function ConnectDeviceSheet({
                     <p className="mt-1 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">{device.helper}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {device.signals.map((signal) => (
-                        <span key={signal} className="rounded-full px-2 py-0.5 font-body text-[10px] font-black" style={{ color: device.accent, background: device.bg }}>
+                        <span key={signal} className="rounded-full border border-[#D8B4FE] bg-[#F5F3FF] px-2 py-0.5 font-body text-[10px] font-black text-vyva-purple">
                           {publicSignalLabel(signal)}
                         </span>
                       ))}
@@ -1568,8 +1497,7 @@ function ConnectDeviceSheet({
                       onClose();
                       onSelectDevice(device);
                     }}
-                    className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-[14px] font-body text-[12px] font-black text-white shadow-[0_7px_14px_rgba(107,33,168,0.12)] active:scale-[0.98]"
-                    style={{ background: device.accent }}
+                    className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-[14px] bg-vyva-purple font-body text-[12px] font-black text-white shadow-[0_7px_14px_rgba(107,33,168,0.12)] active:scale-[0.98]"
                     data-testid={`button-device-bluetooth-${device.id}`}
                   >
                     <Bluetooth size={14} />
@@ -1578,7 +1506,7 @@ function ConnectDeviceSheet({
                   <button
                     type="button"
                     onClick={() => captureFallback("photo")}
-                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#BFDBFE] bg-[#EFF6FF] font-body text-[12px] font-black text-[#1D4ED8]"
+                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#D8B4FE] bg-white font-body text-[12px] font-black text-vyva-purple"
                     data-testid={`button-device-photo-${device.id}`}
                   >
                     <Camera size={13} />
@@ -1587,7 +1515,7 @@ function ConnectDeviceSheet({
                   <button
                     type="button"
                     onClick={() => captureFallback("voice", device.fallbackSignals[0])}
-                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#FED7AA] bg-[#FFF7ED] font-body text-[12px] font-black text-[#B45309]"
+                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#D8B4FE] bg-white font-body text-[12px] font-black text-vyva-purple"
                     data-testid={`button-device-voice-${device.id}`}
                   >
                     <Mic size={13} />
@@ -1596,7 +1524,7 @@ function ConnectDeviceSheet({
                   <button
                     type="button"
                     onClick={() => captureFallback("text", device.fallbackSignals[0])}
-                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#DDD6FE] bg-white font-body text-[12px] font-black text-[#6B21A8]"
+                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-[14px] border border-[#D8B4FE] bg-white font-body text-[12px] font-black text-vyva-purple"
                     data-testid={`button-device-type-${device.id}`}
                   >
                     <Keyboard size={13} />
@@ -1607,8 +1535,7 @@ function ConnectDeviceSheet({
             );
           })}
         </div>
-      </section>
-    </div>
+    </PurpleModal>
   );
 }
 
@@ -1881,7 +1808,13 @@ const SignosScreen = () => {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/chat?mode=voice&q=${encodeURIComponent(guideQuery)}`)}
+              onClick={() => navigate("/health/doctor", {
+                state: {
+                  autoStartVoice: true,
+                  latestSymptomReport: guideQuery,
+                  source: "vitals_guided_plan",
+                },
+              })}
               className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-5 font-body text-[15px] font-black text-[#6B21A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[54px] sm:text-[16px]"
             >
               <Mic size={19} />

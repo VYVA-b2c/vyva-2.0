@@ -128,13 +128,11 @@ describe("Activities service actions", () => {
   it("renders the health-style primary cards and reordered activity library", () => {
     renderActivities();
 
-    const progressSummary = screen.getByTestId("brain-coach-progress-summary");
     const primarySection = screen.getByTestId("section-activities-primary-actions");
     expect(screen.queryByTestId("brain-coach-weekly-streak")).not.toBeInTheDocument();
-    expect(progressSummary).toHaveTextContent("Brain Coach progress");
-    expect(progressSummary).toHaveTextContent("2 day streak");
-    expect(progressSummary.compareDocumentPosition(primarySection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByTestId("brain-coach-progress-summary")).not.toBeInTheDocument();
 
+    expect(primarySection).toBeInTheDocument();
     expect(screen.getByText("Choose your focus")).toBeInTheDocument();
     expect(voiceHeroMock).toHaveBeenCalledWith(expect.objectContaining({
       autoStartVoice: false,

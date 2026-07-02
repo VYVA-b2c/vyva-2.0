@@ -6,6 +6,7 @@ import { z } from "zod";
 import { pool } from "../db.js";
 import { requireUser } from "../middleware/auth.js";
 import { getActiveProfileContext } from "../lib/profileAccess.js";
+import { resolveDomainAccess } from "../lib/caregiverDomainAccess.js";
 import {
   getDailyCheckinTodayStatus,
   markDailyCheckinCompleted,
@@ -1146,6 +1147,16 @@ router.post("/share", requireUser, createCheckinShareHandler);
 router.get("/today", requireUser, async (req: Request, res: Response) => {
   try {
     const userId = await resolveCheckinUserId(req.user!.id);
+    const access = await resolveDomainAccess({
+      actorUserId: req.user!.id,
+      targetUserId: userId,
+      domain: "health",
+      requiredPermission: "view_vitals",
+      actorEmail: typeof req.user!.email === "string" ? req.user!.email : null,
+      actorRequestRole: typeof req.user!.role === "string" ? req.user!.role : null,
+    });
+    if (!access) return res.status(403).json({ error: "Caregiver health access is not enabled." });
+
     const status = await getDailyCheckinTodayStatus(userId, { createDefaultSchedule: true });
     return res.json(status);
   } catch (err) {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
-import { conversationTokenHandler, resolveSocialAgentId } from "./conversationToken";
+import { conversationReadinessHandler, conversationTokenHandler, resolveSocialAgentId } from "./conversationToken";
 
 const ENV_KEYS = [
   "ELEVENLABS_MAIN_VYVA_AGENT_ID",
@@ -25,6 +25,7 @@ const originalEnv = new Map<string, string | undefined>();
 function buildApp() {
   const app = express();
   app.use(express.json());
+  app.post("/readiness", conversationReadinessHandler);
   app.post("/token", conversationTokenHandler);
   return app;
 }
@@ -86,6 +87,56 @@ describe("conversation token agent resolution", () => {
     expect(res.body).toMatchObject({
       code: "ELEVENLABS_AGENT_MISSING",
       agent_slug: "concierge",
+    });
+  });
+
+  it("checks readiness with the same agent resolution without creating a signed URL", async () => {
+    process.env.ELEVENLABS_CONCIERGE_AGENT_ID = "agent_concierge";
+    process.env.ELEVENLABS_API_KEY = "test-key";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(buildApp())
+      .post("/readiness")
+      .send({ agent_slug: "concierge" })
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      ready: true,
+      agent_slug: "concierge",
+      source: "slug",
+      agent_id_present: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a missing agent code from readiness before opening ElevenLabs", async () => {
+    const res = await request(buildApp())
+      .post("/readiness")
+      .send({ agent_slug: "concierge" })
+      .expect(400);
+
+    expect(res.body).toMatchObject({
+      code: "ELEVENLABS_AGENT_MISSING",
+      agent_slug: "concierge",
+      agent_id_present: false,
+    });
+  });
+
+  it("returns a missing API key code from readiness when agent config exists", async () => {
+    process.env.ELEVENLABS_CONCIERGE_AGENT_ID = "agent_concierge";
+
+    const res = await request(buildApp())
+      .post("/readiness")
+      .send({ agent_slug: "concierge" })
+      .expect(500);
+
+    expect(res.body).toMatchObject({
+      code: "ELEVENLABS_API_KEY_MISSING",
+      error: "Missing ElevenLabs API key",
+      agent_slug: "concierge",
+      source: "slug",
+      agent_id_present: true,
     });
   });
 
