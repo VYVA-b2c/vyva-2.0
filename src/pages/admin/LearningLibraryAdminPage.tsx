@@ -96,6 +96,10 @@ function statusClass(status: LessonStatus) {
   return "bg-amber-50 text-amber-800";
 }
 
+function isPublishableStatus(status: LessonStatus) {
+  return status === "draft" || status === "review";
+}
+
 function formatDate(value: string | null) {
   if (!value) return "Not yet";
   const date = new Date(value);
@@ -269,6 +273,7 @@ export default function LearningLibraryAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedLessonIds, setSelectedLessonIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<LessonDraft>(emptyLesson());
   const [statusFilter, setStatusFilter] = useState<LessonStatus | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -282,6 +287,17 @@ export default function LearningLibraryAdminPage() {
   const [editorMessage, setEditorMessage] = useState("");
 
   const selectedLesson = useMemo(() => lessons.find((lesson) => lesson.id === selectedId) ?? null, [lessons, selectedId]);
+  const selectedLessonIdSet = useMemo(() => new Set(selectedLessonIds), [selectedLessonIds]);
+  const publishableVisibleLessonIds = useMemo(
+    () => lessons.filter((lesson) => isPublishableStatus(lesson.status)).map((lesson) => lesson.id),
+    [lessons],
+  );
+  const publishableVisibleLessonIdSet = useMemo(() => new Set(publishableVisibleLessonIds), [publishableVisibleLessonIds]);
+  const selectedPublishableLessonIds = useMemo(
+    () => selectedLessonIds.filter((id) => publishableVisibleLessonIdSet.has(id)),
+    [publishableVisibleLessonIdSet, selectedLessonIds],
+  );
+  const allVisibleDraftsSelected = publishableVisibleLessonIds.length > 0 && publishableVisibleLessonIds.every((id) => selectedLessonIdSet.has(id));
 
   const lessonQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -333,6 +349,34 @@ export default function LearningLibraryAdminPage() {
   useEffect(() => {
     if (selectedLesson) setDraft(lessonToDraft(selectedLesson));
   }, [selectedLesson]);
+
+  useEffect(() => {
+    const visibleLessonIds = new Set(lessons.map((lesson) => lesson.id));
+    setSelectedLessonIds((current) => {
+      const next = current.filter((id) => visibleLessonIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [lessons]);
+
+  function toggleLessonSelection(lessonId: string) {
+    setSelectedLessonIds((current) => (
+      current.includes(lessonId)
+        ? current.filter((id) => id !== lessonId)
+        : [...current, lessonId]
+    ));
+  }
+
+  function toggleVisibleDraftSelection() {
+    setSelectedLessonIds((current) => {
+      const next = new Set(current);
+      if (allVisibleDraftsSelected) {
+        for (const lessonId of publishableVisibleLessonIds) next.delete(lessonId);
+      } else {
+        for (const lessonId of publishableVisibleLessonIds) next.add(lessonId);
+      }
+      return [...next];
+    });
+  }
 
   async function saveLesson(nextStatus?: LessonStatus) {
     const nextDraft = nextStatus ? { ...draft, status: nextStatus, isActive: nextStatus === "published" } : draft;
@@ -401,19 +445,29 @@ export default function LearningLibraryAdminPage() {
     setEditorMessage("");
   };
 
-  async function bulkPublishDrafts() {
+  async function bulkPublishDrafts(lessonIds?: string[]) {
+    const selectedIds = lessonIds ? [...new Set(lessonIds)] : [];
+    const hasSelection = selectedIds.length > 0;
     setBulkPublishing(true);
     setMessage("");
     setEditorMessage("");
     try {
-      const response = await apiFetch("/api/admin/learning/lessons/bulk-publish", { method: "PATCH" });
+      const response = await apiFetch("/api/admin/learning/lessons/bulk-publish", {
+        method: "PATCH",
+        ...(hasSelection ? { body: JSON.stringify({ lessonIds: selectedIds }) } : {}),
+      });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(responseErrorMessage(payload, "Lessons could not be published."));
       await loadData({ clearMessage: false });
       const count = payload.summary?.lessonsPublished ?? 0;
-      const nextMessage = count === 1 ? "Published 1 draft lesson." : `Published ${count} draft lessons.`;
+      const nextMessage = hasSelection
+        ? count === 1 ? "Published 1 selected lesson." : `Published ${count} selected lessons.`
+        : count === 1 ? "Published 1 draft lesson." : `Published ${count} draft lessons.`;
       setMessage(nextMessage);
       setEditorMessage(nextMessage);
+      if (hasSelection) {
+        setSelectedLessonIds((current) => current.filter((id) => !selectedIds.includes(id)));
+      }
     } catch (error) {
       const nextMessage = error instanceof Error ? error.message : "Lessons could not be published.";
       setMessage(nextMessage);
@@ -575,9 +629,37 @@ export default function LearningLibraryAdminPage() {
                 {["en", "es", "fr", "de", "it", "pt"].map((language) => <option key={language} value={language}>{language.toUpperCase()}</option>)}
               </select>
             </div>
+            <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-bold text-[#7d6b65]">
+                {selectedPublishableLessonIds.length > 0
+                  ? `${selectedPublishableLessonIds.length} draft lesson${selectedPublishableLessonIds.length === 1 ? "" : "s"} selected`
+                  : publishableVisibleLessonIds.length > 0 ? `${publishableVisibleLessonIds.length} visible draft lesson${publishableVisibleLessonIds.length === 1 ? "" : "s"} can be selected` : "No visible drafts to publish"}
+              </p>
+              <button
+                type="button"
+                disabled={bulkPublishing || selectedPublishableLessonIds.length === 0}
+                onClick={() => void bulkPublishDrafts(selectedPublishableLessonIds)}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                data-testid="button-admin-learning-publish-selected"
+              >
+                {bulkPublishing && selectedPublishableLessonIds.length > 0 ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                Publish selected
+              </button>
+            </div>
 
             <div className="mt-4 overflow-hidden rounded-2xl border border-[#eadfd5]">
-              <div className="grid grid-cols-[1fr_130px_100px_90px] bg-[#FBF8F5] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">
+              <div className="grid grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center bg-[#FBF8F5] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">
+                <label className="flex h-5 w-5 items-center justify-center" title="Select visible drafts">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleDraftsSelected}
+                    disabled={publishableVisibleLessonIds.length === 0}
+                    onChange={toggleVisibleDraftSelection}
+                    className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700"
+                    aria-label="Select visible draft lessons"
+                    data-testid="checkbox-admin-learning-select-visible-drafts"
+                  />
+                </label>
                 <span>Lessons</span>
                 <span>Category</span>
                 <span>Status</span>
@@ -596,14 +678,35 @@ export default function LearningLibraryAdminPage() {
               ) : lessons.map((lesson) => {
                 const category = categories.find((candidate) => candidate.slug === lesson.categorySlug);
                 const active = lesson.id === draft.id;
+                const publishable = isPublishableStatus(lesson.status);
+                const selectedForPublish = selectedLessonIdSet.has(lesson.id);
                 return (
-                  <button
+                  <div
                     key={lesson.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedId(lesson.id)}
-                    className={`grid min-h-[82px] w-full grid-cols-[1fr_130px_100px_90px] items-center gap-3 border-t border-[#eadfd5] px-4 py-3 text-left transition ${active ? "bg-[#F5F3FF]" : "bg-white hover:bg-[#FFFCF8]"}`}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedId(lesson.id);
+                      }
+                    }}
+                    className={`grid min-h-[82px] w-full grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center gap-3 border-t border-[#eadfd5] px-4 py-3 text-left transition ${active ? "bg-[#F5F3FF]" : "bg-white hover:bg-[#FFFCF8]"}`}
                     data-testid={`button-admin-learning-lesson-${lesson.id}`}
                   >
+                    <label className="flex h-8 w-8 items-center justify-center" title={publishable ? "Select for publishing" : "Already published or archived"}>
+                      <input
+                        type="checkbox"
+                        checked={selectedForPublish}
+                        disabled={!publishable}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleLessonSelection(lesson.id)}
+                        className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700 disabled:opacity-40"
+                        aria-label={`Select ${lesson.title} for publishing`}
+                        data-testid={`checkbox-admin-learning-select-${lesson.id}`}
+                      />
+                    </label>
                     <span className="min-w-0">
                       <span className="block truncate text-[15px] font-black text-[#2f2135]">{lesson.title}</span>
                       <span className="mt-1 block truncate text-xs font-semibold text-[#7d6b65]">{lesson.hook}</span>
@@ -611,7 +714,7 @@ export default function LearningLibraryAdminPage() {
                     <span className="truncate text-sm font-bold text-[#5b4a46]">{category?.label ?? lesson.categorySlug}</span>
                     <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-black ${statusClass(lesson.status)}`}>{lesson.status}</span>
                     <span className="text-xs font-bold text-[#7d6b65]">{formatDate(lesson.updatedAt)}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
