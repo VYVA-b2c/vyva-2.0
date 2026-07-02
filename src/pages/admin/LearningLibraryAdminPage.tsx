@@ -46,6 +46,9 @@ type LessonDraft = Omit<Lesson, "id" | "reviewedAt" | "reviewedBy" | "publishedA
   tagsText: string;
 };
 
+const coverageLanguages = ["en", "es", "fr", "de", "it", "pt"] as const;
+type CoverageLanguage = typeof coverageLanguages[number];
+
 const emptyLesson = (categorySlug = "general_knowledge"): LessonDraft => ({
   externalId: null,
   categorySlug,
@@ -98,6 +101,22 @@ function statusClass(status: LessonStatus) {
 
 function isPublishableStatus(status: LessonStatus) {
   return status === "draft" || status === "review";
+}
+
+function isCoverageLanguage(value: string): value is CoverageLanguage {
+  return coverageLanguages.includes(value as CoverageLanguage);
+}
+
+function normalizeCoverageLanguage(language: string) {
+  const normalized = language.toLowerCase().split(/[-_]/)[0] ?? "";
+  return isCoverageLanguage(normalized) ? normalized : null;
+}
+
+function coverageCellClass(counts: { published: number; pending: number; archived: number; total: number }) {
+  if (counts.published > 0) return "border-emerald-100 bg-emerald-50 text-emerald-800";
+  if (counts.pending > 0) return "border-amber-100 bg-amber-50 text-amber-800";
+  if (counts.archived > 0) return "border-slate-100 bg-slate-50 text-slate-600";
+  return "border-[#eadfd5] bg-[#FFFCF8] text-[#8b7a73]";
 }
 
 function formatDate(value: string | null) {
@@ -272,6 +291,7 @@ function responseErrorMessage(payload: unknown, fallback: string) {
 export default function LearningLibraryAdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [coverageLessons, setCoverageLessons] = useState<Lesson[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [selectedLessonIds, setSelectedLessonIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<LessonDraft>(emptyLesson());
@@ -298,6 +318,48 @@ export default function LearningLibraryAdminPage() {
     [publishableVisibleLessonIdSet, selectedLessonIds],
   );
   const allVisibleDraftsSelected = publishableVisibleLessonIds.length > 0 && publishableVisibleLessonIds.every((id) => selectedLessonIdSet.has(id));
+  const coverageRows = useMemo(() => {
+    return categories.map((category) => {
+      const languages = coverageLanguages.reduce((accumulator, language) => {
+        accumulator[language] = { published: 0, pending: 0, archived: 0, total: 0 };
+        return accumulator;
+      }, {} as Record<CoverageLanguage, { published: number; pending: number; archived: number; total: number }>);
+
+      for (const lesson of coverageLessons) {
+        if (lesson.categorySlug !== category.slug) continue;
+        const language = normalizeCoverageLanguage(lesson.language);
+        if (!language) continue;
+        const counts = languages[language];
+        counts.total += 1;
+        if (lesson.status === "published" && lesson.isActive) {
+          counts.published += 1;
+        } else if (isPublishableStatus(lesson.status)) {
+          counts.pending += 1;
+        } else {
+          counts.archived += 1;
+        }
+      }
+
+      return {
+        category,
+        total: Object.values(languages).reduce((sum, counts) => sum + counts.total, 0),
+        languages,
+      };
+    });
+  }, [categories, coverageLessons]);
+  const coverageSummary = useMemo(() => {
+    return coverageLessons.reduce(
+      (summary, lesson) => {
+        const language = normalizeCoverageLanguage(lesson.language);
+        if (!language) return summary;
+        summary.total += 1;
+        if (lesson.status === "published" && lesson.isActive) summary.published += 1;
+        if (isPublishableStatus(lesson.status)) summary.pending += 1;
+        return summary;
+      },
+      { total: 0, published: 0, pending: 0 },
+    );
+  }, [coverageLessons]);
 
   const lessonQuery = useMemo(() => {
     const params = new URLSearchParams();
@@ -312,20 +374,24 @@ export default function LearningLibraryAdminPage() {
     setLoading(true);
     if (options.clearMessage !== false) setMessage("");
     try {
-      const [categoriesResponse, lessonsResponse] = await Promise.all([
+      const [categoriesResponse, lessonsResponse, coverageResponse] = await Promise.all([
         apiFetch("/api/admin/learning/categories"),
         apiFetch(lessonQuery),
+        apiFetch("/api/admin/learning/lessons?status=all&category=all&language=all"),
       ]);
-      const [categoriesPayload, lessonsPayload] = await Promise.all([
+      const [categoriesPayload, lessonsPayload, coveragePayload] = await Promise.all([
         categoriesResponse.json().catch(() => ({})),
         lessonsResponse.json().catch(() => ({})),
+        coverageResponse.json().catch(() => ({})),
       ]);
       if (!categoriesResponse.ok) throw new Error(responseErrorMessage(categoriesPayload, "Could not load categories."));
       if (!lessonsResponse.ok) throw new Error(responseErrorMessage(lessonsPayload, "Could not load lessons."));
+      if (!coverageResponse.ok) throw new Error(responseErrorMessage(coveragePayload, "Could not load language coverage."));
       const nextCategories = (categoriesPayload.categories ?? []) as Category[];
       const nextLessons = (lessonsPayload.lessons ?? []) as Lesson[];
       setCategories(nextCategories);
       setLessons(nextLessons);
+      setCoverageLessons((coveragePayload.lessons ?? []) as Lesson[]);
       const selectedLessonIsVisible = selectedId ? nextLessons.some((lesson) => lesson.id === selectedId) : false;
       if ((!selectedId || !selectedLessonIsVisible) && nextLessons[0]) {
         setSelectedId(nextLessons[0].id);
@@ -395,6 +461,10 @@ export default function LearningLibraryAdminPage() {
         const exists = current.some((lesson) => lesson.id === saved.id);
         return exists ? current.map((lesson) => lesson.id === saved.id ? saved : lesson) : [saved, ...current];
       });
+      setCoverageLessons((current) => {
+        const exists = current.some((lesson) => lesson.id === saved.id);
+        return exists ? current.map((lesson) => lesson.id === saved.id ? saved : lesson) : [saved, ...current];
+      });
       setSelectedId(saved.id);
       setDraft(lessonToDraft(saved));
       const nextMessage = nextStatus === "published" ? "Lesson published." : nextStatus === "archived" ? "Lesson archived." : "Lesson saved.";
@@ -424,6 +494,7 @@ export default function LearningLibraryAdminPage() {
       if (!response.ok) throw new Error(responseErrorMessage(payload, `Lesson could not be ${action}ed.`));
       const saved = payload.lesson as Lesson;
       setLessons((current) => current.map((lesson) => lesson.id === saved.id ? saved : lesson));
+      setCoverageLessons((current) => current.map((lesson) => lesson.id === saved.id ? saved : lesson));
       setSelectedId(saved.id);
       setDraft(lessonToDraft(saved));
       const nextMessage = action === "publish" ? "Lesson published." : "Lesson archived.";
@@ -599,6 +670,74 @@ export default function LearningLibraryAdminPage() {
             {message}
           </p>
         ) : null}
+
+        <section
+          className="mt-5 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-labelledby="learning-coverage-title"
+          data-testid="admin-learning-coverage"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Content coverage</p>
+              <h2 id="learning-coverage-title" className="mt-1 text-lg font-black text-[#2f2135]">Language coverage</h2>
+              <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
+                Published lesson availability by category and language. English remains the fallback when a learner's language is missing.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-black text-[#7d6b65]">
+              <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageSummary.published} live</span>
+              <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageSummary.pending} draft</span>
+              <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageSummary.total} total</span>
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <div className="min-w-[760px]">
+              <div className="grid grid-cols-[180px_repeat(6,minmax(86px,1fr))] gap-2 px-1 text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">
+                <span>Category</span>
+                {coverageLanguages.map((language) => <span key={language}>{language.toUpperCase()}</span>)}
+              </div>
+              <div className="mt-2 grid gap-2">
+                {coverageRows.length === 0 ? (
+                  <div className="rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] px-4 py-6 text-center text-sm font-bold text-[#7d6b65]">
+                    Coverage appears after categories load.
+                  </div>
+                ) : coverageRows.map((row) => (
+                  <div
+                    key={row.category.slug}
+                    className="grid grid-cols-[180px_repeat(6,minmax(86px,1fr))] items-stretch gap-2"
+                  >
+                    <div className="rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2">
+                      <p className="truncate text-sm font-black text-[#2f2135]">{row.category.label}</p>
+                      <p className="mt-0.5 text-xs font-bold text-[#8b7a73]">{row.total} lesson{row.total === 1 ? "" : "s"}</p>
+                    </div>
+                    {coverageLanguages.map((language) => {
+                      const counts = row.languages[language];
+                      const detail = counts.total === 0
+                        ? "missing"
+                        : counts.pending > 0
+                          ? `${counts.pending} draft`
+                          : counts.archived > 0 && counts.published === 0
+                            ? `${counts.archived} archived`
+                            : `${counts.total} total`;
+
+                      return (
+                        <div
+                          key={`${row.category.slug}-${language}`}
+                          className={`rounded-xl border px-3 py-2 ${coverageCellClass(counts)}`}
+                          data-testid={`admin-learning-coverage-cell-${row.category.slug}-${language}`}
+                        >
+                          <p className="text-sm font-black">{counts.published > 0 ? `${counts.published} live` : "0 live"}</p>
+                          <p className="mt-0.5 text-xs font-bold opacity-80">{detail}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
           <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
