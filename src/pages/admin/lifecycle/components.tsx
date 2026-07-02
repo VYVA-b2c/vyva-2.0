@@ -1035,7 +1035,10 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
             </div>
             <div className="mt-4 grid gap-3">
               <Field label="Full name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.full_name ?? ""} onChange={(e) => setDraft({ ...draft, full_name: e.target.value })} /></Field>
-              <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Preferred name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.preferred_name ?? ""} onChange={(e) => setDraft({ ...draft, preferred_name: e.target.value })} /></Field>
+                <Field label="Date of birth"><input className="w-full rounded-xl border px-3 py-2.5" type="date" value={draft.date_of_birth ?? ""} onChange={(e) => setDraft({ ...draft, date_of_birth: e.target.value })} /></Field>
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Contact number"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.phone_number ?? ""} onChange={(e) => setDraft({ ...draft, phone_number: e.target.value })} /></Field>
                 <Field label="WhatsApp"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
@@ -1045,7 +1048,17 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <Field label="Caregiver name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
                 <Field label="Caregiver contact"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>
               </div>
-              <div className="border-t border-[#eadfd5] pt-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+                <Field label="Timezone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.timezone ?? "Europe/Madrid"} onChange={(e) => setDraft({ ...draft, timezone: e.target.value })} /></Field>
+              </div>
+              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save profile"}</button></div>
+              {statusMessage && (
+                <p className={`rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
+                  {statusMessage}
+                </p>
+              )}
+              <div className="mt-2 border-t border-[#eadfd5] pt-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h4 className="font-black text-[#2f2135]">Caregiver access</h4>
@@ -1162,16 +1175,6 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   ))}
                 </div>
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Language"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.language ?? "es"} onChange={(e) => setDraft({ ...draft, language: e.target.value })}>{languageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-                <Field label="Timezone"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.timezone ?? "Europe/Madrid"} onChange={(e) => setDraft({ ...draft, timezone: e.target.value })} /></Field>
-              </div>
-              <div className="flex flex-wrap gap-2"><button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting} onClick={onSave}>{saving ? "Saving..." : "Save profile"}</button></div>
-              {statusMessage && (
-                <p className={`rounded-xl px-3 py-2 text-sm font-bold ${statusMessage.toLowerCase().includes("could not") ? "bg-[#fff3e8] text-[#8a4a00]" : "bg-[#ecfdf3] text-[#087443]"}`}>
-                  {statusMessage}
-                </p>
-              )}
             </div>
           </section>}
 

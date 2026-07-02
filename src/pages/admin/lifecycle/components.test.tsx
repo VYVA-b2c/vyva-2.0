@@ -117,6 +117,7 @@ describe("UserDetailModal", () => {
         draft={{
           full_name: "Karim Assad",
           preferred_name: "",
+          date_of_birth: "1980-01-02",
           phone_number: "+34 612 345 678",
           whatsapp_number: "",
           email: "karim@example.com",
@@ -211,6 +212,7 @@ describe("UserDetailModal", () => {
         draft={{
           full_name: "",
           preferred_name: "",
+          date_of_birth: "",
           phone_number: "",
           whatsapp_number: "",
           email: "hassanassad04@gmail.com",
@@ -254,6 +256,7 @@ describe("UserDetailModal", () => {
     );
 
     expect(screen.getByLabelText("Full name")).toHaveValue("");
+    expect(screen.getByLabelText("Date of birth")).toHaveValue("");
     expect(screen.getByLabelText("Contact number")).toHaveValue("");
     expect(screen.getByLabelText("Email")).toHaveValue("hassanassad04@gmail.com");
   });
