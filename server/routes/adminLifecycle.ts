@@ -29,6 +29,7 @@ import {
   homeScans,
   lifecycleEvents,
   medicationAdherence,
+  passwordResetTokens,
   onboardingState,
   profiles,
   profileMemberships,
@@ -68,6 +69,7 @@ export const adminLifecycleRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 const DUPLICATE_PROFILE_PHONE_ERROR = "That phone number is already used on another profile. Choose a different profile phone number.";
+const REVOKED_LEGACY_LOGIN_INTENT = "admin_deleted_login";
 
 function requireAdmin(req: Request, res: Response): boolean {
   if (!req.user || req.user.role !== "admin") {
@@ -3817,10 +3819,17 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
           updated_at: deletedAt,
         }).where(and(
           inArray(profileMemberships.profile_id, ownedProfileIdList),
-          sql`${profileMemberships.user_id} <> ${account.id}`,
           sql`${profileMemberships.status} <> 'revoked'`,
         )).returning({ id: profileMemberships.id })
         : [];
+
+      const revokedAccountMemberships = await tx.update(profileMemberships).set({
+        status: "revoked",
+        updated_at: deletedAt,
+      }).where(and(
+        eq(profileMemberships.user_id, account.id),
+        sql`${profileMemberships.status} <> 'revoked'`,
+      )).returning({ id: profileMemberships.id });
 
       const resetAcceptedInvites = await tx.update(teamInvitations).set({
         status: "pending",
@@ -3855,9 +3864,22 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
         ? await tx.update(users).set({ active_profile_id: null }).where(inArray(users.active_profile_id, ownedProfileIdList)).returning({ id: users.id })
         : [];
 
-      const deletedAccounts = await tx.delete(users).where(eq(users.id, account.id)).returning({ id: users.id });
-      if (deletedAccounts.length !== 1) {
-        throw new Error("Login account could not be deleted. Refresh and try again.");
+      const deletedPasswordResetTokens = await tx
+        .delete(passwordResetTokens)
+        .where(eq(passwordResetTokens.user_id, account.id))
+        .returning({ id: passwordResetTokens.id });
+
+      const scrubbedAccounts = await tx.update(users).set({
+        email: null,
+        phone_number: null,
+        password_hash: `revoked:${deletedAt.getTime()}:${randomUUID()}`,
+        active_profile_id: null,
+        onboarding_intent: REVOKED_LEGACY_LOGIN_INTENT,
+        reset_token: null,
+        reset_token_expires_at: null,
+      }).where(eq(users.id, account.id)).returning({ id: users.id });
+      if (scrubbedAccounts.length !== 1) {
+        throw new Error("Login account could not be revoked. Refresh and try again.");
       }
 
       await tx.insert(lifecycleEvents).values({
@@ -3876,11 +3898,13 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
           owned_profile_ids: ownedProfileIdList,
           disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
           hidden_intake_ids: hiddenIntakeIds,
-          revoked_profile_membership_count: revokedProfileMemberships.length,
+          revoked_profile_membership_count: revokedProfileMemberships.length + revokedAccountMemberships.length,
           reset_care_team_invite_count: resetAcceptedInvites.length,
           revoked_senior_invite_count: revokedSeniorInvites.length,
           revoked_access_link_count: revokedAccessLinks.length,
           cleared_active_profile_count: clearedActiveProfiles.length,
+          deleted_password_reset_token_count: deletedPasswordResetTokens.length,
+          login_account_scrubbed: true,
         },
       });
 
@@ -3891,13 +3915,15 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
           phone_number: account.phone_number,
         },
         released_contacts: [account.email, account.phone_number].filter((value): value is string => Boolean(value)),
+        login_account_scrubbed: true,
         hidden_intake_ids: hiddenIntakeIds,
         disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
-        revoked_profile_membership_count: revokedProfileMemberships.length,
+        revoked_profile_membership_count: revokedProfileMemberships.length + revokedAccountMemberships.length,
         reset_care_team_invite_count: resetAcceptedInvites.length,
         revoked_senior_invite_count: revokedSeniorInvites.length,
         revoked_access_link_count: revokedAccessLinks.length,
         cleared_active_profile_count: clearedActiveProfiles.length,
+        deleted_password_reset_token_count: deletedPasswordResetTokens.length,
       };
     });
 

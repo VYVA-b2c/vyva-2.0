@@ -66,6 +66,16 @@ const lessonPayload = {
   ],
 };
 
+function makeLesson(id: string, title: string) {
+  return {
+    ...lessonPayload.lessons[0],
+    id,
+    externalId: id,
+    title,
+    hook: `Hook for ${title}.`,
+  };
+}
+
 function response(payload: unknown, ok = true) {
   return {
     ok,
@@ -230,6 +240,32 @@ describe("LearningLibraryAdminPage", () => {
     ));
     expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Published 1 selected lesson.");
     expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Published 1 selected lesson.");
+  });
+
+  it("paginates long lesson lists", async () => {
+    const lessons = Array.from({ length: 26 }, (_, index) => makeLesson(`lesson-${index + 1}`, `Lesson ${index + 1}`));
+
+    mocks.apiFetch.mockImplementation((url: string) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response({ lessons }));
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Lesson 1")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-learning-list-count")).toHaveTextContent("Showing 1-25 of 26 lessons");
+    expect(screen.queryByText("Lesson 26")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-admin-learning-page-next"));
+
+    expect(await screen.findByText("Lesson 26")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-learning-list-count")).toHaveTextContent("Showing 26-26 of 26 lessons");
+    expect(screen.queryByText("Lesson 1")).not.toBeInTheDocument();
   });
 
   it("shows language coverage across the full lesson library", async () => {

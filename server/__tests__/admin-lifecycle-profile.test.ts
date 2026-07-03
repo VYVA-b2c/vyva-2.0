@@ -246,7 +246,13 @@ describe("Admin lifecycle profile updates", () => {
     expect(response.body.released_contacts).toContain(email);
 
     const [deletedAccount] = await db.select().from(users).where(eq(users.id, accountId)).limit(1);
-    expect(deletedAccount).toBeUndefined();
+    expect(deletedAccount).toMatchObject({
+      email: null,
+      phone_number: null,
+      active_profile_id: null,
+      onboarding_intent: "admin_deleted_login",
+    });
+    expect(deletedAccount?.password_hash).toMatch(/^revoked:/);
 
     const [closedProfile] = await db
       .select({
