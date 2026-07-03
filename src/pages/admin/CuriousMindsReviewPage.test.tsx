@@ -70,7 +70,7 @@ function renderPage() {
   });
 
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/curious-minds/review"]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/curious-minds"]}>
       <CuriousMindsReviewPage />
     </MemoryRouter>,
   );
