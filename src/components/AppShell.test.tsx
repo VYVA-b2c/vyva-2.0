@@ -1,9 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppShell, { emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
+import type { VoiceAppAction } from "@/lib/voiceNavigation";
 
 const voiceState = vi.hoisted(() => ({
   status: "idle" as "idle" | "connecting" | "connected",
@@ -21,6 +22,12 @@ const voiceState = vi.hoisted(() => ({
   beginVoiceTransfer: vi.fn(),
   sendContextUpdate: vi.fn(),
   recordRecommendationFeedback: vi.fn(),
+}));
+
+const voiceActionState = vi.hoisted(() => ({
+  activeAction: null as VoiceAppAction | null,
+  completeActiveAction: vi.fn(),
+  dismissActiveAction: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -53,9 +60,9 @@ vi.mock("@/hooks/useToastSurface", () => ({
 
 vi.mock("@/contexts/VoiceActionContext", () => ({
   useVoiceActionContext: () => ({
-    activeAction: null,
-    completeActiveAction: vi.fn(),
-    dismissActiveAction: vi.fn(),
+    activeAction: voiceActionState.activeAction,
+    completeActiveAction: voiceActionState.completeActiveAction,
+    dismissActiveAction: voiceActionState.dismissActiveAction,
   }),
 }));
 
@@ -176,6 +183,31 @@ describe("app shell route layout", () => {
 });
 
 describe("app shell voice dock", () => {
+  function makeVoiceAction(overrides: Partial<VoiceAppAction> = {}): VoiceAppAction {
+    return {
+      id: "voice_concierge_task",
+      actionType: "concierge.task",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Concierge help",
+      summary: "Opening Concierge.",
+      cue: "Help with the request.",
+      sourceText: "help me book something",
+      priority: "medium",
+      feedbackReason: "Agent requested concierge support.",
+      requiredPayloadKeys: [],
+      optionalPayloadKeys: [],
+      safetyLevel: "sensitive",
+      requiresConfirmation: true,
+      completion: {
+        mode: "manual",
+        doneLabel: "Done",
+        expiresAfterMs: 90000,
+      },
+      ...overrides,
+    };
+  }
+
   function renderShell(path = "/") {
     return render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
@@ -197,6 +229,9 @@ describe("app shell voice dock", () => {
     voiceState.lastErrorCode = null;
     voiceState.stopVoice.mockClear();
     voiceState.setMicrophoneMuted.mockClear();
+    voiceActionState.activeAction = null;
+    voiceActionState.completeActiveAction.mockClear();
+    voiceActionState.dismissActiveAction.mockClear();
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
@@ -231,5 +266,43 @@ describe("app shell voice dock", () => {
     expect(dock).toHaveTextContent("Speaking");
     expect(dock).not.toHaveTextContent("VYVA speaking");
     expect(dock).toHaveTextContent("Try naming three things");
+  });
+
+  it("keeps non-health voice actions visible on their route", () => {
+    voiceActionState.activeAction = makeVoiceAction();
+
+    renderShell("/concierge");
+
+    expect(screen.getByTestId("voice-action-card")).toHaveTextContent("Concierge help");
+    expect(screen.getByTestId("voice-action-card")).toHaveTextContent("VYVA opened Concierge");
+  });
+
+  it("does not show Health voice action cards after landing on a Health route", async () => {
+    voiceActionState.activeAction = makeVoiceAction({
+      id: "voice_symptom_support",
+      actionType: "health.symptom_support",
+      domain: "health",
+      route: "/health/symptom-check",
+      title: "Symptom support",
+      summary: "Opening symptom support.",
+      cue: "Ask one focused question at a time.",
+      sourceText: "I want a symptom check",
+      feedbackReason: "Agent requested symptom-support context.",
+      safetyLevel: "medical",
+      requiresConfirmation: false,
+    });
+
+    renderShell("/health/symptom-check");
+
+    expect(screen.queryByTestId("voice-action-card")).not.toBeInTheDocument();
+    expect(screen.queryByText("VYVA opened Health")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(voiceActionState.completeActiveAction).toHaveBeenCalledWith({
+        metadata: {
+          source: "app_voice_health_route_landed",
+          current_path: "/health/symptom-check",
+        },
+      });
+    });
   });
 });

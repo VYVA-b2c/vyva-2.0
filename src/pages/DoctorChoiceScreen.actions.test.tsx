@@ -40,10 +40,6 @@ vi.mock("@/hooks/useServiceGate", () => ({
   }),
 }));
 
-vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
-  default: () => <div data-testid="voice-action-panel" />,
-}));
-
 vi.mock("react-i18next", async (importOriginal) => {
   const actual = await importOriginal<typeof import("react-i18next")>();
   return {
@@ -142,6 +138,7 @@ describe("Doctor choice quick service actions", () => {
   it("renders call, email, appointment, and transport buttons on the doctor screen", async () => {
     renderDoctorScreen();
 
+    expect(screen.queryByTestId("voice-action-panel")).not.toBeInTheDocument();
     expect(await screen.findByTestId("button-doctor-quick-call_gp")).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("button-doctor-quick-email_gp")).toHaveAttribute("href", expect.stringContaining("mailto:gp@example.com"));
 

@@ -370,7 +370,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const voiceActionRouteMatches = activeVoiceAction
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
-  const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
+  const visibleVoiceAction = activeVoiceAction?.domain === "health" ? null : activeVoiceAction;
+  const visibleVoiceActionRouteMatches = visibleVoiceAction
+    ? location.pathname === visibleVoiceAction.route || location.pathname.startsWith(`${visibleVoiceAction.route}/`)
+    : false;
+  const showInlineVoiceAction = Boolean(!isFullScreen && visibleVoiceAction && visibleVoiceActionRouteMatches);
   const hasVoiceSessionSurface =
     !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
   const showDockVoiceOverlay = dockVoiceOverlayOpen && hasVoiceSessionSurface;
@@ -551,6 +555,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!activeVoiceAction) return;
     if (!voiceActionRouteMatches) return;
+    if (activeVoiceAction.domain === "health") {
+      completeActiveAction({
+        metadata: {
+          source: "app_voice_health_route_landed",
+          current_path: location.pathname,
+        },
+      });
+      return;
+    }
     if (activeVoiceAction.completion?.mode !== "route_landed") return;
 
     const timer = window.setTimeout(() => {
@@ -593,10 +606,10 @@ const AppShell = ({ children }: { children: ReactNode }) => {
       >
         {!isFullScreen && <StatusBar wide={isWideRoute || isVitalsRoute} />}
         <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
-          {showInlineVoiceAction && activeVoiceAction && (
+          {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
-                action={activeVoiceAction}
+                action={visibleVoiceAction}
                 onComplete={handleCompleteVoiceAction}
                 onDismiss={handleDismissVoiceAction}
               />
@@ -631,7 +644,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               stopVoice();
             }}
             onMinimize={() => setDockVoiceOverlayOpen(false)}
-            activeAction={activeVoiceAction}
+            activeAction={visibleVoiceAction}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={setMicrophoneMuted}
