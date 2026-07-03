@@ -219,7 +219,11 @@ const VoiceCallOverlay = ({
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const latestEntry = transcript.length > 0 ? transcript[transcript.length - 1] : null;
-  const latestVyvaText = latestEntry?.from === "vyva" ? latestEntry.text.trim() : "";
+  const latestVyvaEntry = useMemo(
+    () => [...transcript].reverse().find((entry) => entry.from === "vyva") ?? null,
+    [transcript],
+  );
+  const latestVyvaText = latestVyvaEntry?.text.trim() ?? "";
   const vyvaCaptionChunks = useMemo(() => splitTranscriptIntoCaptionChunks(latestVyvaText), [latestVyvaText]);
   const [captionChunkIndex, setCaptionChunkIndex] = useState(0);
   const activeCaptionIndex = vyvaCaptionChunks.length > 0
