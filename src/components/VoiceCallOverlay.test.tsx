@@ -124,22 +124,23 @@ describe("VoiceCallOverlay voice room", () => {
     vi.useRealTimers();
   });
 
-  it("shows the calm voice room with one main message and a transcript preview", () => {
+  it("shows the calm voice room with the VYVA transcript as the main message", () => {
     renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }], {
       onMicToggle: vi.fn(),
       onType: vi.fn(),
+      isSpeaking: true,
     });
 
     expect(screen.getByTestId("voice-call-header")).toBeInTheDocument();
-    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("I'm listening");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Hello Karim");
     expect(screen.getByTestId("text-call-transcript")).toHaveClass("font-body");
-    expect(screen.getByTestId("text-call-subtitle")).toHaveTextContent("Tell me what you need.");
-    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("VYVA: Hello Karim");
+    expect(screen.queryByTestId("text-call-subtitle")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("text-call-transcript-preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
     expect(screen.queryByTestId("text-call-speaker")).not.toBeInTheDocument();
-    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Listening");
-    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mute");
+    expect(screen.getByTestId("text-call-status")).toHaveTextContent("VYVA speaking");
+    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Interrupt");
     expect(screen.getByTestId("button-end-call")).toHaveTextContent("End");
     expect(screen.getByTestId("button-type-call")).toHaveTextContent("Type");
   });
@@ -151,10 +152,10 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("You: Hello VYVA");
   });
 
-  it("updates the transcript preview when a new transcript arrives", () => {
+  it("updates the main transcript when a new VYVA transcript arrives", () => {
     const { rerender } = renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
 
-    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("VYVA: Hello Karim");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Hello Karim");
 
     rerender(
       <VoiceCallOverlay
@@ -163,7 +164,7 @@ describe("VoiceCallOverlay voice room", () => {
       />,
     );
 
-    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("VYVA: Welcome back");
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Welcome back");
   });
 
   it("keeps the connecting state clear when no transcript is available", () => {
@@ -173,16 +174,12 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.getByTestId("text-call-subtitle")).toHaveTextContent("Opening voice with VYVA.");
   });
 
-  it("keeps long transcript previews contained", () => {
+  it("keeps long main transcripts contained", () => {
     renderOverlay([{ from: "vyva", text: "Supercalifragilisticexpialidocious", timestamp: 1 }]);
 
-    expect(screen.getByTestId("text-call-transcript-preview")).toHaveStyle({
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-    });
+    expect(screen.queryByTestId("text-call-transcript-preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("text-call-transcript")).toHaveStyle({
-      maxWidth: "min(100%, 540px)",
+      maxWidth: "min(92vw, 620px)",
       overflowWrap: "anywhere",
       margin: "0",
     });
