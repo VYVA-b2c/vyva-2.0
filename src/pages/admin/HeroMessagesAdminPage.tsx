@@ -56,6 +56,8 @@ type HeroMetricRow = {
   count: number;
 };
 
+type OverviewFilter = "all" | "needs_attention" | "managed" | "fallback";
+
 const LANGUAGES: HeroLanguage[] = ["es", "en", "de", "fr", "it", "pt"];
 const SURFACES: HeroSurface[] = ["home", "health", "doctor", "vitals", "meds", "concierge", "brain", "activity", "companions", "social"];
 const REASONS: HeroReason[] = ["safety", "scheduled_event", "continuation", "time_of_day", "evergreen"];
@@ -63,6 +65,12 @@ const PERIODS: HeroPeriod[] = ["morning", "afternoon", "evening", "night"];
 const SAFETY_LEVELS: HeroSafetyLevel[] = ["normal", "medical", "urgent"];
 const EVENT_TYPES = ["", "appointment", "medication", "social", "concierge"] as const;
 const ACTIVITY_TYPES = ["", "health_check", "meds", "social", "concierge"] as const;
+const OVERVIEW_FILTERS: Array<{ id: OverviewFilter; label: string; description: string }> = [
+  { id: "all", label: "All surfaces", description: "Everything live" },
+  { id: "needs_attention", label: "Needs attention", description: "Warnings or fallback" },
+  { id: "managed", label: "Managed", description: "Admin overrides" },
+  { id: "fallback", label: "Fallback", description: "No usable managed copy" },
+];
 
 function words(value?: string) {
   return (value ?? "").trim().split(/\s+/).filter(Boolean).length;
@@ -236,6 +244,7 @@ export default function HeroMessagesAdminPage() {
   const [drafts, setDrafts] = useState<Record<string, HeroMessageAdmin>>({});
   const [metrics, setMetrics] = useState<HeroMetricRow[]>([]);
   const [surfaceFilter, setSurfaceFilter] = useState<HeroSurface | "all">("all");
+  const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>("all");
   const [language, setLanguage] = useState<HeroLanguage>("es");
   const [metricsDays, setMetricsDays] = useState(7);
   const [selectedMessageId, setSelectedMessageId] = useState<string>("");
@@ -293,6 +302,18 @@ export default function HeroMessagesAdminPage() {
       ctr: impressions ? `${((clicks / impressions) * 100).toFixed(1)}%` : "0.0%",
     };
   }), [allMessages, language, metrics, selectionCatalog]);
+  const overviewCounts = useMemo<Record<OverviewFilter, number>>(() => ({
+    all: overview.length,
+    needs_attention: overview.filter((item) => item.warnings.length > 0).length,
+    managed: overview.filter((item) => item.result.source === "managed").length,
+    fallback: overview.filter((item) => item.result.source === "fallback").length,
+  }), [overview]);
+  const filteredOverview = useMemo(() => {
+    if (overviewFilter === "needs_attention") return overview.filter((item) => item.warnings.length > 0);
+    if (overviewFilter === "managed") return overview.filter((item) => item.result.source === "managed");
+    if (overviewFilter === "fallback") return overview.filter((item) => item.result.source === "fallback");
+    return overview;
+  }, [overview, overviewFilter]);
 
   const diagnosticResult = useMemo(() => selectHeroMessageFromCatalog(diagnosticSurface, {
     language: diagnosticLanguage,
@@ -460,8 +481,41 @@ export default function HeroMessagesAdminPage() {
             </div>
           </div>
 
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" data-testid="hero-overview-filters">
+            {OVERVIEW_FILTERS.map((item) => {
+              const active = overviewFilter === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setOverviewFilter(item.id)}
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${
+                    active
+                      ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                      : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                  }`}
+                  data-testid={`button-hero-overview-filter-${item.id}`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-black">{item.label}</span>
+                    <span className="text-2xl font-black leading-none">{overviewCounts[item.id]}</span>
+                  </span>
+                  <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{item.description}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-sm font-bold text-[#7d6b65]" data-testid="hero-overview-filter-count">
+            Showing {filteredOverview.length} of {overview.length} surfaces.
+          </p>
+
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {overview.map((item) => (
+            {filteredOverview.length === 0 ? (
+              <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-6 text-center text-sm font-bold text-[#7d6b65] md:col-span-2 xl:col-span-3">
+                No hero surfaces match this filter.
+              </div>
+            ) : filteredOverview.map((item) => (
               <article key={item.surface} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4" data-testid={`card-hero-overview-${item.surface}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">

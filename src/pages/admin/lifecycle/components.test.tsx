@@ -96,6 +96,40 @@ describe("IntakeTable", () => {
     expect(row).not.toBeNull();
     expect(within(row as HTMLTableRowElement).getByText("-")).toBeInTheDocument();
   });
+
+  it("surfaces journey and access cues without duplicating the tier action chip", () => {
+    render(
+      <IntakeTable
+        users={[
+          intake({
+            id: "worklist-row",
+            name: "Worklist User",
+            login_phone: "+34 600 111 222",
+            status: "link_sent",
+            journey_step: "signup_invite_sent",
+            account_status: "disabled",
+            consent_status: "pending",
+            tier: "premium",
+            organization_name: "Madrid Care",
+          }),
+        ]}
+        onView={vi.fn()}
+        onTriggerConsent={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByText("Worklist User").closest("tr");
+    expect(row).not.toBeNull();
+    const rowScope = within(row as HTMLTableRowElement);
+    expect(rowScope.getByText("Invite sent")).toBeInTheDocument();
+    expect(rowScope.getByText("Link sent")).toBeInTheDocument();
+    expect(rowScope.getByText("Disabled")).toBeInTheDocument();
+    expect(rowScope.getByText("Pending")).toBeInTheDocument();
+    expect(rowScope.getByText("Premium")).toBeInTheDocument();
+    expect(rowScope.queryByText("Tier: Premium")).not.toBeInTheDocument();
+    expect(rowScope.getByText("Madrid Care")).toBeInTheDocument();
+  });
 });
 
 describe("UserDetailModal", () => {
@@ -236,8 +270,12 @@ describe("UserDetailModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("tab", { name: "Care team" }));
+
     const sendButton = screen.getByRole("button", { name: "Send caregiver invite" });
     expect(sendButton).toBeEnabled();
+    expect(screen.getByText("Saved caregiver")).toBeInTheDocument();
+    expect(screen.getByText("Hassan")).toBeInTheDocument();
     expect(screen.queryByText("Name plus email, phone, or WhatsApp required.")).not.toBeInTheDocument();
 
     fireEvent.click(sendButton);
@@ -441,5 +479,103 @@ describe("UserDetailModal", () => {
     expect(screen.getByText("Blood Pressure Cuff - Ready")).toBeInTheDocument();
     expect(screen.getByText("Human Supported")).toBeInTheDocument();
     expect(screen.getByText("2 calls/day - Unlimited")).toBeInTheDocument();
+  });
+
+  it("shows communication failures and access link status in the drawer", () => {
+    render(
+      <UserDetailModal
+        detail={{
+          intake: intake({ id: "communications-detail", name: "Ada Mobile" }),
+          profile: null,
+          account_mappings: [],
+          communications: [
+            {
+              id: "comm-1",
+              channel: "email",
+              recipient: "hassan@mokadigital.net",
+              purpose: "signup_invite",
+              status: "failed",
+              metadata: {
+                dispatch_error: "Maximum credits exceeded",
+                provider: "Resend",
+              },
+              created_at: "2026-07-01T10:00:00.000Z",
+            },
+          ],
+          access_links: [
+            {
+              id: "link-1",
+              link_type: "signup_invite",
+              tier: "premium",
+              destination: "/invite/care-team",
+              target_role: "caregiver",
+              max_uses: 1,
+              use_count: 1,
+              clicked_at: "2026-07-01T10:05:00.000Z",
+              converted_at: null,
+              expires_at: "2026-08-01T10:00:00.000Z",
+              revoked_at: null,
+              created_at: "2026-07-01T10:00:00.000Z",
+            },
+          ],
+          lifecycle_events: [],
+          consent_attempts: [],
+          scheduled_events: [],
+        }}
+        draft={{
+          full_name: "Ada Mobile",
+          preferred_name: "",
+          date_of_birth: "",
+          phone_number: "+34 612 345 678",
+          whatsapp_number: "",
+          email: "ada@example.com",
+          language: "es",
+          timezone: "Europe/Madrid",
+          caregiver_name: "",
+          caregiver_contact: "",
+          tier: "free",
+          organization_id: "",
+        }}
+        setDraft={vi.fn()}
+        organizations={[]}
+        planOptions={[{ value: "free", label: "Free" }]}
+        caregiverInviteDraft={caregiverInviteDraft()}
+        setCaregiverInviteDraft={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onSendCaregiverInvite={vi.fn()}
+        onToggle={vi.fn()}
+        onDelete={vi.fn()}
+        newEvent={{
+          event_type: "custom",
+          title: "",
+          description: "",
+          channel: "app",
+          scheduled_for: "",
+          scheduled_date: "",
+          scheduled_time: "",
+          timezone: "Europe/Madrid",
+          recurrence: "none",
+          status: "upcoming",
+          source: "admin",
+        }}
+        setNewEvent={vi.fn()}
+        onCreateEvent={vi.fn()}
+        onEventStatus={vi.fn()}
+        onEventTime={vi.fn()}
+        onSupportSave={vi.fn()}
+        onSupportStatus={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Communications" }));
+
+    expect(screen.getByText("1 failed")).toBeInTheDocument();
+    expect(screen.getByText("Signup Invite")).toBeInTheDocument();
+    expect(screen.getByText("hassan@mokadigital.net")).toBeInTheDocument();
+    expect(screen.getByText("Resend")).toBeInTheDocument();
+    expect(screen.getByText("Maximum credits exceeded")).toBeInTheDocument();
+    expect(screen.getByText("/invite/care-team")).toBeInTheDocument();
+    expect(screen.getByText("Clicked")).toBeInTheDocument();
   });
 });

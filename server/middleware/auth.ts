@@ -1,10 +1,14 @@
 import type { Request, Response, NextFunction } from "express";
+import { eq } from "drizzle-orm";
 import { verifyToken } from "../lib/jwt.js";
 import { verifySupabaseAccessToken } from "../lib/supabaseAuth.js";
 import { readAuthSessionCookie } from "../lib/sessionCookie.js";
 import { isLocalDevelopmentRequest } from "../lib/requestEnvironment.js";
+import { db } from "../db.js";
+import { users } from "../../shared/schema.js";
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
+const REVOKED_LEGACY_LOGIN_INTENT = "admin_deleted_login";
 
 function isSuperAdminEmail(value: unknown): boolean {
   return typeof value === "string" && value.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
@@ -41,6 +45,30 @@ function databaseUnavailableDetail(error: unknown): string | null {
   return null;
 }
 
+function isRevokedLegacyLogin(account: { password_hash: string; onboarding_intent: string | null } | null | undefined) {
+  return !account
+    || account.onboarding_intent === REVOKED_LEGACY_LOGIN_INTENT
+    || account.password_hash.startsWith("revoked:");
+}
+
+async function legacyTokenCanAuthenticate(userId: string): Promise<boolean> {
+  try {
+    const [account] = await db
+      .select({
+        password_hash: users.password_hash,
+        onboarding_intent: users.onboarding_intent,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    return !isRevokedLegacyLogin(account);
+  } catch (error) {
+    console.error("[auth] legacy token account lookup failed:", error);
+    return false;
+  }
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -74,6 +102,7 @@ export async function authMiddleware(
   async function applyToken(token: string): Promise<boolean> {
     const userId = await verifyToken(token);
     if (userId) {
+      if (!await legacyTokenCanAuthenticate(userId)) return false;
       req.user = { id: userId, authProvider: "legacy" };
       return true;
     }

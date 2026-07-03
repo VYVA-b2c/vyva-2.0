@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CuratedActivitiesAdminPage from "./CuratedActivitiesAdminPage";
@@ -78,14 +78,52 @@ const onlineEvent: AdminParticipationEvent = {
   checkRequestCount: 0,
 };
 
-function jsonResponse(body: unknown) {
+const discoveryCandidate: AdminParticipationEvent = {
+  ...madridEvent,
+  id: "madrid-library-music",
+  eventKey: "madrid-library-music",
+  titleEn: "Library music morning",
+  titleEs: "Musica matinal en la biblioteca",
+  titleDe: "Musikvormittag in der Bibliothek",
+  summaryEn: "A calm public music session.",
+  summaryEs: "Una sesion publica de musica tranquila.",
+  summaryDe: "Eine ruhige offentliche Musikrunde.",
+  locationLabel: "Central library",
+  timeLabelEn: "Time to be checked",
+  costLabelEn: "Free",
+  source: "ai-discovery",
+  sourceUrl: "https://example.org/library-music",
+  status: "draft",
+  safetyStatus: "needs_review",
+  responseCounts: baseCounts,
+  checkRequestCount: 0,
+  metadata: {
+    discovery: {
+      generatedAt: "2026-07-03T10:00:00.000Z",
+      query: { city: "Madrid" },
+      sourceUrls: ["https://example.org/library-music"],
+      evidence: "The source lists a public music event at the library.",
+      model: "gpt-4.1-mini",
+    },
+  },
+};
+
+const secondDiscoveryCandidate: AdminParticipationEvent = {
+  ...discoveryCandidate,
+  id: "madrid-art-workshop",
+  eventKey: "madrid-art-workshop",
+  titleEn: "Art workshop",
+  sourceUrl: "https://example.org/art-workshop",
+};
+
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
-    status: 200,
+    status,
     headers: { "Content-Type": "application/json" },
   });
 }
 
-function renderPage() {
+function renderPage(discovered: AdminParticipationEvent[] = [discoveryCandidate]) {
   let events = [madridEvent, onlineEvent].map((event) => ({ ...event }));
 
   apiFetchMock.mockImplementation((path, init) => {
@@ -107,24 +145,22 @@ function renderPage() {
       }));
     }
 
+    if (path === "/api/admin/social/participate/discover" && method === "POST") {
+      return Promise.resolve(jsonResponse({ ok: true, candidates: discovered, rejected: [] }));
+    }
+
     if (path === "/api/admin/social/participate/events" && method === "POST") {
       const body = JSON.parse(String(init?.body ?? "{}"));
       const created: AdminParticipationEvent = {
         ...madridEvent,
+        ...body,
         id: body.eventKey,
         eventKey: body.eventKey,
-        titleEn: body.titleEn,
-        titleEs: body.titleEs,
-        titleDe: body.titleDe,
-        city: body.city,
-        countryCode: body.countryCode,
-        status: body.status,
-        safetyStatus: body.safetyStatus,
         responseCounts: baseCounts,
         checkRequestCount: 0,
       };
       events = [created, ...events];
-      return Promise.resolve(jsonResponse({ ok: true, event: created }));
+      return Promise.resolve(jsonResponse({ ok: true, event: created }, 201));
     }
 
     if (typeof path === "string" && path.startsWith("/api/admin/social/participate/events/") && method === "PATCH") {
@@ -152,6 +188,7 @@ describe("CuratedActivitiesAdminPage", () => {
   it("offers a downloadable activity import template", async () => {
     renderPage();
 
+    expect(await screen.findByRole("heading", { name: "What's On" })).toBeInTheDocument();
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
     const link = screen.getByRole("link", { name: /Download template/ });
 
@@ -159,6 +196,85 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(link.getAttribute("href")).toContain("eventKey");
     expect(link.getAttribute("href")).toContain("interests");
     expect(link.getAttribute("href")).toContain("needs_review");
+  });
+
+  it("filters the activity list with work queue shortcuts", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    const list = screen.getByTestId("admin-participate-events");
+    expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
+    expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 2 of 2 activities.");
+
+    fireEvent.click(screen.getByTestId("admin-participate-queue-checks"));
+
+    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 1 of 2 activities.");
+    expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
+    expect(within(list).queryByText("online-music-hour")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-participate-queue-review"));
+
+    expect(screen.getByText("No activities match this queue and filter combination.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-participate-clear-work-queue"));
+
+    expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
+  });
+
+  it("calls AI discovery and renders preview source links", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByTestId("admin-discovery-city"), { target: { value: "Valencia" } });
+    fireEvent.click(screen.getByTestId("admin-discovery-find"));
+
+    expect(await screen.findByTestId("admin-discovery-preview")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Library music morning")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Source link/ })).toHaveAttribute("href", "https://example.org/library-music");
+
+    const discoverCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/social/participate/discover" && init?.method === "POST"
+    ));
+    expect(discoverCall).toBeTruthy();
+    expect(JSON.parse(String(discoverCall?.[1]?.body))).toMatchObject({
+      city: "Valencia",
+      countryCode: "ES",
+      format: "nearby",
+      maxResults: 6,
+    });
+  });
+
+  it("saves only checked AI candidates as draft review items", async () => {
+    renderPage([discoveryCandidate, secondDiscoveryCandidate]);
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTestId("admin-discovery-find"));
+    expect(await screen.findByDisplayValue("Art workshop")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByLabelText("Save")[1]);
+    fireEvent.click(screen.getByTestId("admin-discovery-save"));
+
+    await waitFor(() => {
+      const posts = apiFetchMock.mock.calls.filter(([path, init]) => (
+        path === "/api/admin/social/participate/events" && init?.method === "POST"
+      ));
+      expect(posts).toHaveLength(1);
+      const body = JSON.parse(String(posts[0][1]?.body));
+      expect(body).toMatchObject({
+        eventKey: "madrid-library-music",
+        source: "ai-discovery",
+        status: "draft",
+        safetyStatus: "needs_review",
+        isCurated: true,
+        needsLiveCheck: true,
+      });
+      expect(body.eventKey).not.toBe("madrid-art-workshop");
+    });
+
+    expect(await screen.findByText("madrid-library-music")).toBeInTheDocument();
+    expect(screen.getAllByText("draft").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("needs_review").length).toBeGreaterThan(0);
   });
 
   it("manages city coverage, creates drafts, and saves event changes", async () => {
@@ -175,7 +291,7 @@ describe("CuratedActivitiesAdminPage", () => {
     fireEvent.change(screen.getAllByLabelText("Title EN")[0], { target: { value: "Valencia art hour" } });
     fireEvent.change(screen.getAllByLabelText("Title ES")[0], { target: { value: "Arte en Valencia" } });
     fireEvent.change(screen.getAllByLabelText("Title DE")[0], { target: { value: "Kunst in Valencia" } });
-    fireEvent.change(screen.getAllByLabelText("City")[0], { target: { value: "Valencia" } });
+    fireEvent.change(screen.getAllByLabelText("City")[1], { target: { value: "Valencia" } });
     fireEvent.click(screen.getByRole("button", { name: /Add event/ }));
 
     await waitFor(() => {
@@ -195,7 +311,7 @@ describe("CuratedActivitiesAdminPage", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /Save event/ }).length).toBeGreaterThan(1);
     });
-    fireEvent.change(screen.getAllByLabelText("City")[1], { target: { value: "Barcelona" } });
+    fireEvent.change(screen.getAllByLabelText("City")[2], { target: { value: "Barcelona" } });
     fireEvent.click(screen.getAllByRole("button", { name: /Save event/ })[0]);
 
     await waitFor(() => {

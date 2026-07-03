@@ -1,9 +1,19 @@
 import express from "express";
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { authMiddleware, requireAdminUser } from "../middleware/auth.js";
 import socialRoomsRouter from "../routes/socialRooms.js";
 import adminSocialRoomsRouter from "../routes/adminSocialRooms.js";
+
+const openAiResponsesCreateMock = vi.hoisted(() => vi.fn());
+
+vi.mock("openai", () => ({
+  default: vi.fn(() => ({
+    responses: {
+      create: openAiResponsesCreateMock,
+    },
+  })),
+}));
 
 function buildSocialApp() {
   const app = express();
@@ -19,8 +29,19 @@ function buildProtectedAdminApp() {
   return app;
 }
 
+function buildTrustedAdminApp() {
+  const app = express();
+  app.use(express.json());
+  app.use("/api/admin/social", (req, _res, next) => {
+    req.user = { id: "test-admin", role: "admin", email: "admin@example.com" };
+    next();
+  }, adminSocialRoomsRouter);
+  return app;
+}
+
 const socialApp = buildSocialApp();
 const adminApp = buildProtectedAdminApp();
+const trustedAdminApp = buildTrustedAdminApp();
 
 type PulseEventSummary = { id: string };
 
@@ -39,6 +60,14 @@ function eventIdsFromPulse(body: PulseResponseBody): string[] {
 }
 
 describe("Participate curated events API", () => {
+  beforeEach(() => {
+    openAiResponsesCreateMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("ranks recommendations by hobbies and interests", async () => {
     const response = await request(socialApp)
       .get("/api/social/participate/pulse?lang=en&interests=music")
@@ -170,5 +199,150 @@ describe("Participate curated events API", () => {
     await request(adminApp)
       .get("/api/admin/social/participate/events")
       .expect(401);
+
+    await request(adminApp)
+      .post("/api/admin/social/participate/discover")
+      .send({ city: "Madrid" })
+      .expect(401);
+  });
+
+  it("returns a safe admin error when AI discovery has no API key", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    const response = await request(trustedAdminApp)
+      .post("/api/admin/social/participate/discover")
+      .send({ city: "Madrid", countryCode: "ES", maxResults: 3 })
+      .expect(503);
+
+    expect(response.body).toMatchObject({
+      code: "OPENAI_API_KEY_MISSING",
+      error: "AI discovery needs OPENAI_API_KEY before it can search for activities. Nothing was created.",
+    });
+    expect(openAiResponsesCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns sourced AI discovery candidates as preview only", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    openAiResponsesCreateMock.mockResolvedValue({
+      output_text: JSON.stringify({
+        candidates: [
+          {
+            eventKey: "madrid-ai-preview-only",
+            titleEn: "Library music morning",
+            titleEs: "Musica matinal en la biblioteca",
+            titleDe: "Musikvormittag in der Bibliothek",
+            summaryEn: "A calm public music session.",
+            sourceUrl: "https://example.org/library-music",
+            evidence: "The source lists a public music event at the library.",
+          },
+        ],
+      }),
+    });
+
+    const response = await request(trustedAdminApp)
+      .post("/api/admin/social/participate/discover")
+      .send({
+        city: "Madrid",
+        countryCode: "ES",
+        languageCodes: ["en", "es", "de"],
+        interests: ["music"],
+        format: "nearby",
+        maxResults: 2,
+      })
+      .expect(200);
+
+    expect(response.body.candidates).toHaveLength(1);
+    expect(response.body.candidates[0]).toMatchObject({
+      eventKey: "madrid-ai-preview-only",
+      source: "ai-discovery",
+      status: "draft",
+      safetyStatus: "needs_review",
+      isCurated: true,
+      needsLiveCheck: true,
+      sourceUrl: "https://example.org/library-music",
+    });
+    expect(response.body.candidates[0].metadata.discovery).toMatchObject({
+      sourceUrls: ["https://example.org/library-music"],
+      evidence: "The source lists a public music event at the library.",
+      model: "gpt-4.1-mini",
+    });
+
+    const events = await request(trustedAdminApp)
+      .get("/api/admin/social/participate/events")
+      .expect(200);
+    expect(events.body.events.map((event: { eventKey: string }) => event.eventKey)).not.toContain("madrid-ai-preview-only");
+  });
+
+  it("rejects unsourced AI discovery candidates", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    openAiResponsesCreateMock.mockResolvedValue({
+      output_text: JSON.stringify({
+        candidates: [
+          {
+            eventKey: "madrid-unsourced-ai",
+            titleEn: "Unsourced activity",
+            summaryEn: "No source should make this invalid.",
+            sourceUrl: "",
+          },
+        ],
+      }),
+    });
+
+    const response = await request(trustedAdminApp)
+      .post("/api/admin/social/participate/discover")
+      .send({ city: "Madrid", countryCode: "ES" })
+      .expect(200);
+
+    expect(response.body.candidates).toEqual([]);
+    expect(response.body.rejected).toEqual([
+      { title: "Unsourced activity", reason: "Missing source URL" },
+    ]);
+  });
+
+  it("forces AI-discovery saves to draft review items", async () => {
+    const eventKey = `madrid-forced-ai-save-${Date.now()}`;
+
+    const response = await request(trustedAdminApp)
+      .post("/api/admin/social/participate/events")
+      .send({
+        eventKey,
+        titleEn: "Forced draft candidate",
+        titleEs: "Candidata en borrador",
+        titleDe: "Entwurfskandidat",
+        summaryEn: "Saved from AI discovery.",
+        summaryEs: "Guardada desde descubrimiento IA.",
+        summaryDe: "Aus KI-Suche gespeichert.",
+        city: "Madrid",
+        countryCode: "ES",
+        format: "nearby",
+        locationLabel: "Library",
+        timeLabelEn: "Time to be checked",
+        costLabelEn: "Free",
+        languageCodes: ["en", "es"],
+        tags: ["music"],
+        interestTags: ["music"],
+        helperActions: ["check_details"],
+        source: "ai-discovery",
+        sourceUrl: "https://example.org/forced-draft",
+        status: "active",
+        safetyStatus: "approved",
+        isCurated: false,
+        needsLiveCheck: false,
+        metadata: {
+          discovery: {
+            sourceUrls: ["https://example.org/forced-draft"],
+          },
+        },
+      })
+      .expect(201);
+
+    expect(response.body.event).toMatchObject({
+      eventKey,
+      source: "ai-discovery",
+      status: "draft",
+      safetyStatus: "needs_review",
+      isCurated: true,
+      needsLiveCheck: true,
+    });
   });
 });
