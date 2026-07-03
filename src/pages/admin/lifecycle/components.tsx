@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import {
   type AccountSubscription,
+  type AccessLink,
   type CaregiverInviteDraft,
   type Communication,
   type CommunicationProviderStatus,
@@ -76,7 +77,17 @@ function contactKey(value?: string | null) {
 }
 
 function lifecycleUserMobile(user: Intake) {
-  return phoneContact(user.login_phone) ?? phoneContact(user.profile_phone) ?? phoneContact(user.phone);
+  return lifecycleUserMobileDetails(user)?.value ?? null;
+}
+
+function lifecycleUserMobileDetails(user: Intake) {
+  const loginMobile = phoneContact(user.login_phone);
+  if (loginMobile) return { label: "Login", value: loginMobile };
+  const profileMobile = phoneContact(user.profile_phone);
+  if (profileMobile) return { label: "Profile", value: profileMobile };
+  const intakeMobile = phoneContact(user.phone);
+  if (intakeMobile) return { label: "Intake", value: intakeMobile };
+  return null;
 }
 
 function lifecycleIdentityRows(user: Intake) {
@@ -603,6 +614,40 @@ function removedUserDetails(user: Intake) {
   return { removedBy, removedAt, reason };
 }
 
+function statusBadgeClass(status?: string | null) {
+  if (status === "active") return "bg-[#ecfdf3] text-[#087443]";
+  if (status === "dropped") return "bg-red-50 text-red-700";
+  if (status === "created" || status === "consent_pending") return "bg-amber-50 text-amber-800";
+  if (status === "link_sent") return "bg-[#f4eafe] text-purple-700";
+  return "bg-[#fbf8f5] text-[#6f625d]";
+}
+
+function accountBadgeClass(status?: string | null) {
+  return status === "disabled"
+    ? "bg-red-50 text-red-700"
+    : "bg-[#ecfdf3] text-[#087443]";
+}
+
+function consentBadgeClass(status?: string | null) {
+  if (!status || status === "not_required" || status === "approved") return "bg-[#ecfdf3] text-[#087443]";
+  if (status === "rejected" || status === "failed") return "bg-red-50 text-red-700";
+  return "bg-amber-50 text-amber-800";
+}
+
+function userWorkBadges(user: Intake, removed: boolean, mobile: ReturnType<typeof lifecycleUserMobileDetails>) {
+  const badges: Array<{ label: string; className: string }> = [];
+  if (removed) badges.push({ label: "Removed", className: "bg-amber-100 text-amber-800" });
+  if (callbackMetadata(user)) badges.push({ label: "Callback", className: "bg-[#f3e8ff] text-purple-800" });
+  if (!removed && user.account_status === "disabled") badges.push({ label: "App disabled", className: "bg-red-50 text-red-700" });
+  if (!removed && user.status === "created") badges.push({ label: "Needs invite", className: "bg-amber-50 text-amber-800" });
+  if (!removed && user.status === "link_sent") badges.push({ label: "Invite sent", className: "bg-[#f4eafe] text-purple-700" });
+  if (!removed && user.consent_status && !["not_required", "approved"].includes(user.consent_status)) {
+    badges.push({ label: "Consent waiting", className: "bg-amber-50 text-amber-800" });
+  }
+  if (!mobile) badges.push({ label: "No mobile", className: "bg-[#fff3e8] text-[#8a4a00]" });
+  return badges.slice(0, 4);
+}
+
 export function IntakeTable({ users, emptyMessage = "No users match the current filters yet.", onView, onTriggerConsent, onToggleEnabled, onDelete, onRestore, busyAction = null, compact = false, selectedIds = [], canSelectUser = isVisibleLifecycleUser, onSelectionChange, onSelectAllVisible }: {
   users: Intake[];
   emptyMessage?: string;
@@ -624,13 +669,14 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
   const selectableUsers = users.filter(canSelectUser);
   const allVisibleSelected = selectableUsers.length > 0 && selectableUsers.every((user) => selectedSet.has(user.id));
   const visibleSelectionCount = selectableUsers.filter((user) => selectedSet.has(user.id)).length;
-  const columnCount = (compact ? 9 : 10) + (selectable ? 1 : 0);
+  const columnCount = (compact ? 5 : 6) + (selectable ? 1 : 0);
   return (
-    <div className="mt-5 overflow-auto">
-      <table className="w-full min-w-[980px] border-separate border-spacing-y-2">
-        <thead><tr className="text-left text-sm uppercase tracking-wide text-[#8b7a73]">
+    <div className="mt-5 max-h-[68vh] overflow-auto rounded-2xl border border-[#eadfd5] bg-white">
+      <table className="w-full min-w-[1080px] border-separate border-spacing-0">
+        <thead className="sticky top-0 z-10 bg-white">
+          <tr className="text-left text-xs uppercase tracking-[0.08em] text-[#8b7a73]">
           {selectable && (
-            <th className="w-10">
+            <th className="w-10 border-b border-[#eadfd5] px-3 py-3">
               <input
                 type="checkbox"
                 aria-label="Select all visible users"
@@ -641,12 +687,17 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
               {visibleSelectionCount > 0 && !allVisibleSelected && <span className="sr-only">{visibleSelectionCount} visible users selected</span>}
             </th>
           )}
-          <th>Name</th>{!compact && <th>Contact number</th>}<th>Type</th><th>Entry</th><th>Tier</th><th>Status</th><th>Account</th><th>Consent</th><th>Org</th><th>Action</th>
+          <th className="border-b border-[#eadfd5] px-3 py-3">User</th>
+          {!compact && <th className="border-b border-[#eadfd5] px-3 py-3">Contact number</th>}
+          <th className="border-b border-[#eadfd5] px-3 py-3">Journey</th>
+          <th className="border-b border-[#eadfd5] px-3 py-3">Access</th>
+          <th className="border-b border-[#eadfd5] px-3 py-3">Org</th>
+          <th className="border-b border-[#eadfd5] px-3 py-3">Actions</th>
         </tr></thead>
         <tbody>
           {users.length === 0 && (
             <tr>
-              <td colSpan={columnCount} className="rounded-2xl bg-[#fbf8f5] px-4 py-6 text-center font-bold text-[#7d6b65]">
+              <td colSpan={columnCount} className="px-4 py-8 text-center font-bold text-[#7d6b65]">
                 {emptyMessage}
               </td>
             </tr>
@@ -655,10 +706,12 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
             const removed = !isVisibleLifecycleUser(user);
             const removedDetails = removed ? removedUserDetails(user) : null;
             const identityRows = lifecycleIdentityRows(user);
+            const mobile = lifecycleUserMobileDetails(user);
+            const workBadges = userWorkBadges(user, removed, mobile);
             return (
-            <tr key={user.id} className={`rounded-2xl ${removed ? "bg-amber-50" : "bg-[#fbf8f5]"}`}>
+            <tr key={user.id} className={`${removed ? "bg-amber-50/80" : "bg-white"} hover:bg-[#fbf8f5]`}>
               {selectable && (
-                <td className="rounded-l-2xl px-3 py-3 align-middle">
+                <td className="border-b border-[#eadfd5] px-3 py-4 align-middle">
                   <input
                     type="checkbox"
                     aria-label={`Select ${user.name}`}
@@ -668,18 +721,16 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                   />
                 </td>
               )}
-              <td className={`${selectable ? "" : "rounded-l-2xl"} px-3 py-3`}>
-                <p className="font-bold">{user.name}</p>
-                {callbackMetadata(user) && (
-                  <p className="mt-1 inline-flex rounded-full bg-[#f3e8ff] px-2.5 py-1 text-xs font-black text-purple-800">
-                    Callback onboarding
-                  </p>
-                )}
-                {removed && (
-                  <p className="mt-1 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black uppercase text-amber-800">
-                    Removed
-                  </p>
-                )}
+              <td className="border-b border-[#eadfd5] px-3 py-4 align-top">
+                <div className="max-w-[280px]">
+                  <p className="break-words text-sm font-black text-[#2f2135]">{user.name}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {workBadges.map((badge) => (
+                      <span key={badge.label} className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.04em] ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    ))}
+                  </div>
                 {removedDetails && (
                   <div className="mt-1 grid gap-0.5 text-xs font-semibold text-amber-900">
                     {removedDetails.removedAt && <span>Removed: {formatDate(removedDetails.removedAt)}</span>}
@@ -688,50 +739,70 @@ export function IntakeTable({ users, emptyMessage = "No users match the current 
                   </div>
                 )}
                 {identityRows.length > 0 && (
-                  <div className="mt-1 grid gap-0.5 text-xs font-semibold text-[#7d6b65]">
+                  <div className="mt-2 grid gap-0.5 text-xs font-semibold text-[#7d6b65]">
                     {identityRows.map((row) => <span key={`${row.label}:${row.value}`}>{row.label}: {row.value}</span>)}
                   </div>
                 )}
+                </div>
               </td>
-              {!compact && <td className="px-3 py-3">{lifecycleUserMobile(user) ?? "-"}</td>}
-              <td className="px-3 py-3">{userTypeLabel(user.user_type)}</td>
-              <td className="px-3 py-3">
-                <span>{entryPointLabel(user.entry_point)}</span>
-                {callbackMetadata(user) && <span className="mt-1 block text-xs font-bold text-purple-700">Scheduled callback</span>}
+              {!compact && (
+                <td className="border-b border-[#eadfd5] px-3 py-4 align-top">
+                  {mobile ? (
+                    <div>
+                      <p className="font-black text-[#2f2135]">{mobile.value}</p>
+                      <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{mobile.label} number</p>
+                    </div>
+                  ) : (
+                    <span className="text-[#9c8d87]">-</span>
+                  )}
+                </td>
+              )}
+              <td className="border-b border-[#eadfd5] px-3 py-4 align-top">
+                <div className="grid gap-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-[#f7efff] px-2.5 py-1 text-xs font-black text-purple-700">{userTypeLabel(user.user_type)}</span>
+                    <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{entryPointLabel(user.entry_point)}</span>
+                  </div>
+                  <div>
+                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${statusBadgeClass(user.status)}`}>
+                      {lifecycleStatusLabel(user.status)}
+                    </span>
+                    <p className="mt-1 max-w-[220px] text-xs font-semibold leading-snug text-[#7d6b65]">
+                      {callbackStatusLabel(user) ?? journeyStepLabel(user.journey_step)}
+                    </p>
+                  </div>
+                </div>
               </td>
-              <td className="px-3 py-3">
-                <span>{tierLabel(user.tier)}</span>
+              <td className="border-b border-[#eadfd5] px-3 py-4 align-top">
+                <div className="flex max-w-[220px] flex-wrap gap-1.5">
+                  <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-black uppercase text-purple-700">{tierLabel(user.tier)}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-black ${accountBadgeClass(user.account_status)}`}>{accountStatusLabel(user.account_status)}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-black ${consentBadgeClass(user.consent_status)}`}>{consentStatusLabel(user.consent_status)}</span>
+                </div>
                 {user.intake_tier && user.intake_tier !== user.tier && (
-                  <span className="mt-1 block text-xs text-[#8b7a73]">Intake: {tierLabel(user.intake_tier)}</span>
+                  <span className="mt-2 block text-xs font-semibold text-[#8b7a73]">Intake tier: {tierLabel(user.intake_tier)}</span>
                 )}
               </td>
-              <td className="px-3 py-3">
-                <span>{lifecycleStatusLabel(user.status)}</span>
-                <span className="mt-1 block text-xs font-bold text-[#7d6b65]">
-                  {callbackStatusLabel(user) ?? journeyStepLabel(user.journey_step)}
-                </span>
+              <td className="border-b border-[#eadfd5] px-3 py-4 align-top">
+                <span className="font-semibold text-[#4d4351]">{user.organization_name ?? "Unassigned"}</span>
               </td>
-              <td className="px-3 py-3">{accountStatusLabel(user.account_status)}</td>
-              <td className="px-3 py-3">{consentStatusLabel(user.consent_status)}</td>
-              <td className="px-3 py-3">{user.organization_name ?? "-"}</td>
-              <td className="rounded-r-2xl px-3 py-3">
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className="rounded-full bg-[#2f2135] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("view", user)} onClick={() => onView(user)}>{isBusy("view", user) ? "Opening..." : "View"}</button>
-                  <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-black uppercase text-purple-700">Tier: {tierLabel(user.tier)}</span>
+              <td className="border-b border-[#eadfd5] px-3 py-4 align-top">
+                <div className="flex min-w-[210px] flex-wrap gap-2">
+                  <button type="button" className="rounded-[10px] bg-[#2f2135] px-3 py-2 text-sm font-bold text-white disabled:opacity-60" disabled={isBusy("view", user)} onClick={() => onView(user)}>{isBusy("view", user) ? "Opening..." : "View"}</button>
                   {removed ? (
                     <>
                       {onRestore && (
-                        <button type="button" className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-60" disabled={isBusy("restore", user)} onClick={() => onRestore(user)}>
+                        <button type="button" className="rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 disabled:opacity-60" disabled={isBusy("restore", user)} onClick={() => onRestore(user)}>
                           {isBusy("restore", user) ? "Restoring..." : "Restore to Users"}
                         </button>
                       )}
-                      <span className="rounded-full border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-amber-800">Audit only</span>
+                      <span className="rounded-[10px] border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-amber-800">Audit only</span>
                     </>
                   ) : (
                     <>
-                      <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable app access" : "Disable app access"}</button>
-                      {user.user_type === "family" && <button type="button" className="rounded-full border px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("consent", user)} onClick={() => onTriggerConsent(user)}>{isBusy("consent", user) ? "Queueing..." : "Consent"}</button>}
-                      {onDelete && <button type="button" className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800 disabled:opacity-60" disabled={isBusy("delete", user)} onClick={() => onDelete(user)}>{isBusy("delete", user) ? "Removing..." : "Remove from Users"}</button>}
+                      <button type="button" className="rounded-[10px] border border-[#eadfd5] px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("toggle", user)} onClick={() => onToggleEnabled(user)}>{isBusy("toggle", user) ? "Saving..." : user.account_status === "disabled" ? "Enable app access" : "Disable app access"}</button>
+                      {user.user_type === "family" && <button type="button" className="rounded-[10px] border border-[#eadfd5] px-3 py-2 text-sm font-bold disabled:opacity-60" disabled={isBusy("consent", user)} onClick={() => onTriggerConsent(user)}>{isBusy("consent", user) ? "Queueing..." : "Consent"}</button>}
+                      {onDelete && <button type="button" className="rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800 disabled:opacity-60" disabled={isBusy("delete", user)} onClick={() => onDelete(user)}>{isBusy("delete", user) ? "Removing..." : "Remove from Users"}</button>}
                     </>
                   )}
                 </div>
@@ -1180,10 +1251,13 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
     : "No login match";
   const newEventDate = newEvent.scheduled_date || toDateInputValue(newEvent.scheduled_for);
   const newEventTime = newEvent.scheduled_time || toTimeInputValue(newEvent.scheduled_for);
-  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "support" | "activity" | "communications" | "schedule">("profile");
+  const [activeDetailTab, setActiveDetailTab] = useState<"profile" | "access" | "care_team" | "support" | "activity" | "communications" | "schedule">("profile");
   const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
   const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
   const careTeamInvitations = detail.care_team_invitations ?? [];
+  const userCommunications = detail.communications ?? [];
+  const userAccessLinks = detail.access_links ?? [];
+  const userFailedCommunicationCount = userCommunications.filter((item) => item.status === "failed").length;
   const effectiveCaregiverInviteDraft = caregiverInviteWithProfileDefaults(caregiverInviteDraft, draft);
   const caregiverInviteHasContact = Boolean(
     effectiveCaregiverInviteDraft.email || effectiveCaregiverInviteDraft.phone || effectiveCaregiverInviteDraft.whatsapp,
@@ -1198,6 +1272,7 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const detailTabs = [
     { id: "profile" as const, label: "Profile" },
     { id: "access" as const, label: "Access" },
+    { id: "care_team" as const, label: "Care team" },
     { id: "support" as const, label: "Support info" },
     { id: "activity" as const, label: "Activity" },
     { id: "communications" as const, label: "Communications" },
@@ -1265,123 +1340,157 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   {statusMessage}
                 </p>
               )}
-              <div className="mt-2 border-t border-[#eadfd5] pt-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h4 className="font-black text-[#2f2135]">Caregiver access</h4>
-                    <p className="mt-1 text-sm text-[#7d6b65]">Invite a caregiver to this elder's real care-team dashboard.</p>
-                  </div>
-                  <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black text-purple-700">
-                    {careTeamInvitations.length} invite{careTeamInvitations.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <Field label="Invitee name">
-                    <input
-                      className="w-full rounded-xl border px-3 py-2.5"
-                      value={caregiverInviteDraft.name}
-                      placeholder={caregiverInviteDraft.name ? undefined : effectiveCaregiverInviteDraft.name}
-                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, name: event.target.value })}
-                    />
-                  </Field>
-                  <Field label="Relationship">
-                    <input
-                      className="w-full rounded-xl border px-3 py-2.5"
-                      value={caregiverInviteDraft.relationship}
-                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, relationship: event.target.value })}
-                    />
-                  </Field>
-                  <Field label="Email" optional>
-                    <input
-                      className="w-full rounded-xl border px-3 py-2.5"
-                      value={caregiverInviteDraft.email}
-                      placeholder={caregiverInviteDraft.email ? undefined : effectiveCaregiverInviteDraft.email}
-                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, email: event.target.value })}
-                    />
-                  </Field>
-                  <Field label="Phone" optional>
-                    <input
-                      className="w-full rounded-xl border px-3 py-2.5"
-                      value={caregiverInviteDraft.phone}
-                      placeholder={caregiverInviteDraft.phone ? undefined : effectiveCaregiverInviteDraft.phone}
-                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, phone: event.target.value })}
-                    />
-                  </Field>
-                  <Field label="WhatsApp" optional>
-                    <input
-                      className="w-full rounded-xl border px-3 py-2.5"
-                      value={caregiverInviteDraft.whatsapp}
-                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, whatsapp: event.target.value })}
-                    />
-                  </Field>
-                  <Field label="Role">
-                    <select
-                      className="w-full rounded-xl border px-3 py-2.5"
-                      value={caregiverInviteDraft.role}
-                      onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, role: event.target.value as CaregiverInviteDraft["role"] })}
-                    >
-                      <option value="caregiver">Caregiver</option>
-                      <option value="family">Family</option>
-                      <option value="doctor">Doctor</option>
-                    </select>
-                  </Field>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {caregiverInvitePermissionOptions.map((option) => (
-                    <label key={option.key} className="flex items-center gap-2 rounded-xl border border-[#eadfd5] px-3 py-2 text-sm font-bold text-[#4d4351]">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-purple-700"
-                        checked={Boolean(caregiverInviteDraft.permissions[option.key])}
-                        onChange={(event) => updateCaregiverInvitePermission(option.key, event.target.checked)}
-                      />
-                      {option.label}
-                    </label>
-                  ))}
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={caregiverInviteBusy || !caregiverInviteReady}
-                    onClick={onSendCaregiverInvite}
-                  >
-                    {caregiverInviteBusy ? "Sending..." : "Send caregiver invite"}
-                  </button>
-                  {!caregiverInviteReady && (
-                    <span className="text-sm font-bold text-[#8b7a73]">Name plus email, phone, or WhatsApp required.</span>
-                  )}
-                </div>
-                <div className="mt-4 border-t border-[#eadfd5] pt-3">
-                  {careTeamInvitations.length === 0 && (
-                    <p className="text-sm font-semibold text-[#7d6b65]">No caregiver invitations yet.</p>
-                  )}
-                  {careTeamInvitations.slice(0, 5).map((invite) => (
-                    <div key={invite.id} className="border-b border-[#eadfd5] py-3 last:border-b-0">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-black text-[#2f2135]">{invite.invitee_name}</p>
-                          <p className="break-words text-sm text-[#7d6b65]">
-                            {[invite.invitee_email, invite.invitee_phone, invite.invitee_whatsapp].filter(Boolean).join(" - ") || "No contact saved"}
-                          </p>
-                        </div>
-                        <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${careTeamInviteStatusClass(invite.status)}`}>
-                          {cleanLabel(invite.status)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-sm text-[#7d6b65]">
-                        {careTeamRoleLabel(invite.role)}{invite.relationship ? ` - ${invite.relationship}` : ""} - {invite.accepted_at ? `Accepted ${formatDate(invite.accepted_at)}` : `Expires ${formatDate(invite.expires_at)}`}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {invite.can_view_dashboard && <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">Dashboard</span>}
-                        {invite.can_receive_safety_alerts && <span className="rounded-full bg-[#ecfdf3] px-2.5 py-1 text-xs font-black text-[#087443]">Safety</span>}
-                        {invite.can_receive_medication_alerts && <span className="rounded-full bg-[#fff3e8] px-2.5 py-1 text-xs font-black text-[#8a4a00]">Meds</span>}
-                        {invite.can_view_vital_signs && <span className="rounded-full bg-[#eef6ff] px-2.5 py-1 text-xs font-black text-[#0f5f8f]">Vitals</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            </div>
+          </section>}
+
+          {activeDetailTab === "care_team" && <section className="mx-auto w-full max-w-4xl rounded-2xl border border-[#eadfd5] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-black">Care team</h3>
+                <p className="mt-1 text-sm text-[#7d6b65]">Saved caregiver contact, dashboard invite, and care-team access history.</p>
               </div>
+              <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black text-purple-700">
+                {careTeamInvitations.length} invite{careTeamInvitations.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3">
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">Saved caregiver</p>
+                <p className="mt-2 font-black text-[#2f2135]">{String(draft.caregiver_name ?? "").trim() || "No caregiver name saved"}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[#7d6b65]">{String(draft.caregiver_contact ?? "").trim() || "No caregiver contact saved"}</p>
+              </div>
+              <div className="rounded-2xl border border-purple-100 bg-purple-50 p-3">
+                <p className="text-xs font-black uppercase tracking-[0.08em] text-purple-700">Invite defaults</p>
+                <p className="mt-2 text-sm font-semibold text-purple-900">
+                  Empty invite fields use the saved caregiver name and contact from the Profile tab.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="font-black text-[#2f2135]">Send caregiver invite</h4>
+                  <p className="mt-1 text-sm text-[#7d6b65]">Invite a caregiver to this elder's real care-team dashboard.</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-black ${caregiverInviteReady ? "bg-[#ecfdf3] text-[#087443]" : "bg-[#fff3e8] text-[#8a4a00]"}`}>
+                  {caregiverInviteReady ? "Ready" : "Needs contact"}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <Field label="Invitee name">
+                  <input
+                    className="w-full rounded-xl border px-3 py-2.5"
+                    value={caregiverInviteDraft.name}
+                    placeholder={caregiverInviteDraft.name ? undefined : effectiveCaregiverInviteDraft.name}
+                    onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, name: event.target.value })}
+                  />
+                </Field>
+                <Field label="Relationship">
+                  <input
+                    className="w-full rounded-xl border px-3 py-2.5"
+                    value={caregiverInviteDraft.relationship}
+                    onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, relationship: event.target.value })}
+                  />
+                </Field>
+                <Field label="Email" optional>
+                  <input
+                    className="w-full rounded-xl border px-3 py-2.5"
+                    value={caregiverInviteDraft.email}
+                    placeholder={caregiverInviteDraft.email ? undefined : effectiveCaregiverInviteDraft.email}
+                    onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, email: event.target.value })}
+                  />
+                </Field>
+                <Field label="Phone" optional>
+                  <input
+                    className="w-full rounded-xl border px-3 py-2.5"
+                    value={caregiverInviteDraft.phone}
+                    placeholder={caregiverInviteDraft.phone ? undefined : effectiveCaregiverInviteDraft.phone}
+                    onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, phone: event.target.value })}
+                  />
+                </Field>
+                <Field label="WhatsApp" optional>
+                  <input
+                    className="w-full rounded-xl border px-3 py-2.5"
+                    value={caregiverInviteDraft.whatsapp}
+                    onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, whatsapp: event.target.value })}
+                  />
+                </Field>
+                <Field label="Role">
+                  <select
+                    className="w-full rounded-xl border px-3 py-2.5"
+                    value={caregiverInviteDraft.role}
+                    onChange={(event) => setCaregiverInviteDraft({ ...caregiverInviteDraft, role: event.target.value as CaregiverInviteDraft["role"] })}
+                  >
+                    <option value="caregiver">Caregiver</option>
+                    <option value="family">Family</option>
+                    <option value="doctor">Doctor</option>
+                  </select>
+                </Field>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {caregiverInvitePermissionOptions.map((option) => (
+                  <label key={option.key} className="flex items-center gap-2 rounded-xl border border-[#eadfd5] px-3 py-2 text-sm font-bold text-[#4d4351]">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-purple-700"
+                      checked={Boolean(caregiverInviteDraft.permissions[option.key])}
+                      onChange={(event) => updateCaregiverInvitePermission(option.key, event.target.checked)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={caregiverInviteBusy || !caregiverInviteReady}
+                  onClick={onSendCaregiverInvite}
+                >
+                  {caregiverInviteBusy ? "Sending..." : "Send caregiver invite"}
+                </button>
+                {!caregiverInviteReady && (
+                  <span className="text-sm font-bold text-[#8b7a73]">Name plus email, phone, or WhatsApp required.</span>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-[#eadfd5] bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="font-black text-[#2f2135]">Invitation history</h4>
+                <span className="rounded-full bg-[#f4eafe] px-3 py-1 text-xs font-black text-purple-700">
+                  {careTeamInvitations.length} total
+                </span>
+              </div>
+              {careTeamInvitations.length === 0 && (
+                <p className="mt-3 text-sm font-semibold text-[#7d6b65]">No caregiver invitations yet.</p>
+              )}
+              {careTeamInvitations.slice(0, 5).map((invite) => (
+                <div key={invite.id} className="border-b border-[#eadfd5] py-3 last:border-b-0">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-black text-[#2f2135]">{invite.invitee_name}</p>
+                      <p className="break-words text-sm text-[#7d6b65]">
+                        {[invite.invitee_email, invite.invitee_phone, invite.invitee_whatsapp].filter(Boolean).join(" - ") || "No contact saved"}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${careTeamInviteStatusClass(invite.status)}`}>
+                      {cleanLabel(invite.status)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-[#7d6b65]">
+                    {careTeamRoleLabel(invite.role)}{invite.relationship ? ` - ${invite.relationship}` : ""} - {invite.accepted_at ? `Accepted ${formatDate(invite.accepted_at)}` : `Expires ${formatDate(invite.expires_at)}`}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {invite.can_view_dashboard && <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">Dashboard</span>}
+                    {invite.can_receive_safety_alerts && <span className="rounded-full bg-[#ecfdf3] px-2.5 py-1 text-xs font-black text-[#087443]">Safety</span>}
+                    {invite.can_receive_medication_alerts && <span className="rounded-full bg-[#fff3e8] px-2.5 py-1 text-xs font-black text-[#8a4a00]">Meds</span>}
+                    {invite.can_view_vital_signs && <span className="rounded-full bg-[#eef6ff] px-2.5 py-1 text-xs font-black text-[#0f5f8f]">Vitals</span>}
+                  </div>
+                </div>
+              ))}
             </div>
           </section>}
 
@@ -1729,11 +1838,25 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <h3 className="text-xl font-black">Communications</h3>
                 <p className="mt-1 text-sm text-[#7d6b65]">Invite sends, reminders, delivery status, and access link activity.</p>
               </div>
-              <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">{detail.communications.length} messages</span>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">{userCommunications.length} messages</span>
+                {userFailedCommunicationCount > 0 && <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">{userFailedCommunicationCount} failed</span>}
+                <span className="rounded-full bg-[#fbf8f5] px-3 py-1 text-xs font-black text-[#6f625d]">{userAccessLinks.length} access links</span>
+              </div>
             </div>
           </div>
-          <LogPanel title="Message history" rows={detail.communications} />
-          <LogPanel title="Access links" rows={detail.access_links ?? []} />
+          <div className="rounded-2xl border border-[#eadfd5] p-4">
+            <h4 className="font-black text-[#2f2135]">Message history</h4>
+            <div className="mt-3">
+              <CommunicationRecordList communications={userCommunications} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-[#eadfd5] p-4">
+            <h4 className="font-black text-[#2f2135]">Access links</h4>
+            <div className="mt-3">
+              <AccessLinkRecordList links={userAccessLinks} />
+            </div>
+          </div>
         </section>}
       </div>
     </aside>
@@ -2023,7 +2146,121 @@ function providerStatusTone(status: CommunicationProviderStatus["status"]) {
   return "border-emerald-100 bg-emerald-50 text-emerald-800";
 }
 
+function communicationStatusClass(status?: string | null) {
+  const normalized = (status ?? "").toLowerCase();
+  if (["sent", "delivered", "completed", "success"].includes(normalized)) return "bg-[#ecfdf3] text-[#087443]";
+  if (["failed", "error", "bounced", "undelivered"].includes(normalized)) return "bg-red-50 text-red-700";
+  if (["queued", "pending", "sending"].includes(normalized)) return "bg-amber-50 text-amber-800";
+  return "bg-[#f4eafe] text-purple-700";
+}
+
+function communicationError(item: Communication) {
+  const metadata = jsonObject(item.metadata);
+  return stringValue(metadata.dispatch_error)
+    ?? stringValue(metadata.error)
+    ?? stringValue(metadata.failure_reason)
+    ?? stringValue(metadata.provider_error)
+    ?? null;
+}
+
+function communicationProvider(item: Communication) {
+  const metadata = jsonObject(item.metadata);
+  return stringValue(metadata.provider)
+    ?? stringValue(metadata.email_provider)
+    ?? stringValue(metadata.sms_provider)
+    ?? stringValue(metadata.whatsapp_provider)
+    ?? stringValue(metadata.transport)
+    ?? null;
+}
+
+function CommunicationRecordList({ communications, emptyMessage = "No messages yet." }: { communications: Communication[]; emptyMessage?: string }) {
+  if (communications.length === 0) {
+    return <p className="rounded-2xl bg-[#fbf8f5] p-4 text-sm font-semibold text-[#7d6b65]">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {communications.map((item) => {
+        const error = communicationError(item);
+        const provider = communicationProvider(item);
+        return (
+          <article key={item.id} className="rounded-2xl border border-[#eadfd5] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-[#2f2135]">{cleanLabel(item.purpose || "Message")}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[#7d6b65]">{item.recipient || "No recipient recorded"}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${communicationStatusClass(item.status)}`}>
+                {lifecycleStatusLabel(item.status)}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{cleanLabel(item.channel)}</span>
+              {provider && <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">{provider}</span>}
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{formatDate(item.created_at)}</span>
+            </div>
+            {error && (
+              <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function accessLinkStatus(link: AccessLink) {
+  if (link.revoked_at) return { label: "Revoked", className: "bg-red-50 text-red-700" };
+  if (link.converted_at) return { label: "Converted", className: "bg-[#ecfdf3] text-[#087443]" };
+  if (link.clicked_at) return { label: "Clicked", className: "bg-[#f4eafe] text-purple-700" };
+  if (link.expires_at && dateMs(link.expires_at) > 0 && dateMs(link.expires_at) < Date.now()) {
+    return { label: "Expired", className: "bg-amber-50 text-amber-800" };
+  }
+  return { label: "Active", className: "bg-[#ecfdf3] text-[#087443]" };
+}
+
+function AccessLinkRecordList({ links }: { links: AccessLink[] }) {
+  if (links.length === 0) {
+    return <p className="rounded-2xl bg-[#fbf8f5] p-4 text-sm font-semibold text-[#7d6b65]">No access links yet.</p>;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {links.map((link) => {
+        const status = accessLinkStatus(link);
+        return (
+          <article key={link.id} className="rounded-2xl border border-[#eadfd5] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-[#2f2135]">{cleanLabel(link.link_type)} link</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[#7d6b65]">{link.destination || "No destination recorded"}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${status.className}`}>
+                {status.label}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">{tierLabel(link.tier)}</span>
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{cleanLabel(link.target_role)}</span>
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{link.use_count}/{link.max_uses} uses</span>
+            </div>
+            <div className="mt-3 grid gap-1 text-xs font-semibold text-[#7d6b65] sm:grid-cols-2">
+              <span>Created: {formatDate(link.created_at)}</span>
+              <span>Expires: {formatDate(link.expires_at)}</span>
+              {link.clicked_at && <span>Clicked: {formatDate(link.clicked_at)}</span>}
+              {link.converted_at && <span>Converted: {formatDate(link.converted_at)}</span>}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export function CommunicationsSection({ communications, providerStatus = [] }: { communications: Communication[]; providerStatus?: CommunicationProviderStatus[] }) {
+  const failedCount = communications.filter((item) => item.status === "failed").length;
+  const recentCount = communications.length;
+
   return (
     <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2031,7 +2268,10 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
           <h2 className="font-serif text-3xl">Communication log</h2>
           <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">Delivery health for email, SMS, and WhatsApp, followed by the latest communication audit trail.</p>
         </div>
-        <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-700">{communications.length} messages</span>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-700">{recentCount} messages</span>
+          {failedCount > 0 && <span className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700">{failedCount} failed</span>}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -2057,21 +2297,8 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
           </div>
         )}
       </div>
-      <div className="mt-4 grid gap-3">
-        {communications.map((item) => {
-          const error = item.metadata && typeof item.metadata === "object"
-            ? stringValue(item.metadata.dispatch_error)
-            : "";
-          return (
-            <div key={item.id} className="rounded-3xl border p-4">
-              <p className="font-bold">{cleanLabel(item.purpose)} - {cleanLabel(item.channel)}</p>
-              <p className="text-sm text-[#7d6b65]">{item.recipient} - {lifecycleStatusLabel(item.status)} - {new Date(item.created_at).toLocaleString()}</p>
-              {item.status === "failed" && error && (
-                <p className="mt-2 rounded-2xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>
-              )}
-            </div>
-          );
-        })}
+      <div className="mt-4">
+        <CommunicationRecordList communications={communications} emptyMessage="No communication records yet." />
       </div>
     </section>
   );
