@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CuratedActivitiesAdminPage from "./CuratedActivitiesAdminPage";
@@ -196,6 +196,30 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(link.getAttribute("href")).toContain("eventKey");
     expect(link.getAttribute("href")).toContain("interests");
     expect(link.getAttribute("href")).toContain("needs_review");
+  });
+
+  it("filters the activity list with work queue shortcuts", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    const list = screen.getByTestId("admin-participate-events");
+    expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
+    expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 2 of 2 activities.");
+
+    fireEvent.click(screen.getByTestId("admin-participate-queue-checks"));
+
+    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 1 of 2 activities.");
+    expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
+    expect(within(list).queryByText("online-music-hour")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-participate-queue-review"));
+
+    expect(screen.getByText("No activities match this queue and filter combination.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-participate-clear-work-queue"));
+
+    expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
   });
 
   it("calls AI discovery and renders preview source links", async () => {
