@@ -50,7 +50,7 @@ export default function SensesPage() {
         backTo="/activities"
       />
 
-      <ResponsiveGrid className="mt-5 xl:grid-cols-4" columns="two">
+      <ResponsiveGrid className="mt-5" columns="two">
         {sensesGames.map((game) => {
           const Icon = game.Icon;
 
