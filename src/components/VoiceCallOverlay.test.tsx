@@ -152,6 +152,16 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("You: Hello VYVA");
   });
 
+  it("keeps the latest VYVA caption visible after the user replies", () => {
+    renderOverlay([
+      { from: "vyva", text: "Tell me what feels different today.", timestamp: 1 },
+      { from: "user", text: "My head hurts", timestamp: 2 },
+    ]);
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Tell me what feels different today.");
+    expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("You: My head hurts");
+  });
+
   it("updates the main transcript when a new VYVA transcript arrives", () => {
     const { rerender } = renderOverlay([{ from: "vyva", text: "Hello Karim", timestamp: 1 }]);
 
