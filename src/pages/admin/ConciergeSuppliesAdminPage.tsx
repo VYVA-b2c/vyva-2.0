@@ -50,10 +50,20 @@ type AdminShoppingPackage = {
   updated_at?: string;
 };
 
+type CatalogQueueFilter = "all" | "live" | "hidden" | "spanish_gaps" | "package_gaps" | "service_requests";
+
 const CATEGORY_OPTIONS: ShoppingCategory[] = ["groceries", "pharmacy_basics", "household", "mobility_aids"];
 const PACKAGE_CATEGORY_OPTIONS: ShoppingCategoryChoice[] = ["safe_home", ...CATEGORY_OPTIONS];
 const PRIORITY_OPTIONS: ShoppingPriority[] = ["budget", "simplicity", "accessibility", "diet", "delivery", "safety"];
 const PRICE_TIERS: AdminShoppingProduct["price_tier"][] = ["low", "medium", "high"];
+const CATALOG_QUEUE_FILTERS: Array<{ id: CatalogQueueFilter; label: string; description: string }> = [
+  { id: "all", label: "All catalog", description: "Products and packages" },
+  { id: "live", label: "Live catalog", description: "Enabled entries" },
+  { id: "hidden", label: "Hidden", description: "Disabled entries" },
+  { id: "spanish_gaps", label: "Spanish gaps", description: "Missing ES copy" },
+  { id: "package_gaps", label: "Package gaps", description: "No products linked" },
+  { id: "service_requests", label: "Service requests", description: "Concierge handoff" },
+];
 
 const emptyText: LocalizedText = { en: "", es: "" };
 const emptyList: LocalizedList = { en: [], es: [] };
@@ -155,11 +165,41 @@ function packagePayload(item: AdminShoppingPackage) {
   return payload;
 }
 
+function missingProductSpanish(product: AdminShoppingProduct) {
+  return !product.name.es.trim() || !product.description.es.trim() || !product.price_label.es.trim();
+}
+
+function missingPackageSpanish(item: AdminShoppingPackage) {
+  return !item.label.es.trim() || !item.description.es.trim() || !item.need_text.es.trim() || !item.cta_label.es.trim();
+}
+
+function packageHasLinkGap(item: AdminShoppingPackage) {
+  return item.is_enabled && !item.service_request && item.product_ids.length === 0;
+}
+
+function matchesProductQueue(product: AdminShoppingProduct, filter: CatalogQueueFilter) {
+  if (filter === "all") return true;
+  if (filter === "live") return product.is_enabled;
+  if (filter === "hidden") return !product.is_enabled;
+  if (filter === "spanish_gaps") return missingProductSpanish(product);
+  return false;
+}
+
+function matchesPackageQueue(item: AdminShoppingPackage, filter: CatalogQueueFilter) {
+  if (filter === "all") return true;
+  if (filter === "live") return item.is_enabled;
+  if (filter === "hidden") return !item.is_enabled;
+  if (filter === "spanish_gaps") return missingPackageSpanish(item);
+  if (filter === "package_gaps") return packageHasLinkGap(item);
+  return item.service_request;
+}
+
 export default function ConciergeSuppliesAdminPage() {
   const [products, setProducts] = useState<AdminShoppingProduct[]>([]);
   const [packages, setPackages] = useState<AdminShoppingPackage[]>([]);
   const [productDraft, setProductDraft] = useState<AdminShoppingProduct>(cloneProduct(emptyProduct));
   const [packageDraft, setPackageDraft] = useState<AdminShoppingPackage>(clonePackage(emptyPackage));
+  const [catalogQueueFilter, setCatalogQueueFilter] = useState<CatalogQueueFilter>("all");
   const [previewNeed, setPreviewNeed] = useState("Hydration support after a health recommendation");
   const [previewPackageId, setPreviewPackageId] = useState("hydration_support");
   const [previewResult, setPreviewResult] = useState<ShoppingRecommendationResponse | null>(null);
@@ -188,6 +228,23 @@ export default function ConciergeSuppliesAdminPage() {
     refresh().catch((err) => setMessage(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const visibleProducts = useMemo(
+    () => products.filter((product) => matchesProductQueue(product, catalogQueueFilter)),
+    [catalogQueueFilter, products],
+  );
+  const visiblePackages = useMemo(
+    () => packages.filter((item) => matchesPackageQueue(item, catalogQueueFilter)),
+    [catalogQueueFilter, packages],
+  );
+  const catalogQueueCounts = useMemo<Record<CatalogQueueFilter, number>>(() => ({
+    all: products.length + packages.length,
+    live: products.filter((product) => matchesProductQueue(product, "live")).length + packages.filter((item) => matchesPackageQueue(item, "live")).length,
+    hidden: products.filter((product) => matchesProductQueue(product, "hidden")).length + packages.filter((item) => matchesPackageQueue(item, "hidden")).length,
+    spanish_gaps: products.filter((product) => matchesProductQueue(product, "spanish_gaps")).length + packages.filter((item) => matchesPackageQueue(item, "spanish_gaps")).length,
+    package_gaps: packages.filter((item) => matchesPackageQueue(item, "package_gaps")).length,
+    service_requests: packages.filter((item) => matchesPackageQueue(item, "service_requests")).length,
+  }), [packages, products]);
 
   function updateProduct(productId: string, patch: Partial<AdminShoppingProduct>) {
     setProducts((current) => current.map((product) => product.product_id === productId ? { ...product, ...patch } : product));
@@ -283,6 +340,51 @@ export default function ConciergeSuppliesAdminPage() {
 
         <AdminMenu />
 
+        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="admin-shopping-catalog-queue">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="font-serif text-3xl">Catalog health</h2>
+              <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                Showing {visibleProducts.length} of {products.length} products and {visiblePackages.length} of {packages.length} packages.
+              </p>
+            </div>
+            {catalogQueueFilter !== "all" && (
+              <button
+                type="button"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800"
+                onClick={() => setCatalogQueueFilter("all")}
+                data-testid="admin-shopping-clear-catalog-queue"
+              >
+                Show all
+              </button>
+            )}
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+            {CATALOG_QUEUE_FILTERS.map((queue) => {
+              const active = catalogQueueFilter === queue.id;
+              return (
+                <button
+                  key={queue.id}
+                  type="button"
+                  onClick={() => setCatalogQueueFilter(queue.id)}
+                  className={`min-h-[92px] rounded-2xl border px-4 py-3 text-left transition ${
+                    active
+                      ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                      : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                  }`}
+                  data-testid={`admin-shopping-queue-${queue.id}`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-black">{queue.label}</span>
+                    <span className="text-2xl font-black leading-none">{catalogQueueCounts[queue.id]}</span>
+                  </span>
+                  <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{queue.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -346,7 +448,11 @@ export default function ConciergeSuppliesAdminPage() {
         </section>
 
         <section className="mt-5 grid gap-4 xl:grid-cols-2" data-testid="admin-shopping-products">
-          {products.map((product) => (
+          {visibleProducts.length === 0 ? (
+            <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65] xl:col-span-2">
+              No supply items match this catalog queue.
+            </div>
+          ) : visibleProducts.map((product) => (
             <article key={product.product_id} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -431,7 +537,11 @@ export default function ConciergeSuppliesAdminPage() {
         </section>
 
         <section className="mt-5 grid gap-4 xl:grid-cols-2" data-testid="admin-shopping-packages">
-          {packages.map((item) => (
+          {visiblePackages.length === 0 ? (
+            <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65] xl:col-span-2">
+              No packages match this catalog queue.
+            </div>
+          ) : visiblePackages.map((item) => (
             <article key={item.package_id} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
