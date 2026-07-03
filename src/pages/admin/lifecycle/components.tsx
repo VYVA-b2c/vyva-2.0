@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type ReactNode } from "react";
 import {
   type AccountSubscription,
+  type AccessLink,
   type CaregiverInviteDraft,
   type Communication,
   type CommunicationProviderStatus,
@@ -1254,6 +1255,9 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
   const [editingSupportId, setEditingSupportId] = useState<string | null>(null);
   const [supportDraft, setSupportDraft] = useState<SupportScheduleDraft | null>(null);
   const careTeamInvitations = detail.care_team_invitations ?? [];
+  const userCommunications = detail.communications ?? [];
+  const userAccessLinks = detail.access_links ?? [];
+  const userFailedCommunicationCount = userCommunications.filter((item) => item.status === "failed").length;
   const effectiveCaregiverInviteDraft = caregiverInviteWithProfileDefaults(caregiverInviteDraft, draft);
   const caregiverInviteHasContact = Boolean(
     effectiveCaregiverInviteDraft.email || effectiveCaregiverInviteDraft.phone || effectiveCaregiverInviteDraft.whatsapp,
@@ -1834,11 +1838,25 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <h3 className="text-xl font-black">Communications</h3>
                 <p className="mt-1 text-sm text-[#7d6b65]">Invite sends, reminders, delivery status, and access link activity.</p>
               </div>
-              <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">{detail.communications.length} messages</span>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-black text-purple-700">{userCommunications.length} messages</span>
+                {userFailedCommunicationCount > 0 && <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700">{userFailedCommunicationCount} failed</span>}
+                <span className="rounded-full bg-[#fbf8f5] px-3 py-1 text-xs font-black text-[#6f625d]">{userAccessLinks.length} access links</span>
+              </div>
             </div>
           </div>
-          <LogPanel title="Message history" rows={detail.communications} />
-          <LogPanel title="Access links" rows={detail.access_links ?? []} />
+          <div className="rounded-2xl border border-[#eadfd5] p-4">
+            <h4 className="font-black text-[#2f2135]">Message history</h4>
+            <div className="mt-3">
+              <CommunicationRecordList communications={userCommunications} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-[#eadfd5] p-4">
+            <h4 className="font-black text-[#2f2135]">Access links</h4>
+            <div className="mt-3">
+              <AccessLinkRecordList links={userAccessLinks} />
+            </div>
+          </div>
         </section>}
       </div>
     </aside>
@@ -2128,7 +2146,121 @@ function providerStatusTone(status: CommunicationProviderStatus["status"]) {
   return "border-emerald-100 bg-emerald-50 text-emerald-800";
 }
 
+function communicationStatusClass(status?: string | null) {
+  const normalized = (status ?? "").toLowerCase();
+  if (["sent", "delivered", "completed", "success"].includes(normalized)) return "bg-[#ecfdf3] text-[#087443]";
+  if (["failed", "error", "bounced", "undelivered"].includes(normalized)) return "bg-red-50 text-red-700";
+  if (["queued", "pending", "sending"].includes(normalized)) return "bg-amber-50 text-amber-800";
+  return "bg-[#f4eafe] text-purple-700";
+}
+
+function communicationError(item: Communication) {
+  const metadata = jsonObject(item.metadata);
+  return stringValue(metadata.dispatch_error)
+    ?? stringValue(metadata.error)
+    ?? stringValue(metadata.failure_reason)
+    ?? stringValue(metadata.provider_error)
+    ?? null;
+}
+
+function communicationProvider(item: Communication) {
+  const metadata = jsonObject(item.metadata);
+  return stringValue(metadata.provider)
+    ?? stringValue(metadata.email_provider)
+    ?? stringValue(metadata.sms_provider)
+    ?? stringValue(metadata.whatsapp_provider)
+    ?? stringValue(metadata.transport)
+    ?? null;
+}
+
+function CommunicationRecordList({ communications, emptyMessage = "No messages yet." }: { communications: Communication[]; emptyMessage?: string }) {
+  if (communications.length === 0) {
+    return <p className="rounded-2xl bg-[#fbf8f5] p-4 text-sm font-semibold text-[#7d6b65]">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {communications.map((item) => {
+        const error = communicationError(item);
+        const provider = communicationProvider(item);
+        return (
+          <article key={item.id} className="rounded-2xl border border-[#eadfd5] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-[#2f2135]">{cleanLabel(item.purpose || "Message")}</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[#7d6b65]">{item.recipient || "No recipient recorded"}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${communicationStatusClass(item.status)}`}>
+                {lifecycleStatusLabel(item.status)}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{cleanLabel(item.channel)}</span>
+              {provider && <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">{provider}</span>}
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{formatDate(item.created_at)}</span>
+            </div>
+            {error && (
+              <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function accessLinkStatus(link: AccessLink) {
+  if (link.revoked_at) return { label: "Revoked", className: "bg-red-50 text-red-700" };
+  if (link.converted_at) return { label: "Converted", className: "bg-[#ecfdf3] text-[#087443]" };
+  if (link.clicked_at) return { label: "Clicked", className: "bg-[#f4eafe] text-purple-700" };
+  if (link.expires_at && dateMs(link.expires_at) > 0 && dateMs(link.expires_at) < Date.now()) {
+    return { label: "Expired", className: "bg-amber-50 text-amber-800" };
+  }
+  return { label: "Active", className: "bg-[#ecfdf3] text-[#087443]" };
+}
+
+function AccessLinkRecordList({ links }: { links: AccessLink[] }) {
+  if (links.length === 0) {
+    return <p className="rounded-2xl bg-[#fbf8f5] p-4 text-sm font-semibold text-[#7d6b65]">No access links yet.</p>;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {links.map((link) => {
+        const status = accessLinkStatus(link);
+        return (
+          <article key={link.id} className="rounded-2xl border border-[#eadfd5] bg-white p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-[#2f2135]">{cleanLabel(link.link_type)} link</p>
+                <p className="mt-1 break-words text-sm font-semibold text-[#7d6b65]">{link.destination || "No destination recorded"}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${status.className}`}>
+                {status.label}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-[#f4eafe] px-2.5 py-1 text-xs font-black text-purple-700">{tierLabel(link.tier)}</span>
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{cleanLabel(link.target_role)}</span>
+              <span className="rounded-full bg-[#fbf8f5] px-2.5 py-1 text-xs font-black text-[#6f625d]">{link.use_count}/{link.max_uses} uses</span>
+            </div>
+            <div className="mt-3 grid gap-1 text-xs font-semibold text-[#7d6b65] sm:grid-cols-2">
+              <span>Created: {formatDate(link.created_at)}</span>
+              <span>Expires: {formatDate(link.expires_at)}</span>
+              {link.clicked_at && <span>Clicked: {formatDate(link.clicked_at)}</span>}
+              {link.converted_at && <span>Converted: {formatDate(link.converted_at)}</span>}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 export function CommunicationsSection({ communications, providerStatus = [] }: { communications: Communication[]; providerStatus?: CommunicationProviderStatus[] }) {
+  const failedCount = communications.filter((item) => item.status === "failed").length;
+  const recentCount = communications.length;
+
   return (
     <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2136,7 +2268,10 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
           <h2 className="font-serif text-3xl">Communication log</h2>
           <p className="mt-1 max-w-2xl text-sm text-[#7d6b65]">Delivery health for email, SMS, and WhatsApp, followed by the latest communication audit trail.</p>
         </div>
-        <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-700">{communications.length} messages</span>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-700">{recentCount} messages</span>
+          {failedCount > 0 && <span className="rounded-full bg-red-50 px-4 py-2 text-sm font-black text-red-700">{failedCount} failed</span>}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -2162,21 +2297,8 @@ export function CommunicationsSection({ communications, providerStatus = [] }: {
           </div>
         )}
       </div>
-      <div className="mt-4 grid gap-3">
-        {communications.map((item) => {
-          const error = item.metadata && typeof item.metadata === "object"
-            ? stringValue(item.metadata.dispatch_error)
-            : "";
-          return (
-            <div key={item.id} className="rounded-3xl border p-4">
-              <p className="font-bold">{cleanLabel(item.purpose)} - {cleanLabel(item.channel)}</p>
-              <p className="text-sm text-[#7d6b65]">{item.recipient} - {lifecycleStatusLabel(item.status)} - {new Date(item.created_at).toLocaleString()}</p>
-              {item.status === "failed" && error && (
-                <p className="mt-2 rounded-2xl bg-red-50 px-3 py-2 text-sm font-bold text-red-700">{error}</p>
-              )}
-            </div>
-          );
-        })}
+      <div className="mt-4">
+        <CommunicationRecordList communications={communications} emptyMessage="No communication records yet." />
       </div>
     </section>
   );
