@@ -84,6 +84,11 @@ const defaultHeroTone: MasterTone = {
   surface: "#FFFFFF",
 };
 
+const heroBackgroundImage = [
+  "linear-gradient(112deg, rgba(255,255,255,0.96) 0%, rgba(255,250,244,0.92) 52%, rgba(248,243,255,0.88) 100%)",
+  "url(\"data:image/svg+xml,%3Csvg width='420' height='180' viewBox='0 0 420 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M-38 142 C58 72 142 196 252 96 S410 80 462 18' fill='none' stroke='%23EFDDFB' stroke-width='34' stroke-linecap='round' opacity='.58'/%3E%3Cpath d='M-8 18 C96 76 174 10 312 48 S438 122 478 88' fill='none' stroke='%23FFE5C7' stroke-width='28' stroke-linecap='round' opacity='.62'/%3E%3Cpath d='M224 170 C286 116 350 144 442 92' fill='none' stroke='%23DDF7EF' stroke-width='24' stroke-linecap='round' opacity='.64'/%3E%3Cpath d='M46 152 C118 124 180 138 256 160' fill='none' stroke='%23FFFFFF' stroke-width='18' stroke-linecap='round' opacity='.56'/%3E%3C/svg%3E\")",
+];
+
 export default function MasterDashboardLayout({
   hero,
   cards,
@@ -155,7 +160,14 @@ export default function MasterDashboardLayout({
       <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className="mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6"
-        style={{ borderColor: heroTone.border, background: heroTone.surface ?? "#FFFFFF" }}
+        style={{
+          borderColor: heroTone.border,
+          backgroundColor: heroTone.surface ?? "#FFFFFF",
+          backgroundImage: heroBackgroundImage.join(", "),
+          backgroundPosition: "center, right -58px top -18px",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "cover, 340px 146px",
+        }}
         data-testid={hero.testId}
       >
         <div className={`flex gap-4 min-[390px]:gap-5 ${isVoiceAction ? "items-center justify-between" : "items-start"}`}>
