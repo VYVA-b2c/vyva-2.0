@@ -141,6 +141,114 @@ function voiceDockPhaseLabel(phase: VoiceSessionPhase) {
   return phase === "speaking" ? "Speaking" : voiceSessionPhaseLabel(phase);
 }
 
+function voicePayloadString(action: VoiceAppAction, key: string) {
+  const value = action.payload?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function voicePayloadDetails(action: VoiceAppAction, keys: string[]) {
+  return keys
+    .map((key) => {
+      const value = voicePayloadString(action, key);
+      return value ? `${key.replace(/_/g, " ")}: ${value}` : "";
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildConciergePrefillMessage(action: VoiceAppAction) {
+  const details = voicePayloadDetails(action, [
+    "pickup",
+    "destination",
+    "time",
+    "mobility_needs",
+    "provider_type",
+    "appointment_reason",
+    "reminder_text",
+    "reminder_time",
+  ]);
+  const base = action.sourceText.trim() || action.summary;
+  return `${base}${details ? ` (${details})` : ""}. Prepare the next step and ask me to confirm before acting.`;
+}
+
+function shoppingCategoryForVoiceAction(action: VoiceAppAction) {
+  const category = voicePayloadString(action, "category").toLowerCase();
+  if (["groceries", "pharmacy_basics", "household", "mobility_aids", "safe_home"].includes(category)) {
+    return category;
+  }
+  const text = `${action.sourceText} ${voicePayloadString(action, "items")}`.toLowerCase();
+  if (/grocery|groceries|food|meal|supermarket|comida|compra/.test(text)) return "groceries";
+  if (/pharmacy|farmacia/.test(text)) return "pharmacy_basics";
+  if (/walker|cane|wheelchair|mobility|andador|baston/.test(text)) return "mobility_aids";
+  if (/cleaning|household|home|limpieza|hogar/.test(text)) return "household";
+  return "safe_home";
+}
+
+function shoppingPrioritiesForVoiceAction(action: VoiceAppAction) {
+  const text = `${action.sourceText} ${voicePayloadString(action, "constraint")}`.toLowerCase();
+  if (/budget|cheap|cost|precio|barato/.test(text)) return ["budget", "delivery"];
+  if (/diet|salt|sugar|comida|food/.test(text)) return ["diet", "delivery"];
+  if (/pharmacy|medicine|farmacia/.test(text)) return ["safety", "simplicity"];
+  return ["delivery", "simplicity"];
+}
+
+export function buildVoiceActionRouteState(action: VoiceAppAction): Record<string, unknown> {
+  const baseState: Record<string, unknown> = {
+    voiceActionId: action.id,
+    voiceActionTitle: action.title,
+    voiceActionDomain: action.domain,
+    voiceActionType: action.actionType,
+    voiceActionPayload: action.payload ?? {},
+    voiceActionRequiredPayloadKeys: action.requiredPayloadKeys ?? [],
+    voiceActionOptionalPayloadKeys: action.optionalPayloadKeys ?? [],
+  };
+
+  if (action.actionType === "concierge.ride_booking") {
+    return {
+      ...baseState,
+      conciergePrefill: {
+        kind: "ride",
+        message: buildConciergePrefillMessage(action),
+        source: "voice_action",
+      },
+    };
+  }
+
+  if (action.actionType === "concierge.appointment_help") {
+    return {
+      ...baseState,
+      conciergePrefill: {
+        kind: "appointment",
+        message: buildConciergePrefillMessage(action),
+        source: "voice_action",
+      },
+    };
+  }
+
+  if (action.actionType === "concierge.order_request" || action.actionType === "concierge.shopping") {
+    const items = voicePayloadString(action, "items") || voicePayloadString(action, "need") || action.sourceText;
+    const constraints = [
+      voicePayloadString(action, "budget"),
+      voicePayloadString(action, "delivery_time"),
+      voicePayloadString(action, "substitutions"),
+      voicePayloadString(action, "constraint"),
+    ].filter(Boolean);
+
+    return {
+      ...baseState,
+      shoppingPrefill: {
+        needText: items,
+        category: shoppingCategoryForVoiceAction(action),
+        priorities: shoppingPrioritiesForVoiceAction(action),
+        constraints,
+        sourceRecommendation: buildConciergePrefillMessage(action),
+      },
+    };
+  }
+
+  return baseState;
+}
+
 const VoiceSessionDock = ({
   isSpeaking,
   isConnecting,
@@ -447,11 +555,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
     const alreadyOnRoute = location.pathname === action.route;
     const navigated = alreadyOnRoute || guardPath(action.route, {
-      state: {
-        voiceActionId: action.id,
-        voiceActionTitle: action.title,
-        voiceActionDomain: action.domain,
-      },
+      state: buildVoiceActionRouteState(action),
     });
 
     if (navigated) {

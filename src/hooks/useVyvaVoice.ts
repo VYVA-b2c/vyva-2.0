@@ -502,6 +502,60 @@ function transcriptToHistory(transcript: TranscriptEntry[]): ConversationTurn[] 
   }));
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function textFromUnknown(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(textFromUnknown).filter(Boolean).join(" ").trim();
+
+  const record = asRecord(value);
+  if (!record) return "";
+
+  const textKeys = [
+    "message",
+    "text",
+    "transcript",
+    "content",
+    "response",
+    "agent_response",
+    "agentResponse",
+    "user_transcript",
+    "userTranscript",
+  ];
+
+  for (const key of textKeys) {
+    const text = textFromUnknown(record[key]);
+    if (text) return text;
+  }
+
+  return "";
+}
+
+function textPartFromUnknown(value: unknown): string {
+  const record = asRecord(value);
+  if (typeof record?.text === "string") return record.text;
+  return textFromUnknown(value);
+}
+
+function textPartType(value: unknown): string {
+  const record = asRecord(value);
+  return typeof record?.type === "string" ? record.type.toLowerCase() : "";
+}
+
+function isUserVoiceMessage(payload: unknown) {
+  const record = asRecord(payload);
+  if (!record) return false;
+
+  const role = typeof record.role === "string" ? record.role.toLowerCase() : "";
+  const source = typeof record.source === "string" ? record.source.toLowerCase() : "";
+  const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+
+  return role === "user" || source === "user" || type.includes("user_transcript");
+}
+
 function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
   const agentSlug = options?.agentSlug?.trim().toLowerCase();
   if (agentSlug === "vyva" || agentSlug === "main-vyva" || agentSlug === "main_vyva") return "companion";
@@ -593,6 +647,8 @@ function useVyvaVoiceController() {
   const shouldMuteOnConnectRef = useRef(true);
   const transferPendingRef = useRef(false);
   const hiddenOutgoingMessagesRef = useRef<string[]>([]);
+  const streamingVyvaTranscriptRef = useRef("");
+  const streamingVyvaTranscriptShouldAppendRef = useRef(false);
   const voiceInstanceIdRef = useRef(createVoiceInstanceId());
   const activeRecommendationRef = useRef<ActiveVoiceRecommendation | null>(null);
   const recordedRecommendationActionsRef = useRef<Set<string>>(new Set());
@@ -668,6 +724,53 @@ function useVyvaVoiceController() {
     });
   }, []);
 
+  const upsertLatestVyvaTranscript = useCallback((text: string, options?: { forceAppend?: boolean }) => {
+    const normalizedText = text.trim();
+    if (!normalizedText) return;
+
+    setTranscript((previous) => {
+      const latestEntry = previous[previous.length - 1];
+      const next = latestEntry?.from === "vyva" && !options?.forceAppend
+        ? [
+            ...previous.slice(0, -1),
+            { ...latestEntry, text: normalizedText, timestamp: Date.now() },
+          ]
+        : [
+            ...previous,
+            { from: "vyva" as const, text: normalizedText, timestamp: Date.now() },
+          ];
+      transcriptRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const handleVyvaTranscriptPart = useCallback((part: unknown) => {
+    const partType = textPartType(part);
+    const partText = textPartFromUnknown(part);
+
+    if (partType === "start") {
+      streamingVyvaTranscriptRef.current = partText;
+      streamingVyvaTranscriptShouldAppendRef.current = true;
+    } else if (partType === "delta") {
+      streamingVyvaTranscriptRef.current += partText;
+    } else if (partType === "stop") {
+      if (partText) streamingVyvaTranscriptRef.current += partText;
+    } else {
+      streamingVyvaTranscriptRef.current = partText || streamingVyvaTranscriptRef.current;
+    }
+
+    const shouldAppend = streamingVyvaTranscriptShouldAppendRef.current;
+    upsertLatestVyvaTranscript(streamingVyvaTranscriptRef.current, { forceAppend: shouldAppend });
+    if (streamingVyvaTranscriptRef.current.trim()) {
+      streamingVyvaTranscriptShouldAppendRef.current = false;
+    }
+
+    if (partType === "stop") {
+      streamingVyvaTranscriptRef.current = "";
+      streamingVyvaTranscriptShouldAppendRef.current = false;
+    }
+  }, [upsertLatestVyvaTranscript]);
+
   const interruptAgentAudio = useCallback(() => {
     setIsSpeaking(false);
   }, []);
@@ -680,6 +783,8 @@ function useVyvaVoiceController() {
       void conversation.endSession().catch(() => {});
     }
     hiddenOutgoingMessagesRef.current = [];
+    streamingVyvaTranscriptRef.current = "";
+    streamingVyvaTranscriptShouldAppendRef.current = false;
     activeRecommendationRef.current = null;
     recordedRecommendationActionsRef.current.clear();
     setIsConnecting(false);
@@ -957,6 +1062,8 @@ function useVyvaVoiceController() {
       setVoicePreparing(true);
       setHasEnded(false);
       replaceTranscript([]);
+      streamingVyvaTranscriptRef.current = "";
+      streamingVyvaTranscriptShouldAppendRef.current = false;
       setLastError(null);
       setLastErrorCode(null);
       setHasMicrophone(false);
@@ -1373,10 +1480,11 @@ function useVyvaVoiceController() {
             if (!isCurrentSession()) return;
             setIsSpeaking(false);
           },
-          onMessage: ({ role, source, message }) => {
+          onMessage: (payload) => {
             if (!isCurrentSession()) return;
+            const message = textFromUnknown(payload);
             if (!message?.trim()) return;
-            if (role === "user" || source === "user") {
+            if (isUserVoiceMessage(payload)) {
               const normalized = normalizeTranscriptText(message);
               const hiddenIndex = hiddenOutgoingMessagesRef.current.findIndex((entry) => entry === normalized);
               if (hiddenIndex !== -1) {
@@ -1395,7 +1503,13 @@ function useVyvaVoiceController() {
               emitVoiceUserMessage({ text: message, transcriptEntry });
               return;
             }
-            appendTranscript({ from: "vyva", text: message, timestamp: Date.now() });
+            streamingVyvaTranscriptRef.current = "";
+            streamingVyvaTranscriptShouldAppendRef.current = false;
+            upsertLatestVyvaTranscript(message);
+          },
+          onAgentChatResponsePart: (part) => {
+            if (!isCurrentSession()) return;
+            handleVyvaTranscriptPart(part);
           },
         });
 
@@ -1430,7 +1544,7 @@ function useVyvaVoiceController() {
         teardown();
       }
     },
-    [appendTranscript, checkVoiceReadiness, fetchSessionOptions, markVoiceDiagnosticFailure, recordRecommendationFeedback, replaceTranscript, resolveRouterSession, setVoicePreparing, setVoiceStatus, teardown, updateVoiceDiagnostic]
+    [appendTranscript, checkVoiceReadiness, fetchSessionOptions, handleVyvaTranscriptPart, markVoiceDiagnosticFailure, recordRecommendationFeedback, replaceTranscript, resolveRouterSession, setVoicePreparing, setVoiceStatus, teardown, updateVoiceDiagnostic, upsertLatestVyvaTranscript]
   );
 
   const beginUserTurn = useCallback(async () => {

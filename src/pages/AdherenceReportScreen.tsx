@@ -137,7 +137,7 @@ const AdherenceReportScreen = () => {
   });
   const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
     domain: "meds",
-    actionTypes: ["meds.inventory_report"],
+    actionTypes: ["meds.inventory_report", "meds.refill_request"],
   });
   const isAuthError = error instanceof ApiError && (error.status === 401 || error.status === 403);
 
@@ -502,9 +502,11 @@ const AdherenceReportScreen = () => {
 
         <VoiceActionFulfillmentPanel
           domain="meds"
-          actionTypes={["meds.inventory_report"]}
-          title="Medication report ready"
-          description="VYVA can use adherence, missed doses, streaks, and today's remaining items from this report."
+          actionTypes={["meds.inventory_report", "meds.refill_request"]}
+          title={voiceAction?.actionType === "meds.refill_request" ? "Refill context ready" : "Medication report ready"}
+          description={voiceAction?.actionType === "meds.refill_request"
+            ? "VYVA can review stock and adherence before preparing refill help. You confirm before anyone is contacted."
+            : "VYVA can use adherence, missed doses, streaks, and today's remaining items from this report."}
           highlights={voiceActionHighlights}
           className="mb-[14px]"
         />

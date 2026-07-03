@@ -89,7 +89,11 @@ export function useVoiceActionFulfillment(filter: VoiceActionFulfillmentFilter =
       "vital_type",
       "symptom",
       "task_type",
+      "destination",
+      "items",
+      "reminder_text",
       "activity_type",
+      "topic",
       "interest",
     ].map(payloadValue).find(Boolean)
     || "";

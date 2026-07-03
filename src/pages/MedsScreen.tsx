@@ -570,7 +570,7 @@ const MedsScreen = () => {
   })();
   const { action: voiceAction, payloadValue: voicePayloadValue } = useVoiceActionFulfillment({
     domain: "meds",
-    actionTypes: ["meds.management"],
+    actionTypes: ["meds.management", "meds.refill_request"],
   });
   const focusedMedicationName = voicePayloadValue("medication_name") || voiceAction?.extractedSubject || "";
   const focusedMedicationKey = normalizeVoiceFocus(focusedMedicationName);
@@ -1639,9 +1639,11 @@ const MedsScreen = () => {
 
       <VoiceActionFulfillmentPanel
         domain="meds"
-        actionTypes={["meds.management"]}
-        title={t("meds.contextPanel.title", "Medication context ready")}
-        description={t("meds.contextPanel.description", "VYVA can use today's schedule and your medication profile on this page.")}
+        actionTypes={["meds.management", "meds.refill_request"]}
+        title={voiceAction?.actionType === "meds.refill_request" ? t("meds.contextPanel.refillTitle", "Refill context ready") : t("meds.contextPanel.title", "Medication context ready")}
+        description={voiceAction?.actionType === "meds.refill_request"
+          ? t("meds.contextPanel.refillDescription", "VYVA can check medication stock and prepare refill help, then ask you to confirm before anyone is contacted.")
+          : t("meds.contextPanel.description", "VYVA can use today's schedule and your medication profile on this page.")}
         highlights={voiceActionHighlights}
         className="mt-4"
       />
