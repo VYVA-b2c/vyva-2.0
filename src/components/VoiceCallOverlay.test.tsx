@@ -1,5 +1,5 @@
 import { type ComponentProps } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import VoiceCallOverlay from "./VoiceCallOverlay";
 import type { TranscriptEntry, VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import { VYVA_OPEN_SOS_EVENT } from "@/lib/sosEvents";
@@ -167,6 +167,20 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Welcome back");
   });
 
+  it("plays long VYVA transcripts as readable caption chunks", () => {
+    const longTranscript = "Soy su asistente personal. Puedo ayudarle con muchas cosas, como recordarle sus medicinas, hacer ejercicios para la mente, revisar sus síntomas si no se siente bien, o simplemente charlar un rato.";
+    renderOverlay([{ from: "vyva", text: longTranscript, timestamp: 1 }], { isSpeaking: true });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Soy su asistente personal.");
+    expect(screen.getByTestId("text-call-transcript")).not.toHaveTextContent("hacer ejercicios para la mente");
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("Puedo ayudarle con muchas cosas, como recordarle sus medicinas,");
+  });
+
   it("keeps the connecting state clear when no transcript is available", () => {
     renderOverlay([], { isConnecting: true });
 
@@ -179,7 +193,8 @@ describe("VoiceCallOverlay voice room", () => {
 
     expect(screen.queryByTestId("text-call-transcript-preview")).not.toBeInTheDocument();
     expect(screen.getByTestId("text-call-transcript")).toHaveStyle({
-      maxWidth: "min(92vw, 620px)",
+      maxWidth: "min(88vw, 560px)",
+      maxHeight: "min(34vh, 260px)",
       overflowWrap: "anywhere",
       margin: "0",
     });

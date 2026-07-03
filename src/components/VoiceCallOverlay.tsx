@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Keyboard, Mic, MicOff, Phone, PhoneOff, RotateCcw, UserRound } from "lucide-react";
@@ -161,6 +161,46 @@ function controlIconStyle(variant: "soft" | "danger" | "primary" = "soft"): CSSP
   };
 }
 
+const MAX_TRANSCRIPT_CHUNK_WORDS = 9;
+const MAX_TRANSCRIPT_CHUNK_CHARS = 70;
+
+function splitTranscriptIntoCaptionChunks(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const sentences = trimmed.split(/(?<=[.!?¡¿。！？])\s+/u).filter(Boolean);
+  const chunks: string[] = [];
+
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\s+/).filter(Boolean);
+    let current: string[] = [];
+
+    for (const word of words) {
+      const candidate = [...current, word].join(" ");
+      if (
+        current.length > 0 &&
+        (current.length >= MAX_TRANSCRIPT_CHUNK_WORDS || candidate.length > MAX_TRANSCRIPT_CHUNK_CHARS)
+      ) {
+        chunks.push(current.join(" "));
+        current = [word];
+      } else {
+        current.push(word);
+      }
+    }
+
+    if (current.length > 0) {
+      chunks.push(current.join(" "));
+    }
+  }
+
+  return chunks;
+}
+
+function captionChunkDuration(text: string): number {
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.min(3400, Math.max(1500, wordCount * 330));
+}
+
 const VoiceCallOverlay = ({
   isSpeaking,
   isConnecting,
@@ -180,6 +220,26 @@ const VoiceCallOverlay = ({
   const { t } = useTranslation();
   const latestEntry = transcript.length > 0 ? transcript[transcript.length - 1] : null;
   const latestVyvaText = latestEntry?.from === "vyva" ? latestEntry.text.trim() : "";
+  const vyvaCaptionChunks = useMemo(() => splitTranscriptIntoCaptionChunks(latestVyvaText), [latestVyvaText]);
+  const [captionChunkIndex, setCaptionChunkIndex] = useState(0);
+  const activeCaptionIndex = vyvaCaptionChunks.length > 0
+    ? Math.min(captionChunkIndex, vyvaCaptionChunks.length - 1)
+    : 0;
+  const activeVyvaCaption = vyvaCaptionChunks[activeCaptionIndex] ?? "";
+
+  useEffect(() => {
+    setCaptionChunkIndex(0);
+  }, [latestVyvaText]);
+
+  useEffect(() => {
+    if (vyvaCaptionChunks.length <= 1 || activeCaptionIndex >= vyvaCaptionChunks.length - 1) return;
+
+    const timeout = window.setTimeout(() => {
+      setCaptionChunkIndex((currentIndex) => Math.min(currentIndex + 1, vyvaCaptionChunks.length - 1));
+    }, captionChunkDuration(vyvaCaptionChunks[activeCaptionIndex]));
+
+    return () => window.clearTimeout(timeout);
+  }, [activeCaptionIndex, vyvaCaptionChunks]);
 
   const fallbackStatusLabel = isConnecting
     ? t("voiceHero.connecting", "Connecting")
@@ -283,7 +343,7 @@ const VoiceCallOverlay = ({
     : t("voiceHero.listeningMain", "I'm listening");
   const mainMessage = hasConnectionError
     ? emptyTranscriptLabel
-    : latestVyvaText || fallbackMainMessage;
+    : activeVyvaCaption || fallbackMainMessage;
   const supportMessage = latestVyvaText || hasConnectionError
     ? null
     : isConnecting
@@ -483,11 +543,17 @@ const VoiceCallOverlay = ({
           className="font-body"
           style={{
             color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
-            fontSize: hasConnectionError ? "clamp(34px, 8vw, 48px)" : "clamp(42px, 11vw, 82px)",
-            lineHeight: 1.04,
+            fontSize: hasConnectionError
+              ? "clamp(34px, 8vw, 48px)"
+              : activeVyvaCaption
+              ? "clamp(34px, 8.5vw, 58px)"
+              : "clamp(42px, 11vw, 82px)",
+            lineHeight: activeVyvaCaption ? 1.08 : 1.04,
             textAlign: "center",
-            maxWidth: "min(92vw, 620px)",
+            maxWidth: activeVyvaCaption ? "min(88vw, 560px)" : "min(92vw, 620px)",
+            maxHeight: activeVyvaCaption ? "min(34vh, 260px)" : undefined,
             fontWeight: 850,
+            overflow: activeVyvaCaption ? "hidden" : undefined,
             overflowWrap: "anywhere",
             margin: 0,
             letterSpacing: 0,
