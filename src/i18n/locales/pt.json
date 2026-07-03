@@ -250,9 +250,16 @@
         "openLabel": "Abrir concierge"
       }
     },
+    "nudge": {
+      "text": "Nao sabe por onde comecar?",
+      "action": "Perguntar a VYVA",
+      "aria": "Perguntar a VYVA por onde comecar"
+    },
     "fastHelp": {
       "kicker": "Ajuda rapida",
       "title": "O que quer que a VYVA faca?",
+      "rotate": "Mais",
+      "rotateAria": "Mostrar outras opcoes de ajuda rapida",
       "doctor": {
         "label": "Falar com um medico real agora",
         "sub": "Receba ajuda medica ao vivo."

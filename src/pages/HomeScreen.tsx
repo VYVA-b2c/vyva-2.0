@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, ClipboardCheck, MessageCircle, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, ClipboardCheck, MessageCircle, Sparkles, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -102,6 +102,8 @@ const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { 
   ride: { label: "Find transport", sub: "Compare safe options" },
 };
 
+const HOME_FAST_HELP_VISIBLE_COUNT = 3;
+
 const SECTION_VOICE_AUTO_START_OPTIONS: NavigateOptions = {
   state: { [SECTION_VOICE_AUTO_START_KEY]: true },
 };
@@ -175,6 +177,7 @@ const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
   const { t } = useTranslation();
   const { firstName: profileFirstName, profile } = useProfile();
+  const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -309,7 +312,7 @@ const HomeScreen = () => {
     });
   };
 
-  const homeFastActions: HomeFastAction[] = [
+  const homeFastActions: HomeFastAction[] = useMemo(() => [
     ...(gpPhoneHref
       ? [{
           id: "callGp" as const,
@@ -341,7 +344,24 @@ const HomeScreen = () => {
       mobileLabel: t(`home.fastHelp.${action.id}.mobileLabel`, HOME_FAST_ACTION_MOBILE_COPY[action.id].label),
       mobileSub: t(`home.fastHelp.${action.id}.mobileSub`, HOME_FAST_ACTION_MOBILE_COPY[action.id].sub),
     })),
-  ];
+  ], [gpEmailHref, gpName, gpPhoneHref, t]);
+
+  useEffect(() => {
+    if (fastHelpStartIndex < homeFastActions.length) return;
+    setFastHelpStartIndex(0);
+  }, [fastHelpStartIndex, homeFastActions.length]);
+
+  const visibleFastActions = useMemo(() => {
+    if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return homeFastActions;
+    return Array.from({ length: HOME_FAST_HELP_VISIBLE_COUNT }, (_item, index) => (
+      homeFastActions[(fastHelpStartIndex + index) % homeFastActions.length]!
+    ));
+  }, [fastHelpStartIndex, homeFastActions]);
+
+  const rotateFastHelp = () => {
+    if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return;
+    setFastHelpStartIndex((current) => (current + HOME_FAST_HELP_VISIBLE_COUNT) % homeFastActions.length);
+  };
 
   const isSubscriptionLocked = (path: string) => {
     const serviceId = serviceForPath(path);
@@ -355,7 +375,7 @@ const HomeScreen = () => {
       id: "health",
       icon: Heart,
       title: t("home.master.cards.health", "Health Plan"),
-      detail: t("home.master.cards.healthDetail", "Medication, vitals, symptoms"),
+      detail: t("home.master.cards.healthDetailShort", ""),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/health"),
       testId: "card-home-agent-health",
@@ -364,7 +384,7 @@ const HomeScreen = () => {
       id: "mind-memory",
       icon: Brain,
       title: t("home.master.cards.mindMemory", "Mind & Memory"),
-      detail: t("home.master.cards.mindMemoryDetail", "Memory, reflexes, thinking"),
+      detail: t("home.master.cards.mindMemoryDetailShort", ""),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/mind-memory"),
       testId: "card-home-agent-cognitive",
@@ -373,7 +393,7 @@ const HomeScreen = () => {
       id: "community",
       icon: Users,
       title: t("home.master.cards.community", "Community"),
-      detail: t("home.master.cards.communityDetail", "Rooms, matches, activities"),
+      detail: t("home.master.cards.communityDetailShort", ""),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/social-rooms"),
       testId: "card-home-agent-social",
@@ -382,7 +402,7 @@ const HomeScreen = () => {
       id: "concierge",
       icon: ConciergeBell,
       title: t("home.master.cards.concierge", "Concierge"),
-      detail: t("home.master.cards.conciergeDetail", "Help, rides, orders, schedules"),
+      detail: t("home.master.cards.conciergeDetailShort", ""),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/concierge"),
       testId: "card-home-agent-concierge",
@@ -486,7 +506,25 @@ const HomeScreen = () => {
       }}
       cards={homeMasterCards}
       fastHelpActions={homeMasterFastHelpActions}
-    />
+    >
+      <button
+        type="button"
+        data-testid="home-start-nudge"
+        aria-label={t("home.nudge.aria", "Ask VYVA where to start")}
+        onClick={() => handleNavigate("/chat")}
+        className="vyva-tap mt-4 flex min-h-[58px] w-full items-center gap-3 rounded-[22px] border border-[#E4D7F4] bg-white px-4 text-left shadow-[0_12px_28px_rgba(107,33,168,0.08)] transition-transform active:scale-[0.99]"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#F3E8FF] text-[#6B21A8]">
+          <Sparkles size={22} strokeWidth={2.4} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1 font-body text-[16px] font-black leading-tight text-vyva-text-1">
+          {t("home.nudge.text", "Not sure where to start?")}
+        </span>
+        <span className="shrink-0 rounded-full bg-[#6B21A8] px-3 py-2 font-body text-[13px] font-black text-white">
+          {t("home.nudge.action", "Ask VYVA")}
+        </span>
+      </button>
+    </MasterDashboardLayout>
   );
 };
 

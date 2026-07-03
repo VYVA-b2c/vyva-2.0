@@ -7,7 +7,7 @@ const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
-const profileMock = vi.hoisted(() => ({ firstName: "Karim" }));
+const profileMock = vi.hoisted(() => ({ firstName: "Karim", withGpContact: true }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -20,11 +20,13 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 vi.mock("@/contexts/ProfileContext", () => ({
   useProfile: () => ({
     firstName: profileMock.firstName,
-    profile: {
-      gpName: "Dr Garcia",
-      gpPhone: "+34 612 345 678",
-      gpEmail: "gp@example.com",
-    },
+    profile: profileMock.withGpContact
+      ? {
+          gpName: "Dr Garcia",
+          gpPhone: "+34 612 345 678",
+          gpEmail: "gp@example.com",
+        }
+      : {},
   }),
 }));
 
@@ -90,6 +92,8 @@ const labels: Record<string, string> = {
   "home.fastHelp.title": "What would you like VYVA to do?",
   "home.fastHelp.doctor.label": "Talk to a real doctor now",
   "home.fastHelp.doctor.sub": "Get live medical help.",
+  "home.fastHelp.rotate": "More",
+  "home.fastHelp.rotateAria": "Show different fast help choices",
   "home.fastHelp.appointment.label": "Schedule an appointment",
   "home.fastHelp.appointment.sub": "Let VYVA arrange it with you.",
   "home.fastHelp.ride.label": "Find transport",
@@ -97,6 +101,9 @@ const labels: Record<string, string> = {
   "home.fastHelp.doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
   "home.fastHelp.appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
   "home.fastHelp.ridePrefill": "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+  "home.nudge.text": "Not sure where to start?",
+  "home.nudge.action": "Ask VYVA",
+  "home.nudge.aria": "Ask VYVA where to start",
   "meds.callGpNamed": "Call {{name}}",
   "meds.callGp": "Call GP",
   "meds.callGpSub": "Speak to your practice now.",
@@ -138,6 +145,7 @@ describe("Home fast service actions", () => {
     canUseServiceMock.mockReturnValue(true);
     voiceHeroMock.mockClear();
     profileMock.firstName = "Karim";
+    profileMock.withGpContact = true;
     window.localStorage.clear();
     window.sessionStorage.clear();
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -170,6 +178,20 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Mind & Memory");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Community");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Concierge");
+    expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
+    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes, thinking");
+    expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, matches, activities");
+    expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
+    expect(screen.getByTestId("home-start-nudge")).toHaveTextContent("Not sure where to start?");
+    expect(screen.getByTestId("home-start-nudge")).toHaveTextContent("Ask VYVA");
+  });
+
+  it("opens VYVA chat from the Home nudge", () => {
+    render(<HomeScreen />);
+
+    fireEvent.click(screen.getByTestId("home-start-nudge"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/chat", undefined);
   });
 
   it("renders three visible rotating Fast help actions", () => {

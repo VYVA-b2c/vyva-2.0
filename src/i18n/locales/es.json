@@ -370,9 +370,16 @@
         "openLabel": "Abrir conserje"
       }
     },
+    "nudge": {
+      "text": "No sabes por donde empezar?",
+      "action": "Preguntar a VYVA",
+      "aria": "Preguntar a VYVA por donde empezar"
+    },
     "fastHelp": {
       "kicker": "Ayuda rapida",
       "title": "Que quieres que haga VYVA?",
+      "rotate": "Mas",
+      "rotateAria": "Mostrar otras opciones de ayuda rapida",
       "doctor": {
         "label": "Hablar con un medico real ahora",
         "sub": "Recibe ayuda medica en vivo."
