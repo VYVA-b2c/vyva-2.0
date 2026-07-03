@@ -263,11 +263,11 @@ export function VyvaSessionCta({
         >
           {isVoiceRail ? (
             <>
-              <span className="absolute inset-[-10px] rounded-full bg-[#F3E8FF] opacity-70" aria-hidden="true" />
-              <span className="absolute inset-[-3px] rounded-full bg-[radial-gradient(circle,#FFFFFF_0%,#F7F1FF_58%,#FFF8F0_100%)] shadow-[0_16px_30px_rgba(107,33,168,0.14)]" aria-hidden="true" />
-              <span className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_8px_18px_rgba(107,33,168,0.24)]">
+              <span className="absolute inset-[-7px] rounded-full bg-[#F3E8FF] opacity-50" aria-hidden="true" />
+              <span className="absolute inset-[-2px] rounded-full bg-[radial-gradient(circle,#FFFFFF_0%,#F8F2FF_62%,#FFF9F2_100%)] shadow-[0_10px_22px_rgba(107,33,168,0.10)]" aria-hidden="true" />
+              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_7px_16px_rgba(107,33,168,0.20)]">
                 <Icon
-                  size={24}
+                  size={22}
                   className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
                   aria-hidden="true"
                 />

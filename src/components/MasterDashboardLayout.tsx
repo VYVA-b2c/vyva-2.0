@@ -187,7 +187,7 @@ export default function MasterDashboardLayout({
               testId={hero.action.testId}
               supportingLabel={hero.action.supportingLabel}
               visual="voiceRail"
-              className="vyva-tap relative flex !h-[68px] !min-h-[68px] !w-[68px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!h-[72px] min-[390px]:!min-h-[72px] min-[390px]:!w-[72px]"
+              className="vyva-tap relative flex !h-[64px] !min-h-[64px] !w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!h-[68px] min-[390px]:!min-h-[68px] min-[390px]:!w-[68px]"
             />
           ) : null}
         </div>
