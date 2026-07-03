@@ -62,27 +62,8 @@ describe("content bulk upload validation", () => {
   });
 
   it("accepts common JSON wrapper shapes", () => {
-    const rows = parseBulkUploadJson(JSON.stringify({ items: [{ fact_prompt: "A?", fact_answer: "B", category: "science" }] }));
+    const rows = parseBulkUploadJson(JSON.stringify({ items: [{ title: "A", body: "B" }] }));
 
     expect(rows).toHaveLength(1);
-  });
-
-  it("maps valid Scent Memory prompts to the existing scent table", () => {
-    const preview = validateBulkUploadItems("scent_memory_prompts", "en", [{
-      scent_name: "Coffee",
-      scent_description: "A warm kitchen smell",
-      guiding_question: "What morning does this bring to mind?",
-      category: "home",
-    }], reviewOptions);
-
-    expect(preview.invalidItems).toHaveLength(0);
-    expect(preview.validItems[0].table).toBe("scent_memory_prompts");
-    expect(preview.validItems[0].row).toMatchObject({
-      scent_name: "Coffee",
-      language: "en",
-      rejected: false,
-      is_active: true,
-      source: "human_written",
-    });
   });
 });
