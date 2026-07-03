@@ -12,6 +12,7 @@ export type DiscoverParticipationInput = {
   countryCode?: string | null;
   languageCodes?: string[];
   interests?: string[];
+  refinementTags?: string[];
   format?: DiscoveryFormatPreference;
   maxResults?: number;
 };
@@ -29,6 +30,7 @@ export type ParticipationDiscoveryResult = {
     countryCode: string | null;
     languageCodes: string[];
     interests: string[];
+    refinementTags: string[];
     format: DiscoveryFormatPreference;
     maxResults: number;
   };
@@ -250,9 +252,10 @@ function normalizeQuery(input: DiscoverParticipationInput) {
   const countryCode = normalizeCountry(input.countryCode, null);
   const languageCodes = normalizeLanguages(input.languageCodes, ["en", "es", "de"]);
   const interests = cleanList(input.interests, 12);
+  const refinementTags = cleanList(input.refinementTags, 16);
   const format = input.format && ["nearby", "online", "hybrid", "any"].includes(input.format) ? input.format : "nearby";
   const maxResults = Math.max(1, Math.min(12, Number(input.maxResults ?? 6)));
-  return { city, countryCode, languageCodes, interests, format, maxResults };
+  return { city, countryCode, languageCodes, interests, refinementTags, format, maxResults };
 }
 
 function extractOutputText(response: unknown) {
@@ -366,6 +369,7 @@ function buildPrompt(query: ReturnType<typeof normalizeQuery>) {
   return [
     `Today is ${today}. Find up to ${query.maxResults} public activity or event candidates for older adults in ${query.city}${query.countryCode ? `, ${query.countryCode}` : ""}.`,
     `Preferred format: ${query.format}. Interests or tags: ${query.interests.length ? query.interests.join(", ") : "balanced community activities"}.`,
+    `Result refinements: ${query.refinementTags.length ? query.refinementTags.join(", ") : "no extra refinements"}. Use these to improve result quality, but keep at least a few good candidates if exact matches are scarce.`,
     `Languages to support in the saved record: ${query.languageCodes.join(", ")}. Return English, Spanish, and German fields even when the event itself is in fewer languages.`,
     "Prioritize libraries, community centers, museums, parks, gentle movement, music, crafts, language or culture groups, local history, and low-pressure learning.",
     "Avoid medical treatment claims, dating, private contact exchange, gambling, expensive sales pressure, unverified transport offers, or anything unsafe for a senior-friendly concierge review.",

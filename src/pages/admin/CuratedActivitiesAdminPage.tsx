@@ -14,6 +14,16 @@ type EventStatus = "active" | "draft" | "hidden" | "archived";
 type SafetyStatus = "approved" | "needs_review" | "hidden";
 type DiscoveryFormatPreference = ParticipationEventFormat | "any";
 type DiscoveryCandidate = AdminParticipationEvent & { selected: boolean };
+type DiscoveryFormState = {
+  city: string;
+  countryCode: string;
+  interestTags: string[];
+  customInterest: string;
+  languageCodes: string[];
+  format: DiscoveryFormatPreference;
+  refinementTags: string[];
+  maxResults: number;
+};
 type ActivityRecord = Record<string, unknown>;
 
 type AdminParticipationActivity = {
@@ -34,8 +44,59 @@ type Filters = {
 
 const STATUS_OPTIONS: EventStatus[] = ["draft", "active", "hidden", "archived"];
 const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"];
-const DISCOVERY_FORMAT_OPTIONS: DiscoveryFormatPreference[] = ["nearby", "online", "hybrid", "any"];
-const DISCOVERY_COUNTRY_OPTIONS = PHONE_COUNTRY_OPTIONS.map((option) => option.value);
+const COUNTRY_LABELS: Record<string, string> = {
+  AE: "United Arab Emirates",
+  DE: "Germany",
+  ES: "Spain",
+  FR: "France",
+  IT: "Italy",
+  PT: "Portugal",
+  UK: "United Kingdom",
+  US: "United States",
+};
+const DISCOVERY_COUNTRY_OPTIONS = PHONE_COUNTRY_OPTIONS.map((option) => ({
+  value: option.value,
+  label: `${COUNTRY_LABELS[option.value] ?? option.value} (${option.value})`,
+}));
+const DISCOVERY_FORMAT_CHOICES: Array<{ value: DiscoveryFormatPreference; label: string; detail: string }> = [
+  { value: "any", label: "Best match", detail: "Local, online, or hybrid" },
+  { value: "nearby", label: "Nearby", detail: "In-person places" },
+  { value: "online", label: "Online", detail: "Remote friendly" },
+  { value: "hybrid", label: "Hybrid", detail: "Both options" },
+];
+const DISCOVERY_INTEREST_OPTIONS = [
+  "music",
+  "walking",
+  "art",
+  "crafts",
+  "learning",
+  "gardening",
+  "movement",
+  "reading",
+  "history",
+  "language",
+  "cooking",
+  "social",
+];
+const DISCOVERY_REFINEMENT_OPTIONS = [
+  "free",
+  "low cost",
+  "indoor",
+  "outdoor",
+  "wheelchair friendly",
+  "step-free",
+  "seated",
+  "gentle pace",
+  "small group",
+  "morning",
+  "public transport",
+  "accessible toilets",
+];
+const DISCOVERY_LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "de", label: "German" },
+];
 const SAFETY_OPTIONS: SafetyStatus[] = ["approved", "needs_review", "hidden"];
 const LANGUAGE_OPTIONS = ["en", "es", "de"];
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
@@ -522,6 +583,34 @@ function Pill({ children, tone = "purple" }: { children: ReactNode; tone?: "purp
   return <span className={`rounded-full px-3 py-1.5 text-xs font-black ${tones[tone]}`}>{children}</span>;
 }
 
+function ChoiceChip({
+  selected,
+  children,
+  onClick,
+  testId,
+}: {
+  selected: boolean;
+  children: ReactNode;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      aria-pressed={selected}
+      className={`rounded-full border px-4 py-2 text-sm font-black transition ${
+        selected
+          ? "border-purple-500 bg-purple-100 text-purple-800 shadow-sm"
+          : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] hover:border-purple-200 hover:text-purple-800"
+      }`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
 function cityKey(event: AdminParticipationEvent) {
   const city = cleanText(event.city);
   const country = cleanText(event.countryCode).toUpperCase();
@@ -568,12 +657,14 @@ export default function CuratedActivitiesAdminPage() {
   const [discovering, setDiscovering] = useState(false);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
-  const [discoveryForm, setDiscoveryForm] = useState({
+  const [discoveryForm, setDiscoveryForm] = useState<DiscoveryFormState>({
     city: "Madrid",
     countryCode: "ES",
-    interests: "music, walking, art",
-    languageCodes: "en, es, de",
-    format: "nearby" as DiscoveryFormatPreference,
+    interestTags: ["music", "walking", "art"],
+    customInterest: "",
+    languageCodes: ["en", "es", "de"],
+    format: "any",
+    refinementTags: ["free", "indoor", "wheelchair friendly"],
     maxResults: 6,
   });
 
@@ -688,6 +779,47 @@ export default function CuratedActivitiesAdminPage() {
     });
   }
 
+  function toggleDiscoveryInterest(tag: string) {
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      interestTags: prev.interestTags.includes(tag)
+        ? prev.interestTags.filter((item) => item !== tag)
+        : [...prev.interestTags, tag],
+    }));
+  }
+
+  function addCustomDiscoveryInterest() {
+    const tag = cleanText(discoveryForm.customInterest).toLowerCase();
+    if (!tag) return;
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      interestTags: prev.interestTags.includes(tag) ? prev.interestTags : [...prev.interestTags, tag],
+      customInterest: "",
+    }));
+  }
+
+  function toggleDiscoveryLanguage(language: string) {
+    setDiscoveryForm((prev) => {
+      const selected = prev.languageCodes.includes(language);
+      if (selected && prev.languageCodes.length === 1) return prev;
+      return {
+        ...prev,
+        languageCodes: selected
+          ? prev.languageCodes.filter((item) => item !== language)
+          : [...prev.languageCodes, language],
+      };
+    });
+  }
+
+  function toggleDiscoveryRefinement(tag: string) {
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      refinementTags: prev.refinementTags.includes(tag)
+        ? prev.refinementTags.filter((item) => item !== tag)
+        : [...prev.refinementTags, tag],
+    }));
+  }
+
   async function discoverActivities() {
     setDiscovering(true);
     setMessage("");
@@ -695,8 +827,9 @@ export default function CuratedActivitiesAdminPage() {
       const body = {
         city: cleanText(discoveryForm.city),
         countryCode: normalizeCountry(discoveryForm.countryCode),
-        interests: textToList(discoveryForm.interests),
-        languageCodes: textToList(discoveryForm.languageCodes),
+        interests: discoveryForm.interestTags,
+        refinementTags: discoveryForm.refinementTags,
+        languageCodes: discoveryForm.languageCodes,
         format: discoveryForm.format,
         maxResults: discoveryForm.maxResults,
       };
@@ -875,7 +1008,7 @@ export default function CuratedActivitiesAdminPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             <Field label="City">
               <input
                 data-testid="admin-discovery-city"
@@ -892,17 +1025,8 @@ export default function CuratedActivitiesAdminPage() {
                 value={discoveryForm.countryCode}
                 onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, countryCode: event.target.value }))}
               >
-                {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country} value={country}>{country}</option>)}
+                {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
               </select>
-            </Field>
-            <Field label="Interests">
-              <TextInput value={discoveryForm.interests} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, interests: value }))} placeholder="music, walking, art" />
-            </Field>
-            <Field label="Languages">
-              <TextInput value={discoveryForm.languageCodes} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, languageCodes: value }))} placeholder="en, es, de" />
-            </Field>
-            <Field label="Format">
-              <SelectInput value={discoveryForm.format} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, format: value }))} options={DISCOVERY_FORMAT_OPTIONS} />
             </Field>
             <Field label="Max results">
               <input
@@ -914,6 +1038,105 @@ export default function CuratedActivitiesAdminPage() {
                 onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, maxResults: Number(event.target.value) || 1 }))}
               />
             </Field>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Interests</p>
+              <div className="flex flex-wrap gap-2">
+                {DISCOVERY_INTEREST_OPTIONS.map((tag) => (
+                  <ChoiceChip
+                    key={tag}
+                    testId={`admin-interest-${slugifyEventKey(tag, "tag")}`}
+                    selected={discoveryForm.interestTags.includes(tag)}
+                    onClick={() => toggleDiscoveryInterest(tag)}
+                  >
+                    {tag}
+                  </ChoiceChip>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="min-h-[44px] flex-1 rounded-2xl border border-[#eadfd5] px-4 py-2 text-sm font-semibold text-[#2f2135]"
+                  value={discoveryForm.customInterest}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, customInterest: event.target.value }))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addCustomDiscoveryInterest();
+                    }
+                  }}
+                  placeholder="Add another interest"
+                />
+                <button
+                  className="min-h-[44px] rounded-2xl border border-purple-200 bg-white px-4 py-2 text-sm font-black text-purple-800"
+                  onClick={addCustomDiscoveryInterest}
+                  type="button"
+                >
+                  Add tag
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Languages</p>
+              <div className="flex flex-wrap gap-2">
+                {DISCOVERY_LANGUAGE_OPTIONS.map((language) => (
+                  <ChoiceChip
+                    key={language.value}
+                    testId={`admin-language-${language.value}`}
+                    selected={discoveryForm.languageCodes.includes(language.value)}
+                    onClick={() => toggleDiscoveryLanguage(language.value)}
+                  >
+                    {language.label}
+                  </ChoiceChip>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Format</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {DISCOVERY_FORMAT_CHOICES.map((choice) => {
+                  const selected = discoveryForm.format === choice.value;
+                  return (
+                    <button
+                      key={choice.value}
+                      data-testid={`admin-format-${choice.value}`}
+                      type="button"
+                      aria-pressed={selected}
+                      className={`rounded-2xl border p-3 text-left transition ${
+                        selected
+                          ? "border-purple-500 bg-purple-100 text-purple-900 shadow-sm"
+                          : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] hover:border-purple-200"
+                      }`}
+                      onClick={() => setDiscoveryForm((prev) => ({ ...prev, format: choice.value }))}
+                    >
+                      <span className="block text-sm font-black">{choice.label}</span>
+                      <span className="mt-1 block text-xs font-semibold opacity-75">{choice.detail}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Refine results</p>
+              <div className="flex flex-wrap gap-2">
+                {DISCOVERY_REFINEMENT_OPTIONS.map((tag) => (
+                  <ChoiceChip
+                    key={tag}
+                    testId={`admin-refinement-${slugifyEventKey(tag, "tag")}`}
+                    selected={discoveryForm.refinementTags.includes(tag)}
+                    onClick={() => toggleDiscoveryRefinement(tag)}
+                  >
+                    {tag}
+                  </ChoiceChip>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
