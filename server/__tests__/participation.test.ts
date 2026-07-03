@@ -232,6 +232,7 @@ describe("Participate curated events API", () => {
             titleEs: "Musica matinal en la biblioteca",
             titleDe: "Musikvormittag in der Bibliothek",
             summaryEn: "A calm public music session.",
+            locality: "Centro",
             sourceUrl: "https://example.org/library-music",
             evidence: "The source lists a public music event at the library.",
           },
@@ -260,6 +261,9 @@ describe("Participate curated events API", () => {
       isCurated: true,
       needsLiveCheck: true,
       sourceUrl: "https://example.org/library-music",
+    });
+    expect(response.body.candidates[0].metadata).toMatchObject({
+      locality: "Centro",
     });
     expect(response.body.candidates[0].metadata.discovery).toMatchObject({
       sourceUrls: ["https://example.org/library-music"],

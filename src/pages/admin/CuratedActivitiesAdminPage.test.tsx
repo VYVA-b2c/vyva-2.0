@@ -289,6 +289,7 @@ describe("CuratedActivitiesAdminPage", () => {
     fireEvent.change(screen.getAllByLabelText("Title (Spanish)")[0], { target: { value: "Arte en Valencia" } });
     fireEvent.change(screen.getAllByLabelText("Title (German)")[0], { target: { value: "Kunst in Valencia" } });
     fireEvent.change(screen.getAllByLabelText("City or town")[0], { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("Locality / municipality"), { target: { value: "Ciutat Vella" } });
     fireEvent.change(screen.getByLabelText("Precise location"), { target: { value: "IVAM, Guillem de Castro 118" } });
     fireEvent.click(screen.getByRole("button", { name: /Add event/ }));
 
@@ -300,6 +301,7 @@ describe("CuratedActivitiesAdminPage", () => {
       expect(String(post?.[1]?.body)).toContain("valencia-art-hour");
       expect(String(post?.[1]?.body)).toContain("Valencia");
       expect(String(post?.[1]?.body)).toContain("IVAM, Guillem de Castro 118");
+      expect(JSON.parse(String(post?.[1]?.body)).metadata).toMatchObject({ locality: "Ciutat Vella" });
     });
 
     expect(await screen.findByText("valencia-art-hour")).toBeInTheDocument();
@@ -311,6 +313,7 @@ describe("CuratedActivitiesAdminPage", () => {
       expect(screen.getAllByRole("button", { name: /Save event/ }).length).toBeGreaterThan(1);
     });
     fireEvent.change(screen.getAllByLabelText("City or town")[1], { target: { value: "Barcelona" } });
+    fireEvent.change(screen.getAllByLabelText("Locality / municipality")[1], { target: { value: "Eixample" } });
     fireEvent.click(screen.getAllByRole("button", { name: /Save event/ })[0]);
 
     await waitFor(() => {
@@ -319,6 +322,7 @@ describe("CuratedActivitiesAdminPage", () => {
       ));
       expect(patch).toBeTruthy();
       expect(String(patch?.[1]?.body)).toContain("Barcelona");
+      expect(JSON.parse(String(patch?.[1]?.body)).metadata).toMatchObject({ locality: "Eixample" });
     });
     expect(await screen.findByTestId("admin-event-save-feedback-valencia-art-hour")).toHaveTextContent("valencia-art-hour saved.");
   }, 15_000);

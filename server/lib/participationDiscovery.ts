@@ -64,6 +64,7 @@ type AiCandidate = {
   format?: string;
   locationLabel?: string;
   city?: string | null;
+  locality?: string | null;
   countryCode?: string | null;
   timeLabelEn?: string;
   timeLabelEs?: string;
@@ -109,6 +110,7 @@ const candidateSchema = {
     "format",
     "locationLabel",
     "city",
+    "locality",
     "countryCode",
     "timeLabelEn",
     "timeLabelEs",
@@ -141,6 +143,7 @@ const candidateSchema = {
     format: { type: "string", enum: FORMAT_OPTIONS },
     locationLabel: { type: "string", maxLength: 160 },
     city: { type: ["string", "null"], maxLength: 120 },
+    locality: { type: ["string", "null"], maxLength: 120 },
     countryCode: { type: ["string", "null"], maxLength: 2 },
     timeLabelEn: { type: "string", maxLength: 120 },
     timeLabelEs: { type: "string", maxLength: 120 },
@@ -309,6 +312,7 @@ function normalizeCandidate(
   const languages = normalizeLanguages(candidate.languageCodes, query.languageCodes);
   const sourceTitle = truncate(cleanText(candidate.sourceTitle), 160);
   const evidence = truncate(cleanText(candidate.evidence, sourceTitle || sourceUrl), 500);
+  const locality = truncate(cleanText(candidate.locality), 120);
 
   const event: AdminParticipationEvent = {
     id: eventKey,
@@ -346,6 +350,7 @@ function normalizeCandidate(
     needsLiveCheck: true,
     safetyStatus: "needs_review",
     metadata: {
+      ...(locality ? { locality } : {}),
       discovery: {
         generatedAt,
         query,
@@ -376,6 +381,7 @@ function buildPrompt(query: ReturnType<typeof normalizeQuery>) {
     "Avoid medical treatment claims, dating, private contact exchange, gambling, expensive sales pressure, unverified transport offers, or anything unsafe for a senior-friendly concierge review.",
     "Every candidate must have a public sourceUrl. Use source evidence to summarize what the page supports. Do not invent dates, prices, or venue details; say they need checking when unclear.",
     "Set locationLabel to the most precise public location the source supports: venue name plus street, neighborhood, meeting point, or online room name. Avoid city-only locationLabel values unless no better detail is available.",
+    "Set city to the broad city or town used for matching. Set locality to the more specific municipality, district, neighborhood, barrio, suburb, or borough when the source supports one; otherwise use null.",
   ].join("\n");
 }
 

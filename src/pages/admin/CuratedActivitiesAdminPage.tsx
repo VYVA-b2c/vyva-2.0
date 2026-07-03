@@ -247,6 +247,29 @@ function nullableText(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
+function eventLocality(event: Pick<AdminParticipationEvent, "metadata">) {
+  const metadata = event.metadata ?? {};
+  const value = metadata.locality ?? metadata.municipality;
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function metadataWithLocality(event: Pick<AdminParticipationEvent, "metadata">, value: string) {
+  const metadata = { ...(event.metadata ?? {}) };
+  const trimmed = cleanText(value);
+  if (trimmed) {
+    metadata.locality = trimmed;
+  } else {
+    delete metadata.locality;
+    delete metadata.municipality;
+  }
+  return metadata;
+}
+
+function locationPreview(event: AdminParticipationEvent) {
+  const parts = [cleanText(event.locationLabel), eventLocality(event)].filter(Boolean);
+  return parts.length > 0 ? parts.join(" - ") : cityKey(event) || "Location to be checked";
+}
+
 function normalizeCountry(value?: string | null) {
   const trimmed = cleanText(value).toUpperCase();
   return trimmed ? trimmed.slice(0, 2) : null;
@@ -1381,7 +1404,7 @@ export default function CuratedActivitiesAdminPage() {
                           </span>
                           <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
                             <MapPin size={14} className="shrink-0 text-purple-700" />
-                            <span className="truncate">{candidate.locationLabel || cityKey(candidate) || "Location to be checked"}</span>
+                            <span className="truncate">{locationPreview(candidate)}</span>
                           </span>
                           <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
                             <CircleDollarSign size={14} className="shrink-0 text-purple-700" />
@@ -1418,6 +1441,13 @@ export default function CuratedActivitiesAdminPage() {
                               </Field>
                               <Field label="City or town">
                                 <TextInput value={candidate.city ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { city: value })} />
+                              </Field>
+                              <Field label="Locality / municipality" hint="Neighborhood, district, suburb, or municipality inside the city area.">
+                                <TextInput
+                                  value={eventLocality(candidate)}
+                                  onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { metadata: metadataWithLocality(candidate, value) })}
+                                  placeholder="Chamberi, Pozuelo, Gracia"
+                                />
                               </Field>
                               <Field label="Country">
                                 <select
@@ -1576,6 +1606,13 @@ export default function CuratedActivitiesAdminPage() {
             <Field label="City or town">
               <TextInput value={draft.city ?? ""} onChange={(value) => setDraft((prev) => ({ ...prev, city: value }))} placeholder="Madrid" />
             </Field>
+            <Field label="Locality / municipality" hint="Neighborhood, district, suburb, or municipality inside the city area.">
+              <TextInput
+                value={eventLocality(draft)}
+                onChange={(value) => setDraft((prev) => ({ ...prev, metadata: metadataWithLocality(prev, value) }))}
+                placeholder="Chamberi, Pozuelo, Gracia"
+              />
+            </Field>
             <Field label="Country">
               <select
                 className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
@@ -1653,6 +1690,12 @@ export default function CuratedActivitiesAdminPage() {
                 </Field>
                 <Field label="City or town">
                   <TextInput value={event.city ?? ""} onChange={(value) => updateEvent(event.eventKey, { city: value })} />
+                </Field>
+                <Field label="Locality / municipality" hint="Neighborhood, district, suburb, or municipality inside the city area.">
+                  <TextInput
+                    value={eventLocality(event)}
+                    onChange={(value) => updateEvent(event.eventKey, { metadata: metadataWithLocality(event, value) })}
+                  />
                 </Field>
                 <Field label="Country">
                   <select
