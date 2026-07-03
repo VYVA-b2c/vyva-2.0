@@ -31,12 +31,21 @@ type Filters = {
   safety: string;
 };
 
+type WorkQueueFilter = "all" | "review" | "checks" | "popular" | "live";
+
 const STATUS_OPTIONS: EventStatus[] = ["draft", "active", "hidden", "archived"];
 const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"];
 const DISCOVERY_FORMAT_OPTIONS: DiscoveryFormatPreference[] = ["nearby", "online", "hybrid", "any"];
 const SAFETY_OPTIONS: SafetyStatus[] = ["approved", "needs_review", "hidden"];
 const LANGUAGE_OPTIONS = ["en", "es", "de"];
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
+const WORK_QUEUE_FILTERS: Array<{ id: WorkQueueFilter; label: string; description: string }> = [
+  { id: "all", label: "All activities", description: "Everything in the library" },
+  { id: "review", label: "Review queue", description: "Drafts or safety review" },
+  { id: "checks", label: "Concierge checks", description: "User check requests" },
+  { id: "popular", label: "User interest", description: "Interested or maybe" },
+  { id: "live", label: "Live coverage", description: "Active and approved" },
+];
 const ACTIVITY_TEMPLATE_FILE_NAME = "vyva-activities-template.csv";
 const ACTIVITY_TEMPLATE_CSV = [
   [
@@ -539,6 +548,14 @@ function safetyTone(status: string) {
   return "rose";
 }
 
+function matchesWorkQueue(event: AdminParticipationEvent, queue: WorkQueueFilter) {
+  if (queue === "all") return true;
+  if (queue === "review") return event.status === "draft" || event.safetyStatus === "needs_review";
+  if (queue === "checks") return event.checkRequestCount > 0;
+  if (queue === "popular") return event.responseCounts.interested + event.responseCounts.maybe > 0;
+  return event.status === "active" && event.safetyStatus === "approved";
+}
+
 function discoveryEvidence(event: AdminParticipationEvent) {
   const discovery = event.metadata?.discovery;
   if (!discovery || typeof discovery !== "object") return "";
@@ -565,6 +582,7 @@ export default function CuratedActivitiesAdminPage() {
   const [importing, setImporting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
+  const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>("all");
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
   const [discoveryForm, setDiscoveryForm] = useState({
     city: "Madrid",
@@ -630,9 +648,10 @@ export default function CuratedActivitiesAdminPage() {
       if (filters.status && event.status !== filters.status) return false;
       if (filters.format && event.format !== filters.format) return false;
       if (filters.safety && event.safetyStatus !== filters.safety) return false;
+      if (!matchesWorkQueue(event, workQueueFilter)) return false;
       return true;
     });
-  }, [events, filters]);
+  }, [events, filters, workQueueFilter]);
 
   const activeApproved = useMemo(() => (
     events.filter((event) => event.status === "active" && event.safetyStatus === "approved")
@@ -643,6 +662,13 @@ export default function CuratedActivitiesAdminPage() {
   const interestedCount = events.reduce((sum, event) => sum + event.responseCounts.interested, 0);
   const checkRequestCount = events.reduce((sum, event) => sum + event.checkRequestCount, 0);
   const selectedDiscoveryCount = discoveryCandidates.filter((candidate) => candidate.selected).length;
+  const workQueueCounts = useMemo<Record<WorkQueueFilter, number>>(() => ({
+    all: events.length,
+    review: events.filter((event) => matchesWorkQueue(event, "review")).length,
+    checks: events.filter((event) => matchesWorkQueue(event, "checks")).length,
+    popular: events.filter((event) => matchesWorkQueue(event, "popular")).length,
+    live: events.filter((event) => matchesWorkQueue(event, "live")).length,
+  }), [events]);
 
   const coverageRows = useMemo(() => {
     const map = new Map<string, { label: string; active: number; drafts: number; checks: number; interested: number }>();
@@ -855,6 +881,51 @@ export default function CuratedActivitiesAdminPage() {
           <div className="rounded-[1.5rem] border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-black text-purple-700"><Search size={16} /> Concierge checks</div>
             <p className="mt-2 text-3xl font-black">{checkRequestCount}</p>
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="admin-participate-work-queue">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="font-serif text-3xl">Work queue</h2>
+              <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                Showing {filteredEvents.length} of {events.length} activities.
+              </p>
+            </div>
+            {workQueueFilter !== "all" && (
+              <button
+                type="button"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800"
+                onClick={() => setWorkQueueFilter("all")}
+                data-testid="admin-participate-clear-work-queue"
+              >
+                Show all
+              </button>
+            )}
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            {WORK_QUEUE_FILTERS.map((queue) => {
+              const active = workQueueFilter === queue.id;
+              return (
+                <button
+                  key={queue.id}
+                  type="button"
+                  onClick={() => setWorkQueueFilter(queue.id)}
+                  className={`min-h-[92px] rounded-2xl border px-4 py-3 text-left transition ${
+                    active
+                      ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                      : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                  }`}
+                  data-testid={`admin-participate-queue-${queue.id}`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-black">{queue.label}</span>
+                    <span className="text-2xl font-black leading-none">{workQueueCounts[queue.id]}</span>
+                  </span>
+                  <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{queue.description}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -1148,7 +1219,11 @@ export default function CuratedActivitiesAdminPage() {
         </section>
 
         <section className="mt-5 grid gap-4" data-testid="admin-participate-events">
-          {filteredEvents.map((event) => (
+          {filteredEvents.length === 0 ? (
+            <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65]">
+              No activities match this queue and filter combination.
+            </div>
+          ) : filteredEvents.map((event) => (
             <article key={event.eventKey} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
