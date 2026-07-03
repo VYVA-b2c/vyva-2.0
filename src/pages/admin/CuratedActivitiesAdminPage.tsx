@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, Download, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Upload } from "lucide-react";
+import { Bot, CheckCircle2, Download, ExternalLink, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -11,6 +11,8 @@ import type {
 
 type EventStatus = "active" | "draft" | "hidden" | "archived";
 type SafetyStatus = "approved" | "needs_review" | "hidden";
+type DiscoveryFormatPreference = ParticipationEventFormat | "any";
+type DiscoveryCandidate = AdminParticipationEvent & { selected: boolean };
 type ActivityRecord = Record<string, unknown>;
 
 type AdminParticipationActivity = {
@@ -31,6 +33,7 @@ type Filters = {
 
 const STATUS_OPTIONS: EventStatus[] = ["draft", "active", "hidden", "archived"];
 const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"];
+const DISCOVERY_FORMAT_OPTIONS: DiscoveryFormatPreference[] = ["nearby", "online", "hybrid", "any"];
 const SAFETY_OPTIONS: SafetyStatus[] = ["approved", "needs_review", "hidden"];
 const LANGUAGE_OPTIONS = ["en", "es", "de"];
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
@@ -342,7 +345,7 @@ function eventFromImportRow(row: ImportRow, index: number, fileName: string): Ad
     titleEn: limitImportText(fallbackTitle, 140),
     titleEs: limitImportText(importText(row, ["titleEs", "title_es", "spanishTitle", "titulo"]) || fallbackTitle, 140),
     titleDe: limitImportText(importText(row, ["titleDe", "title_de", "germanTitle"]) || fallbackTitle, 140),
-    summaryEn: limitImportText(importText(row, ["summaryEn", "summary", "shortDescription", "description"]) || "Curated activity selected by VYVA.", 260),
+    summaryEn: limitImportText(importText(row, ["summaryEn", "summary", "shortDescription", "description"]) || "What's On activity selected by VYVA.", 260),
     summaryEs: limitImportText(importText(row, ["summaryEs", "summary_es", "resumen"]) || importText(row, ["summaryEn", "summary"]) || "Actividad seleccionada por VYVA.", 260),
     summaryDe: limitImportText(importText(row, ["summaryDe", "summary_de"]) || importText(row, ["summaryEn", "summary"]) || "Von VYVA ausgewahlte Aktivitat.", 260),
     descriptionEn: limitImportText(importText(row, ["descriptionEn", "description_en", "details", "notes"]), 600),
@@ -416,6 +419,24 @@ function eventPayload(event: AdminParticipationEvent, includeKey: boolean) {
     metadata: event.metadata ?? {},
   };
   return payload;
+}
+
+function aiDraftPayload(candidate: AdminParticipationEvent) {
+  return {
+    ...eventPayload({
+      ...candidate,
+      status: "draft",
+      safetyStatus: "needs_review",
+      isCurated: true,
+      needsLiveCheck: true,
+      source: "ai-discovery",
+    }, true),
+    status: "draft",
+    safetyStatus: "needs_review",
+    isCurated: true,
+    needsLiveCheck: true,
+    source: "ai-discovery",
+  };
 }
 
 function Field({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
@@ -518,6 +539,13 @@ function safetyTone(status: string) {
   return "rose";
 }
 
+function discoveryEvidence(event: AdminParticipationEvent) {
+  const discovery = event.metadata?.discovery;
+  if (!discovery || typeof discovery !== "object") return "";
+  const evidence = (discovery as { evidence?: unknown }).evidence;
+  return typeof evidence === "string" ? evidence : "";
+}
+
 export default function CuratedActivitiesAdminPage() {
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [events, setEvents] = useState<AdminParticipationEvent[]>([]);
@@ -535,6 +563,17 @@ export default function CuratedActivitiesAdminPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [savingDiscovery, setSavingDiscovery] = useState(false);
+  const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
+  const [discoveryForm, setDiscoveryForm] = useState({
+    city: "Madrid",
+    countryCode: "ES",
+    interests: "music, walking, art",
+    languageCodes: "en, es, de",
+    format: "nearby" as DiscoveryFormatPreference,
+    maxResults: 6,
+  });
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/social/participate${path}`, options);
@@ -603,6 +642,7 @@ export default function CuratedActivitiesAdminPage() {
   const localCityCount = new Set(activeApproved.map(cityKey).filter(Boolean)).size;
   const interestedCount = events.reduce((sum, event) => sum + event.responseCounts.interested, 0);
   const checkRequestCount = events.reduce((sum, event) => sum + event.checkRequestCount, 0);
+  const selectedDiscoveryCount = discoveryCandidates.filter((candidate) => candidate.selected).length;
 
   const coverageRows = useMemo(() => {
     const map = new Map<string, { label: string; active: number; drafts: number; checks: number; interested: number }>();
@@ -625,6 +665,80 @@ export default function CuratedActivitiesAdminPage() {
 
   function updateEvent(eventKey: string, patch: Partial<AdminParticipationEvent>) {
     setEvents((current) => current.map((event) => event.eventKey === eventKey ? { ...event, ...patch } : event));
+  }
+
+  function updateDiscoveryCandidate(eventKey: string, patch: Partial<DiscoveryCandidate>) {
+    setDiscoveryCandidates((current) => (
+      current.map((candidate) => candidate.eventKey === eventKey ? { ...candidate, ...patch } : candidate)
+    ));
+  }
+
+  function updateDiscoveryEvidence(candidate: DiscoveryCandidate, evidence: string) {
+    const discovery = candidate.metadata?.discovery;
+    updateDiscoveryCandidate(candidate.eventKey, {
+      metadata: {
+        ...(candidate.metadata ?? {}),
+        discovery: {
+          ...(discovery && typeof discovery === "object" ? discovery : {}),
+          evidence,
+        },
+      },
+    });
+  }
+
+  async function discoverActivities() {
+    setDiscovering(true);
+    setMessage("");
+    try {
+      const body = {
+        city: cleanText(discoveryForm.city),
+        countryCode: normalizeCountry(discoveryForm.countryCode),
+        interests: textToList(discoveryForm.interests),
+        languageCodes: textToList(discoveryForm.languageCodes),
+        format: discoveryForm.format,
+        maxResults: discoveryForm.maxResults,
+      };
+      const data = await api("/discover", { method: "POST", body: JSON.stringify(body) });
+      const candidates = (data.candidates ?? []) as AdminParticipationEvent[];
+      const rejected = Array.isArray(data.rejected) ? data.rejected.length : 0;
+      setDiscoveryCandidates(candidates.map((candidate) => ({ ...candidate, selected: true })));
+      setMessage(rejected > 0
+        ? `${candidates.length} AI candidates ready for review. ${rejected} skipped because they were missing sources or required fields.`
+        : `${candidates.length} AI candidates ready for review.`);
+    } finally {
+      setDiscovering(false);
+    }
+  }
+
+  async function saveDiscoveryDrafts() {
+    const selected = discoveryCandidates.filter((candidate) => candidate.selected);
+    if (selected.length === 0) {
+      setMessage("Select at least one AI candidate to save as a draft.");
+      return;
+    }
+
+    setSavingDiscovery(true);
+    setMessage("");
+    try {
+      const saved: string[] = [];
+      const failed: string[] = [];
+      for (const candidate of selected) {
+        try {
+          await api("/events", { method: "POST", body: JSON.stringify(aiDraftPayload(candidate)) });
+          saved.push(candidate.eventKey);
+        } catch (error) {
+          failed.push(`${candidate.eventKey}: ${error instanceof Error ? error.message : "Could not save"}`);
+        }
+      }
+
+      setDiscoveryCandidates((current) => current.filter((candidate) => !saved.includes(candidate.eventKey)));
+      await refresh();
+      setMessage(failed.length > 0
+        ? `${saved.length} AI drafts saved. ${failed.length} need another look.`
+        : `${saved.length} AI drafts saved for review.`);
+    } finally {
+      setSavingDiscovery(false);
+    }
   }
 
   async function addEvent() {
@@ -680,8 +794,8 @@ export default function CuratedActivitiesAdminPage() {
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
-          title="Curated activities"
-          subtitle="Manage city coverage, publish status, and Concierge-checked activities shown in Activities."
+          title="What's On"
+          subtitle="Manage city coverage, publish status, and Concierge-checked activities shown in What's On."
         >
           <input
             ref={uploadInputRef}
@@ -715,7 +829,7 @@ export default function CuratedActivitiesAdminPage() {
           <button
             className="inline-flex items-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-60"
             onClick={() => refresh().catch((err) => setMessage(err.message))}
-            disabled={loading || importing}
+            disabled={loading || importing || discovering || savingDiscovery}
           >
             <RefreshCw size={16} />
             Refresh
@@ -741,6 +855,158 @@ export default function CuratedActivitiesAdminPage() {
           <div className="rounded-[1.5rem] border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-black text-purple-700"><Search size={16} /> Concierge checks</div>
             <p className="mt-2 text-3xl font-black">{checkRequestCount}</p>
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-serif text-3xl"><Bot size={24} /> AI discovery</h2>
+              <p className="mt-2 max-w-3xl text-sm text-[#7d6b65]">
+                Find public candidates for admin review. AI results stay in this preview until selected items are saved as drafts.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Pill tone="amber">Drafts only</Pill>
+              <Pill tone="amber">Review required</Pill>
+              <Pill tone="green">Sources required</Pill>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <Field label="City">
+              <input
+                data-testid="admin-discovery-city"
+                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
+                value={discoveryForm.city}
+                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, city: event.target.value }))}
+                placeholder="Madrid"
+              />
+            </Field>
+            <Field label="Country">
+              <TextInput value={discoveryForm.countryCode} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, countryCode: value }))} placeholder="ES" />
+            </Field>
+            <Field label="Interests">
+              <TextInput value={discoveryForm.interests} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, interests: value }))} placeholder="music, walking, art" />
+            </Field>
+            <Field label="Languages">
+              <TextInput value={discoveryForm.languageCodes} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, languageCodes: value }))} placeholder="en, es, de" />
+            </Field>
+            <Field label="Format">
+              <SelectInput value={discoveryForm.format} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, format: value }))} options={DISCOVERY_FORMAT_OPTIONS} />
+            </Field>
+            <Field label="Max results">
+              <input
+                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
+                type="number"
+                min={1}
+                max={12}
+                value={discoveryForm.maxResults}
+                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, maxResults: Number(event.target.value) || 1 }))}
+              />
+            </Field>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              data-testid="admin-discovery-find"
+              className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-60"
+              onClick={() => discoverActivities().catch((err) => setMessage(err.message))}
+              disabled={discovering || savingDiscovery}
+              type="button"
+            >
+              <Search size={17} />
+              {discovering ? "Finding..." : "Find activities"}
+            </button>
+            <button
+              data-testid="admin-discovery-save"
+              className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-purple-200 bg-white px-5 py-3 font-bold text-purple-800 disabled:opacity-60"
+              onClick={() => saveDiscoveryDrafts().catch((err) => setMessage(err.message))}
+              disabled={savingDiscovery || discovering || selectedDiscoveryCount === 0}
+              type="button"
+            >
+              <Save size={17} />
+              {savingDiscovery ? "Saving..." : `Save selected as drafts (${selectedDiscoveryCount})`}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-4" data-testid="admin-discovery-preview">
+            {discoveryCandidates.length === 0 ? (
+              <p className="rounded-2xl bg-[#f7f2eb] p-4 text-sm font-bold text-[#7d6b65]">No AI candidates in preview yet.</p>
+            ) : discoveryCandidates.map((candidate) => (
+              <article key={candidate.eventKey} className="rounded-2xl border border-[#eadfd5] bg-[#fffdf9] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-black text-[#2f2135]">{candidate.eventKey}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{candidate.titleEn}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                      <input
+                        type="checkbox"
+                        checked={candidate.selected}
+                        onChange={(event) => updateDiscoveryCandidate(candidate.eventKey, { selected: event.target.checked })}
+                      />
+                      Save
+                    </label>
+                    {candidate.sourceUrl && (
+                      <a
+                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700"
+                        href={candidate.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ExternalLink size={14} />
+                        Source link
+                      </a>
+                    )}
+                    <button
+                      className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
+                      onClick={() => setDiscoveryCandidates((current) => current.filter((item) => item.eventKey !== candidate.eventKey))}
+                      type="button"
+                    >
+                      <Trash2 size={14} />
+                      Discard
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <Field label="Event key">
+                    <TextInput value={candidate.eventKey} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { eventKey: value, id: value })} />
+                  </Field>
+                  <Field label="Title EN">
+                    <TextInput value={candidate.titleEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { titleEn: value })} />
+                  </Field>
+                  <Field label="City">
+                    <TextInput value={candidate.city ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { city: value })} />
+                  </Field>
+                  <Field label="Location">
+                    <TextInput value={candidate.locationLabel} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { locationLabel: value })} />
+                  </Field>
+                  <Field label="Time">
+                    <TextInput value={candidate.timeLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { timeLabelEn: value })} />
+                  </Field>
+                  <Field label="Cost">
+                    <TextInput value={candidate.costLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { costLabelEn: value })} />
+                  </Field>
+                  <Field label="Tags">
+                    <TextInput value={listToText(candidate.interestTags)} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { interestTags: textToList(value) })} />
+                  </Field>
+                  <Field label="Source URL">
+                    <TextInput value={candidate.sourceUrl ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { sourceUrl: value })} />
+                  </Field>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <Field label="Summary">
+                    <TextArea value={candidate.summaryEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { summaryEn: value })} />
+                  </Field>
+                  <Field label="Evidence">
+                    <TextArea value={discoveryEvidence(candidate)} onChange={(value) => updateDiscoveryEvidence(candidate, value)} />
+                  </Field>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 

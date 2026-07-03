@@ -11,7 +11,7 @@ const adminItems = [
   { label: "Home cards", path: "/admin/home-cards", description: "Personalized Today cards" },
   { label: "Hero messages", path: "/admin/hero-messages", description: "Banner copy and rules" },
   { label: "Learning library", path: "/admin/learning-library", description: "Daily lessons and interests" },
-  { label: "Curated activities", path: "/admin/curated-activities", description: "Upload and review activities" },
+  { label: "What's On", path: "/admin/curated-activities", description: "Upload and review activities" },
   { label: "Voice readiness", path: "/admin/voice-readiness", description: "Agent context contracts" },
   { label: "Supply packages", path: "/admin/concierge-supplies", description: "Concierge supplies and kits" },
   { label: "Caregivers", path: "/admin/proxy-pending", description: "Elder assignments and support" },
