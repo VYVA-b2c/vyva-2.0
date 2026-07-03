@@ -1,4 +1,4 @@
-import { Copy, Send, Upload, UserRound, UsersRound } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, History, Send, Upload, UserRound, UsersRound, XCircle } from "lucide-react";
 import { useEffect, useState, type ChangeEvent } from "react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -81,6 +81,11 @@ type AdminActionNotice = {
     busyKey?: string;
     onClick: () => void;
   };
+};
+
+type AdminActionLogEntry = Omit<AdminActionNotice, "secondaryAction"> & {
+  id: string;
+  createdAt: string;
 };
 
 type BulkUserAction = "disable" | "delete_hide" | "restore" | "assign_org" | "change_tier" | "resend_invite";
@@ -352,6 +357,104 @@ function SchemaHealthBanner({ health }: { health: SchemaHealth | null }) {
   );
 }
 
+function adminMessageTone(message: string): AdminActionNotice["tone"] {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("could not") || normalized.includes("failed") || normalized.includes("error")) return "error";
+  if (normalized.includes("no new") || normalized.includes("required") || normalized.includes("supported")) return "warning";
+  return "success";
+}
+
+function actionToneClasses(tone: AdminActionNotice["tone"]) {
+  if (tone === "success") return {
+    panel: "border-emerald-100 bg-emerald-50 text-emerald-950",
+    badge: "bg-emerald-100 text-emerald-800",
+    icon: "text-emerald-700",
+  };
+  if (tone === "warning") return {
+    panel: "border-amber-200 bg-amber-50 text-amber-950",
+    badge: "bg-amber-100 text-amber-800",
+    icon: "text-amber-700",
+  };
+  return {
+    panel: "border-red-200 bg-red-50 text-red-950",
+    badge: "bg-red-100 text-red-700",
+    icon: "text-red-700",
+  };
+}
+
+function ActionToneIcon({ tone, className = "" }: { tone: AdminActionNotice["tone"]; className?: string }) {
+  if (tone === "success") return <CheckCircle2 className={className} aria-hidden="true" />;
+  if (tone === "warning") return <AlertTriangle className={className} aria-hidden="true" />;
+  return <XCircle className={className} aria-hidden="true" />;
+}
+
+function AdminActionCenter({
+  message,
+  notices,
+  onDismissMessage,
+  onOpenNotice,
+  onClearHistory,
+}: {
+  message: string;
+  notices: AdminActionLogEntry[];
+  onDismissMessage: () => void;
+  onOpenNotice: (notice: AdminActionLogEntry) => void;
+  onClearHistory: () => void;
+}) {
+  if (!message && notices.length === 0) return null;
+  const messageTone = message ? adminMessageTone(message) : "success";
+  const messageClasses = actionToneClasses(messageTone);
+
+  return (
+    <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-3 shadow-sm" aria-label="Admin action feedback">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1 space-y-2">
+          {message && (
+            <div className={`flex items-start gap-3 rounded-xl border px-3 py-2 ${messageClasses.panel}`} role={messageTone === "error" ? "alert" : "status"} aria-live="polite">
+              <ActionToneIcon tone={messageTone} className={`mt-0.5 h-4 w-4 shrink-0 ${messageClasses.icon}`} />
+              <p className="min-w-0 flex-1 text-sm font-bold leading-relaxed">{message}</p>
+              <button type="button" className="text-xs font-black uppercase tracking-[0.06em] opacity-70 hover:opacity-100" onClick={onDismissMessage}>
+                Clear
+              </button>
+            </div>
+          )}
+          {notices.length > 0 && (
+            <div className="grid gap-2 xl:grid-cols-3">
+              {notices.slice(0, 3).map((notice) => {
+                const classes = actionToneClasses(notice.tone);
+                const time = new Date(notice.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                return (
+                  <button
+                    key={notice.id}
+                    type="button"
+                    className={`min-w-0 rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${classes.panel}`}
+                    onClick={() => onOpenNotice(notice)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[0.68rem] font-black uppercase tracking-[0.08em] ${classes.badge}`}>{notice.label}</span>
+                      <span className="text-xs font-bold opacity-70">{time}</span>
+                    </div>
+                    <p className="mt-1 truncate text-sm font-black">{notice.title}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {notices.length > 0 && (
+          <div className="flex shrink-0 items-center gap-2 rounded-xl bg-[#fbf8f5] px-3 py-2 text-[#5f514b]">
+            <History className="h-4 w-4" aria-hidden="true" />
+            <span className="text-xs font-black uppercase tracking-[0.08em]">{notices.length} recent</span>
+            <button type="button" className="text-xs font-black text-purple-700 hover:text-purple-900" onClick={onClearHistory}>
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 const lifecycleRequestFailedMessage = "Lifecycle request failed. Please refresh and try again.";
 
 function isHtmlErrorResponse(text: string) {
@@ -421,6 +524,7 @@ export default function LifecycleAdminPage() {
   const [sharingSignup, setSharingSignup] = useState(false);
   const [signupShareNotice, setSignupShareNotice] = useState<SignupShareNotice | null>(null);
   const [adminActionNotice, setAdminActionNotice] = useState<AdminActionNotice | null>(null);
+  const [adminActionHistory, setAdminActionHistory] = useState<AdminActionLogEntry[]>([]);
   const [copiedSignupLink, setCopiedSignupLink] = useState(false);
   const [newOrg, setNewOrg] = useState({ name: "", default_tier: "free" });
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
@@ -458,6 +562,18 @@ export default function LifecycleAdminPage() {
   function showActionReceipt(notice: AdminActionNotice) {
     setMessage("");
     setAdminActionNotice(notice);
+    const createdAt = new Date().toISOString();
+    setAdminActionHistory((current) => [
+      {
+        tone: notice.tone,
+        label: notice.label,
+        title: notice.title,
+        details: notice.details,
+        id: `${Date.now()}-${notice.label}`,
+        createdAt,
+      },
+      ...current,
+    ].slice(0, 5));
   }
 
   function viewCommunicationsAction() {
@@ -1965,12 +2081,19 @@ export default function LifecycleAdminPage() {
           subtitle="Users, forms, access."
         >
           <button className="rounded-xl bg-purple-700 px-4 py-2 text-sm font-bold text-white" onClick={() => refresh().catch((err) => setMessage(err.message))}>Refresh</button>
-          {message && <span className="rounded-xl bg-purple-50 px-3 py-2 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 
         <AdminMenu />
 
         <SchemaHealthBanner health={schemaHealth} />
+
+        <AdminActionCenter
+          message={message}
+          notices={adminActionHistory}
+          onDismissMessage={() => setMessage("")}
+          onOpenNotice={(notice) => setAdminActionNotice(notice)}
+          onClearHistory={() => setAdminActionHistory([])}
+        />
 
         <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {operationalCards.map((card) => {
