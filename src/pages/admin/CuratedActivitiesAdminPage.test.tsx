@@ -123,7 +123,10 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function renderPage(discovered: AdminParticipationEvent[] = [discoveryCandidate]) {
+function renderPage(
+  discovered: AdminParticipationEvent[] = [discoveryCandidate],
+  options: { patchError?: unknown } = {},
+) {
   let events = [madridEvent, onlineEvent].map((event) => ({ ...event }));
 
   apiFetchMock.mockImplementation((path, init) => {
@@ -164,6 +167,9 @@ function renderPage(discovered: AdminParticipationEvent[] = [discoveryCandidate]
     }
 
     if (typeof path === "string" && path.startsWith("/api/admin/social/participate/events/") && method === "PATCH") {
+      if (options.patchError) {
+        return Promise.resolve(jsonResponse(options.patchError, 400));
+      }
       const eventKey = path.split("/").pop() ?? "";
       const body = JSON.parse(String(init?.body ?? "{}"));
       events = events.map((event) => event.eventKey === eventKey ? { ...event, ...body } : event);
@@ -312,7 +318,26 @@ describe("CuratedActivitiesAdminPage", () => {
       expect(patch).toBeTruthy();
       expect(String(patch?.[1]?.body)).toContain("Barcelona");
     });
+    expect(await screen.findByTestId("admin-event-save-feedback-valencia-art-hour")).toHaveTextContent("valencia-art-hour saved.");
   }, 15_000);
+
+  it("shows event save errors next to the clicked event", async () => {
+    renderPage([discoveryCandidate], {
+      patchError: {
+        error: {
+          formErrors: [],
+          fieldErrors: {
+            sourceUrl: ["Invalid url"],
+          },
+        },
+      },
+    });
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole("button", { name: /Save event/ })[0]);
+
+    expect(await screen.findByTestId("admin-event-save-feedback-madrid-garden-walk")).toHaveTextContent("sourceUrl: Invalid url");
+  });
 
   it("imports uploaded activities through the existing admin event endpoint", async () => {
     renderPage();

@@ -14,6 +14,10 @@ type EventStatus = "active" | "draft" | "hidden" | "archived";
 type SafetyStatus = "approved" | "needs_review" | "hidden";
 type DiscoveryFormatPreference = ParticipationEventFormat | "any";
 type DiscoveryCandidate = AdminParticipationEvent & { previewId: string; selected: boolean };
+type EventSaveFeedback = {
+  tone: "green" | "rose";
+  message: string;
+};
 type DiscoveryFormState = {
   city: string;
   countryCode: string;
@@ -484,6 +488,31 @@ function eventPayload(event: AdminParticipationEvent, includeKey: boolean) {
   return payload;
 }
 
+function adminErrorMessage(data: unknown, fallback: string) {
+  if (!data || typeof data !== "object") return fallback;
+  const body = data as { error?: unknown; message?: unknown };
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+
+  if (body.error && typeof body.error === "object") {
+    const error = body.error as { fieldErrors?: unknown; formErrors?: unknown };
+    const messages: string[] = [];
+    if (Array.isArray(error.formErrors)) {
+      messages.push(...error.formErrors.map(String).filter(Boolean));
+    }
+    if (error.fieldErrors && typeof error.fieldErrors === "object") {
+      for (const [field, fieldErrors] of Object.entries(error.fieldErrors)) {
+        if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+          messages.push(`${field}: ${fieldErrors.map(String).join(", ")}`);
+        }
+      }
+    }
+    if (messages.length > 0) return messages.join(" ");
+  }
+
+  return fallback;
+}
+
 function aiDraftPayload(candidate: AdminParticipationEvent) {
   return {
     ...eventPayload({
@@ -656,6 +685,8 @@ export default function CuratedActivitiesAdminPage() {
   const [importing, setImporting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
+  const [savingEventKey, setSavingEventKey] = useState<string | null>(null);
+  const [eventSaveFeedback, setEventSaveFeedback] = useState<Record<string, EventSaveFeedback>>({});
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
   const [expandedDiscoveryId, setExpandedDiscoveryId] = useState<string | null>(null);
   const [discoveryForm, setDiscoveryForm] = useState<DiscoveryFormState>({
@@ -672,7 +703,7 @@ export default function CuratedActivitiesAdminPage() {
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/social/participate${path}`, options);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Admin request failed");
+    if (!res.ok) throw new Error(adminErrorMessage(data, "Admin request failed"));
     return data;
   }
 
@@ -900,10 +931,34 @@ export default function CuratedActivitiesAdminPage() {
   }
 
   async function saveEvent(event: AdminParticipationEvent) {
+    const eventKey = event.eventKey;
+    setSavingEventKey(eventKey);
+    setMessage("");
+    setEventSaveFeedback((current) => {
+      const next = { ...current };
+      delete next[eventKey];
+      return next;
+    });
     const body = eventPayload(event, false);
-    await api(`/events/${event.eventKey}`, { method: "PATCH", body: JSON.stringify(body) });
-    await refresh();
-    setMessage(`${event.eventKey} saved.`);
+    try {
+      await api(`/events/${eventKey}`, { method: "PATCH", body: JSON.stringify(body) });
+      await refresh();
+      const nextMessage = `${eventKey} saved.`;
+      setMessage(nextMessage);
+      setEventSaveFeedback((current) => ({
+        ...current,
+        [eventKey]: { tone: "green", message: nextMessage },
+      }));
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Could not save event.";
+      setMessage(nextMessage);
+      setEventSaveFeedback((current) => ({
+        ...current,
+        [eventKey]: { tone: "rose", message: nextMessage },
+      }));
+    } finally {
+      setSavingEventKey(null);
+    }
   }
 
   async function importEvents(file: File) {
@@ -1500,7 +1555,10 @@ export default function CuratedActivitiesAdminPage() {
         </section>
 
         <section className="mt-5 grid gap-4" data-testid="admin-participate-events">
-          {filteredEvents.map((event) => (
+          {filteredEvents.map((event) => {
+            const saveFeedback = eventSaveFeedback[event.eventKey];
+            const isSavingEvent = savingEventKey === event.eventKey;
+            return (
             <article key={event.eventKey} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1597,16 +1655,34 @@ export default function CuratedActivitiesAdminPage() {
                   <Pill tone="rose">{event.responseCounts.not_for_me} not for me</Pill>
                   <Pill tone="plain">{event.checkRequestCount} checks</Pill>
                 </div>
-                <button
-                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white"
-                  onClick={() => saveEvent(event).catch((err) => setMessage(err.message))}
-                >
-                  <Save size={17} />
-                  Save event
-                </button>
+                <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                  {saveFeedback && (
+                    <p
+                      className={`max-w-sm rounded-2xl px-4 py-2 text-sm font-bold ${
+                        saveFeedback.tone === "green"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-rose-50 text-rose-700"
+                      }`}
+                      data-testid={`admin-event-save-feedback-${event.eventKey}`}
+                      role="status"
+                    >
+                      {saveFeedback.message}
+                    </p>
+                  )}
+                  <button
+                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-60"
+                    disabled={savingEventKey !== null}
+                    onClick={() => void saveEvent(event)}
+                    type="button"
+                  >
+                    <Save size={17} />
+                    {isSavingEvent ? "Saving..." : "Save event"}
+                  </button>
+                </div>
               </div>
             </article>
-          ))}
+            );
+          })}
         </section>
 
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
