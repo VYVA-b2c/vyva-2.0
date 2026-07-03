@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, MessageCircle, Mic } from "lucide-react";
+import vyvaLogo from "@/assets/vyva-logo.png";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import {
   type VoiceConnectionErrorCode,
@@ -28,6 +29,8 @@ type VyvaSessionCtaProps = {
   testId?: string;
   className?: string;
   iconClassName?: string;
+  supportingLabel?: string;
+  visual?: "default" | "voiceRail";
 };
 
 type VoiceControls = {
@@ -107,6 +110,8 @@ export function VyvaSessionCta({
   testId,
   className,
   iconClassName,
+  supportingLabel,
+  visual = "default",
 }: VyvaSessionCtaProps) {
   const voice = useVyvaVoice() as VoiceControls;
   const {
@@ -218,6 +223,15 @@ export function VyvaSessionCta({
   });
 
   const Icon = isPreparing ? Loader2 : isActive || isConnecting ? MessageCircle : Mic;
+  const isVoiceRail = visual === "voiceRail";
+  const railSupportingLabel = isPreparing
+    ? preparingLabel ?? "Checking voice"
+    : isConnecting
+      ? connectingLabel ?? "Opening voice"
+      : voiceSessionPhase === "error"
+        ? errorLabel ?? "Tap for help"
+        : supportingLabel ?? "Speak anytime";
+  const accessibleLabel = isVoiceRail ? `${statusLabel}. ${railSupportingLabel}` : statusLabel;
 
   return (
     <>
@@ -245,15 +259,43 @@ export function VyvaSessionCta({
           onClick={handleClick}
           disabled={isButtonDisabled}
           data-testid={testId}
-          aria-label={statusLabel}
+          aria-label={accessibleLabel}
           className={className}
         >
-          <Icon
-            size={18}
-            className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
-            aria-hidden="true"
-          />
-          {statusLabel}
+          {isVoiceRail ? (
+            <>
+              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white shadow-[0_8px_20px_rgba(107,33,168,0.14)]">
+                <img src={vyvaLogo} alt="" className="h-10 w-10 rounded-full object-cover" aria-hidden="true" />
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-[#14B8A6] shadow-sm">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                </span>
+              </span>
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block truncate font-body text-[18px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[19px]">
+                  {statusLabel}
+                </span>
+                <span className="mt-0.5 block truncate font-body text-[12px] font-extrabold leading-tight text-[#7A6A5D] min-[390px]:text-[13px]">
+                  {railSupportingLabel}
+                </span>
+              </span>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_8px_18px_rgba(107,33,168,0.22)]">
+                <Icon
+                  size={20}
+                  className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
+                  aria-hidden="true"
+                />
+              </span>
+            </>
+          ) : (
+            <>
+              <Icon
+                size={18}
+                className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
+                aria-hidden="true"
+              />
+              {statusLabel}
+            </>
+          )}
         </button>
       )}
     </>

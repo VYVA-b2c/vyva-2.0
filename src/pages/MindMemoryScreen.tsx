@@ -119,6 +119,7 @@ export default function MindMemoryScreen() {
         action: {
           kind: "voice",
           label: t("mindMemory.heroAction", "Talk to VYVA"),
+          supportingLabel: t("mindMemory.voiceSupport", "Speak anytime"),
           contextHint: t("mindMemory.voiceContext", "Mind and memory support. Ask about memory, mood, confusion, focus, sleep, and safe next steps."),
           voiceAgentSlug: "brain-coach",
           voiceDynamicVariables: { app_entrypoint: "mind_memory_master_hero" },

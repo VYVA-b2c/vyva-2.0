@@ -3336,6 +3336,7 @@ const ConciergeScreen = () => {
         action: {
           kind: "voice",
           label: t("concierge.master.heroAction", "Talk to VYVA"),
+          supportingLabel: t("concierge.master.voiceSupport", "Speak anytime"),
           contextHint: t("concierge.master.voiceContext", "Concierge support. Ask what the user needs, compare options, and do not book or submit anything without confirmation."),
           voiceAgentSlug: "concierge",
           voiceDynamicVariables: { app_entrypoint: "concierge_master_hero" },

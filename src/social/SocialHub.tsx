@@ -774,6 +774,7 @@ const SocialHub = () => {
           action: {
             kind: "voice",
             label: t("community.master.heroAction", "Talk to VYVA"),
+            supportingLabel: t("community.master.voiceSupport", "Speak anytime"),
             contextHint: t("community.master.voiceContext", "Community support. Help the user join a room, find a match, share a memory, or choose a gentle activity."),
             voiceAgentSlug: "community",
             voiceDynamicVariables: { app_entrypoint: "community_master_hero" },

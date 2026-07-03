@@ -26,6 +26,7 @@ type MasterAction = {
   autoStartListening?: boolean;
   canStartVoice?: () => boolean;
   hideWhenSessionActive?: boolean;
+  supportingLabel?: string;
 };
 
 export type MasterDashboardCard = {
@@ -191,7 +192,9 @@ export default function MasterDashboardLayout({
             hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
             disabled={hero.action.disabled}
             testId={hero.action.testId}
-            className="vyva-tap mt-6 flex !min-h-[58px] w-full items-center justify-center gap-2.5 rounded-full bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(109,40,217,0.18)] disabled:cursor-wait disabled:opacity-70 min-[390px]:!min-h-[62px] min-[390px]:text-[19px]"
+            supportingLabel={hero.action.supportingLabel}
+            visual="voiceRail"
+            className="vyva-tap mt-6 flex !min-h-[70px] w-full items-center gap-3 rounded-[24px] border border-[#E8DDF3] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF8F0_48%,#F7F1FF_100%)] px-3.5 text-left shadow-[0_14px_30px_rgba(89,53,24,0.10)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[74px] min-[390px]:gap-4 min-[390px]:px-4"
           />
         ) : (
           <button
@@ -199,7 +202,7 @@ export default function MasterDashboardLayout({
             onClick={hero.action.onClick}
             disabled={hero.action.disabled}
             data-testid={hero.action.testId}
-            className="vyva-tap mt-6 flex !min-h-[58px] w-full items-center justify-center gap-2.5 rounded-full bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(109,40,217,0.18)] disabled:cursor-wait disabled:opacity-70 min-[390px]:!min-h-[62px] min-[390px]:text-[19px]"
+            className="vyva-tap mt-6 flex !min-h-[70px] w-full items-center justify-center gap-2.5 rounded-[24px] border border-[#E8DDF3] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF8F0_48%,#F7F1FF_100%)] px-5 font-body text-[18px] font-black text-vyva-text-1 shadow-[0_14px_30px_rgba(89,53,24,0.10)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[74px] min-[390px]:text-[19px]"
           >
             {hero.action.isLoading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
             {hero.action.label}

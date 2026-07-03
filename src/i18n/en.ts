@@ -447,6 +447,7 @@ const en = {
       heroEyebrow: "Health Plan",
       heroTitle: "Health Plan Ready",
       talkToVyva: "Talk to VYVA",
+      voiceSupport: "Speak anytime",
       pauseVyva: "Pause VYVA",
       connectingVyva: "Connecting...",
       cards: {
@@ -1724,6 +1725,7 @@ const en = {
   home: {
     master: {
       heroEyebrow: "Today",
+      voiceSupport: "Speak anytime",
       cards: {
         health: "My Health",
         healthDetail: "Medication, vitals, symptoms",
@@ -1792,6 +1794,7 @@ const en = {
     heroEyebrow: "Mind & Memory",
     heroTitle: "Mind check ready",
     heroAction: "Talk to VYVA",
+    voiceSupport: "Speak anytime",
     fastHelpTitle: "Fast help",
     cards: {
       strengthenMemory: "Strengthen Memory",
@@ -1823,6 +1826,7 @@ const en = {
       heroEyebrow: "Community",
       heroTitle: "Community ready",
       heroAction: "Talk to VYVA",
+      voiceSupport: "Speak anytime",
       fastHelpTitle: "Fast help",
       cards: {
         match: "Make Friends",
@@ -1855,6 +1859,7 @@ const en = {
       heroEyebrow: "Concierge",
       heroTitle: "Concierge ready",
       heroAction: "Talk to VYVA",
+      voiceSupport: "Speak anytime",
       cards: {
         homeCare: "Home Care",
         homeCareDetail: "Plumber, electrician, cleaning",

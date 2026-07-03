@@ -125,4 +125,19 @@ describe("VyvaSessionCta", () => {
     expect(screen.queryByTestId("button-session")).not.toBeInTheDocument();
     expect(voiceState.startVoice).not.toHaveBeenCalled();
   });
+
+  it("renders the warm anytime voice rail when requested", () => {
+    render(
+      <VyvaSessionCta
+        label="Talk to VYVA"
+        supportingLabel="Speak anytime"
+        visual="voiceRail"
+        testId="button-session"
+      />,
+    );
+
+    expect(screen.getByTestId("button-session")).toHaveAccessibleName("Talk to VYVA. Speak anytime");
+    expect(screen.getByTestId("button-session")).toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-session")).toHaveTextContent("Speak anytime");
+  });
 });

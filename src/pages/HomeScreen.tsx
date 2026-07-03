@@ -713,6 +713,7 @@ const HomeScreen = () => {
         action: {
           kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
+          supportingLabel: t("home.master.voiceSupport", "Speak anytime"),
           contextHint: t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step."),
           voiceAgentSlug: "main-vyva",
           voiceDynamicVariables: { app_entrypoint: "home_master_hero" },
