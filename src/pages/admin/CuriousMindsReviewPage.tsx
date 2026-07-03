@@ -3,9 +3,11 @@ import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 
 type ReviewMode = "hooks" | "prompts" | "scent";
+type ReviewQueueFilter = "all" | "ready" | "needs_checks" | "edited" | "missing_text";
 
 type DraftRow = {
   id: string;
@@ -37,6 +39,13 @@ const SCENT_ONLY_CHECKS = ["lowDistressScent", "openMemoryQuestion"] as const;
 const HOOK_FIELDS = ["fact_prompt", "fact_answer"] as const;
 const PROMPT_FIELDS = ["prompt_text", "topic"] as const;
 const SCENT_FIELDS = ["scent_name", "scent_description", "guiding_question"] as const;
+const REVIEW_QUEUE_FILTERS: Array<{ id: ReviewQueueFilter; label: string; description: string }> = [
+  { id: "all", label: "All drafts", description: "Everything pending" },
+  { id: "ready", label: "Ready", description: "Checklist complete" },
+  { id: "needs_checks", label: "Needs checklist", description: "Text present, checks open" },
+  { id: "edited", label: "Edited", description: "Changed in review" },
+  { id: "missing_text", label: "Missing text", description: "Required fields empty" },
+];
 
 export default function CuriousMindsReviewPage() {
   const { user } = useAuth();
@@ -45,6 +54,7 @@ export default function CuriousMindsReviewPage() {
   const [items, setItems] = useState<DraftRow[]>([]);
   const [draftsById, setDraftsById] = useState<Record<string, Record<string, string>>>({});
   const [checksById, setChecksById] = useState<Record<string, Record<string, boolean>>>({});
+  const [reviewQueueFilter, setReviewQueueFilter] = useState<ReviewQueueFilter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -70,11 +80,11 @@ export default function CuriousMindsReviewPage() {
     };
   }, [mode, t]);
 
-  const visibleChecklist = mode === "hooks"
-    ? CHECKLIST
-    : mode === "prompts"
-      ? [...CHECKLIST, ...PROMPT_ONLY_CHECKS]
-      : [...CHECKLIST, ...SCENT_ONLY_CHECKS];
+  const visibleChecklist = useMemo(() => {
+    if (mode === "hooks") return [...CHECKLIST];
+    if (mode === "prompts") return [...CHECKLIST, ...PROMPT_ONLY_CHECKS];
+    return [...CHECKLIST, ...SCENT_ONLY_CHECKS];
+  }, [mode]);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -127,7 +137,36 @@ export default function CuriousMindsReviewPage() {
     }));
   };
 
-  const allChecksPassed = (id: string) => visibleChecklist.every((check) => checksById[id]?.[check]);
+  const allChecksPassed = useCallback(
+    (id: string) => visibleChecklist.every((check) => checksById[id]?.[check]),
+    [checksById, visibleChecklist],
+  );
+  const requiredFieldsComplete = useCallback(
+    (item: DraftRow) => config.fields.every((field) => (draftsById[item.id]?.[field] ?? "").trim().length > 0),
+    [config.fields, draftsById],
+  );
+  const draftWasEdited = useCallback(
+    (item: DraftRow) => config.fields.some((field) => (draftsById[item.id]?.[field] ?? "") !== String(item[field] ?? "")),
+    [config.fields, draftsById],
+  );
+  const matchesReviewQueue = useCallback((item: DraftRow, filter: ReviewQueueFilter) => {
+    if (filter === "all") return true;
+    if (filter === "ready") return requiredFieldsComplete(item) && allChecksPassed(item.id);
+    if (filter === "needs_checks") return requiredFieldsComplete(item) && !allChecksPassed(item.id);
+    if (filter === "edited") return draftWasEdited(item);
+    return !requiredFieldsComplete(item);
+  }, [allChecksPassed, draftWasEdited, requiredFieldsComplete]);
+  const visibleItems = useMemo(
+    () => items.filter((item) => matchesReviewQueue(item, reviewQueueFilter)),
+    [items, matchesReviewQueue, reviewQueueFilter],
+  );
+  const reviewQueueCounts = useMemo<Record<ReviewQueueFilter, number>>(() => ({
+    all: items.length,
+    ready: items.filter((item) => matchesReviewQueue(item, "ready")).length,
+    needs_checks: items.filter((item) => matchesReviewQueue(item, "needs_checks")).length,
+    edited: items.filter((item) => matchesReviewQueue(item, "edited")).length,
+    missing_text: items.filter((item) => matchesReviewQueue(item, "missing_text")).length,
+  }), [items, matchesReviewQueue]);
 
   const approveItem = async (item: DraftRow) => {
     if (!allChecksPassed(item.id)) return;
@@ -173,6 +212,7 @@ export default function CuriousMindsReviewPage() {
           title={t("games.curiousMinds.admin.title", "Content review")}
           subtitle={t("games.curiousMinds.admin.subtitle", "Approve, edit, or reject Curious Minds draft content before it reaches members.")}
         />
+        <AdminMenu />
 
         <section className="mt-5 rounded-3xl border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -226,15 +266,66 @@ export default function CuriousMindsReviewPage() {
           </p>
         ) : null}
 
+        {!loading && items.length > 0 ? (
+          <section className="mt-5 rounded-3xl border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="curious-review-queue">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="font-serif text-3xl">Review queue</h2>
+                <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                  Showing {visibleItems.length} of {items.length} drafts.
+                </p>
+              </div>
+              {reviewQueueFilter !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => setReviewQueueFilter("all")}
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800"
+                  data-testid="curious-review-clear-queue"
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+              {REVIEW_QUEUE_FILTERS.map((queue) => {
+                const active = reviewQueueFilter === queue.id;
+                return (
+                  <button
+                    key={queue.id}
+                    type="button"
+                    onClick={() => setReviewQueueFilter(queue.id)}
+                    className={`min-h-[92px] rounded-2xl border px-4 py-3 text-left transition ${
+                      active
+                        ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                        : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                    }`}
+                    data-testid={`curious-review-queue-${queue.id}`}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-black">{queue.label}</span>
+                      <span className="text-2xl font-black leading-none">{reviewQueueCounts[queue.id]}</span>
+                    </span>
+                    <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{queue.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
         {!loading && items.length === 0 ? (
           <p className="mt-5 rounded-3xl border border-[#eadfd5] bg-white p-5 text-sm font-bold text-[#7d6b65]">
             {t("games.curiousMinds.admin.empty", "No pending drafts.")}
           </p>
         ) : null}
 
-        <div className="mt-5 grid gap-4">
-          {items.map((item) => (
-            <article key={item.id} className="rounded-3xl border border-[#eadfd5] bg-white p-5 shadow-sm">
+        <div className="mt-5 grid gap-4" data-testid="curious-review-list">
+          {!loading && items.length > 0 && visibleItems.length === 0 ? (
+            <div className="rounded-3xl border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65]">
+              No drafts match this review queue.
+            </div>
+          ) : visibleItems.map((item) => (
+            <article key={item.id} className="rounded-3xl border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid={`curious-review-card-${item.id}`}>
               <div className="flex flex-wrap gap-2">
                 <span className="rounded-full bg-[#F3E8FF] px-3 py-1 text-xs font-black text-purple-700">{item.language}</span>
                 <span className="rounded-full bg-[#FFF7ED] px-3 py-1 text-xs font-black text-[#92400E]">
