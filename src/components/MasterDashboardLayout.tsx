@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, Loader2, Mic, type LucideIcon } from "lucide-react";
+import VyvaSessionCta from "@/components/VyvaSessionCta";
 
 type MasterTone = {
   iconBg: string;
@@ -9,11 +10,22 @@ type MasterTone = {
 };
 
 type MasterAction = {
+  kind?: "button" | "voice";
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
   testId?: string;
   disabled?: boolean;
   isLoading?: boolean;
+  activeLabel?: string;
+  connectingLabel?: string;
+  preparingLabel?: string;
+  errorLabel?: string;
+  contextHint?: string;
+  voiceAgentSlug?: string;
+  voiceDynamicVariables?: Record<string, string | number | boolean>;
+  autoStartListening?: boolean;
+  canStartVoice?: () => boolean;
+  hideWhenSessionActive?: boolean;
 };
 
 export type MasterDashboardCard = {
@@ -25,6 +37,7 @@ export type MasterDashboardCard = {
   onClick: () => void;
   testId?: string;
   accent?: string;
+  chips?: string[];
 };
 
 export type MasterFastHelpAction = {
@@ -137,46 +150,65 @@ export default function MasterDashboardLayout({
   }, [fastHelpRotationMs, isFastHelpPaused, prefersReducedMotion, rotatingFastHelpActions.length, rotatingSlots]);
 
   return (
-    <div className="vyva-page pb-32 sm:pb-12" data-testid={testId}>
+    <div className="vyva-page px-4 pb-7 min-[390px]:px-[22px] sm:pb-10" data-testid={testId}>
       <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
-        className="mt-4 overflow-hidden rounded-[26px] border bg-white p-4 shadow-[0_16px_36px_rgba(31,41,55,0.07)] sm:rounded-[30px] sm:p-5"
+        className="mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6"
         style={{ borderColor: heroTone.border, background: heroTone.surface ?? "#FFFFFF" }}
         data-testid={hero.testId}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-4 min-[390px]:gap-5">
           <span
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[19px] min-[390px]:h-[60px] min-[390px]:w-[60px] min-[390px]:rounded-[21px]"
             style={{ background: heroTone.iconBg, color: heroTone.iconColor }}
           >
-            <HeroIcon size={23} strokeWidth={2.5} aria-hidden="true" />
+            <HeroIcon size={29} strokeWidth={2.55} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <h1 className="font-body text-[30px] font-black leading-[1.05] text-vyva-text-1 sm:text-[36px]">
+            <h1 className="text-balance font-body text-[29px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[34px] sm:text-[40px]">
               {hero.title}
             </h1>
             {hero.subtitle ? (
-              <p className="mt-1 line-clamp-1 font-body text-[15px] font-extrabold leading-snug text-[#0F4C45]">
+              <p className="mt-2 line-clamp-1 font-body text-[15px] font-extrabold leading-snug text-[#0F4C45] min-[390px]:text-[16px]">
                 {hero.subtitle}
               </p>
             ) : null}
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={hero.action.onClick}
-          disabled={hero.action.disabled}
-          data-testid={hero.action.testId}
-          className="vyva-tap mt-4 flex min-h-[56px] w-full items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_24px_rgba(109,40,217,0.18)] disabled:cursor-wait disabled:opacity-70"
-        >
-          {hero.action.isLoading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
-          {hero.action.label}
-        </button>
+        {hero.action.kind === "voice" ? (
+          <VyvaSessionCta
+            label={hero.action.label}
+            activeLabel={hero.action.activeLabel}
+            connectingLabel={hero.action.connectingLabel}
+            preparingLabel={hero.action.preparingLabel}
+            errorLabel={hero.action.errorLabel}
+            contextHint={hero.action.contextHint}
+            voiceAgentSlug={hero.action.voiceAgentSlug}
+            voiceDynamicVariables={hero.action.voiceDynamicVariables}
+            autoStartListening={hero.action.autoStartListening}
+            canStartVoice={hero.action.canStartVoice}
+            hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
+            disabled={hero.action.disabled}
+            testId={hero.action.testId}
+            className="vyva-tap mt-6 flex !min-h-[58px] w-full items-center justify-center gap-2.5 rounded-full bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(109,40,217,0.18)] disabled:cursor-wait disabled:opacity-70 min-[390px]:!min-h-[62px] min-[390px]:text-[19px]"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={hero.action.onClick}
+            disabled={hero.action.disabled}
+            data-testid={hero.action.testId}
+            className="vyva-tap mt-6 flex !min-h-[58px] w-full items-center justify-center gap-2.5 rounded-full bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(109,40,217,0.18)] disabled:cursor-wait disabled:opacity-70 min-[390px]:!min-h-[62px] min-[390px]:text-[19px]"
+          >
+            {hero.action.isLoading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
+            {hero.action.label}
+          </button>
+        )}
       </section>
 
       <section className="mt-4" data-testid={cardGridTestId}>
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 gap-3 min-[390px]:gap-3.5 sm:gap-4">
           {cards.slice(0, 4).map((card) => {
             const Icon = card.icon;
             const cardAriaLabel = card.detail ? `${card.title}. ${card.detail}` : card.title;
@@ -187,29 +219,42 @@ export default function MasterDashboardLayout({
                 onClick={card.onClick}
                 data-testid={card.testId}
                 aria-label={cardAriaLabel}
-                className="vyva-tap group flex min-h-[92px] flex-col items-start justify-between rounded-[20px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(31,41,55,0.05)] transition-transform hover:-translate-y-0.5 sm:min-h-[104px] sm:p-4"
+                className="vyva-tap group flex min-h-[126px] flex-col items-start justify-between rounded-[18px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[138px] min-[390px]:rounded-[20px] min-[390px]:p-3.5 sm:min-h-[148px] sm:p-4"
                 style={{ borderColor: card.tone.border, background: card.tone.surface ?? "#FFFFFF" }}
               >
                 <span className="flex w-full items-start justify-between gap-2">
                   <span
-                    className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px]"
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] min-[390px]:h-12 min-[390px]:w-12 min-[390px]:rounded-[17px]"
                     style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
                   >
-                    <Icon size={21} strokeWidth={2.5} aria-hidden="true" />
+                    <Icon size={24} strokeWidth={2.55} aria-hidden="true" />
                   </span>
                   {card.accent ? (
                     <span
-                      className="min-w-0 max-w-[76px] rounded-full px-1.5 py-1 text-center font-body text-[10px] font-black leading-none sm:max-w-[92px] sm:px-2 sm:text-[11px]"
+                      className="min-w-0 max-w-[92px] truncate rounded-full px-2 py-1.5 text-center font-body text-[11px] font-black leading-none sm:max-w-[108px] sm:text-[12px]"
                       style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
                     >
                       {card.accent}
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-3 min-w-0 pr-1">
-                  <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                <span className="mt-5 min-w-0 pr-1">
+                  <span className="block font-body text-[18px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[20px]">
                     {card.title}
                   </span>
+                  {card.chips?.length ? (
+                    <span className="mt-2 flex flex-wrap gap-1">
+                      {card.chips.slice(0, 3).map((chip) => (
+                        <span
+                          key={chip}
+                          className="rounded-full px-1.5 py-0.5 font-body text-[9px] font-black leading-none min-[390px]:px-2 min-[390px]:text-[10px]"
+                          style={{ background: "#F4EFE7", color: "#7A6A5D" }}
+                        >
+                          {chip}
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             );
@@ -218,7 +263,7 @@ export default function MasterDashboardLayout({
       </section>
 
       <section
-        className="mt-4 rounded-[22px] border border-[#E6E0F4] bg-white p-3 shadow-[0_10px_24px_rgba(31,41,55,0.04)]"
+        className="mt-4 rounded-[24px] border border-[#E6E0F4] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] min-[390px]:rounded-[26px] min-[390px]:p-4"
         data-testid={fastHelpTestId}
         onMouseEnter={() => setFastHelpPaused(true)}
         onMouseLeave={() => setFastHelpPaused(false)}
@@ -230,10 +275,10 @@ export default function MasterDashboardLayout({
           }
         }}
       >
-        <h2 className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
+        <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">
           {fastHelpTitle}
         </h2>
-        <div className="mt-3 grid gap-2">
+        <div className="mt-3 grid gap-2.5 min-[390px]:gap-3">
           {visibleFastHelpActions.map((action) => {
             const Icon = action.icon;
             const actionAriaLabel = action.detail ? `${action.label}. ${action.detail}` : action.label;
@@ -246,24 +291,24 @@ export default function MasterDashboardLayout({
                 aria-label={actionAriaLabel}
                 aria-expanded={action.expanded}
                 aria-controls={action.controls}
-                className="vyva-tap flex min-h-[56px] items-center gap-3 rounded-[17px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5"
+                className="vyva-tap flex !min-h-[66px] items-center gap-3 rounded-[18px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 min-[390px]:!min-h-[72px] min-[390px]:gap-4 min-[390px]:rounded-[20px] min-[390px]:px-4"
                 style={{ borderColor: action.tone.border }}
               >
                 <span
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px]"
+                  className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] min-[390px]:h-[54px] min-[390px]:w-[54px] min-[390px]:rounded-[19px]"
                   style={{ background: action.tone.iconBg, color: action.tone.iconColor }}
                 >
-                  <Icon size={19} strokeWidth={2.45} aria-hidden="true" />
+                  <Icon size={24} strokeWidth={2.45} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">
+                  <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
                     {action.label}
                   </span>
-                  <span className="mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-vyva-text-2">
+                  <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
                     {action.detail}
                   </span>
                 </span>
-                <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-vyva-text-3" aria-hidden="true" />
+                <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-vyva-text-3" aria-hidden="true" />
               </button>
             );
           })}

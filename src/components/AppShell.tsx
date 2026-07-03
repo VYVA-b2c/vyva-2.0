@@ -137,6 +137,10 @@ type VoiceSessionDockProps = {
   onOpen: () => void;
 };
 
+function voiceDockPhaseLabel(phase: VoiceSessionPhase) {
+  return phase === "speaking" ? "Speaking" : voiceSessionPhaseLabel(phase);
+}
+
 const VoiceSessionDock = ({
   isSpeaking,
   isConnecting,
@@ -153,9 +157,9 @@ const VoiceSessionDock = ({
   const label = isConnecting
     ? "Connecting"
     : voiceSessionPhase
-      ? voiceSessionPhaseLabel(voiceSessionPhase)
+      ? voiceDockPhaseLabel(voiceSessionPhase)
       : isSpeaking
-        ? "VYVA speaking"
+        ? "Speaking"
         : "Listening";
 
   return (
@@ -588,7 +592,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         className={`relative w-full ${shellMaxWidthClassName}`}
       >
         {!isFullScreen && <StatusBar wide={isWideRoute || isVitalsRoute} />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[76px] pb-[128px] lg:pb-10" : "pt-[76px] pb-[128px]"}`}>
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
           {showInlineVoiceAction && activeVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard

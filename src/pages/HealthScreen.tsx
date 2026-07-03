@@ -2880,11 +2880,10 @@ const HealthScreen = () => {
         border: "#FECACA",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to check safety signs and next steps");
-        guardPath("/health/symptom-check");
+        sendDoctorUserMessage("Help me understand safety signs and when to get help");
+        guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
       },
       testId: "button-health-fast-safety-signs",
-      pinned: true,
     },
     {
       id: "explain-plan",
@@ -2897,7 +2896,7 @@ const HealthScreen = () => {
         border: "#DDD6FE",
       },
       onClick: () => {
-        sendDoctorUserMessage("Please explain my health plan for today");
+        sendDoctorUserMessage("Explain my health plan for today");
         guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
       },
       testId: "button-health-fast-explain-plan",
@@ -2905,8 +2904,8 @@ const HealthScreen = () => {
     {
       id: "latest-report",
       icon: ClipboardList,
-      label: t("health.master.fastHelp.openLatestReport", "Latest report"),
-      detail: t("health.master.fastHelp.openLatestReportDetail", "Reports and summaries"),
+      label: t("health.master.fastHelp.latestReport", "Latest report"),
+      detail: t("health.master.fastHelp.latestReportDetail", "Reports and summaries"),
       tone: {
         iconBg: "#EFF6FF",
         iconColor: "#2563EB",
@@ -2919,84 +2918,92 @@ const HealthScreen = () => {
       testId: "button-health-fast-open-latest-report",
     },
     {
-      id: "add-vitals",
-      icon: Activity,
-      label: t("health.master.fastHelp.addVitals", "Add vitals"),
-      detail: t("health.master.fastHelp.addVitalsDetail", "Blood pressure or pulse"),
+      id: "visual-scan",
+      icon: Camera,
+      label: t("health.master.fastHelp.visualScan", "Visual Scan"),
+      detail: t("health.master.fastHelp.visualScanDetail", "Photo review"),
       tone: {
         iconBg: "#FFF7ED",
         iconColor: "#B45309",
         border: "#FED7AA",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to add vitals");
-        navigate("/health/vitals");
+        sendDoctorUserMessage("I want to use visual scan");
+        openVisualScan();
       },
-      testId: "button-health-fast-add-vitals",
+      testId: "button-health-fast-visual-scan",
     },
     {
-      id: "review-medicine",
-      icon: Pill,
-      label: t("health.master.fastHelp.reviewMedicine", "Medicine"),
-      detail: t("health.master.fastHelp.reviewMedicineDetail", "Doses and reminders"),
+      id: "find-specialist",
+      icon: UserSearch,
+      label: t("health.master.fastHelp.findSpecialist", "Find Specialist"),
+      detail: t("health.master.fastHelp.findSpecialistDetail", "Right expert"),
       tone: {
         iconBg: "#FDF4FF",
         iconColor: "#86198F",
         border: "#E9D5FF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to review my medicines");
-        guardPath("/meds");
+        sendDoctorUserMessage("I want to find the right specialist");
+        openSpecialistPanel();
       },
-      testId: "button-health-fast-review-medicine",
+      testId: "button-health-fast-find-specialist",
     },
     {
-      id: "check-symptoms",
-      icon: HeartPulse,
-      label: t("health.master.fastHelp.checkSymptoms", "Symptoms"),
-      detail: t("health.master.fastHelp.checkSymptomsDetail", "Tell VYVA what changed"),
+      id: "book-medical",
+      icon: Calendar,
+      label: t("health.master.fastHelp.bookMedical", "Book Medical"),
+      detail: t("health.master.fastHelp.bookMedicalDetail", "Appointment help"),
       tone: {
-        iconBg: "#FFF1F2",
-        iconColor: "#E74C43",
-        border: "#FECACA",
+        iconBg: "#F0FDFA",
+        iconColor: "#0F766E",
+        border: "#99F6E4",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to ask about a symptom");
-        guardPath("/health/symptom-check");
+        sendDoctorUserMessage("I want to book a medical appointment");
+        guardPath("/concierge", {
+          state: {
+            conciergePrefill: {
+              kind: "appointment",
+              message: t("health.master.fastHelp.bookMedicalPrefill", "Help me book a medical appointment. Ask what kind of appointment I need and do not book anything without my confirmation."),
+              source: "health_home_doctor",
+            },
+          },
+        });
       },
-      testId: "button-health-fast-check-symptoms",
+      testId: "button-health-fast-book-medical",
     },
     {
-      id: "doctor-note",
-      icon: Phone,
-      label: t("health.master.fastHelp.doctorNote", "Doctor note"),
-      detail: t("health.master.fastHelp.doctorNoteDetail", "Prepare what to say"),
-      tone: {
-        iconBg: "#EEF6FF",
-        iconColor: "#2563EB",
-        border: "#BFDBFE",
-      },
-      onClick: () => {
-        sendDoctorUserMessage("Help me prepare a short note for my doctor");
-        guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
-      },
-      testId: "button-health-fast-doctor-note",
-    },
-    {
-      id: "share-summary",
-      icon: Share2,
-      label: t("health.master.fastHelp.shareSummary", "Share"),
-      detail: t("health.master.fastHelp.shareSummaryDetail", "Open reports"),
+      id: "check-vitals",
+      icon: Activity,
+      label: t("health.master.fastHelp.checkVitals", "Check Vitals"),
+      detail: t("health.master.fastHelp.checkVitalsDetail", "Pulse or pressure"),
       tone: {
         iconBg: "#ECFDF5",
         iconColor: "#047857",
         border: "#BBF7D0",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to share a health summary");
-        navigate("/informes");
+        sendDoctorUserMessage("I want to check my vitals");
+        navigate("/health/vitals");
       },
-      testId: "button-health-fast-share-summary",
+      testId: "button-health-fast-check-vitals",
+    },
+    {
+      id: "talk-doctor",
+      icon: Phone,
+      label: t("health.master.fastHelp.talkDoctor", "Talk Doctor"),
+      detail: t("health.master.fastHelp.talkDoctorDetail", "Prepare next step"),
+      tone: {
+        iconBg: "#EEF6FF",
+        iconColor: "#2563EB",
+        border: "#BFDBFE",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to talk to a doctor");
+        guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
+      },
+      testId: "button-health-fast-talk-doctor",
     },
   ];
 
@@ -3014,21 +3021,13 @@ const HealthScreen = () => {
           eyebrow: t("health.master.heroEyebrow", "Health Plan"),
           title: t("health.master.heroTitle", "Health Plan Ready"),
           action: {
-            label: doctorVoiceLive
-              ? t("health.master.pauseVyva", "Pause VYVA")
-              : doctorVoiceConnecting
-                ? t("health.master.connectingVyva", "Connecting...")
-                : t("health.master.talkToVyva", "Talk to VYVA"),
-            onClick: () => {
-              if (doctorVoiceLive) {
-                stopDoctorVoice();
-                return;
-              }
-              guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
-            },
+            kind: "voice",
+            label: t("health.master.talkToVyva", "Talk to VYVA"),
+            contextHint: t("health.master.voiceContext", "Health plan support. Ask about medicines, vitals, symptoms, prevention, and safe next steps."),
+            voiceAgentSlug: "health",
+            voiceDynamicVariables: { app_entrypoint: "health_master_hero" },
+            autoStartListening: true,
             testId: "button-health-hero-talk",
-            disabled: doctorVoiceConnecting,
-            isLoading: doctorVoiceConnecting,
           },
           testId: "health-master-hero",
           tone: {
