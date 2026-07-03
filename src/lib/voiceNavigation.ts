@@ -133,6 +133,58 @@ function homeServiceSubject(text: string) {
   return "";
 }
 
+function firstMatchedValue(text: string, options: Array<[string, Array<string | RegExp>]>) {
+  return options.find(([, patterns]) => hasAny(text, patterns))?.[0] ?? "";
+}
+
+function vitalTypeFromText(text: string) {
+  return firstMatchedValue(text, [
+    ["blood_pressure", ["blood pressure", "presion", "tension"]],
+    ["heart_rate", ["heart rate", "pulse", "pulso"]],
+    ["oxygen", ["oxygen", "spo2", "saturation", "saturacion"]],
+    ["temperature", ["temperature", "fever", "temperatura", "fiebre"]],
+    ["weight", ["weight", "peso"]],
+    ["glucose", ["glucose", "blood sugar", "azucar"]],
+  ]);
+}
+
+function shoppingCategoryFromText(text: string) {
+  if (hasAny(text, ["grocery", "groceries", "supermarket", "food", "meal", "comida", "compra", "supermercado"])) return "groceries";
+  if (hasAny(text, ["pharmacy", "pharmacist", "farmacia"])) return "pharmacy_basics";
+  if (hasAny(text, ["walker", "cane", "mobility", "wheelchair", "baston", "andador", "silla de ruedas"])) return "mobility_aids";
+  if (hasAny(text, ["household", "home", "cleaning", "hogar", "limpieza"])) return "household";
+  return "safe_home";
+}
+
+function mobilityNeedsFromText(text: string) {
+  const needs = [
+    hasAny(text, ["wheelchair", "silla de ruedas"]) ? "wheelchair" : "",
+    hasAny(text, ["walker", "andador"]) ? "walker" : "",
+    hasAny(text, ["cane", "baston"]) ? "cane" : "",
+    hasAny(text, ["help getting in", "help getting out", "ayuda para subir", "ayuda para bajar"]) ? "door assistance" : "",
+  ].filter(Boolean);
+  return needs.join(", ");
+}
+
+function timeHintFromText(text: string) {
+  if (hasAny(text, ["tomorrow morning", "manana por la manana"])) return "tomorrow morning";
+  if (hasAny(text, ["tomorrow afternoon", "manana por la tarde"])) return "tomorrow afternoon";
+  if (hasAny(text, ["tomorrow", "manana"])) return "tomorrow";
+  if (hasAny(text, ["tonight", "esta noche"])) return "tonight";
+  if (hasAny(text, ["today", "hoy"])) return "today";
+  if (hasAny(text, ["now", "right now", "ahora"])) return "now";
+  return "";
+}
+
+function payloadWithDefinedValues(payload: VoiceAppAction["payload"]) {
+  const cleanPayload: VoiceAppAction["payload"] = {};
+  Object.entries(payload ?? {}).forEach(([key, value]) => {
+    if (typeof value === "string" && value.trim()) cleanPayload[key] = value.trim();
+    if (typeof value === "number" || typeof value === "boolean") cleanPayload[key] = value;
+  });
+  return Object.keys(cleanPayload).length ? cleanPayload : undefined;
+}
+
 function createAction(input: Omit<VoiceAppAction, "sourceText">, sourceText: string): VoiceAppAction {
   return { ...input, sourceText };
 }
@@ -293,6 +345,33 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
   const subject = medicationSubject(normalized);
 
   if (mentionsMedication && hasAny(normalized, [
+    "refill",
+    "renew",
+    "running out",
+    "run out",
+    "need more",
+    "more medicine",
+    "more medication",
+    "reponer",
+    "renovar",
+    "necesito mas",
+    "me queda poco",
+  ])) {
+    return actionFromRegistry("meds.refill_request", text, {
+      title: subject ? `${subject} refill` : "Medication refill",
+      cue: subject
+        ? `Check whether ${subject} needs a refill and confirm before contacting anyone.`
+        : "Clarify which medication needs a refill and confirm before contacting anyone.",
+      extractedSubject: subject,
+      feedbackReason: "User asked for a medication refill or more medicine.",
+      payload: payloadWithDefinedValues({
+        ...(subject ? { medication_name: subject } : {}),
+        supply_concern: "refill_request",
+      }),
+    });
+  }
+
+  if (mentionsMedication && hasAny(normalized, [
     "report",
     "inventory",
     "stock",
@@ -334,9 +413,81 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
     });
   }
 
-  if (hasAny(normalized, ["vitals", "blood pressure", "heart rate", "signos", "presion", "pulso"])) {
-    return actionFromRegistry("health.vitals_review", text, {
-      feedbackReason: "User mentioned vitals, blood pressure, heart rate, or pulse.",
+  if (hasAny(normalized, ["vitals", "blood pressure", "heart rate", "oxygen", "temperature", "signos", "presion", "pulso", "temperatura"])) {
+    const vitalType = vitalTypeFromText(normalized);
+    const isCapture = hasAny(normalized, [
+      "measure",
+      "record",
+      "capture",
+      "add",
+      "take my",
+      "take a",
+      "medir",
+      "registrar",
+      "anadir",
+      "tomar",
+    ]);
+    return actionFromRegistry(isCapture ? "health.vitals_capture" : "health.vitals_review", text, {
+      feedbackReason: isCapture
+        ? "User asked to measure, record, or add vitals."
+        : "User mentioned vitals, blood pressure, heart rate, or pulse.",
+      payload: payloadWithDefinedValues({
+        ...(vitalType ? { vital_type: vitalType } : {}),
+        capture_mode: isCapture ? "guided" : "",
+      }),
+    });
+  }
+
+  if (hasAny(normalized, ["daily check", "check in", "check-in", "how i feel", "how i'm feeling", "como me siento", "revision diaria"])) {
+    return actionFromRegistry("health.daily_checkin", text, {
+      feedbackReason: "User asked for a daily check-in or how-they-feel review.",
+    });
+  }
+
+  if (hasAny(normalized, ["ride", "taxi", "cab", "transport", "uber", "lift", "take me", "pick me up", "transporte", "llevarme", "recogerme"])) {
+    const time = timeHintFromText(normalized);
+    const mobilityNeeds = mobilityNeedsFromText(normalized);
+    return actionFromRegistry("concierge.ride_booking", text, {
+      feedbackReason: "User asked to arrange transport or book a ride.",
+      payload: payloadWithDefinedValues({
+        task_type: "ride",
+        time,
+        mobility_needs: mobilityNeeds,
+      }),
+    });
+  }
+
+  if (hasAny(normalized, [
+    "order groceries",
+    "order grocery",
+    "place an order",
+    "make an order",
+    "grocery order",
+    "food order",
+    "delivery order",
+    "pedido",
+    "pedir compra",
+    "encargar compra",
+  ])) {
+    const category = shoppingCategoryFromText(normalized);
+    return actionFromRegistry("concierge.order_request", text, {
+      feedbackReason: "User asked to prepare an order request.",
+      payload: payloadWithDefinedValues({
+        items: category === "groceries" ? "groceries" : "",
+        category,
+        delivery_time: timeHintFromText(normalized),
+      }),
+    });
+  }
+
+  if (hasAny(normalized, ["remind me", "set a reminder", "set reminder", "schedule reminder", "reminder tomorrow", "recuerdame", "recordarme", "pon un recordatorio"])) {
+    const time = timeHintFromText(normalized);
+    return actionFromRegistry("concierge.reminder", text, {
+      feedbackReason: "User asked to set a reminder or scheduled support.",
+      payload: payloadWithDefinedValues({
+        reminder_text: text.trim(),
+        reminder_time: time,
+      }),
     });
   }
 
@@ -363,6 +514,10 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
   if (hasAny(normalized, ["shopping", "groceries", "supermarket", "choose product", "product choice", "what should i buy", "compras", "compra", "supermercado", "que compro", "que deberia comprar"])) {
     return actionFromRegistry("concierge.shopping", text, {
       feedbackReason: "User asked for shopping or product-choice help.",
+      payload: payloadWithDefinedValues({
+        category: shoppingCategoryFromText(normalized),
+        need: text.trim(),
+      }),
     });
   }
 
@@ -399,7 +554,7 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
     });
   }
 
-  if (hasAny(normalized, ["appointment", "book", "taxi", "delivery", "weather", "concierge", "cita", "taxi"])) {
+  if (hasAny(normalized, ["appointment", "book", "delivery", "weather", "concierge", "cita"])) {
     return actionFromRegistry("concierge.task", text, {
       feedbackReason: "User asked for logistics, shopping, booking, weather, or reminder help.",
     });
@@ -411,9 +566,39 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
     });
   }
 
+  if (hasAny(normalized, ["relax", "breathe", "breathing", "calm", "relaj", "respirar", "calma"])) {
+    return actionFromRegistry("brain.relax_breathe", text, {
+      feedbackReason: "User asked for relaxation, breathing, or calm support.",
+    });
+  }
+
+  if (hasAny(normalized, ["focus", "attention", "concentrate", "concentracion", "atencion"])) {
+    return actionFromRegistry("brain.focus", text, {
+      feedbackReason: "User asked for focus or attention support.",
+    });
+  }
+
+  if (hasAny(normalized, ["learn", "teach me", "learning", "aprender", "ensenar"])) {
+    return actionFromRegistry("brain.learn", text, {
+      feedbackReason: "User asked to learn something.",
+    });
+  }
+
+  if (hasAny(normalized, ["senses", "sensory", "smell", "sound", "listen closely", "sentidos", "sensorial", "olfato", "sonido"])) {
+    return actionFromRegistry("brain.senses", text, {
+      feedbackReason: "User asked for senses or sensory practice.",
+    });
+  }
+
   if (hasAny(normalized, ["brain", "activity", "activities", "exercise", "quiz", "game", "juego", "actividad"])) {
     return actionFromRegistry("brain.activity", text, {
       feedbackReason: "User asked for an activity, game, quiz, or brain exercise.",
+    });
+  }
+
+  if (hasAny(normalized, ["talk to someone", "someone to talk", "keep me company", "i feel lonely", "companion", "companionship", "hablar con alguien", "me siento solo", "companero", "compania"])) {
+    return actionFromRegistry("social.companion_chat", text, {
+      feedbackReason: "User asked for private companionship or someone to talk to.",
     });
   }
 

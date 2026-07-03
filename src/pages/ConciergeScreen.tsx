@@ -83,7 +83,7 @@ interface ChatMessage {
 type ConciergeRoutePrefill = {
   kind: "ride" | "appointment" | "home_care_quote" | "task";
   message: string;
-  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
 };
 
 type ConciergeLocationState = {
@@ -1680,13 +1680,27 @@ const ConciergeScreen = () => {
     payloadValue: conciergePayloadValue,
   } = useVoiceActionFulfillment({
     domain: "concierge",
-    actionTypes: ["concierge.appointment_help", "concierge.home_service", "concierge.task"],
+    actionTypes: [
+      "concierge.appointment_help",
+      "concierge.home_service",
+      "concierge.ride_booking",
+      "concierge.reminder",
+      "concierge.task",
+    ],
   });
   const conciergeVoiceTaskType = conciergePayloadValue("task_type")
     || (conciergeVoiceAction?.actionType === "concierge.appointment_help" ? "appointment" : "");
   const conciergeVoiceProvider = conciergePayloadValue("provider") || conciergePayloadValue("provider_type");
   const conciergeVoiceDate = conciergePayloadValue("date_preference");
   const conciergeVoiceLocation = conciergePayloadValue("location");
+  const conciergeVoicePickup = conciergePayloadValue("pickup");
+  const conciergeVoiceDestination = conciergePayloadValue("destination");
+  const conciergeVoiceTime = conciergePayloadValue("time")
+    || conciergePayloadValue("date_preference")
+    || conciergePayloadValue("reminder_time");
+  const conciergeVoiceMobilityNeeds = conciergePayloadValue("mobility_needs");
+  const conciergeVoiceReminderText = conciergePayloadValue("reminder_text");
+  const conciergeVoiceReminderRecurrence = conciergePayloadValue("recurrence");
   const conciergeVoiceReason = conciergePayloadValue("appointment_reason") || conciergeVoiceAction?.extractedSubject || "";
   const conciergeVoiceServiceType = conciergePayloadValue("service_type")
     || conciergePayloadValue("provider_type")
@@ -1699,9 +1713,14 @@ const ConciergeScreen = () => {
       conciergeVoiceTaskType ? `${isSpanish ? "tipo" : "type"}: ${conciergeVoiceTaskType}` : "",
       conciergeVoiceProvider ? `${isSpanish ? "proveedor" : "provider"}: ${conciergeVoiceProvider}` : "",
       conciergeVoiceServiceType ? `${isSpanish ? "servicio" : "service"}: ${conciergeVoiceServiceType}` : "",
+      conciergeVoicePickup ? `${isSpanish ? "recogida" : "pickup"}: ${conciergeVoicePickup}` : "",
+      conciergeVoiceDestination ? `${isSpanish ? "destino" : "destination"}: ${conciergeVoiceDestination}` : "",
       conciergeVoiceDate ? `${isSpanish ? "fecha" : "date"}: ${conciergeVoiceDate}` : "",
+      conciergeVoiceTime ? `${isSpanish ? "hora" : "time"}: ${conciergeVoiceTime}` : "",
       conciergeVoiceLocation ? `${isSpanish ? "zona" : "location"}: ${conciergeVoiceLocation}` : "",
       conciergeVoiceReason ? `${isSpanish ? "motivo" : "reason"}: ${conciergeVoiceReason}` : "",
+      conciergeVoiceReminderText ? `${isSpanish ? "recordatorio" : "reminder"}: ${conciergeVoiceReminderText}` : "",
+      conciergeVoiceReminderRecurrence ? `${isSpanish ? "repeticion" : "recurrence"}: ${conciergeVoiceReminderRecurrence}` : "",
     ].filter(Boolean).join(", ");
     if (isSpanish) {
       return `Ayudame con ${conciergeVoiceAction.title.toLowerCase()}${details ? ` (${details})` : ""}. Prepara el siguiente paso y pideme confirmacion antes de actuar.`;
@@ -1710,10 +1729,15 @@ const ConciergeScreen = () => {
   }, [
     conciergeVoiceAction,
     conciergeVoiceDate,
+    conciergeVoiceDestination,
     conciergeVoiceLocation,
+    conciergeVoicePickup,
     conciergeVoiceProvider,
     conciergeVoiceReason,
+    conciergeVoiceReminderRecurrence,
+    conciergeVoiceReminderText,
     conciergeVoiceServiceType,
+    conciergeVoiceTime,
     conciergeVoiceTaskType,
     isSpanish,
   ]);
@@ -2184,8 +2208,39 @@ const ConciergeScreen = () => {
     const isHomeServiceVoiceRequest =
       conciergeVoiceAction.actionType === "concierge.home_service"
       || /home service|plumb|fontaner|electric|electricista|locksmith|cerraj|clean|limpiez|repair|repar|handyman|manitas/.test(voiceText);
+    const isRideVoiceRequest =
+      conciergeVoiceAction.actionType === "concierge.ride_booking"
+      || conciergeVoiceTaskType.toLowerCase().includes("ride")
+      || conciergeVoiceTaskType.toLowerCase().includes("transport")
+      || conciergeVoiceTaskType.toLowerCase().includes("taxi");
+    const isReminderVoiceRequest = conciergeVoiceAction.actionType === "concierge.reminder";
 
-    if (isAppointmentRequest || isHomeServiceVoiceRequest) {
+    if (isRideVoiceRequest) {
+      setRoutePrefill({ kind: "ride", message: conciergeVoiceDraft, source: "voice_action" });
+      clearAppointmentAssistantState();
+      setTransportPickup((current) => current.trim() ? current : conciergeVoicePickup || savedTransportPickupLabel);
+      setTransportDestination((current) => current.trim() ? current : conciergeVoiceDestination);
+      setTransportTime((current) => {
+        if (current.trim() && current.trim().toLowerCase() !== "now") return current;
+        return conciergeVoiceTime || "now";
+      });
+      setTransportMobilityNeeds((current) => {
+        if (current.length > 0) return current;
+        return conciergeVoiceMobilityNeeds
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      });
+      setTransportResult(null);
+      setTransportError(null);
+      setTransportNotice(null);
+      setTransportDetailsOpen(Boolean(conciergeVoicePickup || conciergeVoiceTime || conciergeVoiceMobilityNeeds));
+      setOffersOpen(false);
+    } else if (isReminderVoiceRequest) {
+      setRoutePrefill({ kind: "task", message: conciergeVoiceDraft, source: "voice_action" });
+      clearAppointmentAssistantState();
+      setOffersOpen(false);
+    } else if (isAppointmentRequest || isHomeServiceVoiceRequest) {
       setAppointmentOpen(true);
       setOffersOpen(false);
       if (isHomeServiceVoiceRequest) {
@@ -2216,12 +2271,17 @@ const ConciergeScreen = () => {
     conciergePayloadValue,
     conciergeVoiceAction,
     conciergeVoiceCriteria,
+    conciergeVoiceDestination,
     conciergeVoiceDraft,
+    conciergeVoiceMobilityNeeds,
+    conciergeVoicePickup,
     conciergeVoiceProvider,
     conciergeVoiceReason,
     conciergeVoiceServiceType,
+    conciergeVoiceTime,
     conciergeVoiceTaskType,
     conciergeVoiceUrgency,
+    savedTransportPickupLabel,
   ]);
 
   useEffect(() => {

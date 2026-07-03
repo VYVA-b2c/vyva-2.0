@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AppShell, { emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
+import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 
@@ -275,6 +275,56 @@ describe("app shell voice dock", () => {
 
     expect(screen.getByTestId("voice-action-card")).toHaveTextContent("Concierge help");
     expect(screen.getByTestId("voice-action-card")).toHaveTextContent("VYVA opened Concierge");
+  });
+
+  it("builds route prefill state for ride voice actions", () => {
+    const state = buildVoiceActionRouteState(makeVoiceAction({
+      id: "voice_concierge_ride_booking",
+      actionType: "concierge.ride_booking",
+      title: "Ride help",
+      route: "/concierge",
+      payload: {
+        pickup: "Home",
+        destination: "Doctor",
+        time: "tomorrow morning",
+        mobility_needs: "walker",
+      },
+    }));
+
+    expect(state.voiceActionType).toBe("concierge.ride_booking");
+    expect(state.voiceActionPayload).toMatchObject({
+      pickup: "Home",
+      destination: "Doctor",
+      time: "tomorrow morning",
+    });
+    expect(state.conciergePrefill).toMatchObject({
+      kind: "ride",
+      source: "voice_action",
+    });
+    expect(JSON.stringify(state.conciergePrefill)).toContain("destination: Doctor");
+  });
+
+  it("builds shopping prefill state for order voice actions", () => {
+    const state = buildVoiceActionRouteState(makeVoiceAction({
+      id: "voice_concierge_order_request",
+      actionType: "concierge.order_request",
+      title: "Order help",
+      route: "/concierge/shopping",
+      sourceText: "Order groceries for tomorrow",
+      payload: {
+        items: "groceries",
+        category: "groceries",
+        delivery_time: "tomorrow",
+      },
+    }));
+
+    expect(state.voiceActionType).toBe("concierge.order_request");
+    expect(state.shoppingPrefill).toMatchObject({
+      needText: "groceries",
+      category: "groceries",
+      priorities: ["delivery", "simplicity"],
+      constraints: ["tomorrow"],
+    });
   });
 
   it("does not show Health voice action cards after landing on a Health route", async () => {
