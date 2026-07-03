@@ -375,6 +375,7 @@ function buildPrompt(query: ReturnType<typeof normalizeQuery>) {
     "Prioritize libraries, community centers, museums, parks, gentle movement, music, crafts, language or culture groups, local history, and low-pressure learning.",
     "Avoid medical treatment claims, dating, private contact exchange, gambling, expensive sales pressure, unverified transport offers, or anything unsafe for a senior-friendly concierge review.",
     "Every candidate must have a public sourceUrl. Use source evidence to summarize what the page supports. Do not invent dates, prices, or venue details; say they need checking when unclear.",
+    "Set locationLabel to the most precise public location the source supports: venue name plus street, neighborhood, meeting point, or online room name. Avoid city-only locationLabel values unless no better detail is available.",
   ].join("\n");
 }
 

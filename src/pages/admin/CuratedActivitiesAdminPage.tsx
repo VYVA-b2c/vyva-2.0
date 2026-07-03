@@ -48,6 +48,17 @@ type Filters = {
 
 const STATUS_OPTIONS: EventStatus[] = ["draft", "active", "hidden", "archived"];
 const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"];
+const STATUS_LABELS: Record<EventStatus, string> = {
+  draft: "Draft",
+  active: "Active - visible",
+  hidden: "Hidden",
+  archived: "Archived",
+};
+const FORMAT_LABELS: Record<ParticipationEventFormat, string> = {
+  nearby: "In person",
+  online: "Online",
+  hybrid: "Hybrid",
+};
 const COUNTRY_LABELS: Record<string, string> = {
   AE: "United Arab Emirates",
   DE: "Germany",
@@ -102,7 +113,17 @@ const DISCOVERY_LANGUAGE_OPTIONS = [
   { value: "de", label: "German" },
 ];
 const SAFETY_OPTIONS: SafetyStatus[] = ["approved", "needs_review", "hidden"];
+const SAFETY_LABELS: Record<SafetyStatus, string> = {
+  approved: "Approved",
+  needs_review: "Needs review",
+  hidden: "Hidden",
+};
 const LANGUAGE_OPTIONS = ["en", "es", "de"];
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+  de: "German",
+};
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
 const ACTIVITY_TEMPLATE_FILE_NAME = "vyva-activities-template.csv";
 const ACTIVITY_TEMPLATE_CSV = [
@@ -229,6 +250,12 @@ function nullableText(value?: string | null) {
 function normalizeCountry(value?: string | null) {
   const trimmed = cleanText(value).toUpperCase();
   return trimmed ? trimmed.slice(0, 2) : null;
+}
+
+function countryLabel(countryCode?: string | null) {
+  const normalized = normalizeCountry(countryCode);
+  if (!normalized) return "Unknown country";
+  return `${COUNTRY_LABELS[normalized] ?? normalized} (${normalized})`;
 }
 
 function normalizeHelperActions(values: string[]) {
@@ -531,15 +558,23 @@ function aiDraftPayload(candidate: AdminParticipationEvent) {
   };
 }
 
-function Field({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
+function Field({ label, hint, optional, children }: { label: string; hint?: string; optional?: boolean; children: ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 flex justify-between text-sm font-bold text-[#4d4351]">
-        <span>{label}</span>
-        {optional && <span className="font-normal text-purple-700">Optional</span>}
-      </span>
-      {children}
-    </label>
+    <div className="block">
+      <label className="block">
+        <span className="mb-1 flex justify-between text-sm font-bold text-[#4d4351]">
+          <span>{label}</span>
+        </span>
+        {children}
+      </label>
+      {(hint || optional) && (
+        <p className="mt-1 text-xs font-semibold text-[#8a7770]">
+          {hint}
+          {hint && optional ? " " : ""}
+          {optional ? "Optional." : ""}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -585,10 +620,12 @@ function SelectInput<T extends string>({
   value,
   onChange,
   options,
+  labels,
 }: {
   value: T | string;
   onChange: (value: T) => void;
   options: readonly T[];
+  labels?: Record<string, string>;
 }) {
   return (
     <select
@@ -596,7 +633,7 @@ function SelectInput<T extends string>({
       value={value}
       onChange={(event) => onChange(event.target.value as T)}
     >
-      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      {options.map((option) => <option key={option} value={option}>{labels?.[option] ?? option}</option>)}
     </select>
   );
 }
@@ -1352,7 +1389,7 @@ export default function CuratedActivitiesAdminPage() {
                           </span>
                           <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
                             <Tags size={14} className="shrink-0 text-purple-700" />
-                            <span className="truncate">{candidate.format}</span>
+                            <span className="truncate">{FORMAT_LABELS[candidate.format] ?? candidate.format}</span>
                           </span>
                         </div>
 
@@ -1373,33 +1410,46 @@ export default function CuratedActivitiesAdminPage() {
                             </div>
 
                             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                              <Field label="Event key">
+                              <Field label="Internal ID">
                                 <TextInput value={candidate.eventKey} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { eventKey: value, id: value })} />
                               </Field>
-                              <Field label="Title EN">
+                              <Field label="Title (English)">
                                 <TextInput value={candidate.titleEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { titleEn: value })} />
                               </Field>
-                              <Field label="City">
+                              <Field label="City or town">
                                 <TextInput value={candidate.city ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { city: value })} />
                               </Field>
-                              <Field label="Location">
+                              <Field label="Country">
+                                <select
+                                  className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
+                                  value={normalizeCountry(candidate.countryCode) ?? ""}
+                                  onChange={(input) => updateDiscoveryCandidate(candidate.previewId, { countryCode: input.target.value })}
+                                >
+                                  <option value="">No country</option>
+                                  {candidate.countryCode && !DISCOVERY_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(candidate.countryCode)) && (
+                                    <option value={normalizeCountry(candidate.countryCode) ?? ""}>{countryLabel(candidate.countryCode)}</option>
+                                  )}
+                                  {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Precise location" hint="Venue, address, meeting point, or online room name.">
                                 <TextInput value={candidate.locationLabel} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { locationLabel: value })} />
                               </Field>
-                              <Field label="Time">
+                              <Field label="Time (English)">
                                 <TextInput value={candidate.timeLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { timeLabelEn: value })} />
                               </Field>
-                              <Field label="Cost">
+                              <Field label="Cost (English)">
                                 <TextInput value={candidate.costLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { costLabelEn: value })} />
                               </Field>
-                              <Field label="Tags">
+                              <Field label="Interests">
                                 <TextInput value={listToText(candidate.interestTags)} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { interestTags: textToList(value) })} />
                               </Field>
-                              <Field label="Source URL">
+                              <Field label="Source link">
                                 <TextInput value={candidate.sourceUrl ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { sourceUrl: value })} />
                               </Field>
                             </div>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">
-                              <Field label="Summary">
+                              <Field label="Short description (English)">
                                 <TextArea value={candidate.summaryEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { summaryEn: value })} />
                               </Field>
                               <Field label="Evidence">
@@ -1449,15 +1499,15 @@ export default function CuratedActivitiesAdminPage() {
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="font-serif text-3xl">Filters</h2>
+              <h2 className="font-serif text-3xl">Find events</h2>
               <p className="mt-2 text-sm text-[#7d6b65]">{filteredEvents.length} visible of {events.length} events.</p>
             </div>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-7">
             <Field label="Search">
-              <TextInput value={filters.search} onChange={(value) => setFilters((prev) => ({ ...prev, search: value }))} placeholder="title, tag, key" />
+              <TextInput value={filters.search} onChange={(value) => setFilters((prev) => ({ ...prev, search: value }))} placeholder="title, tag, venue" />
             </Field>
-            <Field label="City filter">
+            <Field label="Filter by city">
               <input
                 className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
                 list="participate-admin-cities"
@@ -1471,32 +1521,32 @@ export default function CuratedActivitiesAdminPage() {
             </Field>
             <Field label="Country">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.country} onChange={(event) => setFilters((prev) => ({ ...prev, country: event.target.value }))}>
-                <option value="">All</option>
-                {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
+                <option value="">All countries</option>
+                {countryOptions.map((country) => <option key={country} value={country}>{countryLabel(country)}</option>)}
               </select>
             </Field>
             <Field label="Language">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.language} onChange={(event) => setFilters((prev) => ({ ...prev, language: event.target.value }))}>
-                <option value="">All</option>
-                {LANGUAGE_OPTIONS.map((language) => <option key={language} value={language}>{language}</option>)}
+                <option value="">All languages</option>
+                {LANGUAGE_OPTIONS.map((language) => <option key={language} value={language}>{LANGUAGE_LABELS[language] ?? language}</option>)}
               </select>
             </Field>
-            <Field label="Status">
+            <Field label="Review state">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}>
-                <option value="">All</option>
-                {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                <option value="">All states</option>
+                {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
               </select>
             </Field>
             <Field label="Format">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.format} onChange={(event) => setFilters((prev) => ({ ...prev, format: event.target.value }))}>
-                <option value="">All</option>
-                {FORMAT_OPTIONS.map((format) => <option key={format} value={format}>{format}</option>)}
+                <option value="">All formats</option>
+                {FORMAT_OPTIONS.map((format) => <option key={format} value={format}>{FORMAT_LABELS[format]}</option>)}
               </select>
             </Field>
-            <Field label="Safety">
+            <Field label="Safety review">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.safety} onChange={(event) => setFilters((prev) => ({ ...prev, safety: event.target.value }))}>
-                <option value="">All</option>
-                {SAFETY_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                <option value="">All safety states</option>
+                {SAFETY_OPTIONS.map((status) => <option key={status} value={status}>{SAFETY_LABELS[status]}</option>)}
               </select>
             </Field>
           </div>
@@ -1511,38 +1561,54 @@ export default function CuratedActivitiesAdminPage() {
             <Pill tone="amber">Human verified before publish</Pill>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-4">
-            <Field label="Event key">
+            <Field label="Internal ID" hint="Lowercase words with hyphens. Used only by admins and imports.">
               <TextInput value={draft.eventKey} onChange={(value) => setDraft((prev) => ({ ...prev, eventKey: value }))} placeholder="madrid-garden-walk" />
             </Field>
-            <Field label="Title EN">
-              <TextInput value={draft.titleEn} onChange={(value) => setDraft((prev) => ({ ...prev, titleEn: value }))} />
+            <Field label="Title (English)">
+              <TextInput value={draft.titleEn} onChange={(value) => setDraft((prev) => ({ ...prev, titleEn: value }))} placeholder="Garden walk and coffee" />
             </Field>
-            <Field label="Title ES">
-              <TextInput value={draft.titleEs} onChange={(value) => setDraft((prev) => ({ ...prev, titleEs: value }))} />
+            <Field label="Title (Spanish)">
+              <TextInput value={draft.titleEs} onChange={(value) => setDraft((prev) => ({ ...prev, titleEs: value }))} placeholder="Paseo por el jardin y cafe" />
             </Field>
-            <Field label="Title DE">
-              <TextInput value={draft.titleDe} onChange={(value) => setDraft((prev) => ({ ...prev, titleDe: value }))} />
+            <Field label="Title (German)">
+              <TextInput value={draft.titleDe} onChange={(value) => setDraft((prev) => ({ ...prev, titleDe: value }))} placeholder="Gartenspaziergang und Kaffee" />
             </Field>
-            <Field label="City">
+            <Field label="City or town">
               <TextInput value={draft.city ?? ""} onChange={(value) => setDraft((prev) => ({ ...prev, city: value }))} placeholder="Madrid" />
             </Field>
-            <Field label="Country code">
-              <TextInput value={draft.countryCode ?? ""} onChange={(value) => setDraft((prev) => ({ ...prev, countryCode: value }))} placeholder="ES" />
+            <Field label="Country">
+              <select
+                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
+                value={normalizeCountry(draft.countryCode) ?? "ES"}
+                onChange={(event) => setDraft((prev) => ({ ...prev, countryCode: event.target.value }))}
+              >
+                {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+              </select>
             </Field>
+            <div className="lg:col-span-2">
+              <Field label="Precise location" hint="Venue, street address, meeting point, or online room name.">
+                <TextInput value={draft.locationLabel} onChange={(value) => setDraft((prev) => ({ ...prev, locationLabel: value }))} placeholder="Retiro Park, Puerta de Alcala meeting point" />
+              </Field>
+            </div>
             <Field label="Format">
-              <SelectInput value={draft.format} onChange={(value) => setDraft((prev) => ({ ...prev, format: value }))} options={FORMAT_OPTIONS} />
+              <SelectInput value={draft.format} onChange={(value) => setDraft((prev) => ({ ...prev, format: value }))} options={FORMAT_OPTIONS} labels={FORMAT_LABELS} />
             </Field>
-            <Field label="Status">
-              <SelectInput value={draft.status} onChange={(value) => setDraft((prev) => ({ ...prev, status: value }))} options={STATUS_OPTIONS} />
+            <Field label="Review state">
+              <SelectInput value={draft.status} onChange={(value) => setDraft((prev) => ({ ...prev, status: value }))} options={STATUS_OPTIONS} labels={STATUS_LABELS} />
             </Field>
-            <Field label="Summary EN">
-              <TextArea value={draft.summaryEn} onChange={(value) => setDraft((prev) => ({ ...prev, summaryEn: value }))} />
-            </Field>
-            <Field label="Interest tags">
+            <div className="lg:col-span-2">
+              <Field label="Short description (English)">
+                <TextArea value={draft.summaryEn} onChange={(value) => setDraft((prev) => ({ ...prev, summaryEn: value }))} placeholder="A gentle, social activity with clear meeting details." />
+              </Field>
+            </div>
+            <Field label="Interests" hint="Comma separated tags used for matching.">
               <TextArea value={listToText(draft.interestTags)} onChange={(value) => setDraft((prev) => ({ ...prev, interestTags: textToList(value) }))} placeholder="music, walking, art" />
             </Field>
-            <Field label="Accessibility">
-              <TextArea value={listToText(draft.accessibilityTags)} onChange={(value) => setDraft((prev) => ({ ...prev, accessibilityTags: textToList(value) }))} placeholder="seated, step-free" />
+            <Field label="Accessibility" hint="Practical review notes, not marketing copy.">
+              <TextArea value={listToText(draft.accessibilityTags)} onChange={(value) => setDraft((prev) => ({ ...prev, accessibilityTags: textToList(value) }))} placeholder="seated, step-free, quiet pace" />
+            </Field>
+            <Field label="Source link" optional>
+              <TextInput value={draft.sourceUrl ?? ""} onChange={(value) => setDraft((prev) => ({ ...prev, sourceUrl: value }))} placeholder="https://..." />
             </Field>
             <button
               className="inline-flex min-h-[52px] items-center justify-center gap-2 self-end rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white"
@@ -1566,76 +1632,86 @@ export default function CuratedActivitiesAdminPage() {
                   <p className="mt-1 text-sm text-[#7d6b65]">{event.titleEn || event.titleEs || event.titleDe}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Pill tone={statusTone(event.status)}>{event.status}</Pill>
-                  <Pill tone={safetyTone(event.safetyStatus)}>{event.safetyStatus}</Pill>
-                  <Pill tone="plain">{event.format}</Pill>
+                  <Pill tone={statusTone(event.status)}>{STATUS_LABELS[event.status as EventStatus] ?? event.status}</Pill>
+                  <Pill tone={safetyTone(event.safetyStatus)}>{SAFETY_LABELS[event.safetyStatus as SafetyStatus] ?? event.safetyStatus}</Pill>
+                  <Pill tone="plain">{FORMAT_LABELS[event.format] ?? event.format}</Pill>
                 </div>
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="Status">
-                  <SelectInput value={event.status} onChange={(value) => updateEvent(event.eventKey, { status: value })} options={STATUS_OPTIONS} />
+                <Field label="Review state">
+                  <SelectInput value={event.status} onChange={(value) => updateEvent(event.eventKey, { status: value })} options={STATUS_OPTIONS} labels={STATUS_LABELS} />
                 </Field>
-                <Field label="Safety status">
-                  <SelectInput value={event.safetyStatus} onChange={(value) => updateEvent(event.eventKey, { safetyStatus: value })} options={SAFETY_OPTIONS} />
+                <Field label="Safety review">
+                  <SelectInput value={event.safetyStatus} onChange={(value) => updateEvent(event.eventKey, { safetyStatus: value })} options={SAFETY_OPTIONS} labels={SAFETY_LABELS} />
                 </Field>
                 <Field label="Format">
-                  <SelectInput value={event.format} onChange={(value) => updateEvent(event.eventKey, { format: value })} options={FORMAT_OPTIONS} />
+                  <SelectInput value={event.format} onChange={(value) => updateEvent(event.eventKey, { format: value })} options={FORMAT_OPTIONS} labels={FORMAT_LABELS} />
                 </Field>
-                <Field label="Source">
+                <Field label="Source note">
                   <TextInput value={event.source} onChange={(value) => updateEvent(event.eventKey, { source: value })} />
                 </Field>
-                <Field label="City">
+                <Field label="City or town">
                   <TextInput value={event.city ?? ""} onChange={(value) => updateEvent(event.eventKey, { city: value })} />
                 </Field>
-                <Field label="Country code">
-                  <TextInput value={event.countryCode ?? ""} onChange={(value) => updateEvent(event.eventKey, { countryCode: value })} />
+                <Field label="Country">
+                  <select
+                    className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
+                    value={normalizeCountry(event.countryCode) ?? ""}
+                    onChange={(input) => updateEvent(event.eventKey, { countryCode: input.target.value })}
+                  >
+                    <option value="">No country</option>
+                    {event.countryCode && !DISCOVERY_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(event.countryCode)) && (
+                      <option value={normalizeCountry(event.countryCode) ?? ""}>{countryLabel(event.countryCode)}</option>
+                    )}
+                    {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+                  </select>
                 </Field>
-                <Field label="Location label">
+                <Field label="Precise location">
                   <TextInput value={event.locationLabel} onChange={(value) => updateEvent(event.eventKey, { locationLabel: value })} />
                 </Field>
-                <Field label="Source URL" optional>
+                <Field label="Source link" optional>
                   <TextInput value={event.sourceUrl ?? ""} onChange={(value) => updateEvent(event.eventKey, { sourceUrl: value })} />
                 </Field>
               </div>
 
               <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <Field label="Title EN"><TextInput value={event.titleEn} onChange={(value) => updateEvent(event.eventKey, { titleEn: value })} /></Field>
-                <Field label="Title ES"><TextInput value={event.titleEs} onChange={(value) => updateEvent(event.eventKey, { titleEs: value })} /></Field>
-                <Field label="Title DE"><TextInput value={event.titleDe} onChange={(value) => updateEvent(event.eventKey, { titleDe: value })} /></Field>
-                <Field label="Summary EN"><TextArea value={event.summaryEn} onChange={(value) => updateEvent(event.eventKey, { summaryEn: value })} /></Field>
-                <Field label="Summary ES"><TextArea value={event.summaryEs} onChange={(value) => updateEvent(event.eventKey, { summaryEs: value })} /></Field>
-                <Field label="Summary DE"><TextArea value={event.summaryDe} onChange={(value) => updateEvent(event.eventKey, { summaryDe: value })} /></Field>
-                <Field label="Description EN"><TextArea value={event.descriptionEn} onChange={(value) => updateEvent(event.eventKey, { descriptionEn: value })} /></Field>
-                <Field label="Description ES"><TextArea value={event.descriptionEs} onChange={(value) => updateEvent(event.eventKey, { descriptionEs: value })} /></Field>
-                <Field label="Description DE"><TextArea value={event.descriptionDe} onChange={(value) => updateEvent(event.eventKey, { descriptionDe: value })} /></Field>
+                <Field label="Title (English)"><TextInput value={event.titleEn} onChange={(value) => updateEvent(event.eventKey, { titleEn: value })} /></Field>
+                <Field label="Title (Spanish)"><TextInput value={event.titleEs} onChange={(value) => updateEvent(event.eventKey, { titleEs: value })} /></Field>
+                <Field label="Title (German)"><TextInput value={event.titleDe} onChange={(value) => updateEvent(event.eventKey, { titleDe: value })} /></Field>
+                <Field label="Short description (English)"><TextArea value={event.summaryEn} onChange={(value) => updateEvent(event.eventKey, { summaryEn: value })} /></Field>
+                <Field label="Short description (Spanish)"><TextArea value={event.summaryEs} onChange={(value) => updateEvent(event.eventKey, { summaryEs: value })} /></Field>
+                <Field label="Short description (German)"><TextArea value={event.summaryDe} onChange={(value) => updateEvent(event.eventKey, { summaryDe: value })} /></Field>
+                <Field label="Full description (English)"><TextArea value={event.descriptionEn} onChange={(value) => updateEvent(event.eventKey, { descriptionEn: value })} /></Field>
+                <Field label="Full description (Spanish)"><TextArea value={event.descriptionEs} onChange={(value) => updateEvent(event.eventKey, { descriptionEs: value })} /></Field>
+                <Field label="Full description (German)"><TextArea value={event.descriptionDe} onChange={(value) => updateEvent(event.eventKey, { descriptionDe: value })} /></Field>
               </div>
 
               <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <Field label="Time EN"><TextInput value={event.timeLabelEn} onChange={(value) => updateEvent(event.eventKey, { timeLabelEn: value })} /></Field>
-                <Field label="Time ES"><TextInput value={event.timeLabelEs} onChange={(value) => updateEvent(event.eventKey, { timeLabelEs: value })} /></Field>
-                <Field label="Time DE"><TextInput value={event.timeLabelDe} onChange={(value) => updateEvent(event.eventKey, { timeLabelDe: value })} /></Field>
-                <Field label="Cost EN"><TextInput value={event.costLabelEn} onChange={(value) => updateEvent(event.eventKey, { costLabelEn: value })} /></Field>
-                <Field label="Cost ES"><TextInput value={event.costLabelEs} onChange={(value) => updateEvent(event.eventKey, { costLabelEs: value })} /></Field>
-                <Field label="Cost DE"><TextInput value={event.costLabelDe} onChange={(value) => updateEvent(event.eventKey, { costLabelDe: value })} /></Field>
-                <Field label="Starts at ISO" optional><TextInput value={event.startsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { startsAt: value })} placeholder="2026-07-12T10:00:00.000Z" /></Field>
-                <Field label="Ends at ISO" optional><TextInput value={event.endsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { endsAt: value })} placeholder="2026-07-12T11:00:00.000Z" /></Field>
+                <Field label="Time (English)"><TextInput value={event.timeLabelEn} onChange={(value) => updateEvent(event.eventKey, { timeLabelEn: value })} /></Field>
+                <Field label="Time (Spanish)"><TextInput value={event.timeLabelEs} onChange={(value) => updateEvent(event.eventKey, { timeLabelEs: value })} /></Field>
+                <Field label="Time (German)"><TextInput value={event.timeLabelDe} onChange={(value) => updateEvent(event.eventKey, { timeLabelDe: value })} /></Field>
+                <Field label="Cost (English)"><TextInput value={event.costLabelEn} onChange={(value) => updateEvent(event.eventKey, { costLabelEn: value })} /></Field>
+                <Field label="Cost (Spanish)"><TextInput value={event.costLabelEs} onChange={(value) => updateEvent(event.eventKey, { costLabelEs: value })} /></Field>
+                <Field label="Cost (German)"><TextInput value={event.costLabelDe} onChange={(value) => updateEvent(event.eventKey, { costLabelDe: value })} /></Field>
+                <Field label="Start date/time" hint="ISO format if there is an exact time." optional><TextInput value={event.startsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { startsAt: value })} placeholder="2026-07-12T10:00:00.000Z" /></Field>
+                <Field label="End date/time" hint="ISO format if there is an exact end time." optional><TextInput value={event.endsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { endsAt: value })} placeholder="2026-07-12T11:00:00.000Z" /></Field>
               </div>
 
               <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Languages">
                   <TextInput value={listToText(event.languageCodes)} onChange={(value) => updateEvent(event.eventKey, { languageCodes: textToList(value) })} />
                 </Field>
-                <Field label="Tags">
+                <Field label="General tags">
                   <TextArea value={listToText(event.tags)} onChange={(value) => updateEvent(event.eventKey, { tags: textToList(value) })} />
                 </Field>
-                <Field label="Interest tags">
+                <Field label="Interests">
                   <TextArea value={listToText(event.interestTags)} onChange={(value) => updateEvent(event.eventKey, { interestTags: textToList(value) })} />
                 </Field>
-                <Field label="Accessibility tags">
+                <Field label="Accessibility">
                   <TextArea value={listToText(event.accessibilityTags)} onChange={(value) => updateEvent(event.eventKey, { accessibilityTags: textToList(value) })} />
                 </Field>
-                <Field label="Helper actions">
+                <Field label="Support prompts">
                   <TextInput value={listToText(event.helperActions)} onChange={(value) => updateEvent(event.eventKey, { helperActions: normalizeHelperActions(textToList(value)) })} />
                 </Field>
               </div>

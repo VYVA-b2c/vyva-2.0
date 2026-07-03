@@ -270,8 +270,8 @@ describe("CuratedActivitiesAdminPage", () => {
     });
 
     expect(await screen.findByText("madrid-library-music")).toBeInTheDocument();
-    expect(screen.getAllByText("draft").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("needs_review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Needs review").length).toBeGreaterThan(0);
   });
 
   it("manages city coverage, creates drafts, and saves event changes", async () => {
@@ -281,14 +281,15 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(screen.getByText("Online fallback available")).toBeInTheDocument();
     expect(screen.getByText("Madrid, ES")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("City filter"), { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("Filter by city"), { target: { value: "Valencia" } });
     expect(screen.getByText(/Valencia has no active approved local events/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Event key"), { target: { value: "valencia-art-hour" } });
-    fireEvent.change(screen.getAllByLabelText("Title EN")[0], { target: { value: "Valencia art hour" } });
-    fireEvent.change(screen.getAllByLabelText("Title ES")[0], { target: { value: "Arte en Valencia" } });
-    fireEvent.change(screen.getAllByLabelText("Title DE")[0], { target: { value: "Kunst in Valencia" } });
-    fireEvent.change(screen.getAllByLabelText("City")[1], { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("Internal ID"), { target: { value: "valencia-art-hour" } });
+    fireEvent.change(screen.getAllByLabelText("Title (English)")[0], { target: { value: "Valencia art hour" } });
+    fireEvent.change(screen.getAllByLabelText("Title (Spanish)")[0], { target: { value: "Arte en Valencia" } });
+    fireEvent.change(screen.getAllByLabelText("Title (German)")[0], { target: { value: "Kunst in Valencia" } });
+    fireEvent.change(screen.getAllByLabelText("City or town")[0], { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("Precise location"), { target: { value: "IVAM, Guillem de Castro 118" } });
     fireEvent.click(screen.getByRole("button", { name: /Add event/ }));
 
     await waitFor(() => {
@@ -298,17 +299,18 @@ describe("CuratedActivitiesAdminPage", () => {
       expect(post).toBeTruthy();
       expect(String(post?.[1]?.body)).toContain("valencia-art-hour");
       expect(String(post?.[1]?.body)).toContain("Valencia");
+      expect(String(post?.[1]?.body)).toContain("IVAM, Guillem de Castro 118");
     });
 
     expect(await screen.findByText("valencia-art-hour")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /Save event/ }).length).toBeGreaterThan(0);
     });
-    fireEvent.change(screen.getByLabelText("City filter"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Filter by city"), { target: { value: "" } });
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /Save event/ }).length).toBeGreaterThan(1);
     });
-    fireEvent.change(screen.getAllByLabelText("City")[2], { target: { value: "Barcelona" } });
+    fireEvent.change(screen.getAllByLabelText("City or town")[1], { target: { value: "Barcelona" } });
     fireEvent.click(screen.getAllByRole("button", { name: /Save event/ })[0]);
 
     await waitFor(() => {
