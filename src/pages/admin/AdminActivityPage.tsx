@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, RefreshCw, Search } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Filter, RefreshCw, Search, XCircle } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -60,6 +60,7 @@ export default function AdminActivityPage() {
   const [summary, setSummary] = useState<ActivityResponse["summary"]>({ total: 0, failed: 0, warning: 0 });
   const [query, setQuery] = useState("");
   const [resultFilter, setResultFilter] = useState<(typeof RESULT_FILTERS)[number]["value"]>("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -88,6 +89,8 @@ export default function AdminActivityPage() {
     return items.filter((item) => {
       const matchesResult = resultFilter === "all" || item.result_status === resultFilter;
       if (!matchesResult) return false;
+      const matchesSource = sourceFilter === "all" || item.source === sourceFilter;
+      if (!matchesSource) return false;
       if (!needle) return true;
       return [
         item.actor,
@@ -100,7 +103,28 @@ export default function AdminActivityPage() {
         item.event_type,
       ].some((value) => String(value ?? "").toLowerCase().includes(needle));
     });
-  }, [items, query, resultFilter]);
+  }, [items, query, resultFilter, sourceFilter]);
+
+  const sourceOptions = useMemo(() => {
+    const sources = Array.from(new Set(items.map((item) => item.source).filter(Boolean))).sort();
+    return [
+      { value: "all", label: "All sources" },
+      ...sources.map((source) => ({ value: source, label: sourceLabel(source) })),
+    ];
+  }, [items]);
+
+  const reviewQueue = useMemo(
+    () => items
+      .filter((item) => item.result_status === "failed" || item.result_status === "warning")
+      .slice(0, 6),
+    [items],
+  );
+
+  function clearFilters() {
+    setQuery("");
+    setResultFilter("all");
+    setSourceFilter("all");
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-6 text-[#2f2135] sm:px-6 lg:px-8">
@@ -131,13 +155,74 @@ export default function AdminActivityPage() {
         </section>
 
         <section className="mt-5 rounded-[1.5rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Review queue</p>
+              <h2 className="mt-1 font-serif text-3xl leading-tight">Needs attention</h2>
+              <p className="mt-1 max-w-2xl text-sm font-semibold text-[#7d6b65]">
+                Failed and warning events from the loaded audit trail. Use this before digging through the full log.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={summary.failed === 0}
+                onClick={() => setResultFilter("failed")}
+              >
+                <XCircle size={15} />
+                Show failed
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-100 bg-amber-50 px-4 py-2 text-sm font-black text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={summary.warning === 0}
+                onClick={() => setResultFilter("warning")}
+              >
+                <AlertTriangle size={15} />
+                Show warnings
+              </button>
+            </div>
+          </div>
+
+          {reviewQueue.length === 0 ? (
+            <div className="mt-4 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
+              <CheckCircle2 size={18} />
+              No failed or warning events in the loaded audit trail.
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-2 lg:grid-cols-2">
+              {reviewQueue.map((item) => (
+                <button
+                  key={`queue-${item.id}`}
+                  type="button"
+                  className="rounded-2xl border border-[#eadfd5] bg-[#fbf8f5] p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm"
+                  onClick={() => {
+                    setResultFilter(item.result_status);
+                    setSourceFilter(item.source);
+                    setQuery(item.target_name || item.actor);
+                  }}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${resultClass(item.result_status)}`}>{item.result}</span>
+                    <span className="text-xs font-bold text-[#8b7a73]">{formatDate(item.created_at)}</span>
+                  </div>
+                  <p className="mt-2 font-black text-[#2f2135]">{item.action}</p>
+                  <p className="mt-1 truncate text-sm font-semibold text-[#7d6b65]">{item.target_name} - {sourceLabel(item.source)}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="mt-5 rounded-[1.5rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700">Audit trail</p>
               <h2 className="mt-1 font-serif text-3xl leading-tight">Activity log</h2>
               <p className="mt-1 text-sm text-[#7d6b65]">{filteredItems.length} visible of {items.length} loaded events.</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-[minmax(220px,360px)_180px]">
+            <div className="grid gap-2 sm:grid-cols-[minmax(220px,360px)_180px_180px_auto]">
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9b8b85]" size={16} />
                 <input
@@ -156,12 +241,30 @@ export default function AdminActivityPage() {
                   <option key={filter.value} value={filter.value}>{filter.label}</option>
                 ))}
               </select>
+              <select
+                value={sourceFilter}
+                onChange={(event) => setSourceFilter(event.target.value)}
+                className="rounded-xl border border-[#eadfd5] bg-white px-3 py-2.5 text-sm font-bold outline-none transition focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                aria-label="Source filter"
+              >
+                {sourceOptions.map((filter) => (
+                  <option key={filter.value} value={filter.value}>{filter.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-purple-100 bg-white px-3 py-2.5 text-sm font-black text-purple-700 hover:bg-purple-50"
+                onClick={clearFilters}
+              >
+                <Filter size={15} />
+                Reset
+              </button>
             </div>
           </div>
 
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-[980px] w-full border-separate border-spacing-y-2 text-left">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">
                   <th className="px-4 py-2">When</th>
                   <th className="px-4 py-2">Actor</th>
