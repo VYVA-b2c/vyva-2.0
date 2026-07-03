@@ -203,6 +203,7 @@ describe("CuratedActivitiesAdminPage", () => {
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByTestId("admin-discovery-city"), { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "PT" } });
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
 
     expect(await screen.findByTestId("admin-discovery-preview")).toBeInTheDocument();
@@ -215,7 +216,7 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(discoverCall).toBeTruthy();
     expect(JSON.parse(String(discoverCall?.[1]?.body))).toMatchObject({
       city: "Valencia",
-      countryCode: "ES",
+      countryCode: "PT",
       format: "nearby",
       maxResults: 6,
     });

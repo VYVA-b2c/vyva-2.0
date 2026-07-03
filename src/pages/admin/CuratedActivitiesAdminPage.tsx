@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, CheckCircle2, Download, ExternalLink, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
+import { PHONE_COUNTRY_OPTIONS } from "@/lib/profileIdentity";
 import { apiFetch } from "@/lib/queryClient";
 import type {
   AdminParticipationEvent,
@@ -34,6 +35,7 @@ type Filters = {
 const STATUS_OPTIONS: EventStatus[] = ["draft", "active", "hidden", "archived"];
 const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"];
 const DISCOVERY_FORMAT_OPTIONS: DiscoveryFormatPreference[] = ["nearby", "online", "hybrid", "any"];
+const DISCOVERY_COUNTRY_OPTIONS = PHONE_COUNTRY_OPTIONS.map((option) => option.value);
 const SAFETY_OPTIONS: SafetyStatus[] = ["approved", "needs_review", "hidden"];
 const LANGUAGE_OPTIONS = ["en", "es", "de"];
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
@@ -884,7 +886,14 @@ export default function CuratedActivitiesAdminPage() {
               />
             </Field>
             <Field label="Country">
-              <TextInput value={discoveryForm.countryCode} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, countryCode: value }))} placeholder="ES" />
+              <select
+                data-testid="admin-discovery-country"
+                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
+                value={discoveryForm.countryCode}
+                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, countryCode: event.target.value }))}
+              >
+                {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country} value={country}>{country}</option>)}
+              </select>
             </Field>
             <Field label="Interests">
               <TextInput value={discoveryForm.interests} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, interests: value }))} placeholder="music, walking, art" />
