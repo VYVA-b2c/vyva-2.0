@@ -96,6 +96,40 @@ describe("IntakeTable", () => {
     expect(row).not.toBeNull();
     expect(within(row as HTMLTableRowElement).getByText("-")).toBeInTheDocument();
   });
+
+  it("surfaces journey and access cues without duplicating the tier action chip", () => {
+    render(
+      <IntakeTable
+        users={[
+          intake({
+            id: "worklist-row",
+            name: "Worklist User",
+            login_phone: "+34 600 111 222",
+            status: "link_sent",
+            journey_step: "signup_invite_sent",
+            account_status: "disabled",
+            consent_status: "pending",
+            tier: "premium",
+            organization_name: "Madrid Care",
+          }),
+        ]}
+        onView={vi.fn()}
+        onTriggerConsent={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByText("Worklist User").closest("tr");
+    expect(row).not.toBeNull();
+    const rowScope = within(row as HTMLTableRowElement);
+    expect(rowScope.getByText("Invite sent")).toBeInTheDocument();
+    expect(rowScope.getByText("Link sent")).toBeInTheDocument();
+    expect(rowScope.getByText("Disabled")).toBeInTheDocument();
+    expect(rowScope.getByText("Pending")).toBeInTheDocument();
+    expect(rowScope.getByText("Premium")).toBeInTheDocument();
+    expect(rowScope.queryByText("Tier: Premium")).not.toBeInTheDocument();
+    expect(rowScope.getByText("Madrid Care")).toBeInTheDocument();
+  });
 });
 
 describe("UserDetailModal", () => {
@@ -236,8 +270,12 @@ describe("UserDetailModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("tab", { name: "Care team" }));
+
     const sendButton = screen.getByRole("button", { name: "Send caregiver invite" });
     expect(sendButton).toBeEnabled();
+    expect(screen.getByText("Saved caregiver")).toBeInTheDocument();
+    expect(screen.getByText("Hassan")).toBeInTheDocument();
     expect(screen.queryByText("Name plus email, phone, or WhatsApp required.")).not.toBeInTheDocument();
 
     fireEvent.click(sendButton);

@@ -365,6 +365,7 @@ export default function LifecycleAdminPage() {
   const [peopleSearchInput, setPeopleSearchInput] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
   const [showRemovedUsers, setShowRemovedUsers] = useState(false);
+  const [showContactGapsOnly, setShowContactGapsOnly] = useState(false);
   const [summary, setSummary] = useState<JsonRecord | null>(null);
   const [schemaHealth, setSchemaHealth] = useState<SchemaHealth | null>(null);
   const [users, setUsers] = useState<Intake[]>([]);
@@ -1631,15 +1632,27 @@ export default function LifecycleAdminPage() {
   const emailShareCount = parseInviteRecipients(signupShare.emails, looksLikeEmailRecipient).length;
   const whatsappShareCount = parseInviteRecipients(signupShare.whatsapp, looksLikePhoneRecipient).length;
   const totalShareRecipients = emailShareCount + whatsappShareCount;
+  const userHasContactNumber = (user: Intake) => Boolean(
+    contactNumberValue(user.login_phone) || contactNumberValue(user.profile_phone) || contactNumberValue(user.phone),
+  );
+  const displayedUsers = showContactGapsOnly
+    ? users.filter((user) => isVisibleLifecycleUser(user) && !userHasContactNumber(user))
+    : users;
   const selectedUsers = users.filter((user) => selectedUserIds.includes(user.id));
   const selectedSelectableUserCount = selectedUsers.filter(canSelectUserForBulk).length;
   const selectedUserCount = selectedUserIds.length;
   const hasInvalidBulkSelection = selectedUserCount > 0 && selectedSelectableUserCount !== selectedUserCount;
   const visibleUserCount = users.filter(isVisibleLifecycleUser).length;
   const removedUserCount = users.length - visibleUserCount;
+  const contactGapCount = users.filter((user) => isVisibleLifecycleUser(user) && !userHasContactNumber(user)).length;
+  const usersNeedingInviteCount = users.filter((user) => isVisibleLifecycleUser(user) && user.status === "created").length;
+  const usersLinkSentCount = users.filter((user) => isVisibleLifecycleUser(user) && user.status === "link_sent").length;
+  const usersConsentWaitingCount = users.filter((user) => isVisibleLifecycleUser(user) && user.status === "consent_pending").length;
   const usersResultLabel = usersLoadError
     ? "Users unavailable"
-    : `${users.length} result${users.length === 1 ? "" : "s"}${showRemovedUsers && removedUserCount > 0 ? `, ${removedUserCount} removed` : ""}`;
+    : showContactGapsOnly
+      ? `${displayedUsers.length} phone gap${displayedUsers.length === 1 ? "" : "s"}`
+      : `${users.length} result${users.length === 1 ? "" : "s"}${showRemovedUsers && removedUserCount > 0 ? `, ${removedUserCount} removed` : ""}`;
   const searchIsUpdating = peopleSearchInput.trim() !== peopleSearch.trim();
   const planOptions = plans.length
     ? plans.map((plan) => ({ value: plan.plan_id, label: plan.name }))
@@ -1703,6 +1716,66 @@ export default function LifecycleAdminPage() {
       value: operationalCount("deleted_disabled_count"),
       detail: summary ? `${deletedCount} removed, ${disabledCount} disabled` : "Hidden or paused users",
       tone: deletedCount + disabledCount > 0 ? "muted" : "neutral",
+    },
+  ];
+  const userWorkQueues = [
+    {
+      label: "Needs invite",
+      value: usersNeedingInviteCount,
+      detail: "Created, not active",
+      active: filters.status === "created" && !showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers(false);
+        setFilters((prev) => ({ ...prev, status: "created" }));
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Link sent",
+      value: usersLinkSentCount,
+      detail: "Waiting on signup",
+      active: filters.status === "link_sent" && !showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers(false);
+        setFilters((prev) => ({ ...prev, status: "link_sent" }));
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Consent waiting",
+      value: usersConsentWaitingCount,
+      detail: "Family flows",
+      active: filters.status === "consent_pending" && !showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers(false);
+        setFilters((prev) => ({ ...prev, status: "consent_pending" }));
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "No mobile",
+      value: contactGapCount,
+      detail: "Visible users",
+      active: showContactGapsOnly,
+      onClick: () => {
+        setShowContactGapsOnly((current) => !current);
+        setShowRemovedUsers(false);
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Removed",
+      value: removedUserCount,
+      detail: "Hidden users",
+      active: showRemovedUsers,
+      onClick: () => {
+        setShowContactGapsOnly(false);
+        setShowRemovedUsers((current) => !current);
+        setSelectedUserIds([]);
+      },
     },
   ];
 
@@ -1927,6 +2000,29 @@ export default function LifecycleAdminPage() {
               </div>
             </div>
 
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              {userWorkQueues.map((queue) => (
+                <button
+                  key={queue.label}
+                  type="button"
+                  onClick={queue.onClick}
+                  className={`rounded-[14px] border px-3 py-3 text-left transition ${
+                    queue.active
+                      ? "border-purple-300 bg-purple-50 shadow-sm"
+                      : "border-[#eadfd5] bg-[#fbf8f5] hover:border-purple-200 hover:bg-purple-50/60"
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{queue.label}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-black ${queue.active ? "bg-purple-700 text-white" : "bg-white text-purple-700"}`}>
+                      {queue.value}
+                    </span>
+                  </span>
+                  <span className="mt-2 block text-xs font-semibold text-[#7d6b65]">{queue.detail}</span>
+                </button>
+              ))}
+            </div>
+
             <form
               className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]"
               onSubmit={(event) => {
@@ -1947,6 +2043,7 @@ export default function LifecycleAdminPage() {
                     checked={showRemovedUsers}
                     onChange={(event) => {
                       setShowRemovedUsers(event.target.checked);
+                      setShowContactGapsOnly(false);
                       setSelectedUserIds([]);
                       if (!event.target.checked && bulkUserAction === "restore") setBulkUserAction("disable");
                     }}
@@ -1956,11 +2053,12 @@ export default function LifecycleAdminPage() {
               <button
                 type="button"
                 className="rounded-xl border border-purple-100 bg-white px-4 py-2.5 text-sm font-bold text-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!peopleSearch && !peopleSearchInput && !showRemovedUsers}
+                disabled={!peopleSearch && !peopleSearchInput && !showRemovedUsers && !showContactGapsOnly}
                 onClick={() => {
                   setPeopleSearchInput("");
                   setPeopleSearch("");
                   setShowRemovedUsers(false);
+                  setShowContactGapsOnly(false);
                 }}
               >
                 Clear
@@ -2056,8 +2154,8 @@ export default function LifecycleAdminPage() {
               </div>
             </div>
             <IntakeTable
-              users={users}
-              emptyMessage={usersLoadError || "No users match the current filters yet."}
+              users={displayedUsers}
+              emptyMessage={usersLoadError || (showContactGapsOnly ? "All visible users have a mobile number." : "No users match the current filters yet.")}
               onView={(intake) => openUserDetail(intake, "view")}
               onTriggerConsent={triggerConsent}
               onToggleEnabled={toggleUser}
