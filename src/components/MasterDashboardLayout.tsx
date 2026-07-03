@@ -96,8 +96,8 @@ export default function MasterDashboardLayout({
   fastHelpRotationMs = 9000,
   children,
 }: MasterDashboardLayoutProps) {
-  const HeroIcon = hero.icon;
   const heroTone = hero.tone ?? defaultHeroTone;
+  const isVoiceAction = hero.action.kind === "voice";
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -158,45 +158,41 @@ export default function MasterDashboardLayout({
         style={{ borderColor: heroTone.border, background: heroTone.surface ?? "#FFFFFF" }}
         data-testid={hero.testId}
       >
-        <div className="flex items-start gap-4 min-[390px]:gap-5">
-          <span
-            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[19px] min-[390px]:h-[60px] min-[390px]:w-[60px] min-[390px]:rounded-[21px]"
-            style={{ background: heroTone.iconBg, color: heroTone.iconColor }}
-          >
-            <HeroIcon size={29} strokeWidth={2.55} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <h1 className="text-balance font-body text-[29px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[34px] sm:text-[40px]">
+        <div className={`flex gap-4 min-[390px]:gap-5 ${isVoiceAction ? "items-center justify-between" : "items-start"}`}>
+          <span className="min-w-0 flex-1 text-left">
+            <h1 className="max-w-[8.6em] text-balance font-body text-[29px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]">
               {hero.title}
             </h1>
             {hero.subtitle ? (
-              <p className="mt-2 line-clamp-1 font-body text-[15px] font-extrabold leading-snug text-[#0F4C45] min-[390px]:text-[16px]">
+              <p className="mt-2 line-clamp-1 max-w-[13rem] font-body text-[15px] font-extrabold leading-snug text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]">
                 {hero.subtitle}
               </p>
             ) : null}
           </span>
+
+          {isVoiceAction ? (
+            <VyvaSessionCta
+              label={hero.action.label}
+              activeLabel={hero.action.activeLabel}
+              connectingLabel={hero.action.connectingLabel}
+              preparingLabel={hero.action.preparingLabel}
+              errorLabel={hero.action.errorLabel}
+              contextHint={hero.action.contextHint}
+              voiceAgentSlug={hero.action.voiceAgentSlug}
+              voiceDynamicVariables={hero.action.voiceDynamicVariables}
+              autoStartListening={hero.action.autoStartListening}
+              canStartVoice={hero.action.canStartVoice}
+              hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
+              disabled={hero.action.disabled}
+              testId={hero.action.testId}
+              supportingLabel={hero.action.supportingLabel}
+              visual="voiceRail"
+              className="vyva-tap relative flex !h-[68px] !min-h-[68px] !w-[68px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!h-[72px] min-[390px]:!min-h-[72px] min-[390px]:!w-[72px]"
+            />
+          ) : null}
         </div>
 
-        {hero.action.kind === "voice" ? (
-          <VyvaSessionCta
-            label={hero.action.label}
-            activeLabel={hero.action.activeLabel}
-            connectingLabel={hero.action.connectingLabel}
-            preparingLabel={hero.action.preparingLabel}
-            errorLabel={hero.action.errorLabel}
-            contextHint={hero.action.contextHint}
-            voiceAgentSlug={hero.action.voiceAgentSlug}
-            voiceDynamicVariables={hero.action.voiceDynamicVariables}
-            autoStartListening={hero.action.autoStartListening}
-            canStartVoice={hero.action.canStartVoice}
-            hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
-            disabled={hero.action.disabled}
-            testId={hero.action.testId}
-            supportingLabel={hero.action.supportingLabel}
-            visual="voiceRail"
-            className="vyva-tap relative mx-auto mt-6 flex !h-[68px] !min-h-[68px] !w-[68px] items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!h-[72px] min-[390px]:!min-h-[72px] min-[390px]:!w-[72px]"
-          />
-        ) : (
+        {isVoiceAction ? null : (
           <button
             type="button"
             onClick={hero.action.onClick}
