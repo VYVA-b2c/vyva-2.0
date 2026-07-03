@@ -92,6 +92,14 @@ vi.mock("@/components/VoiceHero", () => ({
   },
 }));
 
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
+    <button type="button" data-testid={testId} className={className}>
+      {label}
+    </button>
+  ),
+}));
+
 function renderHealthScreen(initialEntries = ["/health"], overrides: Record<string, unknown> = {}) {
   const responses: Record<string, unknown> = {
     "/api/profile/personalisation": { conditions: [], hobbies: [], hasMedications: true },
@@ -286,9 +294,7 @@ describe("HealthScreen home-style layout", () => {
     expect(within(screen.getByTestId("health-fast-help")).getAllByRole("button")).toHaveLength(3);
     expect(screen.getByTestId("button-health-fast-safety-signs")).toHaveTextContent("Safety signs");
     expect(screen.getByTestId("button-health-fast-explain-plan")).toHaveTextContent("Explain plan");
-    expect(screen.getByTestId("button-health-fast-explain-plan")).toHaveTextContent("What matters today");
     expect(screen.getByTestId("button-health-fast-open-latest-report")).toHaveTextContent("Latest report");
-    expect(screen.getByTestId("button-health-fast-open-latest-report")).toHaveTextContent("Reports and summaries");
     expect(screen.queryByTestId("section-health-visual-scan")).not.toBeInTheDocument();
   });
 
@@ -297,10 +303,7 @@ describe("HealthScreen home-style layout", () => {
 
     await waitFor(() => expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due"));
 
-    fireEvent.click(screen.getByTestId("button-health-hero-talk"));
-    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
-      state: expect.objectContaining({ autoStartVoice: true }),
-    }));
+    expect(screen.getByTestId("button-health-hero-talk")).toHaveTextContent("Talk to VYVA");
 
     fireEvent.click(screen.getByTestId("button-health-tool-vitals"));
     expect(mocks.navigate).toHaveBeenCalledWith("/health/vitals");
@@ -315,12 +318,10 @@ describe("HealthScreen home-style layout", () => {
     expect(mocks.navigate).toHaveBeenCalledWith("/health/prevention");
 
     fireEvent.click(screen.getByTestId("button-health-fast-safety-signs"));
-    expect(mocks.guardPath).toHaveBeenCalledWith("/health/symptom-check");
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.any(Object));
 
     fireEvent.click(screen.getByTestId("button-health-fast-explain-plan"));
-    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
-      state: expect.objectContaining({ autoStartVoice: true }),
-    }));
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.any(Object));
 
     fireEvent.click(screen.getByTestId("button-health-fast-open-latest-report"));
     expect(mocks.navigate).toHaveBeenCalledWith("/informes/triage-1");

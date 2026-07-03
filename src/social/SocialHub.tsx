@@ -25,8 +25,7 @@ import MasterDashboardLayout, {
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import { BottomSheet, EmptyState } from "@/components/vyva-ui";
-import { SECTION_VOICE_AUTO_START_KEY, useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
-import { incrementChatNavigationCount } from "@/lib/personaliseCards";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import {
@@ -664,16 +663,12 @@ const SocialHub = () => {
     return () => window.clearInterval(timer);
   }, [canRotateRooms, selectedRoom, showNextRooms]);
 
-  const openChat = () => {
-    incrementChatNavigationCount();
-    navigate("/chat", { state: { [SECTION_VOICE_AUTO_START_KEY]: true } });
-  };
   const openRoom = (slug: string) => navigate(`/social-rooms/${slug}`);
   const communityCards: MasterDashboardCard[] = [
     {
       id: "match",
       icon: HeartHandshake,
-      title: t("community.master.cards.match", "Match"),
+      title: t("community.master.cards.match", "Make Friends"),
       detail: t("community.master.cards.matchDetail", "Find people like me"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => openRoom("kitchen-table"),
@@ -682,103 +677,85 @@ const SocialHub = () => {
     {
       id: "rooms",
       icon: Users,
-      title: t("community.master.cards.rooms", "Rooms"),
+      title: t("community.master.cards.rooms", "Join In"),
       detail: t("community.master.cards.roomsDetail", "Join a live table"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => openRoom("kitchen-table"),
       testId: "card-social-primary-rooms",
     },
     {
-      id: "activities",
-      icon: Footprints,
-      title: t("community.master.cards.activities", "Activities"),
-      detail: t("community.master.cards.activitiesDetail", "Movement and clubs"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => navigate("/social-rooms/activities"),
-      testId: "card-social-primary-activities",
-    },
-    {
       id: "share",
       icon: Share2,
-      title: t("community.master.cards.share", "Share"),
+      title: t("community.master.cards.share", "Share Stories"),
       detail: t("community.master.cards.shareDetail", "A memory or song"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => openRoom("kitchen-table"),
       testId: "card-social-primary-share",
     },
+    {
+      id: "activities",
+      icon: Footprints,
+      title: t("community.master.cards.activities", "What's On"),
+      detail: t("community.master.cards.activitiesDetail", "Movement and clubs"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => navigate("/social-rooms/activities"),
+      testId: "card-social-primary-activities",
+    },
   ];
   const communityFastHelpActions: MasterFastHelpAction[] = [
     {
-      id: "join-room",
-      icon: Users,
-      label: t("community.master.fastHelp.joinRoom", "Join a room"),
-      detail: t("community.master.fastHelp.joinRoomDetail", "Kitchen table"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => openRoom("kitchen-table"),
-      testId: "button-social-fast-help-join-room",
-    },
-    {
-      id: "find-match",
-      icon: HeartHandshake,
-      label: t("community.master.fastHelp.findMatch", "Find a match"),
-      detail: t("community.master.fastHelp.findMatchDetail", "People and interests"),
-      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
-      onClick: () => openRoom("kitchen-table"),
-      testId: "button-social-fast-help-find-match",
-    },
-    {
-      id: "morning-movement",
-      icon: Footprints,
-      label: t("community.master.fastHelp.morningMovement", "Morning movement"),
-      detail: t("community.master.fastHelp.morningMovementDetail", "Gentle activity"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => openRoom("morning-movement"),
-      testId: "button-social-fast-help-morning-movement",
-    },
-    {
-      id: "music-room",
+      id: "bring-song",
       icon: Music2,
-      label: t("community.master.fastHelp.musicRoom", "Music room"),
-      detail: t("community.master.fastHelp.musicRoomDetail", "Songs and company"),
+      label: t("community.master.fastHelp.bringSong", "Bring Song"),
+      detail: t("community.master.fastHelp.bringSongDetail", "Music room"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
       onClick: () => openRoom("music-room"),
-      testId: "button-social-fast-help-music-room",
+      testId: "button-social-fast-help-bring-song",
     },
     {
-      id: "reading-club",
-      icon: BookOpen,
-      label: t("community.master.fastHelp.readingClub", "Reading club"),
-      detail: t("community.master.fastHelp.readingClubDetail", "Stories and chat"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => openRoom("reading-club"),
-      testId: "button-social-fast-help-reading-club",
-    },
-    {
-      id: "garden-table",
-      icon: Leaf,
-      label: t("community.master.fastHelp.gardenTable", "Garden table"),
-      detail: t("community.master.fastHelp.gardenTableDetail", "Calm conversation"),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => openRoom("garden-corner"),
-      testId: "button-social-fast-help-garden-table",
-    },
-    {
-      id: "nearby-activities",
-      icon: Calendar,
-      label: t("community.master.fastHelp.nearbyActivities", "Nearby activities"),
-      detail: t("community.master.fastHelp.nearbyActivitiesDetail", "What is on"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => navigate("/social-rooms/activities"),
-      testId: "button-social-fast-help-nearby-activities",
-    },
-    {
-      id: "share-memory",
-      icon: Share2,
-      label: t("community.master.fastHelp.shareMemory", "Share a memory"),
-      detail: t("community.master.fastHelp.shareMemoryDetail", "Post to a room"),
+      id: "cook-together",
+      icon: ChefHat,
+      label: t("community.master.fastHelp.cookTogether", "Cook Together"),
+      detail: t("community.master.fastHelp.cookTogetherDetail", "Kitchen table"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
       onClick: () => openRoom("kitchen-table"),
-      testId: "button-social-fast-help-share-memory",
+      testId: "button-social-fast-help-cook-together",
+    },
+    {
+      id: "garden-chat",
+      icon: Leaf,
+      label: t("community.master.fastHelp.gardenChat", "Garden Chat"),
+      detail: t("community.master.fastHelp.gardenChatDetail", "Calm table"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => openRoom("garden-corner"),
+      testId: "button-social-fast-help-garden-chat",
+    },
+    {
+      id: "reading-corner",
+      icon: BookOpen,
+      label: t("community.master.fastHelp.readingCorner", "Reading Corner"),
+      detail: t("community.master.fastHelp.readingCornerDetail", "Stories and chat"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => openRoom("reading-room"),
+      testId: "button-social-fast-help-reading-corner",
+    },
+    {
+      id: "light-game",
+      icon: Gamepad2,
+      label: t("community.master.fastHelp.lightGame", "Light Game"),
+      detail: t("community.master.fastHelp.lightGameDetail", "Easy play"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "button-social-fast-help-light-game",
+    },
+    {
+      id: "move-together",
+      icon: Footprints,
+      label: t("community.master.fastHelp.moveTogether", "Move Together"),
+      detail: t("community.master.fastHelp.moveTogetherDetail", "Gentle activity"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
+      onClick: () => openRoom("morning-movement"),
+      testId: "button-social-fast-help-move-together",
     },
   ];
 
@@ -795,8 +772,12 @@ const SocialHub = () => {
           eyebrow: t("community.master.heroEyebrow", "Community"),
           title: t("community.master.heroTitle", "Community ready"),
           action: {
+            kind: "voice",
             label: t("community.master.heroAction", "Talk to VYVA"),
-            onClick: openChat,
+            contextHint: t("community.master.voiceContext", "Community support. Help the user join a room, find a match, share a memory, or choose a gentle activity."),
+            voiceAgentSlug: "community",
+            voiceDynamicVariables: { app_entrypoint: "community_master_hero" },
+            autoStartListening: true,
             testId: "button-community-hero-talk",
           },
           testId: "community-master-hero",

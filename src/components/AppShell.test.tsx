@@ -219,4 +219,17 @@ describe("app shell voice dock", () => {
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(voiceState.stopVoice).not.toHaveBeenCalled();
   });
+
+  it("uses compact copy when VYVA is speaking from the dock", () => {
+    voiceState.isSpeaking = true;
+    voiceState.voiceSessionPhase = "speaking";
+    voiceState.transcript = [{ from: "vyva", text: "Try naming three things", timestamp: 2 }];
+
+    renderShell();
+
+    const dock = screen.getByTestId("voice-session-dock");
+    expect(dock).toHaveTextContent("Speaking");
+    expect(dock).not.toHaveTextContent("VYVA speaking");
+    expect(dock).toHaveTextContent("Try naming three things");
+  });
 });

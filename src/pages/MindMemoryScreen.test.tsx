@@ -17,6 +17,14 @@ vi.mock("@/hooks/useServiceGate", () => ({
   }),
 }));
 
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
+    <button type="button" data-testid={testId} className={className}>
+      {label}
+    </button>
+  ),
+}));
+
 function LocationProbe() {
   const location = useLocation();
   return <div data-testid="current-route">{location.pathname}</div>;
@@ -50,7 +58,9 @@ describe("MindMemoryScreen", () => {
 
     const fastHelp = screen.getByTestId("mind-memory-fast-help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-mind-memory-fast-confusion-now")).toHaveTextContent("Confusion now");
+    expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
+    expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
+    expect(screen.getByTestId("button-mind-memory-fast-memory-check")).toHaveTextContent("Memory Check");
   });
 
   it("uses existing cognitive routes", () => {
@@ -81,13 +91,11 @@ describe("MindMemoryScreen", () => {
     expect(screen.getByTestId("current-route")).toHaveTextContent("/senses");
   });
 
-  it("pins urgent confusion help to the doctor support flow", () => {
+  it("routes calm breathing from fast help", () => {
     renderMindMemory();
 
-    fireEvent.click(screen.getByTestId("button-mind-memory-fast-confusion-now"));
+    fireEvent.click(screen.getByTestId("button-mind-memory-fast-relax-breathe"));
 
-    expect(guardPathMock).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
-      state: expect.objectContaining({ autoStartVoice: true }),
-    }));
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/activities/relax-breathe");
   });
 });

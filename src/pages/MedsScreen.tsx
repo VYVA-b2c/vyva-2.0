@@ -25,6 +25,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
+const MEDS_FAST_HELP_VISIBLE_COUNT = 3;
+const MEDS_FAST_HELP_ROTATION_MS = 9000;
+
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
 // rest of the component never cares where the data came from.
@@ -777,6 +780,7 @@ const MedsScreen = () => {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantTitle, setAssistantTitle] = useState("");
   const [assistantPrompt, setAssistantPrompt] = useState("");
+  const [medsFastHelpIndex, setMedsFastHelpIndex] = useState(0);
 
   useEffect(() => {
     setConfirmedDoseCounts(new Map());
@@ -869,17 +873,73 @@ const MedsScreen = () => {
 
   const ASSISTANT_ACTIONS = [
     {
-      id: "naturalMedicine",
+      id: "interactions",
+      icon: LinkIcon,
+      label: t("meds.assistant.interactions.label", "Check Interactions"),
+      sub: t("meds.assistant.interactions.sub", "Medicine and supplement questions"),
+      color: "#0F766E",
+      bg: "#F0FDFA",
+      border: "#99F6E4",
+      shadow: "rgba(15,118,110,0.12)",
+      prompt: t("meds.assistant.interactions.prompt", {
+        medNames,
+        defaultValue: "Check my medicines and supplements for possible interaction questions: {{medNames}}. Do not suggest dose changes; tell me what to ask my pharmacist or doctor.",
+      }),
+      sheetTitle: t("meds.assistant.interactions.sheetTitle", "Check Interactions"),
+    },
+    {
+      id: "sideEffects",
+      icon: ShieldCheck,
+      label: t("meds.assistant.sideEffects.label", "Side Effects"),
+      sub: t("meds.assistant.sideEffects.sub", "Symptoms to watch"),
+      color: "#1D4ED8",
+      bg: "#EFF6FF",
+      border: "#BFDBFE",
+      shadow: "rgba(37,99,235,0.11)",
+      prompt: t("meds.assistant.sideEffects.prompt", {
+        medNames,
+        defaultValue: "Help me understand side effects to watch for with my current medicines: {{medNames}}. Keep it practical and tell me when to contact a pharmacist or doctor.",
+      }),
+      sheetTitle: t("meds.assistant.sideEffects.sheetTitle", "Side Effects"),
+    },
+    {
+      id: "refillHelp",
+      icon: ShoppingCart,
+      label: t("meds.assistant.refillHelp.label", "Refill Help"),
+      sub: t("meds.assistant.refillHelp.sub", "Prepare pharmacy order"),
+      color: "#B45309",
+      bg: "#FFF7ED",
+      border: "#FED7AA",
+      shadow: "rgba(180,83,9,0.10)",
+      prompt: "",
+      sheetTitle: "",
+    },
+    {
+      id: "addMedicine",
+      icon: Mic,
+      label: t("meds.assistant.addMedicine.label", "Add Medicine"),
+      sub: t("meds.assistant.addMedicine.sub", "Use voice"),
+      color: "#6B21A8",
+      bg: "#F5F3FF",
+      border: "#DDD6FE",
+      shadow: "rgba(109,40,217,0.13)",
+      prompt: "",
+      sheetTitle: "",
+    },
+    {
+      id: "homeRemedies",
       icon: Leaf,
-      label: t("meds.assistant.naturalMedicine.label", "Natural Options"),
-      sub: t("meds.assistant.naturalMedicine.sub", "Check herbal and supplement fit"),
+      label: t("meds.assistant.homeRemedies.label", "Home Remedies"),
+      sub: t("meds.assistant.homeRemedies.sub", "Safe options to ask about"),
       color: "#166534",
       bg: "#DCFCE7",
       border: "#BDEBD8",
       shadow: "rgba(16,185,129,0.12)",
-      type: "chat" as const,
-      prompt: t("meds.assistant.naturalMedicine.prompt", { medNames }),
-      sheetTitle: t("meds.assistant.naturalMedicine.sheetTitle", "Natural Options"),
+      prompt: t("meds.assistant.homeRemedies.prompt", {
+        medNames,
+        defaultValue: "Suggest safe home-remedy questions I can ask about alongside my medicines: {{medNames}}. Do not recommend replacing medicine or changing doses.",
+      }),
+      sheetTitle: t("meds.assistant.homeRemedies.sheetTitle", "Home Remedies"),
     },
     {
       id: "advances",
@@ -890,24 +950,27 @@ const MedsScreen = () => {
       bg: "#EDE9FE",
       border: "#D9C7F8",
       shadow: "rgba(109,40,217,0.13)",
-      type: "chat" as const,
-      prompt: t("meds.assistant.advances.prompt", { medNames }),
+      prompt: t("meds.assistant.advances.prompt", {
+        medNames,
+        defaultValue: "Summarize recent medication research or practical updates relevant to these medicines in plain language: {{medNames}}. Do not give dosing advice.",
+      }),
       sheetTitle: t("meds.assistant.advances.sheetTitle", "Medication Research"),
     },
-    {
-      id: "sideEffects",
-      icon: ShieldCheck,
-      label: t("meds.assistant.sideEffects.label", "Side Effect Check"),
-      sub: t("meds.assistant.sideEffects.sub", "Talk through symptoms to watch"),
-      color: "#1D4ED8",
-      bg: "#EFF6FF",
-      border: "#BFDBFE",
-      shadow: "rgba(37,99,235,0.11)",
-      type: "chat" as const,
-      prompt: t("meds.assistant.sideEffects.prompt", { medNames }),
-      sheetTitle: t("meds.assistant.sideEffects.sheetTitle", "Side Effect Check"),
-    },
   ];
+
+  const visibleAssistantActions = ASSISTANT_ACTIONS.length <= MEDS_FAST_HELP_VISIBLE_COUNT
+    ? ASSISTANT_ACTIONS
+    : Array.from({ length: MEDS_FAST_HELP_VISIBLE_COUNT }, (_item, index) => (
+      ASSISTANT_ACTIONS[(medsFastHelpIndex + index) % ASSISTANT_ACTIONS.length]!
+    ));
+
+  useEffect(() => {
+    if (ASSISTANT_ACTIONS.length <= MEDS_FAST_HELP_VISIBLE_COUNT) return undefined;
+    const timer = window.setInterval(() => {
+      setMedsFastHelpIndex((current) => (current + MEDS_FAST_HELP_VISIBLE_COUNT) % ASSISTANT_ACTIONS.length);
+    }, MEDS_FAST_HELP_ROTATION_MS);
+    return () => window.clearInterval(timer);
+  }, [ASSISTANT_ACTIONS.length]);
 
   const handleAddMedication = useCallback((med: MedicationForForm) => {
     setVoiceAddedMeds(prev => [...prev, med]);
@@ -1109,6 +1172,18 @@ const MedsScreen = () => {
     });
   }
 
+  function handleMedicationAssistantAction(action: (typeof ASSISTANT_ACTIONS)[number]) {
+    if (action.id === "refillHelp") {
+      openRefillSupport();
+      return;
+    }
+    if (action.id === "addMedicine") {
+      toggleMedicationVoiceCapture();
+      return;
+    }
+    openAssistant(action.prompt, action.sheetTitle);
+  }
+
   function openSafetyCaseSheet(safetyCase: MedicationSafetyCase) {
     setReviewCase(safetyCase);
     setCaseForm(formFromSafetyCase(safetyCase));
@@ -1162,6 +1237,58 @@ const MedsScreen = () => {
         ? t("meds.safety.signalBadge", { count: safetySummary.signalCount, defaultValue: "{{count}} signal" })
         : t("meds.safety.steadyBadge", "Steady")
     : t("meds.safety.steadyBadge", "Steady");
+
+  const medicationShortcutCards = [
+    {
+      id: "reminders",
+      icon: Clock,
+      label: t("meds.primary.reminders", "My Reminders"),
+      sub: totalRemainingDoseCount > 0
+        ? t("meds.remainingBadge", { count: totalRemainingDoseCount, defaultValue: "{{count}} due" })
+        : t("meds.allTakenShort", "Done"),
+      color: "#6B21A8",
+      bg: "#F5F3FF",
+      border: "#DDD6FE",
+      onClick: () => setRemindersOpen((open) => !open),
+      testId: "button-meds-primary-reminders",
+    },
+    {
+      id: "refills",
+      icon: ShoppingCart,
+      label: t("meds.primary.refills", "My Refills"),
+      sub: t("meds.primary.refillsMobileSub", "Pharmacy refills"),
+      color: "#B45309",
+      bg: "#FFF7ED",
+      border: "#FED7AA",
+      onClick: openRefillSupport,
+      testId: "button-meds-primary-refills",
+    },
+    {
+      id: "safety",
+      icon: ShieldCheck,
+      label: t("meds.primary.safety", "Stay Safe"),
+      sub: safetyBadgeText,
+      color: safetySummaryTone.color,
+      bg: safetySummaryTone.bg,
+      border: safetySummaryTone.border,
+      onClick: () => setSafetyOpen((open) => !open),
+      testId: "button-meds-primary-safety",
+    },
+    {
+      id: "home-remedies",
+      icon: Leaf,
+      label: t("meds.primary.homeRemedies", "Home Remedies"),
+      sub: t("meds.primary.homeRemediesSub", "Ask what is safe"),
+      color: "#0F766E",
+      bg: "#F0FDFA",
+      border: "#99F6E4",
+      onClick: () => {
+        const action = ASSISTANT_ACTIONS.find((item) => item.id === "homeRemedies");
+        if (action) handleMedicationAssistantAction(action);
+      },
+      testId: "button-meds-primary-home-remedies",
+    },
+  ];
 
   async function confirmAllRemainingDoses(meds: DisplayMed[]) {
     for (const med of meds) {
@@ -1345,6 +1472,41 @@ const MedsScreen = () => {
               </div>
             </div>
 
+            <section
+              className="mt-3 grid grid-cols-2 gap-2"
+              data-testid="section-meds-primary-actions"
+            >
+              {medicationShortcutCards.map((card) => {
+                const Icon = card.icon;
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    data-testid={card.testId}
+                    onClick={card.onClick}
+                    aria-label={`${card.label}. ${card.sub}`}
+                    className="vyva-tap flex min-h-[78px] flex-col items-start justify-between rounded-[18px] border bg-white p-3 text-left shadow-[0_8px_18px_rgba(31,41,55,0.045)] transition-transform hover:-translate-y-0.5"
+                    style={{ borderColor: card.border }}
+                  >
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-[14px]"
+                      style={{ background: card.bg, color: card.color }}
+                    >
+                      <Icon size={18} strokeWidth={2.45} aria-hidden="true" />
+                    </span>
+                    <span className="mt-2 min-w-0">
+                      <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1 sm:text-[15px]">
+                        {card.label}
+                      </span>
+                      <span className="mt-0.5 block truncate font-body text-[11px] font-black leading-tight" style={{ color: card.color }}>
+                        {card.sub}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </section>
+
             <div
               className="mt-3 rounded-[18px] border border-[#F0DEC3] bg-[#FFF9F0] p-3 sm:p-4"
               data-testid="section-meds-dashboard-tips"
@@ -1383,14 +1545,14 @@ const MedsScreen = () => {
               </h2>
 
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {ASSISTANT_ACTIONS.map((action) => {
+                {visibleAssistantActions.map((action) => {
                   const Icon = action.icon;
 
                   return (
                     <button
                       key={action.id}
                       data-testid={`button-assistant-${action.id}`}
-                      onClick={() => openAssistant(action.prompt, action.sheetTitle)}
+                      onClick={() => handleMedicationAssistantAction(action)}
                       aria-label={`${action.label}. ${action.sub}`}
                       className="vyva-tap flex min-h-[54px] w-full items-center gap-2 rounded-[16px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
                       style={{

@@ -32,6 +32,14 @@ vi.mock("@/components/VoiceHero", () => ({
   },
 }));
 
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
+    <button type="button" data-testid={testId} className={className}>
+      {label}
+    </button>
+  ),
+}));
+
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
   default: () => null,
 }));
@@ -128,13 +136,19 @@ describe("SocialHub home-style layout", () => {
     expect(voiceHeroMock).not.toHaveBeenCalled();
 
     const primaryCards = screen.getByTestId("social-primary-cards");
-    expect(within(primaryCards).getByText("Match")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Rooms")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Activities")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Share")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Make Friends")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Join In")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("What's On")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Share Stories")).toBeInTheDocument();
+    expect(within(primaryCards).getAllByRole("button").map((card) => card.textContent)).toEqual([
+      "Make Friends",
+      "Join In",
+      "Share Stories",
+      "What's On",
+    ]);
     expect(primaryCards).not.toHaveTextContent("Participate");
     expect(primaryCards).not.toHaveTextContent("Movement and clubs");
-    expect(screen.getByTestId("card-social-primary-activities")).toHaveAccessibleName("Activities. Movement and clubs");
+    expect(screen.getByTestId("card-social-primary-activities")).toHaveAccessibleName("What's On. Movement and clubs");
     expect(primaryCards).not.toHaveTextContent("Challenge");
     expect(primaryCards).not.toHaveTextContent("Learn");
     expect(screen.queryByTestId("button-social-quick-challenge")).not.toBeInTheDocument();
@@ -154,16 +168,16 @@ describe("SocialHub home-style layout", () => {
 
     const fastHelp = screen.getByTestId("social-fast-help");
     expect(fastHelp).toHaveTextContent("Fast help");
-    expect(fastHelp).toHaveTextContent("Join a room");
-    expect(fastHelp).toHaveTextContent("Find a match");
-    expect(fastHelp).toHaveTextContent("Morning movement");
+    expect(fastHelp).toHaveTextContent("Bring Song");
+    expect(fastHelp).toHaveTextContent("Cook Together");
+    expect(fastHelp).toHaveTextContent("Garden Chat");
     expect(screen.getAllByTestId(/^button-social-fast-help-/)).toHaveLength(3);
   });
 
   it("opens room routes from Fast help", () => {
     renderSocialHub();
 
-    fireEvent.click(screen.getByTestId("button-social-fast-help-join-room"));
+    fireEvent.click(screen.getByTestId("button-social-fast-help-cook-together"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/kitchen-table");
   });
