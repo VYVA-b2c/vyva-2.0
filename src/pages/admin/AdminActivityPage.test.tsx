@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AdminActivityPage from "./AdminActivityPage";
@@ -101,12 +101,20 @@ describe("AdminActivityPage", () => {
     expect((await screen.findAllByText("Email send failed")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Consent queued").length).toBeGreaterThan(0);
     expect(screen.getByText("3 visible of 3 loaded events.")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-activity-work-queue")).toHaveTextContent("Failed sends");
 
-    fireEvent.click(screen.getByRole("button", { name: /Show failed/i }));
-    expect(screen.getByText("1 visible of 3 loaded events.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-activity-queue-failed_sends"));
+    expect(screen.getByTestId("admin-activity-visible-count")).toHaveTextContent("1 visible of 3 loaded events.");
+    expect(within(screen.getByRole("table")).getByText("Email send failed")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).queryByText("Consent queued")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Source filter"), { target: { value: "lifecycle" } });
-    expect(screen.getByText("0 visible of 3 loaded events.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-activity-queue-waiting"));
+    expect(screen.getByTestId("admin-activity-visible-count")).toHaveTextContent("1 visible of 3 loaded events.");
+    expect(within(screen.getByRole("table")).getByText("Consent queued")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-activity-queue-lifecycle_changes"));
+    expect(screen.getByTestId("admin-activity-visible-count")).toHaveTextContent("1 visible of 3 loaded events.");
+    expect(within(screen.getByRole("table")).getByText("Tier changed")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Reset/i }));
     await waitFor(() => {
