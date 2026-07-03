@@ -94,6 +94,25 @@ describe("HeroMessagesAdminPage", () => {
     expect(within(healthCard).getByText("25.0%")).toBeInTheDocument();
   });
 
+  it("filters the live overview by operational attention state", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("card-hero-overview-health")).toBeInTheDocument();
+    expect(screen.getByTestId("card-hero-overview-home")).toBeInTheDocument();
+    expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 10 of 10 surfaces.");
+
+    fireEvent.click(screen.getByTestId("button-hero-overview-filter-managed"));
+
+    expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 1 of 10 surfaces.");
+    expect(screen.getByTestId("card-hero-overview-health")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-hero-overview-home")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-hero-overview-filter-needs_attention"));
+
+    expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 1 of 10 surfaces.");
+    expect(screen.getByTestId("card-hero-overview-health")).toBeInTheDocument();
+  });
+
   it("previews the selected language and blocks invalid copy", async () => {
     renderPage();
 
