@@ -194,7 +194,7 @@ export default function MasterDashboardLayout({
             testId={hero.action.testId}
             supportingLabel={hero.action.supportingLabel}
             visual="voiceRail"
-            className="vyva-tap mt-6 flex !min-h-[70px] w-full items-center gap-3 rounded-[24px] border border-[#E8DDF3] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF8F0_48%,#F7F1FF_100%)] px-3.5 text-left shadow-[0_14px_30px_rgba(89,53,24,0.10)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[74px] min-[390px]:gap-4 min-[390px]:px-4"
+            className="vyva-tap relative mx-auto mt-6 flex !h-[68px] !min-h-[68px] !w-[68px] items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!h-[72px] min-[390px]:!min-h-[72px] min-[390px]:!w-[72px]"
           />
         ) : (
           <button

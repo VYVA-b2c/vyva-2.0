@@ -10,7 +10,7 @@ The category-level page pattern is:
 
 - Header with VYVA mark, time/date, and profile.
 - One large white hero card with a single main message.
-- One full-width purple `Talk to VYVA` button inside the hero.
+- One icon-only mic affordance inside the hero, with no visible `Talk to VYVA` text.
 - Four large primary cards in a 2 by 2 grid.
 - One white `Fast help` panel with three visible rows.
 - Bottom navigation remains `Home / SOS / My Reports`.

@@ -136,8 +136,8 @@ describe("VyvaSessionCta", () => {
       />,
     );
 
-    expect(screen.getByTestId("button-session")).toHaveAccessibleName("Talk to VYVA. Speak anytime");
-    expect(screen.getByTestId("button-session")).toHaveTextContent("Talk to VYVA");
-    expect(screen.getByTestId("button-session")).toHaveTextContent("Speak anytime");
+    expect(screen.getByTestId("button-session")).toHaveAccessibleName("Speak anytime");
+    expect(screen.getByTestId("button-session")).not.toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-session")).not.toHaveTextContent("Speak anytime");
   });
 });
