@@ -1819,6 +1819,30 @@ export default function LifecycleAdminPage() {
     && !hasInvalidBulkSelection
     && (bulkUserAction !== "assign_org" || Boolean(bulkUserOrganizationId))
     && (bulkUserAction !== "change_tier" || Boolean(bulkUserTier));
+  const bulkUserActionImpact = bulkUserAction === "disable"
+    ? "Disables linked app access. Users stay visible and login contacts remain reserved."
+    : bulkUserAction === "delete_hide"
+      ? "Removes rows from Users only. Login accounts, app access, email, and mobile are unchanged."
+      : bulkUserAction === "restore"
+        ? "Shows removed lifecycle rows again. App access is unchanged."
+        : bulkUserAction === "assign_org"
+          ? "Assigns the selected organization to visible lifecycle users."
+          : bulkUserAction === "change_tier"
+            ? "Changes the lifecycle tier and syncs linked app entitlement where possible."
+            : "Resends signup invites to users with available contact details.";
+  const bulkApplyBlockedReason = busyAction === "bulk-users"
+    ? "Bulk action is already running."
+    : selectedUserCount === 0
+      ? "Select at least one user."
+      : hasInvalidBulkSelection
+        ? bulkUserAction === "restore"
+          ? "Restore only works on removed users. Turn on removed users or clear the current selection."
+          : "This action only works on visible users. Clear removed users from the selection."
+        : bulkUserAction === "assign_org" && !bulkUserOrganizationId
+          ? "Choose an organization."
+          : bulkUserAction === "change_tier" && !bulkUserTier
+            ? "Choose a tier."
+            : "";
   const creatingFamilyIntake = newIntake.user_type === "family";
   const canCreateIntake = Boolean(
     newIntake.first_name.trim()
@@ -2509,7 +2533,7 @@ export default function LifecycleAdminPage() {
                       ? `${selectedUserCount} selected${hasInvalidBulkSelection ? " (change action or clear selection)" : ""}`
                       : "Select users for bulk actions"}
                   </p>
-                  <p className="mt-1 text-xs font-semibold text-[#7d6b65]">Bulk disable app access, remove from Users, restore removed users, assign organization, change tier, or resend invites.</p>
+                  <p className="mt-1 max-w-2xl text-xs font-semibold leading-relaxed text-[#7d6b65]">{bulkUserActionImpact}</p>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
                   <select
@@ -2550,6 +2574,7 @@ export default function LifecycleAdminPage() {
                     type="button"
                     className="rounded-xl bg-purple-700 px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!canRunBulkUserAction}
+                    title={bulkApplyBlockedReason || undefined}
                     onClick={runBulkUserAction}
                   >
                     {busyAction === "bulk-users" ? "Working..." : "Apply"}
@@ -2562,6 +2587,9 @@ export default function LifecycleAdminPage() {
                   >
                     Clear selected
                   </button>
+                  {!canRunBulkUserAction && bulkApplyBlockedReason && (
+                    <p className="sm:col-span-2 lg:basis-full lg:text-right text-xs font-black text-[#8b7a73]">{bulkApplyBlockedReason}</p>
+                  )}
                 </div>
               </div>
             </div>
