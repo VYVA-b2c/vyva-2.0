@@ -43,6 +43,7 @@ import {
   isVisibleLifecycleUser,
   lifecycleStatusLabel,
   languageOptions,
+  looksLikeContactEmail,
   profileNameValue,
   statuses,
   stringValue,
@@ -115,6 +116,7 @@ type SupportScheduleDraft = {
 
 type LifecycleTabId =
   | "users"
+  | "quality"
   | "share"
   | "forms"
   | "organizations"
@@ -125,6 +127,7 @@ type LifecycleTabId =
 
 const adminTabs: Array<{ id: LifecycleTabId; label: string }> = [
   { id: "users", label: "Users" },
+  { id: "quality", label: "Data Quality" },
   { id: "share", label: "Share Invite" },
   { id: "forms", label: "Forms" },
   { id: "organizations", label: "Organizations" },
@@ -133,6 +136,36 @@ const adminTabs: Array<{ id: LifecycleTabId; label: string }> = [
   { id: "communications", label: "Communications" },
   { id: "analytics", label: "Analytics" },
 ];
+
+function lifecycleContactDigits(user: Intake) {
+  const contact = contactNumberValue(user.login_phone) || contactNumberValue(user.profile_phone) || contactNumberValue(user.phone);
+  const digits = contact?.replace(/\D/g, "") ?? "";
+  return digits.length >= 6 ? digits : "";
+}
+
+function lifecycleHasEmailIdentityLeak(user: Intake) {
+  return looksLikeContactEmail(user.name)
+    || looksLikeContactEmail(user.phone)
+    || looksLikeContactEmail(user.profile_name);
+}
+
+function lifecycleHasTierMismatch(user: Intake) {
+  return Boolean(
+    user.intake_tier && user.tier && user.intake_tier !== user.tier,
+  );
+}
+
+function duplicatePhoneGroups(users: Intake[]) {
+  const groups = new Map<string, Intake[]>();
+  users.forEach((user) => {
+    const digits = lifecycleContactDigits(user);
+    if (!digits) return;
+    groups.set(digits, [...(groups.get(digits) ?? []), user]);
+  });
+  return Array.from(groups.entries())
+    .map(([digits, groupUsers]) => ({ digits, users: groupUsers }))
+    .filter((group) => group.users.length > 1);
+}
 
 function normalizeOrganizationLabel(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
@@ -1635,19 +1668,27 @@ export default function LifecycleAdminPage() {
   const userHasContactNumber = (user: Intake) => Boolean(
     contactNumberValue(user.login_phone) || contactNumberValue(user.profile_phone) || contactNumberValue(user.phone),
   );
+  const visibleUsers = users.filter(isVisibleLifecycleUser);
   const displayedUsers = showContactGapsOnly
-    ? users.filter((user) => isVisibleLifecycleUser(user) && !userHasContactNumber(user))
+    ? visibleUsers.filter((user) => !userHasContactNumber(user))
     : users;
   const selectedUsers = users.filter((user) => selectedUserIds.includes(user.id));
   const selectedSelectableUserCount = selectedUsers.filter(canSelectUserForBulk).length;
   const selectedUserCount = selectedUserIds.length;
   const hasInvalidBulkSelection = selectedUserCount > 0 && selectedSelectableUserCount !== selectedUserCount;
-  const visibleUserCount = users.filter(isVisibleLifecycleUser).length;
+  const visibleUserCount = visibleUsers.length;
   const removedUserCount = users.length - visibleUserCount;
-  const contactGapCount = users.filter((user) => isVisibleLifecycleUser(user) && !userHasContactNumber(user)).length;
-  const usersNeedingInviteCount = users.filter((user) => isVisibleLifecycleUser(user) && user.status === "created").length;
-  const usersLinkSentCount = users.filter((user) => isVisibleLifecycleUser(user) && user.status === "link_sent").length;
-  const usersConsentWaitingCount = users.filter((user) => isVisibleLifecycleUser(user) && user.status === "consent_pending").length;
+  const contactGapUsers = visibleUsers.filter((user) => !userHasContactNumber(user));
+  const contactGapCount = contactGapUsers.length;
+  const usersNeedingInviteCount = visibleUsers.filter((user) => user.status === "created").length;
+  const usersLinkSentCount = visibleUsers.filter((user) => user.status === "link_sent").length;
+  const usersConsentWaitingCount = visibleUsers.filter((user) => user.status === "consent_pending").length;
+  const duplicatePhoneIssueGroups = duplicatePhoneGroups(visibleUsers);
+  const duplicatePhoneUserCount = duplicatePhoneIssueGroups.reduce((total, group) => total + group.users.length, 0);
+  const emailIdentityUsers = visibleUsers.filter(lifecycleHasEmailIdentityLeak);
+  const disabledVisibleUsers = visibleUsers.filter((user) => user.account_status === "disabled");
+  const tierMismatchUsers = visibleUsers.filter(lifecycleHasTierMismatch);
+  const removedUsers = users.filter((user) => !isVisibleLifecycleUser(user));
   const usersResultLabel = usersLoadError
     ? "Users unavailable"
     : showContactGapsOnly
@@ -1778,6 +1819,143 @@ export default function LifecycleAdminPage() {
       },
     },
   ];
+  const resetUsersView = () => {
+    setActiveTab("users");
+    setPeopleSearchInput("");
+    setPeopleSearch("");
+    setShowRemovedUsers(false);
+    setShowContactGapsOnly(false);
+    setSelectedUserIds([]);
+  };
+  const qualityCards = [
+    {
+      label: "Duplicate phones",
+      value: duplicatePhoneIssueGroups.length,
+      detail: duplicatePhoneUserCount > 0 ? `${duplicatePhoneUserCount} users share numbers` : "No duplicate mobile numbers found",
+      tone: duplicatePhoneIssueGroups.length > 0 ? "danger" : "success",
+      actionLabel: "Search first duplicate",
+      disabled: duplicatePhoneIssueGroups.length === 0,
+      onClick: () => {
+        const first = duplicatePhoneIssueGroups[0];
+        if (!first) return;
+        setActiveTab("users");
+        setPeopleSearchInput(first.digits);
+        setPeopleSearch(first.digits);
+        setShowRemovedUsers(false);
+        setShowContactGapsOnly(false);
+        setSelectedUserIds([]);
+      },
+    },
+    {
+      label: "Missing mobile",
+      value: contactGapUsers.length,
+      detail: "Visible users without a phone number",
+      tone: contactGapUsers.length > 0 ? "warning" : "success",
+      actionLabel: "Show phone gaps",
+      disabled: contactGapUsers.length === 0,
+      onClick: () => {
+        resetUsersView();
+        setShowContactGapsOnly(true);
+      },
+    },
+    {
+      label: "Email in identity",
+      value: emailIdentityUsers.length,
+      detail: "Email appears in name or phone fields",
+      tone: emailIdentityUsers.length > 0 ? "warning" : "success",
+      actionLabel: "Review first",
+      disabled: emailIdentityUsers.length === 0,
+      onClick: () => {
+        const first = emailIdentityUsers[0];
+        if (first) void openUserDetail(first, "view");
+      },
+    },
+    {
+      label: "Disabled users",
+      value: disabledVisibleUsers.length,
+      detail: "Visible users with app access disabled",
+      tone: disabledVisibleUsers.length > 0 ? "muted" : "success",
+      actionLabel: "Review first",
+      disabled: disabledVisibleUsers.length === 0,
+      onClick: () => {
+        const first = disabledVisibleUsers[0];
+        if (first) void openUserDetail(first, "view");
+      },
+    },
+    {
+      label: "Tier mismatch",
+      value: tierMismatchUsers.length,
+      detail: "Intake tier differs from current tier",
+      tone: tierMismatchUsers.length > 0 ? "warning" : "success",
+      actionLabel: "Review first",
+      disabled: tierMismatchUsers.length === 0,
+      onClick: () => {
+        const first = tierMismatchUsers[0];
+        if (first) void openUserDetail(first, "tier");
+      },
+    },
+    {
+      label: "Removed users",
+      value: removedUsers.length,
+      detail: "Hidden from the normal Users table",
+      tone: removedUsers.length > 0 ? "muted" : "success",
+      actionLabel: "Show removed",
+      disabled: removedUsers.length === 0,
+      onClick: () => {
+        resetUsersView();
+        setShowRemovedUsers(true);
+      },
+    },
+  ];
+  const visibleQualityRows = [
+    ...duplicatePhoneIssueGroups.flatMap((group) => group.users.map((user) => ({
+      id: `duplicate-${group.digits}-${user.id}`,
+      type: "Duplicate phone",
+      severity: "High",
+      user,
+      detail: `Shares ${group.digits} with ${group.users.length - 1} other user${group.users.length === 2 ? "" : "s"}`,
+      action: () => {
+        setActiveTab("users");
+        setPeopleSearchInput(group.digits);
+        setPeopleSearch(group.digits);
+        setShowRemovedUsers(false);
+        setShowContactGapsOnly(false);
+        setSelectedUserIds([]);
+      },
+    }))),
+    ...contactGapUsers.map((user) => ({
+      id: `missing-mobile-${user.id}`,
+      type: "Missing mobile",
+      severity: "Medium",
+      user,
+      detail: "No login, profile, or intake phone number.",
+      action: () => void openUserDetail(user, "view"),
+    })),
+    ...emailIdentityUsers.map((user) => ({
+      id: `email-identity-${user.id}`,
+      type: "Email in identity",
+      severity: "Medium",
+      user,
+      detail: "Email appears in name, phone, or profile name.",
+      action: () => void openUserDetail(user, "view"),
+    })),
+    ...disabledVisibleUsers.map((user) => ({
+      id: `disabled-visible-${user.id}`,
+      type: "Disabled visible user",
+      severity: "Low",
+      user,
+      detail: "User is visible but app access is disabled.",
+      action: () => void openUserDetail(user, "view"),
+    })),
+    ...tierMismatchUsers.map((user) => ({
+      id: `tier-mismatch-${user.id}`,
+      type: "Tier mismatch",
+      severity: "Medium",
+      user,
+      detail: `${tierLabel(user.intake_tier)} intake tier, ${tierLabel(user.tier)} current tier.`,
+      action: () => void openUserDetail(user, "tier"),
+    })),
+  ].slice(0, 24);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-4 py-4 text-[#2f2135] sm:px-6">
@@ -1830,6 +2008,117 @@ export default function LifecycleAdminPage() {
             </button>
           ))}
         </nav>
+
+        {activeTab === "quality" && (
+          <section className="mt-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="font-serif text-2xl">Data Quality</h2>
+                <p className="mt-1 max-w-3xl text-sm text-[#7d6b65]">
+                  Cleanup signals from the loaded lifecycle users. Use this before bulk actions, invites, or production data changes.
+                </p>
+              </div>
+              <span className="rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
+                {visibleQualityRows.length} issues shown
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {qualityCards.map((card) => {
+                const toneClass = card.tone === "danger"
+                  ? "border-red-200 bg-red-50"
+                  : card.tone === "warning"
+                    ? "border-amber-200 bg-amber-50"
+                    : card.tone === "success"
+                      ? "border-emerald-100 bg-emerald-50"
+                      : "border-[#eadfd5] bg-[#fbf8f5]";
+                const valueClass = card.tone === "danger"
+                  ? "text-red-700"
+                  : card.tone === "warning"
+                    ? "text-amber-800"
+                    : card.tone === "success"
+                      ? "text-emerald-700"
+                      : "text-[#2f2135]";
+                return (
+                  <article key={card.label} className={`rounded-2xl border p-4 ${toneClass}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{card.label}</p>
+                        <p className={`mt-2 text-3xl font-black leading-none ${valueClass}`}>{card.value}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-[10px] bg-white px-3 py-2 text-xs font-black text-purple-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={card.disabled}
+                        onClick={card.onClick}
+                      >
+                        {card.actionLabel}
+                      </button>
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-[#7d6b65]">{card.detail}</p>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#eadfd5]">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eadfd5] px-4 py-3">
+                <div>
+                  <h3 className="font-black text-[#2f2135]">Review queue</h3>
+                  <p className="mt-1 text-sm text-[#7d6b65]">First 24 loaded cleanup signals, ordered by operational risk.</p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-[10px] border border-purple-100 bg-white px-3 py-2 text-sm font-bold text-purple-700"
+                  onClick={() => {
+                    resetUsersView();
+                    setFilters({ entry_point: "", user_type: "", status: "", tier: "" });
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+              {visibleQualityRows.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm font-bold text-[#7d6b65]">
+                  No cleanup issues found in the currently loaded users.
+                </p>
+              ) : (
+                <div className="divide-y divide-[#eadfd5]">
+                  {visibleQualityRows.map((row) => (
+                    <div key={row.id} className="grid gap-3 px-4 py-3 lg:grid-cols-[170px_minmax(0,1fr)_auto] lg:items-center">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.08em] text-[#8b7a73]">{row.type}</p>
+                        <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-black ${
+                          row.severity === "High"
+                            ? "bg-red-50 text-red-700"
+                            : row.severity === "Medium"
+                              ? "bg-amber-50 text-amber-800"
+                              : "bg-[#fbf8f5] text-[#6f625d]"
+                        }`}>
+                          {row.severity}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="break-words font-black text-[#2f2135]">{row.user.name}</p>
+                        <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{row.detail}</p>
+                        <p className="mt-1 text-xs font-semibold text-[#8b7a73]">
+                          {userTypeLabel(row.user.user_type)} - {lifecycleStatusLabel(row.user.status)} - {tierLabel(row.user.tier)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-[10px] bg-[#2f2135] px-4 py-2 text-sm font-bold text-white"
+                        onClick={row.action}
+                      >
+                        Review
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {activeTab === "share" && (
           <div className="mt-3 grid gap-4">
