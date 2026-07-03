@@ -112,7 +112,10 @@ function normalizeCoverageLanguage(language: string) {
   return isCoverageLanguage(normalized) ? normalized : null;
 }
 
-function coverageCellClass(counts: { published: number; pending: number; archived: number; total: number }) {
+type CoverageCounts = { published: number; pending: number; archived: number; total: number };
+
+function coverageCellClass(counts: CoverageCounts, active = false) {
+  if (active) return "border-purple-300 bg-purple-50 text-purple-800 ring-2 ring-purple-100";
   if (counts.published > 0) return "border-emerald-100 bg-emerald-50 text-emerald-800";
   if (counts.pending > 0) return "border-amber-100 bg-amber-50 text-amber-800";
   if (counts.archived > 0) return "border-slate-100 bg-slate-50 text-slate-600";
@@ -413,7 +416,9 @@ export default function LearningLibraryAdminPage() {
         setDraft(lessonToDraft(nextLessons[0]));
       } else if ((!selectedId || !selectedLessonIsVisible) && !nextLessons[0]) {
         setSelectedId("");
-        setDraft(emptyLesson(nextCategories[0]?.slug ?? "general_knowledge"));
+        const nextDraft = emptyLesson(categoryFilter === "all" ? nextCategories[0]?.slug ?? "general_knowledge" : categoryFilter);
+        const focusedLanguage = normalizeCoverageLanguage(languageFilter);
+        setDraft(focusedLanguage ? { ...nextDraft, language: focusedLanguage } : nextDraft);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Learning library could not be loaded.");
@@ -538,6 +543,31 @@ export default function LearningLibraryAdminPage() {
     setDraft(emptyLesson(categories[0]?.slug ?? "general_knowledge"));
     setEditorMessage("");
   };
+
+  function focusCoverageCell(category: Category, language: CoverageLanguage, counts: CoverageCounts) {
+    setCategoryFilter(category.slug);
+    setLanguageFilter(language);
+    setSearch("");
+    setLessonPage(1);
+    if (counts.published > 0) {
+      setStatusFilter("published");
+      setEditorMessage("");
+      return;
+    }
+    if (counts.archived > 0 && counts.pending === 0) {
+      setStatusFilter("archived");
+      setEditorMessage("");
+      return;
+    }
+    setStatusFilter("all");
+    if (counts.total === 0) {
+      setSelectedId("");
+      setDraft({ ...emptyLesson(category.slug), language });
+      setEditorMessage(`Ready to create a ${language.toUpperCase()} lesson for ${category.label}.`);
+    } else {
+      setEditorMessage("");
+    }
+  }
 
   async function bulkPublishDrafts(lessonIds?: string[]) {
     const selectedIds = lessonIds ? [...new Set(lessonIds)] : [];
@@ -744,15 +774,19 @@ export default function LearningLibraryAdminPage() {
                             ? `${counts.archived} archived`
                             : `${counts.total} total`;
 
+                      const active = categoryFilter === row.category.slug && languageFilter === language;
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={`${row.category.slug}-${language}`}
-                          className={`rounded-xl border px-3 py-2 ${coverageCellClass(counts)}`}
+                          onClick={() => focusCoverageCell(row.category, language, counts)}
+                          className={`rounded-xl border px-3 py-2 text-left transition hover:border-purple-200 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 ${coverageCellClass(counts, active)}`}
+                          aria-label={`${row.category.label} ${language.toUpperCase()} coverage: ${counts.published} live, ${detail}`}
                           data-testid={`admin-learning-coverage-cell-${row.category.slug}-${language}`}
                         >
                           <p className="text-sm font-black">{counts.published > 0 ? `${counts.published} live` : "0 live"}</p>
                           <p className="mt-0.5 text-xs font-bold opacity-80">{detail}</p>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -962,12 +996,22 @@ export default function LearningLibraryAdminPage() {
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Category">
-                  <select value={draft.categorySlug} onChange={(event) => setDraft({ ...draft, categorySlug: event.target.value })} className={inputClass}>
+                  <select
+                    value={draft.categorySlug}
+                    onChange={(event) => setDraft({ ...draft, categorySlug: event.target.value })}
+                    className={inputClass}
+                    data-testid="select-admin-learning-editor-category"
+                  >
                     {categories.map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}
                   </select>
                 </Field>
                 <Field label="Language">
-                  <select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value })} className={inputClass}>
+                  <select
+                    value={draft.language}
+                    onChange={(event) => setDraft({ ...draft, language: event.target.value })}
+                    className={inputClass}
+                    data-testid="select-admin-learning-editor-language"
+                  >
                     {["en", "es", "fr", "de", "it", "pt"].map((language) => <option key={language} value={language}>{language.toUpperCase()}</option>)}
                   </select>
                 </Field>

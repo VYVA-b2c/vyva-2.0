@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -152,6 +152,53 @@ type AdminData = {
   confirmed: ProxyProfile[];
 };
 
+type CaregiverListItem = {
+  profile: ProxyProfile;
+  isPending: boolean;
+};
+
+type QueueFilter = "all" | "needs_review" | "pending" | "missing_contact" | "automations";
+
+const QUEUE_FILTERS: Array<{
+  id: QueueFilter;
+  label: string;
+  description: string;
+  icon: typeof Users;
+}> = [
+  {
+    id: "all",
+    label: "All caregivers",
+    description: "Every assignment",
+    icon: Users,
+  },
+  {
+    id: "needs_review",
+    label: "Needs review",
+    description: "Overdue or open alerts",
+    icon: AlertTriangle,
+  },
+  {
+    id: "pending",
+    label: "Awaiting confirmation",
+    description: "Elder consent still needed",
+    icon: Clock,
+  },
+  {
+    id: "missing_contact",
+    label: "Missing contact",
+    description: "Caregiver contact absent",
+    icon: Mail,
+  },
+  {
+    id: "automations",
+    label: "Active automations",
+    description: "Scheduled support running",
+    icon: CalendarClock,
+  },
+];
+
+const EMPTY_PROFILES: ProxyProfile[] = [];
+
 function daysSince(dateStr: string | null | undefined): string {
   if (!dateStr) return "Not set";
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -185,6 +232,11 @@ function cleanLabel(value: string | null | undefined) {
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function elapsedDays(dateStr: string | null | undefined): number {
+  if (!dateStr) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)));
+}
+
 function displayName(profile: ProxyProfile): string {
   return profile.elder?.name || profile.preferred_name || profile.full_name || `User ${profile.id.slice(0, 8)}`;
 }
@@ -205,6 +257,66 @@ function contactItems(profile: ProxyProfile) {
     { icon: Smartphone, label: "Elder WhatsApp", value: profile.elder?.whatsapp_number || profile.whatsapp_number },
     { icon: HeartHandshake, label: "Caregiver contact", value: profile.caregiver?.saved_contact || profile.caregiver_contact },
   ].filter((item) => item.value);
+}
+
+function caregiverContact(profile: ProxyProfile): string | null {
+  const teamContact = profile.caregiver?.team?.find((member) => member.email || member.phone || member.whatsapp);
+  return (
+    profile.caregiver?.saved_contact ||
+    profile.caregiver_contact ||
+    teamContact?.email ||
+    teamContact?.phone ||
+    teamContact?.whatsapp ||
+    null
+  );
+}
+
+function hasActiveAutomations(profile: ProxyProfile): boolean {
+  const automations = profile.automations;
+  return Boolean(
+    (automations?.upcoming_events_count ?? 0) > 0 ||
+      (automations?.active_support_count ?? 0) > 0 ||
+      (automations?.support_schedules?.length ?? 0) > 0,
+  );
+}
+
+function hasOpenAlerts(profile: ProxyProfile): boolean {
+  return (profile.automations?.unresolved_alerts_count ?? 0) > 0;
+}
+
+function isOverdueProfile(profile: ProxyProfile, isPending: boolean): boolean {
+  return isPending && elapsedDays(profile.proxy_initiated_at) > 7;
+}
+
+function needsReview(item: CaregiverListItem): boolean {
+  return isOverdueProfile(item.profile, item.isPending) || hasOpenAlerts(item.profile);
+}
+
+function matchesQueueFilter(item: CaregiverListItem, filter: QueueFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "needs_review") return needsReview(item);
+  if (filter === "pending") return item.isPending;
+  if (filter === "missing_contact") return !caregiverContact(item.profile);
+  return hasActiveAutomations(item.profile);
+}
+
+function nextStepFor(profile: ProxyProfile, isPending: boolean): string {
+  if (isOverdueProfile(profile, isPending)) {
+    return "Follow up with the elder, then confirm or remove access once consent is clear.";
+  }
+  if (hasOpenAlerts(profile)) {
+    return "Review open alerts before changing caregiver access.";
+  }
+  if (!caregiverContact(profile)) {
+    return "Add a caregiver email, phone, or WhatsApp before sending more invites.";
+  }
+  if (isPending) {
+    return "Waiting for elder confirmation; manually confirm only when consent is verified.";
+  }
+  if (hasActiveAutomations(profile)) {
+    return "Check scheduled support before removing access.";
+  }
+  return "Caregiver access is active; remove only if this assignment is no longer valid.";
 }
 
 function PreferencePill({ label, value }: { label: string; value?: string | null }) {
@@ -249,10 +361,7 @@ function CaregiverRow({
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const caregiver = caregiverDisplay(profile);
-  const dayCount = profile.proxy_initiated_at
-    ? Math.floor((Date.now() - new Date(profile.proxy_initiated_at).getTime()) / (1000 * 60 * 60 * 24))
-    : 0;
-  const isOverdue = isPending && dayCount > 7;
+  const isOverdue = isOverdueProfile(profile, isPending);
   const automations = profile.automations;
   const team = profile.caregiver?.team ?? [];
 
@@ -327,6 +436,12 @@ function CaregiverRow({
             <span>ID: {profile.id}</span>
             {!isPending && <span className="text-green-700">Confirmed {daysSince(profile.elder_confirmed_at)}</span>}
           </div>
+          <p
+            data-testid={`text-caregiver-next-step-${profile.id}`}
+            className="mt-3 max-w-2xl rounded-2xl bg-[#f7f2eb] px-3 py-2 text-sm font-bold leading-relaxed text-[#5b4a46]"
+          >
+            Next step: {nextStepFor(profile, isPending)}
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -536,8 +651,73 @@ function Section({
   );
 }
 
+function CaregiverQueueFilters({
+  counts,
+  selected,
+  visibleCount,
+  totalCount,
+  onSelect,
+}: {
+  counts: Record<QueueFilter, number>;
+  selected: QueueFilter;
+  visibleCount: number;
+  totalCount: number;
+  onSelect: (filter: QueueFilter) => void;
+}) {
+  return (
+    <section className="mb-6 rounded-[28px] border border-[#eadfd5] bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Caregiver work queue</p>
+          <h2 className="font-serif text-2xl leading-tight">Focus the list before taking action</h2>
+          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
+            Showing {visibleCount} of {totalCount} caregiver assignments.
+          </p>
+        </div>
+        {selected !== "all" && (
+          <button
+            type="button"
+            data-testid="button-clear-caregiver-filter"
+            onClick={() => onSelect("all")}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-purple-100 bg-purple-50 px-4 text-sm font-black text-purple-700"
+          >
+            Show all
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+        {QUEUE_FILTERS.map(({ id, label, description, icon: Icon }) => {
+          const active = selected === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              data-testid={`button-caregiver-filter-${id}`}
+              onClick={() => onSelect(id)}
+              className={`min-h-[92px] rounded-2xl border px-4 py-3 text-left transition ${
+                active
+                  ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                  : "border-[#eadfd5] bg-[#fffaf5] text-[#2f2135] hover:border-purple-200"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <Icon size={18} className={active ? "text-white" : "text-purple-700"} />
+                <span className="text-2xl font-black leading-none">{counts[id]}</span>
+              </div>
+              <p className="mt-2 text-sm font-black">{label}</p>
+              <p className={`mt-1 text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{description}</p>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function ProxyPendingPage() {
   const { logout } = useAuth();
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>("all");
 
   const { data, isLoading, error, refetch } = useQuery<AdminData>({
     queryKey: ["/api/admin/proxy-pending"],
@@ -551,9 +731,29 @@ export default function ProxyPendingPage() {
     retry: false,
   });
 
-  const pending = data?.pending ?? [];
-  const confirmed = data?.confirmed ?? [];
-  const totalAutomations = [...pending, ...confirmed].reduce((sum, profile) => (
+  const pending = data?.pending ?? EMPTY_PROFILES;
+  const confirmed = data?.confirmed ?? EMPTY_PROFILES;
+  const allCaregivers = useMemo<CaregiverListItem[]>(
+    () => [
+      ...pending.map((profile) => ({ profile, isPending: true })),
+      ...confirmed.map((profile) => ({ profile, isPending: false })),
+    ],
+    [pending, confirmed],
+  );
+  const queueCounts = useMemo<Record<QueueFilter, number>>(() => ({
+    all: allCaregivers.length,
+    needs_review: allCaregivers.filter((item) => matchesQueueFilter(item, "needs_review")).length,
+    pending: allCaregivers.filter((item) => matchesQueueFilter(item, "pending")).length,
+    missing_contact: allCaregivers.filter((item) => matchesQueueFilter(item, "missing_contact")).length,
+    automations: allCaregivers.filter((item) => matchesQueueFilter(item, "automations")).length,
+  }), [allCaregivers]);
+  const visibleCaregivers = useMemo(
+    () => allCaregivers.filter((item) => matchesQueueFilter(item, queueFilter)),
+    [allCaregivers, queueFilter],
+  );
+  const visiblePending = visibleCaregivers.filter((item) => item.isPending).map((item) => item.profile);
+  const visibleConfirmed = visibleCaregivers.filter((item) => !item.isPending).map((item) => item.profile);
+  const totalAutomations = allCaregivers.reduce((sum, { profile }) => (
     sum + (profile.automations?.upcoming_events_count ?? 0) + (profile.automations?.active_support_count ?? 0)
   ), 0);
 
@@ -619,27 +819,35 @@ export default function ProxyPendingPage() {
           <SummaryCard icon={CalendarClock} label="Active automations" value={totalAutomations} />
         </div>
 
+        <CaregiverQueueFilters
+          counts={queueCounts}
+          selected={queueFilter}
+          visibleCount={visibleCaregivers.length}
+          totalCount={allCaregivers.length}
+          onSelect={setQueueFilter}
+        />
+
         <div className="space-y-7">
-          <Section title="Awaiting confirmation" count={pending.length} tone="warning">
+          <Section title="Awaiting confirmation" count={visiblePending.length} tone="warning">
             {isLoading ? (
               <LoadingList />
-            ) : pending.length === 0 ? (
-              <EmptyState text="No caregivers awaiting elder confirmation." />
+            ) : visiblePending.length === 0 ? (
+              <EmptyState text={queueFilter === "all" ? "No caregivers awaiting elder confirmation." : "No awaiting caregivers match this filter."} />
             ) : (
               <div data-testid="list-proxy-pending" className="grid gap-4">
-                {pending.map((profile) => <CaregiverRow key={profile.id} profile={profile} isPending />)}
+                {visiblePending.map((profile) => <CaregiverRow key={profile.id} profile={profile} isPending />)}
               </div>
             )}
           </Section>
 
-          <Section title="Confirmed caregivers" count={confirmed.length} tone="success">
+          <Section title="Confirmed caregivers" count={visibleConfirmed.length} tone="success">
             {isLoading ? (
               <LoadingList />
-            ) : confirmed.length === 0 ? (
-              <EmptyState text="No confirmed caregivers yet." />
+            ) : visibleConfirmed.length === 0 ? (
+              <EmptyState text={queueFilter === "all" ? "No confirmed caregivers yet." : "No confirmed caregivers match this filter."} />
             ) : (
               <div data-testid="list-proxy-confirmed" className="grid gap-4">
-                {confirmed.map((profile) => <CaregiverRow key={profile.id} profile={profile} isPending={false} />)}
+                {visibleConfirmed.map((profile) => <CaregiverRow key={profile.id} profile={profile} isPending={false} />)}
               </div>
             )}
           </Section>
