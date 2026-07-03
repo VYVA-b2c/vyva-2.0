@@ -1006,6 +1006,50 @@ function careTeamInviteStatusClass(status?: string | null) {
   return "bg-[#f4eafe] text-purple-700";
 }
 
+function caregiverInviteBlockedReason(draft: CaregiverInviteDraft) {
+  const hasName = Boolean(draft.name);
+  const hasContact = Boolean(draft.email || draft.phone || draft.whatsapp);
+  if (!hasName && !hasContact) return "Add an invitee name and email, phone, or WhatsApp.";
+  if (!hasName) return "Add an invitee name.";
+  if (!hasContact) return "Add an email, phone, or WhatsApp.";
+  return "";
+}
+
+function ActionImpactPanel({
+  label,
+  tone = "neutral",
+  title,
+  detail,
+}: {
+  label: string;
+  tone?: "neutral" | "success" | "warning" | "danger";
+  title: string;
+  detail: string;
+}) {
+  const toneClass = tone === "success"
+    ? "border-emerald-100 bg-emerald-50 text-emerald-950"
+    : tone === "warning"
+      ? "border-amber-200 bg-amber-50 text-amber-950"
+      : tone === "danger"
+        ? "border-red-200 bg-red-50 text-red-950"
+        : "border-[#eadfd5] bg-[#fbf8f5] text-[#2f2135]";
+  const labelClass = tone === "success"
+    ? "text-emerald-700"
+    : tone === "warning"
+      ? "text-amber-700"
+      : tone === "danger"
+        ? "text-red-700"
+        : "text-purple-700";
+
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${toneClass}`}>
+      <p className={`text-xs font-black uppercase tracking-[0.08em] ${labelClass}`}>{label}</p>
+      <p className="mt-1 text-sm font-black">{title}</p>
+      <p className="mt-1 text-xs font-semibold leading-relaxed opacity-80">{detail}</p>
+    </div>
+  );
+}
+
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
@@ -1263,6 +1307,8 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
     effectiveCaregiverInviteDraft.email || effectiveCaregiverInviteDraft.phone || effectiveCaregiverInviteDraft.whatsapp,
   );
   const caregiverInviteReady = Boolean(effectiveCaregiverInviteDraft.name && caregiverInviteHasContact);
+  const caregiverInviteReason = caregiverInviteBlockedReason(effectiveCaregiverInviteDraft);
+  const caregiverInviteReasonId = `caregiver-invite-reason-${detail.intake.id}`;
   function updateCaregiverInvitePermission(key: CaregiverInvitePermissionKey, value: boolean) {
     setCaregiverInviteDraft({
       ...caregiverInviteDraft,
@@ -1447,12 +1493,14 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   type="button"
                   className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={caregiverInviteBusy || !caregiverInviteReady}
+                  aria-describedby={!caregiverInviteReady ? caregiverInviteReasonId : undefined}
+                  title={!caregiverInviteReady ? caregiverInviteReason : undefined}
                   onClick={onSendCaregiverInvite}
                 >
                   {caregiverInviteBusy ? "Sending..." : "Send caregiver invite"}
                 </button>
                 {!caregiverInviteReady && (
-                  <span className="text-sm font-bold text-[#8b7a73]">Name plus email, phone, or WhatsApp required.</span>
+                  <span id={caregiverInviteReasonId} className="text-sm font-bold text-[#8b7a73]">{caregiverInviteReason}</span>
                 )}
               </div>
             </div>
@@ -1546,6 +1594,12 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   )}
                   {onDeleteLoginAccount && mapping.source === "legacy" && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#eadfd5] pt-3">
+                      <ActionImpactPanel
+                        label="Delete login"
+                        tone="danger"
+                        title="Frees this email or mobile for signup."
+                        detail="This deletes the legacy login, revokes care-team access, and may close owned app profiles. The lifecycle row can remain for audit/history."
+                      />
                       <button
                         type="button"
                         className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1559,11 +1613,32 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                   )}
                   {mapping.source === "supabase" && (
                     <p className="mt-3 rounded-xl bg-[#f4eafe] px-3 py-2 text-xs font-bold text-purple-800">
-                      External auth login. Delete it in the auth provider, then refresh this drawer.
+                      External auth login. VYVA can show and sync access here, but account deletion must happen in the auth provider before this email/mobile is free again.
                     </p>
                   )}
                 </article>
               ))}
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-3">
+              <ActionImpactPanel
+                label="Save access"
+                title="Syncs admin access fields."
+                detail="Updates tier, organization, and linked app entitlement where a matching login profile exists."
+              />
+              {!removed && (
+                <ActionImpactPanel
+                  label={disabled ? "Enable app access" : "Disable app access"}
+                  tone={disabled ? "success" : "warning"}
+                  title={disabled ? "Lets the user back into the app." : "Stops app access without deleting data."}
+                  detail={disabled ? "Re-enables matching linked profiles. The user remains in the Users table." : "Keeps the lifecycle row, profile data, email, and mobile intact for admin review."}
+                />
+              )}
+              <ActionImpactPanel
+                label={removed ? "Restore to Users" : "Remove from Users"}
+                tone={removed ? "success" : "warning"}
+                title={removed ? "Shows this row again." : "Hides this row from Users."}
+                detail={removed ? "Restores lifecycle visibility only. App access is unchanged." : "This is not account deletion. App access and login contacts are unchanged."}
+              />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" className="rounded-xl bg-purple-700 px-5 py-2.5 font-bold text-white disabled:opacity-60" disabled={saving || deleting || restoring} onClick={onSave}>{saving ? "Saving..." : "Save access"}</button>
