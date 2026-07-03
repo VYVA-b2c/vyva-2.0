@@ -203,6 +203,9 @@ describe("app shell voice dock", () => {
     renderShell();
 
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
+    expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Listening");
+    expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Hello Karim");
+    expect(screen.getByTestId("button-dock-toggle-mic")).toHaveTextContent("Interrupt");
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-open-voice-overlay"));

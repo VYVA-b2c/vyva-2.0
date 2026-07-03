@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Maximize2, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
+import { AlertCircle, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
@@ -149,6 +149,7 @@ const VoiceSessionDock = ({
 }: VoiceSessionDockProps) => {
   const latestEntry = transcript[transcript.length - 1];
   const canToggleMic = voiceSessionPhase !== "connecting" && voiceSessionPhase !== "transferring";
+  const previewText = latestEntry?.text || "Voice is active";
   const label = isConnecting
     ? "Connecting"
     : voiceSessionPhase
@@ -158,10 +159,10 @@ const VoiceSessionDock = ({
         : "Listening";
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[64] flex justify-center px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[92px] z-[64] flex justify-center px-3 sm:px-4">
       <section
         data-testid="voice-session-dock"
-        className="pointer-events-auto flex w-full max-w-[480px] items-center gap-3 rounded-[24px] border border-vyva-border bg-white/95 px-3 py-3 shadow-[0_18px_48px_rgba(47,33,53,0.2)] backdrop-blur"
+        className="pointer-events-auto flex w-full max-w-[520px] items-center gap-2 rounded-[24px] border border-[#E9D5FF] bg-white/95 px-3 py-3 shadow-[0_18px_48px_rgba(47,33,53,0.18)] backdrop-blur sm:gap-3"
       >
         <button
           type="button"
@@ -171,33 +172,49 @@ const VoiceSessionDock = ({
           aria-label="Open voice screen"
           title="Open voice screen"
         >
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isMicMuted ? "bg-emerald-50 text-emerald-700" : "bg-vyva-purple text-white"}`}>
-            {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
+          <div
+            className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+            aria-hidden="true"
+            style={{
+              background: "radial-gradient(circle at 45% 38%, #E9D5FF 0%, #A855F7 42%, #5B12A0 100%)",
+              boxShadow: "0 0 0 8px rgba(124,58,237,0.08), 0 8px 22px rgba(91,18,160,0.16)",
+            }}
+          >
+            <span
+              className="h-5 w-5 rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(255,255,255,0.9), rgba(255,255,255,0.12))",
+                opacity: 0.72,
+              }}
+            />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate font-body text-[13px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+            <p className="flex min-w-0 items-center gap-2 truncate font-body text-[14px] font-black leading-tight text-vyva-purple">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#8B5CF6] shadow-[0_0_0_5px_rgba(139,92,246,0.12)]" />
               {label}
             </p>
-            <p className="truncate font-body text-[14px] font-semibold text-vyva-text-1">
-              {latestEntry?.text || "Voice is active. You can keep using the page."}
+            <p className="mt-0.5 truncate font-body text-[13px] font-semibold leading-tight text-vyva-text-2 sm:text-[14px]">
+              {previewText}
             </p>
           </div>
-          <Maximize2 size={18} className="shrink-0 text-vyva-text-3" />
         </button>
         {canToggleMic && (
           <button
             type="button"
             onClick={() => onMicToggle(!isMicMuted)}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-vyva-warm text-vyva-text-1 transition active:scale-95"
+            data-testid="button-dock-toggle-mic"
+            className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#E9D5FF] bg-white px-3 font-body text-[0px] font-black text-vyva-purple shadow-sm transition active:scale-95 sm:min-w-[112px] sm:text-[14px]"
             aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
-            title={isMicMuted ? "Talk" : "Mute"}
+            title={isMicMuted ? "Talk" : "Interrupt"}
           >
             {isMicMuted ? <Mic size={19} /> : <MicOff size={19} />}
+            <span className="hidden sm:inline">{isMicMuted ? "Talk" : "Interrupt"}</span>
           </button>
         )}
         <button
           type="button"
           onClick={onEnd}
+          data-testid="button-dock-end-call"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FEE2E2] text-[#B91C1C] transition active:scale-95"
           aria-label="End voice chat"
           title="End chat"
