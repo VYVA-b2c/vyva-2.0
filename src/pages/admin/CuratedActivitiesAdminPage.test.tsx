@@ -198,8 +198,8 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(link.getAttribute("href")).toContain("needs_review");
   });
 
-  it("calls AI discovery and renders preview source links", async () => {
-    renderPage();
+  it("calls AI discovery and renders the full preview list with details", async () => {
+    renderPage([discoveryCandidate, secondDiscoveryCandidate]);
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByTestId("admin-discovery-city"), { target: { value: "Valencia" } });
@@ -211,8 +211,15 @@ describe("CuratedActivitiesAdminPage", () => {
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
 
     expect(await screen.findByTestId("admin-discovery-preview")).toBeInTheDocument();
+    expect(screen.getByText("2 candidates found. 0 selected for draft save.")).toBeInTheDocument();
+    expect(screen.getByText("Library music morning")).toBeInTheDocument();
+    expect(screen.getByText("Art workshop")).toBeInTheDocument();
+    const sourceHrefs = screen.getAllByRole("link", { name: /Source link/ }).map((link) => link.getAttribute("href"));
+    expect(sourceHrefs).toContain("https://example.org/library-music");
+    expect(sourceHrefs).toContain("https://example.org/art-workshop");
+
+    fireEvent.click(screen.getAllByRole("button", { name: /View details/ })[0]);
     expect(screen.getByDisplayValue("Library music morning")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Source link/ })).toHaveAttribute("href", "https://example.org/library-music");
 
     const discoverCall = apiFetchMock.mock.calls.find(([path, init]) => (
       path === "/api/admin/social/participate/discover" && init?.method === "POST"
@@ -234,9 +241,9 @@ describe("CuratedActivitiesAdminPage", () => {
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
-    expect(await screen.findByDisplayValue("Art workshop")).toBeInTheDocument();
+    expect(await screen.findByText("Art workshop")).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByLabelText("Save")[1]);
+    fireEvent.click(screen.getByLabelText(/Select Library music morning/));
     fireEvent.click(screen.getByTestId("admin-discovery-save"));
 
     await waitFor(() => {

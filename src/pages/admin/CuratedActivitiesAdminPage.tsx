@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bot, CheckCircle2, Download, ExternalLink, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, ChevronUp, CircleDollarSign, Clock3, Download, ExternalLink, Globe2, MapPin, Plus, RefreshCw, Save, Search, ShieldCheck, Tags, Trash2, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { PHONE_COUNTRY_OPTIONS } from "@/lib/profileIdentity";
@@ -13,7 +13,7 @@ import type {
 type EventStatus = "active" | "draft" | "hidden" | "archived";
 type SafetyStatus = "approved" | "needs_review" | "hidden";
 type DiscoveryFormatPreference = ParticipationEventFormat | "any";
-type DiscoveryCandidate = AdminParticipationEvent & { selected: boolean };
+type DiscoveryCandidate = AdminParticipationEvent & { previewId: string; selected: boolean };
 type DiscoveryFormState = {
   city: string;
   countryCode: string;
@@ -657,6 +657,7 @@ export default function CuratedActivitiesAdminPage() {
   const [discovering, setDiscovering] = useState(false);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
+  const [expandedDiscoveryId, setExpandedDiscoveryId] = useState<string | null>(null);
   const [discoveryForm, setDiscoveryForm] = useState<DiscoveryFormState>({
     city: "Madrid",
     countryCode: "ES",
@@ -760,15 +761,15 @@ export default function CuratedActivitiesAdminPage() {
     setEvents((current) => current.map((event) => event.eventKey === eventKey ? { ...event, ...patch } : event));
   }
 
-  function updateDiscoveryCandidate(eventKey: string, patch: Partial<DiscoveryCandidate>) {
+  function updateDiscoveryCandidate(previewId: string, patch: Partial<DiscoveryCandidate>) {
     setDiscoveryCandidates((current) => (
-      current.map((candidate) => candidate.eventKey === eventKey ? { ...candidate, ...patch } : candidate)
+      current.map((candidate) => candidate.previewId === previewId ? { ...candidate, ...patch } : candidate)
     ));
   }
 
   function updateDiscoveryEvidence(candidate: DiscoveryCandidate, evidence: string) {
     const discovery = candidate.metadata?.discovery;
-    updateDiscoveryCandidate(candidate.eventKey, {
+    updateDiscoveryCandidate(candidate.previewId, {
       metadata: {
         ...(candidate.metadata ?? {}),
         discovery: {
@@ -777,6 +778,15 @@ export default function CuratedActivitiesAdminPage() {
         },
       },
     });
+  }
+
+  function setDiscoverySelection(selected: boolean) {
+    setDiscoveryCandidates((current) => current.map((candidate) => ({ ...candidate, selected })));
+  }
+
+  function discardDiscoveryCandidate(previewId: string) {
+    setDiscoveryCandidates((current) => current.filter((candidate) => candidate.previewId !== previewId));
+    setExpandedDiscoveryId((current) => (current === previewId ? null : current));
   }
 
   function toggleDiscoveryInterest(tag: string) {
@@ -836,10 +846,15 @@ export default function CuratedActivitiesAdminPage() {
       const data = await api("/discover", { method: "POST", body: JSON.stringify(body) });
       const candidates = (data.candidates ?? []) as AdminParticipationEvent[];
       const rejected = Array.isArray(data.rejected) ? data.rejected.length : 0;
-      setDiscoveryCandidates(candidates.map((candidate) => ({ ...candidate, selected: true })));
+      setDiscoveryCandidates(candidates.map((candidate, index) => ({
+        ...candidate,
+        previewId: `${slugifyEventKey(candidate.eventKey, "candidate")}-${index}`,
+        selected: false,
+      })));
+      setExpandedDiscoveryId(null);
       setMessage(rejected > 0
-        ? `${candidates.length} AI candidates ready for review. ${rejected} skipped because they were missing sources or required fields.`
-        : `${candidates.length} AI candidates ready for review.`);
+        ? `${candidates.length} AI candidates ready for review. Select the ones to save as drafts. ${rejected} skipped because they were missing sources or required fields.`
+        : `${candidates.length} AI candidates ready for review. Select the ones to save as drafts.`);
     } finally {
       setDiscovering(false);
     }
@@ -1162,83 +1177,188 @@ export default function CuratedActivitiesAdminPage() {
             </button>
           </div>
 
-          <div className="mt-4 grid gap-4" data-testid="admin-discovery-preview">
+          <div className="mt-4 space-y-3" data-testid="admin-discovery-preview">
             {discoveryCandidates.length === 0 ? (
               <p className="rounded-2xl bg-[#f7f2eb] p-4 text-sm font-bold text-[#7d6b65]">No AI candidates in preview yet.</p>
-            ) : discoveryCandidates.map((candidate) => (
-              <article key={candidate.eventKey} className="rounded-2xl border border-[#eadfd5] bg-[#fffdf9] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f7f2eb] px-4 py-3">
                   <div>
-                    <p className="text-lg font-black text-[#2f2135]">{candidate.eventKey}</p>
-                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{candidate.titleEn}</p>
+                    <p className="text-sm font-black text-[#2f2135]">
+                      {discoveryCandidates.length} candidates found. {selectedDiscoveryCount} selected for draft save.
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-[#7d6b65]">Review the full shortlist, open details when needed, then save only the best matches.</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="flex items-center gap-2 rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
-                      <input
-                        type="checkbox"
-                        checked={candidate.selected}
-                        onChange={(event) => updateDiscoveryCandidate(candidate.eventKey, { selected: event.target.checked })}
-                      />
-                      Save
-                    </label>
-                    {candidate.sourceUrl && (
-                      <a
-                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700"
-                        href={candidate.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <ExternalLink size={14} />
-                        Source link
-                      </a>
-                    )}
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
-                      onClick={() => setDiscoveryCandidates((current) => current.filter((item) => item.eventKey !== candidate.eventKey))}
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
+                      disabled={selectedDiscoveryCount === discoveryCandidates.length}
+                      onClick={() => setDiscoverySelection(true)}
                       type="button"
                     >
-                      <Trash2 size={14} />
-                      Discard
+                      <CheckCircle2 size={14} />
+                      Select all
+                    </button>
+                    <button
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#5b4a46] disabled:opacity-50"
+                      disabled={selectedDiscoveryCount === 0}
+                      onClick={() => setDiscoverySelection(false)}
+                      type="button"
+                    >
+                      Clear
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <Field label="Event key">
-                    <TextInput value={candidate.eventKey} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { eventKey: value, id: value })} />
-                  </Field>
-                  <Field label="Title EN">
-                    <TextInput value={candidate.titleEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { titleEn: value })} />
-                  </Field>
-                  <Field label="City">
-                    <TextInput value={candidate.city ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { city: value })} />
-                  </Field>
-                  <Field label="Location">
-                    <TextInput value={candidate.locationLabel} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { locationLabel: value })} />
-                  </Field>
-                  <Field label="Time">
-                    <TextInput value={candidate.timeLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { timeLabelEn: value })} />
-                  </Field>
-                  <Field label="Cost">
-                    <TextInput value={candidate.costLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { costLabelEn: value })} />
-                  </Field>
-                  <Field label="Tags">
-                    <TextInput value={listToText(candidate.interestTags)} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { interestTags: textToList(value) })} />
-                  </Field>
-                  <Field label="Source URL">
-                    <TextInput value={candidate.sourceUrl ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { sourceUrl: value })} />
-                  </Field>
+                <div className="grid gap-3">
+                  {discoveryCandidates.map((candidate) => {
+                    const expanded = expandedDiscoveryId === candidate.previewId;
+                    const previewTags = Array.from(new Set([
+                      ...candidate.interestTags,
+                      ...candidate.accessibilityTags,
+                    ])).slice(0, 6);
+                    return (
+                      <article
+                        key={candidate.previewId}
+                        data-testid={`admin-discovery-candidate-${candidate.previewId}`}
+                        className={`rounded-2xl border p-4 transition ${
+                          candidate.selected
+                            ? "border-purple-300 bg-purple-50/60 shadow-sm"
+                            : "border-[#eadfd5] bg-[#fffdf9]"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                            <input
+                              className="mt-1 h-4 w-4 accent-purple-700"
+                              type="checkbox"
+                              aria-label={`Select ${candidate.titleEn || candidate.eventKey}`}
+                              checked={candidate.selected}
+                              onChange={(event) => updateDiscoveryCandidate(candidate.previewId, { selected: event.target.checked })}
+                            />
+                            <span className="min-w-0">
+                              <span className="block break-words text-lg font-black text-[#2f2135]">{candidate.titleEn || candidate.eventKey}</span>
+                              <span className="mt-1 block break-words text-xs font-bold uppercase tracking-wide text-purple-700">{candidate.eventKey}</span>
+                              {candidate.summaryEn && (
+                                <span className="mt-2 block text-sm font-semibold leading-relaxed text-[#5b4a46]">{candidate.summaryEn}</span>
+                              )}
+                            </span>
+                          </label>
+
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            {candidate.sourceUrl ? (
+                              <a
+                                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700"
+                                href={candidate.sourceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Source link for ${candidate.titleEn || candidate.eventKey}`}
+                              >
+                                <ExternalLink size={14} />
+                                Source link
+                              </a>
+                            ) : (
+                              <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700">Source missing</span>
+                            )}
+                            <button
+                              className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-purple-800"
+                              onClick={() => setExpandedDiscoveryId(expanded ? null : candidate.previewId)}
+                              type="button"
+                              aria-expanded={expanded}
+                              aria-label={`${expanded ? "Hide details" : "View details"} for ${candidate.titleEn || candidate.eventKey}`}
+                            >
+                              {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              {expanded ? "Hide details" : "View details"}
+                            </button>
+                            <button
+                              className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
+                              onClick={() => discardDiscoveryCandidate(candidate.previewId)}
+                              type="button"
+                              aria-label={`Discard ${candidate.titleEn || candidate.eventKey}`}
+                            >
+                              <Trash2 size={14} />
+                              Discard
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 text-sm font-semibold text-[#5b4a46] md:grid-cols-2 xl:grid-cols-4">
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <Clock3 size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{candidate.timeLabelEn || "Time to be checked"}</span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <MapPin size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{candidate.locationLabel || cityKey(candidate) || "Location to be checked"}</span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <CircleDollarSign size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{candidate.costLabelEn || "Cost to be checked"}</span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <Tags size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{candidate.format}</span>
+                          </span>
+                        </div>
+
+                        {previewTags.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {previewTags.map((tag) => <Pill key={tag} tone="plain">{tag}</Pill>)}
+                          </div>
+                        )}
+
+                        {expanded && (
+                          <div className="mt-4 border-t border-[#eadfd5] pt-4" data-testid={`admin-discovery-detail-${candidate.previewId}`}>
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-black text-[#2f2135]">Review and edit before saving</p>
+                              <div className="flex flex-wrap gap-2">
+                                <Pill tone="amber">Draft</Pill>
+                                <Pill tone="amber">Needs review</Pill>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                              <Field label="Event key">
+                                <TextInput value={candidate.eventKey} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { eventKey: value, id: value })} />
+                              </Field>
+                              <Field label="Title EN">
+                                <TextInput value={candidate.titleEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { titleEn: value })} />
+                              </Field>
+                              <Field label="City">
+                                <TextInput value={candidate.city ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { city: value })} />
+                              </Field>
+                              <Field label="Location">
+                                <TextInput value={candidate.locationLabel} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { locationLabel: value })} />
+                              </Field>
+                              <Field label="Time">
+                                <TextInput value={candidate.timeLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { timeLabelEn: value })} />
+                              </Field>
+                              <Field label="Cost">
+                                <TextInput value={candidate.costLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { costLabelEn: value })} />
+                              </Field>
+                              <Field label="Tags">
+                                <TextInput value={listToText(candidate.interestTags)} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { interestTags: textToList(value) })} />
+                              </Field>
+                              <Field label="Source URL">
+                                <TextInput value={candidate.sourceUrl ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { sourceUrl: value })} />
+                              </Field>
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              <Field label="Summary">
+                                <TextArea value={candidate.summaryEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { summaryEn: value })} />
+                              </Field>
+                              <Field label="Evidence">
+                                <TextArea value={discoveryEvidence(candidate)} onChange={(value) => updateDiscoveryEvidence(candidate, value)} />
+                              </Field>
+                            </div>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <Field label="Summary">
-                    <TextArea value={candidate.summaryEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { summaryEn: value })} />
-                  </Field>
-                  <Field label="Evidence">
-                    <TextArea value={discoveryEvidence(candidate)} onChange={(value) => updateDiscoveryEvidence(candidate, value)} />
-                  </Field>
-                </div>
-              </article>
-            ))}
+              </>
+            )}
           </div>
         </section>
 

@@ -367,7 +367,8 @@ function normalizeCandidate(
 function buildPrompt(query: ReturnType<typeof normalizeQuery>) {
   const today = new Date().toISOString().slice(0, 10);
   return [
-    `Today is ${today}. Find up to ${query.maxResults} public activity or event candidates for older adults in ${query.city}${query.countryCode ? `, ${query.countryCode}` : ""}.`,
+    `Today is ${today}. Find a shortlist of ${query.maxResults} public activity or event candidates for older adults in ${query.city}${query.countryCode ? `, ${query.countryCode}` : ""}.`,
+    `Return the full shortlist when enough sourced candidates exist. Do not stop after the first good result; diversify by venue, day, and activity type. If fewer than ${query.maxResults} suitable sourced candidates exist, return every suitable one you can verify.`,
     `Preferred format: ${query.format}. Interests or tags: ${query.interests.length ? query.interests.join(", ") : "balanced community activities"}.`,
     `Result refinements: ${query.refinementTags.length ? query.refinementTags.join(", ") : "no extra refinements"}. Use these to improve result quality, but keep at least a few good candidates if exact matches are scarce.`,
     `Languages to support in the saved record: ${query.languageCodes.join(", ")}. Return English, Spanish, and German fields even when the event itself is in fewer languages.`,
@@ -406,7 +407,7 @@ export async function discoverParticipationEvents(input: DiscoverParticipationIn
     input: buildPrompt(query),
     tools: [{ type: "web_search", search_context_size: "medium" }],
     include: ["web_search_call.action.sources"],
-    max_output_tokens: 5000,
+    max_output_tokens: 8000,
     text: {
       format: {
         type: "json_schema",
