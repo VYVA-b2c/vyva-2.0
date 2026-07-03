@@ -3,27 +3,18 @@ export const CONTENT_UPLOAD_LANGUAGES = ["es", "de", "en", "fr", "pt"] as const;
 export const CONTENT_UPLOAD_TYPES = [
   "cc_story_recall",
   "cc_similarities",
-  "curious_minds_hooks",
-  "curious_minds_prompts",
-  "scent_memory_prompts",
 ] as const;
 
 export const CONTENT_UPLOAD_TYPE_OPTIONS: Array<{ value: BulkUploadContentType; label: string }> = [
   { value: "cc_story_recall", label: "CC Story Recall" },
   { value: "cc_similarities", label: "CC Similarities" },
-  { value: "curious_minds_hooks", label: "Curious Minds Hooks" },
-  { value: "curious_minds_prompts", label: "Curious Minds Prompts" },
-  { value: "scent_memory_prompts", label: "Scent Memory Prompts" },
 ];
 
 export type BulkUploadLanguage = typeof CONTENT_UPLOAD_LANGUAGES[number];
 export type BulkUploadContentType = typeof CONTENT_UPLOAD_TYPES[number];
 
 export type BulkUploadInsertTable =
-  | "cc_item_bank"
-  | "curious_minds_hooks"
-  | "curious_minds_prompts"
-  | "scent_memory_prompts";
+  | "cc_item_bank";
 
 export type BulkUploadInsertRow = Record<string, unknown>;
 
@@ -51,20 +42,6 @@ export type BulkUploadBuildOptions = {
   reviewedAt: string;
 };
 
-const CURIOUS_HOOK_CATEGORIES = [
-  "nature",
-  "animals",
-  "body",
-  "weather",
-  "food",
-  "history",
-  "everyday_objects",
-  "science",
-] as const;
-
-const CURIOUS_PROMPT_TYPES = ["alternate_uses", "what_if", "connections"] as const;
-const SCENT_MEMORY_CATEGORIES = ["food", "nature", "home", "season", "place", "occasion"] as const;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -79,10 +56,6 @@ function nonEmptyStringArray(value: unknown): value is string[] {
 
 function integerInRange(value: unknown, min: number, max: number): value is number {
   return Number.isInteger(value) && value >= min && value <= max;
-}
-
-function enumValue<T extends readonly string[]>(value: unknown, allowed: T): value is T[number] {
-  return typeof value === "string" && (allowed as readonly string[]).includes(value);
 }
 
 function extractItemsFromParsedJson(parsed: unknown): unknown[] {
@@ -177,87 +150,6 @@ function validateCcSimilarities(
   };
 }
 
-function validateCuriousMindsHook(
-  item: Record<string, unknown>,
-  language: BulkUploadLanguage,
-  options: BulkUploadBuildOptions,
-): Omit<BulkUploadValidItem, "index"> | { reason: string } {
-  const reasons: string[] = [];
-  if (!nonEmptyString(item.fact_prompt)) reasons.push("fact_prompt must be a non-empty string");
-  if (!nonEmptyString(item.fact_answer)) reasons.push("fact_answer must be a non-empty string");
-  if (!enumValue(item.category, CURIOUS_HOOK_CATEGORIES)) {
-    reasons.push(`category must be one of ${CURIOUS_HOOK_CATEGORIES.join(", ")}`);
-  }
-  if (reasons.length) return { reason: reasonList(reasons) };
-
-  return {
-    item,
-    table: "curious_minds_hooks",
-    row: {
-      fact_prompt: String(item.fact_prompt).trim(),
-      fact_answer: String(item.fact_answer).trim(),
-      category: item.category,
-      language,
-      ...reviewFields(options),
-    },
-  };
-}
-
-function validateCuriousMindsPrompt(
-  item: Record<string, unknown>,
-  language: BulkUploadLanguage,
-  options: BulkUploadBuildOptions,
-): Omit<BulkUploadValidItem, "index"> | { reason: string } {
-  const reasons: string[] = [];
-  if (!enumValue(item.prompt_type, CURIOUS_PROMPT_TYPES)) {
-    reasons.push(`prompt_type must be one of ${CURIOUS_PROMPT_TYPES.join(", ")}`);
-  }
-  if (!nonEmptyString(item.prompt_text)) reasons.push("prompt_text must be a non-empty string");
-  if (!nonEmptyString(item.topic)) reasons.push("topic must be a non-empty string");
-  if (reasons.length) return { reason: reasonList(reasons) };
-
-  return {
-    item,
-    table: "curious_minds_prompts",
-    row: {
-      prompt_type: item.prompt_type,
-      prompt_text: String(item.prompt_text).trim(),
-      topic: String(item.topic).trim(),
-      language,
-      ...reviewFields(options),
-    },
-  };
-}
-
-function validateScentMemoryPrompt(
-  item: Record<string, unknown>,
-  language: BulkUploadLanguage,
-  options: BulkUploadBuildOptions,
-): Omit<BulkUploadValidItem, "index"> | { reason: string } {
-  const reasons: string[] = [];
-  if (!nonEmptyString(item.scent_name)) reasons.push("scent_name must be a non-empty string");
-  if (!nonEmptyString(item.scent_description)) reasons.push("scent_description must be a non-empty string");
-  if (!nonEmptyString(item.guiding_question)) reasons.push("guiding_question must be a non-empty string");
-  if (!enumValue(item.category, SCENT_MEMORY_CATEGORIES)) {
-    reasons.push(`category must be one of ${SCENT_MEMORY_CATEGORIES.join(", ")}`);
-  }
-  if (reasons.length) return { reason: reasonList(reasons) };
-
-  return {
-    item,
-    table: "scent_memory_prompts",
-    row: {
-      scent_name: String(item.scent_name).trim(),
-      scent_description: String(item.scent_description).trim(),
-      guiding_question: String(item.guiding_question).trim(),
-      category: item.category,
-      language,
-      rejected: false,
-      ...reviewFields(options),
-    },
-  };
-}
-
 export function parseBulkUploadJson(jsonText: string): unknown[] {
   const parsed = JSON.parse(jsonText) as unknown;
   return extractItemsFromParsedJson(parsed);
@@ -284,13 +176,7 @@ export function validateBulkUploadItems(
 
     const result = contentType === "cc_story_recall"
       ? validateCcStoryRecall(rawItem, language, options)
-      : contentType === "cc_similarities"
-        ? validateCcSimilarities(rawItem, language, options)
-        : contentType === "curious_minds_hooks"
-          ? validateCuriousMindsHook(rawItem, language, options)
-          : contentType === "curious_minds_prompts"
-            ? validateCuriousMindsPrompt(rawItem, language, options)
-            : validateScentMemoryPrompt(rawItem, language, options);
+      : validateCcSimilarities(rawItem, language, options);
 
     if ("reason" in result) {
       invalidItems.push({ index, reason: result.reason });

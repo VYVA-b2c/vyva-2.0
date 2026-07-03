@@ -149,7 +149,7 @@ function BulkUploadPanel({ onLoaded }: { onLoaded: () => void }) {
     <section className="mt-5 rounded-3xl border border-[#eadfd5] bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="font-serif text-3xl">Bulk Upload</h1>
+          <h1 className="font-serif text-3xl">Cognitive Bulk Upload</h1>
           <p className="mt-1 flex items-center gap-2 text-sm font-bold text-[#7d6b65]">
             <Database size={16} />
             Development database
