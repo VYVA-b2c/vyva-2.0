@@ -33,7 +33,7 @@ const adminItems: AdminItem[] = [
   { label: "Home cards", path: "/admin/home-cards", description: "Personalized Today cards", icon: Home },
   { label: "Hero messages", path: "/admin/hero-messages", description: "Banner copy and rules", icon: MessageSquare },
   { label: "Learning library", path: "/admin/learning-library", description: "Daily lessons and interests", icon: BookOpen },
-  { label: "Content review", path: "/admin/curious-minds", description: "Curious Minds drafts", icon: Sparkles },
+  { label: "Content review", path: "/admin/content-review", description: "Curious Minds and Compass drafts", icon: Sparkles },
   { label: "What's On", path: "/admin/curated-activities", description: "Upload and review activities", icon: CalendarCheck },
   { label: "Voice readiness", path: "/admin/voice-readiness", description: "Agent context contracts", icon: Mic },
   { label: "Supply packages", path: "/admin/concierge-supplies", description: "Concierge supplies and kits", icon: Package },
