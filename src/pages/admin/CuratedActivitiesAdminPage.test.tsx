@@ -226,6 +226,9 @@ describe("CuratedActivitiesAdminPage", () => {
     renderPage();
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "Spain" } });
+    expect(screen.getByTestId("admin-discovery-province-valencia")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-discovery-province-valencia"));
     fireEvent.click(screen.getByTestId("admin-discovery-city-option-valencia"));
     fireEvent.change(screen.getByTestId("admin-discovery-postal-code"), { target: { value: "46006" } });
     fireEvent.change(screen.getByTestId("admin-discovery-radius"), { target: { value: "3" } });
