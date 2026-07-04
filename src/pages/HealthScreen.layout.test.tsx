@@ -291,9 +291,8 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("button-health-tool-my-medication")).toHaveTextContent("My Medication");
     expect(screen.getByTestId("button-health-tool-my-medication")).toHaveTextContent("1 due");
     expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Feel Better");
-    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent(
-      new Date("2026-06-27T08:30:00.000Z").toLocaleDateString(undefined, { day: "numeric", month: "short" }),
-    );
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start");
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Start check");
     expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Stay Well");
     expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Follow-up");
     expect(screen.getByTestId("button-health-tool-stay-well")).not.toHaveTextContent("Follow-up today.");
@@ -322,7 +321,7 @@ describe("HealthScreen home-style layout", () => {
     expect(mocks.navigate).toHaveBeenCalledWith("/health/vitals");
 
     fireEvent.click(screen.getByTestId("button-health-tool-feel-better"));
-    expect(mocks.navigate).toHaveBeenCalledWith("/informes/triage-1");
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/symptom-check");
 
     fireEvent.click(screen.getByTestId("button-health-tool-my-medication"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/meds");
@@ -475,10 +474,9 @@ describe("HealthScreen home-style layout", () => {
       "/api/meds/adherence-report": medicineDueNowReport,
     });
 
-    const olderSymptomTag = new Date("2026-06-27T08:30:00.000Z").toLocaleDateString(undefined, { day: "numeric", month: "short" });
-    await waitFor(() => expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent(olderSymptomTag));
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start"));
     expect(screen.getByTestId("button-health-tool-feel-better")).not.toHaveTextContent("Chest tightness");
-    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Chest tightness");
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Start check");
     expect(screen.getByTestId("button-health-tool-feel-better")).not.toHaveTextContent("Review");
     expect(screen.getByTestId("button-health-tool-my-vitals")).toHaveTextContent("Pulse 72");
     expect(screen.getByTestId("button-health-tool-my-vitals")).not.toHaveTextContent("Pulse: 72 bpm");
@@ -505,7 +503,7 @@ describe("HealthScreen home-style layout", () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Today"));
-    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Mild dizziness");
+    await waitFor(() => expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start"));
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Start check");
   });
 });

@@ -493,6 +493,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     sosOpen ||
     showVoiceDock ||
     isVoiceOverlayFocused ||
+    location.pathname === "/learn" ||
     location.pathname === "/sos" ||
     location.pathname.startsWith("/health/symptom") ||
     location.pathname.startsWith("/triage");

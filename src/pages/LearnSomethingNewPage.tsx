@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -178,7 +178,18 @@ function Wizard({
 }) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<ProgramForm>(initialForm);
+  const hasRenderedStepRef = useRef(false);
   const canGoNext = step < 2;
+
+  useEffect(() => {
+    if (!hasRenderedStepRef.current) {
+      hasRenderedStepRef.current = true;
+      return;
+    }
+    if (navigator.userAgent.toLowerCase().includes("jsdom")) return;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
+  }, [step]);
 
   const toggleInterest = (slug: string) => {
     setForm((current) => {
@@ -193,49 +204,53 @@ function Wizard({
   };
 
   return (
-    <main className="min-h-screen bg-[#FAF8F4] px-4 py-6 text-[#261c29]" data-testid="learn-wizard">
-      <section className="mx-auto w-full max-w-3xl">
-        <header className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="font-serif text-[36px] leading-none text-[#211827] sm:text-[46px]">
-              Learn Something New
-            </h1>
-            <p className="mt-3 max-w-xl text-[16px] font-semibold leading-relaxed text-[#6b5d58]">
-              Pick a few interests and VYVA will shape one calm lesson a day.
-            </p>
-          </div>
-          {onCancel ? (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[#E4D9CE] bg-white px-4 text-sm font-black text-[#5b4a46]"
-            >
-              Cancel
-            </button>
-          ) : null}
-        </header>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#FFF6E9_0%,#FAF8F4_34%,#F6F0EA_100%)] px-4 py-5 text-[#261c29] min-[390px]:px-5 sm:px-6 sm:py-7" data-testid="learn-wizard">
+      <section className="mx-auto w-full max-w-[920px]">
+        <section className="overflow-hidden rounded-[28px] border border-[#E9DDCF] bg-white/95 shadow-[0_18px_46px_rgba(63,45,35,0.08)]">
+          <header className="border-b border-[#F0E6DA] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF8EF_55%,#F5ECFF_100%)] px-5 py-5 min-[390px]:px-6 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:px-7 sm:py-6">
+            <div className="min-w-0">
+              <p className="inline-flex rounded-full bg-[#FFF1B8] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">
+                Daily learning
+              </p>
+              <h1 className="mt-3 max-w-[11em] font-body text-[31px] font-black leading-[0.98] text-[#211827] min-[390px]:text-[35px] sm:text-[42px]">
+                Learn Something New
+              </h1>
+              <p className="mt-3 max-w-[36rem] text-[15px] font-bold leading-snug text-[#6b5d58] min-[390px]:text-[16px]">
+                Pick a few interests. VYVA will shape one calm lesson a day.
+              </p>
+            </div>
+            {onCancel ? (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[18px] border border-[#E4D9CE] bg-white px-4 text-[15px] font-black text-[#5b4a46] sm:mt-0 sm:w-auto"
+              >
+                Cancel
+              </button>
+            ) : null}
+          </header>
 
-        <section className="rounded-lg border border-[#E6DDD2] bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-6">
-            <div className="flex items-center justify-between text-[12px] font-black uppercase tracking-[0.12em] text-[#7a6c66]">
-              <span>Step {step + 1} of 3</span>
-              <span>{wizardStepTitles[step]}</span>
+          <div className="px-5 pb-5 pt-4 min-[390px]:px-6 min-[390px]:pb-6 sm:px-7 sm:pb-7">
+            <div className="mb-5 rounded-[20px] border border-[#EFE6DA] bg-[#FFFCF8] p-3 min-[390px]:p-4">
+              <div className="flex items-center justify-between gap-3 text-[11px] font-black uppercase tracking-[0.1em] text-[#7a6c66] min-[390px]:text-[12px]">
+                <span>Step {step + 1} of 3</span>
+                <span className="rounded-full bg-white px-3 py-1 text-[#6D28D9] shadow-sm">{wizardStepTitles[step]}</span>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2" aria-hidden="true">
+                {[0, 1, 2].map((index) => (
+                  <span
+                    key={index}
+                    className={`h-2 rounded-full ${index <= step ? "bg-[#6D28D9]" : "bg-[#E8DED4]"}`}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2" aria-hidden="true">
-              {[0, 1, 2].map((index) => (
-                <span
-                  key={index}
-                  className={`h-1.5 rounded-full ${index <= step ? "bg-[#6D28D9]" : "bg-[#E8DED4]"}`}
-                />
-              ))}
-            </div>
-          </div>
 
           {step === 0 ? (
             <>
-              <h2 className="font-body text-[25px] font-black leading-tight">Choose what sparks your curiosity</h2>
-              <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Pick one or more interests. General Knowledge stays available as a fallback.</p>
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <h2 className="max-w-[13em] font-body text-[27px] font-black leading-[1.02] text-[#211827] min-[390px]:text-[30px] sm:max-w-none">Choose what sparks your curiosity</h2>
+              <p className="mt-2 max-w-[40rem] text-[14px] font-bold leading-snug text-[#7d6b65] min-[390px]:text-[15px]">Pick one or more interests. General Knowledge stays available as a fallback.</p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {categories.map((category) => {
                   const Icon = categoryIcon(category);
                   const active = form.interests.includes(category.slug);
@@ -244,18 +259,20 @@ function Wizard({
                       key={category.slug}
                       type="button"
                       onClick={() => toggleInterest(category.slug)}
-                      className={`flex min-h-[76px] items-center gap-3 rounded-lg border px-3 py-3 text-left transition ${
-                        active ? "border-[#8B5CF6] bg-[#F7F2FF]" : "border-[#E9DFD5] bg-white hover:border-[#CDBCEB]"
+                      aria-pressed={active}
+                      className={`group flex min-h-[86px] items-center gap-3 rounded-[20px] border px-3.5 py-3.5 text-left transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:px-4 ${
+                        active ? "border-[#8B5CF6] bg-[#F7F2FF] shadow-[0_12px_24px_rgba(109,40,217,0.10)]" : "border-[#E9DFD5] bg-white hover:border-[#CDBCEB]"
                       }`}
                       data-testid={`button-learn-interest-${category.slug}`}
                     >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" style={{ background: `${category.color}14`, color: category.color }}>
-                        <Icon size={20} />
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[17px]" style={{ background: `${category.color}14`, color: category.color }}>
+                        <Icon size={23} strokeWidth={2.45} />
                       </span>
-                      <span className="min-w-0">
-                        <span className="block text-[16px] font-black text-[#2f2135]">{category.label}</span>
-                        <span className="mt-0.5 block text-[12px] font-semibold leading-snug text-[#7d6b65]">{category.description}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[17px] font-black leading-tight text-[#2f2135] min-[390px]:text-[18px]">{category.label}</span>
+                        <span className="mt-1 block text-[13px] font-bold leading-snug text-[#7d6b65]">{category.description}</span>
                       </span>
+                      {active ? <CheckCircle2 className="h-6 w-6 shrink-0 text-[#6D28D9]" aria-hidden="true" /> : null}
                     </button>
                   );
                 })}
@@ -265,29 +282,30 @@ function Wizard({
 
           {step === 1 ? (
             <>
-              <h2 className="font-body text-[25px] font-black leading-tight">Set the pace</h2>
-              <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Keep it light and readable. The lesson stays educational, not game-like.</p>
-              <div className="mt-5 grid gap-2">
+              <h2 className="font-body text-[27px] font-black leading-tight text-[#211827] min-[390px]:text-[30px]">Set the pace</h2>
+              <p className="mt-2 max-w-[38rem] text-[14px] font-bold leading-snug text-[#7d6b65] min-[390px]:text-[15px]">Keep it light and readable. The lesson stays educational, not game-like.</p>
+              <div className="mt-5 grid gap-3">
                 {paceOptions.map((option) => (
                   <button
                     key={option.id}
                     type="button"
                     onClick={() => setForm((current) => ({ ...current, pace: option.id }))}
-                    className={`flex min-h-[74px] items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left ${
-                      form.pace === option.id ? "border-[#8B5CF6] bg-[#F7F2FF]" : "border-[#E9DFD5] bg-white"
+                    aria-pressed={form.pace === option.id}
+                    className={`flex min-h-[82px] items-center justify-between gap-3 rounded-[20px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 ${
+                      form.pace === option.id ? "border-[#8B5CF6] bg-[#F7F2FF] shadow-[0_12px_24px_rgba(109,40,217,0.10)]" : "border-[#E9DFD5] bg-white"
                     }`}
                     data-testid={`button-learn-pace-${option.id}`}
                   >
                     <span>
-                      <span className="block text-[17px] font-black">{option.label}</span>
-                      <span className="mt-1 block text-[13px] font-semibold text-[#7d6b65]">{option.description}</span>
+                      <span className="block text-[18px] font-black leading-tight">{option.label}</span>
+                      <span className="mt-1 block text-[14px] font-bold leading-snug text-[#7d6b65]">{option.description}</span>
                     </span>
                     {form.pace === option.id ? <CheckCircle2 className="text-purple-700" size={22} /> : null}
                   </button>
                 ))}
               </div>
-              <label className="mt-5 block rounded-lg border border-[#E9DFD5] bg-[#FCFAF7] p-4">
-                <span className="text-[15px] font-black text-[#2f2135]">Lesson length</span>
+              <label className="mt-5 block rounded-[20px] border border-[#E9DFD5] bg-[#FCFAF7] p-4">
+                <span className="text-[16px] font-black text-[#2f2135]">Lesson length</span>
                 <input
                   type="range"
                   min={1}
@@ -296,17 +314,17 @@ function Wizard({
                   onChange={(event) => setForm((current) => ({ ...current, lessonLengthMinutes: Number(event.target.value) }))}
                   className="mt-4 w-full accent-purple-700"
                 />
-                <span className="mt-2 inline-flex rounded-lg bg-white px-3 py-1 text-[13px] font-black text-purple-700">{form.lessonLengthMinutes} min</span>
+                <span className="mt-2 inline-flex rounded-full bg-white px-3 py-1.5 text-[13px] font-black text-purple-700 shadow-sm">{form.lessonLengthMinutes} min</span>
               </label>
             </>
           ) : null}
 
           {step === 2 ? (
             <>
-              <h2 className="font-body text-[25px] font-black leading-tight">Choose a daily rhythm</h2>
-              <p className="mt-2 text-sm font-semibold text-[#7d6b65]">VYVA will keep the first version in-app and show the lesson at this time.</p>
-              <label className="mt-5 block rounded-lg border border-[#E9DFD5] bg-[#FCFAF7] p-4">
-                <span className="flex items-center gap-2 text-[15px] font-black text-[#2f2135]">
+              <h2 className="font-body text-[27px] font-black leading-tight text-[#211827] min-[390px]:text-[30px]">Choose a daily rhythm</h2>
+              <p className="mt-2 max-w-[38rem] text-[14px] font-bold leading-snug text-[#7d6b65] min-[390px]:text-[15px]">VYVA will keep the first version in-app and show the lesson at this time.</p>
+              <label className="mt-5 block rounded-[20px] border border-[#E9DFD5] bg-[#FCFAF7] p-4">
+                <span className="flex items-center gap-2 text-[16px] font-black text-[#2f2135]">
                   <CalendarDays size={18} />
                   Daily lesson time
                 </span>
@@ -314,23 +332,23 @@ function Wizard({
                   type="time"
                   value={form.dailyTime}
                   onChange={(event) => setForm((current) => ({ ...current, dailyTime: event.target.value }))}
-                  className="mt-3 h-14 w-full rounded-lg border border-[#E4D9CE] bg-white px-4 text-[18px] font-black text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                  className="mt-3 h-14 w-full rounded-[18px] border border-[#E4D9CE] bg-white px-4 text-[18px] font-black text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
                   data-testid="input-learn-daily-time"
                 />
               </label>
-              <div className="mt-5 rounded-lg border border-[#DDECE2] bg-[#F3FAF5] p-4 text-sm font-bold leading-relaxed text-[#0A7C4E]">
+              <div className="mt-5 rounded-[20px] border border-[#DDECE2] bg-[#F3FAF5] p-4 text-[14px] font-bold leading-relaxed text-[#0A7C4E]">
                 Your first week will start today with one short lesson per day.
               </div>
             </>
           ) : null}
 
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-2">
+          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-[#F0E6DA] pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 gap-2">
               {step > 0 ? (
                 <button
                   type="button"
                   onClick={() => setStep((current) => current - 1)}
-                  className="inline-flex min-h-12 items-center gap-2 rounded-lg border border-[#E4D9CE] bg-white px-4 text-sm font-black text-[#5b4a46]"
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] border border-[#E4D9CE] bg-white px-4 text-[15px] font-black text-[#5b4a46] sm:w-auto"
                 >
                   <ArrowLeft size={17} />
                   Back
@@ -342,7 +360,7 @@ function Wizard({
               <button
                 type="button"
                 onClick={() => setStep((current) => current + 1)}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#6D28D9] px-5 text-sm font-black text-white shadow-sm"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] bg-[#6D28D9] px-5 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(109,40,217,0.20)] sm:w-auto"
               >
                 Next
                 <ArrowRight size={17} />
@@ -352,13 +370,14 @@ function Wizard({
                 type="button"
                 disabled={saving}
                 onClick={() => onSubmit(form)}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#6D28D9] px-5 text-sm font-black text-white shadow-sm disabled:opacity-60"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] bg-[#6D28D9] px-5 text-[15px] font-black text-white shadow-[0_12px_24px_rgba(109,40,217,0.20)] disabled:opacity-60 sm:w-auto"
                 data-testid="button-learn-start-program"
               >
                 {saving ? <Loader2 className="animate-spin" size={17} /> : <Sparkles size={17} />}
                 Start my week
               </button>
             )}
+          </div>
           </div>
         </section>
       </section>
