@@ -46,48 +46,218 @@ const WORK_QUEUE_FILTERS: Array<{ id: WorkQueueFilter; label: string; descriptio
   { id: "popular", label: "User interest", description: "Interested or maybe" },
   { id: "live", label: "Live coverage", description: "Active and approved" },
 ];
-const DISCOVERY_COUNTRY_OPTIONS = [
-  { value: "ES", label: "Spain" },
-  { value: "GB", label: "United Kingdom" },
-  { value: "FR", label: "France" },
-  { value: "DE", label: "Germany" },
-  { value: "IT", label: "Italy" },
-  { value: "PT", label: "Portugal" },
-] as const;
-const DISCOVERY_CITY_PRESETS = [
+type DiscoveryCityPreset = {
+  city: string;
+  defaultLocality: string;
+  defaultAnchor: string;
+  localities: readonly string[];
+  anchors: readonly string[];
+};
+
+type DiscoveryProvincePreset = {
+  province: string;
+  cities: readonly DiscoveryCityPreset[];
+};
+
+type DiscoveryCountryPreset = {
+  countryCode: string;
+  countryName: string;
+  provinces: readonly DiscoveryProvincePreset[];
+};
+
+const DISCOVERY_LOCATION_PRESETS: readonly DiscoveryCountryPreset[] = [
   {
-    city: "Madrid",
     countryCode: "ES",
-    defaultLocality: "Chamberi, Salamanca",
-    defaultAnchor: "28010",
-    localities: ["Chamberi", "Salamanca", "Retiro", "Centro", "Arganzuela", "Moncloa"],
-    anchors: ["28010", "28001", "28014", "Centro Cultural Galileo", "Biblioteca Publica Jose Hierro"],
+    countryName: "Spain",
+    provinces: [
+      {
+        province: "Madrid",
+        cities: [
+          {
+            city: "Madrid",
+            defaultLocality: "Chamberi, Salamanca",
+            defaultAnchor: "28010",
+            localities: ["Chamberi", "Salamanca", "Retiro", "Centro", "Arganzuela", "Moncloa"],
+            anchors: ["28010", "28001", "28014", "Centro Cultural Galileo", "Biblioteca Publica Jose Hierro"],
+          },
+          {
+            city: "Alcala de Henares",
+            defaultLocality: "Centro historico",
+            defaultAnchor: "28801",
+            localities: ["Centro historico", "La Garena", "El Ensanche", "Reyes Catolicos"],
+            anchors: ["28801", "28806", "Biblioteca Cardenal Cisneros", "Casa de la Cultura"],
+          },
+        ],
+      },
+      {
+        province: "Valencia",
+        cities: [
+          {
+            city: "Valencia",
+            defaultLocality: "Ruzafa, Gran Via",
+            defaultAnchor: "46006",
+            localities: ["Ruzafa", "Gran Via", "Ciutat Vella", "El Carmen", "Ensanche", "Jardin del Turia"],
+            anchors: ["46006", "46005", "46001", "Jardin del Turia", "Biblioteca Publica Valencia"],
+          },
+          {
+            city: "Gandia",
+            defaultLocality: "Centro, Grau",
+            defaultAnchor: "46701",
+            localities: ["Centro", "Grau", "Benipeixcar", "Roig de Corella"],
+            anchors: ["46701", "46730", "Casa de Cultura Marques Gonzalez de Quiros"],
+          },
+        ],
+      },
+      {
+        province: "Barcelona",
+        cities: [
+          {
+            city: "Barcelona",
+            defaultLocality: "Eixample, Gracia",
+            defaultAnchor: "08012",
+            localities: ["Eixample", "Gracia", "Sarria", "Sant Antoni", "Poblenou", "Les Corts"],
+            anchors: ["08012", "08036", "08015", "Centre Civic Cotxeres Borrell", "Biblioteca Jaume Fuster"],
+          },
+          {
+            city: "Badalona",
+            defaultLocality: "Centre, Casagemes",
+            defaultAnchor: "08911",
+            localities: ["Centre", "Casagemes", "Dalt la Vila", "Gorg"],
+            anchors: ["08911", "08912", "Biblioteca Can Casacuberta"],
+          },
+        ],
+      },
+      {
+        province: "Malaga",
+        cities: [
+          {
+            city: "Malaga",
+            defaultLocality: "Centro, La Malagueta",
+            defaultAnchor: "29015",
+            localities: ["Centro", "La Malagueta", "El Limonar", "Teatinos"],
+            anchors: ["29015", "29016", "Biblioteca Canovas del Castillo", "Centro Cultural La Malagueta"],
+          },
+        ],
+      },
+    ],
   },
   {
-    city: "Valencia",
-    countryCode: "ES",
-    defaultLocality: "Ruzafa, Gran Via",
-    defaultAnchor: "46006",
-    localities: ["Ruzafa", "Gran Via", "Ciutat Vella", "El Carmen", "Ensanche", "Jardin del Turia"],
-    anchors: ["46006", "46005", "46001", "Jardin del Turia", "Biblioteca Publica Valencia"],
-  },
-  {
-    city: "Barcelona",
-    countryCode: "ES",
-    defaultLocality: "Eixample, Gracia",
-    defaultAnchor: "08012",
-    localities: ["Eixample", "Gracia", "Sarria", "Sant Antoni", "Poblenou", "Les Corts"],
-    anchors: ["08012", "08036", "08015", "Centre Civic Cotxeres Borrell", "Biblioteca Jaume Fuster"],
-  },
-  {
-    city: "London",
     countryCode: "GB",
-    defaultLocality: "Kensington, Chelsea",
-    defaultAnchor: "SW3",
-    localities: ["Kensington", "Chelsea", "Westminster", "Camden", "Islington", "Hammersmith"],
-    anchors: ["SW3", "W8", "W1", "Kensington Central Library", "Chelsea Library"],
+    countryName: "United Kingdom",
+    provinces: [
+      {
+        province: "Greater London",
+        cities: [
+          {
+            city: "London",
+            defaultLocality: "Kensington, Chelsea",
+            defaultAnchor: "SW3",
+            localities: ["Kensington", "Chelsea", "Westminster", "Camden", "Islington", "Hammersmith"],
+            anchors: ["SW3", "W8", "W1", "Kensington Central Library", "Chelsea Library"],
+          },
+        ],
+      },
+      {
+        province: "Greater Manchester",
+        cities: [
+          {
+            city: "Manchester",
+            defaultLocality: "Didsbury, Chorlton",
+            defaultAnchor: "M20",
+            localities: ["Didsbury", "Chorlton", "City centre", "Withington", "Sale"],
+            anchors: ["M20", "M21", "Manchester Central Library", "Didsbury Library"],
+          },
+        ],
+      },
+      {
+        province: "West Midlands",
+        cities: [
+          {
+            city: "Birmingham",
+            defaultLocality: "Edgbaston, Moseley",
+            defaultAnchor: "B13",
+            localities: ["Edgbaston", "Moseley", "Harborne", "Jewellery Quarter"],
+            anchors: ["B13", "B15", "Library of Birmingham", "Moseley Community Hub"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "FR",
+    countryName: "France",
+    provinces: [
+      {
+        province: "Ile-de-France",
+        cities: [
+          {
+            city: "Paris",
+            defaultLocality: "Marais, Saint-Germain",
+            defaultAnchor: "75004",
+            localities: ["Marais", "Saint-Germain", "Montparnasse", "Batignolles"],
+            anchors: ["75004", "75006", "Bibliotheque Saint-Simon", "Maison de la Vie Associative"],
+          },
+        ],
+      },
+      {
+        province: "Provence-Alpes-Cote d'Azur",
+        cities: [
+          {
+            city: "Nice",
+            defaultLocality: "Liberation, Cimiez",
+            defaultAnchor: "06000",
+            localities: ["Liberation", "Cimiez", "Old town", "Port Lympia"],
+            anchors: ["06000", "06300", "Bibliotheque Louis Nucera"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "DE",
+    countryName: "Germany",
+    provinces: [
+      {
+        province: "Berlin",
+        cities: [
+          {
+            city: "Berlin",
+            defaultLocality: "Charlottenburg, Mitte",
+            defaultAnchor: "10115",
+            localities: ["Charlottenburg", "Mitte", "Prenzlauer Berg", "Kreuzberg"],
+            anchors: ["10115", "10623", "Amerika-Gedenkbibliothek", "Stadtbibliothek Mitte"],
+          },
+        ],
+      },
+      {
+        province: "Bavaria",
+        cities: [
+          {
+            city: "Munich",
+            defaultLocality: "Maxvorstadt, Schwabing",
+            defaultAnchor: "80799",
+            localities: ["Maxvorstadt", "Schwabing", "Sendling", "Haidhausen"],
+            anchors: ["80799", "80802", "Muenchner Stadtbibliothek"],
+          },
+        ],
+      },
+    ],
   },
 ] as const;
+const DISCOVERY_COUNTRY_OPTIONS = DISCOVERY_LOCATION_PRESETS.map((country) => ({
+  value: country.countryCode,
+  label: country.countryName,
+}));
+const DISCOVERY_CITY_PRESETS = DISCOVERY_LOCATION_PRESETS.flatMap((country) => (
+  country.provinces.flatMap((province) => (
+    province.cities.map((city) => ({
+      ...city,
+      province: province.province,
+      countryCode: country.countryCode,
+      countryName: country.countryName,
+    }))
+  ))
+));
 const DISCOVERY_FALLBACK_LOCALITIES = ["City centre", "Old town", "Near public library", "Near community centre", "Main park"];
 const DISCOVERY_FALLBACK_ANCHORS = ["Main library", "Community centre", "Central park", "Town hall"];
 const DISCOVERY_INTEREST_OPTIONS = ["music", "walking", "art", "culture", "gardening", "history", "language", "crafts", "gentle movement", "book club"];
@@ -841,8 +1011,11 @@ export default function CuratedActivitiesAdminPage() {
   const [savingDiscovery, setSavingDiscovery] = useState(false);
   const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>("all");
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
+  const [countryQuery, setCountryQuery] = useState("Spain");
+  const [customCity, setCustomCity] = useState("");
   const [discoveryForm, setDiscoveryForm] = useState({
     city: "Madrid",
+    province: "Madrid",
     countryCode: "ES",
     locality: "Chamberi, Salamanca",
     postalCode: "28010",
@@ -853,6 +1026,32 @@ export default function CuratedActivitiesAdminPage() {
     format: "nearby" as DiscoveryFormatPreference,
     maxResults: 6,
   });
+  const countryMatches = useMemo(() => {
+    const query = countryQuery.trim().toLowerCase();
+    if (!query) return DISCOVERY_LOCATION_PRESETS;
+    return DISCOVERY_LOCATION_PRESETS.filter((country) => (
+      country.countryName.toLowerCase().includes(query) || country.countryCode.toLowerCase().includes(query)
+    ));
+  }, [countryQuery]);
+  const normalizedCountryQuery = countryQuery.trim().toLowerCase();
+  const countrySuggestions = normalizedCountryQuery && countryMatches.some((country) => (
+    country.countryName.toLowerCase() === normalizedCountryQuery || country.countryCode.toLowerCase() === normalizedCountryQuery
+  ))
+    ? []
+    : countryMatches.slice(0, 4);
+  const activeDiscoveryCountryPreset = useMemo(() => {
+    const code = cleanText(discoveryForm.countryCode).toUpperCase();
+    return DISCOVERY_LOCATION_PRESETS.find((country) => country.countryCode === code);
+  }, [discoveryForm.countryCode]);
+  const visibleDiscoveryCountryPreset = countryMatches.length === 1 ? countryMatches[0] : activeDiscoveryCountryPreset;
+  const activeProvincePreset = useMemo(() => {
+    const province = cleanText(discoveryForm.province).toLowerCase();
+    return visibleDiscoveryCountryPreset?.provinces.find((item) => item.province.toLowerCase() === province)
+      ?? visibleDiscoveryCountryPreset?.provinces.find((item) => (
+        item.cities.some((city) => city.city.toLowerCase() === discoveryForm.city.toLowerCase())
+      ))
+      ?? visibleDiscoveryCountryPreset?.provinces[0];
+  }, [discoveryForm.city, discoveryForm.province, visibleDiscoveryCountryPreset]);
   const activeDiscoveryCityPreset = useMemo(() => {
     const city = cleanText(discoveryForm.city).toLowerCase();
     const country = cleanText(discoveryForm.countryCode).toUpperCase();
@@ -860,8 +1059,84 @@ export default function CuratedActivitiesAdminPage() {
       preset.city.toLowerCase() === city && preset.countryCode === country
     ));
   }, [discoveryForm.city, discoveryForm.countryCode]);
+  const visibleCityOptions = activeProvincePreset?.cities ?? [];
   const localityOptions = activeDiscoveryCityPreset?.localities ?? DISCOVERY_FALLBACK_LOCALITIES;
   const anchorOptions = activeDiscoveryCityPreset?.anchors ?? DISCOVERY_FALLBACK_ANCHORS;
+
+  function selectCountryPreset(country: DiscoveryCountryPreset) {
+    const province = country.provinces[0];
+    const city = province?.cities[0];
+    setCountryQuery(country.countryName);
+    if (!province || !city) {
+      setDiscoveryForm((prev) => ({ ...prev, countryCode: country.countryCode }));
+      return;
+    }
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      countryCode: country.countryCode,
+      province: province.province,
+      city: city.city,
+      locality: city.defaultLocality,
+      postalCode: city.defaultAnchor,
+    }));
+  }
+
+  function updateCountryQuery(value: string) {
+    setCountryQuery(value);
+    const normalized = value.trim().toLowerCase();
+    const exactMatch = DISCOVERY_LOCATION_PRESETS.find((country) => (
+      country.countryName.toLowerCase() === normalized || country.countryCode.toLowerCase() === normalized
+    ));
+    if (exactMatch) selectCountryPreset(exactMatch);
+  }
+
+  function selectProvincePreset(province: DiscoveryProvincePreset) {
+    const city = province.cities[0];
+    const country = visibleDiscoveryCountryPreset;
+    if (country) setCountryQuery(country.countryName);
+    if (!city) {
+      setDiscoveryForm((prev) => ({
+        ...prev,
+        countryCode: country?.countryCode ?? prev.countryCode,
+        province: province.province,
+      }));
+      return;
+    }
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      countryCode: country?.countryCode ?? prev.countryCode,
+      province: province.province,
+      city: city.city,
+      locality: city.defaultLocality,
+      postalCode: city.defaultAnchor,
+    }));
+  }
+
+  function selectCityPreset(city: DiscoveryCityPreset) {
+    const country = visibleDiscoveryCountryPreset;
+    const province = activeProvincePreset;
+    if (country) setCountryQuery(country.countryName);
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      countryCode: country?.countryCode ?? prev.countryCode,
+      province: province?.province ?? prev.province,
+      city: city.city,
+      locality: city.defaultLocality,
+      postalCode: city.defaultAnchor,
+    }));
+  }
+
+  function addCustomCity() {
+    const city = customCity.trim();
+    if (!city) return;
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      city,
+      locality: prev.locality || city,
+      postalCode: prev.postalCode,
+    }));
+    setCustomCity("");
+  }
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/social/participate${path}`, options);
@@ -1231,50 +1506,88 @@ export default function CuratedActivitiesAdminPage() {
                 <Pill tone="plain">{discoveryForm.radiusKm} km radius</Pill>
               </div>
             </div>
-            <div className="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.15fr_0.85fr_1.45fr_1fr_1fr]">
-              <FieldGroup label="City">
-                <div className="grid grid-cols-2 gap-2">
-                  {DISCOVERY_CITY_PRESETS.map((preset) => (
+            <div className="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-[1fr_1.05fr_1.05fr_1.35fr_1fr_0.9fr]">
+              <FieldGroup label="Country">
+                <input
+                  data-testid="admin-discovery-country"
+                  aria-label="Country"
+                  className="w-full rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#2f2135]"
+                  value={countryQuery}
+                  onChange={(event) => updateCountryQuery(event.target.value)}
+                  placeholder="Type a country"
+                  list="admin-discovery-country-options"
+                />
+                <datalist id="admin-discovery-country-options">
+                  {DISCOVERY_COUNTRY_OPTIONS.map((country) => (
+                    <option key={country.value} value={country.label}>{country.value}</option>
+                  ))}
+                </datalist>
+                {countrySuggestions.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {countrySuggestions.map((country) => (
                     <ChoiceButton
-                      key={`${preset.city}-${preset.countryCode}`}
-                      active={activeDiscoveryCityPreset?.city === preset.city}
-                      onClick={() => setDiscoveryForm((prev) => ({
-                        ...prev,
-                        city: preset.city,
-                        countryCode: preset.countryCode,
-                        locality: preset.defaultLocality,
-                        postalCode: preset.defaultAnchor,
-                      }))}
-                      testId={`admin-discovery-city-option-${slugifyEventKey(preset.city, "city")}`}
+                      key={country.countryCode}
+                      active={discoveryForm.countryCode === country.countryCode}
+                      onClick={() => selectCountryPreset(country)}
+                      testId={`admin-discovery-country-option-${country.countryCode.toLowerCase()}`}
                     >
-                      <span className="block">{preset.city}</span>
-                      <span className="block text-xs font-bold opacity-75">{preset.defaultLocality}</span>
+                      {country.countryName}
+                    </ChoiceButton>
+                    ))}
+                  </div>
+                )}
+              </FieldGroup>
+              <FieldGroup label="Province/region">
+                <div className="flex flex-wrap gap-2">
+                  {(visibleDiscoveryCountryPreset?.provinces ?? []).map((province) => (
+                    <ChoiceButton
+                      key={province.province}
+                      active={activeProvincePreset?.province === province.province}
+                      onClick={() => selectProvincePreset(province)}
+                      testId={`admin-discovery-province-${slugifyEventKey(province.province, "province")}`}
+                    >
+                      {province.province}
                     </ChoiceButton>
                   ))}
                 </div>
-                <input
-                  data-testid="admin-discovery-city"
-                  aria-label="Custom discovery city"
-                  className="mt-2 w-full rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
-                  value={discoveryForm.city}
-                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, city: event.target.value }))}
-                  placeholder="Custom city"
-                />
               </FieldGroup>
-              <FieldGroup label="Country">
-                <select
-                  data-testid="admin-discovery-country"
-                  className="w-full rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#2f2135]"
-                  value={discoveryForm.countryCode}
-                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, countryCode: event.target.value }))}
-                >
-                  {DISCOVERY_COUNTRY_OPTIONS.map((country) => (
-                    <option key={country.value} value={country.value}>{country.label} ({country.value})</option>
+              <FieldGroup label="City">
+                <div className="flex flex-wrap gap-2">
+                  {visibleCityOptions.map((city) => (
+                    <ChoiceButton
+                      key={city.city}
+                      active={discoveryForm.city.toLowerCase() === city.city.toLowerCase()}
+                      onClick={() => selectCityPreset(city)}
+                      testId={`admin-discovery-city-option-${slugifyEventKey(city.city, "city")}`}
+                    >
+                      {city.city}
+                    </ChoiceButton>
                   ))}
-                  {DISCOVERY_COUNTRY_OPTIONS.some((country) => country.value === discoveryForm.countryCode) ? null : (
-                    <option value={discoveryForm.countryCode}>{discoveryForm.countryCode}</option>
-                  )}
-                </select>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    data-testid="admin-discovery-city-custom"
+                    aria-label="Custom discovery city"
+                    className="min-w-0 flex-1 rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
+                    value={customCity}
+                    onChange={(event) => setCustomCity(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addCustomCity();
+                      }
+                    }}
+                    placeholder="Type another city"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomCity}
+                    disabled={!customCity.trim()}
+                    className="rounded-2xl border border-purple-200 bg-white px-3 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
               </FieldGroup>
               <FieldGroup label="Neighbourhood or area">
                 <SmartMultiPicker
