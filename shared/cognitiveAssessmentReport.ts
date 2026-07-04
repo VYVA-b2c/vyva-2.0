@@ -32,10 +32,43 @@ export type CognitiveAssessmentHistoryItem = {
   overview: string;
 };
 
+export type CognitiveAssessmentTrendPoint = {
+  sessionId: string;
+  completedAt: string | null;
+  completionPercent: number;
+  completedSteps: number;
+  totalSteps: number;
+  domainCount: number;
+};
+
+export type CognitiveAssessmentDomainTrendDirection = "up" | "down" | "flat" | "new" | "none";
+
+export type CognitiveAssessmentDomainTrend = {
+  domainId: string;
+  label: string;
+  latestRawValue: number | null;
+  previousRawValue: number | null;
+  direction: CognitiveAssessmentDomainTrendDirection;
+  valueLabel: string;
+};
+
+export type CognitiveAssessmentTaskSignal = {
+  taskId: string;
+  label: string;
+  domain: string;
+  kind: "score" | "count" | "saved";
+  rawValue: number | null;
+  maxValue?: number | null;
+  valueLabel: string;
+};
+
 export type CognitiveAssessmentLatestReportResponse = {
   report: CognitiveAssessmentReport | null;
 };
 
 export type CognitiveAssessmentHistoryResponse = {
   history: CognitiveAssessmentHistoryItem[];
+  trendPoints: CognitiveAssessmentTrendPoint[];
+  domainTrends: CognitiveAssessmentDomainTrend[];
+  taskSignals: CognitiveAssessmentTaskSignal[];
 };

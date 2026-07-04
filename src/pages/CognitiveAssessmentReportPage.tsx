@@ -10,7 +10,6 @@ import {
   ClipboardList,
   FileText,
   History,
-  LineChart,
   Loader2,
   Microscope,
   PlayCircle,
@@ -20,10 +19,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import type {
+  CognitiveAssessmentDomainTrend,
   CognitiveAssessmentHistoryResponse,
   CognitiveAssessmentLatestReportResponse,
   CognitiveAssessmentReport,
   CognitiveAssessmentTaskSummary,
+  CognitiveAssessmentTrendPoint,
 } from "../../shared/cognitiveAssessmentReport";
 
 const EXPECTED_REPORT_AREAS = [
@@ -88,22 +89,8 @@ function shortList(items: string[], emptyText: string, max = 2) {
   return `${shown}${extra}`;
 }
 
-function qualitativeSignalCount(report: CognitiveAssessmentReport) {
-  return report.sections.filter((section) => !visibleScoreLabel(section)).length;
-}
-
 function nextPriorityLabel(report: CognitiveAssessmentReport) {
   return remainingAreas(report)[0]?.label ?? "Trend check";
-}
-
-function nextPriorityDetail(report: CognitiveAssessmentReport) {
-  const remaining = remainingAreas(report);
-  if (remaining.length === 0) return "Repeat later under similar conditions";
-  const next = remaining[0];
-  const after = remaining.slice(1, 3).map((area) => area.label);
-  return after.length
-    ? `Next: ${next.label}. Then ${after.join(" and ")}.`
-    : `Next: ${next.label}.`;
 }
 
 function coverageMeaning(report: CognitiveAssessmentReport) {
@@ -113,6 +100,9 @@ function coverageMeaning(report: CognitiveAssessmentReport) {
 }
 
 type ReportHistory = CognitiveAssessmentHistoryResponse["history"];
+type ReportTrendPoints = CognitiveAssessmentHistoryResponse["trendPoints"];
+type ReportDomainTrends = CognitiveAssessmentHistoryResponse["domainTrends"];
+type ReportTaskSignals = CognitiveAssessmentHistoryResponse["taskSignals"];
 
 type ProgressPoint = {
   sessionId: string;
@@ -120,10 +110,48 @@ type ProgressPoint = {
   percent: number;
   steps: number;
   total: number;
+  domainCount: number;
   isCurrent: boolean;
 };
 
-function progressPoints(report: CognitiveAssessmentReport, history: ReportHistory): ProgressPoint[] {
+function progressPointFromTrend(point: CognitiveAssessmentTrendPoint, report: CognitiveAssessmentReport): ProgressPoint {
+  return {
+    sessionId: point.sessionId,
+    completedAt: point.completedAt,
+    percent: point.completionPercent,
+    steps: point.completedSteps,
+    total: point.totalSteps,
+    domainCount: point.domainCount,
+    isCurrent: point.sessionId === report.sessionId,
+  };
+}
+
+function progressPoints(
+  report: CognitiveAssessmentReport,
+  history: ReportHistory,
+  trendPoints: ReportTrendPoints,
+): ProgressPoint[] {
+  if (trendPoints.length > 0) {
+    const points = trendPoints.map((point) => progressPointFromTrend(point, report));
+    const hasCurrent = points.some((point) => point.sessionId === report.sessionId);
+    if (!hasCurrent) {
+      points.push({
+        sessionId: report.sessionId,
+        completedAt: report.completedAt,
+        percent: completionPercent(report),
+        steps: report.tasksCompleted,
+        total: report.totalTasks,
+        domainCount: completedDomains(report).length,
+        isCurrent: true,
+      });
+    }
+    return points.sort((a, b) => {
+      const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+      const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+      return dateA - dateB;
+    }).slice(-6);
+  }
+
   const pointsBySession = new Map<string, ProgressPoint>();
 
   history.forEach((item) => {
@@ -134,6 +162,7 @@ function progressPoints(report: CognitiveAssessmentReport, history: ReportHistor
       percent: Math.round((item.tasksCompleted / total) * 100),
       steps: item.tasksCompleted,
       total: item.totalTasks,
+      domainCount: 0,
       isCurrent: item.sessionId === report.sessionId,
     });
   });
@@ -144,6 +173,7 @@ function progressPoints(report: CognitiveAssessmentReport, history: ReportHistor
     percent: completionPercent(report),
     steps: report.tasksCompleted,
     total: report.totalTasks,
+    domainCount: completedDomains(report).length,
     isCurrent: true,
   });
 
@@ -399,11 +429,13 @@ function MetricTile({
 function ProgressionChart({
   report,
   history,
+  trendPoints,
 }: {
   report: CognitiveAssessmentReport;
   history: ReportHistory;
+  trendPoints: ReportTrendPoints;
 }) {
-  const points = progressPoints(report, history);
+  const points = progressPoints(report, history, trendPoints);
   const coordinates = chartCoordinates(points);
   const polyline = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
   const current = coordinates.find((point) => point.isCurrent) ?? coordinates[coordinates.length - 1];
@@ -492,39 +524,84 @@ function ProgressionChart({
           <p className="text-[18px] font-black text-[#2f2135]">{current?.steps ?? report.tasksCompleted}/{current?.total ?? report.totalTasks}</p>
         </div>
         <div className="rounded-[16px] bg-white px-3 py-2 shadow-sm">
-          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748B]">Trend</p>
-          <p className="text-[18px] font-black text-[#2f2135]">{points.length > 1 ? "Live" : "New"}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748B]">Domains</p>
+          <p className="text-[18px] font-black text-[#2f2135]">{current?.domainCount ?? completedDomains(report).length}</p>
         </div>
       </div>
     </div>
   );
 }
 
-function DomainRoadmap({ report }: { report: CognitiveAssessmentReport }) {
-  const completed = new Set(report.sections.map((section) => section.taskId));
+function domainTrendTone(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.direction === "up") return "text-[#047857] bg-[#ECFDF5]";
+  if (trend.direction === "down") return "text-[#B45309] bg-[#FFF7ED]";
+  if (trend.direction === "new") return "text-[#5B21B6] bg-[#F5F3FF]";
+  if (trend.direction === "flat") return "text-[#1D4ED8] bg-[#EFF6FF]";
+  return "text-[#766b63] bg-[#F8F4EF]";
+}
+
+function domainTrendLabel(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.direction === "new") return "new";
+  if (trend.direction === "flat") return "steady";
+  if (trend.direction === "none") return "open";
+  if (trend.latestRawValue === null || trend.previousRawValue === null) return "changed";
+  const delta = trend.latestRawValue - trend.previousRawValue;
+  return delta > 0 ? `+${delta}` : `${delta}`;
+}
+
+function DomainTrendChart({ domainTrends }: { domainTrends: ReportDomainTrends }) {
+  const trends = domainTrends.length > 0
+    ? domainTrends
+    : [
+      "Memory",
+      "Language",
+      "Attention",
+      "Reasoning",
+      "Visual/Clock",
+      "Mood/Sleep/Daily Context",
+    ].map((label, index) => ({
+      domainId: `empty-${index}`,
+      label,
+      latestRawValue: null,
+      previousRawValue: null,
+      direction: "none" as const,
+      valueLabel: "Not checked",
+    }));
+  const maxValue = Math.max(1, ...trends.map((trend) => trend.latestRawValue ?? 0));
 
   return (
-    <div className="rounded-[26px] border border-[#E8DED4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.055)]">
+    <div className="rounded-[28px] border border-[#D9ECE4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.055)]">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[22px] font-black leading-tight text-[#2f2135]">Coverage map</h2>
-        <span className="rounded-full bg-[#F5F3FF] px-3 py-1 text-xs font-black text-[#5B21B6]">
-          {report.sections.length}/{EXPECTED_REPORT_AREAS.length}
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#047857]">Domain trends</p>
+          <h2 className="mt-1 text-[24px] font-black leading-tight text-[#2f2135]">Raw signals</h2>
+        </div>
+        <span className="rounded-full bg-[#ECFDF5] px-3 py-1.5 text-xs font-black text-[#047857]">
+          Latest check
         </span>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        {EXPECTED_REPORT_AREAS.map((area) => {
-          const done = completed.has(area.taskId);
+
+      <div className="mt-4 grid gap-3">
+        {trends.map((trend) => {
+          const width = trend.latestRawValue === null ? 8 : Math.max(10, (trend.latestRawValue / maxValue) * 100);
           return (
             <div
-              key={area.taskId}
-              className={`flex min-h-[44px] items-center gap-2 rounded-[16px] border px-3 text-[12px] font-black ${
-                done
-                  ? "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
-                  : "border-[#E8DED4] bg-[#FBF8F4] text-[#8A7C73]"
-              }`}
+              key={trend.domainId}
+              className="rounded-[18px] border border-[#E8DED4] bg-[#FBF8F4] p-3"
             >
-              <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${done ? "bg-[#10B981]" : "bg-[#D6CEC7]"}`} />
-              <span className="truncate">{area.label}</span>
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-[14px] font-black text-[#2f2135]">{trend.label}</p>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${domainTrendTone(trend)}`}>
+                  {domainTrendLabel(trend)}
+                </span>
+              </div>
+              <div className="mt-2 h-2.5 rounded-full bg-[#EFE7DE]">
+                <div
+                  className="h-2.5 rounded-full bg-[#14B8A6]"
+                  style={{ width: `${width}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[12px] font-black text-[#766b63]">{trend.valueLabel}</p>
             </div>
           );
         })}
@@ -533,41 +610,41 @@ function DomainRoadmap({ report }: { report: CognitiveAssessmentReport }) {
   );
 }
 
-function AssessmentAreaCard({
+function taskSignalForSection(section: CognitiveAssessmentTaskSummary, taskSignals: ReportTaskSignals) {
+  return taskSignals.find((signal) => signal.taskId === section.taskId) ?? null;
+}
+
+function scoredSignalCount(taskSignals: ReportTaskSignals, report: CognitiveAssessmentReport) {
+  if (taskSignals.length > 0) {
+    return taskSignals.filter((signal) => signal.rawValue !== null).length;
+  }
+  return scoreSignalCount(report);
+}
+
+function AssessmentAreaRow({
   section,
-  index,
+  taskSignals,
 }: {
   section: CognitiveAssessmentTaskSummary;
-  index: number;
+  taskSignals: ReportTaskSignals;
 }) {
-  const score = visibleScoreLabel(section);
-  const accents = [
-    "border-[#DDD6FE] bg-[#FBFAFF] text-[#5B21B6]",
-    "border-[#BFDBFE] bg-[#F8FBFF] text-[#1D4ED8]",
-    "border-[#BBF7D0] bg-[#F7FEFA] text-[#047857]",
-    "border-[#FED7AA] bg-[#FFF9F1] text-[#C2410C]",
-  ];
-  const accent = accents[index % accents.length];
+  const signal = taskSignalForSection(section, taskSignals);
+  const score = signal?.valueLabel ?? visibleScoreLabel(section) ?? "saved";
 
   return (
-    <div className={`rounded-[24px] border p-4 shadow-[0_10px_24px_rgba(63,45,35,0.05)] ${accent}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.1em] opacity-75">{section.domain}</p>
-          <h3 className="mt-1 text-[19px] font-black leading-tight text-[#2f2135]">{section.label}</h3>
-        </div>
-        {score ? (
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-black shadow-sm">
-            {score}
-          </span>
-        ) : (
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-black shadow-sm">
-            saved
-          </span>
-        )}
-      </div>
-      <p className="mt-3 text-[14px] font-black leading-relaxed text-[#4C4039]">{section.detail}</p>
-    </div>
+    <details className="group rounded-[18px] border border-[#E8DED4] bg-white px-4 py-3 shadow-[0_8px_18px_rgba(63,45,35,0.045)]">
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-[11px] font-black uppercase tracking-[0.1em] text-[#8A7C73]">{signal?.domain ?? section.domain}</span>
+          <span className="block truncate text-[16px] font-black text-[#2f2135]">{section.label}</span>
+        </span>
+        <span className="flex flex-shrink-0 items-center gap-2">
+          <span className="rounded-full bg-[#F5F3FF] px-3 py-1 text-xs font-black text-[#5B21B6]">{score}</span>
+          <ChevronRight size={19} className="text-[#9A8F87] transition-transform group-open:rotate-90" />
+        </span>
+      </summary>
+      <p className="pb-1 pl-0 pr-8 text-[13px] font-bold leading-relaxed text-[#62564f]">{section.detail}</p>
+    </details>
   );
 }
 
@@ -575,21 +652,29 @@ function ReportView({
   report,
   title,
   history,
+  trendPoints,
+  domainTrends,
+  taskSignals,
 }: {
   report: CognitiveAssessmentReport;
   title: string;
   history: ReportHistory;
+  trendPoints: ReportTrendPoints;
+  domainTrends: ReportDomainTrends;
+  taskSignals: ReportTaskSignals;
 }) {
   const navigate = useNavigate();
   const percent = completionPercent(report);
   const domains = completedDomains(report);
-  const scoreSignals = scoreSignalCount(report);
-  const qualitativeSignals = qualitativeSignalCount(report);
+  const scoreSignals = scoredSignalCount(taskSignals, report);
   const remaining = remainingAreas(report);
-  const signalDetail = `${scoreSignals} scored, ${qualitativeSignals} note${qualitativeSignals === 1 ? "" : "s"}`;
+  const signalTotal = taskSignals.length || report.sections.length || 0;
+  const latestPoint = progressPoints(report, history, trendPoints).find((point) => point.isCurrent);
+  const domainTotal = latestPoint?.domainCount ?? domains.length;
+  const signalDetail = signalTotal === 0 ? "No saved signals" : `${signalTotal} saved`;
   const snapshotCopy = report.tasksCompleted >= report.totalTasks
-    ? "Baseline ready for future comparison."
-    : `${remaining.length} areas left to finish the baseline.`;
+    ? "Baseline ready for future comparison"
+    : `Next: ${nextPriorityLabel(report)}`;
 
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-8">
@@ -619,7 +704,9 @@ function ReportView({
           </div>
         </div>
 
-        <ProgressionChart report={report} history={history} />
+        <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
+
+        <DomainTrendChart domainTrends={domainTrends} />
 
         <div className="grid grid-cols-2 gap-3">
           <MetricTile
@@ -632,14 +719,14 @@ function ReportView({
           <MetricTile
             icon={<Activity size={22} />}
             label="Domains"
-            value={`${domains.length}`}
+            value={`${domainTotal}`}
             detail={shortList(domains, "None yet", 2)}
             className="border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]"
           />
           <MetricTile
             icon={<BarChart3 size={22} />}
             label="Signals"
-            value={`${scoreSignals}/${report.sections.length || 0}`}
+            value={`${scoreSignals}/${signalTotal}`}
             detail={signalDetail}
             className="border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
           />
@@ -653,27 +740,11 @@ function ReportView({
           />
         </div>
 
-        <DomainRoadmap report={report} />
-
         <div className="grid gap-3">
           <h2 className="px-1 text-[24px] font-black leading-tight text-[#2f2135]">Areas checked</h2>
-          {report.sections.map((section, index) => (
-            <AssessmentAreaCard key={`${section.taskId}-${section.label}`} section={section} index={index} />
+          {report.sections.map((section) => (
+            <AssessmentAreaRow key={`${section.taskId}-${section.label}`} section={section} taskSignals={taskSignals} />
           ))}
-        </div>
-
-        <div className="rounded-[26px] border border-[#BFDBFE] bg-[#EFF6FF] p-5 text-[#1E3A8A] shadow-[0_12px_28px_rgba(37,99,235,0.07)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#2563EB]">
-              <LineChart size={23} />
-            </span>
-            <div>
-              <h2 className="text-[22px] font-black leading-tight">Next step</h2>
-              <p className="mt-2 text-[14px] font-bold leading-relaxed">
-                {remaining.length > 0 ? nextPriorityDetail(report) : "Repeat later under similar conditions to build the trend."}
-              </p>
-            </div>
-          </div>
         </div>
 
         {report.sections.length === 0 ? (
@@ -718,7 +789,7 @@ function ReportView({
           </button>
         </div>
 
-        <p className="px-1 text-[12px] font-bold leading-relaxed text-[#766b63]">{report.disclaimer}</p>
+        <p className="px-1 text-[12px] font-bold leading-relaxed text-[#766b63]">Tracking signals are not a diagnosis.</p>
       </section>
     </main>
   );
@@ -784,11 +855,15 @@ export default function CognitiveAssessmentReportPage() {
 
   const report = reportQuery.data?.report ?? null;
   if (!report || location.pathname.endsWith("/start")) return <EmptyState />;
+  const historyData = historyQuery.data;
   return (
     <ReportView
       report={report}
       title={sessionId ? "Saved report" : "Latest report"}
-      history={historyQuery.data?.history ?? []}
+      history={historyData?.history ?? []}
+      trendPoints={historyData?.trendPoints ?? []}
+      domainTrends={historyData?.domainTrends ?? []}
+      taskSignals={historyData?.taskSignals ?? []}
     />
   );
 }

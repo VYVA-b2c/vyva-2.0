@@ -70,15 +70,106 @@ const sampleHistory: CognitiveAssessmentHistoryResponse["history"] = [
   },
 ];
 
+const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
+  history: sampleHistory,
+  trendPoints: [
+    {
+      sessionId: "session-older",
+      completedAt: "2026-06-20T10:12:00.000Z",
+      completionPercent: 8,
+      completedSteps: 1,
+      totalSteps: 12,
+      domainCount: 1,
+    },
+    {
+      sessionId: "session-1",
+      completedAt: "2026-07-04T10:12:00.000Z",
+      completionPercent: 17,
+      completedSteps: 2,
+      totalSteps: 12,
+      domainCount: 2,
+    },
+  ],
+  domainTrends: [
+    {
+      domainId: "memory",
+      label: "Memory",
+      latestRawValue: 3,
+      previousRawValue: null,
+      direction: "new",
+      valueLabel: "3 words",
+    },
+    {
+      domainId: "language",
+      label: "Language",
+      latestRawValue: null,
+      previousRawValue: null,
+      direction: "none",
+      valueLabel: "Not checked",
+    },
+    {
+      domainId: "attention",
+      label: "Attention",
+      latestRawValue: null,
+      previousRawValue: null,
+      direction: "none",
+      valueLabel: "Not checked",
+    },
+    {
+      domainId: "reasoning",
+      label: "Reasoning",
+      latestRawValue: 4,
+      previousRawValue: null,
+      direction: "new",
+      valueLabel: "4/8",
+    },
+    {
+      domainId: "visual_clock",
+      label: "Visual/Clock",
+      latestRawValue: null,
+      previousRawValue: null,
+      direction: "none",
+      valueLabel: "Not checked",
+    },
+    {
+      domainId: "daily_context",
+      label: "Mood/Sleep/Daily Context",
+      latestRawValue: null,
+      previousRawValue: null,
+      direction: "none",
+      valueLabel: "Not checked",
+    },
+  ],
+  taskSignals: [
+    {
+      taskId: "story_recall_immediate",
+      label: "Story recall",
+      domain: "Memory",
+      kind: "count",
+      rawValue: 3,
+      valueLabel: "3 words",
+    },
+    {
+      taskId: "similarities",
+      label: "Similarities",
+      domain: "Reasoning",
+      kind: "score",
+      rawValue: 4,
+      maxValue: 8,
+      valueLabel: "4/8",
+    },
+  ],
+};
+
 function renderReport(
   report: CognitiveAssessmentReport = sampleReport,
-  history: CognitiveAssessmentHistoryResponse["history"] = sampleHistory,
+  historyResponse: CognitiveAssessmentHistoryResponse = sampleHistoryResponse,
 ) {
   useQueryMock.mockImplementation(({ queryKey, enabled }: { queryKey: string[]; enabled?: boolean }) => {
     if (enabled === false) return { isLoading: false, isError: false, data: undefined };
     const key = queryKey[0];
     if (key === "/api/cognitive-assessment/history") {
-      return { isLoading: false, isError: false, data: { history } };
+      return { isLoading: false, isError: false, data: historyResponse };
     }
     return { isLoading: false, isError: false, data: { report } };
   });
@@ -100,25 +191,45 @@ describe("CognitiveAssessmentReportPage", () => {
     useQueryMock.mockReset();
   });
 
-  it("renders a visual partial cognitive report with progression", () => {
+  it("renders a chart-led member report with compact tracking signals", () => {
     renderReport();
 
     expect(screen.getByText("Early snapshot")).toBeInTheDocument();
     expect(screen.getAllByText("17%").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Progression")).toBeInTheDocument();
     expect(screen.getByText("+9 pts since last check")).toBeInTheDocument();
+    expect(screen.getByText("Domain trends")).toBeInTheDocument();
+    expect(screen.getByText("Raw signals")).toBeInTheDocument();
+    expect(screen.getByText("Mood/Sleep/Daily Context")).toBeInTheDocument();
     expect(screen.getByText("Coverage")).toBeInTheDocument();
-    expect(screen.getByText("Domains")).toBeInTheDocument();
+    expect(screen.getAllByText("Domains").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Signals")).toBeInTheDocument();
     expect(screen.getByText("Next")).toBeInTheDocument();
     expect(screen.getByText("10 left")).toBeInTheDocument();
-    expect(screen.getByText("1 scored, 1 note")).toBeInTheDocument();
-    expect(screen.getByText("Coverage map")).toBeInTheDocument();
+    expect(screen.getByText("2 saved")).toBeInTheDocument();
     expect(screen.getByText("Areas checked")).toBeInTheDocument();
     expect(screen.getByText("3 words recalled in free text.")).toBeInTheDocument();
-    expect(screen.getByText("4/8")).toBeInTheDocument();
-    expect(screen.getByText("Next step")).toBeInTheDocument();
-    expect(screen.getByText("Next: Orientation. Then Category fluency and Letter fluency.")).toBeInTheDocument();
-    expect(screen.getAllByText("saved").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("4/8").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Tracking signals are not a diagnosis.")).toBeInTheDocument();
+    expect(screen.queryByText("Scientific basis")).not.toBeInTheDocument();
+    expect(screen.queryByText("Coverage map")).not.toBeInTheDocument();
+  });
+
+  it("keeps program and evidence explanation in the empty state", () => {
+    renderReport(null as unknown as CognitiveAssessmentReport);
+
+    expect(screen.getByText("A guided check for memory and thinking")).toBeInTheDocument();
+    expect(screen.getByText("Scientific basis")).toBeInTheDocument();
+  });
+
+  it("handles a single-session trend state", () => {
+    renderReport(sampleReport, {
+      ...sampleHistoryResponse,
+      history: [sampleHistory[1]],
+      trendPoints: [sampleHistoryResponse.trendPoints[1]],
+    });
+
+    expect(screen.getByText("First saved check")).toBeInTheDocument();
+    expect(screen.getByText("Domain trends")).toBeInTheDocument();
   });
 });

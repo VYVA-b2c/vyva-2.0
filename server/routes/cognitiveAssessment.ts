@@ -5,9 +5,14 @@ import { z } from "zod";
 import { pool } from "../db.js";
 import type {
   CognitiveAssessmentHistoryItem,
+  CognitiveAssessmentHistoryResponse,
   CognitiveAssessmentReport,
   CognitiveAssessmentTaskSummary,
 } from "../../shared/cognitiveAssessmentReport.js";
+import {
+  buildCognitiveAssessmentTrendPayload,
+  type CognitiveTrendResponseRow,
+} from "../lib/cognitiveAssessmentTrends.js";
 import {
   COGNITIVE_ASSESSMENT_LANGUAGES,
   type CognitiveAssessmentCompleteSessionResponse,
@@ -62,6 +67,7 @@ type RotationFormRow = {
 };
 
 type SessionWithResponseCountRow = SessionRow & { response_count: string };
+type HistoryResponseRow = ResponseRow & { session_id: string };
 
 const router = Router();
 
@@ -634,6 +640,33 @@ async function loadResponses(sessionId: string) {
   return rows;
 }
 
+async function loadResponsesForSessions(sessionIds: string[]) {
+  if (sessionIds.length === 0) return new Map<string, CognitiveTrendResponseRow[]>();
+
+  const { rows } = await pool.query<HistoryResponseRow>(`
+    select
+      r.session_id::text,
+      r.id::text,
+      r.task_definition_id,
+      r.completed_at,
+      r.response_data,
+      td.domain,
+      td.task_type,
+      td.display_order
+    from public.cc_task_responses r
+    left join public.cc_task_definitions td on td.id = r.task_definition_id
+    where r.session_id = any($1::uuid[])
+    order by r.session_id asc, td.display_order asc nulls last, r.started_at asc
+  `, [sessionIds]);
+
+  return rows.reduce((groups, row) => {
+    const group = groups.get(row.session_id) ?? [];
+    group.push(row);
+    groups.set(row.session_id, group);
+    return groups;
+  }, new Map<string, CognitiveTrendResponseRow[]>());
+}
+
 function schemaMissingResponse(error: unknown, res: Response) {
   const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
   if (code === "42P01") {
@@ -901,12 +934,20 @@ router.get("/reports/:sessionId", async (req: Request, res: Response) => {
 
 router.get("/history", async (req: Request, res: Response) => {
   const userId = req.user?.id;
-  if (!userId || !isUuid(userId)) return res.json({ history: [] });
+  if (!userId || !isUuid(userId)) {
+    return res.json({ history: [], trendPoints: [], domainTrends: [], taskSignals: [] });
+  }
 
   try {
     const sessions = await loadCompletedSessions(userId, 12);
-    return res.json({
+    const responsesBySession = await loadResponsesForSessions(sessions.map((session) => session.id));
+    const trends = buildCognitiveAssessmentTrendPayload(sessions, responsesBySession, ASSESSMENT_TASK_TOTAL);
+    const response: CognitiveAssessmentHistoryResponse = {
       history: sessions.map((session) => historyItem(session, Number(session.response_count ?? 0))),
+      ...trends,
+    };
+    return res.json({
+      ...response,
     });
   } catch (error) {
     const handled = schemaMissingResponse(error, res);
