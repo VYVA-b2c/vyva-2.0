@@ -51,6 +51,7 @@ function ReportHeader({
 }
 
 function EmptyState() {
+  const navigate = useNavigate();
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-8">
       <ReportHeader
@@ -66,14 +67,14 @@ function EmptyState() {
             <div>
               <h2 className="text-[22px] font-black leading-tight text-[#2f2135]">No saved report yet</h2>
               <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#766b63]">
-                This page keeps the newest Mind & Memory check available over time. The guided assessment runner will save answers here when it is connected.
+                Start a guided check now. The report will appear here as soon as the assessment is complete.
               </p>
             </div>
           </div>
           <button
             type="button"
-            disabled
-            className="mt-5 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#2f2135] px-5 text-[16px] font-black text-white opacity-60"
+            onClick={() => navigate("/mind-memory/cognitive-assessment/start")}
+            className="mt-5 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#2f2135] px-5 text-[16px] font-black text-white"
           >
             <PlayCircle size={20} />
             Start assessment
@@ -179,6 +180,23 @@ function ReportView({ report, title }: { report: CognitiveAssessmentReport; titl
             </span>
           </span>
           <ChevronRight size={24} className="text-[#9A8F87]" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate("/mind-memory/cognitive-assessment/start")}
+          className="flex min-h-[64px] w-full items-center justify-between rounded-[22px] bg-[#2f2135] px-4 text-left text-white shadow-[0_10px_24px_rgba(63,45,35,0.12)]"
+        >
+          <span className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-white/12 text-white">
+              <PlayCircle size={23} />
+            </span>
+            <span>
+              <span className="block text-[17px] font-black">Start a new check</span>
+              <span className="block text-[13px] font-bold text-white/80">Update this report</span>
+            </span>
+          </span>
+          <ChevronRight size={24} className="text-white/80" />
         </button>
 
         <p className="px-1 text-[12px] font-bold leading-relaxed text-[#766b63]">{report.disclaimer}</p>
