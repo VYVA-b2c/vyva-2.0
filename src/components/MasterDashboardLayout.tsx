@@ -85,8 +85,9 @@ const defaultHeroTone: MasterTone = {
 };
 
 const heroBackgroundImage = [
-  "linear-gradient(112deg, rgba(255,255,255,0.96) 0%, rgba(255,250,244,0.92) 52%, rgba(248,243,255,0.88) 100%)",
-  "url(\"data:image/svg+xml,%3Csvg width='420' height='180' viewBox='0 0 420 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M-38 142 C58 72 142 196 252 96 S410 80 462 18' fill='none' stroke='%23EFDDFB' stroke-width='34' stroke-linecap='round' opacity='.58'/%3E%3Cpath d='M-8 18 C96 76 174 10 312 48 S438 122 478 88' fill='none' stroke='%23FFE5C7' stroke-width='28' stroke-linecap='round' opacity='.62'/%3E%3Cpath d='M224 170 C286 116 350 144 442 92' fill='none' stroke='%23DDF7EF' stroke-width='24' stroke-linecap='round' opacity='.64'/%3E%3Cpath d='M46 152 C118 124 180 138 256 160' fill='none' stroke='%23FFFFFF' stroke-width='18' stroke-linecap='round' opacity='.56'/%3E%3C/svg%3E\")",
+  "linear-gradient(90deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.72) 58%, rgba(255,255,255,0.54) 100%)",
+  "linear-gradient(112deg, rgba(255,255,255,0.98) 0%, rgba(255,250,244,0.94) 52%, rgba(248,243,255,0.88) 100%)",
+  "url('/assets/vyva/cozy-home-room.png')",
 ];
 
 export default function MasterDashboardLayout({
@@ -164,9 +165,9 @@ export default function MasterDashboardLayout({
           borderColor: heroTone.border,
           backgroundColor: heroTone.surface ?? "#FFFFFF",
           backgroundImage: heroBackgroundImage.join(", "),
-          backgroundPosition: "center, right -58px top -18px",
+          backgroundPosition: "center, center, left bottom",
           backgroundRepeat: "no-repeat",
-          backgroundSize: "cover, 340px 146px",
+          backgroundSize: "cover, cover, cover",
         }}
         data-testid={hero.testId}
       >
@@ -289,7 +290,7 @@ export default function MasterDashboardLayout({
         <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">
           {fastHelpTitle}
         </h2>
-        <div className="mt-3 grid gap-2.5 min-[390px]:gap-3">
+        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 min-[390px]:gap-3">
           {visibleFastHelpActions.map((action) => {
             const Icon = action.icon;
             const actionAriaLabel = action.detail ? `${action.label}. ${action.detail}` : action.label;
@@ -302,7 +303,7 @@ export default function MasterDashboardLayout({
                 aria-label={actionAriaLabel}
                 aria-expanded={action.expanded}
                 aria-controls={action.controls}
-                className="vyva-tap flex !min-h-[66px] items-center gap-3 rounded-[18px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 min-[390px]:!min-h-[72px] min-[390px]:gap-4 min-[390px]:rounded-[20px] min-[390px]:px-4"
+                className="vyva-tap flex !min-h-[66px] w-full min-w-0 items-center gap-3 rounded-[18px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 min-[390px]:!min-h-[72px] min-[390px]:gap-4 min-[390px]:rounded-[20px] min-[390px]:px-4"
                 style={{ borderColor: action.tone.border }}
               >
                 <span

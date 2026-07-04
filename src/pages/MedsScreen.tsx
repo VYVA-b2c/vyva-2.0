@@ -24,9 +24,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-
-const MEDS_FAST_HELP_VISIBLE_COUNT = 3;
-const MEDS_FAST_HELP_ROTATION_MS = 9000;
+import MasterDashboardLayout, {
+  type MasterDashboardCard,
+  type MasterFastHelpAction,
+} from "@/components/MasterDashboardLayout";
 
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
@@ -780,7 +781,6 @@ const MedsScreen = () => {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantTitle, setAssistantTitle] = useState("");
   const [assistantPrompt, setAssistantPrompt] = useState("");
-  const [medsFastHelpIndex, setMedsFastHelpIndex] = useState(0);
 
   useEffect(() => {
     setConfirmedDoseCounts(new Map());
@@ -876,7 +876,7 @@ const MedsScreen = () => {
       id: "interactions",
       icon: LinkIcon,
       label: t("meds.assistant.interactions.label", "Check Interactions"),
-      sub: t("meds.assistant.interactions.sub", "Medicine and supplement questions"),
+      sub: t("meds.assistant.interactions.sub", "Medicine safety"),
       color: "#0F766E",
       bg: "#F0FDFA",
       border: "#99F6E4",
@@ -891,7 +891,7 @@ const MedsScreen = () => {
       id: "sideEffects",
       icon: ShieldCheck,
       label: t("meds.assistant.sideEffects.label", "Side Effects"),
-      sub: t("meds.assistant.sideEffects.sub", "Symptoms to watch"),
+      sub: t("meds.assistant.sideEffects.sub", "What to watch"),
       color: "#1D4ED8",
       bg: "#EFF6FF",
       border: "#BFDBFE",
@@ -906,7 +906,7 @@ const MedsScreen = () => {
       id: "refillHelp",
       icon: ShoppingCart,
       label: t("meds.assistant.refillHelp.label", "Refill Help"),
-      sub: t("meds.assistant.refillHelp.sub", "Prepare pharmacy order"),
+      sub: t("meds.assistant.refillHelp.sub", "Order support"),
       color: "#B45309",
       bg: "#FFF7ED",
       border: "#FED7AA",
@@ -957,20 +957,6 @@ const MedsScreen = () => {
       sheetTitle: t("meds.assistant.advances.sheetTitle", "Medication Research"),
     },
   ];
-
-  const visibleAssistantActions = ASSISTANT_ACTIONS.length <= MEDS_FAST_HELP_VISIBLE_COUNT
-    ? ASSISTANT_ACTIONS
-    : Array.from({ length: MEDS_FAST_HELP_VISIBLE_COUNT }, (_item, index) => (
-      ASSISTANT_ACTIONS[(medsFastHelpIndex + index) % ASSISTANT_ACTIONS.length]!
-    ));
-
-  useEffect(() => {
-    if (ASSISTANT_ACTIONS.length <= MEDS_FAST_HELP_VISIBLE_COUNT) return undefined;
-    const timer = window.setInterval(() => {
-      setMedsFastHelpIndex((current) => (current + MEDS_FAST_HELP_VISIBLE_COUNT) % ASSISTANT_ACTIONS.length);
-    }, MEDS_FAST_HELP_ROTATION_MS);
-    return () => window.clearInterval(timer);
-  }, [ASSISTANT_ACTIONS.length]);
 
   const handleAddMedication = useCallback((med: MedicationForForm) => {
     setVoiceAddedMeds(prev => [...prev, med]);
@@ -1290,6 +1276,35 @@ const MedsScreen = () => {
     },
   ];
 
+  const medicationMasterCards: MasterDashboardCard[] = medicationShortcutCards.map((card) => ({
+    id: card.id,
+    icon: card.icon,
+    title: card.label,
+    detail: card.sub,
+    tone: {
+      iconBg: card.bg,
+      iconColor: card.color,
+      border: card.border,
+      surface: "#FFFFFF",
+    },
+    onClick: card.onClick,
+    testId: card.testId,
+  }));
+
+  const medicationMasterFastHelpActions: MasterFastHelpAction[] = ASSISTANT_ACTIONS.map((action) => ({
+    id: action.id,
+    icon: action.icon,
+    label: action.label,
+    detail: action.sub,
+    tone: {
+      iconBg: action.bg,
+      iconColor: action.color,
+      border: action.border,
+    },
+    onClick: () => handleMedicationAssistantAction(action),
+    testId: `button-assistant-${action.id}`,
+  }));
+
   async function confirmAllRemainingDoses(meds: DisplayMed[]) {
     for (const med of meds) {
       const remaining = remainingDoseCount(med);
@@ -1339,7 +1354,39 @@ const MedsScreen = () => {
             defaultValue: "{{count}} doses still need attention.",
           });
   return (
-    <div className="px-[18px] pb-28 sm:px-[22px]">
+    <div className="pb-28">
+      <MasterDashboardLayout
+        testId="meds-master-layout"
+        cardGridTestId="section-meds-primary-actions"
+        fastHelpTestId="section-meds-can-help"
+        fastHelpTitle={t("meds.fastHelpKicker", "Fast help")}
+        hero={{
+          icon: Pill,
+          eyebrow: t("meds.master.heroEyebrow", "Medication"),
+          title: t("meds.master.heroTitle", "Medicine on track"),
+          action: {
+            kind: "voice",
+            label: t("meds.master.heroAction", "Talk to VYVA"),
+            supportingLabel: t("meds.master.voiceSupport", "Speak anytime"),
+            contextHint: t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor."),
+            voiceAgentSlug: "medication",
+            voiceDynamicVariables: { app_entrypoint: "medication_master_hero" },
+            autoStartListening: true,
+            testId: "button-meds-hero-talk",
+          },
+          testId: "meds-master-hero",
+          tone: {
+            iconBg: "#F0FDFA",
+            iconColor: "#0F766E",
+            border: "#99F6E4",
+            surface: "#FFFFFF",
+          },
+        }}
+        cards={medicationMasterCards}
+        fastHelpActions={medicationMasterFastHelpActions}
+      />
+
+      <div className="px-[18px] sm:px-[22px]">
       <section className="mt-4" data-testid="section-meds-dashboard">
         <article className="overflow-hidden rounded-[26px] border border-[#D9ECE4] bg-white shadow-[0_14px_32px_rgba(15,76,69,0.08)] sm:rounded-[30px]">
           <div className="p-4 sm:p-5">
@@ -1472,41 +1519,6 @@ const MedsScreen = () => {
               </div>
             </div>
 
-            <section
-              className="mt-3 grid grid-cols-2 gap-2"
-              data-testid="section-meds-primary-actions"
-            >
-              {medicationShortcutCards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <button
-                    key={card.id}
-                    type="button"
-                    data-testid={card.testId}
-                    onClick={card.onClick}
-                    aria-label={`${card.label}. ${card.sub}`}
-                    className="vyva-tap flex min-h-[78px] flex-col items-start justify-between rounded-[18px] border bg-white p-3 text-left shadow-[0_8px_18px_rgba(31,41,55,0.045)] transition-transform hover:-translate-y-0.5"
-                    style={{ borderColor: card.border }}
-                  >
-                    <span
-                      className="flex h-9 w-9 items-center justify-center rounded-[14px]"
-                      style={{ background: card.bg, color: card.color }}
-                    >
-                      <Icon size={18} strokeWidth={2.45} aria-hidden="true" />
-                    </span>
-                    <span className="mt-2 min-w-0">
-                      <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1 sm:text-[15px]">
-                        {card.label}
-                      </span>
-                      <span className="mt-0.5 block truncate font-body text-[11px] font-black leading-tight" style={{ color: card.color }}>
-                        {card.sub}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </section>
-
             <div
               className="mt-3 rounded-[18px] border border-[#F0DEC3] bg-[#FFF9F0] p-3 sm:p-4"
               data-testid="section-meds-dashboard-tips"
@@ -1535,51 +1547,6 @@ const MedsScreen = () => {
                 </div>
               </div>
             </div>
-
-            <section
-              className="mt-3 rounded-[18px] border border-[#E6E0F4] bg-white p-3"
-              data-testid="section-meds-can-help"
-            >
-              <h2 className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
-                {t("meds.fastHelpKicker", "Fast help")}
-              </h2>
-
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {visibleAssistantActions.map((action) => {
-                  const Icon = action.icon;
-
-                  return (
-                    <button
-                      key={action.id}
-                      data-testid={`button-assistant-${action.id}`}
-                      onClick={() => handleMedicationAssistantAction(action)}
-                      aria-label={`${action.label}. ${action.sub}`}
-                      className="vyva-tap flex min-h-[54px] w-full items-center gap-2 rounded-[16px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
-                      style={{
-                        borderColor: action.border,
-                        boxShadow: `0 8px 18px ${action.shadow}`,
-                      }}
-                    >
-                      <span
-                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px]"
-                        style={{ background: action.bg, color: action.color }}
-                      >
-                        <Icon size={18} strokeWidth={2.4} aria-hidden="true" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-body text-[13px] font-black leading-tight text-vyva-text-1">
-                          {action.label}
-                        </span>
-                        <span className="sr-only">
-                          {action.sub}
-                        </span>
-                      </span>
-                      <ChevronRight size={17} strokeWidth={2.5} className="shrink-0 text-vyva-text-3" aria-hidden="true" />
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
 
             <div
               className="mt-3 flex min-w-0 flex-col justify-between rounded-[20px] border border-[#D9ECE4] bg-[#FBFFFD] p-3 sm:flex-row sm:items-center sm:gap-4 sm:p-4"
@@ -2458,6 +2425,7 @@ const MedsScreen = () => {
           </div>
         </PurpleModal>
       ) : null}
+      </div>
     </div>
   );
 };
