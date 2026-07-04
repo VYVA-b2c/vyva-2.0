@@ -1,5 +1,5 @@
-import { useCallback, useState, type ChangeEvent } from "react";
-import { AlertTriangle, CheckCircle2, Database, FileJson, Upload } from "lucide-react";
+import { useCallback, useRef, useState, type ChangeEvent } from "react";
+import { AlertTriangle, CheckCircle2, Database, FileJson, Upload, XCircle } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import {
   CONTENT_UPLOAD_LANGUAGES,
@@ -37,11 +37,23 @@ function CognitiveBulkUploadPanel() {
   const [previewError, setPreviewError] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const clearPreview = useCallback(() => {
     setPreview(null);
     setPreviewError("");
     setUploadStatus("");
+  }, []);
+
+  const clearUploadBatch = useCallback(() => {
+    setJsonText("");
+    setFileName("");
+    setPreview(null);
+    setPreviewError("");
+    setUploadStatus("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }, []);
 
   const handleFileUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
@@ -97,7 +109,7 @@ function CognitiveBulkUploadPanel() {
     }
   }, [contentType, jsonText, language, preview, skipAdminReview]);
 
-  const canLoad = Boolean(preview && preview.validItems.length > 0);
+  const canLoad = Boolean(preview && preview.validItems.length > 0 && !uploadStatus);
   const invalidItems = preview?.invalidItems.slice(0, 20) ?? [];
 
   return (
@@ -176,7 +188,13 @@ function CognitiveBulkUploadPanel() {
         <label className="inline-flex min-h-[52px] cursor-pointer items-center gap-2 rounded-2xl border border-[#eadfd5] bg-white px-5 text-sm font-black text-purple-700">
           <FileJson size={18} />
           Choose JSON file
-          <input type="file" accept="application/json,.json" onChange={handleFileUpload} className="sr-only" />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleFileUpload}
+            className="sr-only"
+          />
         </label>
         {fileName ? <span className="text-sm font-bold text-[#7d6b65]">{fileName}</span> : null}
         <button
@@ -197,6 +215,16 @@ function CognitiveBulkUploadPanel() {
           >
             <CheckCircle2 size={18} />
             {uploading ? "Loading..." : "Load into database"}
+          </button>
+        ) : null}
+        {uploadStatus ? (
+          <button
+            type="button"
+            onClick={clearUploadBatch}
+            className="inline-flex min-h-[52px] items-center gap-2 rounded-2xl border border-[#eadfd5] bg-white px-5 text-sm font-black text-[#2f2135]"
+          >
+            <XCircle size={18} />
+            Clear batch
           </button>
         ) : null}
       </div>
