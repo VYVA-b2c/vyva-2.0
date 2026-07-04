@@ -46,6 +46,70 @@ const WORK_QUEUE_FILTERS: Array<{ id: WorkQueueFilter; label: string; descriptio
   { id: "popular", label: "User interest", description: "Interested or maybe" },
   { id: "live", label: "Live coverage", description: "Active and approved" },
 ];
+const DISCOVERY_COUNTRY_OPTIONS = [
+  { value: "ES", label: "Spain" },
+  { value: "GB", label: "United Kingdom" },
+  { value: "FR", label: "France" },
+  { value: "DE", label: "Germany" },
+  { value: "IT", label: "Italy" },
+  { value: "PT", label: "Portugal" },
+] as const;
+const DISCOVERY_CITY_PRESETS = [
+  {
+    city: "Madrid",
+    countryCode: "ES",
+    defaultLocality: "Chamberi, Salamanca",
+    defaultAnchor: "28010",
+    localities: ["Chamberi", "Salamanca", "Retiro", "Centro", "Arganzuela", "Moncloa"],
+    anchors: ["28010", "28001", "28014", "Centro Cultural Galileo", "Biblioteca Publica Jose Hierro"],
+  },
+  {
+    city: "Valencia",
+    countryCode: "ES",
+    defaultLocality: "Ruzafa, Gran Via",
+    defaultAnchor: "46006",
+    localities: ["Ruzafa", "Gran Via", "Ciutat Vella", "El Carmen", "Ensanche", "Jardin del Turia"],
+    anchors: ["46006", "46005", "46001", "Jardin del Turia", "Biblioteca Publica Valencia"],
+  },
+  {
+    city: "Barcelona",
+    countryCode: "ES",
+    defaultLocality: "Eixample, Gracia",
+    defaultAnchor: "08012",
+    localities: ["Eixample", "Gracia", "Sarria", "Sant Antoni", "Poblenou", "Les Corts"],
+    anchors: ["08012", "08036", "08015", "Centre Civic Cotxeres Borrell", "Biblioteca Jaume Fuster"],
+  },
+  {
+    city: "London",
+    countryCode: "GB",
+    defaultLocality: "Kensington, Chelsea",
+    defaultAnchor: "SW3",
+    localities: ["Kensington", "Chelsea", "Westminster", "Camden", "Islington", "Hammersmith"],
+    anchors: ["SW3", "W8", "W1", "Kensington Central Library", "Chelsea Library"],
+  },
+] as const;
+const DISCOVERY_FALLBACK_LOCALITIES = ["City centre", "Old town", "Near public library", "Near community centre", "Main park"];
+const DISCOVERY_FALLBACK_ANCHORS = ["Main library", "Community centre", "Central park", "Town hall"];
+const DISCOVERY_INTEREST_OPTIONS = ["music", "walking", "art", "culture", "gardening", "history", "language", "crafts", "gentle movement", "book club"];
+const DISCOVERY_VENUE_OPTIONS = [
+  "libraries",
+  "cultural centres",
+  "parks",
+  "community centres",
+  "museums",
+  "senior centres",
+  "neighbourhood parks",
+  "public workshops",
+  "local walking groups",
+];
+const DISCOVERY_LANGUAGE_CHOICES = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "de", label: "German" },
+  { value: "fr", label: "French" },
+  { value: "it", label: "Italian" },
+  { value: "pt", label: "Portuguese" },
+] as const;
 const ACTIVITY_TEMPLATE_FILE_NAME = "vyva-activities-template.csv";
 const ACTIVITY_TEMPLATE_CSV = [
   [
@@ -460,22 +524,215 @@ function Field({ label, optional, children }: { label: string; optional?: boolea
   );
 }
 
+function FieldGroup({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
+  return (
+    <div className="block">
+      <span className="mb-1 flex justify-between text-sm font-bold text-[#4d4351]">
+        <span>{label}</span>
+        {optional && <span className="font-normal text-purple-700">Optional</span>}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 function TextInput({
   value,
   onChange,
   placeholder,
+  testId,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  testId?: string;
 }) {
   return (
     <input
+      data-testid={testId}
       className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
     />
+  );
+}
+
+function listIncludes(value: string, option: string) {
+  const normalizedOption = option.trim().toLowerCase();
+  return textToList(value).some((item) => item.toLowerCase() === normalizedOption);
+}
+
+function addListOption(value: string, option: string) {
+  const cleaned = option.trim();
+  if (!cleaned || listIncludes(value, cleaned)) return value;
+  return [...textToList(value), cleaned].join(", ");
+}
+
+function toggleListOption(value: string, option: string) {
+  const normalizedOption = option.trim().toLowerCase();
+  const current = textToList(value);
+  const exists = current.some((item) => item.toLowerCase() === normalizedOption);
+  return (exists ? current.filter((item) => item.toLowerCase() !== normalizedOption) : [...current, option]).join(", ");
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function ChoiceButton({
+  active,
+  children,
+  onClick,
+  testId,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      data-testid={testId}
+      onClick={onClick}
+      className={`rounded-2xl border px-3 py-2 text-left text-sm font-black transition ${
+        active
+          ? "border-purple-700 bg-purple-700 text-white shadow-sm"
+          : "border-[#eadfd5] bg-white text-[#2f2135] hover:border-purple-300 hover:bg-purple-50"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SmartMultiPicker({
+  value,
+  onChange,
+  options,
+  testIdPrefix,
+  customPlaceholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  testIdPrefix: string;
+  customPlaceholder: string;
+}) {
+  const [customValue, setCustomValue] = useState("");
+
+  const addCustomValue = () => {
+    const next = addListOption(value, customValue);
+    onChange(next);
+    setCustomValue("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <ChoiceButton
+            key={option}
+            active={listIncludes(value, option)}
+            onClick={() => onChange(toggleListOption(value, option))}
+            testId={`${testIdPrefix}-${slugifyEventKey(option, "option")}`}
+          >
+            {option}
+          </ChoiceButton>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          data-testid={`${testIdPrefix}-custom`}
+          className="min-w-0 flex-1 rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
+          value={customValue}
+          onChange={(event) => setCustomValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addCustomValue();
+            }
+          }}
+          placeholder={customPlaceholder}
+        />
+        <button
+          type="button"
+          data-testid={`${testIdPrefix}-add`}
+          onClick={addCustomValue}
+          disabled={!customValue.trim()}
+          className="inline-flex items-center gap-1 rounded-2xl border border-purple-200 bg-white px-3 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
+        >
+          <Plus size={15} />
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LanguageTogglePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {DISCOVERY_LANGUAGE_CHOICES.map((language) => (
+        <ChoiceButton
+          key={language.value}
+          active={listIncludes(value, language.value)}
+          onClick={() => onChange(toggleListOption(value, language.value))}
+          testId={`admin-discovery-language-${language.value}`}
+        >
+          {language.label}
+        </ChoiceButton>
+      ))}
+    </div>
+  );
+}
+
+function NumberStepper({
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  testId,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (value: number) => void;
+  testId: string;
+}) {
+  const nextValue = (direction: -1 | 1) => clampNumber(Number(value) + (step * direction), min, max);
+  return (
+    <div className="flex min-h-[50px] items-center justify-between rounded-2xl border border-[#eadfd5] bg-white px-2">
+      <button
+        type="button"
+        aria-label="Decrease"
+        data-testid={`${testId}-decrease`}
+        onClick={() => onChange(nextValue(-1))}
+        className="h-9 w-9 rounded-xl bg-[#f7f2eb] text-lg font-black text-[#2f2135]"
+      >
+        -
+      </button>
+      <output data-testid={testId} className="px-3 text-sm font-black text-[#2f2135]">{value}</output>
+      <button
+        type="button"
+        aria-label="Increase"
+        data-testid={`${testId}-increase`}
+        onClick={() => onChange(nextValue(1))}
+        className="h-9 w-9 rounded-xl bg-purple-700 text-lg font-black text-white"
+      >
+        +
+      </button>
+    </div>
   );
 }
 
@@ -587,11 +844,24 @@ export default function CuratedActivitiesAdminPage() {
   const [discoveryForm, setDiscoveryForm] = useState({
     city: "Madrid",
     countryCode: "ES",
+    locality: "Chamberi, Salamanca",
+    postalCode: "28010",
+    radiusKm: 4,
     interests: "music, walking, art",
+    venueHints: "libraries, cultural centres, parks",
     languageCodes: "en, es, de",
     format: "nearby" as DiscoveryFormatPreference,
     maxResults: 6,
   });
+  const activeDiscoveryCityPreset = useMemo(() => {
+    const city = cleanText(discoveryForm.city).toLowerCase();
+    const country = cleanText(discoveryForm.countryCode).toUpperCase();
+    return DISCOVERY_CITY_PRESETS.find((preset) => (
+      preset.city.toLowerCase() === city && preset.countryCode === country
+    ));
+  }, [discoveryForm.city, discoveryForm.countryCode]);
+  const localityOptions = activeDiscoveryCityPreset?.localities ?? DISCOVERY_FALLBACK_LOCALITIES;
+  const anchorOptions = activeDiscoveryCityPreset?.anchors ?? DISCOVERY_FALLBACK_ANCHORS;
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/social/participate${path}`, options);
@@ -719,7 +989,11 @@ export default function CuratedActivitiesAdminPage() {
       const body = {
         city: cleanText(discoveryForm.city),
         countryCode: normalizeCountry(discoveryForm.countryCode),
+        locality: cleanText(discoveryForm.locality),
+        postalCode: cleanText(discoveryForm.postalCode),
+        radiusKm: Math.max(0.5, Math.min(50, Number(discoveryForm.radiusKm) || 4)),
         interests: textToList(discoveryForm.interests),
+        venueHints: textToList(discoveryForm.venueHints),
         languageCodes: textToList(discoveryForm.languageCodes),
         format: discoveryForm.format,
         maxResults: discoveryForm.maxResults,
@@ -944,38 +1218,160 @@ export default function CuratedActivitiesAdminPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <Field label="City">
-              <input
-                data-testid="admin-discovery-city"
-                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
-                value={discoveryForm.city}
-                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, city: event.target.value }))}
-                placeholder="Madrid"
+          <div className="mt-4 rounded-3xl border border-[#eadfd5] bg-[#fffaf4] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm font-black text-[#2f2135]">Locality focus</h3>
+                <p className="text-sm font-semibold text-[#7d6b65]">
+                  Pick neighbourhoods, anchors, and a practical radius so discovery avoids generic city-wide results.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Pill tone="plain">{discoveryForm.locality || discoveryForm.city}</Pill>
+                <Pill tone="plain">{discoveryForm.radiusKm} km radius</Pill>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.15fr_0.85fr_1.45fr_1fr_1fr]">
+              <FieldGroup label="City">
+                <div className="grid grid-cols-2 gap-2">
+                  {DISCOVERY_CITY_PRESETS.map((preset) => (
+                    <ChoiceButton
+                      key={`${preset.city}-${preset.countryCode}`}
+                      active={activeDiscoveryCityPreset?.city === preset.city}
+                      onClick={() => setDiscoveryForm((prev) => ({
+                        ...prev,
+                        city: preset.city,
+                        countryCode: preset.countryCode,
+                        locality: preset.defaultLocality,
+                        postalCode: preset.defaultAnchor,
+                      }))}
+                      testId={`admin-discovery-city-option-${slugifyEventKey(preset.city, "city")}`}
+                    >
+                      <span className="block">{preset.city}</span>
+                      <span className="block text-xs font-bold opacity-75">{preset.defaultLocality}</span>
+                    </ChoiceButton>
+                  ))}
+                </div>
+                <input
+                  data-testid="admin-discovery-city"
+                  aria-label="Custom discovery city"
+                  className="mt-2 w-full rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
+                  value={discoveryForm.city}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, city: event.target.value }))}
+                  placeholder="Custom city"
+                />
+              </FieldGroup>
+              <FieldGroup label="Country">
+                <select
+                  data-testid="admin-discovery-country"
+                  className="w-full rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#2f2135]"
+                  value={discoveryForm.countryCode}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, countryCode: event.target.value }))}
+                >
+                  {DISCOVERY_COUNTRY_OPTIONS.map((country) => (
+                    <option key={country.value} value={country.value}>{country.label} ({country.value})</option>
+                  ))}
+                  {DISCOVERY_COUNTRY_OPTIONS.some((country) => country.value === discoveryForm.countryCode) ? null : (
+                    <option value={discoveryForm.countryCode}>{discoveryForm.countryCode}</option>
+                  )}
+                </select>
+              </FieldGroup>
+              <FieldGroup label="Neighbourhood or area">
+                <SmartMultiPicker
+                  value={discoveryForm.locality}
+                  onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, locality: value }))}
+                  options={localityOptions}
+                  testIdPrefix="admin-discovery-locality"
+                  customPlaceholder="Add area"
+                />
+              </FieldGroup>
+              <FieldGroup label="Postcode or anchor">
+                <select
+                  data-testid="admin-discovery-postal-code"
+                  className="w-full rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#2f2135]"
+                  value={anchorOptions.includes(discoveryForm.postalCode) ? discoveryForm.postalCode : "custom"}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value !== "custom") setDiscoveryForm((prev) => ({ ...prev, postalCode: value }));
+                  }}
+                >
+                  {anchorOptions.map((anchor) => <option key={anchor} value={anchor}>{anchor}</option>)}
+                  <option value="custom">Custom anchor</option>
+                </select>
+                <input
+                  aria-label="Custom postcode or anchor"
+                  className="mt-2 w-full rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
+                  value={discoveryForm.postalCode}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, postalCode: event.target.value }))}
+                  placeholder="Postcode, library, venue, or landmark"
+                />
+              </FieldGroup>
+              <FieldGroup label="Radius">
+                <div className="rounded-2xl border border-[#eadfd5] bg-white px-4 py-3">
+                  <div className="flex items-center justify-between text-sm font-black text-[#2f2135]">
+                    <span>{discoveryForm.radiusKm} km</span>
+                    <span className="text-xs text-[#7d6b65]">0.5-50 km</span>
+                  </div>
+                  <input
+                    data-testid="admin-discovery-radius"
+                    className="mt-2 w-full accent-purple-700"
+                    type="range"
+                    min={0.5}
+                    max={50}
+                    step={0.5}
+                    value={discoveryForm.radiusKm}
+                    onChange={(event) => setDiscoveryForm((prev) => ({
+                      ...prev,
+                      radiusKm: clampNumber(Number(event.target.value) || 0.5, 0.5, 50),
+                    }))}
+                  />
+                </div>
+              </FieldGroup>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.25fr_1.35fr_1fr_0.8fr_0.7fr]">
+            <FieldGroup label="Interests">
+              <SmartMultiPicker
+                value={discoveryForm.interests}
+                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, interests: value }))}
+                options={DISCOVERY_INTEREST_OPTIONS}
+                testIdPrefix="admin-discovery-interest"
+                customPlaceholder="Add interest"
               />
-            </Field>
-            <Field label="Country">
-              <TextInput value={discoveryForm.countryCode} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, countryCode: value }))} placeholder="ES" />
-            </Field>
-            <Field label="Interests">
-              <TextInput value={discoveryForm.interests} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, interests: value }))} placeholder="music, walking, art" />
-            </Field>
-            <Field label="Languages">
-              <TextInput value={discoveryForm.languageCodes} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, languageCodes: value }))} placeholder="en, es, de" />
-            </Field>
+            </FieldGroup>
+            <FieldGroup label="Venue/source hints">
+              <SmartMultiPicker
+                value={discoveryForm.venueHints}
+                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, venueHints: value }))}
+                options={DISCOVERY_VENUE_OPTIONS}
+                testIdPrefix="admin-discovery-venue"
+                customPlaceholder="Add venue/source type"
+              />
+            </FieldGroup>
+            <FieldGroup label="Languages">
+              <LanguageTogglePicker
+                value={discoveryForm.languageCodes}
+                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, languageCodes: value }))}
+              />
+            </FieldGroup>
             <Field label="Format">
               <SelectInput value={discoveryForm.format} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, format: value }))} options={DISCOVERY_FORMAT_OPTIONS} />
             </Field>
-            <Field label="Max results">
-              <input
-                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
-                type="number"
+            <FieldGroup label="Max results">
+              <NumberStepper
+                value={discoveryForm.maxResults}
                 min={1}
                 max={12}
-                value={discoveryForm.maxResults}
-                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, maxResults: Number(event.target.value) || 1 }))}
+                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, maxResults: value }))}
+                testId="admin-discovery-max-results"
               />
-            </Field>
+            </FieldGroup>
+          </div>
+
+          <div className="hidden">
+            <input type="hidden" readOnly data-testid="admin-discovery-locality-value" value={discoveryForm.locality} />
+            <input type="hidden" readOnly data-testid="admin-discovery-venue-hints" value={discoveryForm.venueHints} />
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">

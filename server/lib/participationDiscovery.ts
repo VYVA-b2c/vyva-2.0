@@ -10,6 +10,10 @@ type DiscoveryFormatPreference = ParticipationEventFormat | "any";
 export type DiscoverParticipationInput = {
   city: string;
   countryCode?: string | null;
+  locality?: string | null;
+  postalCode?: string | null;
+  radiusKm?: number | null;
+  venueHints?: string[];
   languageCodes?: string[];
   interests?: string[];
   format?: DiscoveryFormatPreference;
@@ -27,6 +31,10 @@ export type ParticipationDiscoveryResult = {
   query: {
     city: string;
     countryCode: string | null;
+    locality: string | null;
+    postalCode: string | null;
+    radiusKm: number | null;
+    venueHints: string[];
     languageCodes: string[];
     interests: string[];
     format: DiscoveryFormatPreference;
@@ -248,11 +256,16 @@ function normalizeIso(value: unknown) {
 function normalizeQuery(input: DiscoverParticipationInput) {
   const city = truncate(cleanText(input.city), 120);
   const countryCode = normalizeCountry(input.countryCode, null);
+  const locality = truncate(cleanText(input.locality), 200) || null;
+  const postalCode = truncate(cleanText(input.postalCode), 32) || null;
+  const radiusValue = Number(input.radiusKm);
+  const radiusKm = Number.isFinite(radiusValue) ? Math.max(0.5, Math.min(50, radiusValue)) : null;
+  const venueHints = cleanList(input.venueHints, 12);
   const languageCodes = normalizeLanguages(input.languageCodes, ["en", "es", "de"]);
   const interests = cleanList(input.interests, 12);
   const format = input.format && ["nearby", "online", "hybrid", "any"].includes(input.format) ? input.format : "nearby";
   const maxResults = Math.max(1, Math.min(12, Number(input.maxResults ?? 6)));
-  return { city, countryCode, languageCodes, interests, format, maxResults };
+  return { city, countryCode, locality, postalCode, radiusKm, venueHints, languageCodes, interests, format, maxResults };
 }
 
 function extractOutputText(response: unknown) {
@@ -363,11 +376,23 @@ function normalizeCandidate(
 
 function buildPrompt(query: ReturnType<typeof normalizeQuery>) {
   const today = new Date().toISOString().slice(0, 10);
+  const localFocus = [
+    query.locality ? `neighbourhood, district, or nearby area: ${query.locality}` : null,
+    query.postalCode ? `postcode or local anchor: ${query.postalCode}` : null,
+    query.radiusKm ? `preferred radius: within about ${query.radiusKm} km` : null,
+  ].filter(Boolean).join("; ") || "city-wide only if no more specific locality was provided";
+  const venueFocus = query.venueHints.length
+    ? query.venueHints.join(", ")
+    : "libraries, community centres, museums, parks, cultural centres, senior-friendly public venues";
   return [
     `Today is ${today}. Find up to ${query.maxResults} public activity or event candidates for older adults in ${query.city}${query.countryCode ? `, ${query.countryCode}` : ""}.`,
+    `Locality focus: ${localFocus}. Prioritize candidates physically in or very near this focus area before suggesting wider city results.`,
+    `Preferred venue or source types: ${venueFocus}.`,
     `Preferred format: ${query.format}. Interests or tags: ${query.interests.length ? query.interests.join(", ") : "balanced community activities"}.`,
     `Languages to support in the saved record: ${query.languageCodes.join(", ")}. Return English, Spanish, and German fields even when the event itself is in fewer languages.`,
     "Prioritize libraries, community centers, museums, parks, gentle movement, music, crafts, language or culture groups, local history, and low-pressure learning.",
+    "Make locationLabel specific enough for an admin to judge locality, such as venue plus neighbourhood or postcode area when the source supports it.",
+    "Avoid generic city-wide directories when a neighbourhood, postcode, radius, or venue focus was supplied unless the source clearly identifies a relevant local branch or venue.",
     "Avoid medical treatment claims, dating, private contact exchange, gambling, expensive sales pressure, unverified transport offers, or anything unsafe for a senior-friendly concierge review.",
     "Every candidate must have a public sourceUrl. Use source evidence to summarize what the page supports. Do not invent dates, prices, or venue details; say they need checking when unclear.",
   ].join("\n");
@@ -392,7 +417,7 @@ export async function discoverParticipationEvents(input: DiscoverParticipationIn
   const generatedAt = new Date().toISOString();
   const client = new OpenAI({ apiKey });
 
-  const response = await client.responses.create({
+  const discoveryRequest = {
     model,
     instructions: [
       "You are helping VYVA admins discover public activity candidates for older adults.",
@@ -411,7 +436,8 @@ export async function discoverParticipationEvents(input: DiscoverParticipationIn
         schema: discoverySchema,
       },
     },
-  } as any);
+  };
+  const response = await client.responses.create(discoveryRequest as unknown as Parameters<typeof client.responses.create>[0]);
 
   const parsed = parseAiResponse(response);
   const candidates: AdminParticipationEvent[] = [];
