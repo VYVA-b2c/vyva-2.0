@@ -464,13 +464,16 @@ function TextInput({
   value,
   onChange,
   placeholder,
+  testId,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  testId?: string;
 }) {
   return (
     <input
+      data-testid={testId}
       className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -587,7 +590,11 @@ export default function CuratedActivitiesAdminPage() {
   const [discoveryForm, setDiscoveryForm] = useState({
     city: "Madrid",
     countryCode: "ES",
+    locality: "Chamberi, Salamanca",
+    postalCode: "28010",
+    radiusKm: 4,
     interests: "music, walking, art",
+    venueHints: "libraries, cultural centres, parks",
     languageCodes: "en, es, de",
     format: "nearby" as DiscoveryFormatPreference,
     maxResults: 6,
@@ -719,7 +726,11 @@ export default function CuratedActivitiesAdminPage() {
       const body = {
         city: cleanText(discoveryForm.city),
         countryCode: normalizeCountry(discoveryForm.countryCode),
+        locality: cleanText(discoveryForm.locality),
+        postalCode: cleanText(discoveryForm.postalCode),
+        radiusKm: Math.max(0.5, Math.min(50, Number(discoveryForm.radiusKm) || 4)),
         interests: textToList(discoveryForm.interests),
+        venueHints: textToList(discoveryForm.venueHints),
         languageCodes: textToList(discoveryForm.languageCodes),
         format: discoveryForm.format,
         maxResults: discoveryForm.maxResults,
@@ -944,21 +955,53 @@ export default function CuratedActivitiesAdminPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-            <Field label="City">
-              <input
-                data-testid="admin-discovery-city"
-                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
-                value={discoveryForm.city}
-                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, city: event.target.value }))}
-                placeholder="Madrid"
-              />
-            </Field>
-            <Field label="Country">
-              <TextInput value={discoveryForm.countryCode} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, countryCode: value }))} placeholder="ES" />
-            </Field>
+          <div className="mt-4 rounded-3xl border border-[#eadfd5] bg-[#fffaf4] p-4">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-sm font-black text-[#2f2135]">Locality focus</h3>
+              <p className="text-sm font-semibold text-[#7d6b65]">
+                Add neighbourhood, postcode, radius, and venue hints so discovery avoids generic city-wide results.
+              </p>
+            </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <Field label="City">
+                <input
+                  data-testid="admin-discovery-city"
+                  className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
+                  value={discoveryForm.city}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, city: event.target.value }))}
+                  placeholder="Madrid"
+                />
+              </Field>
+              <Field label="Country">
+                <TextInput value={discoveryForm.countryCode} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, countryCode: value }))} placeholder="ES" testId="admin-discovery-country" />
+              </Field>
+              <Field label="Neighbourhood or area">
+                <TextInput value={discoveryForm.locality} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, locality: value }))} placeholder="Chamberi, Salamanca" testId="admin-discovery-locality" />
+              </Field>
+              <Field label="Postcode or anchor">
+                <TextInput value={discoveryForm.postalCode} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, postalCode: value }))} placeholder="28010 or local landmark" testId="admin-discovery-postal-code" />
+              </Field>
+              <Field label="Radius km">
+                <input
+                  data-testid="admin-discovery-radius"
+                  className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
+                  type="number"
+                  min={0.5}
+                  max={50}
+                  step={0.5}
+                  value={discoveryForm.radiusKm}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, radiusKm: Number(event.target.value) || 0.5 }))}
+                />
+              </Field>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <Field label="Interests">
               <TextInput value={discoveryForm.interests} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, interests: value }))} placeholder="music, walking, art" />
+            </Field>
+            <Field label="Venue/source hints">
+              <TextInput value={discoveryForm.venueHints} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, venueHints: value }))} placeholder="libraries, cultural centres, parks" testId="admin-discovery-venue-hints" />
             </Field>
             <Field label="Languages">
               <TextInput value={discoveryForm.languageCodes} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, languageCodes: value }))} placeholder="en, es, de" />

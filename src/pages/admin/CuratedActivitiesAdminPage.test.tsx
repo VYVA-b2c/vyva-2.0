@@ -227,6 +227,10 @@ describe("CuratedActivitiesAdminPage", () => {
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByTestId("admin-discovery-city"), { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-locality"), { target: { value: "Ruzafa, Gran Via" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-postal-code"), { target: { value: "46006" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-radius"), { target: { value: "3" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-venue-hints"), { target: { value: "libraries, neighbourhood parks" } });
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
 
     expect(await screen.findByTestId("admin-discovery-preview")).toBeInTheDocument();
@@ -240,6 +244,10 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(JSON.parse(String(discoverCall?.[1]?.body))).toMatchObject({
       city: "Valencia",
       countryCode: "ES",
+      locality: "Ruzafa, Gran Via",
+      postalCode: "46006",
+      radiusKm: 3,
+      venueHints: ["libraries", "neighbourhood parks"],
       format: "nearby",
       maxResults: 6,
     });
