@@ -249,6 +249,24 @@ function stringParam(parameters: Record<string, unknown>, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizedToolDomain(domain: string) {
+  const normalized = domain.trim().toLowerCase().replace(/[-\s]+/g, "_");
+  if (["brain", "mind", "cognitive", "braincoach", "brain_coach"].includes(normalized)) return "brain_coach";
+  if (["companion", "social_companion"].includes(normalized)) return "social";
+  return domain.trim();
+}
+
+function shouldUseInferredToolAction(action: VoiceAppAction | null, route: string, domain: string) {
+  if (!action) return false;
+  if (!route && !domain) return true;
+  if (!route && domain) return action.domain === domain;
+  if (route === action.route) return true;
+  if (domain && action.domain === domain) return true;
+  if (route === "/concierge" && action.domain === "concierge") return true;
+  if (["/activities", "/brain", "/mind", "/cognitive"].includes(route) && action.domain === "brain_coach") return true;
+  return false;
+}
+
 const TOOL_PAYLOAD_RESERVED_KEYS = new Set([
   "action_id",
   "action_type",
@@ -281,19 +299,16 @@ export function actionForVoiceToolCall(parameters: Record<string, unknown>): Voi
     || stringParam(parameters, "evidence")
     || stringParam(parameters, "reason")
     || "ElevenLabs tool call";
-  const routeParam = stringParam(parameters, "route");
   const rawRoute = normalizeVoiceActionRoute(stringParam(parameters, "route"));
   const rawActionId = stringParam(parameters, "action_id");
   const rawActionType = stringParam(parameters, "action_type");
-  const rawDomain = stringParam(parameters, "domain");
-  const inferredAction = !rawActionType && !rawActionId && (
-    rawRoute === "/concierge"
-    || rawRoute === "/concierge/shopping"
-    || (!routeParam && rawDomain === "concierge")
-  )
+  const rawDomain = normalizedToolDomain(stringParam(parameters, "domain"));
+  const inferredAction = !rawActionType && !rawActionId && isActionableVoiceText(sourceText)
     ? actionForVoiceUtterance(sourceText)
     : null;
-  const inferredActionType = inferredAction?.domain === "concierge" ? inferredAction.actionType : undefined;
+  const inferredActionType = shouldUseInferredToolAction(inferredAction, rawRoute, rawDomain)
+    ? inferredAction?.actionType
+    : undefined;
   const entry = voiceActionEntryForLookup({
     actionType: inferredActionType || rawActionType,
     actionId: rawActionId,
@@ -639,7 +654,7 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
     });
   }
 
-  if (hasAny(normalized, ["brain", "activity", "activities", "exercise", "quiz", "game", "juego", "actividad"])) {
+  if (hasAny(normalized, ["brain", "cognitive", "cognition", "mind exercise", "mental exercise", "brain exercise", "activity", "activities", "exercise", "quiz", "game", "juego", "actividad"])) {
     return actionFromRegistry("brain.activity", text, {
       feedbackReason: "User asked for an activity, game, quiz, or brain exercise.",
     });

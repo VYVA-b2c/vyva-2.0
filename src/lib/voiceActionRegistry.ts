@@ -405,7 +405,7 @@ export const VOICE_ACTION_REGISTRY = {
   },
   "brain.activity": {
     actionType: "brain.activity",
-    aliases: ["brain_activity", "activity", "activities"],
+    aliases: ["brain_activity", "brain_exercise", "cognitive", "cognitive_exercise", "activity", "activities"],
     id: "voice_brain_activity",
     domain: "brain_coach",
     route: "/activities",

@@ -127,6 +127,8 @@ describe("voice navigation actions", () => {
     expect(routeForVoiceUtterance("Help me focus")).toBe("/attention-boosters");
     expect(routeForVoiceUtterance("I want to learn something")).toBe("/learn");
     expect(routeForVoiceUtterance("Train my senses")).toBe("/senses");
+    expect(actionForVoiceUtterance("I want cognitive exercises")?.actionType).toBe("brain.activity");
+    expect(routeForVoiceUtterance("I want cognitive exercises")).toBe("/activities");
     expect(routeForVoiceUtterance("I want someone to talk to")).toBe("/companions");
   });
 
@@ -171,6 +173,17 @@ describe("voice navigation actions", () => {
       destination: "doctor",
       time: "tomorrow morning",
     });
+  });
+
+  it("infers Brain Coach actions from ambiguous cognitive exercise tool calls", () => {
+    const action = actionForVoiceToolCall({
+      domain: "brain",
+      source_text: "I want cognitive exercises",
+    });
+
+    expect(action?.actionType).toBe("brain.activity");
+    expect(action?.domain).toBe("brain_coach");
+    expect(action?.route).toBe("/activities");
   });
 
   it("rejects unrecognised app action routes from tool parameters", () => {
