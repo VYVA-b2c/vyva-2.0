@@ -73,7 +73,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const savedLanguageRevisionRef = useRef<string | null>(null);
   const { data: profile, isLoading } = useQuery<ProfileData | null>({
     queryKey: ["/api/profile"],
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: "always",
   });
 
   const firstName = displayFirstName(profile?.firstName);
