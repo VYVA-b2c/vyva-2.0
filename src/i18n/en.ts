@@ -366,19 +366,19 @@ const en = {
     assistant: {
       interactions: {
         label: "Check Interactions",
-        sub: "Medicine and supplement questions",
+        sub: "Medicine safety",
         prompt: "Check my medicines and supplements for possible interaction questions: {{medNames}}. Do not suggest dose changes; tell me what to ask my pharmacist or doctor.",
         sheetTitle: "Check Interactions",
       },
       sideEffects: {
         label: "Side Effects",
-        sub: "Symptoms to watch",
+        sub: "What to watch",
         prompt: "Help me understand side effects to watch for with my current medicines: {{medNames}}. Keep it practical and tell me when to contact a pharmacist or doctor.",
         sheetTitle: "Side Effects",
       },
       refillHelp: {
         label: "Refill Help",
-        sub: "Prepare pharmacy order",
+        sub: "Order support",
       },
       addMedicine: {
         label: "Add Medicine",
@@ -447,6 +447,7 @@ const en = {
       heroEyebrow: "Health Plan",
       heroTitle: "Health Plan Ready",
       talkToVyva: "Talk to VYVA",
+      voiceSupport: "Speak anytime",
       pauseVyva: "Pause VYVA",
       connectingVyva: "Connecting...",
       cards: {
@@ -1724,6 +1725,7 @@ const en = {
   home: {
     master: {
       heroEyebrow: "Today",
+      voiceSupport: "Speak anytime",
       cards: {
         health: "My Health",
         healthDetail: "Medication, vitals, symptoms",
@@ -1792,6 +1794,7 @@ const en = {
     heroEyebrow: "Mind & Memory",
     heroTitle: "Mind check ready",
     heroAction: "Talk to VYVA",
+    voiceSupport: "Speak anytime",
     fastHelpTitle: "Fast help",
     cards: {
       strengthenMemory: "Strengthen Memory",
@@ -1804,6 +1807,13 @@ const en = {
       sharpenSensesDetail: "Practice sound, breath, and sensory recall.",
     },
     fastHelp: {
+      confusionNow: "Confusion now",
+      confusionNowDetail: "Get safe next steps",
+      confusionNowPrefill: "I feel confused or not like myself. Please help me work out safe next steps and when to get urgent help.",
+      talkCaregiver: "Talk to caregiver",
+      talkCaregiverDetail: "Open care support",
+      dailyMindRoutine: "Daily mind routine",
+      dailyMindRoutineDetail: "Focus and calm",
       relaxBreathe: "Relax Breathe",
       relaxBreatheDetail: "Calm breathing",
       learnWords: "Learn Words",
@@ -1823,6 +1833,7 @@ const en = {
       heroEyebrow: "Community",
       heroTitle: "Community ready",
       heroAction: "Talk to VYVA",
+      voiceSupport: "Speak anytime",
       fastHelpTitle: "Fast help",
       cards: {
         match: "Make Friends",
@@ -1836,13 +1847,13 @@ const en = {
       },
       fastHelp: {
         bringSong: "Bring Song",
-        bringSongDetail: "Music room",
+        bringSongDetail: "Start a room",
         cookTogether: "Cook Together",
         cookTogetherDetail: "Kitchen table",
         gardenChat: "Garden Chat",
         gardenChatDetail: "Calm table",
         readingCorner: "Reading Corner",
-        readingCornerDetail: "Stories and chat",
+        readingCornerDetail: "Quiet stories",
         lightGame: "Light Game",
         lightGameDetail: "Easy play",
         moveTogether: "Move Together",
@@ -1855,6 +1866,7 @@ const en = {
       heroEyebrow: "Concierge",
       heroTitle: "Concierge ready",
       heroAction: "Talk to VYVA",
+      voiceSupport: "Speak anytime",
       cards: {
         homeCare: "Home Care",
         homeCareDetail: "Plumber, electrician, cleaning",
@@ -1877,7 +1889,7 @@ const en = {
       },
       fastHelp: {
         safeHome: "Safe Home",
-        safeHomeDetail: "Home safety",
+        safeHomeDetail: "Safety check",
         paperworkHelp: "Paperwork Help",
         paperworkHelpDetail: "Forms and admin",
         findPlumber: "Find Plumber",

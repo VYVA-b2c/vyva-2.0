@@ -3293,7 +3293,7 @@ const ConciergeScreen = () => {
       id: "safe-home",
       icon: ShieldCheck,
       label: t("concierge.master.fastHelp.safeHome", "Safe Home"),
-      detail: t("concierge.master.fastHelp.safeHomeDetail", "Home safety"),
+      detail: t("concierge.master.fastHelp.safeHomeDetail", "Safety check"),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
       onClick: () => navigate("/safe-home"),
       testId: "button-concierge-fast-safe-home",
@@ -3310,15 +3310,6 @@ const ConciergeScreen = () => {
       testId: "button-concierge-fast-fill-form",
     },
     {
-      id: "find-plumber",
-      icon: Wrench,
-      label: t("concierge.master.fastHelp.findPlumber", "Find Plumber"),
-      detail: t("concierge.master.fastHelp.findPlumberDetail", "Home repair"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: openHomeServiceAssistant,
-      testId: "button-concierge-fast-home-service",
-    },
-    {
       id: "book-ride",
       icon: Car,
       label: t("concierge.master.fastHelp.bookRide", "Book Ride"),
@@ -3326,6 +3317,15 @@ const ConciergeScreen = () => {
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
       onClick: () => prepareRideRequest(undefined, "now"),
       testId: "button-concierge-fast-book-ride",
+    },
+    {
+      id: "find-plumber",
+      icon: Wrench,
+      label: t("concierge.master.fastHelp.findPlumber", "Find Plumber"),
+      detail: t("concierge.master.fastHelp.findPlumberDetail", "Home repair"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: openHomeServiceAssistant,
+      testId: "button-concierge-fast-home-service",
     },
     {
       id: "order-groceries",
@@ -3396,6 +3396,7 @@ const ConciergeScreen = () => {
         action: {
           kind: "voice",
           label: t("concierge.master.heroAction", "Talk to VYVA"),
+          supportingLabel: t("concierge.master.voiceSupport", "Speak anytime"),
           contextHint: t("concierge.master.voiceContext", "Concierge support. Ask what the user needs, compare options, and do not book or submit anything without confirmation."),
           voiceAgentSlug: "concierge",
           voiceDynamicVariables: { app_entrypoint: "concierge_master_hero" },

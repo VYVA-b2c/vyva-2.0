@@ -80,9 +80,21 @@ vi.mock("@/components/VoiceHero", () => ({
 }));
 
 vi.mock("@/components/VyvaSessionCta", () => ({
-  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
-    <button type="button" data-testid={testId} className={className}>
-      {label}
+  default: ({
+    label,
+    testId,
+    className,
+    supportingLabel,
+    visual,
+  }: {
+    label?: string;
+    testId?: string;
+    className?: string;
+    supportingLabel?: string;
+    visual?: string;
+  }) => (
+    <button type="button" data-testid={testId} className={className} aria-label={visual === "voiceRail" ? supportingLabel : label}>
+      {visual === "voiceRail" ? null : label}
     </button>
   ),
 }));
@@ -260,7 +272,8 @@ describe("Home fast service actions", () => {
   it("renders the session-aware main hero CTA", () => {
     render(<HomeScreen />);
 
-    expect(screen.getByTestId("button-home-hero-talk")).toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Talk to VYVA");
   });
 
   it("keeps the Home hero greeting on the user's first name", () => {

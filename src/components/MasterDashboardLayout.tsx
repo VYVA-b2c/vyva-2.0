@@ -26,6 +26,7 @@ type MasterAction = {
   autoStartListening?: boolean;
   canStartVoice?: () => boolean;
   hideWhenSessionActive?: boolean;
+  supportingLabel?: string;
 };
 
 export type MasterDashboardCard = {
@@ -83,6 +84,12 @@ const defaultHeroTone: MasterTone = {
   surface: "#FFFFFF",
 };
 
+const heroBackgroundImage = [
+  "linear-gradient(90deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.72) 58%, rgba(255,255,255,0.54) 100%)",
+  "linear-gradient(112deg, rgba(255,255,255,0.98) 0%, rgba(255,250,244,0.94) 52%, rgba(248,243,255,0.88) 100%)",
+  "url('/assets/vyva/cozy-home-room.png')",
+];
+
 export default function MasterDashboardLayout({
   hero,
   cards,
@@ -95,8 +102,8 @@ export default function MasterDashboardLayout({
   fastHelpRotationMs = 9000,
   children,
 }: MasterDashboardLayoutProps) {
-  const HeroIcon = hero.icon;
   const heroTone = hero.tone ?? defaultHeroTone;
+  const isVoiceAction = hero.action.kind === "voice";
   const [fastHelpIndex, setFastHelpIndex] = useState(0);
   const [isFastHelpPaused, setFastHelpPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -154,52 +161,57 @@ export default function MasterDashboardLayout({
       <section
         aria-label={hero.eyebrow ? `${hero.eyebrow}: ${hero.title}` : hero.title}
         className="mt-4 overflow-hidden rounded-[24px] border bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6"
-        style={{ borderColor: heroTone.border, background: heroTone.surface ?? "#FFFFFF" }}
+        style={{
+          borderColor: heroTone.border,
+          backgroundColor: heroTone.surface ?? "#FFFFFF",
+          backgroundImage: heroBackgroundImage.join(", "),
+          backgroundPosition: "center, center, left bottom",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "cover, cover, cover",
+        }}
         data-testid={hero.testId}
       >
-        <div className="flex items-start gap-4 min-[390px]:gap-5">
-          <span
-            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[19px] min-[390px]:h-[60px] min-[390px]:w-[60px] min-[390px]:rounded-[21px]"
-            style={{ background: heroTone.iconBg, color: heroTone.iconColor }}
-          >
-            <HeroIcon size={29} strokeWidth={2.55} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <h1 className="text-balance font-body text-[29px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[34px] sm:text-[40px]">
+        <div className={`flex gap-4 min-[390px]:gap-5 ${isVoiceAction ? "items-center justify-between" : "items-start"}`}>
+          <span className="min-w-0 flex-1 text-left">
+            <h1 className="max-w-[8.6em] text-balance font-body text-[29px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[34px] sm:max-w-[9.4em] sm:text-[40px]">
               {hero.title}
             </h1>
             {hero.subtitle ? (
-              <p className="mt-2 line-clamp-1 font-body text-[15px] font-extrabold leading-snug text-[#0F4C45] min-[390px]:text-[16px]">
+              <p className="mt-2 line-clamp-1 max-w-[13rem] font-body text-[15px] font-extrabold leading-snug text-[#0F4C45] min-[390px]:text-[16px] sm:max-w-[18rem]">
                 {hero.subtitle}
               </p>
             ) : null}
           </span>
+
+          {isVoiceAction ? (
+            <VyvaSessionCta
+              label={hero.action.label}
+              activeLabel={hero.action.activeLabel}
+              connectingLabel={hero.action.connectingLabel}
+              preparingLabel={hero.action.preparingLabel}
+              errorLabel={hero.action.errorLabel}
+              contextHint={hero.action.contextHint}
+              voiceAgentSlug={hero.action.voiceAgentSlug}
+              voiceDynamicVariables={hero.action.voiceDynamicVariables}
+              autoStartListening={hero.action.autoStartListening}
+              canStartVoice={hero.action.canStartVoice}
+              hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
+              disabled={hero.action.disabled}
+              testId={hero.action.testId}
+              supportingLabel={hero.action.supportingLabel}
+              visual="voiceRail"
+              className="vyva-tap relative flex !h-[64px] !min-h-[64px] !w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!h-[68px] min-[390px]:!min-h-[68px] min-[390px]:!w-[68px]"
+            />
+          ) : null}
         </div>
 
-        {hero.action.kind === "voice" ? (
-          <VyvaSessionCta
-            label={hero.action.label}
-            activeLabel={hero.action.activeLabel}
-            connectingLabel={hero.action.connectingLabel}
-            preparingLabel={hero.action.preparingLabel}
-            errorLabel={hero.action.errorLabel}
-            contextHint={hero.action.contextHint}
-            voiceAgentSlug={hero.action.voiceAgentSlug}
-            voiceDynamicVariables={hero.action.voiceDynamicVariables}
-            autoStartListening={hero.action.autoStartListening}
-            canStartVoice={hero.action.canStartVoice}
-            hideWhenSessionActive={hero.action.hideWhenSessionActive ?? true}
-            disabled={hero.action.disabled}
-            testId={hero.action.testId}
-            className="vyva-tap mt-6 flex !min-h-[58px] w-full items-center justify-center gap-2.5 rounded-full bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(109,40,217,0.18)] disabled:cursor-wait disabled:opacity-70 min-[390px]:!min-h-[62px] min-[390px]:text-[19px]"
-          />
-        ) : (
+        {isVoiceAction ? null : (
           <button
             type="button"
             onClick={hero.action.onClick}
             disabled={hero.action.disabled}
             data-testid={hero.action.testId}
-            className="vyva-tap mt-6 flex !min-h-[58px] w-full items-center justify-center gap-2.5 rounded-full bg-vyva-purple px-5 font-body text-[18px] font-black text-white shadow-[0_14px_28px_rgba(109,40,217,0.18)] disabled:cursor-wait disabled:opacity-70 min-[390px]:!min-h-[62px] min-[390px]:text-[19px]"
+            className="vyva-tap mt-6 flex !min-h-[70px] w-full items-center justify-center gap-2.5 rounded-[24px] border border-[#E8DDF3] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF8F0_48%,#F7F1FF_100%)] px-5 font-body text-[18px] font-black text-vyva-text-1 shadow-[0_14px_30px_rgba(89,53,24,0.10)] transition-transform hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-75 min-[390px]:!min-h-[74px] min-[390px]:text-[19px]"
           >
             {hero.action.isLoading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
             {hero.action.label}
@@ -278,7 +290,7 @@ export default function MasterDashboardLayout({
         <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">
           {fastHelpTitle}
         </h2>
-        <div className="mt-3 grid gap-2.5 min-[390px]:gap-3">
+        <div className="mt-3 grid min-w-0 grid-cols-1 gap-2.5 min-[390px]:gap-3">
           {visibleFastHelpActions.map((action) => {
             const Icon = action.icon;
             const actionAriaLabel = action.detail ? `${action.label}. ${action.detail}` : action.label;
@@ -291,7 +303,7 @@ export default function MasterDashboardLayout({
                 aria-label={actionAriaLabel}
                 aria-expanded={action.expanded}
                 aria-controls={action.controls}
-                className="vyva-tap flex !min-h-[66px] items-center gap-3 rounded-[18px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 min-[390px]:!min-h-[72px] min-[390px]:gap-4 min-[390px]:rounded-[20px] min-[390px]:px-4"
+                className="vyva-tap flex !min-h-[66px] w-full min-w-0 items-center gap-3 rounded-[18px] border bg-white px-3 py-2 text-left transition-transform hover:-translate-y-0.5 min-[390px]:!min-h-[72px] min-[390px]:gap-4 min-[390px]:rounded-[20px] min-[390px]:px-4"
                 style={{ borderColor: action.tone.border }}
               >
                 <span

@@ -58,9 +58,9 @@ describe("MindMemoryScreen", () => {
 
     const fastHelp = screen.getByTestId("mind-memory-fast-help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
-    expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
-    expect(screen.getByTestId("button-mind-memory-fast-memory-check")).toHaveTextContent("Memory Check");
+    expect(screen.getByTestId("button-mind-memory-fast-confusion-now")).toHaveTextContent("Confusion now");
+    expect(screen.getByTestId("button-mind-memory-fast-talk-caregiver")).toHaveTextContent("Talk to caregiver");
+    expect(screen.getByTestId("button-mind-memory-fast-daily-mind-routine")).toHaveTextContent("Daily mind routine");
   });
 
   it("uses existing cognitive routes", () => {
@@ -91,10 +91,10 @@ describe("MindMemoryScreen", () => {
     expect(screen.getByTestId("current-route")).toHaveTextContent("/senses");
   });
 
-  it("routes calm breathing from fast help", () => {
+  it("routes the daily mind routine from fast help", () => {
     renderMindMemory();
 
-    fireEvent.click(screen.getByTestId("button-mind-memory-fast-relax-breathe"));
+    fireEvent.click(screen.getByTestId("button-mind-memory-fast-daily-mind-routine"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/activities/relax-breathe");
   });

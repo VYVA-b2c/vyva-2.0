@@ -28,6 +28,8 @@ type VyvaSessionCtaProps = {
   testId?: string;
   className?: string;
   iconClassName?: string;
+  supportingLabel?: string;
+  visual?: "default" | "voiceRail";
 };
 
 type VoiceControls = {
@@ -107,6 +109,8 @@ export function VyvaSessionCta({
   testId,
   className,
   iconClassName,
+  supportingLabel,
+  visual = "default",
 }: VyvaSessionCtaProps) {
   const voice = useVyvaVoice() as VoiceControls;
   const {
@@ -218,6 +222,15 @@ export function VyvaSessionCta({
   });
 
   const Icon = isPreparing ? Loader2 : isActive || isConnecting ? MessageCircle : Mic;
+  const isVoiceRail = visual === "voiceRail";
+  const railSupportingLabel = isPreparing
+    ? preparingLabel ?? "Checking voice"
+    : isConnecting
+      ? connectingLabel ?? "Opening voice"
+      : voiceSessionPhase === "error"
+        ? errorLabel ?? "Tap for help"
+        : supportingLabel ?? "Speak anytime";
+  const accessibleLabel = isVoiceRail ? railSupportingLabel : statusLabel;
 
   return (
     <>
@@ -245,15 +258,31 @@ export function VyvaSessionCta({
           onClick={handleClick}
           disabled={isButtonDisabled}
           data-testid={testId}
-          aria-label={statusLabel}
+          aria-label={accessibleLabel}
           className={className}
         >
-          <Icon
-            size={18}
-            className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
-            aria-hidden="true"
-          />
-          {statusLabel}
+          {isVoiceRail ? (
+            <>
+              <span className="absolute inset-[-7px] rounded-full bg-[#F3E8FF] opacity-50" aria-hidden="true" />
+              <span className="absolute inset-[-2px] rounded-full bg-[radial-gradient(circle,#FFFFFF_0%,#F8F2FF_62%,#FFF9F2_100%)] shadow-[0_10px_22px_rgba(107,33,168,0.10)]" aria-hidden="true" />
+              <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_7px_16px_rgba(107,33,168,0.20)]">
+                <Icon
+                  size={22}
+                  className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
+                  aria-hidden="true"
+                />
+              </span>
+            </>
+          ) : (
+            <>
+              <Icon
+                size={18}
+                className={`${isPreparing ? "animate-spin" : ""} ${iconClassName ?? ""}`.trim()}
+                aria-hidden="true"
+              />
+              {statusLabel}
+            </>
+          )}
         </button>
       )}
     </>

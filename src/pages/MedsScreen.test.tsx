@@ -144,7 +144,7 @@ const labels: Record<string, string> = {
   "meds.fastHelpKicker": "Fast help",
   "meds.canHelpWith": "I can help you with",
   "meds.assistant.interactions.label": "Check Interactions",
-  "meds.assistant.interactions.sub": "See if any medications conflict",
+  "meds.assistant.interactions.sub": "Medicine safety",
   "meds.assistant.homeRemedies.label": "Home Remedies",
   "meds.assistant.homeRemedies.sub": "Safe options to ask about",
   "meds.assistant.order.label": "Order Online",
@@ -152,9 +152,9 @@ const labels: Record<string, string> = {
   "meds.assistant.advances.label": "Medication Research",
   "meds.assistant.advances.sub": "See recent updates in plain language",
   "meds.assistant.sideEffects.label": "Side Effects",
-  "meds.assistant.sideEffects.sub": "Symptoms to watch",
+  "meds.assistant.sideEffects.sub": "What to watch",
   "meds.assistant.refillHelp.label": "Refill Help",
-  "meds.assistant.refillHelp.sub": "Prepare pharmacy order",
+  "meds.assistant.refillHelp.sub": "Order support",
   "meds.assistant.addMedicine.label": "Add Medicine",
   "meds.assistant.addMedicine.sub": "Use voice",
   "meds.confirmRemaining": "Confirm remaining doses",
@@ -229,6 +229,14 @@ vi.mock("@/components/VoiceHero", () => ({
     mocks.voiceHero(props);
     return <div data-testid="voice-hero" />;
   },
+}));
+
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
+    <button type="button" data-testid={testId} className={className}>
+      {label}
+    </button>
+  ),
 }));
 
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({

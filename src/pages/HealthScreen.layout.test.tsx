@@ -93,9 +93,21 @@ vi.mock("@/components/VoiceHero", () => ({
 }));
 
 vi.mock("@/components/VyvaSessionCta", () => ({
-  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
-    <button type="button" data-testid={testId} className={className}>
-      {label}
+  default: ({
+    label,
+    testId,
+    className,
+    supportingLabel,
+    visual,
+  }: {
+    label?: string;
+    testId?: string;
+    className?: string;
+    supportingLabel?: string;
+    visual?: string;
+  }) => (
+    <button type="button" data-testid={testId} className={className} aria-label={visual === "voiceRail" ? supportingLabel : label}>
+      {visual === "voiceRail" ? null : label}
     </button>
   ),
 }));
@@ -265,7 +277,8 @@ describe("HealthScreen home-style layout", () => {
 
     expect(screen.getByTestId("health-master-hero")).toHaveTextContent("Health Plan");
     expect(screen.getByTestId("health-master-hero")).toHaveTextContent("Health Plan Ready");
-    expect(screen.getByTestId("button-health-hero-talk")).toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-health-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(screen.getByTestId("button-health-hero-talk")).not.toHaveTextContent("Talk to VYVA");
 
     const cardGrid = screen.getByTestId("health-master-cards");
     await waitFor(() => expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("Medicine"));
@@ -303,7 +316,7 @@ describe("HealthScreen home-style layout", () => {
 
     await waitFor(() => expect(screen.getByTestId("button-health-tool-medicine")).toHaveTextContent("1 due"));
 
-    expect(screen.getByTestId("button-health-hero-talk")).toHaveTextContent("Talk to VYVA");
+    expect(screen.getByTestId("button-health-hero-talk")).toHaveAccessibleName("Speak anytime");
 
     fireEvent.click(screen.getByTestId("button-health-tool-vitals"));
     expect(mocks.navigate).toHaveBeenCalledWith("/health/vitals");

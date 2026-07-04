@@ -3023,6 +3023,7 @@ const HealthScreen = () => {
           action: {
             kind: "voice",
             label: t("health.master.talkToVyva", "Talk to VYVA"),
+            supportingLabel: t("health.master.voiceSupport", "Speak anytime"),
             contextHint: t("health.master.voiceContext", "Health plan support. Ask about medicines, vitals, symptoms, prevention, and safe next steps."),
             voiceAgentSlug: "health",
             voiceDynamicVariables: { app_entrypoint: "health_master_hero" },
