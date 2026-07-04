@@ -522,8 +522,16 @@ function textFromUnknown(value: unknown): string {
     "response",
     "agent_response",
     "agentResponse",
+    "corrected_agent_response",
+    "original_agent_response",
     "user_transcript",
     "userTranscript",
+    "agent_response_event",
+    "agent_response_correction_event",
+    "user_transcription_event",
+    "tentative_user_transcription_event",
+    "tentative_agent_response_internal_event",
+    "text_response_part",
   ];
 
   for (const key of textKeys) {
@@ -553,7 +561,22 @@ function isUserVoiceMessage(payload: unknown) {
   const source = typeof record.source === "string" ? record.source.toLowerCase() : "";
   const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
 
-  return role === "user" || source === "user" || type.includes("user_transcript");
+  return role === "user" ||
+    source === "user" ||
+    type.includes("user_transcript") ||
+    Boolean(record.user_transcription_event) ||
+    Boolean(record.tentative_user_transcription_event);
+}
+
+function isAgentVoiceDebugEvent(payload: unknown) {
+  const record = asRecord(payload);
+  if (!record) return false;
+  const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+  return type.includes("agent_response") ||
+    type.includes("agent_chat_response_part") ||
+    Boolean(record.agent_response_event) ||
+    Boolean(record.agent_response_correction_event) ||
+    Boolean(record.text_response_part);
 }
 
 function inferVoiceContextDomain(options: StartVoiceOptions | undefined) {
@@ -1510,6 +1533,19 @@ function useVyvaVoiceController() {
           onAgentChatResponsePart: (part) => {
             if (!isCurrentSession()) return;
             handleVyvaTranscriptPart(part);
+          },
+          onDebug: (payload) => {
+            if (!isCurrentSession() || !isAgentVoiceDebugEvent(payload)) return;
+            const record = asRecord(payload);
+            if (record?.text_response_part) {
+              handleVyvaTranscriptPart(record.text_response_part);
+              return;
+            }
+            const message = textFromUnknown(payload);
+            if (!message) return;
+            streamingVyvaTranscriptRef.current = "";
+            streamingVyvaTranscriptShouldAppendRef.current = false;
+            upsertLatestVyvaTranscript(message);
           },
         });
 

@@ -48,6 +48,7 @@ type MockStartSessionOptions = {
   onConnect?: () => void;
   onMessage?: (payload: unknown) => void;
   onAgentChatResponsePart?: (part: unknown) => void;
+  onDebug?: (payload: unknown) => void;
 };
 
 const createdConversations: MockConversation[] = [];
@@ -249,6 +250,41 @@ describe("useVyvaVoice", () => {
     expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
   });
 
+  it("adds raw ElevenLabs agent response events to the visible VYVA transcript", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("app_open", undefined, {
+        agentId: "agent_test",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    act(() => {
+      sessionOptions?.onDebug?.({
+        type: "agent_response",
+        agent_response_event: {
+          agent_response: "Soy su asistente personal.",
+          event_id: 7,
+        },
+      });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Soy su asistente personal.");
+  });
+
   it("streams ElevenLabs agent response parts into one visible VYVA transcript", async () => {
     let controller: VoiceController | null = null;
 
@@ -285,6 +321,46 @@ describe("useVyvaVoice", () => {
 
     expect(screen.getByTestId("voice-transcript").textContent?.split("vyva:").length).toBe(2);
     expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
+  });
+
+  it("streams raw ElevenLabs text response parts into one visible VYVA transcript", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("app_open", undefined, {
+        agentId: "agent_test",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    act(() => {
+      sessionOptions?.onDebug?.({
+        type: "agent_chat_response_part",
+        text_response_part: { type: "start", text: "", event_id: 12 },
+      });
+      sessionOptions?.onDebug?.({
+        type: "agent_chat_response_part",
+        text_response_part: { type: "delta", text: "Puedo ayudar", event_id: 12 },
+      });
+      sessionOptions?.onDebug?.({
+        type: "agent_chat_response_part",
+        text_response_part: { type: "delta", text: " con salud.", event_id: 12 },
+      });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Puedo ayudar con salud.");
   });
 
   it("keeps user messages separate from VYVA transcript events", async () => {
