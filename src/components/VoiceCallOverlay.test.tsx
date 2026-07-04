@@ -140,7 +140,7 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
     expect(screen.queryByTestId("text-call-speaker")).not.toBeInTheDocument();
     expect(screen.getByTestId("text-call-status")).toHaveTextContent("Speaking");
-    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic off");
+    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic on");
     expect(screen.getByTestId("button-end-call")).toHaveTextContent("End");
     expect(screen.getByTestId("button-type-call")).toHaveTextContent("Touch");
   });
@@ -150,6 +150,15 @@ describe("VoiceCallOverlay voice room", () => {
 
     expect(screen.getByTestId("text-call-transcript")).toHaveTextContent("I'm listening");
     expect(screen.getByTestId("text-call-transcript-preview")).toHaveTextContent("You: Hello VYVA");
+  });
+
+  it("shows mic off when the microphone is muted", () => {
+    renderOverlay([], {
+      isMicMuted: true,
+      onMicToggle: vi.fn(),
+    });
+
+    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic off");
   });
 
   it("keeps the latest VYVA caption visible after the user replies", () => {

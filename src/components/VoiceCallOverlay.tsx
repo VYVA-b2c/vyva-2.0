@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Hand, MicOff, Phone, RotateCcw, UserRound, X } from "lucide-react";
+import { ChevronDown, Hand, Mic, MicOff, Phone, RotateCcw, UserRound, X } from "lucide-react";
 import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
@@ -124,7 +124,7 @@ function controlButtonStyle(variant: "soft" | "danger" | "primary" = "soft"): CS
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 800,
     lineHeight: 1,
     WebkitTapHighlightColor: "transparent",
@@ -899,9 +899,9 @@ const VoiceCallOverlay = ({
               style={controlButtonStyle(isMicMuted ? "primary" : "soft")}
             >
               <span style={controlIconStyle("soft")}>
-                <MicOff size={30} strokeWidth={2.2} />
+                {isMicMuted ? <MicOff size={30} strokeWidth={2.2} /> : <Mic size={30} strokeWidth={2.2} />}
               </span>
-              <span>{t("voiceHero.micOffShort", "Mic off")}</span>
+              <span>{isMicMuted ? t("voiceHero.micOffShort", "Mic off") : t("voiceHero.micOnShort", "Mic on")}</span>
             </button>
           )}
 
