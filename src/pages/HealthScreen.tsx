@@ -2766,8 +2766,8 @@ const HealthScreen = () => {
       id: "feel-better",
       icon: HeartPulse,
       title: t("health.master.cards.feelBetter", "Feel Better"),
-      detail: latestTriage?.chief_complaint || symptomsToolDetail,
-      accent: symptomsCardAccent,
+      detail: t("health.homeTools.symptoms.detail", "Start check"),
+      accent: t("health.master.cards.symptomsStart", "Start"),
       tone: {
         iconBg: "#FFF1F2",
         iconColor: "#E74C43",
@@ -2775,11 +2775,7 @@ const HealthScreen = () => {
         surface: "#FFFFFF",
       },
       onClick: () => {
-        sendDoctorUserMessage("I want to review symptoms");
-        if (latestTriage) {
-          navigate(`/informes/${latestTriage.id}`);
-          return;
-        }
+        sendDoctorUserMessage("I want to check my symptoms");
         guardPath("/health/symptom-check");
       },
       testId: "button-health-tool-feel-better",
