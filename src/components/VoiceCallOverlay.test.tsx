@@ -139,10 +139,10 @@ describe("VoiceCallOverlay voice room", () => {
     expect(screen.getByTestId("voice-mode-zamora-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("voice-indicator-zamora-orb")).not.toBeInTheDocument();
     expect(screen.queryByTestId("text-call-speaker")).not.toBeInTheDocument();
-    expect(screen.getByTestId("text-call-status")).toHaveTextContent("VYVA speaking");
-    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Interrupt");
+    expect(screen.getByTestId("text-call-status")).toHaveTextContent("Speaking");
+    expect(screen.getByTestId("button-toggle-call-mic")).toHaveTextContent("Mic off");
     expect(screen.getByTestId("button-end-call")).toHaveTextContent("End");
-    expect(screen.getByTestId("button-type-call")).toHaveTextContent("Type");
+    expect(screen.getByTestId("button-type-call")).toHaveTextContent("Touch");
   });
 
   it("keeps user transcript as a small preview instead of a giant word", () => {

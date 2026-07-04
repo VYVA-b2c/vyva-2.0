@@ -109,7 +109,7 @@ describe("VyvaSessionCta", () => {
 
     render(<VyvaSessionCta label="Talk to VYVA" testId="button-session" />);
 
-    expect(screen.getByTestId("button-session")).toHaveTextContent("VYVA speaking");
+    expect(screen.getByTestId("button-session")).toHaveTextContent("Speaking");
     fireEvent.click(screen.getByTestId("button-session"));
     fireEvent.click(screen.getByTestId("button-end-call"));
 
