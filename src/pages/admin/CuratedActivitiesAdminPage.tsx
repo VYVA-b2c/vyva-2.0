@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bot, CheckCircle2, Download, ExternalLink, Globe2, Plus, RefreshCw, Save, Search, ShieldCheck, Trash2, Upload } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, ChevronUp, CircleDollarSign, Clock3, Download, ExternalLink, Globe2, MapPin, Plus, RefreshCw, Save, Search, ShieldCheck, Tags, Trash2, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
+import { PHONE_COUNTRY_OPTIONS } from "@/lib/profileIdentity";
 import { apiFetch } from "@/lib/queryClient";
 import type {
   AdminParticipationEvent,
@@ -12,7 +13,26 @@ import type {
 type EventStatus = "active" | "draft" | "hidden" | "archived";
 type SafetyStatus = "approved" | "needs_review" | "hidden";
 type DiscoveryFormatPreference = ParticipationEventFormat | "any";
-type DiscoveryCandidate = AdminParticipationEvent & { selected: boolean };
+type DiscoveryCandidate = AdminParticipationEvent & { previewId: string; selected: boolean };
+type EventSaveFeedback = {
+  tone: "green" | "rose";
+  message: string;
+};
+type DiscoveryFormState = {
+  city: string;
+  province: string;
+  countryCode: string;
+  locality: string;
+  postalCode: string;
+  radiusKm: number;
+  venueHints: string;
+  interestTags: string[];
+  customInterest: string;
+  languageCodes: string[];
+  format: DiscoveryFormatPreference;
+  refinementTags: string[];
+  maxResults: number;
+};
 type ActivityRecord = Record<string, unknown>;
 
 type AdminParticipationActivity = {
@@ -35,9 +55,82 @@ type WorkQueueFilter = "all" | "review" | "checks" | "popular" | "live";
 
 const STATUS_OPTIONS: EventStatus[] = ["draft", "active", "hidden", "archived"];
 const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"];
-const DISCOVERY_FORMAT_OPTIONS: DiscoveryFormatPreference[] = ["nearby", "online", "hybrid", "any"];
+const STATUS_LABELS: Record<EventStatus, string> = {
+  draft: "Draft",
+  active: "Active - visible",
+  hidden: "Hidden",
+  archived: "Archived",
+};
+const FORMAT_LABELS: Record<ParticipationEventFormat, string> = {
+  nearby: "In person",
+  online: "Online",
+  hybrid: "Hybrid",
+};
+const COUNTRY_LABELS: Record<string, string> = {
+  AE: "United Arab Emirates",
+  DE: "Germany",
+  ES: "Spain",
+  FR: "France",
+  IT: "Italy",
+  PT: "Portugal",
+  UK: "United Kingdom",
+  US: "United States",
+};
+const ADMIN_COUNTRY_OPTIONS = PHONE_COUNTRY_OPTIONS.map((option) => ({
+  value: option.value,
+  label: `${COUNTRY_LABELS[option.value] ?? option.value} (${option.value})`,
+}));
+const DISCOVERY_FORMAT_CHOICES: Array<{ value: DiscoveryFormatPreference; label: string; detail: string }> = [
+  { value: "any", label: "Best match", detail: "Local, online, or hybrid" },
+  { value: "nearby", label: "Nearby", detail: "In-person places" },
+  { value: "online", label: "Online", detail: "Remote friendly" },
+  { value: "hybrid", label: "Hybrid", detail: "Both options" },
+];
+const DISCOVERY_INTEREST_OPTIONS = [
+  "music",
+  "walking",
+  "art",
+  "crafts",
+  "learning",
+  "gardening",
+  "movement",
+  "reading",
+  "history",
+  "language",
+  "cooking",
+  "social",
+];
+const DISCOVERY_REFINEMENT_OPTIONS = [
+  "free",
+  "low cost",
+  "indoor",
+  "outdoor",
+  "wheelchair friendly",
+  "step-free",
+  "seated",
+  "gentle pace",
+  "small group",
+  "morning",
+  "public transport",
+  "accessible toilets",
+];
+const DISCOVERY_LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "de", label: "German" },
+];
 const SAFETY_OPTIONS: SafetyStatus[] = ["approved", "needs_review", "hidden"];
+const SAFETY_LABELS: Record<SafetyStatus, string> = {
+  approved: "Approved",
+  needs_review: "Needs review",
+  hidden: "Hidden",
+};
 const LANGUAGE_OPTIONS = ["en", "es", "de"];
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: "English",
+  es: "Spanish",
+  de: "German",
+};
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
 const WORK_QUEUE_FILTERS: Array<{ id: WorkQueueFilter; label: string; description: string }> = [
   { id: "all", label: "All activities", description: "Everything in the library" },
@@ -244,7 +337,7 @@ const DISCOVERY_LOCATION_PRESETS: readonly DiscoveryCountryPreset[] = [
     ],
   },
 ] as const;
-const DISCOVERY_COUNTRY_OPTIONS = DISCOVERY_LOCATION_PRESETS.map((country) => ({
+const DISCOVERY_LOCATION_COUNTRY_OPTIONS = DISCOVERY_LOCATION_PRESETS.map((country) => ({
   value: country.countryCode,
   label: country.countryName,
 }));
@@ -260,7 +353,6 @@ const DISCOVERY_CITY_PRESETS = DISCOVERY_LOCATION_PRESETS.flatMap((country) => (
 ));
 const DISCOVERY_FALLBACK_LOCALITIES = ["City centre", "Old town", "Near public library", "Near community centre", "Main park"];
 const DISCOVERY_FALLBACK_ANCHORS = ["Main library", "Community centre", "Central park", "Town hall"];
-const DISCOVERY_INTEREST_OPTIONS = ["music", "walking", "art", "culture", "gardening", "history", "language", "crafts", "gentle movement", "book club"];
 const DISCOVERY_VENUE_OPTIONS = [
   "libraries",
   "cultural centres",
@@ -272,14 +364,6 @@ const DISCOVERY_VENUE_OPTIONS = [
   "public workshops",
   "local walking groups",
 ];
-const DISCOVERY_LANGUAGE_CHOICES = [
-  { value: "en", label: "English" },
-  { value: "es", label: "Spanish" },
-  { value: "de", label: "German" },
-  { value: "fr", label: "French" },
-  { value: "it", label: "Italian" },
-  { value: "pt", label: "Portuguese" },
-] as const;
 const ACTIVITY_TEMPLATE_FILE_NAME = "vyva-activities-template.csv";
 const ACTIVITY_TEMPLATE_CSV = [
   [
@@ -402,9 +486,38 @@ function nullableText(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
+function eventLocality(event: Pick<AdminParticipationEvent, "metadata">) {
+  const metadata = event.metadata ?? {};
+  const value = metadata.locality ?? metadata.municipality;
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function metadataWithLocality(event: Pick<AdminParticipationEvent, "metadata">, value: string) {
+  const metadata = { ...(event.metadata ?? {}) };
+  const trimmed = cleanText(value);
+  if (trimmed) {
+    metadata.locality = trimmed;
+  } else {
+    delete metadata.locality;
+    delete metadata.municipality;
+  }
+  return metadata;
+}
+
+function locationPreview(event: AdminParticipationEvent) {
+  const parts = [cleanText(event.locationLabel), eventLocality(event)].filter(Boolean);
+  return parts.length > 0 ? parts.join(" - ") : cityKey(event) || "Location to be checked";
+}
+
 function normalizeCountry(value?: string | null) {
   const trimmed = cleanText(value).toUpperCase();
   return trimmed ? trimmed.slice(0, 2) : null;
+}
+
+function countryLabel(countryCode?: string | null) {
+  const normalized = normalizeCountry(countryCode);
+  if (!normalized) return "Unknown country";
+  return `${COUNTRY_LABELS[normalized] ?? normalized} (${normalized})`;
 }
 
 function normalizeHelperActions(values: string[]) {
@@ -664,6 +777,31 @@ function eventPayload(event: AdminParticipationEvent, includeKey: boolean) {
   return payload;
 }
 
+function adminErrorMessage(data: unknown, fallback: string) {
+  if (!data || typeof data !== "object") return fallback;
+  const body = data as { error?: unknown; message?: unknown };
+  if (typeof body.error === "string" && body.error.trim()) return body.error;
+  if (typeof body.message === "string" && body.message.trim()) return body.message;
+
+  if (body.error && typeof body.error === "object") {
+    const error = body.error as { fieldErrors?: unknown; formErrors?: unknown };
+    const messages: string[] = [];
+    if (Array.isArray(error.formErrors)) {
+      messages.push(...error.formErrors.map(String).filter(Boolean));
+    }
+    if (error.fieldErrors && typeof error.fieldErrors === "object") {
+      for (const [field, fieldErrors] of Object.entries(error.fieldErrors)) {
+        if (Array.isArray(fieldErrors) && fieldErrors.length > 0) {
+          messages.push(`${field}: ${fieldErrors.map(String).join(", ")}`);
+        }
+      }
+    }
+    if (messages.length > 0) return messages.join(" ");
+  }
+
+  return fallback;
+}
+
 function aiDraftPayload(candidate: AdminParticipationEvent) {
   return {
     ...eventPayload({
@@ -682,15 +820,23 @@ function aiDraftPayload(candidate: AdminParticipationEvent) {
   };
 }
 
-function Field({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
+function Field({ label, hint, optional, children }: { label: string; hint?: string; optional?: boolean; children: ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 flex justify-between text-sm font-bold text-[#4d4351]">
-        <span>{label}</span>
-        {optional && <span className="font-normal text-purple-700">Optional</span>}
-      </span>
-      {children}
-    </label>
+    <div className="block">
+      <label className="block">
+        <span className="mb-1 flex justify-between text-sm font-bold text-[#4d4351]">
+          <span>{label}</span>
+        </span>
+        {children}
+      </label>
+      {(hint || optional) && (
+        <p className="mt-1 text-xs font-semibold text-[#8a7770]">
+          {hint}
+          {hint && optional ? " " : ""}
+          {optional ? "Optional." : ""}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -842,29 +988,6 @@ function SmartMultiPicker({
   );
 }
 
-function LanguageTogglePicker({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {DISCOVERY_LANGUAGE_CHOICES.map((language) => (
-        <ChoiceButton
-          key={language.value}
-          active={listIncludes(value, language.value)}
-          onClick={() => onChange(toggleListOption(value, language.value))}
-          testId={`admin-discovery-language-${language.value}`}
-        >
-          {language.label}
-        </ChoiceButton>
-      ))}
-    </div>
-  );
-}
-
 function NumberStepper({
   value,
   min,
@@ -929,10 +1052,12 @@ function SelectInput<T extends string>({
   value,
   onChange,
   options,
+  labels,
 }: {
   value: T | string;
   onChange: (value: T) => void;
   options: readonly T[];
+  labels?: Record<string, string>;
 }) {
   return (
     <select
@@ -940,7 +1065,7 @@ function SelectInput<T extends string>({
       value={value}
       onChange={(event) => onChange(event.target.value as T)}
     >
-      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      {options.map((option) => <option key={option} value={option}>{labels?.[option] ?? option}</option>)}
     </select>
   );
 }
@@ -954,6 +1079,34 @@ function Pill({ children, tone = "purple" }: { children: ReactNode; tone?: "purp
     plain: "bg-[#f7f2eb] text-[#5b4a46]",
   };
   return <span className={`rounded-full px-3 py-1.5 text-xs font-black ${tones[tone]}`}>{children}</span>;
+}
+
+function ChoiceChip({
+  selected,
+  children,
+  onClick,
+  testId,
+}: {
+  selected: boolean;
+  children: ReactNode;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      aria-pressed={selected}
+      className={`rounded-full border px-4 py-2 text-sm font-black transition ${
+        selected
+          ? "border-purple-500 bg-purple-100 text-purple-800 shadow-sm"
+          : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] hover:border-purple-200 hover:text-purple-800"
+      }`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
 }
 
 function cityKey(event: AdminParticipationEvent) {
@@ -1010,20 +1163,25 @@ export default function CuratedActivitiesAdminPage() {
   const [discovering, setDiscovering] = useState(false);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
   const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>("all");
+  const [savingEventKey, setSavingEventKey] = useState<string | null>(null);
+  const [eventSaveFeedback, setEventSaveFeedback] = useState<Record<string, EventSaveFeedback>>({});
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
+  const [expandedDiscoveryId, setExpandedDiscoveryId] = useState<string | null>(null);
   const [countryQuery, setCountryQuery] = useState("Spain");
   const [customCity, setCustomCity] = useState("");
-  const [discoveryForm, setDiscoveryForm] = useState({
+  const [discoveryForm, setDiscoveryForm] = useState<DiscoveryFormState>({
     city: "Madrid",
     province: "Madrid",
     countryCode: "ES",
     locality: "Chamberi, Salamanca",
     postalCode: "28010",
     radiusKm: 4,
-    interests: "music, walking, art",
     venueHints: "libraries, cultural centres, parks",
-    languageCodes: "en, es, de",
-    format: "nearby" as DiscoveryFormatPreference,
+    interestTags: ["music", "walking", "art"],
+    customInterest: "",
+    languageCodes: ["en", "es", "de"],
+    format: "any",
+    refinementTags: ["free", "indoor", "wheelchair friendly"],
     maxResults: 6,
   });
   const countryMatches = useMemo(() => {
@@ -1141,7 +1299,7 @@ export default function CuratedActivitiesAdminPage() {
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/social/participate${path}`, options);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Admin request failed");
+    if (!res.ok) throw new Error(adminErrorMessage(data, "Admin request failed"));
     return data;
   }
 
@@ -1238,15 +1396,15 @@ export default function CuratedActivitiesAdminPage() {
     setEvents((current) => current.map((event) => event.eventKey === eventKey ? { ...event, ...patch } : event));
   }
 
-  function updateDiscoveryCandidate(eventKey: string, patch: Partial<DiscoveryCandidate>) {
+  function updateDiscoveryCandidate(previewId: string, patch: Partial<DiscoveryCandidate>) {
     setDiscoveryCandidates((current) => (
-      current.map((candidate) => candidate.eventKey === eventKey ? { ...candidate, ...patch } : candidate)
+      current.map((candidate) => candidate.previewId === previewId ? { ...candidate, ...patch } : candidate)
     ));
   }
 
   function updateDiscoveryEvidence(candidate: DiscoveryCandidate, evidence: string) {
     const discovery = candidate.metadata?.discovery;
-    updateDiscoveryCandidate(candidate.eventKey, {
+    updateDiscoveryCandidate(candidate.previewId, {
       metadata: {
         ...(candidate.metadata ?? {}),
         discovery: {
@@ -1255,6 +1413,56 @@ export default function CuratedActivitiesAdminPage() {
         },
       },
     });
+  }
+
+  function setDiscoverySelection(selected: boolean) {
+    setDiscoveryCandidates((current) => current.map((candidate) => ({ ...candidate, selected })));
+  }
+
+  function discardDiscoveryCandidate(previewId: string) {
+    setDiscoveryCandidates((current) => current.filter((candidate) => candidate.previewId !== previewId));
+    setExpandedDiscoveryId((current) => (current === previewId ? null : current));
+  }
+
+  function toggleDiscoveryInterest(tag: string) {
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      interestTags: prev.interestTags.includes(tag)
+        ? prev.interestTags.filter((item) => item !== tag)
+        : [...prev.interestTags, tag],
+    }));
+  }
+
+  function addCustomDiscoveryInterest() {
+    const tag = cleanText(discoveryForm.customInterest).toLowerCase();
+    if (!tag) return;
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      interestTags: prev.interestTags.includes(tag) ? prev.interestTags : [...prev.interestTags, tag],
+      customInterest: "",
+    }));
+  }
+
+  function toggleDiscoveryLanguage(language: string) {
+    setDiscoveryForm((prev) => {
+      const selected = prev.languageCodes.includes(language);
+      if (selected && prev.languageCodes.length === 1) return prev;
+      return {
+        ...prev,
+        languageCodes: selected
+          ? prev.languageCodes.filter((item) => item !== language)
+          : [...prev.languageCodes, language],
+      };
+    });
+  }
+
+  function toggleDiscoveryRefinement(tag: string) {
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      refinementTags: prev.refinementTags.includes(tag)
+        ? prev.refinementTags.filter((item) => item !== tag)
+        : [...prev.refinementTags, tag],
+    }));
   }
 
   async function discoverActivities() {
@@ -1267,19 +1475,25 @@ export default function CuratedActivitiesAdminPage() {
         locality: cleanText(discoveryForm.locality),
         postalCode: cleanText(discoveryForm.postalCode),
         radiusKm: Math.max(0.5, Math.min(50, Number(discoveryForm.radiusKm) || 4)),
-        interests: textToList(discoveryForm.interests),
         venueHints: textToList(discoveryForm.venueHints),
-        languageCodes: textToList(discoveryForm.languageCodes),
+        interests: discoveryForm.interestTags,
+        refinementTags: discoveryForm.refinementTags,
+        languageCodes: discoveryForm.languageCodes,
         format: discoveryForm.format,
         maxResults: discoveryForm.maxResults,
       };
       const data = await api("/discover", { method: "POST", body: JSON.stringify(body) });
       const candidates = (data.candidates ?? []) as AdminParticipationEvent[];
       const rejected = Array.isArray(data.rejected) ? data.rejected.length : 0;
-      setDiscoveryCandidates(candidates.map((candidate) => ({ ...candidate, selected: true })));
+      setDiscoveryCandidates(candidates.map((candidate, index) => ({
+        ...candidate,
+        previewId: `${slugifyEventKey(candidate.eventKey, "candidate")}-${index}`,
+        selected: false,
+      })));
+      setExpandedDiscoveryId(null);
       setMessage(rejected > 0
-        ? `${candidates.length} AI candidates ready for review. ${rejected} skipped because they were missing sources or required fields.`
-        : `${candidates.length} AI candidates ready for review.`);
+        ? `${candidates.length} AI candidates ready for review. Select the ones to save as drafts. ${rejected} skipped because they were missing sources or required fields.`
+        : `${candidates.length} AI candidates ready for review. Select the ones to save as drafts.`);
     } finally {
       setDiscovering(false);
     }
@@ -1325,10 +1539,34 @@ export default function CuratedActivitiesAdminPage() {
   }
 
   async function saveEvent(event: AdminParticipationEvent) {
+    const eventKey = event.eventKey;
+    setSavingEventKey(eventKey);
+    setMessage("");
+    setEventSaveFeedback((current) => {
+      const next = { ...current };
+      delete next[eventKey];
+      return next;
+    });
     const body = eventPayload(event, false);
-    await api(`/events/${event.eventKey}`, { method: "PATCH", body: JSON.stringify(body) });
-    await refresh();
-    setMessage(`${event.eventKey} saved.`);
+    try {
+      await api(`/events/${eventKey}`, { method: "PATCH", body: JSON.stringify(body) });
+      await refresh();
+      const nextMessage = `${eventKey} saved.`;
+      setMessage(nextMessage);
+      setEventSaveFeedback((current) => ({
+        ...current,
+        [eventKey]: { tone: "green", message: nextMessage },
+      }));
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Could not save event.";
+      setMessage(nextMessage);
+      setEventSaveFeedback((current) => ({
+        ...current,
+        [eventKey]: { tone: "rose", message: nextMessage },
+      }));
+    } finally {
+      setSavingEventKey(null);
+    }
   }
 
   async function importEvents(file: File) {
@@ -1518,21 +1756,21 @@ export default function CuratedActivitiesAdminPage() {
                   list="admin-discovery-country-options"
                 />
                 <datalist id="admin-discovery-country-options">
-                  {DISCOVERY_COUNTRY_OPTIONS.map((country) => (
+                  {DISCOVERY_LOCATION_COUNTRY_OPTIONS.map((country) => (
                     <option key={country.value} value={country.label}>{country.value}</option>
                   ))}
                 </datalist>
                 {countrySuggestions.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {countrySuggestions.map((country) => (
-                    <ChoiceButton
-                      key={country.countryCode}
-                      active={discoveryForm.countryCode === country.countryCode}
-                      onClick={() => selectCountryPreset(country)}
-                      testId={`admin-discovery-country-option-${country.countryCode.toLowerCase()}`}
-                    >
-                      {country.countryName}
-                    </ChoiceButton>
+                      <ChoiceButton
+                        key={country.countryCode}
+                        active={discoveryForm.countryCode === country.countryCode}
+                        onClick={() => selectCountryPreset(country)}
+                        testId={`admin-discovery-country-option-${country.countryCode.toLowerCase()}`}
+                      >
+                        {country.countryName}
+                      </ChoiceButton>
                     ))}
                   </div>
                 )}
@@ -1643,16 +1881,7 @@ export default function CuratedActivitiesAdminPage() {
             </div>
           </div>
 
-          <div className="mt-3 grid gap-4 lg:grid-cols-2 xl:grid-cols-[1.25fr_1.35fr_1fr_0.8fr_0.7fr]">
-            <FieldGroup label="Interests">
-              <SmartMultiPicker
-                value={discoveryForm.interests}
-                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, interests: value }))}
-                options={DISCOVERY_INTEREST_OPTIONS}
-                testIdPrefix="admin-discovery-interest"
-                customPlaceholder="Add interest"
-              />
-            </FieldGroup>
+          <div className="mt-3 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
             <FieldGroup label="Venue/source hints">
               <SmartMultiPicker
                 value={discoveryForm.venueHints}
@@ -1662,15 +1891,6 @@ export default function CuratedActivitiesAdminPage() {
                 customPlaceholder="Add venue/source type"
               />
             </FieldGroup>
-            <FieldGroup label="Languages">
-              <LanguageTogglePicker
-                value={discoveryForm.languageCodes}
-                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, languageCodes: value }))}
-              />
-            </FieldGroup>
-            <Field label="Format">
-              <SelectInput value={discoveryForm.format} onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, format: value }))} options={DISCOVERY_FORMAT_OPTIONS} />
-            </Field>
             <FieldGroup label="Max results">
               <NumberStepper
                 value={discoveryForm.maxResults}
@@ -1685,6 +1905,105 @@ export default function CuratedActivitiesAdminPage() {
           <div className="hidden">
             <input type="hidden" readOnly data-testid="admin-discovery-locality-value" value={discoveryForm.locality} />
             <input type="hidden" readOnly data-testid="admin-discovery-venue-hints" value={discoveryForm.venueHints} />
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Interests</p>
+              <div className="flex flex-wrap gap-2">
+                {DISCOVERY_INTEREST_OPTIONS.map((tag) => (
+                  <ChoiceChip
+                    key={tag}
+                    testId={`admin-interest-${slugifyEventKey(tag, "tag")}`}
+                    selected={discoveryForm.interestTags.includes(tag)}
+                    onClick={() => toggleDiscoveryInterest(tag)}
+                  >
+                    {tag}
+                  </ChoiceChip>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="min-h-[44px] flex-1 rounded-2xl border border-[#eadfd5] px-4 py-2 text-sm font-semibold text-[#2f2135]"
+                  value={discoveryForm.customInterest}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, customInterest: event.target.value }))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addCustomDiscoveryInterest();
+                    }
+                  }}
+                  placeholder="Add another interest"
+                />
+                <button
+                  className="min-h-[44px] rounded-2xl border border-purple-200 bg-white px-4 py-2 text-sm font-black text-purple-800"
+                  onClick={addCustomDiscoveryInterest}
+                  type="button"
+                >
+                  Add tag
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Languages</p>
+              <div className="flex flex-wrap gap-2">
+                {DISCOVERY_LANGUAGE_OPTIONS.map((language) => (
+                  <ChoiceChip
+                    key={language.value}
+                    testId={`admin-language-${language.value}`}
+                    selected={discoveryForm.languageCodes.includes(language.value)}
+                    onClick={() => toggleDiscoveryLanguage(language.value)}
+                  >
+                    {language.label}
+                  </ChoiceChip>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1.4fr]">
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Format</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {DISCOVERY_FORMAT_CHOICES.map((choice) => {
+                  const selected = discoveryForm.format === choice.value;
+                  return (
+                    <button
+                      key={choice.value}
+                      data-testid={`admin-format-${choice.value}`}
+                      type="button"
+                      aria-pressed={selected}
+                      className={`rounded-2xl border p-3 text-left transition ${
+                        selected
+                          ? "border-purple-500 bg-purple-100 text-purple-900 shadow-sm"
+                          : "border-[#eadfd5] bg-[#fffaf4] text-[#5b4a46] hover:border-purple-200"
+                      }`}
+                      onClick={() => setDiscoveryForm((prev) => ({ ...prev, format: choice.value }))}
+                    >
+                      <span className="block text-sm font-black">{choice.label}</span>
+                      <span className="mt-1 block text-xs font-semibold opacity-75">{choice.detail}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-bold text-[#4d4351]">Refine results</p>
+              <div className="flex flex-wrap gap-2">
+                {DISCOVERY_REFINEMENT_OPTIONS.map((tag) => (
+                  <ChoiceChip
+                    key={tag}
+                    testId={`admin-refinement-${slugifyEventKey(tag, "tag")}`}
+                    selected={discoveryForm.refinementTags.includes(tag)}
+                    onClick={() => toggleDiscoveryRefinement(tag)}
+                  >
+                    {tag}
+                  </ChoiceChip>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -1710,83 +2029,208 @@ export default function CuratedActivitiesAdminPage() {
             </button>
           </div>
 
-          <div className="mt-4 grid gap-4" data-testid="admin-discovery-preview">
+          <div className="mt-4 space-y-3" data-testid="admin-discovery-preview">
             {discoveryCandidates.length === 0 ? (
               <p className="rounded-2xl bg-[#f7f2eb] p-4 text-sm font-bold text-[#7d6b65]">No AI candidates in preview yet.</p>
-            ) : discoveryCandidates.map((candidate) => (
-              <article key={candidate.eventKey} className="rounded-2xl border border-[#eadfd5] bg-[#fffdf9] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f7f2eb] px-4 py-3">
                   <div>
-                    <p className="text-lg font-black text-[#2f2135]">{candidate.eventKey}</p>
-                    <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{candidate.titleEn}</p>
+                    <p className="text-sm font-black text-[#2f2135]">
+                      {discoveryCandidates.length} candidates found. {selectedDiscoveryCount} selected for draft save.
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-[#7d6b65]">Review the full shortlist, open details when needed, then save only the best matches.</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="flex items-center gap-2 rounded-full bg-purple-50 px-4 py-2 text-sm font-bold text-purple-700">
-                      <input
-                        type="checkbox"
-                        checked={candidate.selected}
-                        onChange={(event) => updateDiscoveryCandidate(candidate.eventKey, { selected: event.target.checked })}
-                      />
-                      Save
-                    </label>
-                    {candidate.sourceUrl && (
-                      <a
-                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700"
-                        href={candidate.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <ExternalLink size={14} />
-                        Source link
-                      </a>
-                    )}
+                  <div className="flex flex-wrap gap-2">
                     <button
-                      className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
-                      onClick={() => setDiscoveryCandidates((current) => current.filter((item) => item.eventKey !== candidate.eventKey))}
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
+                      disabled={selectedDiscoveryCount === discoveryCandidates.length}
+                      onClick={() => setDiscoverySelection(true)}
                       type="button"
                     >
-                      <Trash2 size={14} />
-                      Discard
+                      <CheckCircle2 size={14} />
+                      Select all
+                    </button>
+                    <button
+                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#5b4a46] disabled:opacity-50"
+                      disabled={selectedDiscoveryCount === 0}
+                      onClick={() => setDiscoverySelection(false)}
+                      type="button"
+                    >
+                      Clear
                     </button>
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <Field label="Event key">
-                    <TextInput value={candidate.eventKey} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { eventKey: value, id: value })} />
-                  </Field>
-                  <Field label="Title EN">
-                    <TextInput value={candidate.titleEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { titleEn: value })} />
-                  </Field>
-                  <Field label="City">
-                    <TextInput value={candidate.city ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { city: value })} />
-                  </Field>
-                  <Field label="Location">
-                    <TextInput value={candidate.locationLabel} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { locationLabel: value })} />
-                  </Field>
-                  <Field label="Time">
-                    <TextInput value={candidate.timeLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { timeLabelEn: value })} />
-                  </Field>
-                  <Field label="Cost">
-                    <TextInput value={candidate.costLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { costLabelEn: value })} />
-                  </Field>
-                  <Field label="Tags">
-                    <TextInput value={listToText(candidate.interestTags)} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { interestTags: textToList(value) })} />
-                  </Field>
-                  <Field label="Source URL">
-                    <TextInput value={candidate.sourceUrl ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { sourceUrl: value })} />
-                  </Field>
+                <div className="grid gap-3">
+                  {discoveryCandidates.map((candidate) => {
+                    const expanded = expandedDiscoveryId === candidate.previewId;
+                    const previewTags = Array.from(new Set([
+                      ...candidate.interestTags,
+                      ...candidate.accessibilityTags,
+                    ])).slice(0, 6);
+                    return (
+                      <article
+                        key={candidate.previewId}
+                        data-testid={`admin-discovery-candidate-${candidate.previewId}`}
+                        className={`rounded-2xl border p-4 transition ${
+                          candidate.selected
+                            ? "border-purple-300 bg-purple-50/60 shadow-sm"
+                            : "border-[#eadfd5] bg-[#fffdf9]"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                            <input
+                              className="mt-1 h-4 w-4 accent-purple-700"
+                              type="checkbox"
+                              aria-label={`Select ${candidate.titleEn || candidate.eventKey}`}
+                              checked={candidate.selected}
+                              onChange={(event) => updateDiscoveryCandidate(candidate.previewId, { selected: event.target.checked })}
+                            />
+                            <span className="min-w-0">
+                              <span className="block break-words text-lg font-black text-[#2f2135]">{candidate.titleEn || candidate.eventKey}</span>
+                              <span className="mt-1 block break-words text-xs font-bold uppercase tracking-wide text-purple-700">{candidate.eventKey}</span>
+                              {candidate.summaryEn && (
+                                <span className="mt-2 block text-sm font-semibold leading-relaxed text-[#5b4a46]">{candidate.summaryEn}</span>
+                              )}
+                            </span>
+                          </label>
+
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            {candidate.sourceUrl ? (
+                              <a
+                                className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700"
+                                href={candidate.sourceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Source link for ${candidate.titleEn || candidate.eventKey}`}
+                              >
+                                <ExternalLink size={14} />
+                                Source link
+                              </a>
+                            ) : (
+                              <span className="rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700">Source missing</span>
+                            )}
+                            <button
+                              className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-purple-800"
+                              onClick={() => setExpandedDiscoveryId(expanded ? null : candidate.previewId)}
+                              type="button"
+                              aria-expanded={expanded}
+                              aria-label={`${expanded ? "Hide details" : "View details"} for ${candidate.titleEn || candidate.eventKey}`}
+                            >
+                              {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              {expanded ? "Hide details" : "View details"}
+                            </button>
+                            <button
+                              className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
+                              onClick={() => discardDiscoveryCandidate(candidate.previewId)}
+                              type="button"
+                              aria-label={`Discard ${candidate.titleEn || candidate.eventKey}`}
+                            >
+                              <Trash2 size={14} />
+                              Discard
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-2 text-sm font-semibold text-[#5b4a46] md:grid-cols-2 xl:grid-cols-4">
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <Clock3 size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{candidate.timeLabelEn || "Time to be checked"}</span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <MapPin size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{locationPreview(candidate)}</span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <CircleDollarSign size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{candidate.costLabelEn || "Cost to be checked"}</span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2">
+                            <Tags size={14} className="shrink-0 text-purple-700" />
+                            <span className="truncate">{FORMAT_LABELS[candidate.format] ?? candidate.format}</span>
+                          </span>
+                        </div>
+
+                        {previewTags.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {previewTags.map((tag) => <Pill key={tag} tone="plain">{tag}</Pill>)}
+                          </div>
+                        )}
+
+                        {expanded && (
+                          <div className="mt-4 border-t border-[#eadfd5] pt-4" data-testid={`admin-discovery-detail-${candidate.previewId}`}>
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-black text-[#2f2135]">Review and edit before saving</p>
+                              <div className="flex flex-wrap gap-2">
+                                <Pill tone="amber">Draft</Pill>
+                                <Pill tone="amber">Needs review</Pill>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                              <Field label="Internal ID">
+                                <TextInput value={candidate.eventKey} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { eventKey: value, id: value })} />
+                              </Field>
+                              <Field label="Title (English)">
+                                <TextInput value={candidate.titleEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { titleEn: value })} />
+                              </Field>
+                              <Field label="City or town">
+                                <TextInput value={candidate.city ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { city: value })} />
+                              </Field>
+                              <Field label="Locality / municipality" hint="Neighborhood, district, suburb, or municipality inside the city area.">
+                                <TextInput
+                                  value={eventLocality(candidate)}
+                                  onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { metadata: metadataWithLocality(candidate, value) })}
+                                  placeholder="Chamberi, Pozuelo, Gracia"
+                                />
+                              </Field>
+                              <Field label="Country">
+                                <select
+                                  className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
+                                  value={normalizeCountry(candidate.countryCode) ?? ""}
+                                  onChange={(input) => updateDiscoveryCandidate(candidate.previewId, { countryCode: input.target.value })}
+                                >
+                                  <option value="">No country</option>
+                                  {candidate.countryCode && !ADMIN_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(candidate.countryCode)) && (
+                                    <option value={normalizeCountry(candidate.countryCode) ?? ""}>{countryLabel(candidate.countryCode)}</option>
+                                  )}
+                                  {ADMIN_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Precise location" hint="Venue, address, meeting point, or online room name.">
+                                <TextInput value={candidate.locationLabel} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { locationLabel: value })} />
+                              </Field>
+                              <Field label="Time (English)">
+                                <TextInput value={candidate.timeLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { timeLabelEn: value })} />
+                              </Field>
+                              <Field label="Cost (English)">
+                                <TextInput value={candidate.costLabelEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { costLabelEn: value })} />
+                              </Field>
+                              <Field label="Interests">
+                                <TextInput value={listToText(candidate.interestTags)} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { interestTags: textToList(value) })} />
+                              </Field>
+                              <Field label="Source link">
+                                <TextInput value={candidate.sourceUrl ?? ""} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { sourceUrl: value })} />
+                              </Field>
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              <Field label="Short description (English)">
+                                <TextArea value={candidate.summaryEn} onChange={(value) => updateDiscoveryCandidate(candidate.previewId, { summaryEn: value })} />
+                              </Field>
+                              <Field label="Evidence">
+                                <TextArea value={discoveryEvidence(candidate)} onChange={(value) => updateDiscoveryEvidence(candidate, value)} />
+                              </Field>
+                            </div>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <Field label="Summary">
-                    <TextArea value={candidate.summaryEn} onChange={(value) => updateDiscoveryCandidate(candidate.eventKey, { summaryEn: value })} />
-                  </Field>
-                  <Field label="Evidence">
-                    <TextArea value={discoveryEvidence(candidate)} onChange={(value) => updateDiscoveryEvidence(candidate, value)} />
-                  </Field>
-                </div>
-              </article>
-            ))}
+              </>
+            )}
           </div>
         </section>
 
@@ -1822,15 +2266,15 @@ export default function CuratedActivitiesAdminPage() {
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="font-serif text-3xl">Filters</h2>
+              <h2 className="font-serif text-3xl">Find events</h2>
               <p className="mt-2 text-sm text-[#7d6b65]">{filteredEvents.length} visible of {events.length} events.</p>
             </div>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-7">
             <Field label="Search">
-              <TextInput value={filters.search} onChange={(value) => setFilters((prev) => ({ ...prev, search: value }))} placeholder="title, tag, key" />
+              <TextInput value={filters.search} onChange={(value) => setFilters((prev) => ({ ...prev, search: value }))} placeholder="title, tag, venue" />
             </Field>
-            <Field label="City filter">
+            <Field label="Filter by city">
               <input
                 className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
                 list="participate-admin-cities"
@@ -1844,32 +2288,32 @@ export default function CuratedActivitiesAdminPage() {
             </Field>
             <Field label="Country">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.country} onChange={(event) => setFilters((prev) => ({ ...prev, country: event.target.value }))}>
-                <option value="">All</option>
-                {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
+                <option value="">All countries</option>
+                {countryOptions.map((country) => <option key={country} value={country}>{countryLabel(country)}</option>)}
               </select>
             </Field>
             <Field label="Language">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.language} onChange={(event) => setFilters((prev) => ({ ...prev, language: event.target.value }))}>
-                <option value="">All</option>
-                {LANGUAGE_OPTIONS.map((language) => <option key={language} value={language}>{language}</option>)}
+                <option value="">All languages</option>
+                {LANGUAGE_OPTIONS.map((language) => <option key={language} value={language}>{LANGUAGE_LABELS[language] ?? language}</option>)}
               </select>
             </Field>
-            <Field label="Status">
+            <Field label="Review state">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}>
-                <option value="">All</option>
-                {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                <option value="">All states</option>
+                {STATUS_OPTIONS.map((status) => <option key={status} value={status}>{STATUS_LABELS[status]}</option>)}
               </select>
             </Field>
             <Field label="Format">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.format} onChange={(event) => setFilters((prev) => ({ ...prev, format: event.target.value }))}>
-                <option value="">All</option>
-                {FORMAT_OPTIONS.map((format) => <option key={format} value={format}>{format}</option>)}
+                <option value="">All formats</option>
+                {FORMAT_OPTIONS.map((format) => <option key={format} value={format}>{FORMAT_LABELS[format]}</option>)}
               </select>
             </Field>
-            <Field label="Safety">
+            <Field label="Safety review">
               <select className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]" value={filters.safety} onChange={(event) => setFilters((prev) => ({ ...prev, safety: event.target.value }))}>
-                <option value="">All</option>
-                {SAFETY_OPTIONS.map((status) => <option key={status} value={status}>{status}</option>)}
+                <option value="">All safety states</option>
+                {SAFETY_OPTIONS.map((status) => <option key={status} value={status}>{SAFETY_LABELS[status]}</option>)}
               </select>
             </Field>
           </div>
@@ -1884,38 +2328,61 @@ export default function CuratedActivitiesAdminPage() {
             <Pill tone="amber">Human verified before publish</Pill>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-4">
-            <Field label="Event key">
+            <Field label="Internal ID" hint="Lowercase words with hyphens. Used only by admins and imports.">
               <TextInput value={draft.eventKey} onChange={(value) => setDraft((prev) => ({ ...prev, eventKey: value }))} placeholder="madrid-garden-walk" />
             </Field>
-            <Field label="Title EN">
-              <TextInput value={draft.titleEn} onChange={(value) => setDraft((prev) => ({ ...prev, titleEn: value }))} />
+            <Field label="Title (English)">
+              <TextInput value={draft.titleEn} onChange={(value) => setDraft((prev) => ({ ...prev, titleEn: value }))} placeholder="Garden walk and coffee" />
             </Field>
-            <Field label="Title ES">
-              <TextInput value={draft.titleEs} onChange={(value) => setDraft((prev) => ({ ...prev, titleEs: value }))} />
+            <Field label="Title (Spanish)">
+              <TextInput value={draft.titleEs} onChange={(value) => setDraft((prev) => ({ ...prev, titleEs: value }))} placeholder="Paseo por el jardin y cafe" />
             </Field>
-            <Field label="Title DE">
-              <TextInput value={draft.titleDe} onChange={(value) => setDraft((prev) => ({ ...prev, titleDe: value }))} />
+            <Field label="Title (German)">
+              <TextInput value={draft.titleDe} onChange={(value) => setDraft((prev) => ({ ...prev, titleDe: value }))} placeholder="Gartenspaziergang und Kaffee" />
             </Field>
-            <Field label="City">
+            <Field label="City or town">
               <TextInput value={draft.city ?? ""} onChange={(value) => setDraft((prev) => ({ ...prev, city: value }))} placeholder="Madrid" />
             </Field>
-            <Field label="Country code">
-              <TextInput value={draft.countryCode ?? ""} onChange={(value) => setDraft((prev) => ({ ...prev, countryCode: value }))} placeholder="ES" />
+            <Field label="Locality / municipality" hint="Neighborhood, district, suburb, or municipality inside the city area.">
+              <TextInput
+                value={eventLocality(draft)}
+                onChange={(value) => setDraft((prev) => ({ ...prev, metadata: metadataWithLocality(prev, value) }))}
+                placeholder="Chamberi, Pozuelo, Gracia"
+              />
             </Field>
+            <Field label="Country">
+              <select
+                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
+                value={normalizeCountry(draft.countryCode) ?? "ES"}
+                onChange={(event) => setDraft((prev) => ({ ...prev, countryCode: event.target.value }))}
+              >
+                {ADMIN_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+              </select>
+            </Field>
+            <div className="lg:col-span-2">
+              <Field label="Precise location" hint="Venue, street address, meeting point, or online room name.">
+                <TextInput value={draft.locationLabel} onChange={(value) => setDraft((prev) => ({ ...prev, locationLabel: value }))} placeholder="Retiro Park, Puerta de Alcala meeting point" />
+              </Field>
+            </div>
             <Field label="Format">
-              <SelectInput value={draft.format} onChange={(value) => setDraft((prev) => ({ ...prev, format: value }))} options={FORMAT_OPTIONS} />
+              <SelectInput value={draft.format} onChange={(value) => setDraft((prev) => ({ ...prev, format: value }))} options={FORMAT_OPTIONS} labels={FORMAT_LABELS} />
             </Field>
-            <Field label="Status">
-              <SelectInput value={draft.status} onChange={(value) => setDraft((prev) => ({ ...prev, status: value }))} options={STATUS_OPTIONS} />
+            <Field label="Review state">
+              <SelectInput value={draft.status} onChange={(value) => setDraft((prev) => ({ ...prev, status: value }))} options={STATUS_OPTIONS} labels={STATUS_LABELS} />
             </Field>
-            <Field label="Summary EN">
-              <TextArea value={draft.summaryEn} onChange={(value) => setDraft((prev) => ({ ...prev, summaryEn: value }))} />
-            </Field>
-            <Field label="Interest tags">
+            <div className="lg:col-span-2">
+              <Field label="Short description (English)">
+                <TextArea value={draft.summaryEn} onChange={(value) => setDraft((prev) => ({ ...prev, summaryEn: value }))} placeholder="A gentle, social activity with clear meeting details." />
+              </Field>
+            </div>
+            <Field label="Interests" hint="Comma separated tags used for matching.">
               <TextArea value={listToText(draft.interestTags)} onChange={(value) => setDraft((prev) => ({ ...prev, interestTags: textToList(value) }))} placeholder="music, walking, art" />
             </Field>
-            <Field label="Accessibility">
-              <TextArea value={listToText(draft.accessibilityTags)} onChange={(value) => setDraft((prev) => ({ ...prev, accessibilityTags: textToList(value) }))} placeholder="seated, step-free" />
+            <Field label="Accessibility" hint="Practical review notes, not marketing copy.">
+              <TextArea value={listToText(draft.accessibilityTags)} onChange={(value) => setDraft((prev) => ({ ...prev, accessibilityTags: textToList(value) }))} placeholder="seated, step-free, quiet pace" />
+            </Field>
+            <Field label="Source link" optional>
+              <TextInput value={draft.sourceUrl ?? ""} onChange={(value) => setDraft((prev) => ({ ...prev, sourceUrl: value }))} placeholder="https://..." />
             </Field>
             <button
               className="inline-flex min-h-[52px] items-center justify-center gap-2 self-end rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white"
@@ -1932,7 +2399,10 @@ export default function CuratedActivitiesAdminPage() {
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65]">
               No activities match this queue and filter combination.
             </div>
-          ) : filteredEvents.map((event) => (
+          ) : filteredEvents.map((event) => {
+            const saveFeedback = eventSaveFeedback[event.eventKey];
+            const isSavingEvent = savingEventKey === event.eventKey;
+            return (
             <article key={event.eventKey} className="rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1940,76 +2410,92 @@ export default function CuratedActivitiesAdminPage() {
                   <p className="mt-1 text-sm text-[#7d6b65]">{event.titleEn || event.titleEs || event.titleDe}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Pill tone={statusTone(event.status)}>{event.status}</Pill>
-                  <Pill tone={safetyTone(event.safetyStatus)}>{event.safetyStatus}</Pill>
-                  <Pill tone="plain">{event.format}</Pill>
+                  <Pill tone={statusTone(event.status)}>{STATUS_LABELS[event.status as EventStatus] ?? event.status}</Pill>
+                  <Pill tone={safetyTone(event.safetyStatus)}>{SAFETY_LABELS[event.safetyStatus as SafetyStatus] ?? event.safetyStatus}</Pill>
+                  <Pill tone="plain">{FORMAT_LABELS[event.format] ?? event.format}</Pill>
                 </div>
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Field label="Status">
-                  <SelectInput value={event.status} onChange={(value) => updateEvent(event.eventKey, { status: value })} options={STATUS_OPTIONS} />
+                <Field label="Review state">
+                  <SelectInput value={event.status} onChange={(value) => updateEvent(event.eventKey, { status: value })} options={STATUS_OPTIONS} labels={STATUS_LABELS} />
                 </Field>
-                <Field label="Safety status">
-                  <SelectInput value={event.safetyStatus} onChange={(value) => updateEvent(event.eventKey, { safetyStatus: value })} options={SAFETY_OPTIONS} />
+                <Field label="Safety review">
+                  <SelectInput value={event.safetyStatus} onChange={(value) => updateEvent(event.eventKey, { safetyStatus: value })} options={SAFETY_OPTIONS} labels={SAFETY_LABELS} />
                 </Field>
                 <Field label="Format">
-                  <SelectInput value={event.format} onChange={(value) => updateEvent(event.eventKey, { format: value })} options={FORMAT_OPTIONS} />
+                  <SelectInput value={event.format} onChange={(value) => updateEvent(event.eventKey, { format: value })} options={FORMAT_OPTIONS} labels={FORMAT_LABELS} />
                 </Field>
-                <Field label="Source">
+                <Field label="Source note">
                   <TextInput value={event.source} onChange={(value) => updateEvent(event.eventKey, { source: value })} />
                 </Field>
-                <Field label="City">
+                <Field label="City or town">
                   <TextInput value={event.city ?? ""} onChange={(value) => updateEvent(event.eventKey, { city: value })} />
                 </Field>
-                <Field label="Country code">
-                  <TextInput value={event.countryCode ?? ""} onChange={(value) => updateEvent(event.eventKey, { countryCode: value })} />
+                <Field label="Locality / municipality" hint="Neighborhood, district, suburb, or municipality inside the city area.">
+                  <TextInput
+                    value={eventLocality(event)}
+                    onChange={(value) => updateEvent(event.eventKey, { metadata: metadataWithLocality(event, value) })}
+                  />
                 </Field>
-                <Field label="Location label">
+                <Field label="Country">
+                  <select
+                    className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
+                    value={normalizeCountry(event.countryCode) ?? ""}
+                    onChange={(input) => updateEvent(event.eventKey, { countryCode: input.target.value })}
+                  >
+                    <option value="">No country</option>
+                    {event.countryCode && !ADMIN_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(event.countryCode)) && (
+                      <option value={normalizeCountry(event.countryCode) ?? ""}>{countryLabel(event.countryCode)}</option>
+                    )}
+                    {ADMIN_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="Precise location">
                   <TextInput value={event.locationLabel} onChange={(value) => updateEvent(event.eventKey, { locationLabel: value })} />
                 </Field>
-                <Field label="Source URL" optional>
+                <Field label="Source link" optional>
                   <TextInput value={event.sourceUrl ?? ""} onChange={(value) => updateEvent(event.eventKey, { sourceUrl: value })} />
                 </Field>
               </div>
 
               <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <Field label="Title EN"><TextInput value={event.titleEn} onChange={(value) => updateEvent(event.eventKey, { titleEn: value })} /></Field>
-                <Field label="Title ES"><TextInput value={event.titleEs} onChange={(value) => updateEvent(event.eventKey, { titleEs: value })} /></Field>
-                <Field label="Title DE"><TextInput value={event.titleDe} onChange={(value) => updateEvent(event.eventKey, { titleDe: value })} /></Field>
-                <Field label="Summary EN"><TextArea value={event.summaryEn} onChange={(value) => updateEvent(event.eventKey, { summaryEn: value })} /></Field>
-                <Field label="Summary ES"><TextArea value={event.summaryEs} onChange={(value) => updateEvent(event.eventKey, { summaryEs: value })} /></Field>
-                <Field label="Summary DE"><TextArea value={event.summaryDe} onChange={(value) => updateEvent(event.eventKey, { summaryDe: value })} /></Field>
-                <Field label="Description EN"><TextArea value={event.descriptionEn} onChange={(value) => updateEvent(event.eventKey, { descriptionEn: value })} /></Field>
-                <Field label="Description ES"><TextArea value={event.descriptionEs} onChange={(value) => updateEvent(event.eventKey, { descriptionEs: value })} /></Field>
-                <Field label="Description DE"><TextArea value={event.descriptionDe} onChange={(value) => updateEvent(event.eventKey, { descriptionDe: value })} /></Field>
+                <Field label="Title (English)"><TextInput value={event.titleEn} onChange={(value) => updateEvent(event.eventKey, { titleEn: value })} /></Field>
+                <Field label="Title (Spanish)"><TextInput value={event.titleEs} onChange={(value) => updateEvent(event.eventKey, { titleEs: value })} /></Field>
+                <Field label="Title (German)"><TextInput value={event.titleDe} onChange={(value) => updateEvent(event.eventKey, { titleDe: value })} /></Field>
+                <Field label="Short description (English)"><TextArea value={event.summaryEn} onChange={(value) => updateEvent(event.eventKey, { summaryEn: value })} /></Field>
+                <Field label="Short description (Spanish)"><TextArea value={event.summaryEs} onChange={(value) => updateEvent(event.eventKey, { summaryEs: value })} /></Field>
+                <Field label="Short description (German)"><TextArea value={event.summaryDe} onChange={(value) => updateEvent(event.eventKey, { summaryDe: value })} /></Field>
+                <Field label="Full description (English)"><TextArea value={event.descriptionEn} onChange={(value) => updateEvent(event.eventKey, { descriptionEn: value })} /></Field>
+                <Field label="Full description (Spanish)"><TextArea value={event.descriptionEs} onChange={(value) => updateEvent(event.eventKey, { descriptionEs: value })} /></Field>
+                <Field label="Full description (German)"><TextArea value={event.descriptionDe} onChange={(value) => updateEvent(event.eventKey, { descriptionDe: value })} /></Field>
               </div>
 
               <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <Field label="Time EN"><TextInput value={event.timeLabelEn} onChange={(value) => updateEvent(event.eventKey, { timeLabelEn: value })} /></Field>
-                <Field label="Time ES"><TextInput value={event.timeLabelEs} onChange={(value) => updateEvent(event.eventKey, { timeLabelEs: value })} /></Field>
-                <Field label="Time DE"><TextInput value={event.timeLabelDe} onChange={(value) => updateEvent(event.eventKey, { timeLabelDe: value })} /></Field>
-                <Field label="Cost EN"><TextInput value={event.costLabelEn} onChange={(value) => updateEvent(event.eventKey, { costLabelEn: value })} /></Field>
-                <Field label="Cost ES"><TextInput value={event.costLabelEs} onChange={(value) => updateEvent(event.eventKey, { costLabelEs: value })} /></Field>
-                <Field label="Cost DE"><TextInput value={event.costLabelDe} onChange={(value) => updateEvent(event.eventKey, { costLabelDe: value })} /></Field>
-                <Field label="Starts at ISO" optional><TextInput value={event.startsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { startsAt: value })} placeholder="2026-07-12T10:00:00.000Z" /></Field>
-                <Field label="Ends at ISO" optional><TextInput value={event.endsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { endsAt: value })} placeholder="2026-07-12T11:00:00.000Z" /></Field>
+                <Field label="Time (English)"><TextInput value={event.timeLabelEn} onChange={(value) => updateEvent(event.eventKey, { timeLabelEn: value })} /></Field>
+                <Field label="Time (Spanish)"><TextInput value={event.timeLabelEs} onChange={(value) => updateEvent(event.eventKey, { timeLabelEs: value })} /></Field>
+                <Field label="Time (German)"><TextInput value={event.timeLabelDe} onChange={(value) => updateEvent(event.eventKey, { timeLabelDe: value })} /></Field>
+                <Field label="Cost (English)"><TextInput value={event.costLabelEn} onChange={(value) => updateEvent(event.eventKey, { costLabelEn: value })} /></Field>
+                <Field label="Cost (Spanish)"><TextInput value={event.costLabelEs} onChange={(value) => updateEvent(event.eventKey, { costLabelEs: value })} /></Field>
+                <Field label="Cost (German)"><TextInput value={event.costLabelDe} onChange={(value) => updateEvent(event.eventKey, { costLabelDe: value })} /></Field>
+                <Field label="Start date/time" hint="ISO format if there is an exact time." optional><TextInput value={event.startsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { startsAt: value })} placeholder="2026-07-12T10:00:00.000Z" /></Field>
+                <Field label="End date/time" hint="ISO format if there is an exact end time." optional><TextInput value={event.endsAt ?? ""} onChange={(value) => updateEvent(event.eventKey, { endsAt: value })} placeholder="2026-07-12T11:00:00.000Z" /></Field>
               </div>
 
               <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Languages">
                   <TextInput value={listToText(event.languageCodes)} onChange={(value) => updateEvent(event.eventKey, { languageCodes: textToList(value) })} />
                 </Field>
-                <Field label="Tags">
+                <Field label="General tags">
                   <TextArea value={listToText(event.tags)} onChange={(value) => updateEvent(event.eventKey, { tags: textToList(value) })} />
                 </Field>
-                <Field label="Interest tags">
+                <Field label="Interests">
                   <TextArea value={listToText(event.interestTags)} onChange={(value) => updateEvent(event.eventKey, { interestTags: textToList(value) })} />
                 </Field>
-                <Field label="Accessibility tags">
+                <Field label="Accessibility">
                   <TextArea value={listToText(event.accessibilityTags)} onChange={(value) => updateEvent(event.eventKey, { accessibilityTags: textToList(value) })} />
                 </Field>
-                <Field label="Helper actions">
+                <Field label="Support prompts">
                   <TextInput value={listToText(event.helperActions)} onChange={(value) => updateEvent(event.eventKey, { helperActions: normalizeHelperActions(textToList(value)) })} />
                 </Field>
               </div>
@@ -2029,16 +2515,34 @@ export default function CuratedActivitiesAdminPage() {
                   <Pill tone="rose">{event.responseCounts.not_for_me} not for me</Pill>
                   <Pill tone="plain">{event.checkRequestCount} checks</Pill>
                 </div>
-                <button
-                  className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white"
-                  onClick={() => saveEvent(event).catch((err) => setMessage(err.message))}
-                >
-                  <Save size={17} />
-                  Save event
-                </button>
+                <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                  {saveFeedback && (
+                    <p
+                      className={`max-w-sm rounded-2xl px-4 py-2 text-sm font-bold ${
+                        saveFeedback.tone === "green"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-rose-50 text-rose-700"
+                      }`}
+                      data-testid={`admin-event-save-feedback-${event.eventKey}`}
+                      role="status"
+                    >
+                      {saveFeedback.message}
+                    </p>
+                  )}
+                  <button
+                    className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-60"
+                    disabled={savingEventKey !== null}
+                    onClick={() => void saveEvent(event)}
+                    type="button"
+                  >
+                    <Save size={17} />
+                    {isSavingEvent ? "Saving..." : "Save event"}
+                  </button>
+                </div>
               </div>
             </article>
-          ))}
+            );
+          })}
         </section>
 
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">

@@ -108,6 +108,7 @@ const participationDiscoverySchema = z.object({
   venueHints: z.array(z.string().trim().min(1).max(80)).max(12).optional(),
   languageCodes: z.array(z.string().trim().min(2).max(8)).max(8).optional(),
   interests: z.array(z.string().trim().min(1).max(60)).max(12).optional(),
+  refinementTags: z.array(z.string().trim().min(1).max(60)).max(16).optional(),
   format: z.enum(["any", "nearby", "online", "hybrid"]).optional(),
   maxResults: z.coerce.number().int().min(1).max(12).optional(),
 });

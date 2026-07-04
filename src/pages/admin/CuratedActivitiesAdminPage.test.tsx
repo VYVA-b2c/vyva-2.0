@@ -123,7 +123,10 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function renderPage(discovered: AdminParticipationEvent[] = [discoveryCandidate]) {
+function renderPage(
+  discovered: AdminParticipationEvent[] = [discoveryCandidate],
+  options: { patchError?: unknown } = {},
+) {
   let events = [madridEvent, onlineEvent].map((event) => ({ ...event }));
 
   apiFetchMock.mockImplementation((path, init) => {
@@ -164,6 +167,9 @@ function renderPage(discovered: AdminParticipationEvent[] = [discoveryCandidate]
     }
 
     if (typeof path === "string" && path.startsWith("/api/admin/social/participate/events/") && method === "PATCH") {
+      if (options.patchError) {
+        return Promise.resolve(jsonResponse(options.patchError, 400));
+      }
       const eventKey = path.split("/").pop() ?? "";
       const body = JSON.parse(String(init?.body ?? "{}"));
       events = events.map((event) => event.eventKey === eventKey ? { ...event, ...body } : event);
@@ -198,6 +204,54 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(link.getAttribute("href")).toContain("needs_review");
   });
 
+  it("calls AI discovery and renders the full preview list with details", async () => {
+    renderPage([discoveryCandidate, secondDiscoveryCandidate]);
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "Spain" } });
+    expect(screen.getByTestId("admin-discovery-province-valencia")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-discovery-province-valencia"));
+    fireEvent.click(screen.getByTestId("admin-discovery-city-option-valencia"));
+    fireEvent.change(screen.getByTestId("admin-discovery-postal-code"), { target: { value: "46006" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-radius"), { target: { value: "3" } });
+    fireEvent.click(screen.getByTestId("admin-discovery-venue-neighbourhood-parks"));
+    fireEvent.click(screen.getByTestId("admin-interest-crafts"));
+    fireEvent.click(screen.getByTestId("admin-refinement-outdoor"));
+    fireEvent.click(screen.getByTestId("admin-language-de"));
+    fireEvent.click(screen.getByTestId("admin-format-hybrid"));
+    fireEvent.click(screen.getByTestId("admin-discovery-find"));
+
+    expect(await screen.findByTestId("admin-discovery-preview")).toBeInTheDocument();
+    expect(screen.getByText("2 candidates found. 0 selected for draft save.")).toBeInTheDocument();
+    expect(screen.getByText("Library music morning")).toBeInTheDocument();
+    expect(screen.getByText("Art workshop")).toBeInTheDocument();
+    const sourceHrefs = screen.getAllByRole("link", { name: /Source link/ }).map((link) => link.getAttribute("href"));
+    expect(sourceHrefs).toContain("https://example.org/library-music");
+    expect(sourceHrefs).toContain("https://example.org/art-workshop");
+
+    fireEvent.click(screen.getAllByRole("button", { name: /View details/ })[0]);
+    expect(screen.getByDisplayValue("Library music morning")).toBeInTheDocument();
+
+    const discoverCall = apiFetchMock.mock.calls.find(([path, init]) => (
+      path === "/api/admin/social/participate/discover" && init?.method === "POST"
+    ));
+    expect(discoverCall).toBeTruthy();
+    const body = JSON.parse(String(discoverCall?.[1]?.body));
+    expect(body).toMatchObject({
+      city: "Valencia",
+      countryCode: "ES",
+      locality: "Ruzafa, Gran Via",
+      postalCode: "46006",
+      radiusKm: 3,
+      interests: expect.arrayContaining(["music", "walking", "art", "crafts"]),
+      refinementTags: expect.arrayContaining(["free", "indoor", "wheelchair friendly", "outdoor"]),
+      languageCodes: ["en", "es"],
+      format: "hybrid",
+      maxResults: 6,
+    });
+    expect(body.venueHints).toEqual(expect.arrayContaining(["libraries", "cultural centres", "neighbourhood parks"]));
+  });
+
   it("filters the activity list with work queue shortcuts", async () => {
     renderPage();
 
@@ -222,48 +276,14 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
   });
 
-  it("calls AI discovery and renders preview source links", async () => {
-    renderPage();
-
-    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
-    fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "Spain" } });
-    expect(screen.getByTestId("admin-discovery-province-valencia")).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId("admin-discovery-province-valencia"));
-    fireEvent.click(screen.getByTestId("admin-discovery-city-option-valencia"));
-    fireEvent.change(screen.getByTestId("admin-discovery-postal-code"), { target: { value: "46006" } });
-    fireEvent.change(screen.getByTestId("admin-discovery-radius"), { target: { value: "3" } });
-    fireEvent.click(screen.getByTestId("admin-discovery-venue-neighbourhood-parks"));
-    fireEvent.click(screen.getByTestId("admin-discovery-find"));
-
-    expect(await screen.findByTestId("admin-discovery-preview")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Library music morning")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Source link/ })).toHaveAttribute("href", "https://example.org/library-music");
-
-    const discoverCall = apiFetchMock.mock.calls.find(([path, init]) => (
-      path === "/api/admin/social/participate/discover" && init?.method === "POST"
-    ));
-    expect(discoverCall).toBeTruthy();
-    const body = JSON.parse(String(discoverCall?.[1]?.body));
-    expect(body).toMatchObject({
-      city: "Valencia",
-      countryCode: "ES",
-      locality: "Ruzafa, Gran Via",
-      postalCode: "46006",
-      radiusKm: 3,
-      format: "nearby",
-      maxResults: 6,
-    });
-    expect(body.venueHints).toEqual(expect.arrayContaining(["libraries", "cultural centres", "neighbourhood parks"]));
-  });
-
   it("saves only checked AI candidates as draft review items", async () => {
     renderPage([discoveryCandidate, secondDiscoveryCandidate]);
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
-    expect(await screen.findByDisplayValue("Art workshop")).toBeInTheDocument();
+    expect(await screen.findByText("Art workshop")).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByLabelText("Save")[1]);
+    fireEvent.click(screen.getByLabelText(/Select Library music morning/));
     fireEvent.click(screen.getByTestId("admin-discovery-save"));
 
     await waitFor(() => {
@@ -284,8 +304,8 @@ describe("CuratedActivitiesAdminPage", () => {
     });
 
     expect(await screen.findByText("madrid-library-music")).toBeInTheDocument();
-    expect(screen.getAllByText("draft").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("needs_review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Needs review").length).toBeGreaterThan(0);
   });
 
   it("manages city coverage, creates drafts, and saves event changes", async () => {
@@ -295,14 +315,16 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(screen.getByText("Online fallback available")).toBeInTheDocument();
     expect(screen.getByText("Madrid, ES")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("City filter"), { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("Filter by city"), { target: { value: "Valencia" } });
     expect(screen.getByText(/Valencia has no active approved local events/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Event key"), { target: { value: "valencia-art-hour" } });
-    fireEvent.change(screen.getAllByLabelText("Title EN")[0], { target: { value: "Valencia art hour" } });
-    fireEvent.change(screen.getAllByLabelText("Title ES")[0], { target: { value: "Arte en Valencia" } });
-    fireEvent.change(screen.getAllByLabelText("Title DE")[0], { target: { value: "Kunst in Valencia" } });
-    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("Internal ID"), { target: { value: "valencia-art-hour" } });
+    fireEvent.change(screen.getAllByLabelText("Title (English)")[0], { target: { value: "Valencia art hour" } });
+    fireEvent.change(screen.getAllByLabelText("Title (Spanish)")[0], { target: { value: "Arte en Valencia" } });
+    fireEvent.change(screen.getAllByLabelText("Title (German)")[0], { target: { value: "Kunst in Valencia" } });
+    fireEvent.change(screen.getAllByLabelText("City or town")[0], { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("Locality / municipality"), { target: { value: "Ciutat Vella" } });
+    fireEvent.change(screen.getByLabelText("Precise location"), { target: { value: "IVAM, Guillem de Castro 118" } });
     fireEvent.click(screen.getByRole("button", { name: /Add event/ }));
 
     await waitFor(() => {
@@ -312,17 +334,20 @@ describe("CuratedActivitiesAdminPage", () => {
       expect(post).toBeTruthy();
       expect(String(post?.[1]?.body)).toContain("valencia-art-hour");
       expect(String(post?.[1]?.body)).toContain("Valencia");
+      expect(String(post?.[1]?.body)).toContain("IVAM, Guillem de Castro 118");
+      expect(JSON.parse(String(post?.[1]?.body)).metadata).toMatchObject({ locality: "Ciutat Vella" });
     });
 
     expect(await screen.findByText("valencia-art-hour")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /Save event/ }).length).toBeGreaterThan(0);
     });
-    fireEvent.change(screen.getByLabelText("City filter"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Filter by city"), { target: { value: "" } });
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /Save event/ }).length).toBeGreaterThan(1);
     });
-    fireEvent.change(screen.getByDisplayValue("Valencia"), { target: { value: "Barcelona" } });
+    fireEvent.change(screen.getAllByLabelText("City or town")[1], { target: { value: "Barcelona" } });
+    fireEvent.change(screen.getAllByLabelText("Locality / municipality")[1], { target: { value: "Eixample" } });
     fireEvent.click(screen.getAllByRole("button", { name: /Save event/ })[0]);
 
     await waitFor(() => {
@@ -331,8 +356,28 @@ describe("CuratedActivitiesAdminPage", () => {
       ));
       expect(patch).toBeTruthy();
       expect(String(patch?.[1]?.body)).toContain("Barcelona");
+      expect(JSON.parse(String(patch?.[1]?.body)).metadata).toMatchObject({ locality: "Eixample" });
     });
+    expect(await screen.findByTestId("admin-event-save-feedback-valencia-art-hour")).toHaveTextContent("valencia-art-hour saved.");
   }, 15_000);
+
+  it("shows event save errors next to the clicked event", async () => {
+    renderPage([discoveryCandidate], {
+      patchError: {
+        error: {
+          formErrors: [],
+          fieldErrors: {
+            sourceUrl: ["Invalid url"],
+          },
+        },
+      },
+    });
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole("button", { name: /Save event/ })[0]);
+
+    expect(await screen.findByTestId("admin-event-save-feedback-madrid-garden-walk")).toHaveTextContent("sourceUrl: Invalid url");
+  });
 
   it("imports uploaded activities through the existing admin event endpoint", async () => {
     renderPage();

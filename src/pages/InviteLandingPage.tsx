@@ -55,7 +55,7 @@ export function inviteSetupPath(search: string) {
   params.set("mode", "register");
   params.set("invite", "1");
   params.set("returnTo", caregiverInvite ? "/onboarding/who-for" : "/");
-  return `/login?${params.toString()}`;
+  return `${caregiverInvite ? "/caregiver/register" : "/login"}?${params.toString()}`;
 }
 
 export function inviteHomePath() {
