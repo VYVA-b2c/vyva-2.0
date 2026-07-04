@@ -26,7 +26,6 @@ const BULK_UPLOAD_COLUMNS: Record<BulkUploadInsertTable, readonly string[]> = {
     "content",
     "language",
     "difficulty_tier",
-    "item_family_id",
     "source",
     "reviewed_at",
     "reviewed_by",
@@ -50,6 +49,34 @@ function redactPreviewRows(rows: ReturnType<typeof validateBulkUploadItems>) {
     validCount: rows.validItems.length,
     invalidItems: rows.invalidItems,
   };
+}
+
+function databaseErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") return "Bulk content upload failed.";
+  const { code, constraint, column, detail, message } = error as {
+    code?: unknown;
+    constraint?: unknown;
+    column?: unknown;
+    detail?: unknown;
+    message?: unknown;
+  };
+
+  if (typeof column === "string" && column.trim()) {
+    return `Database column mismatch: ${column}. Check that the Cognitive Compass migrations are applied.`;
+  }
+  if (typeof constraint === "string" && constraint.trim()) {
+    return `Database constraint failed: ${constraint}.`;
+  }
+  if (typeof detail === "string" && detail.trim()) {
+    return `Database insert failed: ${detail}`;
+  }
+  if (typeof code === "string" && code.trim()) {
+    return `Database insert failed with code ${code}.`;
+  }
+  if (typeof message === "string" && message.trim()) {
+    return `Database insert failed: ${message}`;
+  }
+  return "Bulk content upload failed.";
 }
 
 async function insertBulkUploadRows(table: BulkUploadInsertTable, rows: BulkUploadInsertRow[]) {
@@ -132,7 +159,7 @@ adminCognitiveAssessmentRouter.post("/bulk-upload", async (req: Request, res: Re
     });
   } catch (error) {
     console.error("[admin] Cognitive assessment bulk upload failed:", error);
-    return res.status(500).json({ error: "Bulk content upload failed." });
+    return res.status(500).json({ error: databaseErrorMessage(error) });
   }
 });
 
