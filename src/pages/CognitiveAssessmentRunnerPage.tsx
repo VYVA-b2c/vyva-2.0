@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Brain, CheckCircle2, ChevronRight, Loader2, PlayCircle } from "lucide-react";
+import { ArrowLeft, Brain, CheckCircle2, ChevronRight, Clock3, Loader2, PlayCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
@@ -56,10 +56,18 @@ function countWords(value: unknown) {
   return text(value).split(/\s+/g).map((word) => word.trim()).filter(Boolean).length;
 }
 
+function storyReadSeconds(body: unknown) {
+  return Math.min(45, Math.max(25, Math.ceil(countWords(body) * 0.6)));
+}
+
 function languageFromApp(value: string): CognitiveAssessmentLanguage {
   return ASSESSMENT_LANGUAGES.some((language) => language.value === value)
     ? value as CognitiveAssessmentLanguage
     : "en";
+}
+
+function languageLabel(value: CognitiveAssessmentLanguage) {
+  return ASSESSMENT_LANGUAGES.find((language) => language.value === value)?.label ?? "English";
 }
 
 function promptLabel(promptKey: unknown) {
@@ -89,6 +97,7 @@ function buildInitialState(task: CognitiveAssessmentRunnerTask | null): FormStat
   if (task.id === "orientation") return { answers: {} };
   if (["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"].includes(task.id)) return { answers: {} };
   if (task.id === "similarities") return { answers: {} };
+  if (task.id === "story_recall_immediate") return { text: "", storyReadComplete: false };
   return { text: "" };
 }
 
@@ -260,13 +269,11 @@ function RunnerHeader({
 
 function IntroScreen({
   language,
-  onLanguageChange,
   onStart,
   isStarting,
   error,
 }: {
   language: CognitiveAssessmentLanguage;
-  onLanguageChange: (language: CognitiveAssessmentLanguage) => void;
   onStart: () => void;
   isStarting: boolean;
   error: string | null;
@@ -278,21 +285,12 @@ function IntroScreen({
         <div className="rounded-[26px] border border-[#E8DED4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.06)]">
           <h2 className="text-[24px] font-black leading-tight text-[#2f2135]">Start a new check</h2>
           <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#766b63]">
-            Choose the language for the assessment. You can answer by typing, tapping choices, or entering short notes.
+            The assessment will use the member's VYVA language. You can answer by typing, tapping choices, or entering short notes.
           </p>
-          <label className="mt-5 block text-xs font-black uppercase tracking-[0.08em] text-[#766b63]" htmlFor="assessment-language">
-            Assessment language
-          </label>
-          <select
-            id="assessment-language"
-            value={language}
-            onChange={(event) => onLanguageChange(event.target.value as CognitiveAssessmentLanguage)}
-            className="mt-2 min-h-[54px] w-full rounded-[18px] border border-[#E8DED4] bg-white px-4 text-[16px] font-black text-[#2f2135]"
-          >
-            {ASSESSMENT_LANGUAGES.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+          <div className="mt-5 rounded-[20px] border border-[#DDD6FE] bg-[#F5F3FF] px-4 py-3">
+            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#6B21A8]">Assessment language</p>
+            <p className="mt-1 text-[16px] font-black text-[#2f2135]">{languageLabel(language)}</p>
+          </div>
           <button
             type="button"
             onClick={onStart}
@@ -321,11 +319,15 @@ function TextArea({
   onChange,
   label,
   placeholder,
+  helperText,
+  autoFocus = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   label: string;
   placeholder: string;
+  helperText?: string;
+  autoFocus?: boolean;
 }) {
   return (
     <label className="block">
@@ -335,9 +337,110 @@ function TextArea({
         onChange={(event) => onChange(event.target.value)}
         rows={7}
         placeholder={placeholder}
+        autoFocus={autoFocus}
         className="mt-2 w-full resize-y rounded-[20px] border border-[#E8DED4] bg-white px-4 py-3 text-[16px] font-bold leading-relaxed text-[#2f2135] outline-none focus:border-[#A855F7]"
       />
+      {helperText ? (
+        <span className="mt-2 block text-[12px] font-bold leading-relaxed text-[#766b63]">{helperText}</span>
+      ) : null}
     </label>
+  );
+}
+
+function StoryRecallImmediateFields({
+  content,
+  formState,
+  setFormState,
+}: {
+  content: Record<string, unknown>;
+  formState: FormState;
+  setFormState: Dispatch<SetStateAction<FormState>>;
+}) {
+  const title = text(content.title, "Story");
+  const body = text(content.body, "Story content is not loaded yet.");
+  const readSeconds = storyReadSeconds(body);
+  const [secondsLeft, setSecondsLeft] = useState(readSeconds);
+  const readComplete = Boolean(formState.storyReadComplete);
+  const progress = readComplete ? 100 : Math.round(((readSeconds - secondsLeft) / readSeconds) * 100);
+
+  useEffect(() => {
+    setSecondsLeft(readSeconds);
+  }, [readSeconds, title]);
+
+  useEffect(() => {
+    if (readComplete) return;
+    if (secondsLeft <= 0) {
+      setFormState((current) => ({ ...current, storyReadComplete: true }));
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setSecondsLeft((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [readComplete, secondsLeft, setFormState]);
+
+  const startRecall = () => {
+    setSecondsLeft(0);
+    setFormState((current) => ({ ...current, storyReadComplete: true }));
+  };
+
+  if (!readComplete) {
+    return (
+      <div className="grid gap-4">
+        <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4 text-[#2f2135]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Read once</p>
+              <h3 className="mt-1 text-[21px] font-black leading-tight">{title}</h3>
+            </div>
+            <div className="flex min-w-[74px] items-center justify-center gap-1 rounded-full bg-white px-3 py-2 text-sm font-black text-[#6B21A8]" aria-live="polite">
+              <Clock3 size={16} />
+              {secondsLeft}s
+            </div>
+          </div>
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-white">
+            <div className="h-full rounded-full bg-[#7C3AED] transition-all duration-500" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="mt-4 text-[17px] font-black leading-relaxed">{body}</p>
+          <p className="mt-4 text-[13px] font-bold leading-relaxed text-[#62564f]">
+            Read calmly. When the timer ends, the story will hide and you will write what you remember.
+          </p>
+          <button
+            type="button"
+            onClick={startRecall}
+            className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center rounded-[18px] bg-[#2f2135] px-4 text-[15px] font-black text-white"
+          >
+            I have read it
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="rounded-[22px] border border-[#BBF7D0] bg-[#F0FDF4] p-4 text-[#14532D]">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#059669]">
+            <CheckCircle2 size={21} />
+          </span>
+          <div>
+            <h3 className="text-[20px] font-black leading-tight">Story hidden</h3>
+            <p className="mt-1 text-[14px] font-bold leading-relaxed">
+              Now write the details you remember. You do not need perfect sentences.
+            </p>
+          </div>
+        </div>
+      </div>
+      <TextArea
+        label="What do you remember?"
+        placeholder="Type names, places, actions, objects, and anything else you remember."
+        helperText="It is fine to write fragments. The report uses what you recall, not spelling or grammar."
+        autoFocus
+        value={text(formState.text)}
+        onChange={(value) => setFormState((current) => ({ ...current, text: value }))}
+      />
+    </div>
   );
 }
 
@@ -381,18 +484,7 @@ function TaskFields({
 
   if (task.id === "story_recall_immediate") {
     return (
-      <div className="grid gap-4">
-        <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4 text-[#2f2135]">
-          <h3 className="text-[19px] font-black">{text(content.title, "Story")}</h3>
-          <p className="mt-3 text-[16px] font-bold leading-relaxed">{text(content.body, "Story content is not loaded yet.")}</p>
-        </div>
-        <TextArea
-          label="Write what you remember"
-          placeholder="Type the details you remember from the story."
-          value={text(formState.text)}
-          onChange={(value) => setFormState((current) => ({ ...current, text: value }))}
-        />
-      </div>
+      <StoryRecallImmediateFields content={content} formState={formState} setFormState={setFormState} />
     );
   }
 
@@ -570,6 +662,8 @@ function RunnerTaskScreen({
   error: string | null;
 }) {
   const isLast = currentIndex >= session.tasks.length - 1;
+  const storyReadRequired = task.id === "story_recall_immediate" && !Boolean(formState.storyReadComplete);
+  const submitDisabled = isSaving || storyReadRequired;
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-8">
       <RunnerHeader currentStep={currentIndex + 1} totalSteps={session.tasks.length} />
@@ -601,11 +695,11 @@ function RunnerTaskScreen({
           <button
             type="button"
             onClick={onSubmit}
-            disabled={isSaving}
+            disabled={submitDisabled}
             className="inline-flex min-h-[56px] flex-[1.4] items-center justify-center gap-2 rounded-[20px] bg-[#7C3AED] px-5 text-[16px] font-black text-white disabled:opacity-60"
           >
-            {isSaving ? <Loader2 className="animate-spin" size={20} /> : isLast ? <CheckCircle2 size={20} /> : <ChevronRight size={20} />}
-            {isLast ? "Finish and view report" : "Save and continue"}
+            {isSaving ? <Loader2 className="animate-spin" size={20} /> : storyReadRequired ? <Clock3 size={20} /> : isLast ? <CheckCircle2 size={20} /> : <ChevronRight size={20} />}
+            {storyReadRequired ? "Read story first" : isLast ? "Finish and view report" : "Save and continue"}
           </button>
         </div>
       </section>
@@ -652,7 +746,7 @@ export default function CognitiveAssessmentRunnerPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { language: appLanguage } = useLanguage();
-  const [language, setLanguage] = useState<CognitiveAssessmentLanguage>(() => languageFromApp(appLanguage));
+  const assessmentLanguage = languageFromApp(appLanguage);
   const [sessionId, setSessionId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return window.sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -671,7 +765,7 @@ export default function CognitiveAssessmentRunnerPage() {
     mutationFn: async () => {
       const response = await apiFetch("/api/cognitive-assessment/sessions", {
         method: "POST",
-        body: JSON.stringify({ language, inputMode: "wizard" }),
+        body: JSON.stringify({ language: assessmentLanguage, inputMode: "wizard" }),
       });
       return parseJsonResponse<CognitiveAssessmentStartSessionResponse>(response);
     },
@@ -767,8 +861,7 @@ export default function CognitiveAssessmentRunnerPage() {
   if (canShowIntro) {
     return (
       <IntroScreen
-        language={language}
-        onLanguageChange={setLanguage}
+        language={assessmentLanguage}
         onStart={() => startMutation.mutate()}
         isStarting={startMutation.isPending}
         error={startError}
