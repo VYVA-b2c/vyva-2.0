@@ -124,6 +124,15 @@ const paceOptions: Array<{ id: ProgramForm["pace"]; label: string; description: 
 
 const wizardStepTitles = ["Interests", "Pace", "Rhythm"] as const;
 
+type LessonVisualScene = "rainbow" | "garden" | "music" | "history" | "language" | "technology" | "art" | "curiosity";
+
+type LessonVisualTheme = {
+  scene: LessonVisualScene;
+  accent: string;
+  background: string;
+  ink: string;
+};
+
 function categoryIcon(category: LearningCategory) {
   return iconByName[category.icon] ?? BookOpen;
 }
@@ -148,6 +157,247 @@ function makeInitialForm(program: LearningProgram | null): ProgramForm {
     dailyTime: program.dailyTime ?? "09:00",
     lessonLengthMinutes: program.lessonLengthMinutes ?? 3,
   };
+}
+
+function lessonSearchText(lesson: LearningLesson) {
+  return `${lesson.title} ${lesson.hook} ${lesson.body} ${lesson.tags.join(" ")}`.toLowerCase();
+}
+
+function visualThemeFor(lesson: LearningLesson, category?: LearningCategory): LessonVisualTheme {
+  const text = lessonSearchText(lesson);
+  const fallbackAccent = category?.color ?? "#6D28D9";
+
+  if (/(rainbow|light|sunlight|colour|color|weather|droplet|water)/.test(text)) {
+    return {
+      scene: "rainbow",
+      accent: "#2563EB",
+      background: "linear-gradient(135deg, #EAF7FF 0%, #FFF7D6 47%, #F5E8FF 100%)",
+      ink: "#164E63",
+    };
+  }
+  if (/(plant|leaf|tree|garden|nature|bird|flower|forest|outdoor)/.test(text)) {
+    return {
+      scene: "garden",
+      accent: "#0F8A67",
+      background: "linear-gradient(135deg, #E8FFF4 0%, #FFF8DF 100%)",
+      ink: "#064E3B",
+    };
+  }
+  if (/(music|song|sound|listen|rhythm|piano|voice)/.test(text)) {
+    return {
+      scene: "music",
+      accent: "#7C3AED",
+      background: "linear-gradient(135deg, #F3E8FF 0%, #ECFEFF 100%)",
+      ink: "#3B0764",
+    };
+  }
+  if (/(history|ancient|city|castle|museum|king|queen|war|culture)/.test(text)) {
+    return {
+      scene: "history",
+      accent: "#B45309",
+      background: "linear-gradient(135deg, #FFF7ED 0%, #F6E8D7 100%)",
+      ink: "#78350F",
+    };
+  }
+  if (/(language|word|phrase|speak|spanish|english|german|french|italian|portuguese)/.test(text)) {
+    return {
+      scene: "language",
+      accent: "#0E7490",
+      background: "linear-gradient(135deg, #ECFEFF 0%, #F7F0FF 100%)",
+      ink: "#155E75",
+    };
+  }
+  if (/(technology|computer|phone|internet|digital|machine|robot|ai)/.test(text)) {
+    return {
+      scene: "technology",
+      accent: "#2563EB",
+      background: "linear-gradient(135deg, #EFF6FF 0%, #EEF2FF 100%)",
+      ink: "#1E3A8A",
+    };
+  }
+  if (/(paint|art|artist|colour|color|picture|design|draw)/.test(text)) {
+    return {
+      scene: "art",
+      accent: "#DB2777",
+      background: "linear-gradient(135deg, #FDF2F8 0%, #FFF7ED 100%)",
+      ink: "#831843",
+    };
+  }
+
+  return {
+    scene: "curiosity",
+    accent: fallbackAccent,
+    background: `linear-gradient(135deg, ${fallbackAccent}18 0%, #FFFDF8 48%, #E8F8F1 100%)`,
+    ink: fallbackAccent,
+  };
+}
+
+function lessonTakeaways(body: string) {
+  return (body.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [body])
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+}
+
+function LessonScene({ scene, accent, ink }: { scene: LessonVisualScene; accent: string; ink: string }) {
+  if (scene === "rainbow") {
+    return (
+      <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <defs>
+          <linearGradient id="learn-rainbow" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#EF4444" />
+            <stop offset="23%" stopColor="#F59E0B" />
+            <stop offset="45%" stopColor="#FDE047" />
+            <stop offset="65%" stopColor="#22C55E" />
+            <stop offset="82%" stopColor="#3B82F6" />
+            <stop offset="100%" stopColor="#7C3AED" />
+          </linearGradient>
+          <filter id="learn-soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="18" stdDeviation="18" floodColor="#0F172A" floodOpacity="0.12" />
+          </filter>
+        </defs>
+        <circle cx="755" cy="78" r="46" fill="#FBBF24" opacity="0.92" />
+        <path d="M74 284 C180 78 336 38 458 163 C568 274 642 268 776 118" fill="none" stroke="url(#learn-rainbow)" strokeLinecap="round" strokeWidth="44" filter="url(#learn-soft-shadow)" />
+        <path d="M118 292 C222 130 338 104 430 191 C536 290 622 294 744 158" fill="none" stroke="#FFFFFF" strokeLinecap="round" strokeWidth="24" opacity="0.75" />
+        <g fill="#FFFFFF" opacity="0.92">
+          <ellipse cx="164" cy="94" rx="60" ry="28" />
+          <ellipse cx="214" cy="91" rx="76" ry="34" />
+          <ellipse cx="274" cy="106" rx="56" ry="25" />
+        </g>
+        <g fill={accent} opacity="0.22">
+          <circle cx="168" cy="232" r="11" />
+          <circle cx="222" cy="260" r="7" />
+          <circle cx="696" cy="234" r="9" />
+          <circle cx="744" cy="274" r="13" />
+        </g>
+      </svg>
+    );
+  }
+
+  if (scene === "garden") {
+    return (
+      <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <path d="M0 262 C170 198 275 294 436 230 C626 154 728 244 900 168 L900 360 L0 360 Z" fill="#BBF7D0" opacity="0.6" />
+        <path d="M180 274 C236 188 310 174 356 92 C404 184 480 190 544 276" fill="none" stroke={accent} strokeWidth="18" strokeLinecap="round" />
+        <ellipse cx="283" cy="178" rx="78" ry="36" fill="#34D399" opacity="0.86" transform="rotate(-24 283 178)" />
+        <ellipse cx="431" cy="192" rx="84" ry="39" fill="#10B981" opacity="0.8" transform="rotate(23 431 192)" />
+        <circle cx="704" cy="110" r="42" fill="#FBBF24" opacity="0.88" />
+      </svg>
+    );
+  }
+
+  if (scene === "music") {
+    return (
+      <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <path d="M90 238 C194 118 298 310 404 184 C516 54 646 246 794 112" fill="none" stroke={accent} strokeWidth="20" strokeLinecap="round" opacity="0.32" />
+        <g fill={accent}>
+          <circle cx="254" cy="248" r="34" />
+          <rect x="282" y="92" width="18" height="154" rx="9" />
+          <path d="M296 92 C390 105 438 130 466 174 L466 204 C420 158 366 142 296 130 Z" opacity="0.86" />
+        </g>
+        <g fill={ink} opacity="0.14">
+          <circle cx="636" cy="230" r="26" />
+          <circle cx="708" cy="178" r="18" />
+        </g>
+      </svg>
+    );
+  }
+
+  if (scene === "history") {
+    return (
+      <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <path d="M138 275 L138 134 L242 134 L242 88 L334 88 L334 134 L438 134 L438 275 Z" fill="#FED7AA" stroke={accent} strokeWidth="10" />
+        <path d="M498 282 C552 184 602 138 656 112 C714 152 760 204 790 282 Z" fill="#FDBA74" opacity="0.74" />
+        <path d="M118 288 L820 288" stroke={ink} strokeWidth="12" strokeLinecap="round" opacity="0.22" />
+      </svg>
+    );
+  }
+
+  if (scene === "language") {
+    return (
+      <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <rect x="144" y="82" width="256" height="150" rx="30" fill="#FFFFFF" opacity="0.86" />
+        <rect x="488" y="126" width="272" height="150" rx="30" fill="#CFFAFE" opacity="0.82" />
+        <path d="M232 232 L206 284 L286 232" fill="#FFFFFF" opacity="0.86" />
+        <path d="M626 276 L662 316 L682 276" fill="#CFFAFE" opacity="0.82" />
+        <text x="206" y="175" fill={accent} fontSize="64" fontWeight="800">Aa</text>
+        <text x="548" y="218" fill={ink} fontSize="50" fontWeight="800">Hola</text>
+      </svg>
+    );
+  }
+
+  if (scene === "technology") {
+    return (
+      <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <rect x="244" y="64" width="410" height="230" rx="42" fill="#FFFFFF" opacity="0.86" />
+        <rect x="308" y="124" width="282" height="94" rx="24" fill={accent} opacity="0.16" />
+        <g stroke={accent} strokeWidth="12" strokeLinecap="round" fill="none">
+          <path d="M180 124 H308" />
+          <path d="M590 172 H730" />
+          <path d="M382 218 V302" />
+          <path d="M512 64 V22" />
+        </g>
+        <g fill={accent}>
+          <circle cx="180" cy="124" r="18" />
+          <circle cx="730" cy="172" r="18" />
+          <circle cx="382" cy="302" r="18" />
+          <circle cx="512" cy="22" r="18" />
+        </g>
+      </svg>
+    );
+  }
+
+  if (scene === "art") {
+    return (
+      <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <rect x="150" y="74" width="250" height="210" rx="32" fill="#FFFFFF" opacity="0.88" transform="rotate(-5 150 74)" />
+        <rect x="470" y="88" width="260" height="194" rx="32" fill="#FCE7F3" opacity="0.88" transform="rotate(5 470 88)" />
+        <circle cx="270" cy="178" r="52" fill="#F59E0B" opacity="0.84" />
+        <circle cx="576" cy="170" r="46" fill={accent} opacity="0.8" />
+        <path d="M190 248 C284 204 326 294 410 238 C504 176 562 262 706 218" fill="none" stroke={ink} strokeWidth="13" strokeLinecap="round" opacity="0.3" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 900 360" className="absolute inset-0 h-full w-full" aria-hidden="true">
+      <circle cx="242" cy="150" r="76" fill={accent} opacity="0.15" />
+      <circle cx="664" cy="214" r="118" fill="#14B8A6" opacity="0.12" />
+      <path d="M242 240 C366 92 526 88 664 214" fill="none" stroke={accent} strokeWidth="18" strokeLinecap="round" opacity="0.38" />
+      <g fill={accent}>
+        <circle cx="242" cy="240" r="28" />
+        <circle cx="664" cy="214" r="28" />
+      </g>
+      <path d="M424 154 L476 122 L528 154 L508 214 H444 Z" fill="#FFFFFF" opacity="0.86" />
+    </svg>
+  );
+}
+
+function LessonVisual({ lesson, category }: { lesson: LearningLesson; category?: LearningCategory }) {
+  const theme = visualThemeFor(lesson, category);
+  const Icon = category ? categoryIcon(category) : BookOpen;
+
+  return (
+    <div
+      className="relative min-h-[190px] overflow-hidden rounded-t-[22px] sm:min-h-[240px]"
+      style={{ background: theme.background }}
+      data-testid="learn-lesson-visual"
+    >
+      <LessonScene scene={theme.scene} accent={theme.accent} ink={theme.ink} />
+      <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 bg-gradient-to-t from-black/42 via-black/10 to-transparent p-4 sm:p-5">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/92 px-4 py-2 text-[14px] font-black text-[#271B2F] shadow-sm">
+          <Icon size={18} style={{ color: category?.color ?? theme.accent }} />
+          {category?.label ?? "Learning"}
+        </span>
+        <span className="rounded-full bg-white/92 px-4 py-2 text-[14px] font-black text-[#6B4A12] shadow-sm">
+          {lesson.estimatedMinutes || 3} min
+        </span>
+      </div>
+      <div className="absolute right-5 top-5 hidden h-14 w-14 items-center justify-center rounded-2xl bg-white/70 text-[#271B2F] shadow-sm backdrop-blur sm:flex">
+        <Sparkles size={25} />
+      </div>
+    </div>
+  );
 }
 
 function LoadingState() {
@@ -382,6 +632,7 @@ export default function LearnSomethingNewPage() {
   const today = data?.todayItem ?? null;
   const lesson = today?.lesson ?? null;
   const category = categoryFor(categories, lesson?.categorySlug);
+  const lessonPoints = lesson ? lessonTakeaways(lesson.body) : [];
 
   const createProgram = useMutation({
     mutationFn: async (form: ProgramForm) => {
@@ -474,19 +725,19 @@ export default function LearnSomethingNewPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#FAF8F4] px-4 py-6 text-[#261c29]" data-testid="learn-hub">
-      <div className="mx-auto w-full max-w-3xl">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[#FAF8F4] px-4 pb-28 pt-6 text-[#261c29]" data-testid="learn-hub">
+      <div className="mx-auto w-full max-w-4xl">
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="font-serif text-[34px] leading-none text-[#211827] sm:text-[48px]">Learn Something New</h1>
-            <p className="mt-3 text-[15px] font-semibold leading-relaxed text-[#6b5d58]">
-              Day {program.progress.currentDay} of {program.progress.totalCount || 7} | {program.progress.completedCount}/{program.progress.totalCount || 7} complete | {timeLabel(program.dailyTime)} | {program.lessonLengthMinutes} min
+            <h1 className="font-serif text-[33px] leading-none text-[#211827] sm:text-[46px]">Learn Something New</h1>
+            <p className="mt-3 text-[14px] font-black leading-relaxed text-[#6b5d58]">
+              Day {program.progress.currentDay} of {program.progress.totalCount || 7} | {timeLabel(program.dailyTime)} | {program.lessonLengthMinutes} min
             </p>
           </div>
           <button
             type="button"
             onClick={() => setWizardOpen(true)}
-            className="inline-flex min-h-10 shrink-0 self-start items-center justify-center gap-2 rounded-lg border border-[#E4D9CE] bg-white px-4 text-sm font-black text-[#5b4a46] sm:self-auto"
+            className="inline-flex min-h-10 shrink-0 self-start items-center justify-center gap-2 rounded-lg border border-[#E4D9CE] bg-white px-4 text-sm font-black text-[#5b4a46] shadow-sm sm:self-auto"
             data-testid="button-learn-change-interests"
           >
             <SlidersHorizontal size={16} />
@@ -517,34 +768,50 @@ export default function LearnSomethingNewPage() {
         </div>
 
         {lesson && today ? (
-          <article className="mt-4 rounded-lg border border-[#E6DDD2] bg-white p-4 shadow-sm sm:mt-5 sm:p-7" data-testid="learn-today-lesson">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.12em]" style={{ color: category?.color ?? "#6D28D9" }}>
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: category?.color ?? "#6D28D9" }} />
-                {category?.label ?? "Learning"}
-              </span>
-              <span className="text-[12px] font-black uppercase tracking-[0.12em] text-[#9a8c84]">Today's lesson</span>
-            </div>
+          <article className="mt-4 overflow-hidden rounded-[22px] border border-[#E6DDD2] bg-white shadow-sm sm:mt-5" data-testid="learn-today-lesson">
+            <LessonVisual lesson={lesson} category={category} />
 
-            <h2 className="mt-4 max-w-2xl font-serif text-[30px] leading-[1.05] text-[#211827] sm:text-[40px]">{lesson.title}</h2>
-            <p className="mt-3 max-w-2xl text-[16px] font-black leading-snug text-[#5b4a46] sm:text-[17px]">{lesson.hook}</p>
+            <div className="grid gap-6 p-4 sm:p-6 md:grid-cols-[minmax(0,1.08fr)_minmax(280px,0.82fr)]">
+              <div>
+                <div className="inline-flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.12em]" style={{ color: category?.color ?? "#6D28D9" }}>
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: category?.color ?? "#6D28D9" }} />
+                  Today's lesson
+                </div>
 
-            <div className="my-5 h-px bg-[#EEE5DC] sm:my-6" />
+                <h2 className="mt-3 max-w-2xl font-serif text-[30px] leading-[1.02] text-[#211827] sm:text-[39px]">{lesson.title}</h2>
+                <p className="mt-3 max-w-2xl text-[18px] font-black leading-snug text-[#5b4a46]">{lesson.hook}</p>
 
-            <p className="max-w-2xl text-[16px] font-semibold leading-[1.58] text-[#3f343d] sm:text-[18px] sm:leading-relaxed">{lesson.body}</p>
-
-            <div className="mt-5 flex flex-col gap-5 sm:mt-6">
-              <div className="order-2 mt-24 border-l-4 border-[#6D28D9] bg-[#FAF8F4] px-4 py-3 sm:order-1 sm:mt-0">
-                <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">Reflection prompt</p>
-                <p className="mt-2 text-[17px] font-black leading-snug text-[#332934]">{lesson.reflectionPrompt}</p>
+                <div className="mt-5 space-y-3" aria-label="Lesson highlights">
+                  {lessonPoints.map((point, index) => (
+                    <div key={`${point}-${index}`} className="flex gap-3 border-t border-[#EEE5DC] pt-3 first:border-t-0 first:pt-0">
+                      <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F3E8FF] text-[13px] font-black text-[#6D28D9]">
+                        {index + 1}
+                      </span>
+                      <p className="text-[16px] font-semibold leading-relaxed text-[#3f343d] sm:text-[17px]">{point}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="order-1 grid grid-cols-2 gap-2 sm:order-2 sm:grid-cols-[1.35fr_1fr_1fr] sm:gap-3">
+              <aside className="flex flex-col justify-between gap-5 border-t border-[#EEE5DC] pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-0">
+                <div>
+                  <div className="border-l-4 border-[#6D28D9] bg-[#FAF8F4] px-4 py-3">
+                    <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">Reflection prompt</p>
+                    <p className="mt-2 text-[18px] font-black leading-snug text-[#332934]">{lesson.reflectionPrompt}</p>
+                  </div>
+
+                  <div className="mt-4 bg-[#F2FBF7] px-4 py-3">
+                    <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#0A7C4E]">Small nudge</p>
+                    <p className="mt-2 text-[16px] font-black leading-snug text-[#164E3B]">Notice one example today. That is enough.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1.35fr_1fr_1fr] md:grid-cols-1">
                 <button
                   type="button"
                   disabled={eventMutation.isPending || today.status === "completed"}
                   onClick={() => eventMutation.mutate({ eventType: "completed", item: today })}
-                  className="col-span-2 inline-flex min-h-[48px] items-center justify-center gap-2 rounded-lg bg-[#6D28D9] px-5 py-3 text-sm font-black text-white shadow-sm disabled:opacity-60 sm:col-span-1 sm:min-h-[52px]"
+                  className="col-span-2 inline-flex min-h-[48px] items-center justify-center gap-2 rounded-lg bg-[#6D28D9] px-5 py-3 text-sm font-black text-white shadow-sm disabled:opacity-60 sm:col-span-1 sm:min-h-[52px] md:col-span-1"
                   data-testid="button-learn-complete"
                 >
                   <CheckCircle2 size={18} />
@@ -570,6 +837,7 @@ export default function LearnSomethingNewPage() {
                   Save for later
                 </button>
               </div>
+              </aside>
             </div>
           </article>
         ) : (
