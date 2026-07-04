@@ -200,6 +200,16 @@ function timeHintFromText(text: string) {
   return "";
 }
 
+function rideDestinationFromText(text: string) {
+  const match = text.match(/\b(?:ride|taxi|cab|transport|uber|lift|take me|pick me up|llevarme|recogerme)\s+(?:to|towards|at|a|al|hasta)\s+(?:the\s+|el\s+|la\s+)?(.+?)(?:\s+(?:tomorrow|manana|today|hoy|tonight|esta noche|now|ahora|morning|afternoon|evening|night|por la manana|por la tarde|at|around)\b|$)/i)
+    || text.match(/\b(?:to|towards|at|al|hasta)\s+(?:the\s+|el\s+|la\s+)?(.+?)(?:\s+(?:tomorrow|manana|today|hoy|tonight|esta noche|now|ahora|morning|afternoon|evening|night|por la manana|por la tarde|at|around)\b|$)/i);
+  const destination = match?.[1]
+    ?.replace(/\b(?:please|thanks|thank you|por favor|gracias)\b.*$/i, "")
+    .replace(/^(?:the|a|an|el|la)\s+/i, "")
+    .trim();
+  return destination && destination.length > 1 ? destination : "";
+}
+
 function payloadWithDefinedValues(payload: VoiceAppAction["payload"]) {
   const cleanPayload: VoiceAppAction["payload"] = {};
   Object.entries(payload ?? {}).forEach(([key, value]) => {
@@ -271,12 +281,21 @@ export function actionForVoiceToolCall(parameters: Record<string, unknown>): Voi
     || stringParam(parameters, "evidence")
     || stringParam(parameters, "reason")
     || "ElevenLabs tool call";
+  const routeParam = stringParam(parameters, "route");
   const rawRoute = normalizeVoiceActionRoute(stringParam(parameters, "route"));
   const rawActionId = stringParam(parameters, "action_id");
   const rawActionType = stringParam(parameters, "action_type");
   const rawDomain = stringParam(parameters, "domain");
+  const inferredAction = !rawActionType && !rawActionId && (
+    rawRoute === "/concierge"
+    || rawRoute === "/concierge/shopping"
+    || (!routeParam && rawDomain === "concierge")
+  )
+    ? actionForVoiceUtterance(sourceText)
+    : null;
+  const inferredActionType = inferredAction?.domain === "concierge" ? inferredAction.actionType : undefined;
   const entry = voiceActionEntryForLookup({
-    actionType: rawActionType,
+    actionType: inferredActionType || rawActionType,
     actionId: rawActionId,
     route: rawRoute,
     domain: rawDomain,
@@ -288,12 +307,16 @@ export function actionForVoiceToolCall(parameters: Record<string, unknown>): Voi
   const summary = stringParam(parameters, "summary");
   const cue = stringParam(parameters, "cue");
   const reason = stringParam(parameters, "reason");
-  const subject = stringParam(parameters, "subject") || stringParam(parameters, "extracted_subject");
+  const subject = stringParam(parameters, "subject") || stringParam(parameters, "extracted_subject") || inferredAction?.extractedSubject || "";
   const priorityParam = stringParam(parameters, "priority");
   const priority = priorityParam === "high" || priorityParam === "medium" || priorityParam === "low"
     ? priorityParam
     : undefined;
-  const payload = payloadFromParameters(parameters);
+  const toolPayload = payloadFromParameters(parameters);
+  const payload = payloadWithDefinedValues({
+    ...(inferredAction?.payload ?? {}),
+    ...(toolPayload ?? {}),
+  });
 
   return buildVoiceAppAction(entry, sourceText, {
     ...(rawActionId && rawActionId !== entry.id ? { id: rawActionId } : {}),
@@ -470,11 +493,13 @@ export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
 
   if (hasAny(normalized, ["ride", "taxi", "cab", "transport", "uber", "lift", "take me", "pick me up", "transporte", "llevarme", "recogerme"])) {
     const time = timeHintFromText(normalized);
+    const destination = rideDestinationFromText(normalized);
     const mobilityNeeds = mobilityNeedsFromText(normalized);
     return actionFromRegistry("concierge.ride_booking", text, {
       feedbackReason: "User asked to arrange transport or book a ride.",
       payload: payloadWithDefinedValues({
         task_type: "ride",
+        destination,
         time,
         mobility_needs: mobilityNeeds,
       }),
