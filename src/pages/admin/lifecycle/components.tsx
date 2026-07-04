@@ -34,6 +34,8 @@ import {
   languageOptions,
   lifecycleStatusLabel,
   looksLikeContactEmail,
+  profileCountryOptions,
+  profileGenderOptions,
   stringValue,
   subscriptionStatusOptions,
   tierLabel,
@@ -1372,6 +1374,10 @@ export function UserDetailModal({ detail, draft, setDraft, organizations, planOp
                 <Field label="WhatsApp"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.whatsapp_number ?? ""} onChange={(e) => setDraft({ ...draft, whatsapp_number: e.target.value })} /></Field>
               </div>
               <Field label="Email"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></Field>
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Country"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.country_code ?? "ES"} onChange={(e) => setDraft({ ...draft, country_code: e.target.value })}>{profileCountryOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></Field>
+                <Field label="Gender"><select className="w-full rounded-xl border px-3 py-2.5" value={draft.gender ?? "prefer_not"} onChange={(e) => setDraft({ ...draft, gender: e.target.value })}>{profileGenderOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Caregiver name"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_name ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_name: e.target.value })} /></Field>
                 <Field label="Caregiver contact"><input className="w-full rounded-xl border px-3 py-2.5" value={draft.caregiver_contact ?? ""} onChange={(e) => setDraft({ ...draft, caregiver_contact: e.target.value })} /></Field>

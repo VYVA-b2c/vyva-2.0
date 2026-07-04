@@ -162,6 +162,45 @@ describe("Admin lifecycle profile updates", () => {
     expect(targetProfile?.phone_number).toBe("+34600000002");
   });
 
+  it("syncs admin identity edits to app profile fields", async () => {
+    const targetProfileId = await createProfile({
+      full_name: "Language Elder",
+      phone_number: "+34600000012",
+      country_code: "ES",
+      language: "en",
+      language_preference: "en",
+      data_sharing_consent: { identity: { gender: "prefer_not" } },
+    });
+    const intake = await createIntake({
+      user_id: targetProfileId,
+      elder_user_id: targetProfileId,
+      phone: "+34600000012",
+    });
+
+    await request(app)
+      .patch(`/api/admin/lifecycle/users/${intake.id}/profile`)
+      .send({ language: "de", country_code: "DE", gender: "female" })
+      .expect(200);
+
+    const [targetProfile] = await db
+      .select({
+        country_code: profiles.country_code,
+        data_sharing_consent: profiles.data_sharing_consent,
+        language: profiles.language,
+        language_preference: profiles.language_preference,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, targetProfileId))
+      .limit(1);
+
+    expect(targetProfile).toMatchObject({
+      country_code: "DE",
+      language: "de",
+      language_preference: "de",
+    });
+    expect((targetProfile?.data_sharing_consent as { identity?: { gender?: string } })?.identity?.gender).toBe("female");
+  });
+
   it("deletes a linked legacy login account and releases its email for caregiver signup", async () => {
     const accountId = randomUUID();
     const caregiverAccountId = randomUUID();

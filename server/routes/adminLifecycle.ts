@@ -63,6 +63,7 @@ import { syncProfileEntitlement, type EntitlementSyncResult } from "../lib/entit
 import { listPlans, normalizeSubscriptionTier, upsertPlanWithEntitlement } from "../lib/plans.js";
 import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInvitePrefill } from "../lib/signupInviteLanguage.js";
 import { mergeSignupInviteRecipients } from "../lib/signupInviteRecipients.js";
+import { mergeIdentityGender } from "../lib/userPersonalization.js";
 import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 
 export const adminLifecycleRouter = Router();
@@ -222,6 +223,8 @@ const profileUpdateSchema = z.object({
   email: z.string().email().optional().nullable().or(z.literal("")),
   phone_number: z.string().optional().nullable(),
   whatsapp_number: z.string().optional().nullable(),
+  country_code: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
   language: z.string().optional().nullable(),
   timezone: z.string().optional().nullable(),
   caregiver_name: z.string().optional().nullable(),
@@ -3449,7 +3452,14 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
   if (data.email !== undefined) profilePatch.email = data.email || null;
   if (data.phone_number !== undefined) profilePatch.phone_number = nextProfilePhone;
   if (data.whatsapp_number !== undefined) profilePatch.whatsapp_number = data.whatsapp_number || null;
-  if (data.language !== undefined) profilePatch.language = data.language || "es";
+  if (data.country_code !== undefined) profilePatch.country_code = data.country_code || "ES";
+  if (data.gender !== undefined) {
+    profilePatch.data_sharing_consent = mergeIdentityGender(existingProfile.data_sharing_consent, data.gender || "prefer_not");
+  }
+  if (data.language !== undefined) {
+    profilePatch.language = data.language || "es";
+    profilePatch.language_preference = profilePatch.language;
+  }
   if (data.timezone !== undefined) profilePatch.timezone = data.timezone || "Europe/Madrid";
   if (data.caregiver_name !== undefined) profilePatch.caregiver_name = data.caregiver_name || null;
   if (data.caregiver_contact !== undefined) profilePatch.caregiver_contact = data.caregiver_contact || null;
