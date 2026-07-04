@@ -2763,45 +2763,9 @@ const HealthScreen = () => {
 
   const healthMasterCards: MasterDashboardCard[] = [
     {
-      id: "medicine",
-      icon: Pill,
-      title: t("health.master.cards.medicine", "Medicine"),
-      detail: medicineToolDetail,
-      accent: medicineCardAccent,
-      tone: {
-        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
-        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
-        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
-        surface: "#FFFFFF",
-      },
-      onClick: () => {
-        sendDoctorUserMessage("I want to open medicines");
-        guardPath("/meds");
-      },
-      testId: "button-health-tool-medicine",
-    },
-    {
-      id: "vitals",
-      icon: Activity,
-      title: t("health.master.cards.vitals", "Vitals"),
-      detail: healthOverview.vitalsSnapshot.value,
-      accent: vitalsCardAccent,
-      tone: {
-        iconBg: healthOverview.vitalsSnapshot.tone.iconBg,
-        iconColor: healthOverview.vitalsSnapshot.tone.text,
-        border: healthOverview.vitalsSnapshot.tone.border,
-        surface: healthOverview.vitalsSnapshot.tone.bg,
-      },
-      onClick: () => {
-        sendDoctorUserMessage("I want to check my vitals");
-        navigate("/health/vitals");
-      },
-      testId: "button-health-tool-vitals",
-    },
-    {
-      id: "symptoms",
+      id: "feel-better",
       icon: HeartPulse,
-      title: t("health.master.cards.symptoms", "Symptoms"),
+      title: t("health.master.cards.feelBetter", "Feel Better"),
       detail: latestTriage?.chief_complaint || symptomsToolDetail,
       accent: symptomsCardAccent,
       tone: {
@@ -2818,12 +2782,48 @@ const HealthScreen = () => {
         }
         guardPath("/health/symptom-check");
       },
-      testId: "button-health-tool-symptoms",
+      testId: "button-health-tool-feel-better",
     },
     {
-      id: "prevention",
+      id: "my-medication",
+      icon: Pill,
+      title: t("health.master.cards.myMedication", "My Medication"),
+      detail: medicineToolDetail,
+      accent: medicineCardAccent,
+      tone: {
+        iconBg: hasMedicationRemaining || missingMedicationSetup ? "#FDF4FF" : "#ECFDF5",
+        iconColor: hasMedicationRemaining || missingMedicationSetup ? "#86198F" : "#047857",
+        border: hasMedicationRemaining || missingMedicationSetup ? "#E9D5FF" : "#BBF7D0",
+        surface: "#FFFFFF",
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to open medicines");
+        guardPath("/meds");
+      },
+      testId: "button-health-tool-my-medication",
+    },
+    {
+      id: "my-vitals",
+      icon: Activity,
+      title: t("health.master.cards.myVitals", "My Vitals"),
+      detail: healthOverview.vitalsSnapshot.value,
+      accent: vitalsCardAccent,
+      tone: {
+        iconBg: healthOverview.vitalsSnapshot.tone.iconBg,
+        iconColor: healthOverview.vitalsSnapshot.tone.text,
+        border: healthOverview.vitalsSnapshot.tone.border,
+        surface: healthOverview.vitalsSnapshot.tone.bg,
+      },
+      onClick: () => {
+        sendDoctorUserMessage("I want to check my vitals");
+        navigate("/health/vitals");
+      },
+      testId: "button-health-tool-my-vitals",
+    },
+    {
+      id: "stay-well",
       icon: ShieldCheck,
-      title: t("health.master.cards.prevention", "Prevention"),
+      title: t("health.master.cards.stayWell", "Stay Well"),
       detail: preventionCardDetail,
       accent: preventionCardAccent,
       tone: {
@@ -2836,7 +2836,7 @@ const HealthScreen = () => {
         sendDoctorUserMessage("I want to review my prevention focus");
         navigate("/health/prevention");
       },
-      testId: "button-health-tool-prevention",
+      testId: "button-health-tool-stay-well",
     },
   ];
 
@@ -2870,42 +2870,10 @@ const HealthScreen = () => {
 
   const healthFastHelpActions: MasterFastHelpAction[] = [
     {
-      id: "safety-signs",
-      icon: AlertTriangle,
-      label: t("health.master.fastHelp.safetySigns", "Safety signs"),
-      detail: t("health.master.fastHelp.safetySignsDetail", "Know when to get help"),
-      tone: {
-        iconBg: "#FEF2F2",
-        iconColor: "#B91C1C",
-        border: "#FECACA",
-      },
-      onClick: () => {
-        sendDoctorUserMessage("Help me understand safety signs and when to get help");
-        guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
-      },
-      testId: "button-health-fast-safety-signs",
-    },
-    {
-      id: "explain-plan",
-      icon: Stethoscope,
-      label: t("health.master.fastHelp.explainPlan", "Explain plan"),
-      detail: t("health.master.fastHelp.explainPlanDetail", "What matters today"),
-      tone: {
-        iconBg: "#F5F3FF",
-        iconColor: "#6B21A8",
-        border: "#DDD6FE",
-      },
-      onClick: () => {
-        sendDoctorUserMessage("Explain my health plan for today");
-        guardPath("/health/doctor", { state: { autoStartVoice: true, latestSymptomReport: latestTriageDoctorContext || undefined } });
-      },
-      testId: "button-health-fast-explain-plan",
-    },
-    {
-      id: "latest-report",
+      id: "my-reports",
       icon: ClipboardList,
-      label: t("health.master.fastHelp.latestReport", "Latest report"),
-      detail: t("health.master.fastHelp.latestReportDetail", "Reports and summaries"),
+      label: t("health.master.fastHelp.myReports", "My Reports"),
+      detail: t("health.master.fastHelp.myReportsDetail", "Latest summary"),
       tone: {
         iconBg: "#EFF6FF",
         iconColor: "#2563EB",
@@ -2915,7 +2883,7 @@ const HealthScreen = () => {
         sendDoctorUserMessage("I want to open my latest health report");
         navigate(latestTriage ? `/informes/${latestTriage.id}` : "/informes");
       },
-      testId: "button-health-fast-open-latest-report",
+      testId: "button-health-fast-my-reports",
     },
     {
       id: "visual-scan",
