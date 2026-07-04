@@ -3,12 +3,22 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceToolCall,
   actionForVoiceUtterance,
+  isActionableVoiceText,
   routeForVoiceUtterance,
   specialistTransferFromToolCall,
   voiceActionRegistryEntries,
 } from "./voiceNavigation";
 
 describe("voice navigation actions", () => {
+  it("ignores punctuation-only and filler transcript noise", () => {
+    expect(isActionableVoiceText("'")).toBe(false);
+    expect(isActionableVoiceText("...")).toBe(false);
+    expect(isActionableVoiceText(" ? ")).toBe(false);
+    expect(isActionableVoiceText("um")).toBe(false);
+    expect(actionForVoiceUtterance("'")).toBeNull();
+    expect(routeForVoiceUtterance("...")).toBeNull();
+  });
+
   it("opens medication report for medication stock questions", () => {
     const action = actionForVoiceUtterance("Do we need to buy Paracetamol?");
 

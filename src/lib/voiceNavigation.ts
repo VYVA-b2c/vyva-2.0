@@ -109,6 +109,30 @@ function normalizeIntentText(text: string) {
     .trim();
 }
 
+const VOICE_NON_ACTIONABLE_FILLERS = new Set([
+  "ah",
+  "eh",
+  "er",
+  "hm",
+  "hmm",
+  "mm",
+  "mmm",
+  "oh",
+  "uh",
+  "um",
+]);
+
+export function isActionableVoiceText(text: string) {
+  const normalized = normalizeIntentText(text);
+  if (!normalized) return false;
+
+  const meaningfulCharacters = normalized.replace(/[^\p{L}\p{N}]+/gu, "");
+  if (meaningfulCharacters.length < 2) return false;
+  if (VOICE_NON_ACTIONABLE_FILLERS.has(meaningfulCharacters)) return false;
+
+  return true;
+}
+
 function hasAny(text: string, patterns: Array<string | RegExp>) {
   return patterns.some((pattern) =>
     typeof pattern === "string" ? text.includes(pattern) : pattern.test(text),
@@ -322,7 +346,7 @@ export function specialistTransferFromToolCall(parameters: Record<string, unknow
 
 export function actionForVoiceUtterance(text: string): VoiceAppAction | null {
   const normalized = normalizeIntentText(text);
-  if (!normalized) return null;
+  if (!isActionableVoiceText(text)) return null;
 
   const mentionsMedication = hasAny(normalized, [
     "medication",

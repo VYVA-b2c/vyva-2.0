@@ -4,7 +4,11 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
-import type { VoiceAppAction } from "@/lib/voiceNavigation";
+import {
+  VYVA_VOICE_APP_ACTION_EVENT,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+  type VoiceAppAction,
+} from "@/lib/voiceNavigation";
 
 const voiceState = vi.hoisted(() => ({
   status: "idle" as "idle" | "connecting" | "connected",
@@ -266,6 +270,26 @@ describe("app shell voice dock", () => {
     expect(dock).toHaveTextContent("Speaking");
     expect(dock).not.toHaveTextContent("VYVA speaking");
     expect(dock).toHaveTextContent("Try naming three things");
+  });
+
+  it("ignores punctuation-only voice transcript events", () => {
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell();
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "'",
+          transcriptEntry: { from: "user", text: "'", timestamp: 3 },
+        },
+      }));
+
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
   });
 
   it("keeps non-health voice actions visible on their route", () => {

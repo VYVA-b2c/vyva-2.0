@@ -16,7 +16,6 @@ import {
   Gauge,
   Heart,
   Mail,
-  MessageCircle,
   Pill,
   PhoneCall,
   Send,
@@ -654,10 +653,10 @@ export function DetailView({ report, onBack }: { report: TriageReport; onBack: (
 
       <button
         data-testid="button-report-detail-chat"
-        onClick={() => navigate("/chat")}
+        onClick={openDoctorWithContext}
         className="vyva-primary-action mt-5 w-full"
       >
-        <MessageCircle size={18} />
+        <Stethoscope size={18} />
         {t("informes.reportDetail.chatCta")}
       </button>
     </HealthWizardShell>

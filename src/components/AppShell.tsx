@@ -15,6 +15,7 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceUtterance,
   emitVoiceAppAction,
+  isActionableVoiceText,
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_SPECIALIST_TRANSFER_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
@@ -585,6 +586,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         ? (event.detail as VoiceUserMessageDetail | undefined)
         : undefined;
       if (!detail?.text) return;
+      if (!isActionableVoiceText(detail.text)) return;
 
       const action = actionForVoiceUtterance(detail.text);
       if (!action) return;

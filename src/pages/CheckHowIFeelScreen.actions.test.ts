@@ -101,7 +101,7 @@ describe("daily check-in service action navigation", () => {
 
   it("does not add GP links to non-care check-in results", () => {
     const actions = addDirectGpActionsForCheckin(
-      [{ key: "music", title: "Music", description: "Listen", to: "/chat?q=music", primary: true }],
+      [{ key: "music", title: "Music", description: "Listen", to: "/learn", primary: true }],
       { gpPhone: "+34 612 345 678", gpEmail: "gp@example.com" },
       "Feeling good today.",
     );
@@ -288,12 +288,12 @@ describe("daily check-in service action navigation", () => {
 
   it("leaves non-service leisure actions on their normal route", () => {
     expect(checkinActionNavigationFor(
-      { key: "music", to: "/chat?q=music" },
+      { key: "music", to: "/learn" },
       {
         reportText: "",
         symptomClue: "",
         conciergeMessage: "",
       },
-    )).toEqual({ to: "/chat?q=music" });
+    )).toEqual({ to: "/learn" });
   });
 });

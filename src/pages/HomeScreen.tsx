@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, Sparkles, FileText, HeartHandshake, HeartPulse, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -13,7 +13,6 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { displayFirstName } from "@/lib/displayIdentity";
-import { incrementChatNavigationCount } from "@/lib/personaliseCards";
 
 type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
@@ -460,7 +459,6 @@ const HomeScreen = () => {
   }, [firstName, timeGreetingKey, t]);
 
   const handleNavigate = (path: string, options?: NavigateOptions) => {
-    if (path === "/chat") incrementChatNavigationCount();
     guardPath(path, options);
   };
 
@@ -730,25 +728,7 @@ const HomeScreen = () => {
       }}
       cards={homeMasterCards}
       fastHelpActions={homeMasterFastHelpActions}
-    >
-      <button
-        type="button"
-        data-testid="home-start-nudge"
-        aria-label={t("home.nudge.aria", "Ask VYVA where to start")}
-        onClick={() => handleNavigate("/chat")}
-        className="vyva-tap mt-4 hidden min-h-[58px] w-full items-center gap-3 rounded-[22px] border border-[#E4D7F4] bg-white px-4 text-left shadow-[0_12px_28px_rgba(107,33,168,0.08)] transition-transform active:scale-[0.99] sm:flex"
-      >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#F3E8FF] text-[#6B21A8]">
-          <Sparkles size={22} strokeWidth={2.4} aria-hidden="true" />
-        </span>
-        <span className="min-w-0 flex-1 font-body text-[16px] font-black leading-tight text-vyva-text-1">
-          {t("home.nudge.text", "Not sure where to start?")}
-        </span>
-        <span className="shrink-0 rounded-full bg-[#6B21A8] px-3 py-2 font-body text-[13px] font-black text-white">
-          {t("home.nudge.action", "Ask VYVA")}
-        </span>
-      </button>
-    </MasterDashboardLayout>
+    />
   );
 };
 
