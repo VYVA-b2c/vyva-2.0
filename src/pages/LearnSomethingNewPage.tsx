@@ -67,6 +67,8 @@ type LearningProgram = {
   status: "active" | "completed" | "expired";
   interests: string[];
   pace: "gentle" | "steady" | "curious";
+  frequency: "daily" | "three_times_week" | "weekly";
+  durationWeeks: 1 | 4 | 12;
   dailyTime: string;
   lessonLengthMinutes: number;
   language: string;
@@ -92,6 +94,8 @@ type LearningTodayResponse = {
 type ProgramForm = {
   interests: string[];
   pace: "gentle" | "steady" | "curious";
+  frequency: "daily" | "three_times_week" | "weekly";
+  durationWeeks: 1 | 4 | 12;
   dailyTime: string;
   lessonLengthMinutes: number;
 };
@@ -100,6 +104,8 @@ const DEFAULT_INTEREST = "general_knowledge";
 const DEFAULT_FORM: ProgramForm = {
   interests: [DEFAULT_INTEREST],
   pace: "gentle",
+  frequency: "daily",
+  durationWeeks: 1,
   dailyTime: "09:00",
   lessonLengthMinutes: 3,
 };
@@ -122,6 +128,18 @@ const paceOptions: Array<{ id: ProgramForm["pace"]; label: string; description: 
   { id: "curious", label: "Curious", description: "Richer snippets for active learners." },
 ];
 
+const frequencyOptions: Array<{ id: ProgramForm["frequency"]; label: string; description: string }> = [
+  { id: "daily", label: "Daily", description: "A small lesson each day." },
+  { id: "three_times_week", label: "3 times a week", description: "A steady rhythm with pauses." },
+  { id: "weekly", label: "Weekly", description: "One calm lesson each week." },
+];
+
+const durationOptions: Array<{ id: ProgramForm["durationWeeks"]; label: string; description: string }> = [
+  { id: 1, label: "1 week", description: "A quick start." },
+  { id: 4, label: "1 month", description: "Build a habit." },
+  { id: 12, label: "3 months", description: "A longer learning path." },
+];
+
 const wizardStepTitles = ["Interests", "Pace", "Rhythm"] as const;
 
 function categoryIcon(category: LearningCategory) {
@@ -140,11 +158,29 @@ function timeLabel(value: string) {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
 }
 
+function rhythmLabel(frequency: ProgramForm["frequency"]) {
+  if (frequency === "three_times_week") return "3 times a week";
+  if (frequency === "weekly") return "weekly";
+  return "daily";
+}
+
+function durationLabel(durationWeeks: ProgramForm["durationWeeks"]) {
+  if (durationWeeks === 12) return "3 months";
+  if (durationWeeks === 4) return "1 month";
+  return "1 week";
+}
+
+function rhythmSummary(form: ProgramForm) {
+  return `VYVA will prepare ${rhythmLabel(form.frequency)} lessons for ${durationLabel(form.durationWeeks)}, starting today.`;
+}
+
 function makeInitialForm(program: LearningProgram | null): ProgramForm {
   if (!program) return DEFAULT_FORM;
   return {
     interests: program.interests.length ? program.interests : [DEFAULT_INTEREST],
     pace: program.pace ?? "gentle",
+    frequency: program.frequency ?? "daily",
+    durationWeeks: program.durationWeeks ?? 1,
     dailyTime: program.dailyTime ?? "09:00",
     lessonLengthMinutes: program.lessonLengthMinutes ?? 3,
   };
@@ -210,13 +246,13 @@ function Wizard({
           <header className="border-b border-[#F0E6DA] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF8EF_55%,#F5ECFF_100%)] px-5 py-5 min-[390px]:px-6 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:px-7 sm:py-6">
             <div className="min-w-0">
               <p className="inline-flex rounded-full bg-[#FFF1B8] px-3 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">
-                Daily learning
+                Learning rhythm
               </p>
               <h1 className="mt-3 max-w-[11em] font-body text-[31px] font-black leading-[0.98] text-[#211827] min-[390px]:text-[35px] sm:text-[42px]">
                 Learn Something New
               </h1>
               <p className="mt-3 max-w-[36rem] text-[15px] font-bold leading-snug text-[#6b5d58] min-[390px]:text-[16px]">
-                Pick a few interests. VYVA will shape one calm lesson a day.
+                Pick a few interests. VYVA will shape a calm learning plan.
               </p>
             </div>
             {onCancel ? (
@@ -321,12 +357,52 @@ function Wizard({
 
           {step === 2 ? (
             <>
-              <h2 className="font-body text-[27px] font-black leading-tight text-[#211827] min-[390px]:text-[30px]">Choose a daily rhythm</h2>
-              <p className="mt-2 max-w-[38rem] text-[14px] font-bold leading-snug text-[#7d6b65] min-[390px]:text-[15px]">VYVA will keep the first version in-app and show the lesson at this time.</p>
+              <h2 className="font-body text-[27px] font-black leading-tight text-[#211827] min-[390px]:text-[30px]">Choose your rhythm</h2>
+              <p className="mt-2 max-w-[38rem] text-[14px] font-bold leading-snug text-[#7d6b65] min-[390px]:text-[15px]">Choose how often, how long, and when lessons should appear.</p>
+              <section className="mt-5 rounded-[20px] border border-[#E9DFD5] bg-[#FCFAF7] p-4">
+                <h3 className="text-[16px] font-black text-[#2f2135]">How often?</h3>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {frequencyOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setForm((current) => ({ ...current, frequency: option.id }))}
+                      aria-pressed={form.frequency === option.id}
+                      className={`min-h-[78px] rounded-[18px] border px-3 py-3 text-left transition-transform hover:-translate-y-0.5 ${
+                        form.frequency === option.id ? "border-[#8B5CF6] bg-[#F7F2FF] shadow-[0_10px_20px_rgba(109,40,217,0.10)]" : "border-[#E9DFD5] bg-white"
+                      }`}
+                      data-testid={`button-learn-frequency-${option.id}`}
+                    >
+                      <span className="block text-[16px] font-black leading-tight text-[#2f2135]">{option.label}</span>
+                      <span className="mt-1 block text-[12px] font-bold leading-snug text-[#7d6b65]">{option.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <section className="mt-4 rounded-[20px] border border-[#E9DFD5] bg-[#FCFAF7] p-4">
+                <h3 className="text-[16px] font-black text-[#2f2135]">For how long?</h3>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {durationOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setForm((current) => ({ ...current, durationWeeks: option.id }))}
+                      aria-pressed={form.durationWeeks === option.id}
+                      className={`min-h-[78px] rounded-[18px] border px-3 py-3 text-left transition-transform hover:-translate-y-0.5 ${
+                        form.durationWeeks === option.id ? "border-[#8B5CF6] bg-[#F7F2FF] shadow-[0_10px_20px_rgba(109,40,217,0.10)]" : "border-[#E9DFD5] bg-white"
+                      }`}
+                      data-testid={`button-learn-duration-${option.id}`}
+                    >
+                      <span className="block text-[16px] font-black leading-tight text-[#2f2135]">{option.label}</span>
+                      <span className="mt-1 block text-[12px] font-bold leading-snug text-[#7d6b65]">{option.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
               <label className="mt-5 block rounded-[20px] border border-[#E9DFD5] bg-[#FCFAF7] p-4">
                 <span className="flex items-center gap-2 text-[16px] font-black text-[#2f2135]">
                   <CalendarDays size={18} />
-                  Daily lesson time
+                  Preferred time
                 </span>
                 <input
                   type="time"
@@ -337,7 +413,7 @@ function Wizard({
                 />
               </label>
               <div className="mt-5 rounded-[20px] border border-[#DDECE2] bg-[#F3FAF5] p-4 text-[14px] font-bold leading-relaxed text-[#0A7C4E]">
-                Your first week will start today with one short lesson per day.
+                {rhythmSummary(form)}
               </div>
             </>
           ) : null}
@@ -374,7 +450,7 @@ function Wizard({
                 data-testid="button-learn-start-program"
               >
                 {saving ? <Loader2 className="animate-spin" size={17} /> : <Sparkles size={17} />}
-                Start my week
+                Start my plan
               </button>
             )}
           </div>
@@ -415,10 +491,10 @@ export default function LearnSomethingNewPage() {
     onSuccess: () => {
       setWizardOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["/api/learning/today"] });
-      toast({ title: "Learning week ready", description: "Your first daily lesson is waiting." });
+      toast({ title: "Learning plan ready", description: "Your first lesson is waiting." });
     },
     onError: (error) => {
-      toast({ title: "Could not start learning week", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+      toast({ title: "Could not start learning plan", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
     },
   });
 
@@ -499,7 +575,7 @@ export default function LearnSomethingNewPage() {
           <div>
             <h1 className="font-serif text-[34px] leading-none text-[#211827] sm:text-[48px]">Learn Something New</h1>
             <p className="mt-3 text-[15px] font-semibold leading-relaxed text-[#6b5d58]">
-              Day {program.progress.currentDay} of {program.progress.totalCount || 7} | {program.progress.completedCount}/{program.progress.totalCount || 7} complete | {timeLabel(program.dailyTime)} | {program.lessonLengthMinutes} min
+              Lesson {program.progress.currentDay} of {program.progress.totalCount || 7} | {program.progress.completedCount}/{program.progress.totalCount || 7} complete | {rhythmLabel(program.frequency)} | {timeLabel(program.dailyTime)} | {program.lessonLengthMinutes} min
             </p>
           </div>
           <button
@@ -530,8 +606,8 @@ export default function LearnSomethingNewPage() {
             })}
           </div>
           <div className="mt-2 flex justify-between text-[12px] font-bold text-[#7d6b65]">
-            <span>Day 1</span>
-            <span>Day {program.progress.totalCount || 7}</span>
+            <span>Lesson 1</span>
+            <span>Lesson {program.progress.totalCount || 7}</span>
           </div>
         </div>
 
@@ -594,8 +670,8 @@ export default function LearnSomethingNewPage() {
         ) : (
           <section className="mt-5 rounded-lg border border-[#DDECE2] bg-white p-6 text-center shadow-sm">
             <CheckCircle2 className="mx-auto text-[#0A7C4E]" size={42} />
-            <h2 className="mt-3 font-serif text-3xl">This learning week is complete.</h2>
-            <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Start another week to keep receiving daily snippets.</p>
+            <h2 className="mt-3 font-serif text-3xl">This learning plan is complete.</h2>
+            <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Start another plan to keep receiving short lessons.</p>
             <button
               type="button"
               disabled={createProgram.isPending}
@@ -604,7 +680,7 @@ export default function LearnSomethingNewPage() {
               data-testid="button-learn-start-another-week"
             >
               <RotateCcw size={17} />
-              Start another week
+              Start another plan
             </button>
           </section>
         )}

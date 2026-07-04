@@ -58,6 +58,8 @@ const program = {
   status: "active",
   interests: ["science"],
   pace: "gentle",
+  frequency: "daily",
+  durationWeeks: 1,
   dailyTime: "09:00",
   lessonLengthMinutes: 3,
   language: "en",
@@ -109,7 +111,7 @@ afterEach(() => {
 });
 
 describe("LearnSomethingNewPage", () => {
-  it("starts a 7-day program from the wizard", async () => {
+  it("starts a learning program with the chosen rhythm", async () => {
     mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ program }),
@@ -126,6 +128,8 @@ describe("LearnSomethingNewPage", () => {
     fireEvent.click(screen.getByTestId("button-learn-interest-science"));
     fireEvent.click(screen.getByText("Next"));
     fireEvent.click(screen.getByText("Next"));
+    fireEvent.click(screen.getByTestId("button-learn-frequency-three_times_week"));
+    fireEvent.click(screen.getByTestId("button-learn-duration-4"));
     fireEvent.change(screen.getByTestId("input-learn-daily-time"), { target: { value: "10:30" } });
     fireEvent.click(screen.getByTestId("button-learn-start-program"));
 
@@ -134,6 +138,8 @@ describe("LearnSomethingNewPage", () => {
       body: JSON.stringify({
         interests: ["science"],
         pace: "gentle",
+        frequency: "three_times_week",
+        durationWeeks: 4,
         dailyTime: "10:30",
         lessonLengthMinutes: 3,
       }),

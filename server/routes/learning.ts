@@ -12,9 +12,10 @@ import {
   scheduledEvents,
 } from "../../shared/schema.js";
 import {
-  LEARNING_PROGRAM_DAYS,
   addDays,
+  inferLearningProgramRhythm,
   isoDateKey,
+  learningProgramSessionOffsets,
   normalizeLearningLanguage,
   normalizeLearningPreferences,
   selectLessonsForLearningProgram,
@@ -25,6 +26,8 @@ import {
 const programCreateSchema = z.object({
   interests: z.array(z.string()).optional().default(["general_knowledge"]),
   pace: z.enum(["gentle", "steady", "curious"]).optional().default("gentle"),
+  frequency: z.enum(["daily", "three_times_week", "weekly"]).optional().default("daily"),
+  durationWeeks: z.union([z.literal(1), z.literal(4), z.literal(12)]).optional().default(1),
   dailyTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional().default("09:00"),
   lessonLengthMinutes: z.number().int().min(1).max(8).optional().default(3),
 });
@@ -97,11 +100,14 @@ function serializeProgramItem(row: ProgramItemWithLesson) {
 function serializeProgram(row: LearningProgramRow, items: ProgramItemWithLesson[]) {
   const sorted = [...items].sort((a, b) => a.programDay - b.programDay);
   const completedCount = sorted.filter((item) => item.status === "completed" || item.completedAt).length;
+  const rhythm = inferLearningProgramRhythm(sorted.map((item) => item.scheduledDate));
   return {
     id: row.id,
     status: row.status,
     interests: row.interests ?? [],
     pace: row.pace,
+    frequency: rhythm.frequency,
+    durationWeeks: rhythm.durationWeeks,
     dailyTime: row.dailyTime,
     lessonLengthMinutes: row.lessonLengthMinutes,
     language: row.language,
@@ -264,6 +270,7 @@ async function createLearningProgramHandler(req: Request, res: Response) {
       ...parsed.data,
       language: profile.language,
     }, activeCategorySlugs);
+    const sessionOffsets = learningProgramSessionOffsets(preferences.frequency, preferences.durationWeeks);
     const recentCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const [lessonRows, recentRows] = await Promise.all([
@@ -289,16 +296,16 @@ async function createLearningProgramHandler(req: Request, res: Response) {
       allowedInterests: activeCategorySlugs,
       language: preferences.language,
       recentlyCompletedLessonIds: recentRows.map((row) => row.lessonId),
-      days: LEARNING_PROGRAM_DAYS,
+      days: sessionOffsets.length,
     });
 
-    if (selectedLessons.length < LEARNING_PROGRAM_DAYS) {
-      return res.status(409).json({ error: "At least seven published learning lessons are required to create a program." });
+    if (selectedLessons.length < sessionOffsets.length) {
+      return res.status(409).json({ error: "More published learning lessons are required to create this program." });
     }
 
     const start = new Date();
     const startDate = isoDateKey(start);
-    const endDate = isoDateKey(addDays(utcDateFromKey(startDate), LEARNING_PROGRAM_DAYS - 1));
+    const endDate = isoDateKey(addDays(utcDateFromKey(startDate), sessionOffsets[sessionOffsets.length - 1] ?? 0));
 
     const result = await db.transaction(async (tx) => {
       await tx
@@ -326,7 +333,7 @@ async function createLearningProgramHandler(req: Request, res: Response) {
         userId: req.user!.id,
         lessonId: lesson.id,
         programDay: index + 1,
-        scheduledDate: isoDateKey(addDays(utcDateFromKey(startDate), index)),
+        scheduledDate: isoDateKey(addDays(utcDateFromKey(startDate), sessionOffsets[index] ?? index)),
         status: "recommended",
       }));
       const items = await tx.insert(learningProgramItems).values(itemRows).returning();
