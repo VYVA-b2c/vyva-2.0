@@ -31,6 +31,7 @@ import { adminRouter } from "./routes/admin.js";
 import adminSocialRoomsRouter from "./routes/adminSocialRooms.js";
 import adminConciergeShoppingRouter from "./routes/adminConciergeShopping.js";
 import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
+import adminCognitiveAssessmentRouter from "./routes/adminCognitiveAssessment.js";
 import adminLearningRouter from "./routes/adminLearning.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
 import intakeRouter from "./routes/intake.js";
@@ -185,6 +186,7 @@ app.use("/api/admin/lifecycle", authMiddleware, requireAdminUser, adminLifecycle
 app.use("/api/admin/social", authMiddleware, requireAdminUser, adminSocialRoomsRouter);
 app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, adminConciergeShoppingRouter);
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);
+app.use("/api/admin/cognitive-assessment", authMiddleware, requireAdminUser, adminCognitiveAssessmentRouter);
 app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);

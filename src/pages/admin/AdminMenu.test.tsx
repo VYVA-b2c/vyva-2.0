@@ -24,12 +24,15 @@ describe("AdminMenu", () => {
     authEmail = "ops@example.com";
   });
 
-  it("links admins to the Curious Minds content review page", () => {
-    renderMenu("/admin/curious-minds");
+  it("links admins to content review and cognitive assessment separately", () => {
+    renderMenu("/admin/content-review");
 
-    const contentReviewLink = screen.getByRole("link", { name: /content review.*curious minds drafts/i });
-    expect(contentReviewLink).toHaveAttribute("href", "/admin/curious-minds");
+    const contentReviewLink = screen.getByRole("link", { name: /content review.*curious minds and scent drafts/i });
+    expect(contentReviewLink).toHaveAttribute("href", "/admin/content-review");
     expect(contentReviewLink).toHaveAttribute("aria-current", "page");
+
+    expect(screen.getByRole("link", { name: /cognitive assessment.*cognitive compass upload/i }))
+      .toHaveAttribute("href", "/admin/cognitive-assessment");
   });
 
   it("keeps the Admins tab super-admin only", () => {

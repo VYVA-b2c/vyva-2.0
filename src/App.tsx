@@ -123,6 +123,7 @@ const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdmin
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
+const CognitiveAssessmentAdminPage = lazy(() => import("./pages/admin/CognitiveAssessmentAdminPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
 const CuratedActivitiesAdminPage = lazy(() => import("./pages/admin/CuratedActivitiesAdminPage"));
 
@@ -572,6 +573,7 @@ const App = () => (
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/content-review" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
+                <Route path="/admin/cognitive-assessment" element={<AdminRoute><CognitiveAssessmentAdminPage /></AdminRoute>} />
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route path="/admin/curated-activities" element={<AdminRoute><CuratedActivitiesAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>

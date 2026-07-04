@@ -15,17 +15,6 @@ vi.mock("@/contexts/AuthContext", () => ({
   }),
 }));
 
-const tMock = (_key: string, fallback?: string, values?: Record<string, string | number>) => {
-  const text = fallback ?? _key;
-  return text.replace("{n}", String(values?.n ?? ""));
-};
-
-vi.mock("@/i18n", () => ({
-  useLanguage: () => ({
-    t: tMock,
-  }),
-}));
-
 const apiFetchMock = vi.mocked(apiFetch);
 
 const hookDrafts = [
@@ -99,7 +88,14 @@ describe("CuriousMindsReviewPage", () => {
 
     const readyCard = within(list).getByTestId("curious-review-card-hook-ready");
     for (const check of ["factuallyAccurate", "warmTone", "naturalLanguage", "safeContent", "notPatronising"]) {
-      fireEvent.click(within(readyCard).getByLabelText(check));
+      const labels: Record<string, string> = {
+        factuallyAccurate: "Factually accurate",
+        warmTone: "Warm, conversational tone",
+        naturalLanguage: "Culturally natural for the target language",
+        safeContent: "No distressing, political, religious, or medical content",
+        notPatronising: "Not patronising to an intelligent older adult",
+      };
+      fireEvent.click(within(readyCard).getByLabelText(labels[check]));
     }
 
     fireEvent.click(screen.getByTestId("curious-review-queue-ready"));
