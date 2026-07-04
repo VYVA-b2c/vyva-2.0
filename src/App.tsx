@@ -532,6 +532,8 @@ const App = () => (
                     <Routes>
                 <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/caregiver/login" element={<LoginPage />} />
+                <Route path="/caregiver/register" element={<LoginPage />} />
                 <Route path="/invite" element={<InviteLandingPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />

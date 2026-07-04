@@ -67,6 +67,8 @@ function renderInvitePage(initialEntry = "/care-team/invite/token-123") {
       <Routes>
         <Route path="/care-team/invite/:token" element={<CareTeamInvitePage />} />
         <Route path="/login" element={<LocationSpy />} />
+        <Route path="/caregiver/login" element={<LocationSpy />} />
+        <Route path="/caregiver/register" element={<LocationSpy />} />
         <Route path="/caregiver" element={<LocationSpy />} />
       </Routes>
     </MemoryRouter>,
@@ -106,11 +108,11 @@ describe("CareTeamInvitePage", () => {
 
     expect(screen.getByRole("link", { name: "Create caregiver account" })).toHaveAttribute(
       "href",
-      "/login?mode=register&returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
+      "/caregiver/register?returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
     );
     expect(screen.getByRole("link", { name: "Sign in with existing account" })).toHaveAttribute(
       "href",
-      "/login?mode=login&returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
+      "/caregiver/login?returnTo=%2Fcare-team%2Finvite%2Ftoken-123",
     );
   });
 
