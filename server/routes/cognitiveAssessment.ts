@@ -201,6 +201,12 @@ function scoreLabel(data: Record<string, unknown>) {
   return max === null ? `${score}` : `${score}/${max}`;
 }
 
+function taskScoreLabel(row: ResponseRow) {
+  const data = objectData(row.response_data);
+  if (row.task_definition_id.includes("story_recall")) return null;
+  return scoreLabel(data);
+}
+
 function taskDetail(row: ResponseRow) {
   const data = objectData(row.response_data);
   const taskId = row.task_definition_id;
@@ -208,8 +214,8 @@ function taskDetail(row: ResponseRow) {
   if (taskId.includes("story_recall")) {
     const units = arrayLength(data, ["idea_units_recalled", "recalled_idea_units", "matched_idea_units"]);
     const words = numberValue(data, ["word_count"]);
-    if (words !== null) return `${words} words saved.`;
-    return units === null ? "Story response saved." : `${units} story details recalled.`;
+    if (words !== null) return `${words} words recalled in free text.`;
+    return units === null ? "Story recall response captured." : `${units} story details recalled.`;
   }
 
   if (taskId === "orientation") {
@@ -259,14 +265,13 @@ function taskDetail(row: ResponseRow) {
 }
 
 function buildTaskSummary(row: ResponseRow): CognitiveAssessmentTaskSummary {
-  const data = objectData(row.response_data);
   return {
     taskId: row.task_definition_id,
     label: TASK_LABELS[row.task_definition_id] ?? row.task_definition_id.replace(/_/g, " "),
     domain: DOMAIN_LABELS[row.domain ?? ""] ?? row.domain ?? "Assessment",
     status: row.completed_at ? "completed" : "started",
     detail: taskDetail(row),
-    scoreLabel: scoreLabel(data),
+    scoreLabel: taskScoreLabel(row),
   };
 }
 
