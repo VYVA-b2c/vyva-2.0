@@ -451,6 +451,10 @@ const en = {
       pauseVyva: "Pause VYVA",
       connectingVyva: "Connecting...",
       cards: {
+        feelBetter: "Feel Better",
+        myMedication: "My Medication",
+        myVitals: "My Vitals",
+        stayWell: "Stay Well",
         plan: "Care plan",
         vitals: "Vitals",
         vitalsAdd: "Add",
