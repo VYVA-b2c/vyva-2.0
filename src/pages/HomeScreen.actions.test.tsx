@@ -207,8 +207,7 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes, thinking");
     expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, matches, activities");
     expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
-    expect(screen.getByTestId("home-start-nudge")).toHaveTextContent("Not sure where to start?");
-    expect(screen.getByTestId("home-start-nudge")).toHaveTextContent("Ask VYVA");
+    expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
   });
 
   it("uses live signals for concise pillar card nudges", () => {
@@ -250,12 +249,12 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("2 tasks");
   });
 
-  it("opens VYVA chat from the Home nudge", () => {
+  it("does not render the legacy Home chat nudge", () => {
     render(<HomeScreen />);
 
-    fireEvent.click(screen.getByTestId("home-start-nudge"));
-
-    expect(guardPathMock).toHaveBeenCalledWith("/chat", undefined);
+    expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(guardPathMock).not.toHaveBeenCalledWith("/chat", undefined);
   });
 
   it("renders three visible rotating Fast help actions", () => {
