@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MindMemoryScreen from "./MindMemoryScreen";
 
 const guardPathMock = vi.hoisted(() => vi.fn());
@@ -46,21 +46,25 @@ describe("MindMemoryScreen", () => {
     guardPathMock.mockClear();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders the approved pillar layout", () => {
     renderMindMemory();
 
     expect(screen.getByTestId("mind-memory-master-hero")).toHaveTextContent("Mind check ready");
     expect(screen.getByTestId("card-mind-memory-strengthen-memory")).toHaveTextContent("Strengthen Memory");
     expect(screen.getByTestId("card-mind-memory-train-reflexes")).toHaveTextContent("Train Reflexes");
-    expect(screen.getByTestId("card-mind-memory-improve-thinking")).toHaveTextContent("Improve Thinking");
+    expect(screen.getByTestId("card-mind-memory-boost-focus")).toHaveTextContent("Boost Focus");
     expect(screen.getByTestId("card-mind-memory-sharpen-senses")).toHaveTextContent("Sharpen Senses");
     expect(screen.queryByTestId("card-mind-memory-sleep")).not.toBeInTheDocument();
 
     const fastHelp = screen.getByTestId("mind-memory-fast-help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-mind-memory-fast-confusion-now")).toHaveTextContent("Confusion now");
-    expect(screen.getByTestId("button-mind-memory-fast-talk-caregiver")).toHaveTextContent("Talk to caregiver");
-    expect(screen.getByTestId("button-mind-memory-fast-daily-mind-routine")).toHaveTextContent("Daily mind routine");
+    expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
+    expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
+    expect(screen.getByTestId("button-mind-memory-fast-memory-check")).toHaveTextContent("Memory Check");
   });
 
   it("uses existing cognitive routes", () => {
@@ -80,7 +84,7 @@ describe("MindMemoryScreen", () => {
   it("routes the thinking card", () => {
     renderMindMemory();
 
-    fireEvent.click(screen.getByTestId("card-mind-memory-improve-thinking"));
+    fireEvent.click(screen.getByTestId("card-mind-memory-boost-focus"));
     expect(screen.getByTestId("current-route")).toHaveTextContent("/executive-function");
   });
 
@@ -91,11 +95,28 @@ describe("MindMemoryScreen", () => {
     expect(screen.getByTestId("current-route")).toHaveTextContent("/senses");
   });
 
-  it("routes the daily mind routine from fast help", () => {
+  it("routes calm breathing from fast help", () => {
     renderMindMemory();
 
-    fireEvent.click(screen.getByTestId("button-mind-memory-fast-daily-mind-routine"));
+    fireEvent.click(screen.getByTestId("button-mind-memory-fast-relax-breathe"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/activities/relax-breathe");
+  });
+
+  it("rotates through the full final Fast help set", () => {
+    vi.useFakeTimers();
+    renderMindMemory();
+
+    expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
+    expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
+    expect(screen.getByTestId("button-mind-memory-fast-memory-check")).toHaveTextContent("Memory Check");
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+
+    expect(screen.getByTestId("button-mind-memory-fast-play-game")).toHaveTextContent("Play Game");
+    expect(screen.getByTestId("button-mind-memory-fast-listen-closely")).toHaveTextContent("Listen Closely");
+    expect(screen.getByTestId("button-mind-memory-fast-calm-focus")).toHaveTextContent("Calm Focus");
   });
 });
