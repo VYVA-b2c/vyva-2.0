@@ -1010,6 +1010,51 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("opens voice ride handoffs on the transport card with known details", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        voiceActionPayload: {
+          destination: "Doctor",
+          time: "tomorrow morning",
+          mobility_needs: "walker",
+        },
+        conciergePrefill: {
+          kind: "ride",
+          message: "Book me a ride to the doctor tomorrow morning. Prepare the next step and ask me to confirm before acting.",
+          source: "voice_action",
+        },
+      },
+    }]);
+
+    const panel = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(panel).toHaveTextContent("Transport options");
+    expect(screen.getByTestId("panel-concierge-transport")).toHaveTextContent("Transport options");
+    expect(screen.getByDisplayValue("Doctor")).toBeVisible();
+    expect(panel).toHaveTextContent("tomorrow morning");
+    expect(panel).toHaveTextContent("Walker or cane");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("null");
+  });
+
+  it("ignores malformed voice ride route state without blanking Concierge", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "ride",
+        },
+      },
+    }]);
+
+    expect(await screen.findByTestId("concierge-master-layout")).toBeVisible();
+    expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
+    expect(screen.getByTestId("route-state")).toHaveTextContent("null");
+  });
+
   it("replaces an open home service assistant when the ride card is tapped", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));

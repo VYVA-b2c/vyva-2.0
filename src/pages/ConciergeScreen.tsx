@@ -87,13 +87,88 @@ type ConciergeRoutePrefill = {
 };
 
 type ConciergeLocationState = {
-  conciergePrefill?: ConciergeRoutePrefill;
+  conciergePrefill?: unknown;
+  voiceActionPayload?: Record<string, unknown>;
 } | null;
 
 type RoutePrefillHighlight = {
   label: string;
   value: string;
 };
+
+const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote", "task"] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isConciergeRoutePrefillKind(value: unknown): value is ConciergeRoutePrefill["kind"] {
+  return typeof value === "string" && CONCIERGE_ROUTE_PREFILL_KINDS.includes(value as ConciergeRoutePrefill["kind"]);
+}
+
+function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | null {
+  if (!isRecord(value) || !isConciergeRoutePrefillKind(value.kind) || typeof value.message !== "string") {
+    return null;
+  }
+
+  const message = value.message.trim();
+  if (!message) return null;
+  return {
+    kind: value.kind,
+    message,
+    source: typeof value.source === "string" ? value.source as ConciergeRoutePrefill["source"] : undefined,
+  };
+}
+
+function routePayloadString(state: ConciergeLocationState, key: string) {
+  const value = state?.voiceActionPayload?.[key];
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function inferRideDestinationFromMessage(message: string) {
+  const normalized = message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const match = normalized.match(/\b(?:ride|taxi|cab|transport|uber|lift|take me|pick me up|llevarme|recogerme)\s+(?:to|towards|at|a|al|hasta)\s+(?:the\s+|el\s+|la\s+)?(.+?)(?:\s+(?:tomorrow|manana|today|hoy|tonight|esta noche|now|ahora|morning|afternoon|evening|night|por la manana|por la tarde|at|around)\b|[.?!]|$)/i)
+    || normalized.match(/\b(?:to|towards|at|al|hasta)\s+(?:the\s+|el\s+|la\s+)?(.+?)(?:\s+(?:tomorrow|manana|today|hoy|tonight|esta noche|now|ahora|morning|afternoon|evening|night|por la manana|por la tarde|at|around)\b|[.?!]|$)/i);
+  return match?.[1]
+    ?.replace(/\b(?:please|thanks|thank you|por favor|gracias|prepare)\b.*$/i, "")
+    .replace(/^(?:the|a|an|el|la)\s+/i, "")
+    .trim() || "";
+}
+
+function inferRideTimeFromMessage(message: string) {
+  const normalized = message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (/\btomorrow morning\b|\bmanana por la manana\b/.test(normalized)) return "tomorrow morning";
+  if (/\btomorrow afternoon\b|\bmanana por la tarde\b/.test(normalized)) return "tomorrow afternoon";
+  if (/\btomorrow\b|\bmanana\b/.test(normalized)) return "tomorrow";
+  if (/\btonight\b|\besta noche\b/.test(normalized)) return "tonight";
+  if (/\btoday\b|\bhoy\b/.test(normalized)) return "today";
+  if (/\bnow\b|\bright now\b|\bahora\b/.test(normalized)) return "now";
+  return "";
+}
+
+function splitRoutePayloadList(value: string) {
+  return value
+    .split(",")
+    .map((item) => {
+      const trimmed = item.trim();
+      const normalized = trimmed.toLowerCase();
+      if (/wheelchair|silla de ruedas/.test(normalized)) return "Wheelchair access";
+      if (/walker|cane|andador|baston/.test(normalized)) return "Walker or cane";
+      if (/door|getting in|getting out|subir|bajar|puerta/.test(normalized)) return "Help to the door";
+      if (/caregiver|carer|cuidador/.test(normalized)) return "Caregiver coming";
+      if (/low walking|short walk|caminar poco/.test(normalized)) return "Low walking distance";
+      return trimmed;
+    })
+    .filter(Boolean);
+}
 
 type ConciergeOnboardingState = {
   profile?: {
@@ -2226,10 +2301,7 @@ const ConciergeScreen = () => {
       });
       setTransportMobilityNeeds((current) => {
         if (current.length > 0) return current;
-        return conciergeVoiceMobilityNeeds
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
+        return splitRoutePayloadList(conciergeVoiceMobilityNeeds);
       });
       setTransportResult(null);
       setTransportError(null);
@@ -2285,10 +2357,15 @@ const ConciergeScreen = () => {
   ]);
 
   useEffect(() => {
-    const prefill = (location.state as ConciergeLocationState)?.conciergePrefill;
-    if (!prefill) return;
-    const message = prefill.message.trim();
-    if (!message) return;
+    const routeState = location.state as ConciergeLocationState;
+    const prefill = coerceConciergeRoutePrefill(routeState?.conciergePrefill);
+    if (!prefill) {
+      if (routeState?.conciergePrefill) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+      return;
+    }
+    const message = prefill.message;
     const prefillKey = `${prefill.kind}:${message}`;
     if (lastRoutePrefillKeyRef.current === prefillKey) return;
 
@@ -2300,12 +2377,20 @@ const ConciergeScreen = () => {
     setAppointmentOpen(prefill.kind === "appointment");
     setAppointmentNote((current) => current.trim() ? current : message);
     if (prefill.kind === "ride") {
-      setTransportPickup((current) => current.trim() ? current : savedTransportPickupLabel);
+      const routePickup = routePayloadString(routeState, "pickup");
+      const routeDestination = routePayloadString(routeState, "destination") || inferRideDestinationFromMessage(message);
+      const routeTime = routePayloadString(routeState, "time")
+        || routePayloadString(routeState, "requested_time")
+        || inferRideTimeFromMessage(message);
+      const routeMobilityNeeds = splitRoutePayloadList(routePayloadString(routeState, "mobility_needs"));
+      setTransportPickup(routePickup || savedTransportPickupLabel);
+      setTransportDestination(routeDestination);
       setTransportResult(null);
       setTransportError(null);
       setTransportNotice(null);
-      setTransportTime("now");
-      setTransportDetailsOpen(false);
+      setTransportTime(routeTime || "now");
+      setTransportMobilityNeeds(routeMobilityNeeds);
+      setTransportDetailsOpen(Boolean(routePickup || routeTime || routeMobilityNeeds.length));
     }
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);

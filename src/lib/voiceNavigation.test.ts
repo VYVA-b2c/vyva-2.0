@@ -86,7 +86,7 @@ describe("voice navigation actions", () => {
     expect(action?.actionType).toBe("concierge.ride_booking");
     expect(action?.route).toBe("/concierge");
     expect(action?.domain).toBe("concierge");
-    expect(action?.payload).toMatchObject({ task_type: "ride", time: "tomorrow morning" });
+    expect(action?.payload).toMatchObject({ task_type: "ride", destination: "doctor", time: "tomorrow morning" });
     expect(action?.requiresConfirmation).toBe(true);
   });
 
@@ -155,6 +155,22 @@ describe("voice navigation actions", () => {
     expect(action?.actionType).toBe("meds.inventory_report");
     expect(action?.route).toBe("/meds/adherence-report");
     expect(action?.payload?.medication_name).toBe("ibuprofen");
+  });
+
+  it("infers ride actions from ambiguous Concierge tool calls", () => {
+    const action = actionForVoiceToolCall({
+      route: "/concierge",
+      domain: "concierge",
+      source_text: "Book me a ride to the doctor tomorrow morning",
+    });
+
+    expect(action?.actionType).toBe("concierge.ride_booking");
+    expect(action?.route).toBe("/concierge");
+    expect(action?.payload).toMatchObject({
+      task_type: "ride",
+      destination: "doctor",
+      time: "tomorrow morning",
+    });
   });
 
   it("rejects unrecognised app action routes from tool parameters", () => {
