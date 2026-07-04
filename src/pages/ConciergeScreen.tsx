@@ -3310,15 +3310,6 @@ const ConciergeScreen = () => {
       testId: "button-concierge-fast-fill-form",
     },
     {
-      id: "book-ride",
-      icon: Car,
-      label: t("concierge.master.fastHelp.bookRide", "Book Ride"),
-      detail: t("concierge.master.fastHelp.bookRideDetail", "Transport help"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => prepareRideRequest(undefined, "now"),
-      testId: "button-concierge-fast-book-ride",
-    },
-    {
       id: "find-plumber",
       icon: Wrench,
       label: t("concierge.master.fastHelp.findPlumber", "Find Plumber"),
@@ -3326,6 +3317,15 @@ const ConciergeScreen = () => {
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
       onClick: openHomeServiceAssistant,
       testId: "button-concierge-fast-home-service",
+    },
+    {
+      id: "book-ride",
+      icon: Car,
+      label: t("concierge.master.fastHelp.bookRide", "Book Ride"),
+      detail: t("concierge.master.fastHelp.bookRideDetail", "Transport help"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => prepareRideRequest(undefined, "now"),
+      testId: "button-concierge-fast-book-ride",
     },
     {
       id: "order-groceries",

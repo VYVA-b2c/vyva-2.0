@@ -713,24 +713,6 @@ const SocialHub = () => {
       testId: "button-social-fast-help-bring-song",
     },
     {
-      id: "reading-corner",
-      icon: BookOpen,
-      label: t("community.master.fastHelp.readingCorner", "Reading Corner"),
-      detail: t("community.master.fastHelp.readingCornerDetail", "Quiet stories"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => openRoom("reading-room"),
-      testId: "button-social-fast-help-reading-corner",
-    },
-    {
-      id: "move-together",
-      icon: Footprints,
-      label: t("community.master.fastHelp.moveTogether", "Move Together"),
-      detail: t("community.master.fastHelp.moveTogetherDetail", "Gentle activity"),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => openRoom("morning-movement"),
-      testId: "button-social-fast-help-move-together",
-    },
-    {
       id: "cook-together",
       icon: ChefHat,
       label: t("community.master.fastHelp.cookTogether", "Cook Together"),
@@ -749,6 +731,15 @@ const SocialHub = () => {
       testId: "button-social-fast-help-garden-chat",
     },
     {
+      id: "reading-corner",
+      icon: BookOpen,
+      label: t("community.master.fastHelp.readingCorner", "Reading Corner"),
+      detail: t("community.master.fastHelp.readingCornerDetail", "Quiet stories"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => openRoom("reading-room"),
+      testId: "button-social-fast-help-reading-corner",
+    },
+    {
       id: "light-game",
       icon: Gamepad2,
       label: t("community.master.fastHelp.lightGame", "Light Game"),
@@ -756,6 +747,15 @@ const SocialHub = () => {
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
       onClick: () => openRoom("kitchen-table"),
       testId: "button-social-fast-help-light-game",
+    },
+    {
+      id: "move-together",
+      icon: Footprints,
+      label: t("community.master.fastHelp.moveTogether", "Move Together"),
+      detail: t("community.master.fastHelp.moveTogetherDetail", "Gentle activity"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
+      onClick: () => openRoom("morning-movement"),
+      testId: "button-social-fast-help-move-together",
     },
   ];
 

@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, BookOpen, Brain, BrainCircuit, Gamepad2, Headphones, MessageCircle, Puzzle, Users, Zap } from "lucide-react";
+import { Activity, BookOpen, Brain, BrainCircuit, Gamepad2, Headphones, MessageCircle, Puzzle, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import MasterDashboardLayout, {
@@ -30,13 +30,13 @@ export default function MindMemoryScreen() {
       testId: "card-mind-memory-train-reflexes",
     },
     {
-      id: "improve-thinking",
+      id: "boost-focus",
       icon: Puzzle,
-      title: t("mindMemory.cards.improveThinking", "Improve Thinking"),
-      detail: t("mindMemory.cards.improveThinkingDetail", "Challenge logic, planning, and problem solving."),
+      title: t("mindMemory.cards.boostFocus", "Boost Focus"),
+      detail: t("mindMemory.cards.boostFocusDetail", "Practice attention, planning, and problem solving."),
       tone: { iconBg: "#FFFBEB", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => navigate("/executive-function"),
-      testId: "card-mind-memory-improve-thinking",
+      testId: "card-mind-memory-boost-focus",
     },
     {
       id: "sharpen-senses",
@@ -50,42 +50,6 @@ export default function MindMemoryScreen() {
   ];
 
   const fastHelpActions: MasterFastHelpAction[] = [
-    {
-      id: "confusion-now",
-      icon: AlertTriangle,
-      label: t("mindMemory.fastHelp.confusionNow", "Confusion now"),
-      detail: t("mindMemory.fastHelp.confusionNowDetail", "Get safe next steps"),
-      tone: { iconBg: "#FFF1F2", iconColor: "#B91C1C", border: "#FECACA" },
-      onClick: () => navigate("/health/doctor", {
-        state: {
-          source: "mind_memory_confusion_now",
-          prefill: t(
-            "mindMemory.fastHelp.confusionNowPrefill",
-            "I feel confused or not like myself. Please help me work out safe next steps and when to get urgent help.",
-          ),
-        },
-      }),
-      testId: "button-mind-memory-fast-confusion-now",
-      pinned: true,
-    },
-    {
-      id: "talk-caregiver",
-      icon: Users,
-      label: t("mindMemory.fastHelp.talkCaregiver", "Talk to caregiver"),
-      detail: t("mindMemory.fastHelp.talkCaregiverDetail", "Open care support"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => navigate("/caregiver"),
-      testId: "button-mind-memory-fast-talk-caregiver",
-    },
-    {
-      id: "daily-mind-routine",
-      icon: Activity,
-      label: t("mindMemory.fastHelp.dailyMindRoutine", "Daily mind routine"),
-      detail: t("mindMemory.fastHelp.dailyMindRoutineDetail", "Focus and calm"),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => navigate("/activities/relax-breathe"),
-      testId: "button-mind-memory-fast-daily-mind-routine",
-    },
     {
       id: "relax-breathe",
       icon: Activity,

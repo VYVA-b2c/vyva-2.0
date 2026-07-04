@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SocialHub from "./SocialHub";
@@ -124,6 +124,7 @@ describe("SocialHub home-style layout", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -172,6 +173,23 @@ describe("SocialHub home-style layout", () => {
     expect(fastHelp).toHaveTextContent("Cook Together");
     expect(fastHelp).toHaveTextContent("Garden Chat");
     expect(screen.getAllByTestId(/^button-social-fast-help-/)).toHaveLength(3);
+  });
+
+  it("rotates through the full final Fast help set", () => {
+    vi.useFakeTimers();
+    renderSocialHub();
+
+    expect(screen.getByTestId("button-social-fast-help-bring-song")).toHaveTextContent("Bring Song");
+    expect(screen.getByTestId("button-social-fast-help-cook-together")).toHaveTextContent("Cook Together");
+    expect(screen.getByTestId("button-social-fast-help-garden-chat")).toHaveTextContent("Garden Chat");
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+
+    expect(screen.getByTestId("button-social-fast-help-reading-corner")).toHaveTextContent("Reading Corner");
+    expect(screen.getByTestId("button-social-fast-help-light-game")).toHaveTextContent("Light Game");
+    expect(screen.getByTestId("button-social-fast-help-move-together")).toHaveTextContent("Move Together");
   });
 
   it("opens room routes from Fast help", () => {

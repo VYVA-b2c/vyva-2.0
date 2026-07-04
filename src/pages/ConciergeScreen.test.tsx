@@ -136,6 +136,10 @@ function renderScreen(initialEntries: ComponentProps<typeof MemoryRouter>["initi
 }
 
 function showBookRideFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(9000);
+  });
   return screen.getByTestId("button-concierge-fast-book-ride");
 }
 
@@ -180,7 +184,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("concierge-fast-help")).toHaveTextContent("Fast help");
     expect(screen.getByTestId("button-concierge-fast-safe-home")).toHaveTextContent("Safe Home");
     expect(screen.getByTestId("button-concierge-fast-fill-form")).toHaveTextContent("Paperwork Help");
-    expect(screen.getByTestId("button-concierge-fast-book-ride")).toHaveTextContent("Book Ride");
+    expect(screen.getByTestId("button-concierge-fast-home-service")).toHaveTextContent("Find Plumber");
   });
 
   it("routes delivery through the shopping helper", async () => {
