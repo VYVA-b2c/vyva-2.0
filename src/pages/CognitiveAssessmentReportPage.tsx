@@ -29,18 +29,18 @@ import type {
 } from "../../shared/cognitiveAssessmentReport";
 
 const EXPECTED_REPORT_AREAS = [
-  { taskId: "orientation", label: "Orientation" },
-  { taskId: "story_recall_immediate", label: "Story recall" },
-  { taskId: "fluency_semantic", label: "Category fluency" },
-  { taskId: "fluency_phonemic", label: "Letter fluency" },
-  { taskId: "digit_span", label: "Digit span" },
-  { taskId: "similarities", label: "Similarities" },
-  { taskId: "clock_drawing", label: "Clock drawing" },
-  { taskId: "story_recall_delayed", label: "Delayed recall" },
-  { taskId: "mood_screen", label: "Mood check" },
-  { taskId: "sleep_energy", label: "Sleep and energy" },
-  { taskId: "function_iadl", label: "Daily function" },
-  { taskId: "subjective_concern", label: "Memory concern" },
+  { taskId: "orientation", label: "Orientation", domain: "Awareness" },
+  { taskId: "story_recall_immediate", label: "Story recall", domain: "Memory" },
+  { taskId: "fluency_semantic", label: "Category fluency", domain: "Language" },
+  { taskId: "fluency_phonemic", label: "Letter fluency", domain: "Language" },
+  { taskId: "digit_span", label: "Digit span", domain: "Attention" },
+  { taskId: "similarities", label: "Similarities", domain: "Reasoning" },
+  { taskId: "clock_drawing", label: "Clock drawing", domain: "Visual thinking" },
+  { taskId: "story_recall_delayed", label: "Delayed recall", domain: "Memory" },
+  { taskId: "mood_screen", label: "Mood check", domain: "Mood" },
+  { taskId: "sleep_energy", label: "Sleep and energy", domain: "Sleep" },
+  { taskId: "function_iadl", label: "Daily function", domain: "Daily function" },
+  { taskId: "subjective_concern", label: "Memory concern", domain: "Self concern" },
 ];
 
 function formatDate(value: string | null | undefined) {
@@ -89,6 +89,46 @@ function remainingAreaText(report: CognitiveAssessmentReport) {
   const shown = remaining.slice(0, 3).map((area) => area.label).join(", ");
   const extra = remaining.length > 3 ? `, plus ${remaining.length - 3} more` : "";
   return `${shown}${extra}`;
+}
+
+function shortList(items: string[], emptyText: string, max = 2) {
+  if (items.length === 0) return emptyText;
+  const shown = items.slice(0, max).join(", ");
+  const extra = items.length > max ? ` +${items.length - max}` : "";
+  return `${shown}${extra}`;
+}
+
+function remainingDomains(report: CognitiveAssessmentReport) {
+  const completed = new Set(completedDomains(report));
+  return Array.from(new Set(
+    remainingAreas(report)
+      .map((area) => area.domain)
+      .filter((domain) => !completed.has(domain)),
+  ));
+}
+
+function qualitativeSignalCount(report: CognitiveAssessmentReport) {
+  return report.sections.filter((section) => !visibleScoreLabel(section)).length;
+}
+
+function nextPriorityLabel(report: CognitiveAssessmentReport) {
+  return remainingAreas(report)[0]?.label ?? "Trend check";
+}
+
+function nextPriorityDetail(report: CognitiveAssessmentReport) {
+  const remaining = remainingAreas(report);
+  if (remaining.length === 0) return "Repeat later under similar conditions";
+  const next = remaining[0];
+  const after = remaining.slice(1, 3).map((area) => area.label);
+  return after.length
+    ? `Next: ${next.label}. Then ${after.join(" and ")}.`
+    : `Next: ${next.label}.`;
+}
+
+function coverageMeaning(report: CognitiveAssessmentReport) {
+  const remaining = Math.max(0, report.totalTasks - report.tasksCompleted);
+  if (remaining === 0) return "Ready to compare with future checks";
+  return `${remaining} step${remaining === 1 ? "" : "s"} left before a full baseline`;
 }
 
 function sectionInsight(section: CognitiveAssessmentTaskSummary) {
@@ -328,22 +368,32 @@ function MetricTile({
   label,
   value,
   detail,
+  insight,
   className,
+  valueClassName = "text-[27px] leading-none",
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   detail: string;
+  insight: string;
   className: string;
+  valueClassName?: string;
 }) {
   return (
-    <div className={`min-h-[132px] rounded-[24px] border p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)] ${className}`}>
-      <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-white/80">
-        {icon}
+    <div className={`min-h-[176px] rounded-[24px] border p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)] ${className}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white/80">
+          {icon}
+        </div>
+        <span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] opacity-75">
+          KPI
+        </span>
       </div>
       <p className="mt-3 text-xs font-black uppercase tracking-[0.1em] opacity-75">{label}</p>
-      <p className="mt-1 text-[27px] font-black leading-none">{value}</p>
+      <p className={`mt-1 font-black ${valueClassName}`}>{value}</p>
       <p className="mt-2 text-[12px] font-bold leading-snug opacity-80">{detail}</p>
+      <p className="mt-3 rounded-[14px] bg-white/70 px-3 py-2 text-[11px] font-black leading-snug opacity-90">{insight}</p>
     </div>
   );
 }
@@ -392,6 +442,8 @@ function ReportView({ report, title }: { report: CognitiveAssessmentReport; titl
   const percent = completionPercent(report);
   const domains = completedDomains(report);
   const scoreSignals = scoreSignalCount(report);
+  const qualitativeSignals = qualitativeSignalCount(report);
+  const missingDomains = remainingDomains(report);
   const remaining = remainingAreas(report);
   const takeaways = buildTakeaways(report);
   const snapshotCopy = report.tasksCompleted >= report.totalTasks
@@ -432,31 +484,36 @@ function ReportView({ report, title }: { report: CognitiveAssessmentReport; titl
         <div className="grid grid-cols-2 gap-3">
           <MetricTile
             icon={<ClipboardList size={22} />}
-            label="Steps saved"
-            value={`${report.tasksCompleted}/${report.totalTasks}`}
-            detail={report.overview}
+            label="Baseline coverage"
+            value={`${percent}%`}
+            detail={`${report.tasksCompleted} of ${report.totalTasks} steps saved`}
+            insight={coverageMeaning(report)}
             className="border-[#DDD6FE] bg-[#F5F3FF] text-[#5B21B6]"
           />
           <MetricTile
             icon={<Activity size={22} />}
-            label="Areas touched"
+            label="Domain breadth"
             value={`${domains.length}`}
-            detail={domains.length ? domains.join(", ") : "No domains yet"}
+            detail={shortList(domains, "No domains captured yet", 3)}
+            insight={missingDomains.length ? `Still needs ${shortList(missingDomains, "more context", 2)}` : "All planned domains represented"}
             className="border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]"
           />
           <MetricTile
             icon={<BarChart3 size={22} />}
-            label="Score signals"
-            value={`${scoreSignals}`}
-            detail="Structured counts or scores available today"
+            label="Evidence depth"
+            value={`${scoreSignals}/${report.sections.length || 0}`}
+            detail={`${scoreSignals} scored, ${qualitativeSignals} qualitative`}
+            insight="Use scores with notes, not as a standalone verdict"
             className="border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
           />
           <MetricTile
             icon={<Target size={22} />}
-            label="Still missing"
-            value={`${remaining.length}`}
-            detail={remaining.length ? remainingAreaText(report) : "Ready for comparison later"}
+            label="Next priority"
+            value={nextPriorityLabel(report)}
+            detail={remaining.length ? `${remaining.length} step${remaining.length === 1 ? "" : "s"} remaining` : "No missing areas"}
+            insight={nextPriorityDetail(report)}
             className="border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
+            valueClassName="text-[21px] leading-tight"
           />
         </div>
 

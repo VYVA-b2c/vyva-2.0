@@ -77,7 +77,13 @@ describe("CognitiveAssessmentReportPage", () => {
     renderReport();
 
     expect(screen.getByText("Early snapshot")).toBeInTheDocument();
-    expect(screen.getByText("17%")).toBeInTheDocument();
+    expect(screen.getAllByText("17%").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Baseline coverage")).toBeInTheDocument();
+    expect(screen.getByText("Domain breadth")).toBeInTheDocument();
+    expect(screen.getByText("Evidence depth")).toBeInTheDocument();
+    expect(screen.getByText("Next priority")).toBeInTheDocument();
+    expect(screen.getByText("10 steps left before a full baseline")).toBeInTheDocument();
+    expect(screen.getByText("1 scored, 1 qualitative")).toBeInTheDocument();
     expect(screen.getByText("Key takeaways")).toBeInTheDocument();
     expect(screen.getByText(/10 planned steps still need to be completed/)).toBeInTheDocument();
     expect(screen.getByText("What would make this more useful")).toBeInTheDocument();
