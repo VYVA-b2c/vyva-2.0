@@ -226,11 +226,10 @@ describe("CuratedActivitiesAdminPage", () => {
     renderPage();
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
-    fireEvent.change(screen.getByTestId("admin-discovery-city"), { target: { value: "Valencia" } });
-    fireEvent.change(screen.getByTestId("admin-discovery-locality"), { target: { value: "Ruzafa, Gran Via" } });
+    fireEvent.click(screen.getByTestId("admin-discovery-city-option-valencia"));
     fireEvent.change(screen.getByTestId("admin-discovery-postal-code"), { target: { value: "46006" } });
     fireEvent.change(screen.getByTestId("admin-discovery-radius"), { target: { value: "3" } });
-    fireEvent.change(screen.getByTestId("admin-discovery-venue-hints"), { target: { value: "libraries, neighbourhood parks" } });
+    fireEvent.click(screen.getByTestId("admin-discovery-venue-neighbourhood-parks"));
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
 
     expect(await screen.findByTestId("admin-discovery-preview")).toBeInTheDocument();
@@ -241,16 +240,17 @@ describe("CuratedActivitiesAdminPage", () => {
       path === "/api/admin/social/participate/discover" && init?.method === "POST"
     ));
     expect(discoverCall).toBeTruthy();
-    expect(JSON.parse(String(discoverCall?.[1]?.body))).toMatchObject({
+    const body = JSON.parse(String(discoverCall?.[1]?.body));
+    expect(body).toMatchObject({
       city: "Valencia",
       countryCode: "ES",
       locality: "Ruzafa, Gran Via",
       postalCode: "46006",
       radiusKm: 3,
-      venueHints: ["libraries", "neighbourhood parks"],
       format: "nearby",
       maxResults: 6,
     });
+    expect(body.venueHints).toEqual(expect.arrayContaining(["libraries", "cultural centres", "neighbourhood parks"]));
   });
 
   it("saves only checked AI candidates as draft review items", async () => {
@@ -299,7 +299,7 @@ describe("CuratedActivitiesAdminPage", () => {
     fireEvent.change(screen.getAllByLabelText("Title EN")[0], { target: { value: "Valencia art hour" } });
     fireEvent.change(screen.getAllByLabelText("Title ES")[0], { target: { value: "Arte en Valencia" } });
     fireEvent.change(screen.getAllByLabelText("Title DE")[0], { target: { value: "Kunst in Valencia" } });
-    fireEvent.change(screen.getAllByLabelText("City")[1], { target: { value: "Valencia" } });
+    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Valencia" } });
     fireEvent.click(screen.getByRole("button", { name: /Add event/ }));
 
     await waitFor(() => {
@@ -319,7 +319,7 @@ describe("CuratedActivitiesAdminPage", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: /Save event/ }).length).toBeGreaterThan(1);
     });
-    fireEvent.change(screen.getAllByLabelText("City")[2], { target: { value: "Barcelona" } });
+    fireEvent.change(screen.getByDisplayValue("Valencia"), { target: { value: "Barcelona" } });
     fireEvent.click(screen.getAllByRole("button", { name: /Save event/ })[0]);
 
     await waitFor(() => {
