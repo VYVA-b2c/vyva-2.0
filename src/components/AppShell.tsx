@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, MicOff, PhoneCall, UserRound, X } from "lucide-react";
+import { AlertCircle, Mic, MicOff, PhoneCall, UserRound, X } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
@@ -317,9 +317,9 @@ const VoiceSessionDock = ({
             data-testid="button-dock-toggle-mic"
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E9D5FF] bg-[#F7F0FF] font-body text-vyva-purple shadow-sm transition active:scale-95"
             aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
-            title="Mic off"
+            title={isMicMuted ? "Mic off" : "Mic on"}
           >
-            <MicOff size={19} />
+            {isMicMuted ? <MicOff size={19} /> : <Mic size={19} />}
           </button>
         )}
         <button

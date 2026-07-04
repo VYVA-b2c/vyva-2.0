@@ -418,6 +418,7 @@
     "listening": "Listening...",
     "connecting": "Connecting...",
     "micOffShort": "Mic off",
+    "micOnShort": "Mic on",
     "touchInsteadShort": "Touch",
     "active": "Active",
     "live": "Live",
