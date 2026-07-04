@@ -69,13 +69,13 @@ export default function MindMemoryScreen() {
       testId: "button-mind-memory-fast-learn-words",
     },
     {
-      id: "memory-check",
+      id: "cognitive-assessment",
       icon: Brain,
-      label: t("mindMemory.fastHelp.memoryCheck", "Memory Check"),
-      detail: t("mindMemory.fastHelp.memoryCheckDetail", "Recall practice"),
+      label: t("mindMemory.fastHelp.cognitiveAssessment", "Cognitive Assessment"),
+      detail: t("mindMemory.fastHelp.cognitiveAssessmentDetail", "Memory and thinking"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
       onClick: () => navigate("/memory-games"),
-      testId: "button-mind-memory-fast-memory-check",
+      testId: "button-mind-memory-fast-cognitive-assessment",
     },
     {
       id: "play-game",
