@@ -7,7 +7,6 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronRight,
-  CircleAlert,
   ClipboardList,
   FileText,
   History,
@@ -16,7 +15,6 @@ import {
   Microscope,
   PlayCircle,
   ShieldCheck,
-  Sparkles,
   Target,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -83,28 +81,11 @@ function remainingAreas(report: CognitiveAssessmentReport) {
   return EXPECTED_REPORT_AREAS.filter((area) => !completed.has(area.taskId));
 }
 
-function remainingAreaText(report: CognitiveAssessmentReport) {
-  const remaining = remainingAreas(report);
-  if (remaining.length === 0) return "All planned areas are represented.";
-  const shown = remaining.slice(0, 3).map((area) => area.label).join(", ");
-  const extra = remaining.length > 3 ? `, plus ${remaining.length - 3} more` : "";
-  return `${shown}${extra}`;
-}
-
 function shortList(items: string[], emptyText: string, max = 2) {
   if (items.length === 0) return emptyText;
   const shown = items.slice(0, max).join(", ");
   const extra = items.length > max ? ` +${items.length - max}` : "";
   return `${shown}${extra}`;
-}
-
-function remainingDomains(report: CognitiveAssessmentReport) {
-  const completed = new Set(completedDomains(report));
-  return Array.from(new Set(
-    remainingAreas(report)
-      .map((area) => area.domain)
-      .filter((domain) => !completed.has(domain)),
-  ));
 }
 
 function qualitativeSignalCount(report: CognitiveAssessmentReport) {
@@ -127,59 +108,84 @@ function nextPriorityDetail(report: CognitiveAssessmentReport) {
 
 function coverageMeaning(report: CognitiveAssessmentReport) {
   const remaining = Math.max(0, report.totalTasks - report.tasksCompleted);
-  if (remaining === 0) return "Ready to compare with future checks";
-  return `${remaining} step${remaining === 1 ? "" : "s"} left before a full baseline`;
+  if (remaining === 0) return "Baseline ready";
+  return `${remaining} left`;
 }
 
-function sectionInsight(section: CognitiveAssessmentTaskSummary) {
-  if (section.taskId.includes("story_recall")) {
-    return "Free recall is useful for tracking how much detail comes back without cues. Compare it with delayed recall and future checks.";
-  }
-  if (section.taskId.includes("fluency")) {
-    return "Fluency helps show word retrieval and mental search speed. Repeating under similar conditions makes the count more meaningful.";
-  }
-  if (section.taskId === "digit_span") {
-    return "Digit span is a quick working-memory and attention signal. Forward and backward spans tell different parts of the story.";
-  }
-  if (section.taskId === "similarities") {
-    return "Similarities checks abstract reasoning: whether the answer names the deeper relationship, not just visible features.";
-  }
-  if (section.taskId === "clock_drawing") {
-    return "Clock drawing brings together planning, visual layout, number placement, and instruction following.";
-  }
-  if (section.taskId === "orientation") {
-    return "Orientation anchors the check in time and place, which helps interpret the rest of the assessment.";
-  }
-  if (["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"].includes(section.taskId)) {
-    return "Context matters: mood, sleep, energy, daily function, and worry can all affect how memory feels day to day.";
-  }
-  return "This response is saved as part of the member's cognitive tracking history.";
+type ReportHistory = CognitiveAssessmentHistoryResponse["history"];
+
+type ProgressPoint = {
+  sessionId: string;
+  completedAt: string | null;
+  percent: number;
+  steps: number;
+  total: number;
+  isCurrent: boolean;
+};
+
+function progressPoints(report: CognitiveAssessmentReport, history: ReportHistory): ProgressPoint[] {
+  const pointsBySession = new Map<string, ProgressPoint>();
+
+  history.forEach((item) => {
+    const total = Math.max(1, item.totalTasks);
+    pointsBySession.set(item.sessionId, {
+      sessionId: item.sessionId,
+      completedAt: item.completedAt,
+      percent: Math.round((item.tasksCompleted / total) * 100),
+      steps: item.tasksCompleted,
+      total: item.totalTasks,
+      isCurrent: item.sessionId === report.sessionId,
+    });
+  });
+
+  pointsBySession.set(report.sessionId, {
+    sessionId: report.sessionId,
+    completedAt: report.completedAt,
+    percent: completionPercent(report),
+    steps: report.tasksCompleted,
+    total: report.totalTasks,
+    isCurrent: true,
+  });
+
+  return Array.from(pointsBySession.values())
+    .sort((a, b) => {
+      const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+      const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+      return dateA - dateB;
+    })
+    .slice(-6);
 }
 
-function buildTakeaways(report: CognitiveAssessmentReport) {
-  const remainingCount = Math.max(0, report.totalTasks - report.tasksCompleted);
-  const domains = completedDomains(report);
-  const scores = scoreSignalCount(report);
-  const takeaways: string[] = [];
+function shortDate(value: string | null | undefined) {
+  if (!value) return "Today";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(value));
+}
 
-  if (remainingCount > 0) {
-    takeaways.push(`${remainingCount} planned step${remainingCount === 1 ? "" : "s"} still need to be completed before this becomes a full baseline.`);
-  } else {
-    takeaways.push("All planned assessment areas are represented, so this can now serve as a fuller baseline.");
-  }
+function currentProgressDelta(points: ProgressPoint[]) {
+  const currentIndex = points.findIndex((point) => point.isCurrent);
+  if (currentIndex <= 0) return "First saved check";
 
-  if (domains.length > 0) {
-    takeaways.push(`Captured areas so far: ${domains.join(", ")}.`);
-  }
+  const current = points[currentIndex];
+  const previous = points[currentIndex - 1];
+  const diff = current.percent - previous.percent;
+  if (diff > 0) return `+${diff} pts since last check`;
+  if (diff < 0) return `${diff} pts since last check`;
+  return "Stable since last check";
+}
 
-  if (scores > 0) {
-    takeaways.push(`${scores} structured score signal${scores === 1 ? "" : "s"} are available today; interpret them alongside notes and context.`);
-  } else {
-    takeaways.push("Most of today's value is qualitative so far: what was recalled, answered, or noted.");
-  }
-
-  takeaways.push(report.trend);
-  return takeaways.slice(0, 4);
+function chartCoordinates(points: ProgressPoint[]) {
+  const left = 18;
+  const top = 18;
+  const width = 244;
+  const height = 110;
+  return points.map((point, index) => {
+    const x = points.length === 1 ? left + width / 2 : left + (index / (points.length - 1)) * width;
+    const y = top + ((100 - point.percent) / 100) * height;
+    return { ...point, x, y };
+  });
 }
 
 function ReportHeader({
@@ -368,7 +374,6 @@ function MetricTile({
   label,
   value,
   detail,
-  insight,
   className,
   valueClassName = "text-[27px] leading-none",
 }: {
@@ -376,24 +381,154 @@ function MetricTile({
   label: string;
   value: string;
   detail: string;
-  insight: string;
   className: string;
   valueClassName?: string;
 }) {
   return (
-    <div className={`min-h-[176px] rounded-[24px] border p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)] ${className}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white/80">
-          {icon}
+    <div className={`min-h-[128px] rounded-[22px] border p-4 shadow-[0_10px_24px_rgba(63,45,35,0.045)] ${className}`}>
+      <div className="flex h-10 w-10 items-center justify-center rounded-[15px] bg-white/80">
+        {icon}
+      </div>
+      <p className="mt-3 text-[11px] font-black uppercase tracking-[0.1em] opacity-75">{label}</p>
+      <p className={`mt-1 font-black ${valueClassName}`}>{value}</p>
+      <p className="mt-2 text-[12px] font-black leading-snug opacity-80">{detail}</p>
+    </div>
+  );
+}
+
+function ProgressionChart({
+  report,
+  history,
+}: {
+  report: CognitiveAssessmentReport;
+  history: ReportHistory;
+}) {
+  const points = progressPoints(report, history);
+  const coordinates = chartCoordinates(points);
+  const polyline = coordinates.map((point) => `${point.x},${point.y}`).join(" ");
+  const current = coordinates.find((point) => point.isCurrent) ?? coordinates[coordinates.length - 1];
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+
+  return (
+    <div className="rounded-[28px] border border-[#BFDBFE] bg-[#F8FBFF] p-5 text-[#1D4ED8] shadow-[0_14px_32px_rgba(37,99,235,0.08)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#2563EB]">Progression</p>
+          <h2 className="mt-1 text-[24px] font-black leading-tight text-[#2f2135]">{current?.percent ?? completionPercent(report)}%</h2>
         </div>
-        <span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] opacity-75">
-          KPI
+        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black shadow-sm">
+          {currentProgressDelta(coordinates)}
         </span>
       </div>
-      <p className="mt-3 text-xs font-black uppercase tracking-[0.1em] opacity-75">{label}</p>
-      <p className={`mt-1 font-black ${valueClassName}`}>{value}</p>
-      <p className="mt-2 text-[12px] font-bold leading-snug opacity-80">{detail}</p>
-      <p className="mt-3 rounded-[14px] bg-white/70 px-3 py-2 text-[11px] font-black leading-snug opacity-90">{insight}</p>
+
+      <svg
+        className="mt-3 h-[156px] w-full overflow-visible"
+        viewBox="0 0 280 156"
+        role="img"
+        aria-label="Cognitive Assessment progression chart"
+      >
+        {[25, 50, 75, 100].map((line) => {
+          const y = 18 + ((100 - line) / 100) * 110;
+          return (
+            <line
+              key={line}
+              x1="18"
+              x2="262"
+              y1={y}
+              y2={y}
+              stroke="#DBEAFE"
+              strokeWidth="1"
+            />
+          );
+        })}
+        {coordinates.length > 1 ? (
+          <polyline
+            points={polyline}
+            fill="none"
+            stroke="#2563EB"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="5"
+          />
+        ) : null}
+        {coordinates.map((point) => (
+          <g key={point.sessionId}>
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={point.isCurrent ? 8 : 6}
+              fill={point.isCurrent ? "#7C3AED" : "#60A5FA"}
+              stroke="#FFFFFF"
+              strokeWidth="4"
+            />
+            {point.isCurrent ? (
+              <text
+                x={Math.min(246, Math.max(34, point.x))}
+                y={Math.max(16, point.y - 15)}
+                textAnchor="middle"
+                className="fill-[#5B21B6] text-[11px] font-black"
+              >
+                Now
+              </text>
+            ) : null}
+          </g>
+        ))}
+        <text x="18" y="150" className="fill-[#64748B] text-[11px] font-bold">
+          {shortDate(first?.completedAt)}
+        </text>
+        <text x="262" y="150" textAnchor="end" className="fill-[#64748B] text-[11px] font-bold">
+          {shortDate(last?.completedAt)}
+        </text>
+      </svg>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-[16px] bg-white px-3 py-2 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748B]">Checks</p>
+          <p className="text-[18px] font-black text-[#2f2135]">{points.length}</p>
+        </div>
+        <div className="rounded-[16px] bg-white px-3 py-2 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748B]">Latest</p>
+          <p className="text-[18px] font-black text-[#2f2135]">{current?.steps ?? report.tasksCompleted}/{current?.total ?? report.totalTasks}</p>
+        </div>
+        <div className="rounded-[16px] bg-white px-3 py-2 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748B]">Trend</p>
+          <p className="text-[18px] font-black text-[#2f2135]">{points.length > 1 ? "Live" : "New"}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DomainRoadmap({ report }: { report: CognitiveAssessmentReport }) {
+  const completed = new Set(report.sections.map((section) => section.taskId));
+
+  return (
+    <div className="rounded-[26px] border border-[#E8DED4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.055)]">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[22px] font-black leading-tight text-[#2f2135]">Coverage map</h2>
+        <span className="rounded-full bg-[#F5F3FF] px-3 py-1 text-xs font-black text-[#5B21B6]">
+          {report.sections.length}/{EXPECTED_REPORT_AREAS.length}
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        {EXPECTED_REPORT_AREAS.map((area) => {
+          const done = completed.has(area.taskId);
+          return (
+            <div
+              key={area.taskId}
+              className={`flex min-h-[44px] items-center gap-2 rounded-[16px] border px-3 text-[12px] font-black ${
+                done
+                  ? "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
+                  : "border-[#E8DED4] bg-[#FBF8F4] text-[#8A7C73]"
+              }`}
+            >
+              <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${done ? "bg-[#10B981]" : "bg-[#D6CEC7]"}`} />
+              <span className="truncate">{area.label}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -432,23 +567,29 @@ function AssessmentAreaCard({
         )}
       </div>
       <p className="mt-3 text-[14px] font-black leading-relaxed text-[#4C4039]">{section.detail}</p>
-      <p className="mt-2 text-[13px] font-bold leading-relaxed text-[#766b63]">{sectionInsight(section)}</p>
     </div>
   );
 }
 
-function ReportView({ report, title }: { report: CognitiveAssessmentReport; title: string }) {
+function ReportView({
+  report,
+  title,
+  history,
+}: {
+  report: CognitiveAssessmentReport;
+  title: string;
+  history: ReportHistory;
+}) {
   const navigate = useNavigate();
   const percent = completionPercent(report);
   const domains = completedDomains(report);
   const scoreSignals = scoreSignalCount(report);
   const qualitativeSignals = qualitativeSignalCount(report);
-  const missingDomains = remainingDomains(report);
   const remaining = remainingAreas(report);
-  const takeaways = buildTakeaways(report);
+  const signalDetail = `${scoreSignals} scored, ${qualitativeSignals} note${qualitativeSignals === 1 ? "" : "s"}`;
   const snapshotCopy = report.tasksCompleted >= report.totalTasks
-    ? "This report can now serve as a fuller baseline for future checks."
-    : "This report is already useful, but it is still partial. Finishing the remaining areas will make the baseline stronger.";
+    ? "Baseline ready for future comparison."
+    : `${remaining.length} areas left to finish the baseline.`;
 
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-8">
@@ -476,84 +617,46 @@ function ReportView({ report, title }: { report: CognitiveAssessmentReport; titl
               <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#62564f]">{snapshotCopy}</p>
             </div>
           </div>
-          <p className="mt-4 rounded-[20px] bg-[#F5F3FF] px-4 py-3 text-[14px] font-black leading-relaxed text-[#5B21B6]">
-            {report.trend}
-          </p>
         </div>
+
+        <ProgressionChart report={report} history={history} />
 
         <div className="grid grid-cols-2 gap-3">
           <MetricTile
             icon={<ClipboardList size={22} />}
-            label="Baseline coverage"
+            label="Coverage"
             value={`${percent}%`}
-            detail={`${report.tasksCompleted} of ${report.totalTasks} steps saved`}
-            insight={coverageMeaning(report)}
+            detail={coverageMeaning(report)}
             className="border-[#DDD6FE] bg-[#F5F3FF] text-[#5B21B6]"
           />
           <MetricTile
             icon={<Activity size={22} />}
-            label="Domain breadth"
+            label="Domains"
             value={`${domains.length}`}
-            detail={shortList(domains, "No domains captured yet", 3)}
-            insight={missingDomains.length ? `Still needs ${shortList(missingDomains, "more context", 2)}` : "All planned domains represented"}
+            detail={shortList(domains, "None yet", 2)}
             className="border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]"
           />
           <MetricTile
             icon={<BarChart3 size={22} />}
-            label="Evidence depth"
+            label="Signals"
             value={`${scoreSignals}/${report.sections.length || 0}`}
-            detail={`${scoreSignals} scored, ${qualitativeSignals} qualitative`}
-            insight="Use scores with notes, not as a standalone verdict"
+            detail={signalDetail}
             className="border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
           />
           <MetricTile
             icon={<Target size={22} />}
-            label="Next priority"
+            label="Next"
             value={nextPriorityLabel(report)}
             detail={remaining.length ? `${remaining.length} step${remaining.length === 1 ? "" : "s"} remaining` : "No missing areas"}
-            insight={nextPriorityDetail(report)}
             className="border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
             valueClassName="text-[21px] leading-tight"
           />
         </div>
 
-        <div className="rounded-[26px] border border-[#D9ECE4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.06)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-              <Sparkles size={23} />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-[23px] font-black leading-tight text-[#2f2135]">Key takeaways</h2>
-              <div className="mt-3 grid gap-3">
-                {takeaways.map((takeaway) => (
-                  <p key={takeaway} className="flex gap-2 text-[14px] font-bold leading-relaxed text-[#62564f]">
-                    <CheckCircle2 className="mt-0.5 flex-shrink-0 text-[#059669]" size={18} />
-                    <span>{takeaway}</span>
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {remaining.length > 0 ? (
-          <div className="rounded-[26px] border border-[#FDE68A] bg-[#FFFBEB] p-5 text-[#78350F] shadow-[0_12px_28px_rgba(146,64,14,0.06)]">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#B45309]">
-                <CircleAlert size={23} />
-              </span>
-              <div>
-                <h2 className="text-[22px] font-black leading-tight">What would make this more useful</h2>
-                <p className="mt-2 text-[14px] font-bold leading-relaxed">
-                  Complete the remaining areas next: {remainingAreaText(report)}. That will make future changes easier to compare.
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <DomainRoadmap report={report} />
 
         <div className="grid gap-3">
-          <h2 className="px-1 text-[24px] font-black leading-tight text-[#2f2135]">Assessment areas</h2>
+          <h2 className="px-1 text-[24px] font-black leading-tight text-[#2f2135]">Areas checked</h2>
           {report.sections.map((section, index) => (
             <AssessmentAreaCard key={`${section.taskId}-${section.label}`} section={section} index={index} />
           ))}
@@ -565,25 +668,9 @@ function ReportView({ report, title }: { report: CognitiveAssessmentReport; titl
               <LineChart size={23} />
             </span>
             <div>
-              <h2 className="text-[22px] font-black leading-tight">Next best actions</h2>
-              <div className="mt-3 grid gap-2">
-                {report.recommendations.map((recommendation) => (
-                  <p key={recommendation} className="text-[14px] font-bold leading-relaxed">{recommendation}</p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[26px] border border-[#E8DED4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.06)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
-              <Microscope size={23} />
-            </span>
-            <div>
-              <h2 className="text-[22px] font-black leading-tight text-[#2f2135]">How to interpret this</h2>
-              <p className="mt-2 text-[14px] font-bold leading-relaxed text-[#62564f]">
-                A single check is a snapshot, not a verdict. The most useful signal comes from repeated checks done in similar conditions, especially alongside sleep, mood, medicines, and daily routine.
+              <h2 className="text-[22px] font-black leading-tight">Next step</h2>
+              <p className="mt-2 text-[14px] font-bold leading-relaxed">
+                {remaining.length > 0 ? nextPriorityDetail(report) : "Repeat later under similar conditions to build the trend."}
               </p>
             </div>
           </div>
@@ -685,17 +772,23 @@ export default function CognitiveAssessmentReportPage() {
   });
   const historyQuery = useQuery<CognitiveAssessmentHistoryResponse>({
     queryKey: ["/api/cognitive-assessment/history"],
-    enabled: isHistory,
+    enabled: true,
     refetchOnMount: "always",
   });
 
-  if (reportQuery.isLoading || historyQuery.isLoading) return <LoadingState />;
-  if (reportQuery.isError || historyQuery.isError) return <ErrorState />;
+  if ((!isHistory && reportQuery.isLoading) || (isHistory && historyQuery.isLoading)) return <LoadingState />;
+  if ((!isHistory && reportQuery.isError) || (isHistory && historyQuery.isError)) return <ErrorState />;
   if (isHistory) {
     return <HistoryView history={historyQuery.data?.history ?? []} />;
   }
 
   const report = reportQuery.data?.report ?? null;
   if (!report || location.pathname.endsWith("/start")) return <EmptyState />;
-  return <ReportView report={report} title={sessionId ? "Saved report" : "Latest report"} />;
+  return (
+    <ReportView
+      report={report}
+      title={sessionId ? "Saved report" : "Latest report"}
+      history={historyQuery.data?.history ?? []}
+    />
+  );
 }

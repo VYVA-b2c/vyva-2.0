@@ -2,7 +2,10 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import CognitiveAssessmentReportPage from "./CognitiveAssessmentReportPage";
-import type { CognitiveAssessmentReport } from "../../shared/cognitiveAssessmentReport";
+import type {
+  CognitiveAssessmentHistoryResponse,
+  CognitiveAssessmentReport,
+} from "../../shared/cognitiveAssessmentReport";
 
 const useQueryMock = vi.hoisted(() => vi.fn());
 
@@ -46,12 +49,36 @@ const sampleReport: CognitiveAssessmentReport = {
   disclaimer: "This is a wellness check to help notice changes over time. It does not diagnose a medical condition.",
 };
 
-function renderReport(report: CognitiveAssessmentReport = sampleReport) {
+const sampleHistory: CognitiveAssessmentHistoryResponse["history"] = [
+  {
+    sessionId: "session-older",
+    completedAt: "2026-06-20T10:12:00.000Z",
+    language: "en",
+    inputMode: "wizard",
+    tasksCompleted: 1,
+    totalTasks: 12,
+    overview: "1 of 12 assessment steps saved.",
+  },
+  {
+    sessionId: "session-1",
+    completedAt: "2026-07-04T10:12:00.000Z",
+    language: "en",
+    inputMode: "wizard",
+    tasksCompleted: 2,
+    totalTasks: 12,
+    overview: "2 of 12 assessment steps saved.",
+  },
+];
+
+function renderReport(
+  report: CognitiveAssessmentReport = sampleReport,
+  history: CognitiveAssessmentHistoryResponse["history"] = sampleHistory,
+) {
   useQueryMock.mockImplementation(({ queryKey, enabled }: { queryKey: string[]; enabled?: boolean }) => {
     if (enabled === false) return { isLoading: false, isError: false, data: undefined };
     const key = queryKey[0];
     if (key === "/api/cognitive-assessment/history") {
-      return { isLoading: false, isError: false, data: { history: [] } };
+      return { isLoading: false, isError: false, data: { history } };
     }
     return { isLoading: false, isError: false, data: { report } };
   });
@@ -73,23 +100,25 @@ describe("CognitiveAssessmentReportPage", () => {
     useQueryMock.mockReset();
   });
 
-  it("renders an insight-rich partial cognitive report", () => {
+  it("renders a visual partial cognitive report with progression", () => {
     renderReport();
 
     expect(screen.getByText("Early snapshot")).toBeInTheDocument();
     expect(screen.getAllByText("17%").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("Baseline coverage")).toBeInTheDocument();
-    expect(screen.getByText("Domain breadth")).toBeInTheDocument();
-    expect(screen.getByText("Evidence depth")).toBeInTheDocument();
-    expect(screen.getByText("Next priority")).toBeInTheDocument();
-    expect(screen.getByText("10 steps left before a full baseline")).toBeInTheDocument();
-    expect(screen.getByText("1 scored, 1 qualitative")).toBeInTheDocument();
-    expect(screen.getByText("Key takeaways")).toBeInTheDocument();
-    expect(screen.getByText(/10 planned steps still need to be completed/)).toBeInTheDocument();
-    expect(screen.getByText("What would make this more useful")).toBeInTheDocument();
-    expect(screen.getByText("Assessment areas")).toBeInTheDocument();
+    expect(screen.getByText("Progression")).toBeInTheDocument();
+    expect(screen.getByText("+9 pts since last check")).toBeInTheDocument();
+    expect(screen.getByText("Coverage")).toBeInTheDocument();
+    expect(screen.getByText("Domains")).toBeInTheDocument();
+    expect(screen.getByText("Signals")).toBeInTheDocument();
+    expect(screen.getByText("Next")).toBeInTheDocument();
+    expect(screen.getByText("10 left")).toBeInTheDocument();
+    expect(screen.getByText("1 scored, 1 note")).toBeInTheDocument();
+    expect(screen.getByText("Coverage map")).toBeInTheDocument();
+    expect(screen.getByText("Areas checked")).toBeInTheDocument();
     expect(screen.getByText("3 words recalled in free text.")).toBeInTheDocument();
     expect(screen.getByText("4/8")).toBeInTheDocument();
+    expect(screen.getByText("Next step")).toBeInTheDocument();
+    expect(screen.getByText("Next: Orientation. Then Category fluency and Letter fluency.")).toBeInTheDocument();
     expect(screen.getAllByText("saved").length).toBeGreaterThan(0);
   });
 });
