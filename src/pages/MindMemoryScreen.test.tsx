@@ -64,7 +64,7 @@ describe("MindMemoryScreen", () => {
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
     expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
     expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
-    expect(screen.getByTestId("button-mind-memory-fast-memory-check")).toHaveTextContent("Memory Check");
+    expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Cognitive Assessment");
   });
 
   it("uses existing cognitive routes", () => {
@@ -103,13 +103,21 @@ describe("MindMemoryScreen", () => {
     expect(screen.getByTestId("current-route")).toHaveTextContent("/activities/relax-breathe");
   });
 
+  it("routes cognitive assessment from fast help", () => {
+    renderMindMemory();
+
+    fireEvent.click(screen.getByTestId("button-mind-memory-fast-cognitive-assessment"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games");
+  });
+
   it("rotates through the full final Fast help set", () => {
     vi.useFakeTimers();
     renderMindMemory();
 
     expect(screen.getByTestId("button-mind-memory-fast-relax-breathe")).toHaveTextContent("Relax Breathe");
     expect(screen.getByTestId("button-mind-memory-fast-learn-words")).toHaveTextContent("Learn Words");
-    expect(screen.getByTestId("button-mind-memory-fast-memory-check")).toHaveTextContent("Memory Check");
+    expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Cognitive Assessment");
 
     act(() => {
       vi.advanceTimersByTime(9000);
