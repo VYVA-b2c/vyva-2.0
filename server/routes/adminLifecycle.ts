@@ -79,8 +79,12 @@ function requireAdmin(req: Request, res: Response): boolean {
   return true;
 }
 
+function isSuperAdminEmail(email: string | null | undefined): boolean {
+  return typeof email === "string" && email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
 function isSuperAdmin(req: Request): boolean {
-  return typeof req.user?.email === "string" && req.user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+  return isSuperAdminEmail(req.user?.email);
 }
 
 function requireSuperAdmin(req: Request, res: Response): boolean {
@@ -3670,6 +3674,7 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
   const parsed = loginAccountDeleteSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "Type DELETE LOGIN before deleting the login account." });
 
+  try {
   const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
   if (!intake) return res.status(404).json({ error: "User intake not found" });
 
@@ -3757,7 +3762,6 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
     phones: deleteScope.phones,
   });
 
-  try {
     const result = await db.transaction(async (tx) => {
       const intakesToHide = await tx.select().from(userIntakes).where(intakeWhere);
       const intakesById = new Map<string, typeof userIntakes.$inferSelect>();
