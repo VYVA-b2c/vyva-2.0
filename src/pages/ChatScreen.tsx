@@ -136,11 +136,35 @@ const ChatScreen = () => {
         className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-3"
         style={{ scrollbarWidth: "none" }}
       >
-        <div className="text-center py-3">
-          <span className="font-body text-[13px]" style={{ color: "rgba(255,255,255,0.38)" }}>
-            {t("chat.started")}
-          </span>
-        </div>
+        {transcript.length === 0 ? (
+          <div
+            data-testid="chat-empty-state"
+            className="mx-auto flex min-h-[44vh] w-full max-w-[360px] flex-col items-center justify-center text-center"
+          >
+            <div
+              className="mb-5 flex h-16 w-16 items-center justify-center rounded-full font-display text-[30px] font-black text-white"
+              style={{
+                background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)",
+                boxShadow: "0 18px 42px rgba(124,58,237,0.24)",
+              }}
+              aria-hidden="true"
+            >
+              V
+            </div>
+            <h1 className="font-body text-[30px] font-black leading-tight text-white">
+              {t("chat.emptyTitle", "Ask VYVA")}
+            </h1>
+            <p className="mt-3 max-w-[280px] font-body text-[16px] font-semibold leading-relaxed" style={{ color: "rgba(255,255,255,0.66)" }}>
+              {t("chat.emptyBody", "Health, rides, reminders, or a quiet chat.")}
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-3">
+            <span className="font-body text-[13px]" style={{ color: "rgba(255,255,255,0.38)" }}>
+              {t("chat.started")}
+            </span>
+          </div>
+        )}
 
         {transcript.map((msg, i) => (
           <div

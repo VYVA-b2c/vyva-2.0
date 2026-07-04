@@ -102,6 +102,10 @@ const participationEventPatchSchema = participationEventSchema.omit({ eventKey: 
 const participationDiscoverySchema = z.object({
   city: z.string().trim().min(2).max(120),
   countryCode: z.string().trim().max(2).nullable().optional(),
+  locality: z.string().trim().max(200).nullable().optional(),
+  postalCode: z.string().trim().max(32).nullable().optional(),
+  radiusKm: z.coerce.number().min(0.5).max(50).nullable().optional(),
+  venueHints: z.array(z.string().trim().min(1).max(80)).max(12).optional(),
   languageCodes: z.array(z.string().trim().min(2).max(8)).max(8).optional(),
   interests: z.array(z.string().trim().min(1).max(60)).max(12).optional(),
   refinementTags: z.array(z.string().trim().min(1).max(60)).max(16).optional(),

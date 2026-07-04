@@ -1929,7 +1929,12 @@ const SignosScreen = () => {
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={() => navigate(`/chat?mode=type&q=${encodeURIComponent("Help me explore possible causes for lower energy without assuming a diagnosis.")}`)}
+                onClick={() => navigate("/health/symptom-check", {
+                  state: {
+                    initialClue: t("statusVitals.plan.energyInitialClue", "Lower energy than usual"),
+                    autoStartVoice: true,
+                  },
+                })}
                 className="vyva-tap flex min-h-[50px] items-center justify-center rounded-full bg-[#6B21A8] px-5 font-body text-[15px] font-black text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
               >
                 {t("statusVitals.plan.explorePossibleCauses", "Explore possible causes")}
@@ -2001,7 +2006,12 @@ const SignosScreen = () => {
           </div>
           <button
             type="button"
-            onClick={() => navigate(`/chat?mode=type&q=${encodeURIComponent(guideQuery)}`)}
+            onClick={() => navigate("/health/doctor", {
+              state: {
+                autoStartVoice: true,
+                latestSymptomReport: guideQuery,
+              },
+            })}
             className="vyva-tap flex min-h-[52px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-5 font-body text-[14px] font-black text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
           >
             <MessageCircle size={18} />

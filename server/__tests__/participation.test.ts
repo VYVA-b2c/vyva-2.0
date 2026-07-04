@@ -245,6 +245,10 @@ describe("Participate curated events API", () => {
       .send({
         city: "Madrid",
         countryCode: "ES",
+        locality: "Chamberi, Salamanca",
+        postalCode: "28010",
+        radiusKm: 4,
+        venueHints: ["libraries", "cultural centres"],
         languageCodes: ["en", "es", "de"],
         interests: ["music"],
         format: "nearby",
@@ -266,10 +270,23 @@ describe("Participate curated events API", () => {
       locality: "Centro",
     });
     expect(response.body.candidates[0].metadata.discovery).toMatchObject({
+      query: {
+        city: "Madrid",
+        countryCode: "ES",
+        locality: "Chamberi, Salamanca",
+        postalCode: "28010",
+        radiusKm: 4,
+        venueHints: ["libraries", "cultural centres"],
+      },
       sourceUrls: ["https://example.org/library-music"],
       evidence: "The source lists a public music event at the library.",
       model: "gpt-4.1-mini",
     });
+    const openAiRequest = openAiResponsesCreateMock.mock.calls[0]?.[0] as { input?: string } | undefined;
+    expect(openAiRequest?.input).toContain("Chamberi, Salamanca");
+    expect(openAiRequest?.input).toContain("28010");
+    expect(openAiRequest?.input).toContain("within about 4 km");
+    expect(openAiRequest?.input).toContain("libraries, cultural centres");
 
     const events = await request(trustedAdminApp)
       .get("/api/admin/social/participate/events")

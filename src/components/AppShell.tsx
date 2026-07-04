@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
+import { AlertCircle, Mic, MicOff, PhoneCall, UserRound, X } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
@@ -15,6 +15,7 @@ import {
   actionForSpecialistTransfer,
   actionForVoiceUtterance,
   emitVoiceAppAction,
+  isActionableVoiceText,
   VYVA_VOICE_APP_ACTION_EVENT,
   VYVA_VOICE_SPECIALIST_TRANSFER_EVENT,
   VYVA_VOICE_USER_MESSAGE_EVENT,
@@ -137,6 +138,118 @@ type VoiceSessionDockProps = {
   onOpen: () => void;
 };
 
+function voiceDockPhaseLabel(phase: VoiceSessionPhase) {
+  return phase === "speaking" ? "Speaking" : voiceSessionPhaseLabel(phase);
+}
+
+function voicePayloadString(action: VoiceAppAction, key: string) {
+  const value = action.payload?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function voicePayloadDetails(action: VoiceAppAction, keys: string[]) {
+  return keys
+    .map((key) => {
+      const value = voicePayloadString(action, key);
+      return value ? `${key.replace(/_/g, " ")}: ${value}` : "";
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildConciergePrefillMessage(action: VoiceAppAction) {
+  const details = voicePayloadDetails(action, [
+    "pickup",
+    "destination",
+    "time",
+    "mobility_needs",
+    "provider_type",
+    "appointment_reason",
+    "reminder_text",
+    "reminder_time",
+  ]);
+  const base = action.sourceText.trim() || action.summary;
+  return `${base}${details ? ` (${details})` : ""}. Prepare the next step and ask me to confirm before acting.`;
+}
+
+function shoppingCategoryForVoiceAction(action: VoiceAppAction) {
+  const category = voicePayloadString(action, "category").toLowerCase();
+  if (["groceries", "pharmacy_basics", "household", "mobility_aids", "safe_home"].includes(category)) {
+    return category;
+  }
+  const text = `${action.sourceText} ${voicePayloadString(action, "items")}`.toLowerCase();
+  if (/grocery|groceries|food|meal|supermarket|comida|compra/.test(text)) return "groceries";
+  if (/pharmacy|farmacia/.test(text)) return "pharmacy_basics";
+  if (/walker|cane|wheelchair|mobility|andador|baston/.test(text)) return "mobility_aids";
+  if (/cleaning|household|home|limpieza|hogar/.test(text)) return "household";
+  return "safe_home";
+}
+
+function shoppingPrioritiesForVoiceAction(action: VoiceAppAction) {
+  const text = `${action.sourceText} ${voicePayloadString(action, "constraint")}`.toLowerCase();
+  if (/budget|cheap|cost|precio|barato/.test(text)) return ["budget", "delivery"];
+  if (/diet|salt|sugar|comida|food/.test(text)) return ["diet", "delivery"];
+  if (/pharmacy|medicine|farmacia/.test(text)) return ["safety", "simplicity"];
+  return ["delivery", "simplicity"];
+}
+
+export function buildVoiceActionRouteState(action: VoiceAppAction): Record<string, unknown> {
+  const baseState: Record<string, unknown> = {
+    voiceActionId: action.id,
+    voiceActionTitle: action.title,
+    voiceActionDomain: action.domain,
+    voiceActionType: action.actionType,
+    voiceActionPayload: action.payload ?? {},
+    voiceActionRequiredPayloadKeys: action.requiredPayloadKeys ?? [],
+    voiceActionOptionalPayloadKeys: action.optionalPayloadKeys ?? [],
+  };
+
+  if (action.actionType === "concierge.ride_booking") {
+    return {
+      ...baseState,
+      conciergePrefill: {
+        kind: "ride",
+        message: buildConciergePrefillMessage(action),
+        source: "voice_action",
+      },
+    };
+  }
+
+  if (action.actionType === "concierge.appointment_help") {
+    return {
+      ...baseState,
+      conciergePrefill: {
+        kind: "appointment",
+        message: buildConciergePrefillMessage(action),
+        source: "voice_action",
+      },
+    };
+  }
+
+  if (action.actionType === "concierge.order_request" || action.actionType === "concierge.shopping") {
+    const items = voicePayloadString(action, "items") || voicePayloadString(action, "need") || action.sourceText;
+    const constraints = [
+      voicePayloadString(action, "budget"),
+      voicePayloadString(action, "delivery_time"),
+      voicePayloadString(action, "substitutions"),
+      voicePayloadString(action, "constraint"),
+    ].filter(Boolean);
+
+    return {
+      ...baseState,
+      shoppingPrefill: {
+        needText: items,
+        category: shoppingCategoryForVoiceAction(action),
+        priorities: shoppingPrioritiesForVoiceAction(action),
+        constraints,
+        sourceRecommendation: buildConciergePrefillMessage(action),
+      },
+    };
+  }
+
+  return baseState;
+}
+
 const VoiceSessionDock = ({
   isSpeaking,
   isConnecting,
@@ -153,9 +266,9 @@ const VoiceSessionDock = ({
   const label = isConnecting
     ? "Connecting"
     : voiceSessionPhase
-      ? voiceSessionPhaseLabel(voiceSessionPhase)
+      ? voiceDockPhaseLabel(voiceSessionPhase)
       : isSpeaking
-        ? "VYVA speaking"
+        ? "Speaking"
         : "Listening";
 
   return (
@@ -203,23 +316,22 @@ const VoiceSessionDock = ({
             type="button"
             onClick={() => onMicToggle(!isMicMuted)}
             data-testid="button-dock-toggle-mic"
-            className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#E9D5FF] bg-white px-3 font-body text-[0px] font-black text-vyva-purple shadow-sm transition active:scale-95 sm:min-w-[112px] sm:text-[14px]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E9D5FF] bg-[#F7F0FF] font-body text-vyva-purple shadow-sm transition active:scale-95"
             aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
-            title={isMicMuted ? "Talk" : "Interrupt"}
+            title={isMicMuted ? "Mic off" : "Mic on"}
           >
-            {isMicMuted ? <Mic size={19} /> : <MicOff size={19} />}
-            <span className="hidden sm:inline">{isMicMuted ? "Talk" : "Interrupt"}</span>
+            {isMicMuted ? <MicOff size={19} /> : <Mic size={19} />}
           </button>
         )}
         <button
           type="button"
           onClick={onEnd}
           data-testid="button-dock-end-call"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FEE2E2] text-[#B91C1C] transition active:scale-95"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white shadow-[0_12px_28px_rgba(17,17,17,0.22)] transition active:scale-95"
           aria-label="End voice chat"
           title="End chat"
         >
-          <PhoneOff size={19} />
+          <X size={20} strokeWidth={2.8} />
         </button>
       </section>
     </div>
@@ -366,7 +478,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const voiceActionRouteMatches = activeVoiceAction
     ? location.pathname === activeVoiceAction.route || location.pathname.startsWith(`${activeVoiceAction.route}/`)
     : false;
-  const showInlineVoiceAction = Boolean(!isFullScreen && activeVoiceAction && voiceActionRouteMatches);
+  const visibleVoiceAction = activeVoiceAction?.domain === "health" ? null : activeVoiceAction;
+  const visibleVoiceActionRouteMatches = visibleVoiceAction
+    ? location.pathname === visibleVoiceAction.route || location.pathname.startsWith(`${visibleVoiceAction.route}/`)
+    : false;
+  const showInlineVoiceAction = Boolean(!isFullScreen && visibleVoiceAction && visibleVoiceActionRouteMatches);
   const hasVoiceSessionSurface =
     !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
   const showDockVoiceOverlay = dockVoiceOverlayOpen && hasVoiceSessionSurface;
@@ -439,11 +555,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
 
     const alreadyOnRoute = location.pathname === action.route;
     const navigated = alreadyOnRoute || guardPath(action.route, {
-      state: {
-        voiceActionId: action.id,
-        voiceActionTitle: action.title,
-        voiceActionDomain: action.domain,
-      },
+      state: buildVoiceActionRouteState(action),
     });
 
     if (navigated) {
@@ -474,6 +586,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         ? (event.detail as VoiceUserMessageDetail | undefined)
         : undefined;
       if (!detail?.text) return;
+      if (!isActionableVoiceText(detail.text)) return;
 
       const action = actionForVoiceUtterance(detail.text);
       if (!action) return;
@@ -547,6 +660,15 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!activeVoiceAction) return;
     if (!voiceActionRouteMatches) return;
+    if (activeVoiceAction.domain === "health") {
+      completeActiveAction({
+        metadata: {
+          source: "app_voice_health_route_landed",
+          current_path: location.pathname,
+        },
+      });
+      return;
+    }
     if (activeVoiceAction.completion?.mode !== "route_landed") return;
 
     const timer = window.setTimeout(() => {
@@ -588,11 +710,11 @@ const AppShell = ({ children }: { children: ReactNode }) => {
         className={`relative w-full ${shellMaxWidthClassName}`}
       >
         {!isFullScreen && <StatusBar wide={isWideRoute || isVitalsRoute} />}
-        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[76px] pb-[128px] lg:pb-10" : "pt-[76px] pb-[128px]"}`}>
-          {showInlineVoiceAction && activeVoiceAction && (
+        <main className={`min-h-screen overflow-y-auto ${isFullScreen ? "" : isVitalsRoute ? "pt-[64px] pb-[112px] lg:pb-10" : "pt-[64px] pb-[112px]"}`}>
+          {showInlineVoiceAction && visibleVoiceAction && (
             <div className="px-[22px] pb-3 pt-2">
               <VoiceActionCard
-                action={activeVoiceAction}
+                action={visibleVoiceAction}
                 onComplete={handleCompleteVoiceAction}
                 onDismiss={handleDismissVoiceAction}
               />
@@ -627,7 +749,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
               stopVoice();
             }}
             onMinimize={() => setDockVoiceOverlayOpen(false)}
-            activeAction={activeVoiceAction}
+            activeAction={visibleVoiceAction}
             voiceSessionPhase={voiceSessionPhase}
             isMicMuted={isMicMuted}
             onMicToggle={setMicrophoneMuted}

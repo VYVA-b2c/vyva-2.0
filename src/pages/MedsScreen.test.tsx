@@ -14,16 +14,18 @@ const labels: Record<string, string> = {
   "meds.noMedsSub": "Use the button below to add your medications by voice",
   "meds.todaySchedule": "Today's Schedule",
   "meds.quickAccess": "Medication",
-  "meds.primary.reminders": "Reminders",
+  "meds.primary.reminders": "My Reminders",
   "meds.primary.remindersSub": "Review today's schedule and add medication reminders.",
-  "meds.primary.refills": "Refills",
+  "meds.primary.refills": "My Refills",
   "meds.primary.refillsSub": "Prepare repeat prescriptions or delivery.",
   "meds.primary.interactions": "Interactions",
   "meds.primary.interactionsSub": "Check medicines and supplements.",
   "meds.primary.adherence": "Adherence",
   "meds.primary.adherenceSub": "See progress and missed doses.",
-  "meds.primary.safety": "Safety signals",
+  "meds.primary.safety": "Stay Safe",
   "meds.primary.safetySub": "Review early signals and draft case packets.",
+  "meds.primary.homeRemedies": "Home Remedies",
+  "meds.primary.homeRemediesSub": "Ask what is safe",
   "meds.dashboard.title": "Medication dashboard",
   "meds.dashboard.loadingStatus": "Checking today's medicines",
   "meds.dashboard.emptyStatus": "Add medicines to start tracking today",
@@ -142,15 +144,19 @@ const labels: Record<string, string> = {
   "meds.fastHelpKicker": "Fast help",
   "meds.canHelpWith": "I can help you with",
   "meds.assistant.interactions.label": "Check Interactions",
-  "meds.assistant.interactions.sub": "See if any medications conflict",
-  "meds.assistant.naturalMedicine.label": "Natural Options",
-  "meds.assistant.naturalMedicine.sub": "Check herbal and supplement fit",
+  "meds.assistant.interactions.sub": "Medicine safety",
+  "meds.assistant.homeRemedies.label": "Home Remedies",
+  "meds.assistant.homeRemedies.sub": "Safe options to ask about",
   "meds.assistant.order.label": "Order Online",
   "meds.assistant.order.sub": "Repeat prescriptions and home delivery",
   "meds.assistant.advances.label": "Medication Research",
   "meds.assistant.advances.sub": "See recent updates in plain language",
-  "meds.assistant.sideEffects.label": "Side Effect Check",
-  "meds.assistant.sideEffects.sub": "Talk through symptoms to watch",
+  "meds.assistant.sideEffects.label": "Side Effects",
+  "meds.assistant.sideEffects.sub": "What to watch",
+  "meds.assistant.refillHelp.label": "Refill Help",
+  "meds.assistant.refillHelp.sub": "Order support",
+  "meds.assistant.addMedicine.label": "Add Medicine",
+  "meds.assistant.addMedicine.sub": "Use voice",
   "meds.confirmRemaining": "Confirm remaining doses",
   "meds.allTaken": "All doses taken",
   "meds.taken": "Taken",
@@ -223,6 +229,14 @@ vi.mock("@/components/VoiceHero", () => ({
     mocks.voiceHero(props);
     return <div data-testid="voice-hero" />;
   },
+}));
+
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
+    <button type="button" data-testid={testId} className={className}>
+      {label}
+    </button>
+  ),
 }));
 
 vi.mock("@/components/VoiceActionFulfillmentPanel", () => ({
@@ -424,12 +438,13 @@ describe("MedsScreen schedule actions", () => {
     expect(screen.queryByTestId("status-no-medications")).not.toBeInTheDocument();
     expect(screen.queryByText("Medication")).not.toBeInTheDocument();
 
-    expect(screen.queryByTestId("section-meds-primary-actions")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-meds-primary-reminders")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-meds-primary-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("button-meds-primary-reminders")).toHaveTextContent("My Reminders");
+    expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("My Refills");
+    expect(screen.getByTestId("button-meds-primary-safety")).toHaveTextContent("Stay Safe");
+    expect(screen.getByTestId("button-meds-primary-home-remedies")).toHaveTextContent("Home Remedies");
     expect(screen.queryByTestId("button-meds-primary-interactions")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-meds-primary-adherence")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-meds-primary-safety")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-meds-primary-refills")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-meds-primary-add-by-voice")).not.toBeInTheDocument();
 
     expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("Fast help");
@@ -438,10 +453,11 @@ describe("MedsScreen schedule actions", () => {
       screen.getByTestId("section-meds-can-help").compareDocumentPosition(screen.getByTestId("panel-meds-pharmacy")) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(screen.getByTestId("button-assistant-naturalMedicine")).toHaveTextContent("Natural Options");
-    expect(screen.getByTestId("button-assistant-advances")).toHaveTextContent("Medication Research");
-    expect(screen.getByTestId("button-assistant-sideEffects")).toHaveTextContent("Side Effect Check");
-    expect(screen.queryByTestId("button-assistant-interactions")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-assistant-interactions")).toHaveTextContent("Check Interactions");
+    expect(screen.getByTestId("button-assistant-sideEffects")).toHaveTextContent("Side Effects");
+    expect(screen.getByTestId("button-assistant-refillHelp")).toHaveTextContent("Refill Help");
+    expect(screen.queryByTestId("button-assistant-homeRemedies")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-assistant-advances")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-assistant-order")).not.toBeInTheDocument();
   });
 

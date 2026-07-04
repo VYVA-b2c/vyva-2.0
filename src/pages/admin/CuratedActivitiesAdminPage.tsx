@@ -20,7 +20,12 @@ type EventSaveFeedback = {
 };
 type DiscoveryFormState = {
   city: string;
+  province: string;
   countryCode: string;
+  locality: string;
+  postalCode: string;
+  radiusKm: number;
+  venueHints: string;
   interestTags: string[];
   customInterest: string;
   languageCodes: string[];
@@ -46,6 +51,8 @@ type Filters = {
   safety: string;
 };
 
+type WorkQueueFilter = "all" | "review" | "checks" | "popular" | "live";
+
 const STATUS_OPTIONS: EventStatus[] = ["draft", "active", "hidden", "archived"];
 const FORMAT_OPTIONS: ParticipationEventFormat[] = ["nearby", "online", "hybrid"];
 const STATUS_LABELS: Record<EventStatus, string> = {
@@ -69,7 +76,7 @@ const COUNTRY_LABELS: Record<string, string> = {
   UK: "United Kingdom",
   US: "United States",
 };
-const DISCOVERY_COUNTRY_OPTIONS = PHONE_COUNTRY_OPTIONS.map((option) => ({
+const ADMIN_COUNTRY_OPTIONS = PHONE_COUNTRY_OPTIONS.map((option) => ({
   value: option.value,
   label: `${COUNTRY_LABELS[option.value] ?? option.value} (${option.value})`,
 }));
@@ -125,6 +132,238 @@ const LANGUAGE_LABELS: Record<string, string> = {
   de: "German",
 };
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
+const WORK_QUEUE_FILTERS: Array<{ id: WorkQueueFilter; label: string; description: string }> = [
+  { id: "all", label: "All activities", description: "Everything in the library" },
+  { id: "review", label: "Review queue", description: "Drafts or safety review" },
+  { id: "checks", label: "Concierge checks", description: "User check requests" },
+  { id: "popular", label: "User interest", description: "Interested or maybe" },
+  { id: "live", label: "Live coverage", description: "Active and approved" },
+];
+type DiscoveryCityPreset = {
+  city: string;
+  defaultLocality: string;
+  defaultAnchor: string;
+  localities: readonly string[];
+  anchors: readonly string[];
+};
+
+type DiscoveryProvincePreset = {
+  province: string;
+  cities: readonly DiscoveryCityPreset[];
+};
+
+type DiscoveryCountryPreset = {
+  countryCode: string;
+  countryName: string;
+  provinces: readonly DiscoveryProvincePreset[];
+};
+
+const DISCOVERY_LOCATION_PRESETS: readonly DiscoveryCountryPreset[] = [
+  {
+    countryCode: "ES",
+    countryName: "Spain",
+    provinces: [
+      {
+        province: "Madrid",
+        cities: [
+          {
+            city: "Madrid",
+            defaultLocality: "Chamberi, Salamanca",
+            defaultAnchor: "28010",
+            localities: ["Chamberi", "Salamanca", "Retiro", "Centro", "Arganzuela", "Moncloa"],
+            anchors: ["28010", "28001", "28014", "Centro Cultural Galileo", "Biblioteca Publica Jose Hierro"],
+          },
+          {
+            city: "Alcala de Henares",
+            defaultLocality: "Centro historico",
+            defaultAnchor: "28801",
+            localities: ["Centro historico", "La Garena", "El Ensanche", "Reyes Catolicos"],
+            anchors: ["28801", "28806", "Biblioteca Cardenal Cisneros", "Casa de la Cultura"],
+          },
+        ],
+      },
+      {
+        province: "Valencia",
+        cities: [
+          {
+            city: "Valencia",
+            defaultLocality: "Ruzafa, Gran Via",
+            defaultAnchor: "46006",
+            localities: ["Ruzafa", "Gran Via", "Ciutat Vella", "El Carmen", "Ensanche", "Jardin del Turia"],
+            anchors: ["46006", "46005", "46001", "Jardin del Turia", "Biblioteca Publica Valencia"],
+          },
+          {
+            city: "Gandia",
+            defaultLocality: "Centro, Grau",
+            defaultAnchor: "46701",
+            localities: ["Centro", "Grau", "Benipeixcar", "Roig de Corella"],
+            anchors: ["46701", "46730", "Casa de Cultura Marques Gonzalez de Quiros"],
+          },
+        ],
+      },
+      {
+        province: "Barcelona",
+        cities: [
+          {
+            city: "Barcelona",
+            defaultLocality: "Eixample, Gracia",
+            defaultAnchor: "08012",
+            localities: ["Eixample", "Gracia", "Sarria", "Sant Antoni", "Poblenou", "Les Corts"],
+            anchors: ["08012", "08036", "08015", "Centre Civic Cotxeres Borrell", "Biblioteca Jaume Fuster"],
+          },
+          {
+            city: "Badalona",
+            defaultLocality: "Centre, Casagemes",
+            defaultAnchor: "08911",
+            localities: ["Centre", "Casagemes", "Dalt la Vila", "Gorg"],
+            anchors: ["08911", "08912", "Biblioteca Can Casacuberta"],
+          },
+        ],
+      },
+      {
+        province: "Malaga",
+        cities: [
+          {
+            city: "Malaga",
+            defaultLocality: "Centro, La Malagueta",
+            defaultAnchor: "29015",
+            localities: ["Centro", "La Malagueta", "El Limonar", "Teatinos"],
+            anchors: ["29015", "29016", "Biblioteca Canovas del Castillo", "Centro Cultural La Malagueta"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "GB",
+    countryName: "United Kingdom",
+    provinces: [
+      {
+        province: "Greater London",
+        cities: [
+          {
+            city: "London",
+            defaultLocality: "Kensington, Chelsea",
+            defaultAnchor: "SW3",
+            localities: ["Kensington", "Chelsea", "Westminster", "Camden", "Islington", "Hammersmith"],
+            anchors: ["SW3", "W8", "W1", "Kensington Central Library", "Chelsea Library"],
+          },
+        ],
+      },
+      {
+        province: "Greater Manchester",
+        cities: [
+          {
+            city: "Manchester",
+            defaultLocality: "Didsbury, Chorlton",
+            defaultAnchor: "M20",
+            localities: ["Didsbury", "Chorlton", "City centre", "Withington", "Sale"],
+            anchors: ["M20", "M21", "Manchester Central Library", "Didsbury Library"],
+          },
+        ],
+      },
+      {
+        province: "West Midlands",
+        cities: [
+          {
+            city: "Birmingham",
+            defaultLocality: "Edgbaston, Moseley",
+            defaultAnchor: "B13",
+            localities: ["Edgbaston", "Moseley", "Harborne", "Jewellery Quarter"],
+            anchors: ["B13", "B15", "Library of Birmingham", "Moseley Community Hub"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "FR",
+    countryName: "France",
+    provinces: [
+      {
+        province: "Ile-de-France",
+        cities: [
+          {
+            city: "Paris",
+            defaultLocality: "Marais, Saint-Germain",
+            defaultAnchor: "75004",
+            localities: ["Marais", "Saint-Germain", "Montparnasse", "Batignolles"],
+            anchors: ["75004", "75006", "Bibliotheque Saint-Simon", "Maison de la Vie Associative"],
+          },
+        ],
+      },
+      {
+        province: "Provence-Alpes-Cote d'Azur",
+        cities: [
+          {
+            city: "Nice",
+            defaultLocality: "Liberation, Cimiez",
+            defaultAnchor: "06000",
+            localities: ["Liberation", "Cimiez", "Old town", "Port Lympia"],
+            anchors: ["06000", "06300", "Bibliotheque Louis Nucera"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "DE",
+    countryName: "Germany",
+    provinces: [
+      {
+        province: "Berlin",
+        cities: [
+          {
+            city: "Berlin",
+            defaultLocality: "Charlottenburg, Mitte",
+            defaultAnchor: "10115",
+            localities: ["Charlottenburg", "Mitte", "Prenzlauer Berg", "Kreuzberg"],
+            anchors: ["10115", "10623", "Amerika-Gedenkbibliothek", "Stadtbibliothek Mitte"],
+          },
+        ],
+      },
+      {
+        province: "Bavaria",
+        cities: [
+          {
+            city: "Munich",
+            defaultLocality: "Maxvorstadt, Schwabing",
+            defaultAnchor: "80799",
+            localities: ["Maxvorstadt", "Schwabing", "Sendling", "Haidhausen"],
+            anchors: ["80799", "80802", "Muenchner Stadtbibliothek"],
+          },
+        ],
+      },
+    ],
+  },
+] as const;
+const DISCOVERY_LOCATION_COUNTRY_OPTIONS = DISCOVERY_LOCATION_PRESETS.map((country) => ({
+  value: country.countryCode,
+  label: country.countryName,
+}));
+const DISCOVERY_CITY_PRESETS = DISCOVERY_LOCATION_PRESETS.flatMap((country) => (
+  country.provinces.flatMap((province) => (
+    province.cities.map((city) => ({
+      ...city,
+      province: province.province,
+      countryCode: country.countryCode,
+      countryName: country.countryName,
+    }))
+  ))
+));
+const DISCOVERY_FALLBACK_LOCALITIES = ["City centre", "Old town", "Near public library", "Near community centre", "Main park"];
+const DISCOVERY_FALLBACK_ANCHORS = ["Main library", "Community centre", "Central park", "Town hall"];
+const DISCOVERY_VENUE_OPTIONS = [
+  "libraries",
+  "cultural centres",
+  "parks",
+  "community centres",
+  "museums",
+  "senior centres",
+  "neighbourhood parks",
+  "public workshops",
+  "local walking groups",
+];
 const ACTIVITY_TEMPLATE_FILE_NAME = "vyva-activities-template.csv";
 const ACTIVITY_TEMPLATE_CSV = [
   [
@@ -601,22 +840,192 @@ function Field({ label, hint, optional, children }: { label: string; hint?: stri
   );
 }
 
+function FieldGroup({ label, optional, children }: { label: string; optional?: boolean; children: ReactNode }) {
+  return (
+    <div className="block">
+      <span className="mb-1 flex justify-between text-sm font-bold text-[#4d4351]">
+        <span>{label}</span>
+        {optional && <span className="font-normal text-purple-700">Optional</span>}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 function TextInput({
   value,
   onChange,
   placeholder,
+  testId,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  testId?: string;
 }) {
   return (
     <input
+      data-testid={testId}
       className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
     />
+  );
+}
+
+function listIncludes(value: string, option: string) {
+  const normalizedOption = option.trim().toLowerCase();
+  return textToList(value).some((item) => item.toLowerCase() === normalizedOption);
+}
+
+function addListOption(value: string, option: string) {
+  const cleaned = option.trim();
+  if (!cleaned || listIncludes(value, cleaned)) return value;
+  return [...textToList(value), cleaned].join(", ");
+}
+
+function toggleListOption(value: string, option: string) {
+  const normalizedOption = option.trim().toLowerCase();
+  const current = textToList(value);
+  const exists = current.some((item) => item.toLowerCase() === normalizedOption);
+  return (exists ? current.filter((item) => item.toLowerCase() !== normalizedOption) : [...current, option]).join(", ");
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function ChoiceButton({
+  active,
+  children,
+  onClick,
+  testId,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      data-testid={testId}
+      onClick={onClick}
+      className={`rounded-2xl border px-3 py-2 text-left text-sm font-black transition ${
+        active
+          ? "border-purple-700 bg-purple-700 text-white shadow-sm"
+          : "border-[#eadfd5] bg-white text-[#2f2135] hover:border-purple-300 hover:bg-purple-50"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SmartMultiPicker({
+  value,
+  onChange,
+  options,
+  testIdPrefix,
+  customPlaceholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  testIdPrefix: string;
+  customPlaceholder: string;
+}) {
+  const [customValue, setCustomValue] = useState("");
+
+  const addCustomValue = () => {
+    const next = addListOption(value, customValue);
+    onChange(next);
+    setCustomValue("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <ChoiceButton
+            key={option}
+            active={listIncludes(value, option)}
+            onClick={() => onChange(toggleListOption(value, option))}
+            testId={`${testIdPrefix}-${slugifyEventKey(option, "option")}`}
+          >
+            {option}
+          </ChoiceButton>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          data-testid={`${testIdPrefix}-custom`}
+          className="min-w-0 flex-1 rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
+          value={customValue}
+          onChange={(event) => setCustomValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addCustomValue();
+            }
+          }}
+          placeholder={customPlaceholder}
+        />
+        <button
+          type="button"
+          data-testid={`${testIdPrefix}-add`}
+          onClick={addCustomValue}
+          disabled={!customValue.trim()}
+          className="inline-flex items-center gap-1 rounded-2xl border border-purple-200 bg-white px-3 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
+        >
+          <Plus size={15} />
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NumberStepper({
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  testId,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (value: number) => void;
+  testId: string;
+}) {
+  const nextValue = (direction: -1 | 1) => clampNumber(Number(value) + (step * direction), min, max);
+  return (
+    <div className="flex min-h-[50px] items-center justify-between rounded-2xl border border-[#eadfd5] bg-white px-2">
+      <button
+        type="button"
+        aria-label="Decrease"
+        data-testid={`${testId}-decrease`}
+        onClick={() => onChange(nextValue(-1))}
+        className="h-9 w-9 rounded-xl bg-[#f7f2eb] text-lg font-black text-[#2f2135]"
+      >
+        -
+      </button>
+      <output data-testid={testId} className="px-3 text-sm font-black text-[#2f2135]">{value}</output>
+      <button
+        type="button"
+        aria-label="Increase"
+        data-testid={`${testId}-increase`}
+        onClick={() => onChange(nextValue(1))}
+        className="h-9 w-9 rounded-xl bg-purple-700 text-lg font-black text-white"
+      >
+        +
+      </button>
+    </div>
   );
 }
 
@@ -719,6 +1128,14 @@ function safetyTone(status: string) {
   return "rose";
 }
 
+function matchesWorkQueue(event: AdminParticipationEvent, queue: WorkQueueFilter) {
+  if (queue === "all") return true;
+  if (queue === "review") return event.status === "draft" || event.safetyStatus === "needs_review";
+  if (queue === "checks") return event.checkRequestCount > 0;
+  if (queue === "popular") return event.responseCounts.interested + event.responseCounts.maybe > 0;
+  return event.status === "active" && event.safetyStatus === "approved";
+}
+
 function discoveryEvidence(event: AdminParticipationEvent) {
   const discovery = event.metadata?.discovery;
   if (!discovery || typeof discovery !== "object") return "";
@@ -745,13 +1162,21 @@ export default function CuratedActivitiesAdminPage() {
   const [importing, setImporting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
+  const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>("all");
   const [savingEventKey, setSavingEventKey] = useState<string | null>(null);
   const [eventSaveFeedback, setEventSaveFeedback] = useState<Record<string, EventSaveFeedback>>({});
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
   const [expandedDiscoveryId, setExpandedDiscoveryId] = useState<string | null>(null);
+  const [countryQuery, setCountryQuery] = useState("Spain");
+  const [customCity, setCustomCity] = useState("");
   const [discoveryForm, setDiscoveryForm] = useState<DiscoveryFormState>({
     city: "Madrid",
+    province: "Madrid",
     countryCode: "ES",
+    locality: "Chamberi, Salamanca",
+    postalCode: "28010",
+    radiusKm: 4,
+    venueHints: "libraries, cultural centres, parks",
     interestTags: ["music", "walking", "art"],
     customInterest: "",
     languageCodes: ["en", "es", "de"],
@@ -759,6 +1184,117 @@ export default function CuratedActivitiesAdminPage() {
     refinementTags: ["free", "indoor", "wheelchair friendly"],
     maxResults: 6,
   });
+  const countryMatches = useMemo(() => {
+    const query = countryQuery.trim().toLowerCase();
+    if (!query) return DISCOVERY_LOCATION_PRESETS;
+    return DISCOVERY_LOCATION_PRESETS.filter((country) => (
+      country.countryName.toLowerCase().includes(query) || country.countryCode.toLowerCase().includes(query)
+    ));
+  }, [countryQuery]);
+  const normalizedCountryQuery = countryQuery.trim().toLowerCase();
+  const countrySuggestions = normalizedCountryQuery && countryMatches.some((country) => (
+    country.countryName.toLowerCase() === normalizedCountryQuery || country.countryCode.toLowerCase() === normalizedCountryQuery
+  ))
+    ? []
+    : countryMatches.slice(0, 4);
+  const activeDiscoveryCountryPreset = useMemo(() => {
+    const code = cleanText(discoveryForm.countryCode).toUpperCase();
+    return DISCOVERY_LOCATION_PRESETS.find((country) => country.countryCode === code);
+  }, [discoveryForm.countryCode]);
+  const visibleDiscoveryCountryPreset = countryMatches.length === 1 ? countryMatches[0] : activeDiscoveryCountryPreset;
+  const activeProvincePreset = useMemo(() => {
+    const province = cleanText(discoveryForm.province).toLowerCase();
+    return visibleDiscoveryCountryPreset?.provinces.find((item) => item.province.toLowerCase() === province)
+      ?? visibleDiscoveryCountryPreset?.provinces.find((item) => (
+        item.cities.some((city) => city.city.toLowerCase() === discoveryForm.city.toLowerCase())
+      ))
+      ?? visibleDiscoveryCountryPreset?.provinces[0];
+  }, [discoveryForm.city, discoveryForm.province, visibleDiscoveryCountryPreset]);
+  const activeDiscoveryCityPreset = useMemo(() => {
+    const city = cleanText(discoveryForm.city).toLowerCase();
+    const country = cleanText(discoveryForm.countryCode).toUpperCase();
+    return DISCOVERY_CITY_PRESETS.find((preset) => (
+      preset.city.toLowerCase() === city && preset.countryCode === country
+    ));
+  }, [discoveryForm.city, discoveryForm.countryCode]);
+  const visibleCityOptions = activeProvincePreset?.cities ?? [];
+  const localityOptions = activeDiscoveryCityPreset?.localities ?? DISCOVERY_FALLBACK_LOCALITIES;
+  const anchorOptions = activeDiscoveryCityPreset?.anchors ?? DISCOVERY_FALLBACK_ANCHORS;
+
+  function selectCountryPreset(country: DiscoveryCountryPreset) {
+    const province = country.provinces[0];
+    const city = province?.cities[0];
+    setCountryQuery(country.countryName);
+    if (!province || !city) {
+      setDiscoveryForm((prev) => ({ ...prev, countryCode: country.countryCode }));
+      return;
+    }
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      countryCode: country.countryCode,
+      province: province.province,
+      city: city.city,
+      locality: city.defaultLocality,
+      postalCode: city.defaultAnchor,
+    }));
+  }
+
+  function updateCountryQuery(value: string) {
+    setCountryQuery(value);
+    const normalized = value.trim().toLowerCase();
+    const exactMatch = DISCOVERY_LOCATION_PRESETS.find((country) => (
+      country.countryName.toLowerCase() === normalized || country.countryCode.toLowerCase() === normalized
+    ));
+    if (exactMatch) selectCountryPreset(exactMatch);
+  }
+
+  function selectProvincePreset(province: DiscoveryProvincePreset) {
+    const city = province.cities[0];
+    const country = visibleDiscoveryCountryPreset;
+    if (country) setCountryQuery(country.countryName);
+    if (!city) {
+      setDiscoveryForm((prev) => ({
+        ...prev,
+        countryCode: country?.countryCode ?? prev.countryCode,
+        province: province.province,
+      }));
+      return;
+    }
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      countryCode: country?.countryCode ?? prev.countryCode,
+      province: province.province,
+      city: city.city,
+      locality: city.defaultLocality,
+      postalCode: city.defaultAnchor,
+    }));
+  }
+
+  function selectCityPreset(city: DiscoveryCityPreset) {
+    const country = visibleDiscoveryCountryPreset;
+    const province = activeProvincePreset;
+    if (country) setCountryQuery(country.countryName);
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      countryCode: country?.countryCode ?? prev.countryCode,
+      province: province?.province ?? prev.province,
+      city: city.city,
+      locality: city.defaultLocality,
+      postalCode: city.defaultAnchor,
+    }));
+  }
+
+  function addCustomCity() {
+    const city = customCity.trim();
+    if (!city) return;
+    setDiscoveryForm((prev) => ({
+      ...prev,
+      city,
+      locality: prev.locality || city,
+      postalCode: prev.postalCode,
+    }));
+    setCustomCity("");
+  }
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/social/participate${path}`, options);
@@ -815,9 +1351,10 @@ export default function CuratedActivitiesAdminPage() {
       if (filters.status && event.status !== filters.status) return false;
       if (filters.format && event.format !== filters.format) return false;
       if (filters.safety && event.safetyStatus !== filters.safety) return false;
+      if (!matchesWorkQueue(event, workQueueFilter)) return false;
       return true;
     });
-  }, [events, filters]);
+  }, [events, filters, workQueueFilter]);
 
   const activeApproved = useMemo(() => (
     events.filter((event) => event.status === "active" && event.safetyStatus === "approved")
@@ -828,6 +1365,13 @@ export default function CuratedActivitiesAdminPage() {
   const interestedCount = events.reduce((sum, event) => sum + event.responseCounts.interested, 0);
   const checkRequestCount = events.reduce((sum, event) => sum + event.checkRequestCount, 0);
   const selectedDiscoveryCount = discoveryCandidates.filter((candidate) => candidate.selected).length;
+  const workQueueCounts = useMemo<Record<WorkQueueFilter, number>>(() => ({
+    all: events.length,
+    review: events.filter((event) => matchesWorkQueue(event, "review")).length,
+    checks: events.filter((event) => matchesWorkQueue(event, "checks")).length,
+    popular: events.filter((event) => matchesWorkQueue(event, "popular")).length,
+    live: events.filter((event) => matchesWorkQueue(event, "live")).length,
+  }), [events]);
 
   const coverageRows = useMemo(() => {
     const map = new Map<string, { label: string; active: number; drafts: number; checks: number; interested: number }>();
@@ -928,6 +1472,10 @@ export default function CuratedActivitiesAdminPage() {
       const body = {
         city: cleanText(discoveryForm.city),
         countryCode: normalizeCountry(discoveryForm.countryCode),
+        locality: cleanText(discoveryForm.locality),
+        postalCode: cleanText(discoveryForm.postalCode),
+        radiusKm: Math.max(0.5, Math.min(50, Number(discoveryForm.radiusKm) || 4)),
+        venueHints: textToList(discoveryForm.venueHints),
         interests: discoveryForm.interestTags,
         refinementTags: discoveryForm.refinementTags,
         languageCodes: discoveryForm.languageCodes,
@@ -1123,6 +1671,51 @@ export default function CuratedActivitiesAdminPage() {
           </div>
         </section>
 
+        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="admin-participate-work-queue">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="font-serif text-3xl">Work queue</h2>
+              <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                Showing {filteredEvents.length} of {events.length} activities.
+              </p>
+            </div>
+            {workQueueFilter !== "all" && (
+              <button
+                type="button"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-purple-200 bg-purple-50 px-4 text-sm font-black text-purple-800"
+                onClick={() => setWorkQueueFilter("all")}
+                data-testid="admin-participate-clear-work-queue"
+              >
+                Show all
+              </button>
+            )}
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            {WORK_QUEUE_FILTERS.map((queue) => {
+              const active = workQueueFilter === queue.id;
+              return (
+                <button
+                  key={queue.id}
+                  type="button"
+                  onClick={() => setWorkQueueFilter(queue.id)}
+                  className={`min-h-[92px] rounded-2xl border px-4 py-3 text-left transition ${
+                    active
+                      ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                      : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                  }`}
+                  data-testid={`admin-participate-queue-${queue.id}`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-black">{queue.label}</span>
+                    <span className="text-2xl font-black leading-none">{workQueueCounts[queue.id]}</span>
+                  </span>
+                  <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{queue.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -1138,36 +1731,180 @@ export default function CuratedActivitiesAdminPage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <Field label="City">
-              <input
-                data-testid="admin-discovery-city"
-                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
-                value={discoveryForm.city}
-                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, city: event.target.value }))}
-                placeholder="Madrid"
+          <div className="mt-4 rounded-3xl border border-[#eadfd5] bg-[#fffaf4] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <h3 className="text-sm font-black text-[#2f2135]">Locality focus</h3>
+                <p className="text-sm font-semibold text-[#7d6b65]">
+                  Pick neighbourhoods, anchors, and a practical radius so discovery avoids generic city-wide results.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Pill tone="plain">{discoveryForm.locality || discoveryForm.city}</Pill>
+                <Pill tone="plain">{discoveryForm.radiusKm} km radius</Pill>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-2 xl:grid-cols-[1fr_1.05fr_1.05fr_1.35fr_1fr_0.9fr]">
+              <FieldGroup label="Country">
+                <input
+                  data-testid="admin-discovery-country"
+                  aria-label="Country"
+                  className="w-full rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#2f2135]"
+                  value={countryQuery}
+                  onChange={(event) => updateCountryQuery(event.target.value)}
+                  placeholder="Type a country"
+                  list="admin-discovery-country-options"
+                />
+                <datalist id="admin-discovery-country-options">
+                  {DISCOVERY_LOCATION_COUNTRY_OPTIONS.map((country) => (
+                    <option key={country.value} value={country.label}>{country.value}</option>
+                  ))}
+                </datalist>
+                {countrySuggestions.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {countrySuggestions.map((country) => (
+                      <ChoiceButton
+                        key={country.countryCode}
+                        active={discoveryForm.countryCode === country.countryCode}
+                        onClick={() => selectCountryPreset(country)}
+                        testId={`admin-discovery-country-option-${country.countryCode.toLowerCase()}`}
+                      >
+                        {country.countryName}
+                      </ChoiceButton>
+                    ))}
+                  </div>
+                )}
+              </FieldGroup>
+              <FieldGroup label="Province/region">
+                <div className="flex flex-wrap gap-2">
+                  {(visibleDiscoveryCountryPreset?.provinces ?? []).map((province) => (
+                    <ChoiceButton
+                      key={province.province}
+                      active={activeProvincePreset?.province === province.province}
+                      onClick={() => selectProvincePreset(province)}
+                      testId={`admin-discovery-province-${slugifyEventKey(province.province, "province")}`}
+                    >
+                      {province.province}
+                    </ChoiceButton>
+                  ))}
+                </div>
+              </FieldGroup>
+              <FieldGroup label="City">
+                <div className="flex flex-wrap gap-2">
+                  {visibleCityOptions.map((city) => (
+                    <ChoiceButton
+                      key={city.city}
+                      active={discoveryForm.city.toLowerCase() === city.city.toLowerCase()}
+                      onClick={() => selectCityPreset(city)}
+                      testId={`admin-discovery-city-option-${slugifyEventKey(city.city, "city")}`}
+                    >
+                      {city.city}
+                    </ChoiceButton>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    data-testid="admin-discovery-city-custom"
+                    aria-label="Custom discovery city"
+                    className="min-w-0 flex-1 rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
+                    value={customCity}
+                    onChange={(event) => setCustomCity(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addCustomCity();
+                      }
+                    }}
+                    placeholder="Type another city"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomCity}
+                    disabled={!customCity.trim()}
+                    className="rounded-2xl border border-purple-200 bg-white px-3 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
+              </FieldGroup>
+              <FieldGroup label="Neighbourhood or area">
+                <SmartMultiPicker
+                  value={discoveryForm.locality}
+                  onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, locality: value }))}
+                  options={localityOptions}
+                  testIdPrefix="admin-discovery-locality"
+                  customPlaceholder="Add area"
+                />
+              </FieldGroup>
+              <FieldGroup label="Postcode or anchor">
+                <select
+                  data-testid="admin-discovery-postal-code"
+                  className="w-full rounded-2xl border border-[#eadfd5] bg-white px-4 py-3 text-sm font-bold text-[#2f2135]"
+                  value={anchorOptions.includes(discoveryForm.postalCode) ? discoveryForm.postalCode : "custom"}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value !== "custom") setDiscoveryForm((prev) => ({ ...prev, postalCode: value }));
+                  }}
+                >
+                  {anchorOptions.map((anchor) => <option key={anchor} value={anchor}>{anchor}</option>)}
+                  <option value="custom">Custom anchor</option>
+                </select>
+                <input
+                  aria-label="Custom postcode or anchor"
+                  className="mt-2 w-full rounded-2xl border border-[#eadfd5] px-3 py-2 text-sm font-semibold text-[#2f2135]"
+                  value={discoveryForm.postalCode}
+                  onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, postalCode: event.target.value }))}
+                  placeholder="Postcode, library, venue, or landmark"
+                />
+              </FieldGroup>
+              <FieldGroup label="Radius">
+                <div className="rounded-2xl border border-[#eadfd5] bg-white px-4 py-3">
+                  <div className="flex items-center justify-between text-sm font-black text-[#2f2135]">
+                    <span>{discoveryForm.radiusKm} km</span>
+                    <span className="text-xs text-[#7d6b65]">0.5-50 km</span>
+                  </div>
+                  <input
+                    data-testid="admin-discovery-radius"
+                    className="mt-2 w-full accent-purple-700"
+                    type="range"
+                    min={0.5}
+                    max={50}
+                    step={0.5}
+                    value={discoveryForm.radiusKm}
+                    onChange={(event) => setDiscoveryForm((prev) => ({
+                      ...prev,
+                      radiusKm: clampNumber(Number(event.target.value) || 0.5, 0.5, 50),
+                    }))}
+                  />
+                </div>
+              </FieldGroup>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
+            <FieldGroup label="Venue/source hints">
+              <SmartMultiPicker
+                value={discoveryForm.venueHints}
+                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, venueHints: value }))}
+                options={DISCOVERY_VENUE_OPTIONS}
+                testIdPrefix="admin-discovery-venue"
+                customPlaceholder="Add venue/source type"
               />
-            </Field>
-            <Field label="Country">
-              <select
-                data-testid="admin-discovery-country"
-                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-bold text-[#2f2135]"
-                value={discoveryForm.countryCode}
-                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, countryCode: event.target.value }))}
-              >
-                {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
-              </select>
-            </Field>
-            <Field label="Max results">
-              <input
-                className="w-full rounded-2xl border border-[#eadfd5] px-4 py-3 text-sm font-semibold text-[#2f2135]"
-                type="number"
+            </FieldGroup>
+            <FieldGroup label="Max results">
+              <NumberStepper
+                value={discoveryForm.maxResults}
                 min={1}
                 max={12}
-                value={discoveryForm.maxResults}
-                onChange={(event) => setDiscoveryForm((prev) => ({ ...prev, maxResults: Number(event.target.value) || 1 }))}
+                onChange={(value) => setDiscoveryForm((prev) => ({ ...prev, maxResults: value }))}
+                testId="admin-discovery-max-results"
               />
-            </Field>
+            </FieldGroup>
+          </div>
+
+          <div className="hidden">
+            <input type="hidden" readOnly data-testid="admin-discovery-locality-value" value={discoveryForm.locality} />
+            <input type="hidden" readOnly data-testid="admin-discovery-venue-hints" value={discoveryForm.venueHints} />
           </div>
 
           <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
@@ -1456,10 +2193,10 @@ export default function CuratedActivitiesAdminPage() {
                                   onChange={(input) => updateDiscoveryCandidate(candidate.previewId, { countryCode: input.target.value })}
                                 >
                                   <option value="">No country</option>
-                                  {candidate.countryCode && !DISCOVERY_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(candidate.countryCode)) && (
+                                  {candidate.countryCode && !ADMIN_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(candidate.countryCode)) && (
                                     <option value={normalizeCountry(candidate.countryCode) ?? ""}>{countryLabel(candidate.countryCode)}</option>
                                   )}
-                                  {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+                                  {ADMIN_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
                                 </select>
                               </Field>
                               <Field label="Precise location" hint="Venue, address, meeting point, or online room name.">
@@ -1619,7 +2356,7 @@ export default function CuratedActivitiesAdminPage() {
                 value={normalizeCountry(draft.countryCode) ?? "ES"}
                 onChange={(event) => setDraft((prev) => ({ ...prev, countryCode: event.target.value }))}
               >
-                {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+                {ADMIN_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
               </select>
             </Field>
             <div className="lg:col-span-2">
@@ -1658,7 +2395,11 @@ export default function CuratedActivitiesAdminPage() {
         </section>
 
         <section className="mt-5 grid gap-4" data-testid="admin-participate-events">
-          {filteredEvents.map((event) => {
+          {filteredEvents.length === 0 ? (
+            <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65]">
+              No activities match this queue and filter combination.
+            </div>
+          ) : filteredEvents.map((event) => {
             const saveFeedback = eventSaveFeedback[event.eventKey];
             const isSavingEvent = savingEventKey === event.eventKey;
             return (
@@ -1704,10 +2445,10 @@ export default function CuratedActivitiesAdminPage() {
                     onChange={(input) => updateEvent(event.eventKey, { countryCode: input.target.value })}
                   >
                     <option value="">No country</option>
-                    {event.countryCode && !DISCOVERY_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(event.countryCode)) && (
+                    {event.countryCode && !ADMIN_COUNTRY_OPTIONS.some((country) => country.value === normalizeCountry(event.countryCode)) && (
                       <option value={normalizeCountry(event.countryCode) ?? ""}>{countryLabel(event.countryCode)}</option>
                     )}
-                    {DISCOVERY_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
+                    {ADMIN_COUNTRY_OPTIONS.map((country) => <option key={country.value} value={country.value}>{country.label}</option>)}
                   </select>
                 </Field>
                 <Field label="Precise location">

@@ -5,6 +5,7 @@ import SettingsHome from "./SettingsHome";
 
 const toastMock = vi.fn();
 const logoutMock = vi.fn();
+const profileHeroMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({
@@ -18,7 +19,10 @@ vi.mock("@/components/onboarding/PhoneFrame", () => ({
 }));
 
 vi.mock("@/components/onboarding/ProfileSectionHero", () => ({
-  ProfileSectionHero: ({ title }: { title: string }) => <header data-testid="settings-hero">{title}</header>,
+  ProfileSectionHero: (props: { title: string; badges?: unknown[] }) => {
+    profileHeroMock(props);
+    return <header data-testid="settings-hero">{props.title}</header>;
+  },
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -44,9 +48,22 @@ afterEach(() => {
   vi.restoreAllMocks();
   toastMock.mockClear();
   logoutMock.mockClear();
+  profileHeroMock.mockClear();
 });
 
 describe("SettingsHome action rows", () => {
+  it("keeps the Settings hero free of section chips", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/settings"]}>
+        <SettingsHome />
+      </MemoryRouter>,
+    );
+
+    const props = profileHeroMock.mock.calls[0]?.[0];
+    expect(props).toEqual(expect.objectContaining({ title: "settings.home.title" }));
+    expect(props).not.toHaveProperty("badges");
+  });
+
   it("turns delete account into a safe support request action", () => {
     vi.useFakeTimers();
     const clipboardWrite = vi.fn().mockResolvedValue(undefined);

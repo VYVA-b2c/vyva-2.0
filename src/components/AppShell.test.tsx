@@ -1,9 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AppShell, { emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
+import AppShell, { buildVoiceActionRouteState, emergencyProfileContactFromState, getAppShellLayout, SosSheet } from "./AppShell";
 import type { VoiceSessionPhase } from "@/lib/voiceSessionState";
+import {
+  VYVA_VOICE_APP_ACTION_EVENT,
+  VYVA_VOICE_USER_MESSAGE_EVENT,
+  type VoiceAppAction,
+} from "@/lib/voiceNavigation";
 
 const voiceState = vi.hoisted(() => ({
   status: "idle" as "idle" | "connecting" | "connected",
@@ -21,6 +26,12 @@ const voiceState = vi.hoisted(() => ({
   beginVoiceTransfer: vi.fn(),
   sendContextUpdate: vi.fn(),
   recordRecommendationFeedback: vi.fn(),
+}));
+
+const voiceActionState = vi.hoisted(() => ({
+  activeAction: null as VoiceAppAction | null,
+  completeActiveAction: vi.fn(),
+  dismissActiveAction: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -53,9 +64,9 @@ vi.mock("@/hooks/useToastSurface", () => ({
 
 vi.mock("@/contexts/VoiceActionContext", () => ({
   useVoiceActionContext: () => ({
-    activeAction: null,
-    completeActiveAction: vi.fn(),
-    dismissActiveAction: vi.fn(),
+    activeAction: voiceActionState.activeAction,
+    completeActiveAction: voiceActionState.completeActiveAction,
+    dismissActiveAction: voiceActionState.dismissActiveAction,
   }),
 }));
 
@@ -176,6 +187,31 @@ describe("app shell route layout", () => {
 });
 
 describe("app shell voice dock", () => {
+  function makeVoiceAction(overrides: Partial<VoiceAppAction> = {}): VoiceAppAction {
+    return {
+      id: "voice_concierge_task",
+      actionType: "concierge.task",
+      domain: "concierge",
+      route: "/concierge",
+      title: "Concierge help",
+      summary: "Opening Concierge.",
+      cue: "Help with the request.",
+      sourceText: "help me book something",
+      priority: "medium",
+      feedbackReason: "Agent requested concierge support.",
+      requiredPayloadKeys: [],
+      optionalPayloadKeys: [],
+      safetyLevel: "sensitive",
+      requiresConfirmation: true,
+      completion: {
+        mode: "manual",
+        doneLabel: "Done",
+        expiresAfterMs: 90000,
+      },
+      ...overrides,
+    };
+  }
+
   function renderShell(path = "/") {
     return render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[path]}>
@@ -197,6 +233,9 @@ describe("app shell voice dock", () => {
     voiceState.lastErrorCode = null;
     voiceState.stopVoice.mockClear();
     voiceState.setMicrophoneMuted.mockClear();
+    voiceActionState.activeAction = null;
+    voiceActionState.completeActiveAction.mockClear();
+    voiceActionState.dismissActiveAction.mockClear();
   });
 
   it("opens the focused voice screen from the dock and restores the dock when minimized", () => {
@@ -205,7 +244,7 @@ describe("app shell voice dock", () => {
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Listening");
     expect(screen.getByTestId("voice-session-dock")).toHaveTextContent("Hello Karim");
-    expect(screen.getByTestId("button-dock-toggle-mic")).toHaveTextContent("Interrupt");
+    expect(screen.getByTestId("button-dock-toggle-mic")).toHaveAttribute("title", "Mic on");
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-open-voice-overlay"));
@@ -218,5 +257,126 @@ describe("app shell voice dock", () => {
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
     expect(screen.getByTestId("voice-session-dock")).toBeInTheDocument();
     expect(voiceState.stopVoice).not.toHaveBeenCalled();
+  });
+
+  it("uses compact copy when VYVA is speaking from the dock", () => {
+    voiceState.isSpeaking = true;
+    voiceState.voiceSessionPhase = "speaking";
+    voiceState.transcript = [{ from: "vyva", text: "Try naming three things", timestamp: 2 }];
+
+    renderShell();
+
+    const dock = screen.getByTestId("voice-session-dock");
+    expect(dock).toHaveTextContent("Speaking");
+    expect(dock).not.toHaveTextContent("VYVA speaking");
+    expect(dock).toHaveTextContent("Try naming three things");
+  });
+
+  it("ignores punctuation-only voice transcript events", () => {
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell();
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "'",
+          transcriptEntry: { from: "user", text: "'", timestamp: 3 },
+        },
+      }));
+
+      expect(actionHandler).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
+  it("keeps non-health voice actions visible on their route", () => {
+    voiceActionState.activeAction = makeVoiceAction();
+
+    renderShell("/concierge");
+
+    expect(screen.getByTestId("voice-action-card")).toHaveTextContent("Concierge help");
+    expect(screen.getByTestId("voice-action-card")).toHaveTextContent("VYVA opened Concierge");
+  });
+
+  it("builds route prefill state for ride voice actions", () => {
+    const state = buildVoiceActionRouteState(makeVoiceAction({
+      id: "voice_concierge_ride_booking",
+      actionType: "concierge.ride_booking",
+      title: "Ride help",
+      route: "/concierge",
+      payload: {
+        pickup: "Home",
+        destination: "Doctor",
+        time: "tomorrow morning",
+        mobility_needs: "walker",
+      },
+    }));
+
+    expect(state.voiceActionType).toBe("concierge.ride_booking");
+    expect(state.voiceActionPayload).toMatchObject({
+      pickup: "Home",
+      destination: "Doctor",
+      time: "tomorrow morning",
+    });
+    expect(state.conciergePrefill).toMatchObject({
+      kind: "ride",
+      source: "voice_action",
+    });
+    expect(JSON.stringify(state.conciergePrefill)).toContain("destination: Doctor");
+  });
+
+  it("builds shopping prefill state for order voice actions", () => {
+    const state = buildVoiceActionRouteState(makeVoiceAction({
+      id: "voice_concierge_order_request",
+      actionType: "concierge.order_request",
+      title: "Order help",
+      route: "/concierge/shopping",
+      sourceText: "Order groceries for tomorrow",
+      payload: {
+        items: "groceries",
+        category: "groceries",
+        delivery_time: "tomorrow",
+      },
+    }));
+
+    expect(state.voiceActionType).toBe("concierge.order_request");
+    expect(state.shoppingPrefill).toMatchObject({
+      needText: "groceries",
+      category: "groceries",
+      priorities: ["delivery", "simplicity"],
+      constraints: ["tomorrow"],
+    });
+  });
+
+  it("does not show Health voice action cards after landing on a Health route", async () => {
+    voiceActionState.activeAction = makeVoiceAction({
+      id: "voice_symptom_support",
+      actionType: "health.symptom_support",
+      domain: "health",
+      route: "/health/symptom-check",
+      title: "Symptom support",
+      summary: "Opening symptom support.",
+      cue: "Ask one focused question at a time.",
+      sourceText: "I want a symptom check",
+      feedbackReason: "Agent requested symptom-support context.",
+      safetyLevel: "medical",
+      requiresConfirmation: false,
+    });
+
+    renderShell("/health/symptom-check");
+
+    expect(screen.queryByTestId("voice-action-card")).not.toBeInTheDocument();
+    expect(screen.queryByText("VYVA opened Health")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(voiceActionState.completeActiveAction).toHaveBeenCalledWith({
+        metadata: {
+          source: "app_voice_health_route_landed",
+          current_path: "/health/symptom-check",
+        },
+      });
+    });
   });
 });

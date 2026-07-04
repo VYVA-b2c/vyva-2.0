@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -39,6 +39,7 @@ import {
   buildVoiceReplayPack,
   filterVoiceTimelineEvents,
   timelineFilterOptions,
+  type VoiceQaSession,
   voiceQaSessionsToCsv,
   type VoiceTimelineFilter,
 } from "@/lib/voiceQa";
@@ -85,6 +86,16 @@ const REVIEW_STATUS_FILTERS = [
 ] as const;
 
 type ReviewStatusFilter = typeof REVIEW_STATUS_FILTERS[number];
+type VoiceQaQueueFilter = "all" | "flagged" | "unresolved" | "prompt_fix_needed" | "app_fix_needed" | "elevenlabs_config_needed";
+
+const VOICE_QA_QUEUE_FILTERS: Array<{ id: VoiceQaQueueFilter; label: string; description: string }> = [
+  { id: "all", label: "All sessions", description: "Current filter set" },
+  { id: "flagged", label: "Flagged", description: "Errors, dismissals, gaps" },
+  { id: "unresolved", label: "Unresolved", description: "Still needs review" },
+  { id: "prompt_fix_needed", label: "Prompt fix", description: "Prompt tuning needed" },
+  { id: "app_fix_needed", label: "App fix", description: "Product issue" },
+  { id: "elevenlabs_config_needed", label: "ElevenLabs", description: "Agent config issue" },
+];
 
 function statusLabel(validation: VoiceContextValidation) {
   if (validation.status === "ready") return "Ready";
@@ -196,6 +207,13 @@ function isUnresolvedReviewStatus(status: VoiceQaReviewStatus) {
     status === "elevenlabs_config_needed";
 }
 
+function matchesVoiceQaQueue(session: VoiceQaSession, status: VoiceQaReviewStatus, queue: VoiceQaQueueFilter) {
+  if (queue === "all") return true;
+  if (queue === "flagged") return session.flags.length > 0 || session.errorCount > 0 || session.dismissedActionCount > 0;
+  if (queue === "unresolved") return isUnresolvedReviewStatus(status);
+  return status === queue;
+}
+
 function exportStamp() {
   return new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
 }
@@ -289,6 +307,7 @@ export default function VoiceReadinessAdminPage() {
   const [utterance, setUtterance] = useState(QUICK_UTTERANCES[0]);
   const [simulatorMessage, setSimulatorMessage] = useState("");
   const [qaFilters, setQaFilters] = useState<VoiceTimelineFilter>(DEFAULT_QA_FILTERS);
+  const [qaQueueFilter, setQaQueueFilter] = useState<VoiceQaQueueFilter>("all");
   const [reviewStatusFilter, setReviewStatusFilter] = useState<ReviewStatusFilter>("all");
   const [qaReviews, setQaReviews] = useState<VoiceQaSessionReview[]>([]);
   const [qaReviewDrafts, setQaReviewDrafts] = useState<Record<string, VoiceQaReviewDraft>>({});
@@ -302,22 +321,34 @@ export default function VoiceReadinessAdminPage() {
   const filterOptions = useMemo(() => timelineFilterOptions(displayedTimelineEvents), [displayedTimelineEvents]);
   const qaDashboard = useMemo(() => buildVoiceQaDashboard(filteredTimelineEvents), [filteredTimelineEvents]);
   const qaReviewBySessionId = useMemo(() => new Map(qaReviews.map((review) => [review.sessionId, review])), [qaReviews]);
+  const reviewStatusForSession = useCallback(
+    (sessionId: string): VoiceQaReviewStatus => qaReviewDrafts[sessionId]?.status ?? qaReviewBySessionId.get(sessionId)?.status ?? "unreviewed",
+    [qaReviewBySessionId, qaReviewDrafts],
+  );
+  const qaQueueCounts = useMemo<Record<VoiceQaQueueFilter, number>>(() => ({
+    all: qaDashboard.sessions.length,
+    flagged: qaDashboard.sessions.filter((session) => matchesVoiceQaQueue(session, reviewStatusForSession(session.sessionId), "flagged")).length,
+    unresolved: qaDashboard.sessions.filter((session) => matchesVoiceQaQueue(session, reviewStatusForSession(session.sessionId), "unresolved")).length,
+    prompt_fix_needed: qaDashboard.sessions.filter((session) => matchesVoiceQaQueue(session, reviewStatusForSession(session.sessionId), "prompt_fix_needed")).length,
+    app_fix_needed: qaDashboard.sessions.filter((session) => matchesVoiceQaQueue(session, reviewStatusForSession(session.sessionId), "app_fix_needed")).length,
+    elevenlabs_config_needed: qaDashboard.sessions.filter((session) => matchesVoiceQaQueue(session, reviewStatusForSession(session.sessionId), "elevenlabs_config_needed")).length,
+  }), [qaDashboard.sessions, reviewStatusForSession]);
   const visibleQaSessions = useMemo(() => {
     const sessions = qaDashboard.sessions.filter((session) => {
-      const status = qaReviewDrafts[session.sessionId]?.status ?? qaReviewBySessionId.get(session.sessionId)?.status ?? "unreviewed";
+      const status = reviewStatusForSession(session.sessionId);
       if (reviewStatusFilter === "all") return true;
       if (reviewStatusFilter === "unresolved") return isUnresolvedReviewStatus(status);
       return status === reviewStatusFilter;
-    });
+    }).filter((session) => matchesVoiceQaQueue(session, reviewStatusForSession(session.sessionId), qaQueueFilter));
 
     return sessions.sort((a, b) => {
-      const aStatus = qaReviewDrafts[a.sessionId]?.status ?? qaReviewBySessionId.get(a.sessionId)?.status ?? "unreviewed";
-      const bStatus = qaReviewDrafts[b.sessionId]?.status ?? qaReviewBySessionId.get(b.sessionId)?.status ?? "unreviewed";
+      const aStatus = reviewStatusForSession(a.sessionId);
+      const bStatus = reviewStatusForSession(b.sessionId);
       const aPriority = isUnresolvedReviewStatus(aStatus) ? 0 : 1;
       const bPriority = isUnresolvedReviewStatus(bStatus) ? 0 : 1;
       return aPriority - bPriority || b.startedAt - a.startedAt;
     });
-  }, [qaDashboard.sessions, qaReviewBySessionId, qaReviewDrafts, reviewStatusFilter]);
+  }, [qaDashboard.sessions, qaQueueFilter, reviewStatusFilter, reviewStatusForSession]);
 
   const currentContract = voiceAgentContractFor({
     domain: lastResolvedSessionContext?.domain,
@@ -593,6 +624,54 @@ export default function VoiceReadinessAdminPage() {
             </div>
           </div>
 
+          <section className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fbf8f5] p-3" data-testid="voice-qa-work-queue">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-sm font-black text-[#2f2135]">QA work queue</h3>
+                <p className="mt-1 text-sm font-bold text-[#7d6b65]">
+                  Showing {visibleQaSessions.length} of {qaDashboard.sessions.length} sessions.
+                </p>
+              </div>
+              {qaQueueFilter !== "all" && (
+                <button
+                  type="button"
+                  onClick={() => setQaQueueFilter("all")}
+                  className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-800 transition hover:border-purple-300"
+                  data-testid="voice-qa-clear-work-queue"
+                >
+                  Show all
+                </button>
+              )}
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-6">
+              {VOICE_QA_QUEUE_FILTERS.map((queue) => {
+                const active = qaQueueFilter === queue.id;
+                return (
+                  <button
+                    key={queue.id}
+                    type="button"
+                    onClick={() => {
+                      setQaQueueFilter(queue.id);
+                      if (queue.id !== "all") setReviewStatusFilter("all");
+                    }}
+                    className={`min-h-[84px] rounded-xl border px-3 py-2 text-left transition ${
+                      active
+                        ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                        : "border-[#eadfd5] bg-white text-[#2f2135] hover:border-purple-200"
+                    }`}
+                    data-testid={`voice-qa-queue-${queue.id}`}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black">{queue.label}</span>
+                      <span className="text-xl font-black leading-none">{qaQueueCounts[queue.id]}</span>
+                    </span>
+                    <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{queue.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
           <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(220px,1.4fr)_repeat(4,minmax(150px,0.8fr))]">
             <input
               value={qaFilters.query}
@@ -717,11 +796,11 @@ export default function VoiceReadinessAdminPage() {
                   {visibleQaSessions.filter((session) => session.flags.length > 0).length} flagged
                 </Pill>
               </div>
-              <div className="mt-3 max-h-[340px] space-y-2 overflow-auto pr-1">
+              <div className="mt-3 max-h-[340px] space-y-2 overflow-auto pr-1" data-testid="voice-qa-session-list">
                 {visibleQaSessions.length > 0 ? visibleQaSessions.slice(0, 8).map((session) => {
                   const review = draftForSession(session.sessionId);
                   return (
-                    <article key={session.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                    <article key={session.id} className="rounded-xl border border-[#eadfd5] bg-white p-3" data-testid={`voice-qa-session-${session.sessionId}`}>
                       <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0">
                           <p className="break-words text-sm font-black text-[#2f2135]">{session.latestTitle}</p>

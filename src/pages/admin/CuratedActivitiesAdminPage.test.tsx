@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CuratedActivitiesAdminPage from "./CuratedActivitiesAdminPage";
@@ -208,8 +208,13 @@ describe("CuratedActivitiesAdminPage", () => {
     renderPage([discoveryCandidate, secondDiscoveryCandidate]);
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
-    fireEvent.change(screen.getByTestId("admin-discovery-city"), { target: { value: "Valencia" } });
-    fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "PT" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "Spain" } });
+    expect(screen.getByTestId("admin-discovery-province-valencia")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-discovery-province-valencia"));
+    fireEvent.click(screen.getByTestId("admin-discovery-city-option-valencia"));
+    fireEvent.change(screen.getByTestId("admin-discovery-postal-code"), { target: { value: "46006" } });
+    fireEvent.change(screen.getByTestId("admin-discovery-radius"), { target: { value: "3" } });
+    fireEvent.click(screen.getByTestId("admin-discovery-venue-neighbourhood-parks"));
     fireEvent.click(screen.getByTestId("admin-interest-crafts"));
     fireEvent.click(screen.getByTestId("admin-refinement-outdoor"));
     fireEvent.click(screen.getByTestId("admin-language-de"));
@@ -231,15 +236,44 @@ describe("CuratedActivitiesAdminPage", () => {
       path === "/api/admin/social/participate/discover" && init?.method === "POST"
     ));
     expect(discoverCall).toBeTruthy();
-    expect(JSON.parse(String(discoverCall?.[1]?.body))).toMatchObject({
+    const body = JSON.parse(String(discoverCall?.[1]?.body));
+    expect(body).toMatchObject({
       city: "Valencia",
-      countryCode: "PT",
+      countryCode: "ES",
+      locality: "Ruzafa, Gran Via",
+      postalCode: "46006",
+      radiusKm: 3,
       interests: expect.arrayContaining(["music", "walking", "art", "crafts"]),
       refinementTags: expect.arrayContaining(["free", "indoor", "wheelchair friendly", "outdoor"]),
       languageCodes: ["en", "es"],
       format: "hybrid",
       maxResults: 6,
     });
+    expect(body.venueHints).toEqual(expect.arrayContaining(["libraries", "cultural centres", "neighbourhood parks"]));
+  });
+
+  it("filters the activity list with work queue shortcuts", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    const list = screen.getByTestId("admin-participate-events");
+    expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
+    expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 2 of 2 activities.");
+
+    fireEvent.click(screen.getByTestId("admin-participate-queue-checks"));
+
+    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 1 of 2 activities.");
+    expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
+    expect(within(list).queryByText("online-music-hour")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-participate-queue-review"));
+
+    expect(screen.getByText("No activities match this queue and filter combination.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("admin-participate-clear-work-queue"));
+
+    expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
   });
 
   it("saves only checked AI candidates as draft review items", async () => {

@@ -1,7 +1,7 @@
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Keyboard, Mic, MicOff, Phone, PhoneOff, RotateCcw, UserRound } from "lucide-react";
+import { ChevronDown, Hand, Mic, MicOff, Phone, RotateCcw, UserRound, X } from "lucide-react";
 import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
@@ -124,7 +124,7 @@ function controlButtonStyle(variant: "soft" | "danger" | "primary" = "soft"): CS
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 800,
     lineHeight: 1,
     WebkitTapHighlightColor: "transparent",
@@ -137,12 +137,12 @@ function controlIconStyle(variant: "soft" | "danger" | "primary" = "soft"): CSSP
       width: 68,
       height: 68,
       borderRadius: 999,
-      background: "linear-gradient(145deg, #F43F5E 0%, #D71920 100%)",
+      background: "#111111",
       color: "#FFFFFF",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
-      boxShadow: "0 18px 36px rgba(215,25,32,0.28)",
+      boxShadow: "0 18px 36px rgba(17,17,17,0.22)",
     };
   }
 
@@ -159,6 +159,46 @@ function controlIconStyle(variant: "soft" | "danger" | "primary" = "soft"): CSSP
     justifyContent: "center",
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)",
   };
+}
+
+const MAX_TRANSCRIPT_CHUNK_WORDS = 9;
+const MAX_TRANSCRIPT_CHUNK_CHARS = 70;
+
+function splitTranscriptIntoCaptionChunks(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const sentences = trimmed.split(/(?<=[.!?¡¿。！？])\s+/u).filter(Boolean);
+  const chunks: string[] = [];
+
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\s+/).filter(Boolean);
+    let current: string[] = [];
+
+    for (const word of words) {
+      const candidate = [...current, word].join(" ");
+      if (
+        current.length > 0 &&
+        (current.length >= MAX_TRANSCRIPT_CHUNK_WORDS || candidate.length > MAX_TRANSCRIPT_CHUNK_CHARS)
+      ) {
+        chunks.push(current.join(" "));
+        current = [word];
+      } else {
+        current.push(word);
+      }
+    }
+
+    if (current.length > 0) {
+      chunks.push(current.join(" "));
+    }
+  }
+
+  return chunks;
+}
+
+function captionChunkDuration(text: string): number {
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.min(3400, Math.max(1500, wordCount * 330));
 }
 
 const VoiceCallOverlay = ({
@@ -179,12 +219,36 @@ const VoiceCallOverlay = ({
 }: VoiceCallOverlayProps) => {
   const { t } = useTranslation();
   const latestEntry = transcript.length > 0 ? transcript[transcript.length - 1] : null;
-  const latestVyvaText = latestEntry?.from === "vyva" ? latestEntry.text.trim() : "";
+  const latestVyvaEntry = useMemo(
+    () => [...transcript].reverse().find((entry) => entry.from === "vyva") ?? null,
+    [transcript],
+  );
+  const latestVyvaText = latestVyvaEntry?.text.trim() ?? "";
+  const vyvaCaptionChunks = useMemo(() => splitTranscriptIntoCaptionChunks(latestVyvaText), [latestVyvaText]);
+  const [captionChunkIndex, setCaptionChunkIndex] = useState(0);
+  const activeCaptionIndex = vyvaCaptionChunks.length > 0
+    ? Math.min(captionChunkIndex, vyvaCaptionChunks.length - 1)
+    : 0;
+  const activeVyvaCaption = vyvaCaptionChunks[activeCaptionIndex] ?? "";
+
+  useEffect(() => {
+    setCaptionChunkIndex(0);
+  }, [latestVyvaText]);
+
+  useEffect(() => {
+    if (vyvaCaptionChunks.length <= 1 || activeCaptionIndex >= vyvaCaptionChunks.length - 1) return;
+
+    const timeout = window.setTimeout(() => {
+      setCaptionChunkIndex((currentIndex) => Math.min(currentIndex + 1, vyvaCaptionChunks.length - 1));
+    }, captionChunkDuration(vyvaCaptionChunks[activeCaptionIndex]));
+
+    return () => window.clearTimeout(timeout);
+  }, [activeCaptionIndex, vyvaCaptionChunks]);
 
   const fallbackStatusLabel = isConnecting
     ? t("voiceHero.connecting", "Connecting")
     : isSpeaking
-    ? t("voiceHero.speaking", "VYVA speaking")
+    ? t("voiceHero.speakingStatus", "Speaking")
     : t("voiceHero.listening", "Listening");
   const hasConnectionError = Boolean(connectionError);
   const resolvedConnectionErrorCode = connectionErrorCode ?? inferConnectionErrorCode(connectionError);
@@ -279,11 +343,11 @@ const VoiceCallOverlay = ({
     : isMicMuted
     ? t("voiceHero.micOffMain", "Mic is off")
     : isSpeaking
-    ? t("voiceHero.speaking", "VYVA speaking")
+    ? t("voiceHero.speakingFallback", "One moment")
     : t("voiceHero.listeningMain", "I'm listening");
   const mainMessage = hasConnectionError
     ? emptyTranscriptLabel
-    : latestVyvaText || fallbackMainMessage;
+    : activeVyvaCaption || fallbackMainMessage;
   const supportMessage = latestVyvaText || hasConnectionError
     ? null
     : isConnecting
@@ -340,7 +404,7 @@ const VoiceCallOverlay = ({
         data-testid="voice-call-header"
         style={{
           display: "grid",
-          gridTemplateColumns: "48px 1fr auto",
+          gridTemplateColumns: "56px minmax(0, 1fr) 56px",
           alignItems: "center",
           width: "min(100%, 520px)",
           gap: 8,
@@ -366,7 +430,46 @@ const VoiceCallOverlay = ({
         >
           V
         </div>
-        <div />
+        <span
+          data-testid="text-call-status"
+          className="font-body"
+          style={{
+            justifySelf: "center",
+            minHeight: 32,
+            maxWidth: "100%",
+            borderRadius: 999,
+            border: "1px solid #EADFD5",
+            background: "rgba(255,255,255,0.84)",
+            color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "0 13px",
+            fontSize: 14,
+            fontWeight: 900,
+            lineHeight: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            boxShadow: "0 10px 24px rgba(47,33,53,0.08)",
+          }}
+        >
+          {!hasConnectionError && (
+            <span
+              aria-hidden="true"
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                background: "#8B5CF6",
+                boxShadow: "0 0 0 5px rgba(139,92,246,0.12)",
+                flexShrink: 0,
+              }}
+            />
+          )}
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{statusLabel}</span>
+        </span>
         {onMinimize ? (
           <button
             type="button"
@@ -376,8 +479,8 @@ const VoiceCallOverlay = ({
             title={hasConnectionError ? "Back to app" : "Minimize"}
             className="font-body"
             style={{
-              minWidth: 0,
-              minHeight: 40,
+              width: 48,
+              height: 48,
               justifySelf: "end",
               borderRadius: 999,
               border: "1px solid #EADFD5",
@@ -386,8 +489,7 @@ const VoiceCallOverlay = ({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 6,
-              padding: "0 14px",
+              padding: 0,
               fontSize: 13,
               fontWeight: 900,
               cursor: "pointer",
@@ -395,8 +497,7 @@ const VoiceCallOverlay = ({
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <ChevronDown size={16} strokeWidth={2.6} />
-            <span>{hasConnectionError ? t("voiceHero.backToApp", "Back to app") : t("voiceHero.minimize", "Minimize")}</span>
+            <ChevronDown size={24} strokeWidth={2.6} />
           </button>
         ) : (
           <div />
@@ -412,10 +513,10 @@ const VoiceCallOverlay = ({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          gap: 16,
+          gap: 18,
           boxSizing: "border-box",
-          paddingTop: "clamp(34px, 9vh, 94px)",
-          paddingBottom: "clamp(280px, 36vh, 350px)",
+          paddingTop: "clamp(30px, 8vh, 86px)",
+          paddingBottom: "clamp(310px, 39vh, 382px)",
           overflowY: "auto",
           scrollbarWidth: "none",
         }}
@@ -445,49 +546,22 @@ const VoiceCallOverlay = ({
           <ZamoraVoiceOrb state={currentOrbState} size={300} testId="voice-mode-zamora-orb" />
         </div>
 
-        <span
-          data-testid="text-call-status"
-          className="font-body"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
-            fontSize: 18,
-            fontWeight: 900,
-            lineHeight: 1.1,
-            textAlign: "center",
-            overflowWrap: "anywhere",
-            marginTop: -4,
-          }}
-        >
-          {!hasConnectionError && (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: "#8B5CF6",
-                boxShadow: "0 0 0 5px rgba(139,92,246,0.12)",
-                flexShrink: 0,
-              }}
-            />
-          )}
-          {statusLabel}
-        </span>
-
         <h1
           data-testid="text-call-transcript"
           className="font-body"
           style={{
             color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
-            fontSize: hasConnectionError ? "clamp(34px, 8vw, 48px)" : "clamp(42px, 11vw, 82px)",
-            lineHeight: 1.04,
+            fontSize: hasConnectionError
+              ? "clamp(34px, 8vw, 48px)"
+              : activeVyvaCaption
+              ? "clamp(34px, 8.5vw, 58px)"
+              : "clamp(42px, 11vw, 82px)",
+            lineHeight: activeVyvaCaption ? 1.08 : 1.04,
             textAlign: "center",
-            maxWidth: "min(92vw, 620px)",
+            maxWidth: activeVyvaCaption ? "min(88vw, 560px)" : "min(92vw, 620px)",
+            maxHeight: activeVyvaCaption ? "min(34vh, 260px)" : undefined,
             fontWeight: 850,
+            overflow: activeVyvaCaption ? "hidden" : undefined,
             overflowWrap: "anywhere",
             margin: 0,
             letterSpacing: 0,
@@ -520,15 +594,15 @@ const VoiceCallOverlay = ({
             data-testid="text-call-transcript-preview"
             className="font-body"
             style={{
-              width: "min(100%, 330px)",
+              width: "min(100%, 354px)",
               borderRadius: 999,
               border: "1px solid rgba(221,214,254,0.55)",
               background: "#F3EDFF",
               boxShadow: "0 14px 28px rgba(91,18,160,0.08)",
-              minHeight: 54,
-              padding: "0 18px 0 12px",
+              minHeight: 52,
+              padding: "0 14px 0 10px",
               color: "#2D2230",
-              fontSize: 16,
+              fontSize: 14,
               lineHeight: 1.35,
               fontWeight: 750,
               display: "flex",
@@ -546,8 +620,8 @@ const VoiceCallOverlay = ({
             <span
               aria-hidden="true"
               style={{
-                width: 38,
-                height: 38,
+                width: 34,
+                height: 34,
                 borderRadius: 999,
                 background: "rgba(255,255,255,0.65)",
                 color: "#5B12A0",
@@ -557,7 +631,7 @@ const VoiceCallOverlay = ({
                 flexShrink: 0,
               }}
             >
-              <UserRound size={22} strokeWidth={2.5} />
+              <UserRound size={20} strokeWidth={2.5} />
             </span>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               <strong style={{ color: "#5B12A0", fontWeight: 900 }}>{transcriptSpeaker}: </strong>
@@ -751,20 +825,20 @@ const VoiceCallOverlay = ({
             onClick={handleSos}
             className="font-body"
             style={{
-              minHeight: 40,
-              border: "1.5px solid #EF4444",
+              minHeight: 48,
+              border: "1.5px solid #D71920",
               borderRadius: 999,
-              background: "#FFFFFF",
-              color: "#D71920",
+              background: "#D71920",
+              color: "#FFFFFF",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              fontSize: 16,
-              fontWeight: 800,
+              fontSize: 17,
+              fontWeight: 900,
               cursor: "pointer",
-              padding: "0 22px",
-              boxShadow: "0 10px 24px rgba(215,25,32,0.08)",
+              padding: "0 26px",
+              boxShadow: "0 16px 34px rgba(215,25,32,0.22)",
               WebkitTapHighlightColor: "transparent",
             }}
           >
@@ -824,10 +898,10 @@ const VoiceCallOverlay = ({
               className="font-body"
               style={controlButtonStyle(isMicMuted ? "primary" : "soft")}
             >
-              <span style={controlIconStyle(isMicMuted ? "primary" : "soft")}>
-                {isMicMuted ? <Mic size={30} strokeWidth={2.2} /> : <MicOff size={30} strokeWidth={2.2} />}
+              <span style={controlIconStyle("soft")}>
+                {isMicMuted ? <MicOff size={30} strokeWidth={2.2} /> : <Mic size={30} strokeWidth={2.2} />}
               </span>
-              <span>{isMicMuted ? "Talk" : t("voiceHero.interrupt", "Interrupt")}</span>
+              <span>{isMicMuted ? t("voiceHero.micOffShort", "Mic off") : t("voiceHero.micOnShort", "Mic on")}</span>
             </button>
           )}
 
@@ -839,7 +913,7 @@ const VoiceCallOverlay = ({
             style={controlButtonStyle("danger")}
           >
             <span style={controlIconStyle("danger")}>
-              <PhoneOff size={32} strokeWidth={2.4} />
+              <X size={34} strokeWidth={2.8} />
             </span>
             <span>{t("voiceHero.endCallShort", "End")}</span>
           </button>
@@ -853,9 +927,9 @@ const VoiceCallOverlay = ({
               style={controlButtonStyle("soft")}
             >
               <span style={controlIconStyle("soft")}>
-                <Keyboard size={30} strokeWidth={2.2} />
+                <Hand size={30} strokeWidth={2.2} />
               </span>
-              <span>{t("voiceHero.typeInsteadShort", "Type")}</span>
+              <span>{t("voiceHero.touchInsteadShort", "Touch")}</span>
             </button>
           )}
         </div>

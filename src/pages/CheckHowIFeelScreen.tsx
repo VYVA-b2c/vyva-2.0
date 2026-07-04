@@ -1418,7 +1418,7 @@ export function appActionsFor(answers: Answers, result: CheckinResult): AppActio
           key,
           title: "Explorar música con VYVA",
           description: "VYVA puede recomendar artistas, historias y piezas adaptadas a tu ánimo.",
-          to: "/chat?q=Recomiendame%20musica%20clasica%20suave%20para%20hoy%20y%20cuentame%20algo%20interesante%20sobre%20los%20compositores",
+          to: "/learn",
           primary,
         };
       case "exercise":
@@ -1442,7 +1442,7 @@ export function appActionsFor(answers: Answers, result: CheckinResult): AppActio
           key,
           title: "Idea de cocina sencilla",
           description: "Pide a VYVA una receta adaptada a tus gustos, energia y restricciones.",
-          to: "/chat?q=Dame%20una%20idea%20de%20cocina%20sencilla%20adaptada%20a%20mi%20energia%20de%20hoy",
+          to: "/concierge",
           primary,
         };
       case "art":
@@ -1450,7 +1450,7 @@ export function appActionsFor(answers: Answers, result: CheckinResult): AppActio
           key,
           title: "Explorar arte",
           description: "Abre una mini-guia visual con historias, obras y curiosidades para disfrutar hoy.",
-          to: "/chat?q=Cuentame%20una%20historia%20de%20arte%20interesante%20y%20facil%20de%20disfrutar%20hoy",
+          to: "/learn",
           primary,
         };
       case "literature":

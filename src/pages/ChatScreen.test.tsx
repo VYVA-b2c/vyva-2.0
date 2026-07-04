@@ -82,6 +82,14 @@ describe("ChatScreen", () => {
     expect(screen.queryByTestId("button-chat-mode-voice")).not.toBeInTheDocument();
   });
 
+  it("shows a usable empty state for direct text-mode chat links", () => {
+    renderChat("/chat?mode=type");
+
+    expect(screen.getByTestId("chat-empty-state")).toHaveTextContent("Ask VYVA");
+    expect(screen.getByTestId("input-chat-type")).toBeInTheDocument();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
   it("renders only the focused voice overlay for voice mode links", async () => {
     renderChat("/chat?mode=voice&q=hello");
 

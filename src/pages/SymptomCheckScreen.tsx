@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Activity, Brain, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, ArrowRight, Droplets, Eye, ClipboardList, FileText, Gauge, Heart, HeartPulse, Home, ListChecks, Loader2, Mail, Mic, PhoneCall, Pill, Send, ShieldCheck, ShoppingBasket, Square, Stethoscope, Users, Wind, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
-import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import { useProfile } from "@/contexts/ProfileContext";
 import {
   HealthWizardCard,
@@ -2675,15 +2674,6 @@ export default function SymptomCheckScreen() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <div className="mx-auto w-full max-w-[760px] px-4 pt-4 sm:px-5 lg:px-0">
-          <VoiceActionFulfillmentPanel
-            domain="health"
-            actionTypes={["health.symptom_support"]}
-            title={t("health.symptomCheck.contextReady", "Symptom context ready")}
-            description={t("health.symptomCheck.contextReadySub", "VYVA can keep the current symptom topic, scan context, and report flow together here.")}
-          />
-        </div>
-
         {step === "intro" && (
           <IntroScreen
             onStart={(clue) => startChatDirectly(clue, false)}
