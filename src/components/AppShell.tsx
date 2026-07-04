@@ -2,7 +2,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Mic, MicOff, PhoneCall, PhoneOff, UserRound } from "lucide-react";
+import { AlertCircle, MicOff, PhoneCall, UserRound, X } from "lucide-react";
 import StatusBar from "./StatusBar";
 import BottomNav from "./BottomNav";
 import VoiceCallOverlay from "./VoiceCallOverlay";
@@ -315,23 +315,22 @@ const VoiceSessionDock = ({
             type="button"
             onClick={() => onMicToggle(!isMicMuted)}
             data-testid="button-dock-toggle-mic"
-            className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#E9D5FF] bg-white px-3 font-body text-[0px] font-black text-vyva-purple shadow-sm transition active:scale-95 sm:min-w-[112px] sm:text-[14px]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#E9D5FF] bg-[#F7F0FF] font-body text-vyva-purple shadow-sm transition active:scale-95"
             aria-label={isMicMuted ? "Turn microphone on" : "Mute microphone"}
-            title={isMicMuted ? "Talk" : "Interrupt"}
+            title="Mic off"
           >
-            {isMicMuted ? <Mic size={19} /> : <MicOff size={19} />}
-            <span className="hidden sm:inline">{isMicMuted ? "Talk" : "Interrupt"}</span>
+            <MicOff size={19} />
           </button>
         )}
         <button
           type="button"
           onClick={onEnd}
           data-testid="button-dock-end-call"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#FEE2E2] text-[#B91C1C] transition active:scale-95"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#111111] text-white shadow-[0_12px_28px_rgba(17,17,17,0.22)] transition active:scale-95"
           aria-label="End voice chat"
           title="End chat"
         >
-          <PhoneOff size={19} />
+          <X size={20} strokeWidth={2.8} />
         </button>
       </section>
     </div>

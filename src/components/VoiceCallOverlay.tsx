@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Keyboard, Mic, MicOff, Phone, PhoneOff, RotateCcw, UserRound } from "lucide-react";
+import { ChevronDown, Hand, MicOff, Phone, RotateCcw, UserRound, X } from "lucide-react";
 import { type TranscriptEntry, type VoiceConnectionErrorCode, type VoiceDiagnosticStep } from "@/hooks/useVyvaVoice";
 import type { VoiceAppAction } from "@/lib/voiceNavigation";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
@@ -137,12 +137,12 @@ function controlIconStyle(variant: "soft" | "danger" | "primary" = "soft"): CSSP
       width: 68,
       height: 68,
       borderRadius: 999,
-      background: "linear-gradient(145deg, #F43F5E 0%, #D71920 100%)",
+      background: "#111111",
       color: "#FFFFFF",
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
-      boxShadow: "0 18px 36px rgba(215,25,32,0.28)",
+      boxShadow: "0 18px 36px rgba(17,17,17,0.22)",
     };
   }
 
@@ -248,7 +248,7 @@ const VoiceCallOverlay = ({
   const fallbackStatusLabel = isConnecting
     ? t("voiceHero.connecting", "Connecting")
     : isSpeaking
-    ? t("voiceHero.speaking", "VYVA speaking")
+    ? t("voiceHero.speakingStatus", "Speaking")
     : t("voiceHero.listening", "Listening");
   const hasConnectionError = Boolean(connectionError);
   const resolvedConnectionErrorCode = connectionErrorCode ?? inferConnectionErrorCode(connectionError);
@@ -343,7 +343,7 @@ const VoiceCallOverlay = ({
     : isMicMuted
     ? t("voiceHero.micOffMain", "Mic is off")
     : isSpeaking
-    ? t("voiceHero.speaking", "VYVA speaking")
+    ? t("voiceHero.speakingFallback", "One moment")
     : t("voiceHero.listeningMain", "I'm listening");
   const mainMessage = hasConnectionError
     ? emptyTranscriptLabel
@@ -404,7 +404,7 @@ const VoiceCallOverlay = ({
         data-testid="voice-call-header"
         style={{
           display: "grid",
-          gridTemplateColumns: "48px 1fr auto",
+          gridTemplateColumns: "56px minmax(0, 1fr) 56px",
           alignItems: "center",
           width: "min(100%, 520px)",
           gap: 8,
@@ -430,7 +430,46 @@ const VoiceCallOverlay = ({
         >
           V
         </div>
-        <div />
+        <span
+          data-testid="text-call-status"
+          className="font-body"
+          style={{
+            justifySelf: "center",
+            minHeight: 32,
+            maxWidth: "100%",
+            borderRadius: 999,
+            border: "1px solid #EADFD5",
+            background: "rgba(255,255,255,0.84)",
+            color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "0 13px",
+            fontSize: 14,
+            fontWeight: 900,
+            lineHeight: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            boxShadow: "0 10px 24px rgba(47,33,53,0.08)",
+          }}
+        >
+          {!hasConnectionError && (
+            <span
+              aria-hidden="true"
+              style={{
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                background: "#8B5CF6",
+                boxShadow: "0 0 0 5px rgba(139,92,246,0.12)",
+                flexShrink: 0,
+              }}
+            />
+          )}
+          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{statusLabel}</span>
+        </span>
         {onMinimize ? (
           <button
             type="button"
@@ -440,8 +479,8 @@ const VoiceCallOverlay = ({
             title={hasConnectionError ? "Back to app" : "Minimize"}
             className="font-body"
             style={{
-              minWidth: 0,
-              minHeight: 40,
+              width: 48,
+              height: 48,
               justifySelf: "end",
               borderRadius: 999,
               border: "1px solid #EADFD5",
@@ -450,8 +489,7 @@ const VoiceCallOverlay = ({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 6,
-              padding: "0 14px",
+              padding: 0,
               fontSize: 13,
               fontWeight: 900,
               cursor: "pointer",
@@ -459,8 +497,7 @@ const VoiceCallOverlay = ({
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <ChevronDown size={16} strokeWidth={2.6} />
-            <span>{hasConnectionError ? t("voiceHero.backToApp", "Back to app") : t("voiceHero.minimize", "Minimize")}</span>
+            <ChevronDown size={24} strokeWidth={2.6} />
           </button>
         ) : (
           <div />
@@ -476,10 +513,10 @@ const VoiceCallOverlay = ({
           alignItems: "center",
           justifyContent: "center",
           width: "100%",
-          gap: 16,
+          gap: 18,
           boxSizing: "border-box",
-          paddingTop: "clamp(34px, 9vh, 94px)",
-          paddingBottom: "clamp(280px, 36vh, 350px)",
+          paddingTop: "clamp(30px, 8vh, 86px)",
+          paddingBottom: "clamp(310px, 39vh, 382px)",
           overflowY: "auto",
           scrollbarWidth: "none",
         }}
@@ -508,39 +545,6 @@ const VoiceCallOverlay = ({
           />
           <ZamoraVoiceOrb state={currentOrbState} size={300} testId="voice-mode-zamora-orb" />
         </div>
-
-        <span
-          data-testid="text-call-status"
-          className="font-body"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            color: hasConnectionError ? "#8A1C1C" : "#5B12A0",
-            fontSize: 18,
-            fontWeight: 900,
-            lineHeight: 1.1,
-            textAlign: "center",
-            overflowWrap: "anywhere",
-            marginTop: -4,
-          }}
-        >
-          {!hasConnectionError && (
-            <span
-              aria-hidden="true"
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: "#8B5CF6",
-                boxShadow: "0 0 0 5px rgba(139,92,246,0.12)",
-                flexShrink: 0,
-              }}
-            />
-          )}
-          {statusLabel}
-        </span>
 
         <h1
           data-testid="text-call-transcript"
@@ -590,15 +594,15 @@ const VoiceCallOverlay = ({
             data-testid="text-call-transcript-preview"
             className="font-body"
             style={{
-              width: "min(100%, 330px)",
+              width: "min(100%, 354px)",
               borderRadius: 999,
               border: "1px solid rgba(221,214,254,0.55)",
               background: "#F3EDFF",
               boxShadow: "0 14px 28px rgba(91,18,160,0.08)",
-              minHeight: 54,
-              padding: "0 18px 0 12px",
+              minHeight: 52,
+              padding: "0 14px 0 10px",
               color: "#2D2230",
-              fontSize: 16,
+              fontSize: 14,
               lineHeight: 1.35,
               fontWeight: 750,
               display: "flex",
@@ -616,8 +620,8 @@ const VoiceCallOverlay = ({
             <span
               aria-hidden="true"
               style={{
-                width: 38,
-                height: 38,
+                width: 34,
+                height: 34,
                 borderRadius: 999,
                 background: "rgba(255,255,255,0.65)",
                 color: "#5B12A0",
@@ -627,7 +631,7 @@ const VoiceCallOverlay = ({
                 flexShrink: 0,
               }}
             >
-              <UserRound size={22} strokeWidth={2.5} />
+              <UserRound size={20} strokeWidth={2.5} />
             </span>
             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               <strong style={{ color: "#5B12A0", fontWeight: 900 }}>{transcriptSpeaker}: </strong>
@@ -821,20 +825,20 @@ const VoiceCallOverlay = ({
             onClick={handleSos}
             className="font-body"
             style={{
-              minHeight: 40,
-              border: "1.5px solid #EF4444",
+              minHeight: 48,
+              border: "1.5px solid #D71920",
               borderRadius: 999,
-              background: "#FFFFFF",
-              color: "#D71920",
+              background: "#D71920",
+              color: "#FFFFFF",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
-              fontSize: 16,
-              fontWeight: 800,
+              fontSize: 17,
+              fontWeight: 900,
               cursor: "pointer",
-              padding: "0 22px",
-              boxShadow: "0 10px 24px rgba(215,25,32,0.08)",
+              padding: "0 26px",
+              boxShadow: "0 16px 34px rgba(215,25,32,0.22)",
               WebkitTapHighlightColor: "transparent",
             }}
           >
@@ -894,10 +898,10 @@ const VoiceCallOverlay = ({
               className="font-body"
               style={controlButtonStyle(isMicMuted ? "primary" : "soft")}
             >
-              <span style={controlIconStyle(isMicMuted ? "primary" : "soft")}>
-                {isMicMuted ? <Mic size={30} strokeWidth={2.2} /> : <MicOff size={30} strokeWidth={2.2} />}
+              <span style={controlIconStyle("soft")}>
+                <MicOff size={30} strokeWidth={2.2} />
               </span>
-              <span>{isMicMuted ? "Talk" : t("voiceHero.interrupt", "Interrupt")}</span>
+              <span>{t("voiceHero.micOffShort", "Mic off")}</span>
             </button>
           )}
 
@@ -909,7 +913,7 @@ const VoiceCallOverlay = ({
             style={controlButtonStyle("danger")}
           >
             <span style={controlIconStyle("danger")}>
-              <PhoneOff size={32} strokeWidth={2.4} />
+              <X size={34} strokeWidth={2.8} />
             </span>
             <span>{t("voiceHero.endCallShort", "End")}</span>
           </button>
@@ -923,9 +927,9 @@ const VoiceCallOverlay = ({
               style={controlButtonStyle("soft")}
             >
               <span style={controlIconStyle("soft")}>
-                <Keyboard size={30} strokeWidth={2.2} />
+                <Hand size={30} strokeWidth={2.2} />
               </span>
-              <span>{t("voiceHero.typeInsteadShort", "Type")}</span>
+              <span>{t("voiceHero.touchInsteadShort", "Touch")}</span>
             </button>
           )}
         </div>
