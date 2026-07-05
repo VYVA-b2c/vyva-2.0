@@ -462,8 +462,8 @@ export default function HeroMessagesAdminPage() {
   }, [metricsDays]);
 
   return (
-    <main className="min-h-screen overflow-x-auto bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
-      <section className="mx-auto w-[1280px] max-w-none">
+    <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
+      <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Hero messages"
           subtitle="Monitor live banner copy, aggregate performance, and managed overrides across every app surface."
@@ -476,8 +476,8 @@ export default function HeroMessagesAdminPage() {
 
         <AdminMenu />
 
-        <section className="mt-5 grid grid-cols-[360px_minmax(0,1fr)] gap-4">
-          <aside className="sticky top-4 self-start rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+        <section className="mt-5 grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm xl:sticky xl:top-4 xl:self-start">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-purple-700"><SlidersHorizontal size={16} /> Message catalog</p>
@@ -502,7 +502,7 @@ export default function HeroMessagesAdminPage() {
                   />
                 </span>
               </label>
-              <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <Field label="Surface">
                   <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
                     <option value="all">All surfaces</option>
@@ -576,8 +576,8 @@ export default function HeroMessagesAdminPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-5">
-                  <div className="sticky top-4 self-start">
+                <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+                  <div className="lg:sticky lg:top-4 lg:self-start">
                     <HeroPreview copy={selectedCopy} source={selectedMessage.source} />
                     <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                       <p className="flex items-center gap-2 text-sm font-black"><Eye size={16} /> Validation</p>
@@ -588,7 +588,7 @@ export default function HeroMessagesAdminPage() {
                   <div className="grid gap-4">
                     <section className="rounded-xl border border-[#eadfd5] p-3">
                       <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Routing rules</h3>
-                      <div className="mt-3 grid grid-cols-4 gap-3">
+                      <div className="mt-3 grid gap-3 md:grid-cols-4">
                         <Field label="Surface">
                           <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
                             {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
@@ -607,7 +607,7 @@ export default function HeroMessagesAdminPage() {
                         </Field>
                       </div>
 
-                      <div className="mt-3 grid grid-cols-4 gap-3">
+                      <div className="mt-3 grid gap-3 md:grid-cols-4">
                         <Field label="Periods" optional>
                           <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.periods)} onChange={(event) => updateMessage(selectedMessage.message_id, { periods: textToList(event.target.value) as HeroMessageAdmin["periods"] })} placeholder="morning, evening" />
                         </Field>
@@ -625,7 +625,7 @@ export default function HeroMessagesAdminPage() {
 
                     <section className="rounded-xl border border-[#eadfd5] p-3">
                       <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Copy in {language.toUpperCase()}</h3>
-                      <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
                         <Field label={`Headline (${language.toUpperCase()})`}>
                           <input aria-label={`Headline (${language.toUpperCase()})`} className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
                           <LimitNote label="Headline" value={selectedCopy.headline} wordsLimit={HERO_LIMITS.headlineWords} charsLimit={HERO_LIMITS.headlineChars} />
@@ -663,7 +663,7 @@ export default function HeroMessagesAdminPage() {
           </section>
         </section>
 
-        <section className="mt-5 grid grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] gap-4">
+        <section className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
           <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -677,7 +677,7 @@ export default function HeroMessagesAdminPage() {
               </Field>
             </div>
 
-            <div className="mt-4 grid grid-cols-4 gap-2" data-testid="hero-overview-filters">
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" data-testid="hero-overview-filters">
               {OVERVIEW_FILTERS.map((item) => {
                 const active = overviewFilter === item.id;
                 return (
@@ -707,7 +707,7 @@ export default function HeroMessagesAdminPage() {
             </p>
 
             <div className="mt-3 overflow-hidden rounded-xl border border-[#eadfd5]">
-              <div className="grid grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+              <div className="hidden grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65] lg:grid">
                 <span>Surface and active copy</span>
                 <span>Source</span>
                 <span>Views / clicks</span>
@@ -720,7 +720,7 @@ export default function HeroMessagesAdminPage() {
                 ) : filteredOverview.map((item) => (
                   <article
                     key={item.surface}
-                    className="grid grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] items-center gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0"
+                    className="grid gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0 lg:grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] lg:items-center"
                     data-testid={`card-hero-overview-${item.surface}`}
                   >
                     <div className="min-w-0">
@@ -755,7 +755,7 @@ export default function HeroMessagesAdminPage() {
               </div>
               <span className={`rounded-full px-3 py-1 text-sm font-black ${sourceClass(diagnosticResult.source)}`}>{sourceLabel(diagnosticResult.source)}</span>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Field label="Surface">
                 <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticSurface} onChange={(event) => setDiagnosticSurface(event.target.value as HeroSurface)}>
                   {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
