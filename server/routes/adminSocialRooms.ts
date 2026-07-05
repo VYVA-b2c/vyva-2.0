@@ -21,6 +21,7 @@ import {
   listAdminParticipationActivity,
   listAdminParticipationEvents,
   parseParticipationLanguage,
+  ParticipationAdminEventError,
   updateAdminParticipationEvent,
 } from "../lib/participation.js";
 import {
@@ -162,8 +163,20 @@ router.post("/participate/events", async (req: Request, res: Response) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const event = await createAdminParticipationEvent(forceAiDiscoveryDraft(parsed.data), adminUserId(req));
-  return res.status(201).json({ ok: true, event });
+  try {
+    const event = await createAdminParticipationEvent(forceAiDiscoveryDraft(parsed.data), adminUserId(req));
+    return res.status(201).json({ ok: true, event });
+  } catch (error) {
+    if (error instanceof ParticipationAdminEventError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+        duplicateEventKey: error.duplicateEventKey,
+      });
+    }
+    console.error("[admin/social] participation event save failed", error);
+    return res.status(500).json({ error: "Participation event could not be saved." });
+  }
 });
 
 router.post("/participate/discover", async (req: Request, res: Response) => {
