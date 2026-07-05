@@ -1404,90 +1404,101 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     );
   }
 
-  if (finished) {
+  if (finished && plan.gameType !== "memory_match") {
     const score = completionMetrics?.score ?? getScore(plan.level, summaryAccuracy, summaryMistakes, durationSeconds);
     const finishedAccuracy = completionMetrics?.accuracy ?? summaryAccuracy;
     const finishedMistakes = completionMetrics?.mistakes ?? summaryMistakes;
     const nextPlayableLevel = getNextPlayableLevel();
     const canOpenNextLevel = nextPlayableLevel > plan.level;
     const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
+    const hasCompletionDetails = Boolean(
+      completionDetails?.rememberedWords?.length ||
+        completionDetails?.correctWords?.length ||
+        completionDetails?.missedWords?.length,
+    );
 
     return (
-      <div className="px-[22px] pb-4">
-        <div className="mt-3 rounded-[28px] bg-white p-4 shadow-vyva-card sm:p-5">
-          <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
-            <CheckCircle2 size={30} />
-          </div>
-          <h1 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1">{t("memory.wellDone")}</h1>
-          <p className="mt-1 text-[16px] leading-[1.45] text-vyva-text-2">{t("memory.exerciseCompleted")}</p>
-
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {[
-              { label: t("memory.score"), value: `${score}` },
-              { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
-              { label: t("memory.mistakes"), value: `${finishedMistakes}` },
-              { label: t("memory.duration"), value: `${durationSeconds}s` },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[18px] border border-vyva-border bg-vyva-cream p-3">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{item.label}</p>
-                <p className="mt-1 text-[22px] font-semibold text-vyva-text-1">{item.value}</p>
+      <div className="px-3 pb-4 sm:px-4">
+        <div className={hasCompletionDetails ? "mx-auto mt-3 w-full max-w-[980px]" : "mx-auto flex min-h-[calc(100dvh-96px)] w-full max-w-[940px] items-center py-3"}>
+          <div className="w-full rounded-[26px] bg-white p-5 shadow-vyva-card sm:rounded-[30px] sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+              <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
+                <CheckCircle2 size={30} />
               </div>
-            ))}
-          </div>
-
-          <BrainGameResultActions
-            className="mt-4"
-            continueLabel={t("brainGames.resultActions.continue")}
-            nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
-            replayLabel={t("brainGames.resultActions.playAgain")}
-            anotherLabel={t("brainGames.resultActions.playAnotherGame")}
-            onContinue={openRecommended}
-            onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-            onReplay={() => void openSameGame()}
-            onAnother={backToList}
-            disabled={actionLoading !== null}
-          />
-
-          {completionDetails && (
-            <div className="mt-3 grid max-h-[32dvh] gap-2 overflow-y-auto pr-1">
-              {completionDetails.rememberedWords && completionDetails.rememberedWords.length > 0 && (
-                <div className="rounded-[18px] border border-vyva-border bg-[#F8FAFC] p-3">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.remembered")}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {completionDetails.rememberedWords.map((word) => (
-                      <span key={`remembered-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
-                        {word}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {completionDetails.correctWords && completionDetails.correctWords.length > 0 && (
-                <div className="rounded-[18px] border border-[#CFE9D9] bg-[#F0FDF4] p-3">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.correctWords")}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {completionDetails.correctWords.map((word) => (
-                      <span key={`correct-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
-                        {word}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {completionDetails.missedWords && completionDetails.missedWords.length > 0 && (
-                <div className="rounded-[18px] border border-[#F3E0BD] bg-[#FFF7ED] p-3">
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.missedWords")}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {completionDetails.missedWords.map((word) => (
-                      <span key={`missed-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
-                        {word}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="min-w-0">
+                <h1 className="font-display text-[34px] leading-none text-vyva-text-1 sm:text-[40px]">{t("memory.wellDone")}</h1>
+                <p className="mt-2 text-[16px] font-medium leading-[1.45] text-vyva-text-2">{t("memory.exerciseCompleted")}</p>
+              </div>
             </div>
-          )}
+
+            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: t("memory.score"), value: `${score}` },
+                { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
+                { label: t("memory.mistakes"), value: `${finishedMistakes}` },
+                { label: t("memory.duration"), value: `${durationSeconds}s` },
+              ].map((item) => (
+                <div key={item.label} className="min-h-[86px] rounded-[20px] border border-vyva-border bg-vyva-cream px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.05em] text-vyva-text-2">{item.label}</p>
+                  <p className="mt-2 text-[25px] font-semibold leading-none text-vyva-text-1">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <BrainGameResultActions
+              className="mt-5"
+              continueLabel={t("brainGames.resultActions.continue")}
+              nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+              replayLabel={t("brainGames.resultActions.playAgain")}
+              anotherLabel={t("brainGames.resultActions.playAnotherGame")}
+              onContinue={openRecommended}
+              onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
+              onReplay={() => void openSameGame()}
+              onAnother={backToList}
+              disabled={actionLoading !== null}
+            />
+
+            {completionDetails && (
+              <div className="mt-3 grid max-h-[32dvh] gap-2 overflow-y-auto pr-1">
+                {completionDetails.rememberedWords && completionDetails.rememberedWords.length > 0 && (
+                  <div className="rounded-[18px] border border-vyva-border bg-[#F8FAFC] p-3">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.remembered")}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {completionDetails.rememberedWords.map((word) => (
+                        <span key={`remembered-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
+                          {word}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {completionDetails.correctWords && completionDetails.correctWords.length > 0 && (
+                  <div className="rounded-[18px] border border-[#CFE9D9] bg-[#F0FDF4] p-3">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.correctWords")}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {completionDetails.correctWords.map((word) => (
+                        <span key={`correct-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
+                          {word}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {completionDetails.missedWords && completionDetails.missedWords.length > 0 && (
+                  <div className="rounded-[18px] border border-[#F3E0BD] bg-[#FFF7ED] p-3">
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.missedWords")}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {completionDetails.missedWords.map((word) => (
+                        <span key={`missed-${word}`} className="rounded-full bg-white px-3 py-2 text-[14px] font-medium text-vyva-text-1 shadow-sm">
+                          {word}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -2100,23 +2111,29 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const nextLevelLabel = `${t("common.level")} ${nextPlayableLevel}`;
   const memoryGridClassName =
     memoryDeck.length <= 4
-      ? "grid-cols-2 max-w-[460px] sm:max-w-[500px]"
+      ? "grid-cols-2 max-w-[540px] sm:max-w-[620px]"
       : memoryDeck.length <= 6
         ? "grid-cols-3 max-w-[620px] sm:max-w-[680px]"
         : "grid-cols-4 max-w-[760px] sm:max-w-[860px]";
+  const memoryResultPanelClassName =
+    memoryDeck.length <= 4
+      ? "max-w-[760px]"
+      : memoryDeck.length <= 6
+        ? "max-w-[760px]"
+        : "max-w-[900px]";
   const memoryCardHeight =
     memoryComplete
-      ? "clamp(70px, 10dvh, 96px)"
+      ? "clamp(116px, 18dvh, 140px)"
       : memoryDeck.length <= 4
-      ? "clamp(104px, 15dvh, 150px)"
-      : memoryDeck.length <= 6
-        ? "clamp(94px, 14dvh, 136px)"
-        : "clamp(82px, 13dvh, 128px)";
+        ? "clamp(128px, 20dvh, 166px)"
+        : memoryDeck.length <= 6
+          ? "clamp(104px, 16dvh, 144px)"
+          : "clamp(92px, 14dvh, 132px)";
 
   return (
     <div className="px-3 pb-3 sm:px-4 sm:pb-4">
-      <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-3 shadow-vyva-card sm:rounded-[24px]">
-        <div className="flex flex-wrap items-center gap-2">
+      <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[24px] sm:p-5">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={backToList}
             aria-label={t("common.back")}
@@ -2128,12 +2145,12 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
           <div className="min-w-[180px] flex-1">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-white shadow-sm" style={gameIconStyle}>
-                <GameIcon size={18} />
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-white shadow-sm" style={gameIconStyle}>
+                <GameIcon size={19} />
               </span>
               <div className="min-w-0">
-                <h1 className="truncate font-display text-[22px] leading-none text-vyva-text-1 sm:text-[24px]">{gameTitle}</h1>
-                <p className="mt-1 hidden truncate text-[13px] font-medium text-vyva-text-2 sm:block">{gamePrompt}</p>
+                <h1 className="truncate font-display text-[23px] leading-none text-vyva-text-1 sm:text-[28px]">{gameTitle}</h1>
+                <p className="mt-1.5 hidden truncate text-[14px] font-medium text-vyva-text-2 sm:block">{gamePrompt}</p>
               </div>
             </div>
           </div>
@@ -2141,7 +2158,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("common.level")} ${plan.level}`}</span>
           <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${matchedPairs}/${totalPairs} ${t("memory.pairs")}`}</span>
           <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${memoryAccuracy}%`}</span>
@@ -2153,7 +2170,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
 
         {voiceGameContextPanel}
 
-        <div className={`mx-auto mt-3 grid w-full gap-2 sm:mt-4 sm:gap-3 ${memoryGridClassName}`}>
+        <div className={`mx-auto mt-4 grid w-full gap-2 sm:mt-5 sm:gap-3 ${memoryGridClassName}`}>
           {memoryDeck.map((card) => {
             const isOpen = revealed.includes(card.deckId) || matchedIds.includes(card.deckId);
             return (
@@ -2176,7 +2193,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                   ) : (
                     <>
                       <span className="text-[30px] font-semibold sm:text-[34px]">?</span>
-                      <span className="mt-3 hidden text-[15px] font-medium text-white/90 sm:inline">{t("common.continue")}</span>
                     </>
                   )}
                 </div>
@@ -2186,7 +2202,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         </div>
 
         {memoryComplete && (
-          <div className="mt-3 rounded-[18px] border border-[#D8C7F3] bg-white/95 p-3 shadow-vyva-card backdrop-blur">
+          <div className={`mx-auto mt-3 w-full rounded-[18px] border border-[#D8C7F3] bg-white/95 p-3 shadow-vyva-card backdrop-blur ${memoryResultPanelClassName}`}>
             <div className="flex items-center gap-2.5">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
                 <CheckCircle2 size={22} />
