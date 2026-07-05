@@ -26,14 +26,21 @@ export type LearningLessonCandidate = {
 export type LearningProgramPreferenceInput = {
   interests?: string[] | null;
   pace?: string | null;
+  frequency?: string | null;
+  durationWeeks?: number | string | null;
   dailyTime?: string | null;
   lessonLengthMinutes?: number | null;
   language?: string | null;
 };
 
+export type LearningProgramFrequency = "daily" | "three_times_week" | "weekly";
+export type LearningProgramDurationWeeks = 1 | 4 | 12;
+
 export type NormalizedLearningProgramPreferences = {
   interests: string[];
   pace: "gentle" | "steady" | "curious";
+  frequency: LearningProgramFrequency;
+  durationWeeks: LearningProgramDurationWeeks;
   dailyTime: string;
   lessonLengthMinutes: number;
   language: string;
@@ -43,6 +50,19 @@ const defaultInterestSet = new Set<string>(DEFAULT_LEARNING_INTERESTS);
 const supportedProgramLanguages = new Set(["en", "es", "fr", "de", "it", "pt"]);
 const fallbackInterest = "general_knowledge";
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export function normalizeLearningFrequency(value: unknown, fallback: LearningProgramFrequency = "three_times_week"): LearningProgramFrequency {
+  if (value === "daily" || value === "three_times_week" || value === "weekly") return value;
+  return fallback;
+}
+
+export function normalizeLearningDurationWeeks(value: unknown): LearningProgramDurationWeeks {
+  const weeks = Number(value);
+  if (weeks === 1) return 1;
+  if (weeks === 4) return 4;
+  if (weeks === 12) return 12;
+  return 4;
+}
 
 function normalizeAllowedInterests(allowedInterests?: string[] | null): string[] {
   if (!Array.isArray(allowedInterests) || allowedInterests.length === 0) {
@@ -78,13 +98,64 @@ export function normalizeLearningPreferences(input: LearningProgramPreferenceInp
   const minutes = Number(input.lessonLengthMinutes);
   const lessonLengthMinutes = Number.isFinite(minutes) ? Math.min(8, Math.max(1, Math.round(minutes))) : 3;
   const dailyTime = typeof input.dailyTime === "string" && timePattern.test(input.dailyTime) ? input.dailyTime : "09:00";
+  const recommendedFrequency: LearningProgramFrequency = pace === "curious" && lessonLengthMinutes <= 4 ? "daily" : "three_times_week";
+  const frequency = normalizeLearningFrequency(input.frequency, recommendedFrequency);
+  const durationWeeks = normalizeLearningDurationWeeks(input.durationWeeks);
 
   return {
     interests: normalizeLearningInterests(input.interests, allowedInterests),
     pace,
+    frequency,
+    durationWeeks,
     dailyTime,
     lessonLengthMinutes,
     language: normalizeLearningLanguage(input.language),
+  };
+}
+
+export function learningProgramSessionOffsets(
+  frequency: LearningProgramFrequency,
+  durationWeeks: LearningProgramDurationWeeks,
+): number[] {
+  if (frequency === "weekly") {
+    return Array.from({ length: durationWeeks }, (_, index) => index * 7);
+  }
+
+  if (frequency === "three_times_week") {
+    return Array.from({ length: durationWeeks }, (_, weekIndex) => weekIndex)
+      .flatMap((weekIndex) => [weekIndex * 7, weekIndex * 7 + 2, weekIndex * 7 + 4]);
+  }
+
+  return Array.from({ length: durationWeeks * 7 }, (_, index) => index);
+}
+
+export function inferLearningProgramRhythm(scheduledDates: string[]): {
+  frequency: LearningProgramFrequency;
+  durationWeeks: LearningProgramDurationWeeks;
+} {
+  const ordered = [...scheduledDates]
+    .filter((value) => typeof value === "string" && value.length >= 10)
+    .sort();
+  if (ordered.length === 0) return { frequency: "daily", durationWeeks: 1 };
+  if (ordered.length === 1) return { frequency: "weekly", durationWeeks: 1 };
+
+  const start = utcDateFromKey(ordered[0]);
+  const offsets = ordered.map((value) => {
+    const diffMs = utcDateFromKey(value).getTime() - start.getTime();
+    return Math.round(diffMs / (24 * 60 * 60 * 1000));
+  });
+  const lastOffset = offsets[offsets.length - 1] ?? 0;
+  const durationWeeks = lastOffset >= 56 ? 12 : lastOffset >= 21 ? 4 : 1;
+
+  const candidates: LearningProgramFrequency[] = ["daily", "three_times_week", "weekly"];
+  const matched = candidates.find((frequency) => {
+    const expected = learningProgramSessionOffsets(frequency, durationWeeks).slice(0, offsets.length);
+    return expected.length === offsets.length && expected.every((value, index) => value === offsets[index]);
+  });
+
+  return {
+    frequency: matched ?? "daily",
+    durationWeeks,
   };
 }
 
@@ -130,6 +201,7 @@ export function selectLessonsForLearningProgram(input: {
   allowedInterests?: string[] | null;
   recentlyCompletedLessonIds?: string[];
   days?: number;
+  repeatWhenExhausted?: boolean;
 }): LearningLessonCandidate[] {
   const interests = normalizeLearningInterests(input.interests, input.allowedInterests);
   const language = normalizeLearningLanguage(input.language);
@@ -141,13 +213,23 @@ export function selectLessonsForLearningProgram(input: {
 
   for (let index = 0; index < days; index += 1) {
     const categorySlug = interests[index % interests.length];
-    const lesson = pickBestLesson({
+    let lesson = pickBestLesson({
       lessons: publishedLessons,
       selectedIds,
       recentIds,
       categorySlug,
       language,
     });
+    if (!lesson && input.repeatWhenExhausted && selectedIds.size > 0) {
+      selectedIds.clear();
+      lesson = pickBestLesson({
+        lessons: publishedLessons,
+        selectedIds,
+        recentIds,
+        categorySlug,
+        language,
+      });
+    }
     if (!lesson) break;
     selected.push(lesson);
     selectedIds.add(lesson.id);
