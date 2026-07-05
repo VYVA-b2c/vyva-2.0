@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2263,6 +2263,28 @@ const ConciergeScreen = () => {
     currentLocaleRef.current = language;
   });
 
+  const resetHomeServiceIntake = useCallback((origin: ServiceIntakeOrigin = "app", serviceType: HomeServiceType | null = null) => {
+    setHomeServiceIntakeOrigin(origin);
+    setHomeServiceType(serviceType);
+    setHomeServiceIntakeAnswers({});
+    setHomeServiceTextDrafts({});
+  }, []);
+
+  const clearAppointmentAssistantState = useCallback(() => {
+    setAppointmentOpen(false);
+    setSelectedAppointmentChip(null);
+    setAppointmentNote("");
+    resetHomeServiceIntake("app", null);
+    setAppointmentRequest(null);
+    setAppointmentOptions([]);
+    setAppointmentDiscovery(null);
+    setSelectedAppointmentOptionId(null);
+    setAppointmentAttemptResult(null);
+    setAppointmentNotice(null);
+    setAppointmentError(null);
+    setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+  }, [resetHomeServiceIntake]);
+
   useEffect(() => {
     if (!conciergeVoiceAction || !conciergeVoiceDraft) return;
     const actionKey = `${conciergeVoiceAction.id}:${conciergeVoiceAction.sourceText}`;
@@ -2341,6 +2363,7 @@ const ConciergeScreen = () => {
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }, [
     conciergePayloadValue,
+    clearAppointmentAssistantState,
     conciergeVoiceAction,
     conciergeVoiceCriteria,
     conciergeVoiceDestination,
@@ -2529,13 +2552,6 @@ const ConciergeScreen = () => {
     setAppointmentError(null);
   }
 
-  function resetHomeServiceIntake(origin: ServiceIntakeOrigin = "app", serviceType: HomeServiceType | null = null) {
-    setHomeServiceIntakeOrigin(origin);
-    setHomeServiceType(serviceType);
-    setHomeServiceIntakeAnswers({});
-    setHomeServiceTextDrafts({});
-  }
-
   function setHomeServiceAnswer(key: string, value: string) {
     setHomeServiceIntakeAnswers((current) => ({
       ...current,
@@ -2558,21 +2574,6 @@ const ConciergeScreen = () => {
         service_intake: intake,
       },
     };
-  }
-
-  function clearAppointmentAssistantState() {
-    setAppointmentOpen(false);
-    setSelectedAppointmentChip(null);
-    setAppointmentNote("");
-    resetHomeServiceIntake("app", null);
-    setAppointmentRequest(null);
-    setAppointmentOptions([]);
-    setAppointmentDiscovery(null);
-    setSelectedAppointmentOptionId(null);
-    setAppointmentAttemptResult(null);
-    setAppointmentNotice(null);
-    setAppointmentError(null);
-    setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
   }
 
   function openScheduleAssistant(chipKey?: AppointmentType) {

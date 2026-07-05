@@ -979,11 +979,12 @@ export default function PreventionScreen() {
   const tone = toneByFocus[focus.focus] ?? toneByFocus.Plan;
   const FocusIcon = tone.icon;
   const primaryRoute = focus.primaryRoute || fallbackFocus.primaryRoute;
-  const guidanceItems = focus.guidance?.length ? focus.guidance : fallbackFocus.guidance ?? [];
   const currentDateKey = preventionDateKey(focus.generatedAt);
-  const baseDailyActions = useMemo(() => (focus.dailyActions?.length
-    ? focus.dailyActions
-    : guidanceItems.slice(0, 3).map((item) => guidanceToDailyAction(item, focus.focus))).slice(0, 3), [focus.dailyActions, focus.focus, guidanceItems]);
+  const baseDailyActions = useMemo(() => {
+    if (focus.dailyActions?.length) return focus.dailyActions.slice(0, 3);
+    const guidanceItems = focus.guidance?.length ? focus.guidance : fallbackFocus.guidance ?? [];
+    return guidanceItems.slice(0, 3).map((item) => guidanceToDailyAction(item, focus.focus));
+  }, [focus.dailyActions, focus.focus, focus.guidance]);
   const dailyActions = useMemo(() => adaptDailyActionsForLoop(
     baseDailyActions,
     actionFeedback,
