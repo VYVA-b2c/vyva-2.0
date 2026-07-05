@@ -79,4 +79,33 @@ describe("MemoryGamesPage", () => {
     expect(within(choices as HTMLElement).getByText("Short stories")).toBeInTheDocument();
     expect(within(choices as HTMLElement).getByText("Number memory")).toBeInTheDocument();
   });
+
+  it("renders when the latest history item is a standalone memory activity", async () => {
+    mocks.getGameHistory.mockResolvedValue([
+      {
+        userId: "user-1",
+        gameType: "remember_later",
+        cognitiveDomain: "prospective_memory",
+        variantId: "remember-later-1",
+        level: 1,
+        score: 1,
+        accuracy: 100,
+        mistakes: 0,
+        durationSeconds: 10,
+        completedAt: "2026-07-05T09:00:00.000Z",
+        language: "en",
+      },
+    ]);
+    mocks.selectNextMemoryGame.mockResolvedValue({
+      gameType: "memory_match",
+      level: 1,
+      variantId: "memory_match-l1-v1",
+      reasonLabel: "Start here",
+    });
+
+    renderPage();
+
+    expect(await screen.findByText(/Remember Later -/)).toBeInTheDocument();
+    expect(await screen.findByText("Choose another exercise")).toBeInTheDocument();
+  });
 });

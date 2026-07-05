@@ -24,6 +24,30 @@ import type { GameResult, MemoryGameType, Recommendation } from "./types";
 
 const FALLBACK_USER_ID = "vyva-local-user";
 
+function isMemoryGameType(gameType: string): gameType is MemoryGameType {
+  return Object.prototype.hasOwnProperty.call(memoryGameRegistry, gameType);
+}
+
+function getLastSessionTitle(
+  gameType: string,
+  language: ReturnType<typeof useLanguage>["language"],
+  t: ReturnType<typeof useLanguage>["t"],
+) {
+  if (isMemoryGameType(gameType)) {
+    return getGameTitle(gameType, language);
+  }
+
+  if (gameType === "remember_later") {
+    return t("games.rememberLater.cardTitle", "Remember Later");
+  }
+
+  if (gameType === "curious_minds") {
+    return t("games.curiousMinds.title", "Curious Minds");
+  }
+
+  return t("memory.sessionFallback", "Memory session");
+}
+
 function formatLastSession(
   result: GameResult | undefined,
   language: ReturnType<typeof useLanguage>["language"],
@@ -36,7 +60,7 @@ function formatLastSession(
     month: "short",
   });
 
-  return `${getGameTitle(result.gameType as MemoryGameType, language)} - ${date}`;
+  return `${getLastSessionTitle(result.gameType, language, t)} - ${date}`;
 }
 
 function getGameIcon(gameType: MemoryGameType) {
