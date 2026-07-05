@@ -82,7 +82,7 @@ export default function RelaxBreatheScreen() {
   const copy = useMemo(() => ({
     title: t("activities.relaxBreathe.title", "Relax & Breathe"),
     intro: t("activities.relaxBreathe.intro", "A quiet pause for your body and mind."),
-    backToActivities: t("activities.relaxBreathe.backToActivities", "Back to activities"),
+    backToMindMemory: t("activities.relaxBreathe.backToMindMemory", "Back to Mind & Memory"),
     duration: t("activities.relaxBreathe.duration", "3 gentle steps"),
     modeLabel: t("activities.relaxBreathe.modeLabel", "Guide mode"),
     visualMode: t("activities.relaxBreathe.visualMode", "Visual"),
@@ -156,9 +156,9 @@ export default function RelaxBreatheScreen() {
     return () => stopVoice();
   }, [stopVoice]);
 
-  const goBackToActivities = useCallback(() => {
+  const goBackToMindMemory = useCallback(() => {
     stopVoice();
-    navigate("/activities");
+    navigate("/mind-memory");
   }, [navigate, stopVoice]);
 
   const goToStage = useCallback((nextStageIndex: number) => {
@@ -266,12 +266,12 @@ export default function RelaxBreatheScreen() {
       <div className="mx-auto flex min-h-[calc(100vh-32px)] w-full max-w-[920px] flex-col">
         <button
           type="button"
-          onClick={goBackToActivities}
+          onClick={goBackToMindMemory}
           className="inline-flex min-h-[48px] w-fit items-center gap-2 rounded-full border border-[#CDEBE5] bg-white px-4 font-body text-[15px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)]"
-          data-testid="button-relax-breathe-back-activities"
+          data-testid="button-relax-breathe-back-mind-memory"
         >
           <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
-          {copy.backToActivities}
+          {copy.backToMindMemory}
         </button>
 
         <main className="mt-4 flex-1 overflow-hidden rounded-[34px] border border-[#BEE9E1] bg-white/94 shadow-[0_22px_50px_rgba(15,118,110,0.14)]">
@@ -297,10 +297,10 @@ export default function RelaxBreatheScreen() {
                 </button>
                 <button
                   type="button"
-                  onClick={goBackToActivities}
+                  onClick={goBackToMindMemory}
                   className="min-h-[60px] rounded-[22px] bg-[#0F766E] px-5 font-body text-[17px] font-black text-white shadow-[0_16px_28px_rgba(15,118,110,0.22)]"
                 >
-                  {copy.backToActivities}
+                  {copy.backToMindMemory}
                 </button>
               </div>
             </div>

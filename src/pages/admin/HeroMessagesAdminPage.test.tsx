@@ -113,6 +113,20 @@ describe("HeroMessagesAdminPage", () => {
     expect(screen.getByTestId("card-hero-overview-health")).toBeInTheDocument();
   });
 
+  it("searches the message catalog without losing the selected editor", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+
+    fireEvent.change(screen.getByPlaceholderText("Message, surface, reason, or copy"), {
+      target: { value: "health-admin" },
+    });
+
+    expect(screen.getByText(/1 of \d+ messages/)).toBeInTheDocument();
+    expect(screen.getByText("health-admin / priority 120")).toBeInTheDocument();
+    expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+  });
+
   it("previews the selected language and blocks invalid copy", async () => {
     renderPage();
 

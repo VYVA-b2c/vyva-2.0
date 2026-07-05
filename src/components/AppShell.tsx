@@ -487,10 +487,13 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const showInlineVoiceAction = Boolean(!isFullScreen && visibleVoiceAction && visibleVoiceActionRouteMatches);
   const hasVoiceSessionSurface =
     !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring" || Boolean(lastError));
-  const showDockVoiceOverlay = dockVoiceOverlayOpen && hasVoiceSessionSurface;
+  const showDockVoiceOverlay = !isFullScreen && dockVoiceOverlayOpen && hasVoiceSessionSurface;
   const isVoiceOverlayFocused = externalVoiceOverlayPresent || showDockVoiceOverlay;
   const showVoiceDock =
-    !isChatTypeMode && (status === "connected" || isConnecting || voiceSessionPhase === "transferring") && !isVoiceOverlayFocused;
+    !isFullScreen &&
+    !isChatTypeMode &&
+    (status === "connected" || isConnecting || voiceSessionPhase === "transferring") &&
+    !isVoiceOverlayFocused;
   const suppressMilestonePopup = isFullScreen ||
     sosOpen ||
     showVoiceDock ||

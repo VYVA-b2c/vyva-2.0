@@ -47,7 +47,7 @@ export default function SensesPage() {
         icon={Headphones}
         iconColor="#0F766E"
         backLabel={t("common.back")}
-        backTo="/activities"
+        backTo="/mind-memory"
       />
 
       <ResponsiveGrid className="mt-5" columns="two">

@@ -670,6 +670,7 @@ const it = {
       title: "Rilassati e respira",
       intro: "Una pausa tranquilla per corpo e mente.",
       backToActivities: "Torna alle attivita",
+      backToMindMemory: "Torna a Mind & Memory",
       duration: "3 passi dolci",
       stepLabel: "Passo",
       ofLabel: "di",

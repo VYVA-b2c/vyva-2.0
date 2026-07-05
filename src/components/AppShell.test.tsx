@@ -310,7 +310,7 @@ describe("app shell voice dock", () => {
       expect(actionHandler.mock.calls[0][0].detail).toMatchObject({
         actionType: "brain.activity",
         domain: "brain_coach",
-        route: "/activities",
+        route: "/mind-memory",
       });
     } finally {
       window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);

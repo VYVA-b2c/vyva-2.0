@@ -14,7 +14,7 @@ const voiceMock = vi.hoisted(() => ({
 const labels: Record<string, string> = {
   "activities.relaxBreathe.title": "Relax & Breathe",
   "activities.relaxBreathe.intro": "A quiet pause for your body and mind.",
-  "activities.relaxBreathe.backToActivities": "Back to activities",
+  "activities.relaxBreathe.backToMindMemory": "Back to Mind & Memory",
   "activities.relaxBreathe.duration": "3 gentle steps",
   "activities.relaxBreathe.modeLabel": "Guide mode",
   "activities.relaxBreathe.visualMode": "Visual",
@@ -93,7 +93,7 @@ function renderRelaxBreathe() {
     <MemoryRouter initialEntries={["/activities/relax-breathe"]}>
       <Routes>
         <Route path="/activities/relax-breathe" element={<RelaxBreatheScreen />} />
-        <Route path="/activities" element={<LocationProbe />} />
+        <Route path="/mind-memory" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -217,6 +217,15 @@ describe("RelaxBreatheScreen", () => {
     expect(screen.getByTestId("relax-breathe-complete")).toHaveTextContent("A calm pause is complete.");
     expect(voiceMock.stopVoice).toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/activity/log"), expect.anything());
+  });
+
+  it("returns to Mind & Memory from the back button", async () => {
+    renderRelaxBreathe();
+
+    fireEvent.click(screen.getByTestId("button-relax-breathe-back-mind-memory"));
+
+    await waitFor(() => expect(screen.getByTestId("current-route")).toHaveTextContent("/mind-memory"));
+    expect(voiceMock.stopVoice).toHaveBeenCalled();
   });
 
   it("uses a static breathing cue when reduced motion is preferred", async () => {

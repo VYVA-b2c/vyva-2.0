@@ -978,6 +978,7 @@ const en = {
       title: "Relax & Breathe",
       intro: "A quiet pause for your body and mind.",
       backToActivities: "Back to activities",
+      backToMindMemory: "Back to Mind & Memory",
       duration: "3 gentle steps",
       stepLabel: "Step",
       ofLabel: "of",
