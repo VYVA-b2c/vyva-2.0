@@ -201,6 +201,11 @@ function recordValue(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
 }
 
+function profileGenderValue(consent: unknown) {
+  const identity = recordValue(recordValue(consent).identity);
+  return stringValue(identity.gender) ?? "prefer_not";
+}
+
 function userDetailDraft(detailProfile: JsonRecord, detailIntake: Intake, fallbackIntake: Intake, primaryMapping?: LoginMapping): JsonRecord {
   const profileTier = stringValue(detailProfile.subscription_tier);
   return {
@@ -210,6 +215,8 @@ function userDetailDraft(detailProfile: JsonRecord, detailIntake: Intake, fallba
     email: emailAddressValue(detailProfile.email, detailIntake.email, fallbackIntake.email, primaryMapping?.login_email, fallbackIntake.login_email, detailIntake.phone, fallbackIntake.phone),
     phone_number: contactNumberValue(detailProfile.phone_number, detailIntake.profile_phone, fallbackIntake.profile_phone, primaryMapping?.login_phone, fallbackIntake.login_phone, detailIntake.phone, fallbackIntake.phone),
     whatsapp_number: contactNumberValue(detailProfile.whatsapp_number),
+    country_code: stringValue(detailProfile.country_code) ?? "ES",
+    gender: profileGenderValue(detailProfile.data_sharing_consent),
     language: stringValue(detailProfile.language) ?? "es",
     timezone: stringValue(detailProfile.timezone) ?? "Europe/Madrid",
     caregiver_name: stringValue(detailProfile.caregiver_name) ?? "",

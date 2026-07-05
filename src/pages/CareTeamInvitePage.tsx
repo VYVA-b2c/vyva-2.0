@@ -194,8 +194,8 @@ export default function CareTeamInvitePage() {
   const [acceptError, setAcceptError] = useState<string | null>(null);
 
   const returnTo = useMemo(() => invitePath(token), [token]);
-  const signInHref = `/login?mode=login&returnTo=${encodeURIComponent(returnTo)}`;
-  const createHref = `/login?mode=register&returnTo=${encodeURIComponent(returnTo)}`;
+  const signInHref = `/caregiver/login?returnTo=${encodeURIComponent(returnTo)}`;
+  const createHref = `/caregiver/register?returnTo=${encodeURIComponent(returnTo)}`;
 
   useEffect(() => {
     rememberCareTeamInviteReturnPath(returnTo);

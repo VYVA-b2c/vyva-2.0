@@ -108,7 +108,7 @@ describe("MindMemoryScreen", () => {
 
     fireEvent.click(screen.getByTestId("button-mind-memory-fast-cognitive-assessment"));
 
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/memory-games");
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/mind-memory/cognitive-assessment");
   });
 
   it("rotates through the full final Fast help set", () => {

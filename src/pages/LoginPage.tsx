@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   CalendarClock,
@@ -49,6 +49,28 @@ type GuideTopic = "why" | "privacy" | "family";
 type SetupIntent = "self" | "caregiver";
 type CallbackFor = "me" | "caregiver";
 type CallbackPeriod = "AM" | "PM";
+type AuthAudience = "member" | "caregiver" | "admin";
+
+type AudienceCopy = {
+  routeLabel: string;
+  headerTagline: string;
+  heroEyebrow: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  authTitle: string;
+  authSubtitle: string;
+  trustItems: string[];
+  intentLabel: string;
+  memberDoor: string;
+  memberDoorSubtitle: string;
+  caregiverDoor: string;
+  caregiverDoorSubtitle: string;
+  caregiverNoteTitle: string;
+  caregiverNoteBody: string;
+  switchMember: string;
+  switchCaregiver: string;
+  secureFooter: string;
+};
 
 type CountryDialOption = {
   country: string;
@@ -1252,6 +1274,128 @@ function createLoginGuideConversationId() {
   return `login-guide-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function audienceCopyFor({
+  audience,
+  activeView,
+  isCareTeamInviteAuth,
+  isPasswordFreeSignIn,
+  language,
+  copy,
+}: {
+  audience: AuthAudience;
+  activeView: View;
+  isCareTeamInviteAuth: boolean;
+  isPasswordFreeSignIn: boolean;
+  language: LanguageCode;
+  copy: LoginCopy;
+}): AudienceCopy {
+  const isSpanish = language === "es";
+  const viewIsRegister = activeView === "register";
+  const viewIsLogin = activeView === "login";
+
+  if (audience === "admin") {
+    return {
+      routeLabel: "Admin",
+      headerTagline: "Administration",
+      heroEyebrow: "VYVA Admin",
+      heroTitle: isSpanish ? "Acceso seguro al panel operativo." : "Secure access for operations.",
+      heroSubtitle: isSpanish
+        ? "Usa una cuenta aprobada para gestionar usuarios, contenidos y revisiones."
+        : "Use an approved admin account to manage users, content, and review workflows.",
+      authTitle: "Admin sign in",
+      authSubtitle: "Restricted workspace for the VYVA team.",
+      trustItems: [
+        "Role checks are enforced after sign-in.",
+        "Admin activity stays logged for review.",
+      ],
+      intentLabel: "",
+      memberDoor: "",
+      memberDoorSubtitle: "",
+      caregiverDoor: "",
+      caregiverDoorSubtitle: "",
+      caregiverNoteTitle: "Secure zone",
+      caregiverNoteBody: "Administrative actions are protected by account role and audit history.",
+      switchMember: "",
+      switchCaregiver: "",
+      secureFooter: "Restricted admin workspace.",
+    };
+  }
+
+  if (audience === "caregiver") {
+    return {
+      routeLabel: isSpanish ? "Cuidador/a" : "Caregiver",
+      headerTagline: isSpanish ? "Cuidamos juntos" : "Care together",
+      heroEyebrow: isCareTeamInviteAuth
+        ? isSpanish ? "Invitacion de equipo de cuidado" : "Care team invitation"
+        : isSpanish ? "VYVA para cuidadores" : "VYVA for caregivers",
+      heroTitle: isSpanish ? "Ayuda a quien mas quieres, juntos." : "Help someone you care for, together.",
+      heroSubtitle: isSpanish
+        ? "Coordina recordatorios, bienestar y apoyo diario sin entrar en la cuenta de la persona cuidada."
+        : "Coordinate reminders, wellbeing, and daily support without taking over the cared person's account.",
+      authTitle: viewIsLogin
+        ? isSpanish ? "Entrar como cuidador/a" : "Caregiver sign in"
+        : viewIsRegister
+          ? isSpanish ? "Crear cuenta de cuidador/a" : "Create caregiver account"
+          : copy.titles[activeView],
+      authSubtitle: isPasswordFreeSignIn
+        ? isSpanish ? "Te enviaremos un enlace seguro al email." : "We will send a secure link to your email."
+        : isCareTeamInviteAuth
+          ? isSpanish
+            ? "Usa el mismo email o movil de la invitacion."
+            : "Use the same email or mobile number from the invitation."
+          : isSpanish
+            ? "Tu cuenta queda separada del perfil de la persona cuidada."
+            : "Your account stays separate from the cared person's profile.",
+      trustItems: [
+        isSpanish ? "La persona cuidada conserva el control." : "The cared person keeps consent and control.",
+        isSpanish ? "Puedes aceptar invitaciones y ver solo lo compartido." : "Accept invites and see only what is shared.",
+      ],
+      intentLabel: isSpanish ? "Elige el tipo de cuenta" : "Choose account type",
+      memberDoor: isSpanish ? "Para mi" : "For me",
+      memberDoorSubtitle: isSpanish ? "Mi cuenta personal" : "My personal account",
+      caregiverDoor: isSpanish ? "Para alguien a quien cuido" : "For someone I care for",
+      caregiverDoorSubtitle: isSpanish ? "Soy cuidador/a" : "I am a caregiver",
+      caregiverNoteTitle: isCareTeamInviteAuth
+        ? isSpanish ? "Estas aceptando una invitacion" : "You are accepting an invitation"
+        : isSpanish ? "Cuenta de cuidador/a" : "Caregiver account",
+      caregiverNoteBody: isCareTeamInviteAuth
+        ? isSpanish
+          ? "Despues de entrar o crear la cuenta, volveras a la invitacion para aceptar el acceso."
+          : "After you sign in or create the account, you will return to the invitation to accept access."
+        : isSpanish
+          ? "Despues podras aceptar invitaciones y acompanar a otra persona desde tu propio acceso."
+          : "You can accept invitations and support another person from your own login.",
+      switchMember: isSpanish ? "Ir a cuenta personal" : "Use member login",
+      switchCaregiver: isSpanish ? "Ir a cuidador/a" : "Use caregiver login",
+      secureFooter: isSpanish ? "Tu acceso de cuidador/a queda separado." : "Your caregiver access stays separate.",
+    };
+  }
+
+  return {
+    routeLabel: isSpanish ? "Usuario" : "Member",
+    headerTagline: isSpanish ? "Tu companera de salud y bienestar" : "Your health and wellbeing companion",
+    heroEyebrow: viewIsRegister ? copy.privateDailySupport : copy.signInHeroEyebrow,
+    heroTitle: viewIsRegister ? copy.heroTitle : copy.signInHeroTitle,
+    heroSubtitle: viewIsRegister ? copy.heroSubtitle : copy.signInHeroSubtitle,
+    authTitle: viewIsRegister ? copy.createTab : viewIsLogin ? copy.signInTab : copy.titles[activeView],
+    authSubtitle: isPasswordFreeSignIn ? copy.subtitles.forgot : copy.subtitles[activeView],
+    trustItems: [
+      copy.guide.topics.privacy.body,
+      copy.guide.topics.family.body,
+    ],
+    intentLabel: isSpanish ? "Elige el tipo de cuenta" : "Choose account type",
+    memberDoor: isSpanish ? "Para mi" : "For me",
+    memberDoorSubtitle: isSpanish ? "Mi cuenta personal" : "My personal account",
+    caregiverDoor: isSpanish ? "Para alguien a quien cuido" : "For someone I care for",
+    caregiverDoorSubtitle: isSpanish ? "Soy cuidador/a" : "I am a caregiver",
+    caregiverNoteTitle: isSpanish ? "Cuenta de cuidador/a" : "Caregiver account",
+    caregiverNoteBody: copy.caregiverHint,
+    switchMember: isSpanish ? "Ir a cuenta personal" : "Use member login",
+    switchCaregiver: isSpanish ? "Ir a cuidador/a" : "Use caregiver login",
+    secureFooter: copy.profilePrivate,
+  };
+}
+
 export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const { login, register, requestMagicLink, loginWithMagicToken, user, isLoading } = useAuth();
   const { language, setLanguage, languages } = useLanguage();
@@ -1273,18 +1417,30 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   } = useVyvaVoice();
   const navigate = useNavigate();
   const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isCaregiverEntryRoute =
+    !adminOnly && (location.pathname === "/caregiver/login" || location.pathname === "/caregiver/register");
+  const routeAuthMode = location.pathname === "/caregiver/login"
+    ? "login"
+    : location.pathname === "/caregiver/register"
+      ? "register"
+      : null;
   const rawFrom = (location.state as { from?: string })?.from;
   const from = adminOnly ? "/admin/lifecycle" : normalizeReturnPath(rawFrom);
-  const requestedAuthMode = new URLSearchParams(location.search).get("mode") === "login" ? "login" : "register";
-  const initialAuthMode = adminOnly ? "login" : requestedAuthMode;
+  const requestedAuthMode = searchParams.get("mode") === "login" ? "login" : "register";
+  const initialAuthMode = adminOnly ? "login" : routeAuthMode ?? requestedAuthMode;
   const explicitInviteReturnPath = adminOnly ? null : inviteReturnPathFromSearch(location.search);
   const storedCareTeamInviteReturnPath = adminOnly ? null : currentCareTeamInviteReturnPath();
   const inviteReturnPath = explicitInviteReturnPath ?? storedCareTeamInviteReturnPath;
   const isCareTeamInviteAuth = isCareTeamInviteReturnPath(inviteReturnPath);
+  const initialSetupIntent =
+    isCareTeamInviteAuth || isCaregiverEntryRoute || setupIntentFromParams(searchParams) === "caregiver"
+      ? "caregiver"
+      : "self";
 
   const [mode, setMode] = useState<"login" | "register">(initialAuthMode);
   const [view, setView] = useState<View>(initialAuthMode);
-  const [setupIntent, setSetupIntent] = useState<SetupIntent>(isCareTeamInviteAuth ? "caregiver" : "self");
+  const [setupIntent, setSetupIntent] = useState<SetupIntent>(initialSetupIntent);
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -1328,6 +1484,10 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setError(null);
     setMagicError(null);
     setShowPasswordSignIn(false);
+    if (isCaregiverEntryRoute) {
+      const nextPath = tab === "login" ? "/caregiver/login" : "/caregiver/register";
+      navigate(`${nextPath}${location.search}`, { replace: true });
+    }
   };
 
   const showForgot = () => {
@@ -1357,8 +1517,14 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   };
 
   useEffect(() => {
-    if (isCareTeamInviteAuth) setSetupIntent("caregiver");
-  }, [isCareTeamInviteAuth]);
+    if (isCareTeamInviteAuth || isCaregiverEntryRoute) setSetupIntent("caregiver");
+  }, [isCareTeamInviteAuth, isCaregiverEntryRoute]);
+
+  useEffect(() => {
+    if (adminOnly || isCareTeamInviteAuth || isCaregiverEntryRoute) return;
+    const setupIntentParam = setupIntentFromParams(new URLSearchParams(location.search));
+    if (!setupIntentParam && location.pathname === "/login") setSetupIntent("self");
+  }, [adminOnly, isCareTeamInviteAuth, isCaregiverEntryRoute, location.pathname, location.search]);
 
   useEffect(() => {
     if (isCareTeamInviteAuth) rememberCareTeamInviteReturnPath(inviteReturnPath);
@@ -1440,6 +1606,13 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
     setView("login");
     setShowPasswordSignIn(true);
   }, [adminOnly]);
+
+  useEffect(() => {
+    if (!routeAuthMode) return;
+    setMode(routeAuthMode);
+    setView(routeAuthMode);
+    setShowPasswordSignIn(routeAuthMode === "login");
+  }, [routeAuthMode]);
 
   const startLoginGuide = useCallback(async (options?: { textOnly?: boolean }) => {
     const textOnly = options?.textOnly ?? false;
@@ -1652,7 +1825,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
   const trimmedContact = contact.trim();
   const contactIsEmail = trimmedContact.includes("@");
   const isPasswordFreeSignIn = view !== "forgot" && (mode === "login" || view === "magic") && !showPasswordSignIn;
-  const contactIsReady = isPasswordFreeSignIn
+  const contactIsReady = adminOnly || isPasswordFreeSignIn
     ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact)
     : trimmedContact.length >= (contactIsEmail ? 4 : 7);
   const canSubmit = contactIsReady && password.length >= (mode === "register" ? 8 : 1) && !loading;
@@ -1668,15 +1841,23 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         : guideVoiceError
     : null;
   const isSignupWithPassword = mode === "register" && view !== "magic";
-  const contactLabel = isPasswordFreeSignIn ? copy.email : copy.combinedContact ?? `${copy.mobileNumber} / ${copy.email}`;
+  const contactLabel = adminOnly
+    ? copy.email
+    : isPasswordFreeSignIn
+      ? copy.email
+      : copy.combinedContact ?? `${copy.mobileNumber} / ${copy.email}`;
   const compactPhoneExample = copy.phonePlaceholder.replace(/\s+/g, "");
-  const contactPlaceholder = isPasswordFreeSignIn
+  const contactPlaceholder = adminOnly
+    ? "admin@vyva.life"
+    : isPasswordFreeSignIn
     ? copy.emailPlaceholder
     : language === "en"
       ? "Mobile or email"
       : copy.combinedContactPlaceholder ?? `${compactPhoneExample} ${copy.or} ${copy.emailPlaceholder}`;
   const contactFormatHint =
-    isPasswordFreeSignIn
+    adminOnly
+      ? "Use your approved VYVA admin email."
+      : isPasswordFreeSignIn
       ? language === "en"
         ? "We send a secure link to your email. No password to remember."
         : `${copy.email}: ${copy.emailPlaceholder}`
@@ -1685,34 +1866,37 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       : language === "en" && mode === "login" && showPasswordSignIn && !adminOnly
         ? "Use the mobile number or email you signed up with."
       : `${copy.mobileNumber}: ${contactPlaceholder}`;
-  const contactAutocomplete = isPasswordFreeSignIn ? "email" : "username";
+  const contactAutocomplete = adminOnly || isPasswordFreeSignIn ? "email" : "username";
   const todayForDateInput = new Date().toISOString().slice(0, 10);
   const selectedDialOption = COUNTRY_DIAL_OPTIONS.find((option) => option.dialCode === callbackCountryCode) ?? COUNTRY_DIAL_OPTIONS[0];
   const selectedCallNumber = VYVA_CALL_NUMBERS[callCountry] ?? VYVA_CALL_NUMBERS.ES;
   const activeView: View = view === "forgot" || view === "magic" ? view : mode;
-  const authTitle = adminOnly && activeView === "login"
-    ? "Admin sign in"
-    : activeView === "register"
-      ? copy.createTab
-      : activeView === "login"
-        ? copy.signInTab
-        : copy.titles[activeView];
-  const authSubtitle = adminOnly && activeView === "login"
-    ? "Access the VYVA operations panel."
-    : isPasswordFreeSignIn
-      ? copy.subtitles.forgot
-    : copy.subtitles[activeView];
-  const isSignupHero = mode === "register" && view !== "magic";
-  const heroEyebrow = isSignupHero ? copy.privateDailySupport : copy.signInHeroEyebrow;
-  const heroTitle = isSignupHero ? copy.heroTitle : copy.signInHeroTitle;
-  const heroSubtitle = isSignupHero ? copy.heroSubtitle : copy.signInHeroSubtitle;
+  const audience: AuthAudience = adminOnly
+    ? "admin"
+    : isCaregiverEntryRoute || isCareTeamInviteAuth || setupIntent === "caregiver"
+      ? "caregiver"
+      : "member";
+  const audienceCopy = audienceCopyFor({
+    audience,
+    activeView,
+    isCareTeamInviteAuth,
+    isPasswordFreeSignIn,
+    language,
+    copy,
+  });
+  const authTitle = audienceCopy.authTitle;
+  const authSubtitle = audienceCopy.authSubtitle;
+  const heroEyebrow = audienceCopy.heroEyebrow;
+  const heroTitle = audienceCopy.heroTitle;
+  const heroSubtitle = audienceCopy.heroSubtitle;
   const switchPrompt = mode === "register" ? copy.alreadyHaveAccount : copy.dontHaveAccount;
   const magicSubmitLabel = language === "en" ? "Send sign-in link" : copy.sendMagicLink;
   const shouldShowSignInMethods = !adminOnly && mode === "login" && view !== "forgot";
-  const trustItems = [
-    copy.guide.topics.privacy.body,
-    copy.guide.topics.family.body,
-  ];
+  const trustItems = audienceCopy.trustItems;
+  const isCaregiverAudience = audience === "caregiver";
+  const publicPrimaryClass = isCaregiverAudience
+    ? "bg-[#00847F] shadow-[0_14px_26px_rgba(0,132,127,0.24)] hover:bg-[#00716D]"
+    : "bg-[#6B21A8] shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95]";
   const signInMethodChooser = shouldShowSignInMethods ? (
     <div className="space-y-2" data-testid="signin-methods">
       <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={language === "en" ? "Sign-in method" : copy.signInTab}>
@@ -1730,7 +1914,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           data-testid="button-signin-method-link"
           className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
             isPasswordFreeSignIn
-              ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
+              ? isCaregiverAudience
+                ? "border-[#00847F] bg-[#00847F] text-white shadow-[0_12px_24px_rgba(0,132,127,0.18)]"
+                : "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
               : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
           }`}
         >
@@ -1759,7 +1945,9 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
           data-testid="button-signin-method-password"
           className={`flex min-h-[68px] items-center gap-3 rounded-[18px] border-2 px-3 py-3 text-left transition ${
             showPasswordSignIn
-              ? "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
+              ? isCaregiverAudience
+                ? "border-[#00847F] bg-[#00847F] text-white shadow-[0_12px_24px_rgba(0,132,127,0.18)]"
+                : "border-vyva-purple bg-vyva-purple text-white shadow-[0_12px_24px_rgba(107,33,168,0.20)]"
               : "border-[#E8DDF3] bg-[#F8FBFF] text-vyva-text-2 hover:border-[#D8C2EF]"
           }`}
         >
@@ -1799,6 +1987,26 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
       <span className="h-px flex-1 bg-[#EEE4D8]" />
     </div>
   );
+  const pageClass = audience === "admin"
+    ? "relative min-h-screen overflow-x-hidden bg-[#F7F2EB] text-vyva-text-1"
+    : isCaregiverAudience
+      ? "relative min-h-screen overflow-x-hidden bg-[#F6FBF8] text-vyva-text-1"
+      : "relative min-h-screen overflow-x-hidden bg-[#FBF8F3] text-vyva-text-1";
+  const ambientBackgroundClass = isCaregiverAudience
+    ? "pointer-events-none fixed inset-0 overflow-hidden bg-[#F6FBF8]"
+    : "pointer-events-none fixed inset-0 overflow-hidden bg-[#FBF8F3]";
+  const ambientGradientClass = isCaregiverAudience
+    ? "absolute inset-0 bg-[linear-gradient(118deg,#FFFEF8_0%,#F6FBF8_54%,#EEF8F6_100%)]"
+    : "absolute inset-0 bg-[linear-gradient(118deg,#FFFDF6_0%,#FBF8F3_58%,#F7F1FB_100%)]";
+  const mainMaxClass = audience === "admin" ? "max-w-5xl" : "max-w-6xl";
+  const layoutClass = audience === "admin"
+    ? "grid w-full max-w-[960px] gap-6 lg:grid-cols-[minmax(280px,0.78fr)_minmax(420px,520px)] lg:items-center lg:gap-10"
+    : "grid w-full max-w-[580px] gap-6 lg:max-w-[1120px] lg:grid-cols-[minmax(320px,420px)_minmax(480px,560px)] lg:items-start lg:gap-10";
+  const authCardClass = audience === "admin"
+    ? "w-full rounded-[24px] border border-[#E4D8CD] bg-white p-5 shadow-[0_18px_48px_rgba(47,24,63,0.10)] sm:p-7 md:justify-self-end"
+    : "w-full rounded-[28px] border border-[#E4D8CD] bg-white p-5 shadow-[0_22px_58px_rgba(79,43,116,0.13)] sm:p-7 md:justify-self-end";
+  const memberAuthHref = mode === "login" ? "/login?mode=login" : "/login?mode=register";
+  const caregiverAuthHref = mode === "login" ? "/caregiver/login" : "/caregiver/register";
 
   return (
     <>
@@ -2157,75 +2365,114 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
         </PurpleModal>
       )}
 
-      <div className="relative min-h-screen overflow-x-hidden bg-[#FBF8F3] text-vyva-text-1">
+      <div className={pageClass}>
         {!adminOnly && (
-          <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden bg-[#FBF8F3]">
-            <div className="absolute inset-0 bg-[linear-gradient(118deg,#FFFDF6_0%,#FBF8F3_58%,#F7F1FB_100%)]" />
+          <div aria-hidden="true" className={ambientBackgroundClass}>
+            <div className={ambientGradientClass} />
           </div>
         )}
         <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 pb-4 pt-5 sm:px-8 sm:py-6 lg:px-8">
-          <VyvaWordmark className="h-auto w-[140px] sm:w-[162px]" />
-          <label className="flex min-h-[52px] items-center gap-2 rounded-[18px] border-2 border-[#E8DDF3] bg-white px-4 py-2 shadow-[0_10px_26px_rgba(77,45,20,0.08)]">
-            <Globe2 size={17} className="text-vyva-purple" />
-            <span className="sr-only">{copy.language}</span>
-            <select
-              value={language}
-              onChange={(event) => setLanguage(event.target.value)}
-              aria-label={copy.language}
-              className="bg-transparent font-body text-[15px] font-extrabold text-vyva-purple outline-none"
-              data-testid="select-login-language"
-            >
-              {languages.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex items-center gap-3">
+            <VyvaWordmark className="h-auto w-[140px] sm:w-[162px]" />
+            <span className={`hidden rounded-full px-3 py-1.5 font-body text-[12px] font-black sm:inline-flex ${
+              isCaregiverAudience
+                ? "bg-[#E9F8F6] text-[#007C78]"
+                : audience === "admin"
+                  ? "bg-[#F2E8FF] text-vyva-purple"
+                  : "bg-[#F7F0FF] text-vyva-purple"
+            }`}>
+              {audienceCopy.headerTagline}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {!adminOnly && (
+              <Link
+                to={isCaregiverAudience ? "/login" : "/caregiver/login"}
+                className={`hidden min-h-[48px] items-center justify-center rounded-[16px] border bg-white px-4 font-body text-[13px] font-black shadow-[0_10px_26px_rgba(77,45,20,0.06)] transition sm:inline-flex ${
+                  isCaregiverAudience
+                    ? "border-[#BEE7E4] text-[#007C78] hover:bg-[#F2FCFB]"
+                    : "border-[#E8DDF3] text-vyva-purple hover:bg-[#FBF8FF]"
+                }`}
+              >
+                {isCaregiverAudience ? audienceCopy.switchMember : audienceCopy.switchCaregiver}
+              </Link>
+            )}
+            <label className="flex min-h-[52px] items-center gap-2 rounded-[18px] border-2 border-[#E8DDF3] bg-white px-4 py-2 shadow-[0_10px_26px_rgba(77,45,20,0.08)]">
+              <Globe2 size={17} className={isCaregiverAudience ? "text-[#007C78]" : "text-vyva-purple"} />
+              <span className="sr-only">{copy.language}</span>
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                aria-label={copy.language}
+                className={`bg-transparent font-body text-[15px] font-extrabold outline-none ${isCaregiverAudience ? "text-[#007C78]" : "text-vyva-purple"}`}
+                data-testid="select-login-language"
+              >
+                {languages.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </header>
 
-        <main className="relative z-10 mx-auto flex min-h-[calc(100vh-104px)] w-full max-w-6xl items-start justify-center px-5 pb-8 pt-3 sm:px-8 md:min-h-[calc(100vh-116px)] md:pt-0 lg:px-8 lg:pb-12">
+        <main className={`relative z-10 mx-auto flex min-h-[calc(100vh-104px)] w-full ${mainMaxClass} items-start justify-center px-5 pb-8 pt-3 sm:px-8 md:min-h-[calc(100vh-116px)] md:pt-0 lg:px-8 lg:pb-12`}>
           <section
             data-testid="auth-layout"
-            className="grid w-full max-w-[580px] gap-6 lg:max-w-[1120px] lg:grid-cols-[minmax(320px,420px)_minmax(480px,560px)] lg:items-start lg:gap-10"
+            className={layoutClass}
           >
             {adminOnly ? (
-              <div className="text-center md:text-left">
-                <p className="mb-3 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
-                  VYVA Admin
+              <div className="rounded-[28px] border border-[#E7DCD2] bg-[#FFFCF8] p-6 text-center shadow-[0_18px_50px_rgba(47,24,63,0.08)] md:text-left lg:p-8">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-[#F2E8FF] text-vyva-purple md:mx-0">
+                  <ShieldCheck size={30} />
+                </div>
+                <p className="mt-6 font-body text-[11px] font-extrabold uppercase tracking-[0.26em] text-vyva-purple/70">
+                  {heroEyebrow}
                 </p>
-                <h1 className="font-display text-[38px] leading-[0.98] text-[#2E1642] sm:text-[58px] md:max-w-[430px] md:text-[48px] lg:text-[58px]">
-                  Operations access
+                <h1 className="mt-3 font-display text-[38px] leading-[1.02] text-[#2E1642] sm:text-[48px]">
+                  {heroTitle}
                 </h1>
-                <p className="mx-auto mt-4 max-w-[380px] font-body text-[15px] leading-[1.55] text-vyva-text-2 md:mx-0">
-                  Sign in with an approved admin account to manage lifecycle, content, and access.
+                <p className="mx-auto mt-4 max-w-[410px] font-body text-[15px] font-semibold leading-[1.65] text-vyva-text-2 md:mx-0">
+                  {heroSubtitle}
                 </p>
-                <div className="mt-6 hidden flex-wrap justify-center gap-2 sm:flex md:justify-start" aria-label="VYVA account highlights">
-                  {copy.chips.map((chip) => (
-                    <span key={chip} className="rounded-full border border-[#E8DDF3] bg-white/72 px-3 py-2 font-body text-[12px] font-extrabold text-vyva-purple shadow-sm">
-                      {chip}
-                    </span>
+                <div className="mt-7 grid gap-3" aria-label="Admin security notes">
+                  {trustItems.map((item) => (
+                    <div key={item} className="flex items-start gap-3 rounded-[18px] border border-[#E8DDF3] bg-white px-4 py-3 text-left">
+                      <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-vyva-purple" />
+                      <span className="font-body text-[13px] font-bold leading-5 text-[#6E6275]">{item}</span>
+                    </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="relative hidden overflow-hidden rounded-[28px] border border-white/80 bg-[#2F183F] shadow-[0_22px_64px_rgba(79,43,116,0.16)] lg:block">
+              <div className={`relative hidden overflow-hidden rounded-[28px] border shadow-[0_22px_64px_rgba(79,43,116,0.16)] lg:block ${
+                isCaregiverAudience ? "border-[#CBECE8] bg-[#0E4E4B]" : "border-white/80 bg-[#2F183F]"
+              }`}>
                 <img
                   src="/assets/vyva/cozy-home-room.png"
                   alt=""
                   aria-hidden="true"
                   className="absolute inset-0 h-full w-full object-cover object-[30%_center]"
                 />
-                <div className="absolute inset-0 bg-[linear-gradient(145deg,rgba(47,24,63,0.72)_0%,rgba(107,33,168,0.38)_48%,rgba(255,247,232,0.06)_100%)]" />
-                <div className="absolute inset-x-0 bottom-0 h-[62%] bg-[linear-gradient(0deg,rgba(47,24,63,0.86)_0%,rgba(47,24,63,0.54)_62%,rgba(47,24,63,0)_100%)]" />
+                <div className={`absolute inset-0 ${
+                  isCaregiverAudience
+                    ? "bg-[linear-gradient(145deg,rgba(8,83,79,0.78)_0%,rgba(0,132,127,0.42)_50%,rgba(255,247,232,0.08)_100%)]"
+                    : "bg-[linear-gradient(145deg,rgba(47,24,63,0.72)_0%,rgba(107,33,168,0.38)_48%,rgba(255,247,232,0.06)_100%)]"
+                }`} />
+                <div className={`absolute inset-x-0 bottom-0 h-[62%] ${
+                  isCaregiverAudience
+                    ? "bg-[linear-gradient(0deg,rgba(8,83,79,0.90)_0%,rgba(8,83,79,0.56)_62%,rgba(8,83,79,0)_100%)]"
+                    : "bg-[linear-gradient(0deg,rgba(47,24,63,0.86)_0%,rgba(47,24,63,0.54)_62%,rgba(47,24,63,0)_100%)]"
+                }`} />
                 <div className="relative z-10 flex min-h-[540px] flex-col justify-between p-7 text-left text-white xl:min-h-[560px] xl:p-8">
                   <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/14 px-4 py-2 font-body text-[13px] font-extrabold text-white ring-1 ring-white/18">
                     <ShieldCheck size={16} />
-                    {copy.profilePrivate}
+                    {audienceCopy.secureFooter}
                   </div>
                   <div>
-                  <div className="mb-5 h-1.5 w-20 rounded-full bg-[#FFDF61]" />
-                  <p className="mb-3 font-body text-[12px] font-extrabold uppercase tracking-[0.2em] text-[#FFE98B]">
+                  <div className={`mb-5 h-1.5 w-20 rounded-full ${isCaregiverAudience ? "bg-[#8FE2D8]" : "bg-[#FFDF61]"}`} />
+                  <p className={`mb-3 font-body text-[12px] font-extrabold uppercase tracking-[0.2em] ${isCaregiverAudience ? "text-[#B9F0EA]" : "text-[#FFE98B]"}`}>
                     {heroEyebrow}
                   </p>
                   <h1 className="max-w-[390px] font-body text-[2.9rem] font-black leading-[1.02] text-white drop-shadow-[0_8px_24px_rgba(47,24,63,0.28)] xl:text-[3.2rem]">
@@ -2237,7 +2484,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                   <div className="mt-5 space-y-2">
                     {trustItems.map((item) => (
                       <div key={item} className="flex items-start gap-2.5 rounded-[16px] bg-white/12 px-3.5 py-3 ring-1 ring-white/12">
-                        <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-[#FFE98B]" />
+                        <CheckCircle2 size={18} className={`mt-0.5 shrink-0 ${isCaregiverAudience ? "text-[#8FE2D8]" : "text-[#FFE98B]"}`} />
                         <span className="font-body text-[14px] font-bold leading-5 text-white/92">{item}</span>
                       </div>
                     ))}
@@ -2247,7 +2494,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                       <button
                         type="button"
                         onClick={openCallModal}
-                        className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full bg-vyva-purple px-4 font-body text-sm font-black text-white shadow-[0_14px_34px_rgba(35,13,56,0.28)] transition hover:bg-vyva-purple/92"
+                        className={`inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full px-4 font-body text-sm font-black text-white transition ${publicPrimaryClass}`}
                         data-testid="button-login-call-vyva"
                       >
                         <PhoneCall size={16} />
@@ -2279,12 +2526,62 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
 
             <div
               data-testid="auth-card"
-              className="w-full rounded-[28px] border border-[#E4D8CD] bg-white p-5 shadow-[0_22px_58px_rgba(79,43,116,0.13)] sm:p-7 md:justify-self-end"
+              className={authCardClass}
             >
               <div className="mb-5">
                 <h2 className="font-body text-[36px] font-black leading-tight text-[#2F183F]">{authTitle}</h2>
                 <p className="mt-1.5 font-body text-[16px] font-semibold leading-6 text-vyva-text-2">{authSubtitle}</p>
               </div>
+
+              {!adminOnly && (
+                <div className="mb-5 grid gap-2 sm:grid-cols-2" data-testid="auth-audience-switcher">
+                  {([
+                    {
+                      id: "member" as const,
+                      href: memberAuthHref,
+                      icon: UserRound,
+                      title: audienceCopy.memberDoor,
+                      subtitle: audienceCopy.memberDoorSubtitle,
+                    },
+                    {
+                      id: "caregiver" as const,
+                      href: caregiverAuthHref,
+                      icon: UsersRound,
+                      title: audienceCopy.caregiverDoor,
+                      subtitle: audienceCopy.caregiverDoorSubtitle,
+                    },
+                  ]).map((door) => {
+                    const active = audience === door.id;
+                    const Icon = door.icon;
+                    return (
+                      <Link
+                        key={door.id}
+                        to={door.href}
+                        data-testid={`link-auth-door-${door.id}`}
+                        className={`flex min-h-[78px] items-center gap-3 rounded-[18px] border px-3 py-3 text-left transition ${
+                          active
+                            ? isCaregiverAudience
+                              ? "border-[#0E8F89] bg-[#EFFBFA] text-[#173E3E] shadow-[0_10px_24px_rgba(0,132,127,0.10)]"
+                              : "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_10px_24px_rgba(107,33,168,0.10)]"
+                            : "border-[#EFE7DB] bg-white text-vyva-text-2 hover:border-[#E1D6C8]"
+                        }`}
+                      >
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] ${
+                          active
+                            ? isCaregiverAudience ? "bg-[#00847F] text-white" : "bg-vyva-purple text-white"
+                            : isCaregiverAudience ? "bg-[#EAF7F6] text-[#00847F]" : "bg-[#F8F3EA] text-vyva-purple"
+                        }`}>
+                          <Icon size={19} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-body text-[14px] font-black leading-tight">{door.title}</span>
+                          <span className="mt-1 block font-body text-[12px] font-semibold leading-4 text-vyva-text-3">{door.subtitle}</span>
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
 
               {view === "forgot" ? (
                 <div className="flex flex-col gap-4">
@@ -2352,58 +2649,18 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">
-                  {!adminOnly && mode === "register" && view !== "magic" && (
-                    isCareTeamInviteAuth ? (
-                      <div
-                        className="rounded-[18px] border border-[#E8DDF3] bg-[#FBF8FF] px-4 py-3"
-                        data-testid="auth-careteam-invite"
-                      >
-                        <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-purple">
-                          Care team invitation
-                        </p>
-                        <p className="mt-1 font-body text-[13px] font-bold leading-relaxed text-vyva-text-2">
-                          Create or sign in with the invited email or mobile number. You will return to the invitation to accept access.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2" data-testid="auth-setup-intent">
-                        <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-vyva-text-3">
-                          {copy.setupIntentLabel}
-                        </p>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {(["self", "caregiver"] as const).map((intent) => {
-                            const active = setupIntent === intent;
-                            const Icon = intent === "self" ? UserRound : UsersRound;
-                            return (
-                              <button
-                                key={intent}
-                                type="button"
-                                onClick={() => setSetupIntent(intent)}
-                                data-testid={`button-auth-intent-${intent}`}
-                                className={`flex min-h-[58px] items-center gap-2 rounded-[18px] border px-2.5 py-2 text-left transition sm:min-h-[74px] sm:gap-3 sm:px-3 sm:py-2.5 ${
-                                  active
-                                    ? "border-vyva-purple bg-[#F5F0FF] text-vyva-text-1 shadow-[0_10px_24px_rgba(107,33,168,0.10)]"
-                                    : "border-[#EFE7DB] bg-white text-vyva-text-2 hover:border-[#E1D6C8]"
-                                }`}
-                              >
-                                <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] ${active ? "bg-vyva-purple text-white" : "bg-[#F8F3EA] text-vyva-purple"}`}>
-                                  <Icon size={18} />
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block font-body text-[12px] font-extrabold leading-tight sm:text-[13px]">{copy.setupIntent[intent].title}</span>
-                                  <span className="mt-0.5 hidden font-body text-[11px] leading-[1.3] text-vyva-text-2 sm:block">{copy.setupIntent[intent].subtitle}</span>
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {setupIntent === "caregiver" && (
-                          <p data-testid="text-auth-caregiver-hint" className="rounded-[16px] border border-[#E8DDF3] bg-[#FBF8FF] px-3 py-2 font-body text-[12px] leading-[1.45] text-vyva-purple">
-                            {copy.caregiverHint}
-                          </p>
-                        )}
-                      </div>
-                    )
+                  {!adminOnly && mode === "register" && view !== "magic" && audience === "caregiver" && (
+                    <div
+                      className="rounded-[18px] border border-[#BEE7E4] bg-[#F2FCFB] px-4 py-3"
+                      data-testid={isCareTeamInviteAuth ? "auth-careteam-invite" : "auth-caregiver-note"}
+                    >
+                      <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.08em] text-[#007C78]">
+                        {audienceCopy.caregiverNoteTitle}
+                      </p>
+                      <p className="mt-1 font-body text-[13px] font-bold leading-relaxed text-[#426768]">
+                        {audienceCopy.caregiverNoteBody}
+                      </p>
+                    </div>
                   )}
 
                   {signInMethodChooser}
@@ -2413,8 +2670,8 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     <Input
                       ref={contactInputRef}
                       data-testid="input-auth-contact"
-                      type={isPasswordFreeSignIn ? "email" : "text"}
-                      inputMode={isPasswordFreeSignIn ? "email" : "text"}
+                      type={adminOnly || isPasswordFreeSignIn ? "email" : "text"}
+                      inputMode={adminOnly || isPasswordFreeSignIn ? "email" : "text"}
                       value={contact}
                       onChange={(event) => {
                         setContact(event.target.value);
@@ -2476,7 +2733,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="vyva-primary-action w-full rounded-[18px] bg-[#6B21A8] py-4 text-[17px] font-black shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95] disabled:opacity-40"
+                        className={`vyva-primary-action w-full rounded-[18px] py-4 text-[17px] font-black disabled:opacity-40 ${publicPrimaryClass}`}
                       >
                         {loading ? copy.creating : copy.createAccount}
                         {!loading && <ArrowRight size={17} />}
@@ -2533,7 +2790,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                         type="button"
                         onClick={handleSubmit}
                         disabled={!canSubmit}
-                        className="vyva-primary-action w-full rounded-[18px] bg-[#6B21A8] py-4 text-[17px] font-black shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95] disabled:opacity-40"
+                        className={`vyva-primary-action w-full rounded-[18px] py-4 text-[17px] font-black disabled:opacity-40 ${publicPrimaryClass}`}
                       >
                         {loading ? copy.signingIn : copy.signIn}
                         {!loading && <ArrowRight size={17} />}
@@ -2566,7 +2823,7 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                             type="button"
                             onClick={handleMagicLink}
                             disabled={!canSendMagic}
-                            className="vyva-primary-action w-full rounded-[18px] bg-[#6B21A8] py-4 text-[17px] font-black shadow-[0_14px_26px_rgba(107,33,168,0.28)] hover:bg-[#5E1B95] disabled:opacity-40"
+                            className={`vyva-primary-action w-full rounded-[18px] py-4 text-[17px] font-black disabled:opacity-40 ${publicPrimaryClass}`}
                           >
                             {magicLoading ? copy.sending : magicSubmitLabel}
                             {!magicLoading && <Link2 size={17} />}
@@ -2593,17 +2850,21 @@ export default function LoginPage({ adminOnly = false }: { adminOnly?: boolean }
                     </p>
                   )}
 
-                  <div className="flex flex-col items-center justify-center gap-1 rounded-[18px] bg-[#FFF9E8] px-4 py-3 text-center sm:flex-row sm:gap-2">
+                  <div className={`flex flex-col items-center justify-center gap-1 rounded-[18px] px-4 py-3 text-center sm:flex-row sm:gap-2 ${
+                    isCaregiverAudience ? "bg-[#F2FCFB]" : "bg-[#FFF9E8]"
+                  }`}>
                     <span className="inline-flex items-center justify-center gap-2">
-                      <ShieldCheck size={16} className="text-[#B98900]" />
-                      <span className="font-body text-[12px] font-bold text-[#8A6500]">{copy.profilePrivate}</span>
+                      <ShieldCheck size={16} className={isCaregiverAudience ? "text-[#007C78]" : "text-[#B98900]"} />
+                      <span className={`font-body text-[12px] font-bold ${isCaregiverAudience ? "text-[#007C78]" : "text-[#8A6500]"}`}>
+                        {audienceCopy.secureFooter}
+                      </span>
                     </span>
                     <a
                       href="https://vyva.life/privacypolicy"
                       target="_blank"
                       rel="noreferrer"
                       data-testid="link-privacy-policy"
-                      className="font-body text-[12px] font-extrabold text-vyva-purple underline-offset-4 hover:underline"
+                      className={`font-body text-[12px] font-extrabold underline-offset-4 hover:underline ${isCaregiverAudience ? "text-[#007C78]" : "text-vyva-purple"}`}
                     >
                       {copy.privacyPolicy}
                     </a>

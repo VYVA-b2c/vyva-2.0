@@ -292,6 +292,31 @@ describe("app shell voice dock", () => {
     }
   });
 
+  it("turns cognitive exercise voice transcripts into Brain Coach actions", () => {
+    const actionHandler = vi.fn();
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+
+    try {
+      renderShell();
+
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_USER_MESSAGE_EVENT, {
+        detail: {
+          text: "I want cognitive exercises",
+          transcriptEntry: { from: "user", text: "I want cognitive exercises", timestamp: 3 },
+        },
+      }));
+
+      expect(actionHandler).toHaveBeenCalledTimes(1);
+      expect(actionHandler.mock.calls[0][0].detail).toMatchObject({
+        actionType: "brain.activity",
+        domain: "brain_coach",
+        route: "/activities",
+      });
+    } finally {
+      window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, actionHandler);
+    }
+  });
+
   it("keeps non-health voice actions visible on their route", () => {
     voiceActionState.activeAction = makeVoiceAction();
 

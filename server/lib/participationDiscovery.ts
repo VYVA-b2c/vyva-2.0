@@ -16,6 +16,7 @@ export type DiscoverParticipationInput = {
   venueHints?: string[];
   languageCodes?: string[];
   interests?: string[];
+  refinementTags?: string[];
   format?: DiscoveryFormatPreference;
   maxResults?: number;
 };
@@ -37,6 +38,7 @@ export type ParticipationDiscoveryResult = {
     venueHints: string[];
     languageCodes: string[];
     interests: string[];
+    refinementTags: string[];
     format: DiscoveryFormatPreference;
     maxResults: number;
   };
@@ -70,6 +72,7 @@ type AiCandidate = {
   format?: string;
   locationLabel?: string;
   city?: string | null;
+  locality?: string | null;
   countryCode?: string | null;
   timeLabelEn?: string;
   timeLabelEs?: string;
@@ -115,6 +118,7 @@ const candidateSchema = {
     "format",
     "locationLabel",
     "city",
+    "locality",
     "countryCode",
     "timeLabelEn",
     "timeLabelEs",
@@ -147,6 +151,7 @@ const candidateSchema = {
     format: { type: "string", enum: FORMAT_OPTIONS },
     locationLabel: { type: "string", maxLength: 160 },
     city: { type: ["string", "null"], maxLength: 120 },
+    locality: { type: ["string", "null"], maxLength: 120 },
     countryCode: { type: ["string", "null"], maxLength: 2 },
     timeLabelEn: { type: "string", maxLength: 120 },
     timeLabelEs: { type: "string", maxLength: 120 },
@@ -263,9 +268,10 @@ function normalizeQuery(input: DiscoverParticipationInput) {
   const venueHints = cleanList(input.venueHints, 12);
   const languageCodes = normalizeLanguages(input.languageCodes, ["en", "es", "de"]);
   const interests = cleanList(input.interests, 12);
+  const refinementTags = cleanList(input.refinementTags, 16);
   const format = input.format && ["nearby", "online", "hybrid", "any"].includes(input.format) ? input.format : "nearby";
   const maxResults = Math.max(1, Math.min(12, Number(input.maxResults ?? 6)));
-  return { city, countryCode, locality, postalCode, radiusKm, venueHints, languageCodes, interests, format, maxResults };
+  return { city, countryCode, locality, postalCode, radiusKm, venueHints, languageCodes, interests, refinementTags, format, maxResults };
 }
 
 function extractOutputText(response: unknown) {
@@ -319,6 +325,7 @@ function normalizeCandidate(
   const languages = normalizeLanguages(candidate.languageCodes, query.languageCodes);
   const sourceTitle = truncate(cleanText(candidate.sourceTitle), 160);
   const evidence = truncate(cleanText(candidate.evidence, sourceTitle || sourceUrl), 500);
+  const locality = truncate(cleanText(candidate.locality), 120);
 
   const event: AdminParticipationEvent = {
     id: eventKey,
@@ -356,6 +363,7 @@ function normalizeCandidate(
     needsLiveCheck: true,
     safetyStatus: "needs_review",
     metadata: {
+      ...(locality ? { locality } : {}),
       discovery: {
         generatedAt,
         query,
@@ -385,16 +393,20 @@ function buildPrompt(query: ReturnType<typeof normalizeQuery>) {
     ? query.venueHints.join(", ")
     : "libraries, community centres, museums, parks, cultural centres, senior-friendly public venues";
   return [
-    `Today is ${today}. Find up to ${query.maxResults} public activity or event candidates for older adults in ${query.city}${query.countryCode ? `, ${query.countryCode}` : ""}.`,
+    `Today is ${today}. Find a shortlist of ${query.maxResults} public activity or event candidates for older adults in ${query.city}${query.countryCode ? `, ${query.countryCode}` : ""}.`,
+    `Return the full shortlist when enough sourced candidates exist. Do not stop after the first good result; diversify by venue, day, and activity type. If fewer than ${query.maxResults} suitable sourced candidates exist, return every suitable one you can verify.`,
     `Locality focus: ${localFocus}. Prioritize candidates physically in or very near this focus area before suggesting wider city results.`,
     `Preferred venue or source types: ${venueFocus}.`,
     `Preferred format: ${query.format}. Interests or tags: ${query.interests.length ? query.interests.join(", ") : "balanced community activities"}.`,
+    `Result refinements: ${query.refinementTags.length ? query.refinementTags.join(", ") : "no extra refinements"}. Use these to improve result quality, but keep at least a few good candidates if exact matches are scarce.`,
     `Languages to support in the saved record: ${query.languageCodes.join(", ")}. Return English, Spanish, and German fields even when the event itself is in fewer languages.`,
     "Prioritize libraries, community centers, museums, parks, gentle movement, music, crafts, language or culture groups, local history, and low-pressure learning.",
     "Make locationLabel specific enough for an admin to judge locality, such as venue plus neighbourhood or postcode area when the source supports it.",
     "Avoid generic city-wide directories when a neighbourhood, postcode, radius, or venue focus was supplied unless the source clearly identifies a relevant local branch or venue.",
     "Avoid medical treatment claims, dating, private contact exchange, gambling, expensive sales pressure, unverified transport offers, or anything unsafe for a senior-friendly concierge review.",
     "Every candidate must have a public sourceUrl. Use source evidence to summarize what the page supports. Do not invent dates, prices, or venue details; say they need checking when unclear.",
+    "Set locationLabel to the most precise public location the source supports: venue name plus street, neighborhood, meeting point, or online room name. Avoid city-only locationLabel values unless no better detail is available.",
+    "Set city to the broad city or town used for matching. Set locality to the more specific municipality, district, neighborhood, barrio, suburb, or borough when the source supports one; otherwise use null.",
   ].join("\n");
 }
 
@@ -427,7 +439,7 @@ export async function discoverParticipationEvents(input: DiscoverParticipationIn
     input: buildPrompt(query),
     tools: [{ type: "web_search", search_context_size: "medium" }],
     include: ["web_search_call.action.sources"],
-    max_output_tokens: 5000,
+    max_output_tokens: 8000,
     text: {
       format: {
         type: "json_schema",
