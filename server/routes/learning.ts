@@ -24,6 +24,7 @@ import {
 } from "../lib/learningProgram.js";
 
 const programCreateSchema = z.object({
+  learningMode: z.enum(["voice", "touch", "both"]).optional().default("both"),
   interests: z.array(z.string()).optional().default(["general_knowledge"]),
   pace: z.enum(["gentle", "steady", "curious"]).optional().default("gentle"),
   frequency: z.enum(["daily", "three_times_week", "weekly"]).optional(),

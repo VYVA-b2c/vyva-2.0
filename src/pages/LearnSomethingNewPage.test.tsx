@@ -108,6 +108,7 @@ function renderLearningPage(todayPayload: unknown) {
 
 afterEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
 });
 
 describe("LearnSomethingNewPage", () => {
@@ -124,7 +125,9 @@ describe("LearnSomethingNewPage", () => {
       todayItem: null,
     });
 
-    expect(await screen.findByTestId("learn-wizard")).toHaveTextContent("Choose what sparks your curiosity");
+    expect(await screen.findByTestId("learn-wizard")).toHaveTextContent("How do you want to learn?");
+    expect(screen.getByTestId("button-learn-mode-both")).toHaveTextContent("Recommended");
+    fireEvent.click(screen.getByText("Next"));
     fireEvent.click(screen.getByTestId("button-learn-interest-science"));
     fireEvent.click(screen.getByText("Next"));
     fireEvent.click(screen.getByText("Next"));
@@ -136,6 +139,7 @@ describe("LearnSomethingNewPage", () => {
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/learning/programs", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({
+        learningMode: "both",
         interests: ["science"],
         pace: "gentle",
         frequency: "three_times_week",
@@ -160,6 +164,8 @@ describe("LearnSomethingNewPage", () => {
     });
 
     await screen.findByTestId("learn-wizard");
+    fireEvent.click(screen.getByTestId("button-learn-mode-touch"));
+    fireEvent.click(screen.getByText("Next"));
     fireEvent.click(screen.getByTestId("button-learn-interest-science"));
     fireEvent.click(screen.getByText("Next"));
     fireEvent.click(screen.getByTestId("button-learn-pace-curious"));
@@ -171,6 +177,7 @@ describe("LearnSomethingNewPage", () => {
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/learning/programs", expect.objectContaining({
       method: "POST",
       body: JSON.stringify({
+        learningMode: "touch",
         interests: ["science"],
         pace: "curious",
         frequency: "daily",
@@ -196,6 +203,7 @@ describe("LearnSomethingNewPage", () => {
 
     expect(await screen.findByTestId("learn-hub")).toHaveTextContent("Learn Something New");
     expect(screen.getByTestId("learn-plan-glance")).toHaveTextContent("Next:");
+    expect(screen.getByTestId("learn-plan-glance")).toHaveTextContent("Voice + Touch");
     expect(screen.getByTestId("learn-plan-glance")).toHaveTextContent("Science");
     expect(screen.getByTestId("learn-today-lesson")).toHaveTextContent("Why soap helps water clean");
     expect(screen.getByTestId("learn-today-lesson")).toHaveTextContent("Reflection prompt");
@@ -212,5 +220,20 @@ describe("LearnSomethingNewPage", () => {
       }),
     })));
     expect(screen.queryByText("Curious Minds")).not.toBeInTheDocument();
+  });
+
+  it("makes voice consumption primary when the user chose voice", async () => {
+    window.localStorage.setItem("vyva.learning.mode", "voice");
+
+    renderLearningPage({
+      onboardingRequired: false,
+      categories,
+      program,
+      todayItem: program.items[0],
+    });
+
+    expect(await screen.findByTestId("learn-hub")).toHaveTextContent("Learn Something New");
+    expect(screen.getByTestId("learn-plan-glance")).toHaveTextContent("Voice");
+    expect(screen.getByTestId("button-learn-read-aloud")).toHaveTextContent("Listen aloud");
   });
 });
