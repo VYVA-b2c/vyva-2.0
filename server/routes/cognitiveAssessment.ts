@@ -14,6 +14,10 @@ import {
   type CognitiveTrendResponseRow,
 } from "../lib/cognitiveAssessmentTrends.js";
 import {
+  cognitiveReadinessBlockersForLanguage,
+  loadCognitiveAssessmentReadiness,
+} from "../lib/cognitiveAssessmentReadiness.js";
+import {
   COGNITIVE_ASSESSMENT_LANGUAGES,
   type CognitiveAssessmentCompleteSessionResponse,
   type CognitiveAssessmentLanguage,
@@ -697,6 +701,17 @@ router.post("/sessions", async (req: Request, res: Response) => {
   const { week, year } = currentWeekAndYear();
 
   try {
+    const readiness = await loadCognitiveAssessmentReadiness();
+    const languageStatus = readiness.languages.find((item) => item.language === language);
+    if (!readiness.taskDefinitions.ready || !languageStatus?.ready) {
+      return res.status(409).json({
+        error: "Cognitive Assessment is not ready for this language yet.",
+        code: "COGNITIVE_ASSESSMENT_NOT_READY",
+        language,
+        blockers: cognitiveReadinessBlockersForLanguage(readiness, language),
+      });
+    }
+
     const { rows } = await pool.query<SessionRow>(`
       insert into public.cc_sessions
         (user_id, input_mode, language, week_of_year, year)
