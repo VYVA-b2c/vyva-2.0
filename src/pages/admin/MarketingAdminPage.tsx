@@ -124,8 +124,6 @@ type SyncRun = {
 type SyncState = {
   provider: string;
   configured: boolean;
-  requiresAnonKey?: boolean;
-  anonKeyConfigured?: boolean;
   apiUrl: string | null;
   mode: string;
   realSendingLocked: boolean;
@@ -188,8 +186,6 @@ const emptySummary: MarketingSummary = {
 const emptySync: SyncState = {
   provider: "lovable",
   configured: false,
-  requiresAnonKey: false,
-  anonKeyConfigured: false,
   apiUrl: null,
   mode: "one_way_into_vyva",
   realSendingLocked: true,
@@ -753,11 +749,6 @@ export default function MarketingAdminPage() {
                     <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
                     <p className="font-black">{syncState.mode}</p>
                     <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Set LOVABLE_MARKETING_API_URL"}</p>
-                    {syncState.requiresAnonKey ? (
-                      <p className="mt-1 text-sm font-semibold text-[#7d6b65]">
-                        Supabase apikey: {syncState.anonKeyConfigured ? "configured" : "set LOVABLE_MARKETING_ANON_KEY"}
-                      </p>
-                    ) : null}
                   </div>
                   <button
                     type="button"

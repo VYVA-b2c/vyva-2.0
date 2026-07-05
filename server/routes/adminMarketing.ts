@@ -851,13 +851,10 @@ adminMarketingRouter.patch("/contacts/:contactId", async (req, res) => {
 adminMarketingRouter.get("/sync/lovable", async (_req, res) => {
   const hasUrl = Boolean(process.env.LOVABLE_MARKETING_API_URL?.trim());
   const hasBearerToken = Boolean(process.env.LOVABLE_MARKETING_API_KEY?.trim());
-  const hasAnonKey = Boolean(process.env.LOVABLE_MARKETING_ANON_KEY?.trim());
   const runs = await db.select().from(marketingSyncRuns).orderBy(desc(marketingSyncRuns.created_at)).limit(10);
   return res.json({
     provider: "lovable",
     configured: hasUrl && hasBearerToken,
-    requiresAnonKey: safeUrlOrigin(process.env.LOVABLE_MARKETING_API_URL)?.endsWith(".supabase.co") ?? false,
-    anonKeyConfigured: hasAnonKey,
     apiUrl: safeUrlOrigin(process.env.LOVABLE_MARKETING_API_URL),
     mode: "one_way_into_vyva",
     realSendingLocked: true,
@@ -1010,7 +1007,6 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
   if (!requireSuperAdmin(req, res)) return;
   const apiUrl = process.env.LOVABLE_MARKETING_API_URL?.trim();
   const apiKey = process.env.LOVABLE_MARKETING_API_KEY?.trim();
-  const anonKey = process.env.LOVABLE_MARKETING_ANON_KEY?.trim();
   if (!apiUrl || !apiKey) {
     return res.status(409).json({ error: "Lovable marketing sync is not configured." });
   }
@@ -1028,7 +1024,6 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const response = await fetch(apiUrl, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        ...(anonKey ? { apikey: anonKey } : {}),
         Accept: "application/json",
       },
     });

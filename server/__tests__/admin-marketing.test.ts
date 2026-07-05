@@ -185,7 +185,6 @@ describe("admin marketing router", () => {
   it("imports Lovable data one-way and upserts by external id", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
-    vi.stubEnv("LOVABLE_MARKETING_ANON_KEY", "anon-secret");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       content: [{ id: "content-1", title: "Welcome email", channel: "email", subject: "Welcome", body: "Hello" }],
       contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com", audienceType: "b2b" }],
@@ -202,7 +201,6 @@ describe("admin marketing router", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", expect.objectContaining({
       headers: expect.objectContaining({
         Authorization: "Bearer secret",
-        apikey: "anon-secret",
       }),
     }));
     expect(table("marketing_content_assets")).toHaveLength(1);
