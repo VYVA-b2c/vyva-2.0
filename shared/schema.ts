@@ -2640,6 +2640,204 @@ export const insertHeroMessageEventSchema = createInsertSchema(heroMessageEvents
 export type InsertHeroMessageEvent = z.infer<typeof insertHeroMessageEventSchema>;
 export type HeroMessageEventRow = typeof heroMessageEvents.$inferSelect;
 
+export const marketingContentAssets = pgTable("marketing_content_assets", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  title:                text("title").notNull(),
+  channel:              text("channel").notNull(),
+  language:             text("language").notNull().default("en"),
+  status:               text("status").notNull().default("draft"),
+  subject:              text("subject"),
+  body:                 text("body").notNull().default(""),
+  cta_label:            text("cta_label"),
+  cta_url:              text("cta_url"),
+  source:               text("source").notNull().default("vyva"),
+  lovable_external_id:  text("lovable_external_id").unique(),
+  metadata:             jsonb("metadata").notNull().default({}),
+  created_by:           text("created_by"),
+  updated_by:           text("updated_by"),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_content_assets_channel_idx").on(t.channel),
+  index("marketing_content_assets_status_idx").on(t.status),
+  index("marketing_content_assets_source_idx").on(t.source),
+]);
+
+export const insertMarketingContentAssetSchema = createInsertSchema(marketingContentAssets).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingContentAsset = z.infer<typeof insertMarketingContentAssetSchema>;
+export type MarketingContentAssetRow = typeof marketingContentAssets.$inferSelect;
+
+export const marketingCampaigns = pgTable("marketing_campaigns", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  name:                text("name").notNull(),
+  status:              text("status").notNull().default("draft"),
+  audience_type:       text("audience_type").notNull().default("b2c"),
+  objective:           text("objective").notNull().default(""),
+  schedule_starts_at:  timestamp("schedule_starts_at", { withTimezone: true }),
+  schedule_ends_at:    timestamp("schedule_ends_at", { withTimezone: true }),
+  timezone:            text("timezone").notNull().default("Europe/Madrid"),
+  source:              text("source").notNull().default("vyva"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_by:          text("created_by"),
+  updated_by:          text("updated_by"),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_campaigns_status_idx").on(t.status),
+  index("marketing_campaigns_audience_idx").on(t.audience_type),
+  index("marketing_campaigns_schedule_idx").on(t.schedule_starts_at),
+  index("marketing_campaigns_source_idx").on(t.source),
+]);
+
+export const insertMarketingCampaignSchema = createInsertSchema(marketingCampaigns).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingCampaign = z.infer<typeof insertMarketingCampaignSchema>;
+export type MarketingCampaignRow = typeof marketingCampaigns.$inferSelect;
+
+export const marketingCampaignChannels = pgTable("marketing_campaign_channels", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  campaign_id:        uuid("campaign_id").notNull().references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+  channel:            text("channel").notNull(),
+  content_asset_id:   uuid("content_asset_id").references(() => marketingContentAssets.id, { onDelete: "set null" }),
+  scheduled_at:       timestamp("scheduled_at", { withTimezone: true }),
+  status:             text("status").notNull().default("draft"),
+  send_capability:    text("send_capability").notNull().default("locked"),
+  metadata:           jsonb("metadata").notNull().default({}),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:         timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_campaign_channels_campaign_idx").on(t.campaign_id),
+  index("marketing_campaign_channels_channel_idx").on(t.channel),
+  index("marketing_campaign_channels_status_idx").on(t.status),
+  index("marketing_campaign_channels_scheduled_idx").on(t.scheduled_at),
+]);
+
+export const insertMarketingCampaignChannelSchema = createInsertSchema(marketingCampaignChannels).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingCampaignChannel = z.infer<typeof insertMarketingCampaignChannelSchema>;
+export type MarketingCampaignChannelRow = typeof marketingCampaignChannels.$inferSelect;
+
+export const marketingJourneys = pgTable("marketing_journeys", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  name:                text("name").notNull(),
+  status:              text("status").notNull().default("draft"),
+  audience_type:       text("audience_type").notNull().default("b2c"),
+  objective:           text("objective").notNull().default(""),
+  source:              text("source").notNull().default("vyva"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_by:          text("created_by"),
+  updated_by:          text("updated_by"),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_journeys_status_idx").on(t.status),
+  index("marketing_journeys_audience_idx").on(t.audience_type),
+  index("marketing_journeys_source_idx").on(t.source),
+]);
+
+export const insertMarketingJourneySchema = createInsertSchema(marketingJourneys).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingJourney = z.infer<typeof insertMarketingJourneySchema>;
+export type MarketingJourneyRow = typeof marketingJourneys.$inferSelect;
+
+export const marketingJourneySteps = pgTable("marketing_journey_steps", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  journey_id:        uuid("journey_id").notNull().references(() => marketingJourneys.id, { onDelete: "cascade" }),
+  step_order:        integer("step_order").notNull().default(0),
+  channel:           text("channel").notNull(),
+  content_asset_id:  uuid("content_asset_id").references(() => marketingContentAssets.id, { onDelete: "set null" }),
+  delay_hours:       integer("delay_hours").notNull().default(0),
+  status:            text("status").notNull().default("draft"),
+  metadata:          jsonb("metadata").notNull().default({}),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  unique("marketing_journey_steps_order_unique").on(t.journey_id, t.step_order),
+  index("marketing_journey_steps_journey_idx").on(t.journey_id),
+  index("marketing_journey_steps_channel_idx").on(t.channel),
+]);
+
+export const insertMarketingJourneyStepSchema = createInsertSchema(marketingJourneySteps).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingJourneyStep = z.infer<typeof insertMarketingJourneyStepSchema>;
+export type MarketingJourneyStepRow = typeof marketingJourneySteps.$inferSelect;
+
+export const marketingContacts = pgTable("marketing_contacts", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  audience_type:        text("audience_type").notNull().default("b2b"),
+  profile_id:           text("profile_id").references(() => profiles.id, { onDelete: "set null" }),
+  organization_id:      uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+  full_name:            text("full_name").notNull().default(""),
+  email:                text("email"),
+  phone_number:         text("phone_number"),
+  whatsapp_number:      text("whatsapp_number"),
+  role_label:           text("role_label"),
+  company_name:         text("company_name"),
+  consent_status:       text("consent_status").notNull().default("unknown"),
+  source:               text("source").notNull().default("vyva"),
+  channel_availability: jsonb("channel_availability").notNull().default({}),
+  tags:                 text("tags").array().notNull().default([]),
+  lovable_external_id:  text("lovable_external_id").unique(),
+  last_synced_at:       timestamp("last_synced_at", { withTimezone: true }),
+  metadata:             jsonb("metadata").notNull().default({}),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_contacts_audience_idx").on(t.audience_type),
+  index("marketing_contacts_profile_idx").on(t.profile_id),
+  index("marketing_contacts_organization_idx").on(t.organization_id),
+  index("marketing_contacts_email_idx").on(t.email),
+  index("marketing_contacts_source_idx").on(t.source),
+]);
+
+export const insertMarketingContactSchema = createInsertSchema(marketingContacts).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingContact = z.infer<typeof insertMarketingContactSchema>;
+export type MarketingContactRow = typeof marketingContacts.$inferSelect;
+
+export const marketingCampaignRecipients = pgTable("marketing_campaign_recipients", {
+  id:                   uuid("id").primaryKey().defaultRandom(),
+  campaign_id:          uuid("campaign_id").notNull().references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+  contact_id:           uuid("contact_id").references(() => marketingContacts.id, { onDelete: "set null" }),
+  profile_id:           text("profile_id").references(() => profiles.id, { onDelete: "set null" }),
+  channel:              text("channel").notNull(),
+  recipient:            text("recipient").notNull(),
+  status:               text("status").notNull().default("planned"),
+  scheduled_at:         timestamp("scheduled_at", { withTimezone: true }),
+  snapshot:             jsonb("snapshot").notNull().default({}),
+  communication_log_id: uuid("communication_log_id").references(() => communicationsLog.id, { onDelete: "set null" }),
+  created_at:           timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_campaign_recipients_campaign_idx").on(t.campaign_id),
+  index("marketing_campaign_recipients_contact_idx").on(t.contact_id),
+  index("marketing_campaign_recipients_profile_idx").on(t.profile_id),
+  index("marketing_campaign_recipients_status_idx").on(t.status),
+  index("marketing_campaign_recipients_communication_idx").on(t.communication_log_id),
+]);
+
+export const insertMarketingCampaignRecipientSchema = createInsertSchema(marketingCampaignRecipients).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingCampaignRecipient = z.infer<typeof insertMarketingCampaignRecipientSchema>;
+export type MarketingCampaignRecipientRow = typeof marketingCampaignRecipients.$inferSelect;
+
+export const marketingSyncRuns = pgTable("marketing_sync_runs", {
+  id:           uuid("id").primaryKey().defaultRandom(),
+  provider:     text("provider").notNull().default("lovable"),
+  status:       text("status").notNull().default("queued"),
+  started_at:   timestamp("started_at", { withTimezone: true }),
+  completed_at: timestamp("completed_at", { withTimezone: true }),
+  cursor:       text("cursor"),
+  summary:      jsonb("summary").notNull().default({}),
+  error:        text("error"),
+  created_by:   text("created_by"),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_sync_runs_provider_idx").on(t.provider),
+  index("marketing_sync_runs_status_idx").on(t.status),
+  index("marketing_sync_runs_created_idx").on(t.created_at),
+]);
+
+export const insertMarketingSyncRunSchema = createInsertSchema(marketingSyncRuns).omit({ id: true, created_at: true });
+export type InsertMarketingSyncRun = z.infer<typeof insertMarketingSyncRunSchema>;
+export type MarketingSyncRunRow = typeof marketingSyncRuns.$inferSelect;
+
 export const conciergeShoppingProducts = pgTable("concierge_shopping_products", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   product_id:          text("product_id").notNull().unique(),
@@ -2800,6 +2998,14 @@ export const schema = {
   homePlanCards,
   heroMessages,
   heroMessageEvents,
+  marketingContentAssets,
+  marketingCampaigns,
+  marketingCampaignChannels,
+  marketingJourneys,
+  marketingJourneySteps,
+  marketingContacts,
+  marketingCampaignRecipients,
+  marketingSyncRuns,
   conciergeShoppingProducts,
   conciergeShoppingPackages,
   conciergeShoppingPackageItems,
