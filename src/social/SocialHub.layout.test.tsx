@@ -103,7 +103,7 @@ function renderSocialHub() {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/social-rooms"]}>
       <Routes>
-        <Route path="/social-rooms" element={<SocialHub />} />
+        <Route path="/social-rooms" element={<><SocialHub /><LocationProbe /></>} />
         <Route path="/social-rooms/activities" element={<LocationProbe />} />
         <Route path="/social-rooms/:slug" element={<LocationProbe />} />
       </Routes>
@@ -154,6 +154,17 @@ describe("SocialHub home-style layout", () => {
     expect(primaryCards).not.toHaveTextContent("Learn");
     expect(screen.queryByTestId("button-social-quick-challenge")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-social-quick-learn")).not.toBeInTheDocument();
+  });
+
+  it("keeps Join In on the room list instead of opening one room", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("card-social-primary-rooms"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms");
+    expect(screen.getByTestId("social-room-list")).toBeInTheDocument();
+    expect(screen.getByTestId("button-social-room-list-kitchen-table")).toBeInTheDocument();
+    expect(screen.getByTestId("button-social-room-list-music-room")).toBeInTheDocument();
   });
 
   it("opens Activities as the Community activities area", () => {

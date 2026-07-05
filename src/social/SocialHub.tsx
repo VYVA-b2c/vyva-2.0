@@ -13,7 +13,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -45,15 +45,7 @@ import {
 } from "./togetherRoom";
 import type { SocialGameLanguage, SocialHubResponse, SocialLanguage, SocialRoom } from "./types";
 
-const FAST_HELP_WINDOW_SIZE = 3;
-const ROOM_ROTATION_MS = 9000;
 const FAST_HELP_PRIORITY = ["kitchen-table", "music-room", "garden-corner"] as const;
-
-function getMoreRoomsLabel(language: SocialLanguage) {
-  if (language === "es") return "Mostrar más salas";
-  if (language === "de") return "Mehr Räume zeigen";
-  return "Show more rooms";
-}
 
 function getLoadingRoomsLabel(language: SocialLanguage) {
   if (language === "es") return "Preparando salas...";
@@ -403,7 +395,7 @@ function FastHelpRoomRow({ room, language, onSelect }: FastHelpRoomRowProps) {
   return (
     <button
       type="button"
-      data-testid={`button-social-fast-help-${room.slug}`}
+      data-testid={`button-social-room-list-${room.slug}`}
       aria-label={roomCopy.title}
       onClick={() => onSelect(room)}
       className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
@@ -617,7 +609,7 @@ const SocialHub = () => {
   const loadingRoomsLabel = getLoadingRoomsLabel(language);
   const autoStartVoice = useRouteVoiceAutoStart();
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
-  const [fastHelpWindowIndex, setFastHelpWindowIndex] = useState(0);
+  const roomListRef = useRef<HTMLElement | null>(null);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
     queryKey: [`/api/social/hub?lang=${togetherLanguage}`],
@@ -631,37 +623,12 @@ const SocialHub = () => {
     () => hubRooms.find((room) => room.slug === selectedRoomSlug) ?? null,
     [hubRooms, selectedRoomSlug],
   );
-  const fastHelpWindowCount = Math.max(1, Math.ceil(fastHelpRooms.length / FAST_HELP_WINDOW_SIZE));
-  const visibleFastHelpRooms = useMemo(() => {
-    if (fastHelpRooms.length <= FAST_HELP_WINDOW_SIZE) return fastHelpRooms;
-    const start = (fastHelpWindowIndex * FAST_HELP_WINDOW_SIZE) % fastHelpRooms.length;
-    return Array.from(
-      { length: FAST_HELP_WINDOW_SIZE },
-      (_, index) => fastHelpRooms[(start + index) % fastHelpRooms.length],
-    );
-  }, [fastHelpRooms, fastHelpWindowIndex]);
-  const moreRoomsLabel = getMoreRoomsLabel(language);
-  const canRotateRooms = fastHelpRooms.length > FAST_HELP_WINDOW_SIZE;
-
-  const showNextRooms = useCallback(() => {
-    setFastHelpWindowIndex((current) => (current + 1) % fastHelpWindowCount);
-  }, [fastHelpWindowCount]);
-
-  useEffect(() => {
-    setFastHelpWindowIndex(0);
-  }, [language, fastHelpRooms.length]);
-
-  useEffect(() => {
-    if (fastHelpWindowIndex >= fastHelpWindowCount) {
-      setFastHelpWindowIndex(0);
-    }
-  }, [fastHelpWindowCount, fastHelpWindowIndex]);
-
-  useEffect(() => {
-    if (!canRotateRooms || selectedRoom) return undefined;
-    const timer = window.setInterval(showNextRooms, ROOM_ROTATION_MS);
-    return () => window.clearInterval(timer);
-  }, [canRotateRooms, selectedRoom, showNextRooms]);
+  const showRoomList = useCallback(() => {
+    const roomList = roomListRef.current;
+    if (!roomList) return;
+    roomList.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    roomList.focus({ preventScroll: true });
+  }, []);
 
   const openRoom = (slug: string) => navigate(`/social-rooms/${slug}`);
   const communityCards: MasterDashboardCard[] = [
@@ -680,7 +647,7 @@ const SocialHub = () => {
       title: t("community.master.cards.rooms", "Join In"),
       detail: t("community.master.cards.roomsDetail", "Join a live table"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => openRoom("kitchen-table"),
+      onClick: showRoomList,
       testId: "card-social-primary-rooms",
     },
     {
@@ -791,7 +758,58 @@ const SocialHub = () => {
         }}
         cards={communityCards}
         fastHelpActions={communityFastHelpActions}
-      />
+      >
+        <section
+          ref={roomListRef}
+          tabIndex={-1}
+          className="mt-4 rounded-[24px] border border-[#D7E8DB] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] outline-none focus-visible:ring-4 focus-visible:ring-[#BDEBD8] min-[390px]:rounded-[26px] min-[390px]:p-4"
+          data-testid="social-room-list"
+          aria-label={copy.allRooms}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+                {copy.allRooms}
+              </p>
+              <h2 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">
+                {copy.chooseRoom}
+              </h2>
+            </div>
+          </div>
+          <p className="mt-1 max-w-[28rem] font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+            {copy.chooseRoomSubtitle}
+          </p>
+
+          <div className="mt-3 grid gap-2.5 min-[390px]:gap-3" data-testid="social-room-list-options">
+            {isLoading ? (
+              <div className="rounded-[20px] border border-[#E8DDCF] bg-[#FFFCF8] px-4 py-5 font-body text-[16px] font-bold text-vyva-text-2">
+                {loadingRoomsLabel}
+              </div>
+            ) : isError || !fastHelpRooms.length ? (
+              <EmptyState title={copy.noRooms} />
+            ) : (
+              fastHelpRooms.map((room) => (
+                <FastHelpRoomRow
+                  key={room.slug}
+                  room={room}
+                  language={language}
+                  onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
+                />
+              ))
+            )}
+          </div>
+        </section>
+      </MasterDashboardLayout>
+
+      {selectedRoom ? (
+        <RoomDetailSheet
+          room={selectedRoom}
+          language={language}
+          togetherLanguage={togetherLanguage}
+          onClose={() => setSelectedRoomSlug(null)}
+          onEnter={openRoom}
+        />
+      ) : null}
     </>
   );
 };
