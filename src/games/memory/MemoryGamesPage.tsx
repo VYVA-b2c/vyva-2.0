@@ -163,7 +163,7 @@ const MemoryGamesPage = () => {
   return (
     <div className="px-[22px] pb-7">
       <button
-        onClick={() => navigate("/activities")}
+        onClick={() => navigate("/mind-memory")}
         className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
       >
         <ArrowLeft size={18} />

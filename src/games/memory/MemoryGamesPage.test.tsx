@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import MemoryGamesPage from "./MemoryGamesPage";
@@ -29,10 +29,18 @@ vi.mock("./progressionEngine", () => ({
   selectNextMemoryGame: mocks.selectNextMemoryGame,
 }));
 
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="current-route">{location.pathname}</div>;
+}
+
 function renderPage() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <MemoryGamesPage />
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/memory-games"]}>
+      <Routes>
+        <Route path="/memory-games" element={<MemoryGamesPage />} />
+        <Route path="/mind-memory" element={<LocationProbe />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -107,5 +115,20 @@ describe("MemoryGamesPage", () => {
 
     expect(await screen.findByText(/Remember Later -/)).toBeInTheDocument();
     expect(await screen.findByText("Choose another exercise")).toBeInTheDocument();
+  });
+
+  it("returns to Mind & Memory from the back button", async () => {
+    mocks.selectNextMemoryGame.mockResolvedValue({
+      gameType: "memory_match",
+      level: 1,
+      variantId: "memory_match-l1-v1",
+      reasonLabel: "Start here",
+    });
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /back/i }));
+
+    expect(await screen.findByTestId("current-route")).toHaveTextContent("/mind-memory");
   });
 });

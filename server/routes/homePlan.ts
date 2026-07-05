@@ -94,7 +94,7 @@ const CARD_CATALOG: HomePlanCard[] = [
     bg: "#F0FDF4",
     badgeBg: "#DCFCE7",
     badgeText: "#15803D",
-    route: "/activities",
+    route: "/mind-memory",
     basePriority: 64,
     hobbyKeywords: ["reading", "leer", "book", "libro", "writing", "escribir", "poetry", "poesia", "poesía"],
   },

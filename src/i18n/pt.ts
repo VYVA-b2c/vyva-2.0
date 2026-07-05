@@ -670,6 +670,7 @@ const pt = {
       title: "Relaxe e respire",
       intro: "Uma pausa tranquila para o corpo e a mente.",
       backToActivities: "Voltar as atividades",
+      backToMindMemory: "Voltar a Mind & Memory",
       duration: "3 passos suaves",
       stepLabel: "Passo",
       ofLabel: "de",

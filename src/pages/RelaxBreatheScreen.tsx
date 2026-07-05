@@ -79,7 +79,7 @@ export default function RelaxBreatheScreen() {
   const copy = useMemo(() => ({
     title: t("activities.relaxBreathe.title", "Relax & Breathe"),
     intro: t("activities.relaxBreathe.intro", "A quiet pause for your body and mind."),
-    backToActivities: t("activities.relaxBreathe.backToActivities", "Back to activities"),
+    backToMindMemory: t("activities.relaxBreathe.backToMindMemory", "Back to Mind & Memory"),
     duration: t("activities.relaxBreathe.duration", "3 gentle steps"),
     stepLabel: t("activities.relaxBreathe.stepLabel", "Step"),
     ofLabel: t("activities.relaxBreathe.ofLabel", "of"),
@@ -145,9 +145,9 @@ export default function RelaxBreatheScreen() {
     return () => stopVoice();
   }, [stopVoice]);
 
-  const goBackToActivities = useCallback(() => {
+  const goBackToMindMemory = useCallback(() => {
     stopVoice();
-    navigate("/activities");
+    navigate("/mind-memory");
   }, [navigate, stopVoice]);
 
   const goToStage = useCallback((nextStageIndex: number) => {
@@ -215,12 +215,12 @@ export default function RelaxBreatheScreen() {
       <div className="mx-auto flex min-h-[calc(100vh-32px)] w-full max-w-[940px] flex-col">
         <button
           type="button"
-          onClick={goBackToActivities}
+          onClick={goBackToMindMemory}
           className="inline-flex min-h-[48px] w-fit items-center gap-2 rounded-full border border-[#CDEBE5] bg-white px-4 font-body text-[15px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)]"
-          data-testid="button-relax-breathe-back-activities"
+          data-testid="button-relax-breathe-back-mind-memory"
         >
           <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
-          {copy.backToActivities}
+          {copy.backToMindMemory}
         </button>
 
         <div className="mt-4 grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
@@ -247,10 +247,10 @@ export default function RelaxBreatheScreen() {
                   </button>
                   <button
                     type="button"
-                    onClick={goBackToActivities}
+                    onClick={goBackToMindMemory}
                     className="min-h-[58px] rounded-[20px] bg-[#0F766E] px-5 font-body text-[17px] font-black text-white shadow-[0_14px_26px_rgba(15,118,110,0.2)]"
                   >
-                    {copy.backToActivities}
+                    {copy.backToMindMemory}
                   </button>
                 </div>
               </div>

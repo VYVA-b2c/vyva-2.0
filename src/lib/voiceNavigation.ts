@@ -263,7 +263,7 @@ function shouldUseInferredToolAction(action: VoiceAppAction | null, route: strin
   if (route === action.route) return true;
   if (domain && action.domain === domain) return true;
   if (route === "/concierge" && action.domain === "concierge") return true;
-  if (["/activities", "/brain", "/mind", "/cognitive"].includes(route) && action.domain === "brain_coach") return true;
+  if (["/mind-memory", "/activities", "/brain", "/mind", "/cognitive"].includes(route) && action.domain === "brain_coach") return true;
   return false;
 }
 

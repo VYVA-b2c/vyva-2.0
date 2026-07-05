@@ -670,6 +670,7 @@ const fr = {
       title: "Se detendre et respirer",
       intro: "Une pause calme pour le corps et l'esprit.",
       backToActivities: "Retour aux activites",
+      backToMindMemory: "Retour a Mind & Memory",
       duration: "3 etapes douces",
       stepLabel: "Etape",
       ofLabel: "sur",
