@@ -403,14 +403,10 @@ function MemoryAudioToggle({
       aria-pressed={!isMuted}
       aria-label={isMuted ? copy.unmute : copy.mute}
       title={isMuted ? copy.unmute : copy.mute}
-      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#D8C7F3] bg-white text-left text-vyva-text-1 shadow-vyva-card sm:h-auto sm:w-auto sm:justify-start sm:gap-3 sm:rounded-[20px] sm:px-4 sm:py-3"
+      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D8C7F3] bg-white text-vyva-text-1 shadow-vyva-card"
     >
-      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[#FAF7FF] text-vyva-purple sm:h-10 sm:w-10 sm:rounded-[14px]">
+      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FAF7FF] text-vyva-purple">
         <Icon size={19} />
-      </span>
-      <span className="hidden min-w-0 sm:block">
-        <span className="block text-[15px] font-semibold">{isMuted ? copy.unmute : copy.mute}</span>
-        <span className="mt-0.5 block text-[12px] font-medium text-vyva-text-2">{isMuted ? copy.offStatus : copy.onStatus}</span>
       </span>
     </button>
   );
@@ -2101,7 +2097,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const totalPairs = memoryDeck.length / 2;
   const nextPlayableLevel = getNextPlayableLevel();
   const canOpenNextLevel = nextPlayableLevel > plan.level;
-  const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
+  const nextLevelLabel = `${t("common.level")} ${nextPlayableLevel}`;
   const memoryGridClassName =
     memoryDeck.length <= 4
       ? "grid-cols-2 max-w-[460px] sm:max-w-[500px]"
@@ -2109,55 +2105,53 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         ? "grid-cols-3 max-w-[620px] sm:max-w-[680px]"
         : "grid-cols-4 max-w-[760px] sm:max-w-[860px]";
   const memoryCardHeight =
-    memoryDeck.length <= 4
+    memoryComplete
+      ? "clamp(70px, 10dvh, 96px)"
+      : memoryDeck.length <= 4
       ? "clamp(104px, 15dvh, 150px)"
       : memoryDeck.length <= 6
         ? "clamp(94px, 14dvh, 136px)"
         : "clamp(82px, 13dvh, 128px)";
 
   return (
-    <div className="px-3 pb-4 sm:px-[22px] sm:pb-6">
-      <button
-        onClick={backToList}
-        className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-3.5 py-2.5 text-[14px] font-medium text-vyva-text-1 shadow-vyva-card sm:px-4 sm:py-3 sm:text-[15px]"
-      >
-        <ArrowLeft size={18} />
-        {t("common.back")}
-      </button>
-      <section className="mt-2 overflow-hidden rounded-[22px] border border-[#EFE7DB] bg-[#FFF9F1] p-3 shadow-vyva-card sm:mt-4 sm:rounded-[28px] sm:p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="hidden items-center gap-2 rounded-full bg-white px-3 py-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-vyva-purple shadow-sm sm:inline-flex">
-              <Grid2x2 size={14} />
-              {t("memory.matchInstruction")}
-            </div>
-            <h1 className="font-display text-[24px] leading-[1.06] text-vyva-text-1 sm:mt-4 sm:text-[30px]">{gameTitle}</h1>
-            <p className="mt-3 hidden max-w-[24ch] text-[15px] leading-[1.55] text-vyva-text-2 sm:block">{gamePrompt}</p>
-          </div>
-          <div className="hidden h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-[24px] bg-white shadow-vyva-card sm:flex">
-            <div className="flex h-[58px] w-[58px] items-center justify-center rounded-[18px]" style={gameIconStyle}>
-              <GameIcon size={28} />
-            </div>
-          </div>
-        </div>
+    <div className="px-3 pb-3 sm:px-4 sm:pb-4">
+      <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-3 shadow-vyva-card sm:rounded-[24px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={backToList}
+            aria-label={t("common.back")}
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
+          >
+            <ArrowLeft size={17} />
+            <span className="hidden sm:inline">{t("common.back")}</span>
+          </button>
 
-        <div className="mt-3 flex items-center gap-2 sm:mt-5">
-          <div className="flex min-w-0 flex-1 flex-wrap gap-1.5 sm:gap-2">
-            <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm sm:px-3 sm:py-2 sm:text-[13px]">{`${t("common.level")} ${plan.level}`}</span>
-            <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm sm:px-3 sm:py-2 sm:text-[13px]">{`${matchedPairs}/${totalPairs} ${t("memory.pairs")}`}</span>
-            <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm sm:px-3 sm:py-2 sm:text-[13px]">{`${memoryAccuracy}%`}</span>
-            <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm sm:px-3 sm:py-2 sm:text-[13px]">{`${durationSeconds}s`}</span>
+          <div className="min-w-[180px] flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-white shadow-sm" style={gameIconStyle}>
+                <GameIcon size={18} />
+              </span>
+              <div className="min-w-0">
+                <h1 className="truncate font-display text-[22px] leading-none text-vyva-text-1 sm:text-[24px]">{gameTitle}</h1>
+                <p className="mt-1 hidden truncate text-[13px] font-medium text-vyva-text-2 sm:block">{gamePrompt}</p>
+              </div>
+            </div>
           </div>
+
           <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
         </div>
 
-        {voiceGameContextPanel}
-
-        <div className="mt-3 rounded-[16px] border border-[#EADFF8] bg-white px-3 py-2 sm:mt-4 sm:rounded-[22px] sm:p-4">
-          <p className="text-[13px] font-medium text-vyva-text-1 sm:text-[15px]">
-            {t("memory.matchInstruction")} <span className="font-semibold text-vyva-purple">{memoryAccuracy}%</span>
-          </p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("common.level")} ${plan.level}`}</span>
+          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${matchedPairs}/${totalPairs} ${t("memory.pairs")}`}</span>
+          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${memoryAccuracy}%`}</span>
+          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${durationSeconds}s`}</span>
+          <span className="min-w-[220px] flex-1 rounded-full border border-[#EADFF8] bg-white px-3 py-1.5 text-[12px] font-semibold text-vyva-text-1 shadow-sm">
+            {t("memory.matchInstruction")} <span className="font-extrabold text-vyva-purple">{memoryAccuracy}%</span>
+          </span>
         </div>
+
+        {voiceGameContextPanel}
 
         <div className={`mx-auto mt-3 grid w-full gap-2 sm:mt-4 sm:gap-3 ${memoryGridClassName}`}>
           {memoryDeck.map((card) => {
@@ -2192,14 +2186,14 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         </div>
 
         {memoryComplete && (
-          <div className="mt-3 rounded-[18px] border border-[#D8C7F3] bg-white/95 p-3 shadow-vyva-card backdrop-blur sm:sticky sm:bottom-4 sm:z-20 sm:mt-5 sm:rounded-[24px] sm:p-4">
-            <div className="flex items-center gap-2.5 sm:gap-3">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E] sm:h-[54px] sm:w-[54px]">
-                <CheckCircle2 size={24} className="sm:h-7 sm:w-7" />
+          <div className="mt-3 rounded-[18px] border border-[#D8C7F3] bg-white/95 p-3 shadow-vyva-card backdrop-blur">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
+                <CheckCircle2 size={22} />
               </div>
               <div className="min-w-0">
-                <p className="text-[18px] font-semibold leading-tight text-vyva-text-1 sm:text-[22px]">{t("memory.wellDone")}</p>
-                <p className="mt-0.5 text-[13px] font-medium text-vyva-text-2 sm:mt-1 sm:text-[15px]">
+                <p className="text-[18px] font-semibold leading-tight text-vyva-text-1">{t("memory.wellDone")}</p>
+                <p className="mt-0.5 text-[13px] font-medium text-vyva-text-2">
                   {completionMetrics
                     ? `${t("memory.score")}: ${completionMetrics.score} | ${t("memory.accuracy")}: ${completionMetrics.accuracy}%`
                     : t("memory.exerciseCompleted")}
@@ -2208,7 +2202,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             </div>
 
             <BrainGameResultActions
-              className="mt-3 sm:mt-4"
+              className="mt-3"
               continueLabel={t("brainGames.resultActions.continue")}
               nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
               replayLabel={t("brainGames.resultActions.playAgain")}
