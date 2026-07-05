@@ -116,6 +116,14 @@ const secondDiscoveryCandidate: AdminParticipationEvent = {
   sourceUrl: "https://example.org/art-workshop",
 };
 
+const duplicateDiscoveryCandidate: AdminParticipationEvent = {
+  ...discoveryCandidate,
+  id: "madrid-garden-walk",
+  eventKey: "madrid-garden-walk",
+  titleEn: "Gentle garden walk",
+  sourceUrl: "https://example.org/duplicate-garden",
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -274,6 +282,40 @@ describe("CuratedActivitiesAdminPage", () => {
     fireEvent.click(screen.getByTestId("admin-participate-clear-work-queue"));
 
     expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
+  });
+
+  it("flags duplicate AI candidates and keeps blocked items out of draft saves", async () => {
+    renderPage([duplicateDiscoveryCandidate, secondDiscoveryCandidate]);
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTestId("admin-discovery-find"));
+
+    const duplicateCard = await screen.findByTestId("admin-discovery-candidate-madrid-garden-walk-0");
+    expect(within(duplicateCard).getByText(/Possible duplicate of madrid-garden-walk/)).toBeInTheDocument();
+    expect(within(duplicateCard).getByText("Duplicate risk")).toBeInTheDocument();
+    expect(within(duplicateCard).getByLabelText(/Select Gentle garden walk/)).toBeDisabled();
+
+    fireEvent.click(within(duplicateCard).getByRole("button", { name: /Save Gentle garden walk for later/ }));
+    expect(within(duplicateCard).getByText("Saved for later")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Select save-ready/ }));
+    expect(screen.getByText("2 candidates found. 1 selected for draft save.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-discovery-save"));
+
+    await waitFor(() => {
+      const posts = apiFetchMock.mock.calls.filter(([path, init]) => (
+        path === "/api/admin/social/participate/events" && init?.method === "POST"
+      ));
+      expect(posts).toHaveLength(1);
+      const body = JSON.parse(String(posts[0][1]?.body));
+      expect(body.eventKey).toBe("madrid-art-workshop");
+      expect(body.eventKey).not.toBe("madrid-garden-walk");
+      expect(body).toMatchObject({
+        status: "draft",
+        safetyStatus: "needs_review",
+        needsLiveCheck: true,
+      });
+    });
   });
 
   it("saves only checked AI candidates as draft review items", async () => {
