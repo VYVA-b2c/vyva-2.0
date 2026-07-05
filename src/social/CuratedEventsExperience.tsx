@@ -231,7 +231,7 @@ function eventFormatLabel(format: ParticipationEventFormat, copy: CuratedActivit
 }
 
 function eventDateLabel(event: ParticipationEvent, copy: CuratedActivitiesCopy, language: SocialLanguage) {
-  if (!event.startsAt) return copy.dateTbc;
+  if (!event.startsAt) return event.timeLabel || copy.dateTbc;
 
   const date = new Date(event.startsAt);
   if (Number.isNaN(date.getTime())) return copy.dateTbc;
@@ -254,27 +254,44 @@ function SignalChip({ icon: Icon, label }: { icon: typeof Sparkles; label: strin
   );
 }
 
-function EventFact({
+function EventMetaItem({
   icon: Icon,
   label,
-  detail,
 }: {
   icon: typeof Sparkles;
   label: string;
-  detail?: string;
 }) {
   return (
-    <span className="flex min-h-[54px] items-center gap-2 rounded-[16px] border border-[#E5DED3] bg-[#FFFCF8] px-3">
-      <Icon size={17} strokeWidth={2.4} className="shrink-0 text-[#0F766E]" />
-      <span className="min-w-0">
-        <span className="block truncate font-body text-[13px] font-black leading-tight text-vyva-text-1">{label}</span>
-        {detail ? (
-          <span className="mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-vyva-text-3">
-            {detail}
-          </span>
-        ) : null}
+    <span className="inline-flex min-w-0 items-center gap-2 font-body text-[14px] font-black leading-tight text-[#31453F]">
+      <Icon size={16} strokeWidth={2.4} className="shrink-0 text-[#0F766E]" />
+      <span className="truncate">
+        {label}
       </span>
     </span>
+  );
+}
+
+function FitReasonLine({ reasons }: { reasons: ParticipationFitReason[] }) {
+  const seen = new Set<string>();
+  const highlights = reasons
+    .filter((reason) => reason.kind !== "safety")
+    .filter((reason) => {
+      const key = reason.label.trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 2);
+
+  if (highlights.length === 0) return null;
+
+  return (
+    <div className="mt-4 flex items-start gap-2 rounded-[14px] bg-[#F5FAF7] px-3 py-2.5">
+      <Sparkles size={16} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#0F766E]" />
+      <p className="font-body text-[13px] font-bold leading-snug text-[#3F5750]">
+        {highlights.map((reason) => reason.label).join(" · ")}
+      </p>
+    </div>
   );
 }
 
@@ -284,16 +301,18 @@ function EventActionButton({
   tone,
   active = false,
   disabled = false,
+  className = "",
 }: {
   children: ReactNode;
   onClick: () => void;
   tone: "green" | "blue" | "plain" | "rose";
   active?: boolean;
   disabled?: boolean;
+  className?: string;
 }) {
   const tones = {
-    green: active ? "border-[#047857] bg-[#047857] text-white" : "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]",
-    blue: active ? "border-[#2563EB] bg-[#2563EB] text-white" : "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]",
+    green: active ? "border-[#035F46] bg-[#035F46] text-white" : "border-[#047857] bg-[#047857] text-white",
+    blue: active ? "border-[#2563EB] bg-[#2563EB] text-white" : "border-[#E5DED3] bg-white text-vyva-text-1",
     rose: active ? "border-[#BE123C] bg-[#BE123C] text-white" : "border-[#FECDD3] bg-[#FFF1F2] text-[#BE123C]",
     plain: "border-[#E5DED3] bg-white text-vyva-text-1",
   }[tone];
@@ -303,7 +322,7 @@ function EventActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`vyva-tap flex min-h-[46px] items-center justify-center rounded-[16px] border px-3 font-body text-[14px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones}`}
+      className={`vyva-tap flex min-h-[44px] items-center justify-center rounded-full border px-4 font-body text-[14px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones} ${className}`}
     >
       {children}
     </button>
@@ -331,11 +350,12 @@ function EventPanel({
 }) {
   const statusLabel = responseLabel(event, copy);
   const dateLabel = eventDateLabel(event, copy, language);
-  const showTimeDetail = !event.startsAt && event.timeLabel && event.timeLabel !== dateLabel;
+  const placeLabel = event.locationLabel || eventFormatLabel(event.format, copy);
+  const safetyReason = event.fitReasons.find((reason) => reason.kind === "safety")?.label;
 
   return (
     <article
-      className={`rounded-[22px] border bg-white p-4 shadow-[0_10px_26px_rgba(52,42,30,0.07)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
+      className={`rounded-[20px] border bg-white p-5 shadow-[0_10px_26px_rgba(52,42,30,0.06)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
       data-testid={featured ? `${testIdPrefix}-featured-event` : `${testIdPrefix}-event-${event.id}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -357,48 +377,34 @@ function EventPanel({
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <EventFact
-          icon={event.format === "online" ? Monitor : event.format === "hybrid" ? Sparkles : MapPin}
-          label={eventFormatLabel(event.format, copy)}
-        />
-        <EventFact icon={Clock3} label={dateLabel} detail={showTimeDetail ? event.timeLabel : undefined} />
-        <EventFact icon={MapPin} label={event.locationLabel} />
-        <EventFact icon={ShieldCheck} label={event.costLabel} />
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-[#EFE6DC] py-3">
+        <EventMetaItem icon={Clock3} label={dateLabel} />
+        <EventMetaItem icon={event.format === "online" ? Monitor : event.format === "hybrid" ? Sparkles : MapPin} label={placeLabel} />
+        <EventMetaItem icon={ShieldCheck} label={event.costLabel} />
       </div>
 
-      {event.fitReasons.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {event.fitReasons.slice(0, 2).map((reason) => (
-            <span
-              key={`${event.id}-${reason.id}-${reason.label}`}
-              className="rounded-full bg-[#F8FAF8] px-3 py-1.5 font-body text-[12px] font-bold text-[#50635E]"
-            >
-              {reason.label}
-            </span>
-          ))}
-        </div>
+      <FitReasonLine reasons={event.fitReasons} />
+
+      {event.needsLiveCheck || safetyReason ? (
+        <p className="mt-3 inline-flex items-center gap-2 font-body text-[12px] font-black text-[#7A5B1B]">
+          <ShieldCheck size={15} strokeWidth={2.4} className="shrink-0" />
+          {safetyReason ?? copy.confirmFirst}
+        </p>
       ) : null}
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-4">
-        <EventActionButton
-          tone="green"
-          active={event.myResponse === "interested"}
-          disabled={pending}
-          onClick={() => onRespond(event.id, event.myResponse === "interested" ? "clear" : "interested")}
-        >
-          <CheckCircle2 size={18} className="mr-2" />
-          {copy.interested}
-        </EventActionButton>
-        <EventActionButton
-          tone="blue"
-          active={event.myResponse === "maybe"}
-          disabled={pending}
-          onClick={() => onRespond(event.id, event.myResponse === "maybe" ? "clear" : "maybe")}
-        >
-          <CalendarCheck size={18} className="mr-2" />
-          {copy.maybe}
-        </EventActionButton>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="sm:w-[15rem]">
+          <EventActionButton
+            tone="green"
+            active={event.myResponse === "interested"}
+            disabled={pending}
+            className="w-full min-h-[50px]"
+            onClick={() => onRespond(event.id, event.myResponse === "interested" ? "clear" : "interested")}
+          >
+            <CheckCircle2 size={18} className="mr-2" />
+            {copy.interested}
+          </EventActionButton>
+        </div>
         <EventActionButton
           tone="plain"
           disabled={pending}
@@ -407,15 +413,26 @@ function EventPanel({
           <Sparkles size={18} className="mr-2 text-[#6B21A8]" />
           {copy.askVyva}
         </EventActionButton>
-        <EventActionButton
-          tone="rose"
-          active={event.myResponse === "not_for_me"}
-          disabled={pending}
-          onClick={() => onRespond(event.id, event.myResponse === "not_for_me" ? "clear" : "not_for_me")}
-        >
-          <ThumbsDown size={17} className="mr-2" />
-          {copy.notForMe}
-        </EventActionButton>
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          <EventActionButton
+            tone="blue"
+            active={event.myResponse === "maybe"}
+            disabled={pending}
+            onClick={() => onRespond(event.id, event.myResponse === "maybe" ? "clear" : "maybe")}
+          >
+            <CalendarCheck size={17} className="mr-2" />
+            {copy.maybe}
+          </EventActionButton>
+          <EventActionButton
+            tone="rose"
+            active={event.myResponse === "not_for_me"}
+            disabled={pending}
+            onClick={() => onRespond(event.id, event.myResponse === "not_for_me" ? "clear" : "not_for_me")}
+          >
+            <ThumbsDown size={16} className="mr-2" />
+            {copy.notForMe}
+          </EventActionButton>
+        </div>
       </div>
 
     </article>

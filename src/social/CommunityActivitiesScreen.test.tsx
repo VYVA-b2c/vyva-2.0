@@ -211,7 +211,7 @@ describe("CommunityActivitiesScreen", () => {
     vi.clearAllMocks();
   });
 
-  it("renders a calm curated activities screen with large low-pressure actions", async () => {
+  it("renders a calm curated activities screen with a focused decision card", async () => {
     renderCommunityActivities();
 
     expect(await screen.findByRole("heading", { name: "For you" })).toBeInTheDocument();
@@ -220,8 +220,9 @@ describe("CommunityActivitiesScreen", () => {
     expect(screen.getByTestId("activities-profile-signals")).toHaveTextContent("music");
     expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Familiar songs table");
     expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Matches music");
-    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Both");
-    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Date TBC");
+    expect(screen.getByTestId("activities-featured-event")).not.toHaveTextContent("Both");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("This week, time to be checked");
+    expect(screen.getByTestId("activities-featured-event")).not.toHaveTextContent("Date TBC");
     expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Nearby or online");
     expect(screen.getByText("Book club taster")).toBeInTheDocument();
 
@@ -229,10 +230,11 @@ describe("CommunityActivitiesScreen", () => {
     const maybe = screen.getAllByRole("button", { name: /Maybe/i })[0];
     const askVyva = screen.getAllByRole("button", { name: /Check/i })[0];
     const notForMe = screen.getAllByRole("button", { name: /No thanks/i })[0];
-    expect(interested).toHaveClass("min-h-[46px]");
-    expect(maybe).toHaveClass("min-h-[46px]");
-    expect(askVyva).toHaveClass("min-h-[46px]");
-    expect(notForMe).toHaveClass("min-h-[46px]");
+    expect(interested).toHaveClass("min-h-[50px]");
+    expect(interested).toHaveClass("bg-[#047857]");
+    expect(maybe).toHaveClass("min-h-[44px]");
+    expect(askVyva).toHaveClass("min-h-[44px]");
+    expect(notForMe).toHaveClass("min-h-[44px]");
   });
 
   it("saves interested and maybe choices without making a commitment", async () => {
