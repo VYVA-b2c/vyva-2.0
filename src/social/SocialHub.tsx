@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   BookOpen,
   Calendar,
   ChefHat,
@@ -13,7 +14,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -428,6 +429,69 @@ function FastHelpRoomRow({ room, language, onSelect }: FastHelpRoomRowProps) {
   );
 }
 
+type RoomsListSectionProps = {
+  copy: ReturnType<typeof getSocialCopy>;
+  language: SocialLanguage;
+  rooms: SocialRoom[];
+  isLoading: boolean;
+  isError: boolean;
+  loadingRoomsLabel: string;
+  onSelect: (room: SocialRoom) => void;
+  className?: string;
+};
+
+function RoomsListSection({
+  copy,
+  language,
+  rooms,
+  isLoading,
+  isError,
+  loadingRoomsLabel,
+  onSelect,
+  className = "",
+}: RoomsListSectionProps) {
+  return (
+    <section
+      className={`rounded-[24px] border border-[#D7E8DB] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] min-[390px]:rounded-[26px] min-[390px]:p-4 ${className}`}
+      data-testid="social-room-list"
+      aria-label={copy.allRooms}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {copy.allRooms}
+          </p>
+          <h2 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">
+            {copy.chooseRoom}
+          </h2>
+        </div>
+      </div>
+      <p className="mt-1 max-w-[28rem] font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+        {copy.chooseRoomSubtitle}
+      </p>
+
+      <div className="mt-3 grid gap-2.5 min-[390px]:gap-3" data-testid="social-room-list-options">
+        {isLoading ? (
+          <div className="rounded-[20px] border border-[#E8DDCF] bg-[#FFFCF8] px-4 py-5 font-body text-[16px] font-bold text-vyva-text-2">
+            {loadingRoomsLabel}
+          </div>
+        ) : isError || !rooms.length ? (
+          <EmptyState title={copy.noRooms} />
+        ) : (
+          rooms.map((room) => (
+            <FastHelpRoomRow
+              key={room.slug}
+              room={room}
+              language={language}
+              onSelect={onSelect}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 type FastHelpDotsProps = {
   count: number;
   activeIndex: number;
@@ -598,7 +662,11 @@ function RoomDetailSheet({ room, language, togetherLanguage, onClose, onEnter }:
   );
 }
 
-const SocialHub = () => {
+type SocialHubProps = {
+  roomsOnly?: boolean;
+};
+
+const SocialHub = ({ roomsOnly = false }: SocialHubProps) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { language: appLanguage } = useLanguage();
@@ -609,7 +677,6 @@ const SocialHub = () => {
   const loadingRoomsLabel = getLoadingRoomsLabel(language);
   const autoStartVoice = useRouteVoiceAutoStart();
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
-  const roomListRef = useRef<HTMLElement | null>(null);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
     queryKey: [`/api/social/hub?lang=${togetherLanguage}`],
@@ -623,12 +690,6 @@ const SocialHub = () => {
     () => hubRooms.find((room) => room.slug === selectedRoomSlug) ?? null,
     [hubRooms, selectedRoomSlug],
   );
-  const showRoomList = useCallback(() => {
-    const roomList = roomListRef.current;
-    if (!roomList) return;
-    roomList.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    roomList.focus({ preventScroll: true });
-  }, []);
 
   const openRoom = (slug: string) => navigate(`/social-rooms/${slug}`);
   const communityCards: MasterDashboardCard[] = [
@@ -647,7 +708,7 @@ const SocialHub = () => {
       title: t("community.master.cards.rooms", "Join In"),
       detail: t("community.master.cards.roomsDetail", "Join a live table"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: showRoomList,
+      onClick: () => navigate("/social-rooms/join-in"),
       testId: "card-social-primary-rooms",
     },
     {
@@ -726,6 +787,45 @@ const SocialHub = () => {
     },
   ];
 
+  if (roomsOnly) {
+    return (
+      <>
+        <SocialStyles />
+        <main className="vyva-page pb-[120px]" data-testid="social-rooms-only-screen">
+          <button
+            type="button"
+            onClick={() => navigate("/social-rooms")}
+            className="vyva-tap mb-4 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-white px-4 font-body text-[15px] font-black text-vyva-text-1 shadow-sm"
+            data-testid="button-social-rooms-back"
+          >
+            <ArrowLeft size={18} strokeWidth={2.5} aria-hidden="true" />
+            {t("community.roomsOnly.back", "Back to Community")}
+          </button>
+
+          <RoomsListSection
+            copy={copy}
+            language={language}
+            rooms={fastHelpRooms}
+            isLoading={isLoading}
+            isError={isError}
+            loadingRoomsLabel={loadingRoomsLabel}
+            onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
+          />
+        </main>
+
+        {selectedRoom ? (
+          <RoomDetailSheet
+            room={selectedRoom}
+            language={language}
+            togetherLanguage={togetherLanguage}
+            onClose={() => setSelectedRoomSlug(null)}
+            onEnter={openRoom}
+          />
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <>
       <SocialStyles />
@@ -758,48 +858,7 @@ const SocialHub = () => {
         }}
         cards={communityCards}
         fastHelpActions={communityFastHelpActions}
-      >
-        <section
-          ref={roomListRef}
-          tabIndex={-1}
-          className="mt-4 rounded-[24px] border border-[#D7E8DB] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] outline-none focus-visible:ring-4 focus-visible:ring-[#BDEBD8] min-[390px]:rounded-[26px] min-[390px]:p-4"
-          data-testid="social-room-list"
-          aria-label={copy.allRooms}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
-                {copy.allRooms}
-              </p>
-              <h2 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">
-                {copy.chooseRoom}
-              </h2>
-            </div>
-          </div>
-          <p className="mt-1 max-w-[28rem] font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-            {copy.chooseRoomSubtitle}
-          </p>
-
-          <div className="mt-3 grid gap-2.5 min-[390px]:gap-3" data-testid="social-room-list-options">
-            {isLoading ? (
-              <div className="rounded-[20px] border border-[#E8DDCF] bg-[#FFFCF8] px-4 py-5 font-body text-[16px] font-bold text-vyva-text-2">
-                {loadingRoomsLabel}
-              </div>
-            ) : isError || !fastHelpRooms.length ? (
-              <EmptyState title={copy.noRooms} />
-            ) : (
-              fastHelpRooms.map((room) => (
-                <FastHelpRoomRow
-                  key={room.slug}
-                  room={room}
-                  language={language}
-                  onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
-                />
-              ))
-            )}
-          </div>
-        </section>
-      </MasterDashboardLayout>
+      />
 
       {selectedRoom ? (
         <RoomDetailSheet
@@ -813,5 +872,9 @@ const SocialHub = () => {
     </>
   );
 };
+
+export function SocialRoomsOnlyScreen() {
+  return <SocialHub roomsOnly />;
+}
 
 export default SocialHub;
