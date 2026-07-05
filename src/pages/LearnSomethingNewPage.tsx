@@ -325,9 +325,6 @@ function Wizard({
               <h1 className="mt-3 max-w-[11em] font-body text-[31px] font-black leading-[0.98] text-[#211827] min-[390px]:text-[35px] sm:text-[42px]">
                 Learn Something New
               </h1>
-              <p className="mt-3 max-w-[36rem] text-[15px] font-bold leading-snug text-[#6b5d58] min-[390px]:text-[16px]">
-                Choose voice, touch, topics, and rhythm.
-              </p>
             </div>
             {onCancel ? (
               <button
