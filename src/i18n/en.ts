@@ -808,7 +808,7 @@
     symptomCheck: {
       intro: {
         clueSub: "Say or type a few words.",
-        simpleTitle: "Tell VYVA what feels wrong",
+        simpleTitle: "Tell me how you feel, right now",
         simpleBody: "Speak, type, or tap an example.",
         simplePlaceholder: "Type what you feel...",
         startBtn: "Start check",
@@ -838,7 +838,7 @@
         starting: "Getting started",
         building: "Confidence improving",
         ready: "Ready to guide",
-        listening: "Tell VYVA what feels wrong",
+        listening: "Tell me how you feel, right now",
         checking: "VYVA is checking symptoms and safety signs",
         prepared: "Next steps are ready",
         listen: "Symptoms",
