@@ -14,6 +14,7 @@ import type {
   CognitiveAssessmentSaveResponseRequest,
   CognitiveAssessmentStartSessionResponse,
 } from "../../shared/cognitiveAssessmentRunner";
+import { buildStoryRecallScoringFields } from "../../shared/cognitiveStoryRecallScoring";
 
 const SESSION_STORAGE_KEY = "vyva_cognitive_assessment_session_id";
 
@@ -110,7 +111,7 @@ function scoreTextAnswer(value: unknown) {
   };
 }
 
-function buildResponseData(task: CognitiveAssessmentRunnerTask, formState: FormState): Record<string, unknown> {
+export function buildResponseData(task: CognitiveAssessmentRunnerTask, formState: FormState): Record<string, unknown> {
   const content = asRecord(task.content);
 
   if (task.id === "orientation") {
@@ -134,7 +135,8 @@ function buildResponseData(task: CognitiveAssessmentRunnerTask, formState: FormS
 
   if (task.id.includes("story_recall")) {
     return {
-      ...scoreTextAnswer(formState.text),
+      text: text(formState.text),
+      ...buildStoryRecallScoringFields(formState.text, content.idea_units),
       title: text(content.title),
       delayed: Boolean(content.delayed),
     };
@@ -662,7 +664,7 @@ function RunnerTaskScreen({
   error: string | null;
 }) {
   const isLast = currentIndex >= session.tasks.length - 1;
-  const storyReadRequired = task.id === "story_recall_immediate" && !Boolean(formState.storyReadComplete);
+  const storyReadRequired = task.id === "story_recall_immediate" && !formState.storyReadComplete;
   const submitDisabled = isSaving || storyReadRequired;
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-8">
@@ -800,7 +802,7 @@ export default function CognitiveAssessmentRunnerPage() {
   useEffect(() => {
     setFormState(buildInitialState(task));
     setError(null);
-  }, [task?.id]);
+  }, [task]);
 
   const saveMutation = useMutation({
     mutationFn: async ({ task: taskToSave, responseData }: { task: CognitiveAssessmentRunnerTask; responseData: Record<string, unknown> }) => {

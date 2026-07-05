@@ -106,6 +106,40 @@ describe("cognitive assessment trends", () => {
     ]);
   });
 
+  it("prefers story idea-unit counts over word-count fallback", () => {
+    const signal = cognitiveTaskSignal(response("latest", "story_recall_immediate", {
+      word_count: 27,
+      idea_units_recalled: 4,
+      recalled_idea_units: ["subject_elaine", "main_object_window_curtain", "action_clipped", "location_kitchen"],
+      total_idea_units: 22,
+      scoring_method: "idea_unit_match",
+    }, 2));
+
+    expect(signal).toMatchObject({
+      taskId: "story_recall_immediate",
+      kind: "count",
+      rawValue: 4,
+      valueLabel: "4 details",
+    });
+  });
+
+  it("keeps story word-count fallback signals for older or opaque responses", () => {
+    const signal = cognitiveTaskSignal(response("latest", "story_recall_immediate", {
+      word_count: 11,
+      idea_units_recalled: null,
+      recalled_idea_units: [],
+      total_idea_units: 2,
+      scoring_method: "word_count_fallback",
+    }, 2));
+
+    expect(signal).toMatchObject({
+      taskId: "story_recall_immediate",
+      kind: "count",
+      rawValue: 11,
+      valueLabel: "11 words",
+    });
+  });
+
   it("derives personal baseline bands, quality, and context insight from recent checks", () => {
     const sessions = [session("s1", 1), session("s2", 2), session("s3", 3), session("latest", 4)];
     const qualityResponses = (sessionId: string, storyWords: number, contextScore: number) => [

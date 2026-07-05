@@ -170,7 +170,11 @@ export function cognitiveTaskSignal(row: CognitiveTrendResponseRow): CognitiveAs
   const domain = trendDomain?.label ?? DOMAIN_LABELS[row.domain ?? ""] ?? row.domain ?? "Assessment";
 
   if (taskId.includes("story_recall")) {
-    const ideaUnits = arrayLength(data, ["idea_units_recalled", "recalled_idea_units", "matched_idea_units"]);
+    const scoringMethod = typeof data.scoring_method === "string" ? data.scoring_method : "";
+    const ideaUnits = scoringMethod === "word_count_fallback"
+      ? null
+      : numberValue(data, ["idea_units_recalled"])
+        ?? arrayLength(data, ["recalled_idea_units", "matched_idea_units"]);
     if (ideaUnits !== null) {
       return {
         taskId,

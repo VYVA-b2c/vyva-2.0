@@ -51,6 +51,7 @@ const WIDE_ROUTE_PREFIXES = [
   "/settings",
   "/health",
   "/informes",
+  "/mind-memory/cognitive-assessment",
   "/social-rooms",
   "/meds",
   "/attention-boosters",
@@ -462,6 +463,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isFullScreen = appShellLayout === "fullscreen";
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
+  const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
   const routeState = location.state as Record<string, unknown> | null;
   const chatModeParam = new URLSearchParams(location.search).get("mode");
   const isChatVoiceMode =
@@ -470,7 +472,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isChatTypeMode = location.pathname === "/chat" && !isChatVoiceMode;
   const shellMaxWidthClassName = isFullScreen
     ? "max-w-none"
-    : isVitalsRoute
+    : isVitalsRoute || isCognitiveAssessmentRoute
       ? "max-w-[1180px]"
       : isWideRoute
         ? "max-w-[920px]"
