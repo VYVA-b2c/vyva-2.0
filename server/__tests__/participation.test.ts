@@ -366,4 +366,68 @@ describe("Participate curated events API", () => {
       needsLiveCheck: true,
     });
   });
+
+  it("rejects AI-discovery saves without a public source URL", async () => {
+    const response = await request(trustedAdminApp)
+      .post("/api/admin/social/participate/events")
+      .send({
+        eventKey: `madrid-unsourced-save-${Date.now()}`,
+        titleEn: "Unsourced save",
+        titleEs: "Guardado sin fuente",
+        titleDe: "Speicherung ohne Quelle",
+        source: "ai-discovery",
+        sourceUrl: null,
+      })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      code: "AI_DISCOVERY_SOURCE_REQUIRED",
+      error: "AI discovery saves require a public source URL.",
+    });
+  });
+
+  it("rejects duplicate AI-discovery saves before creating draft rows", async () => {
+    const baseEventKey = `madrid-duplicate-base-${Date.now()}`;
+    const duplicateSourceUrl = `https://example.org/duplicate-source-${Date.now()}`;
+
+    await request(trustedAdminApp)
+      .post("/api/admin/social/participate/events")
+      .send({
+        eventKey: baseEventKey,
+        titleEn: "Duplicate library morning",
+        titleEs: "Manana duplicada en biblioteca",
+        titleDe: "Doppelter Bibliotheksmorgen",
+        city: "Madrid",
+        countryCode: "ES",
+        source: "admin",
+        sourceUrl: duplicateSourceUrl,
+        status: "draft",
+        safetyStatus: "needs_review",
+      })
+      .expect(201);
+
+    const response = await request(trustedAdminApp)
+      .post("/api/admin/social/participate/events")
+      .send({
+        eventKey: `madrid-duplicate-ai-${Date.now()}`,
+        titleEn: "Duplicate library morning",
+        titleEs: "Manana duplicada en biblioteca",
+        titleDe: "Doppelter Bibliotheksmorgen",
+        city: "Madrid",
+        countryCode: "ES",
+        source: "ai-discovery",
+        sourceUrl: duplicateSourceUrl,
+        status: "active",
+        safetyStatus: "approved",
+      })
+      .expect(409);
+
+    expect(response.body).toMatchObject({
+      code: "AI_DISCOVERY_DUPLICATE",
+      duplicateEventKey: baseEventKey,
+    });
+    expect(response.body.error).toMatch(new RegExp(`Possible duplicate of ${baseEventKey}`));
+    expect(response.body.error).toMatch(/same source URL/);
+    expect(response.body.error).toMatch(/same title and city/);
+  });
 });
