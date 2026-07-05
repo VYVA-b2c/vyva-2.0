@@ -2129,43 +2129,70 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         : memoryDeck.length <= 6
           ? "clamp(104px, 16dvh, 144px)"
           : "clamp(92px, 14dvh, 132px)";
+  const memoryStats = [
+    `${t("common.level")} ${plan.level}`,
+    `${matchedPairs}/${totalPairs} ${t("memory.pairs")}`,
+    `${memoryAccuracy}%`,
+    `${durationSeconds}s`,
+  ];
 
   return (
     <div className="px-3 pb-3 sm:px-4 sm:pb-4">
       <section className="mt-2 overflow-hidden rounded-[20px] border border-[#EFE7DB] bg-[#FFF9F1] p-4 shadow-vyva-card sm:rounded-[24px] sm:p-5">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
           <button
             onClick={backToList}
             aria-label={t("common.back")}
-            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[14px] font-semibold text-vyva-text-1 shadow-vyva-card"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#EADFD5] bg-white/95 px-3 text-[14px] font-semibold text-vyva-text-1 shadow-sm"
           >
             <ArrowLeft size={17} />
             <span className="hidden sm:inline">{t("common.back")}</span>
           </button>
 
-          <div className="min-w-[180px] flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] bg-white shadow-sm" style={gameIconStyle}>
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-[#EEE5FA] bg-white shadow-sm" style={gameIconStyle}>
                 <GameIcon size={19} />
               </span>
               <div className="min-w-0">
-                <h1 className="truncate font-display text-[23px] leading-none text-vyva-text-1 sm:text-[28px]">{gameTitle}</h1>
-                <p className="mt-1.5 hidden truncate text-[14px] font-medium text-vyva-text-2 sm:block">{gamePrompt}</p>
+                <h1 className="truncate font-display text-[23px] leading-none text-vyva-text-1 sm:text-[30px]">{gameTitle}</h1>
+                <p className="mt-1 hidden truncate text-[13px] font-semibold text-vyva-text-2 sm:block">{t("memory.matchInstruction")}</p>
               </div>
             </div>
+          </div>
+
+          <div className="hidden min-w-[390px] grid-cols-4 overflow-hidden rounded-full border border-[#E7DCEB] bg-white/95 shadow-sm sm:grid">
+            {memoryStats.map((item, index) => (
+              <span
+                key={`desktop-${item}`}
+                className={`flex min-h-8 items-center justify-center px-3 text-center text-[12px] font-semibold leading-none text-vyva-text-1 ${
+                  index === 0 ? "" : "border-l border-[#EFE7DB]"
+                }`}
+              >
+                {item}
+              </span>
+            ))}
           </div>
 
           <MemoryAudioToggle isMuted={isMemoryAudioMuted} onToggle={toggleMemoryAudio} copy={companionCopy} />
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${t("common.level")} ${plan.level}`}</span>
-          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${matchedPairs}/${totalPairs} ${t("memory.pairs")}`}</span>
-          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${memoryAccuracy}%`}</span>
-          <span className="rounded-full bg-white px-2.5 py-1.5 text-[12px] font-medium text-vyva-text-1 shadow-sm">{`${durationSeconds}s`}</span>
-          <span className="min-w-[220px] flex-1 rounded-full border border-[#EADFF8] bg-white px-3 py-1.5 text-[12px] font-semibold text-vyva-text-1 shadow-sm">
-            {t("memory.matchInstruction")} <span className="font-extrabold text-vyva-purple">{memoryAccuracy}%</span>
-          </span>
+        <div className="mt-3 grid gap-2 sm:hidden">
+          <div className="min-w-0 rounded-full border border-[#EADFF8] bg-white/95 px-3 py-2 text-[12px] font-semibold leading-none text-vyva-text-1 shadow-sm sm:hidden">
+            <span className="block truncate">{t("memory.matchInstruction")}</span>
+          </div>
+          <div className="grid grid-cols-4 overflow-hidden rounded-full border border-[#E7DCEB] bg-white/95 shadow-sm">
+            {memoryStats.map((item, index) => (
+              <span
+                key={`mobile-${item}`}
+                className={`flex min-h-8 items-center justify-center px-2 text-center text-[11px] font-semibold leading-none text-vyva-text-1 sm:px-3 sm:text-[12px] ${
+                  index === 0 ? "" : "border-l border-[#EFE7DB]"
+                }`}
+              >
+                {item}
+              </span>
+            ))}
+          </div>
         </div>
 
         {voiceGameContextPanel}
