@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, Eye, Save, Search, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, BarChart3, CheckCircle2, Eye, Plus, RefreshCw, Save, Search, SlidersHorizontal } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -245,6 +245,7 @@ export default function HeroMessagesAdminPage() {
   const [metrics, setMetrics] = useState<HeroMetricRow[]>([]);
   const [surfaceFilter, setSurfaceFilter] = useState<HeroSurface | "all">("all");
   const [overviewFilter, setOverviewFilter] = useState<OverviewFilter>("all");
+  const [messageSearch, setMessageSearch] = useState("");
   const [language, setLanguage] = useState<HeroLanguage>("es");
   const [metricsDays, setMetricsDays] = useState(7);
   const [selectedMessageId, setSelectedMessageId] = useState<string>("");
@@ -264,10 +265,24 @@ export default function HeroMessagesAdminPage() {
     return Array.from(merged.values()).sort((a, b) => b.priority - a.priority || a.message_id.localeCompare(b.message_id));
   }, [databaseMessages, drafts]);
 
-  const filteredMessages = useMemo(
-    () => allMessages.filter((item) => surfaceFilter === "all" || item.surface === surfaceFilter),
-    [allMessages, surfaceFilter],
-  );
+  const filteredMessages = useMemo(() => {
+    const query = messageSearch.trim().toLowerCase();
+    return allMessages.filter((item) => {
+      const surfaceMatches = surfaceFilter === "all" || item.surface === surfaceFilter;
+      if (!surfaceMatches) return false;
+      if (!query) return true;
+      const copy = item.copy[language] ?? item.copy.es;
+      return [
+        item.message_id,
+        item.surface,
+        item.reason,
+        sourceLabel(item.source),
+        copy?.headline,
+        copy?.subtitle,
+        copy?.sourceText,
+      ].some((value) => String(value ?? "").toLowerCase().includes(query));
+    });
+  }, [allMessages, language, messageSearch, surfaceFilter]);
 
   const selectionCatalog = useMemo(() => {
     const managed = allMessages.filter((item) => item.is_enabled && (item.source === "database" || Boolean(drafts[item.message_id])));
@@ -447,124 +462,65 @@ export default function HeroMessagesAdminPage() {
   }, [metricsDays]);
 
   return (
-    <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen overflow-x-auto bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
+      <section className="mx-auto w-[1280px] max-w-none">
         <AdminPageHeader
           title="Hero messages"
           subtitle="Monitor live banner copy, aggregate performance, and managed overrides across every app surface."
         >
           <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((err) => setMessage(err.message))}>
-            <Search size={16} /> Refresh
+            <RefreshCw size={16} /> Refresh
           </button>
           {message && <span className="rounded-xl bg-purple-50 px-4 py-3 text-sm font-bold text-purple-800">{message}</span>}
         </AdminPageHeader>
 
         <AdminMenu />
 
-        <section className="mt-5 grid gap-3 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-purple-700"><BarChart3 size={16} /> Overview</p>
-              <h2 className="mt-1 text-xl font-black">Live banner control center</h2>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Field label="Language">
-                <select className="w-32 rounded-xl border border-[#eadfd5] px-3 py-2" value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
-                  {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
-                </select>
-              </Field>
-              <Field label="Metrics window">
-                <select className="w-32 rounded-xl border border-[#eadfd5] px-3 py-2" value={metricsDays} onChange={(event) => setMetricsDays(Number(event.target.value))}>
-                  {[7, 14, 30, 90].map((days) => <option key={days} value={days}>{days} days</option>)}
-                </select>
-              </Field>
-            </div>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4" data-testid="hero-overview-filters">
-            {OVERVIEW_FILTERS.map((item) => {
-              const active = overviewFilter === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setOverviewFilter(item.id)}
-                  className={`rounded-2xl border px-4 py-3 text-left transition ${
-                    active
-                      ? "border-purple-600 bg-purple-700 text-white shadow-sm"
-                      : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
-                  }`}
-                  data-testid={`button-hero-overview-filter-${item.id}`}
-                >
-                  <span className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-black">{item.label}</span>
-                    <span className="text-2xl font-black leading-none">{overviewCounts[item.id]}</span>
-                  </span>
-                  <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{item.description}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <p className="text-sm font-bold text-[#7d6b65]" data-testid="hero-overview-filter-count">
-            Showing {filteredOverview.length} of {overview.length} surfaces.
-          </p>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {filteredOverview.length === 0 ? (
-              <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-6 text-center text-sm font-bold text-[#7d6b65] md:col-span-2 xl:col-span-3">
-                No hero surfaces match this filter.
-              </div>
-            ) : filteredOverview.map((item) => (
-              <article key={item.surface} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4" data-testid={`card-hero-overview-${item.surface}`}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7d6b65]">{item.surface}</p>
-                    <h3 className="mt-1 truncate text-lg font-black" data-testid={`hero-active-${item.surface}`}>{item.result.headline}</h3>
-                    <p className="mt-1 text-sm text-[#7d6b65]">{item.result.messageId}</p>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${sourceClass(item.result.source)}`}>{sourceLabel(item.result.source)}</span>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
-                  <div><p className="text-[#8b7a73]">Reason</p><p className="font-black">{item.result.reason}</p></div>
-                  <div><p className="text-[#8b7a73]">Priority</p><p className="font-black">{item.priority}</p></div>
-                  <div><p className="text-[#8b7a73]">Edited</p><p className="font-black">{item.lastEdited}</p></div>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-white p-3 text-sm">
-                  <div><p className="text-[#8b7a73]">Views</p><p className="font-black">{item.impressions}</p></div>
-                  <div><p className="text-[#8b7a73]">Clicks</p><p className="font-black">{item.clicks}</p></div>
-                  <div><p className="text-[#8b7a73]">CTR</p><p className="font-black">{item.ctr}</p></div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">{warningPills(item.warnings)}</div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-5 grid gap-4 xl:grid-cols-[1.05fr_1.6fr]">
-          <aside className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
+        <section className="mt-5 grid grid-cols-[360px_minmax(0,1fr)] gap-4">
+          <aside className="sticky top-4 self-start rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-purple-700"><SlidersHorizontal size={16} /> Editor</p>
-                <h2 className="mt-1 text-xl font-black">Messages</h2>
+                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-purple-700"><SlidersHorizontal size={16} /> Message catalog</p>
+                <h2 className="mt-1 text-xl font-black">Find and edit</h2>
+                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{filteredMessages.length} of {allMessages.length} messages</p>
               </div>
-              <button type="button" className="rounded-xl border border-purple-200 px-3 py-2 text-sm font-black text-purple-700" onClick={createManagedDraft}>New</button>
+              <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-purple-200 px-3 py-2 text-sm font-black text-purple-700" onClick={createManagedDraft}>
+                <Plus size={16} /> New
+              </button>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Field label="Surface">
-                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
-                  <option value="all">All surfaces</option>
-                  {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
-                </select>
-              </Field>
-              <Field label="Editing language">
-                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
-                  {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
-                </select>
-              </Field>
+
+            <div className="mt-4 grid gap-3">
+              <label className="block">
+                <span className="mb-1 block text-sm font-bold text-[#4d4351]">Search</span>
+                <span className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7a73]" aria-hidden="true" />
+                  <input
+                    className="w-full rounded-xl border border-[#eadfd5] px-9 py-2.5"
+                    value={messageSearch}
+                    onChange={(event) => setMessageSearch(event.target.value)}
+                    placeholder="Message, surface, reason, or copy"
+                  />
+                </span>
+              </label>
+              <div className="grid gap-3">
+                <Field label="Surface">
+                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={surfaceFilter} onChange={(event) => setSurfaceFilter(event.target.value as HeroSurface | "all")}>
+                    <option value="all">All surfaces</option>
+                    {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                  </select>
+                </Field>
+                <Field label="Language">
+                  <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2.5" value={language} onChange={(event) => setLanguage(event.target.value as HeroLanguage)}>
+                    {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
+                  </select>
+                </Field>
+              </div>
             </div>
-            <div className="mt-4 max-h-[760px] space-y-2 overflow-auto pr-1">
-              {filteredMessages.map((item) => {
+
+            <div className="mt-4 max-h-[calc(100vh-22rem)] min-h-[280px] space-y-2 overflow-auto pr-1">
+              {filteredMessages.length === 0 ? (
+                <p className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4 text-sm font-bold text-[#7d6b65]">No messages match this filter.</p>
+              ) : filteredMessages.map((item) => {
                 const warnings = copyWarnings(item, language);
                 const active = selectedMessage?.message_id === item.message_id;
                 return (
@@ -572,13 +528,20 @@ export default function HeroMessagesAdminPage() {
                     key={item.message_id}
                     type="button"
                     onClick={() => setSelectedMessageId(item.message_id)}
-                    className={`w-full rounded-xl border p-3 text-left transition ${active ? "border-purple-300 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4] hover:border-purple-200"}`}
+                    className={`w-full rounded-xl border p-3 text-left transition ${
+                      active
+                        ? "border-purple-400 bg-purple-50 shadow-sm"
+                        : "border-[#eadfd5] bg-[#fffaf4] hover:border-purple-200"
+                    }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate font-black">{item.copy[language]?.headline ?? item.copy.es?.headline ?? item.message_id}</p>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-black ${sourceClass(item.source)}`}>{sourceLabel(item.source)}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-black">{item.copy[language]?.headline ?? item.copy.es?.headline ?? item.message_id}</p>
+                        <p className="mt-1 truncate text-xs font-bold uppercase tracking-[0.08em] text-[#8b7a73]">{item.surface} / {item.reason}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${sourceClass(item.source)}`}>{sourceLabel(item.source)}</span>
                     </div>
-                    <p className="mt-1 truncate text-sm text-[#7d6b65]">{item.message_id} - {item.surface} - priority {item.priority}</p>
+                    <p className="mt-2 truncate text-sm text-[#7d6b65]">{item.message_id} / priority {item.priority}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">{warningPills(warnings)}</div>
                   </button>
                 );
@@ -588,98 +551,110 @@ export default function HeroMessagesAdminPage() {
 
           <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
             {selectedMessage ? (
-              <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">{selectedMessage.surface}</p>
-                      <h2 className="mt-1 text-xl font-black">{selectedMessage.message_id}</h2>
+              <div className="grid gap-5">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#f0e7df] pb-4">
+                  <div className="min-w-0">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">{selectedMessage.surface}</p>
+                    <h2 className="mt-1 break-words text-2xl font-black">{selectedMessage.message_id}</h2>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${sourceClass(selectedMessage.source)}`}>{sourceLabel(selectedMessage.source)}</span>
+                      {warningPills(selectedWarnings)}
                     </div>
-                    <label className="inline-flex items-center gap-2 rounded-full bg-[#f7f2eb] px-3 py-2 text-sm font-black text-[#4d4351]">
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#f7f2eb] px-3 text-sm font-black text-[#4d4351]">
                       <input type="checkbox" checked={selectedMessage.is_enabled} onChange={(event) => updateMessage(selectedMessage.message_id, { is_enabled: event.target.checked })} />
                       Enabled
                     </label>
-                  </div>
-                  <div className="mt-4">
-                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} />
-                  </div>
-                  <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                    <p className="flex items-center gap-2 text-sm font-black"><Eye size={16} /> Validation</p>
-                    <div className="mt-3 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>
+                    <button
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-5 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                      disabled={!canSaveSelected}
+                      onClick={() => saveMessage(selectedMessage).catch((err) => setMessage(err.message))}
+                    >
+                      <Save size={18} /> Save hero message
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid gap-3">
-                  <div className="grid gap-3 md:grid-cols-4">
-                    <Field label="Surface">
-                      <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
-                        {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Reason">
-                      <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.reason} onChange={(event) => updateMessage(selectedMessage.message_id, { reason: event.target.value as HeroReason })}>
-                        {REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
-                      </select>
-                    </Field>
-                    <Field label="Priority">
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.priority} onChange={(event) => updateMessage(selectedMessage.message_id, { priority: Number(event.target.value) })} />
-                    </Field>
-                    <Field label="Cooldown">
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.cooldownHours} onChange={(event) => updateMessage(selectedMessage.message_id, { cooldownHours: Number(event.target.value) })} />
-                    </Field>
+                <div className="grid grid-cols-[320px_minmax(0,1fr)] gap-5">
+                  <div className="sticky top-4 self-start">
+                    <HeroPreview copy={selectedCopy} source={selectedMessage.source} />
+                    <div className="mt-4 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                      <p className="flex items-center gap-2 text-sm font-black"><Eye size={16} /> Validation</p>
+                      <div className="mt-3 flex flex-wrap gap-2">{warningPills(selectedWarnings)}</div>
+                    </div>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-4">
-                    <Field label="Periods" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.periods)} onChange={(event) => updateMessage(selectedMessage.message_id, { periods: textToList(event.target.value) as HeroMessageAdmin["periods"] })} placeholder="morning, evening" />
-                    </Field>
-                    <Field label="Safety" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.safetyLevels)} onChange={(event) => updateMessage(selectedMessage.message_id, { safetyLevels: textToList(event.target.value) as HeroMessageAdmin["safetyLevels"] })} placeholder="urgent" />
-                    </Field>
-                    <Field label="Events" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.eventTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { eventTypes: textToList(event.target.value) as HeroMessageAdmin["eventTypes"] })} placeholder="appointment" />
-                    </Field>
-                    <Field label="Activity" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.activityTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { activityTypes: textToList(event.target.value) as HeroMessageAdmin["activityTypes"] })} placeholder="health_check" />
+                  <div className="grid gap-4">
+                    <section className="rounded-xl border border-[#eadfd5] p-3">
+                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Routing rules</h3>
+                      <div className="mt-3 grid grid-cols-4 gap-3">
+                        <Field label="Surface">
+                          <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.surface} onChange={(event) => updateMessage(selectedMessage.message_id, { surface: event.target.value as HeroSurface })}>
+                            {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Reason">
+                          <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.reason} onChange={(event) => updateMessage(selectedMessage.message_id, { reason: event.target.value as HeroReason })}>
+                            {REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Priority">
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.priority} onChange={(event) => updateMessage(selectedMessage.message_id, { priority: Number(event.target.value) })} />
+                        </Field>
+                        <Field label="Cooldown">
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" type="number" value={selectedMessage.cooldownHours} onChange={(event) => updateMessage(selectedMessage.message_id, { cooldownHours: Number(event.target.value) })} />
+                        </Field>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-4 gap-3">
+                        <Field label="Periods" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.periods)} onChange={(event) => updateMessage(selectedMessage.message_id, { periods: textToList(event.target.value) as HeroMessageAdmin["periods"] })} placeholder="morning, evening" />
+                        </Field>
+                        <Field label="Safety" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.safetyLevels)} onChange={(event) => updateMessage(selectedMessage.message_id, { safetyLevels: textToList(event.target.value) as HeroMessageAdmin["safetyLevels"] })} placeholder="urgent" />
+                        </Field>
+                        <Field label="Events" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.eventTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { eventTypes: textToList(event.target.value) as HeroMessageAdmin["eventTypes"] })} placeholder="appointment" />
+                        </Field>
+                        <Field label="Activity" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={listToText(selectedMessage.activityTypes)} onChange={(event) => updateMessage(selectedMessage.message_id, { activityTypes: textToList(event.target.value) as HeroMessageAdmin["activityTypes"] })} placeholder="health_check" />
+                        </Field>
+                      </div>
+                    </section>
+
+                    <section className="rounded-xl border border-[#eadfd5] p-3">
+                      <h3 className="text-sm font-black uppercase tracking-[0.12em] text-[#7d6b65]">Copy in {language.toUpperCase()}</h3>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <Field label={`Headline (${language.toUpperCase()})`}>
+                          <input aria-label={`Headline (${language.toUpperCase()})`} className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
+                          <LimitNote label="Headline" value={selectedCopy.headline} wordsLimit={HERO_LIMITS.headlineWords} charsLimit={HERO_LIMITS.headlineChars} />
+                        </Field>
+                        <Field label="Headline with name" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headlineWithName ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headlineWithName: event.target.value })} placeholder="Good morning, {name}" />
+                        </Field>
+                        <Field label="Source text" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.sourceText ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { sourceText: event.target.value })} />
+                          <LimitNote label="Source" value={selectedCopy.sourceText} wordsLimit={HERO_LIMITS.sourceWords} charsLimit={HERO_LIMITS.sourceChars} />
+                        </Field>
+                        <Field label="CTA label" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} />
+                          <LimitNote label="CTA" value={selectedCopy.ctaLabel} wordsLimit={HERO_LIMITS.ctaWords} charsLimit={HERO_LIMITS.ctaChars} />
+                        </Field>
+                        <Field label="Subtitle" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
+                          <LimitNote label="Subtitle" value={selectedCopy.subtitle} wordsLimit={HERO_LIMITS.subtitleWords} charsLimit={HERO_LIMITS.subtitleChars} />
+                        </Field>
+                        <Field label="Context hint" optional>
+                          <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.contextHint ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { contextHint: event.target.value })} />
+                        </Field>
+                      </div>
+                    </section>
+
+                    <Field label="Admin notes" optional>
+                      <textarea className="min-h-20 w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.admin_notes ?? ""} onChange={(event) => updateMessage(selectedMessage.message_id, { admin_notes: event.target.value })} />
                     </Field>
                   </div>
-
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Field label={`Headline (${language.toUpperCase()})`}>
-                      <input aria-label={`Headline (${language.toUpperCase()})`} className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headline ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headline: event.target.value })} />
-                      <LimitNote label="Headline" value={selectedCopy.headline} wordsLimit={HERO_LIMITS.headlineWords} charsLimit={HERO_LIMITS.headlineChars} />
-                    </Field>
-                    <Field label="Headline with name" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.headlineWithName ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { headlineWithName: event.target.value })} placeholder="Good morning, {name}" />
-                    </Field>
-                    <Field label="Source text" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.sourceText ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { sourceText: event.target.value })} />
-                      <LimitNote label="Source" value={selectedCopy.sourceText} wordsLimit={HERO_LIMITS.sourceWords} charsLimit={HERO_LIMITS.sourceChars} />
-                    </Field>
-                    <Field label="CTA label" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.ctaLabel ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { ctaLabel: event.target.value })} />
-                      <LimitNote label="CTA" value={selectedCopy.ctaLabel} wordsLimit={HERO_LIMITS.ctaWords} charsLimit={HERO_LIMITS.ctaChars} />
-                    </Field>
-                    <Field label="Subtitle" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.subtitle ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { subtitle: event.target.value })} />
-                      <LimitNote label="Subtitle" value={selectedCopy.subtitle} wordsLimit={HERO_LIMITS.subtitleWords} charsLimit={HERO_LIMITS.subtitleChars} />
-                    </Field>
-                    <Field label="Context hint" optional>
-                      <input className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedCopy.contextHint ?? ""} onChange={(event) => updateCopy(selectedMessage.message_id, { contextHint: event.target.value })} />
-                    </Field>
-                  </div>
-
-                  <Field label="Admin notes" optional>
-                    <textarea className="min-h-20 w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={selectedMessage.admin_notes ?? ""} onChange={(event) => updateMessage(selectedMessage.message_id, { admin_notes: event.target.value })} />
-                  </Field>
-
-                  <button
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-700 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                    disabled={!canSaveSelected}
-                    onClick={() => saveMessage(selectedMessage).catch((err) => setMessage(err.message))}
-                  >
-                    <Save size={18} /> Save hero message
-                  </button>
                 </div>
               </div>
             ) : (
@@ -688,56 +663,143 @@ export default function HeroMessagesAdminPage() {
           </section>
         </section>
 
-        <section className="mt-5 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">Selection diagnostics</p>
-              <h2 className="mt-1 text-xl font-black">Simulated winner</h2>
+        <section className="mt-5 grid grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] gap-4">
+          <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-purple-700"><BarChart3 size={16} /> Routing overview</p>
+                <h2 className="mt-1 text-xl font-black">Live surface status</h2>
+              </div>
+              <Field label="Metrics window">
+                <select className="w-36 rounded-xl border border-[#eadfd5] px-3 py-2" value={metricsDays} onChange={(event) => setMetricsDays(Number(event.target.value))}>
+                  {[7, 14, 30, 90].map((days) => <option key={days} value={days}>{days} days</option>)}
+                </select>
+              </Field>
             </div>
-            <span className={`rounded-full px-3 py-1 text-sm font-black ${sourceClass(diagnosticResult.source)}`}>{sourceLabel(diagnosticResult.source)}</span>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-6">
-            <Field label="Surface">
-              <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticSurface} onChange={(event) => setDiagnosticSurface(event.target.value as HeroSurface)}>
-                {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
-              </select>
-            </Field>
-            <Field label="Language">
-              <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticLanguage} onChange={(event) => setDiagnosticLanguage(event.target.value as HeroLanguage)}>
-                {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
-              </select>
-            </Field>
-            <Field label="Period">
-              <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticPeriod} onChange={(event) => setDiagnosticPeriod(event.target.value as HeroPeriod)}>
-                {PERIODS.map((period) => <option key={period} value={period}>{period}</option>)}
-              </select>
-            </Field>
-            <Field label="Safety">
-              <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticSafety} onChange={(event) => setDiagnosticSafety(event.target.value as HeroSafetyLevel)}>
-                {SAFETY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
-              </select>
-            </Field>
-            <Field label="Event">
-              <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticEventType} onChange={(event) => setDiagnosticEventType(event.target.value as (typeof EVENT_TYPES)[number])}>
-                {EVENT_TYPES.map((eventType) => <option key={eventType || "none"} value={eventType}>{eventType || "none"}</option>)}
-              </select>
-            </Field>
-            <Field label="Recent activity">
-              <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticActivity} onChange={(event) => setDiagnosticActivity(event.target.value as (typeof ACTIVITY_TYPES)[number])}>
-                {ACTIVITY_TYPES.map((activity) => <option key={activity || "none"} value={activity}>{activity || "none"}</option>)}
-              </select>
-            </Field>
-          </div>
-          <div className="mt-4 grid gap-3 rounded-xl bg-[#fffaf4] p-4 md:grid-cols-5" data-testid="hero-diagnostics-winner">
-            <div className="md:col-span-2">
-              <p className="text-sm text-[#8b7a73]">Active copy</p>
-              <p className="text-xl font-black">{diagnosticResult.headline}</p>
-              <p className="mt-1 text-sm text-[#7d6b65]">{diagnosticResult.messageId}</p>
+
+            <div className="mt-4 grid grid-cols-4 gap-2" data-testid="hero-overview-filters">
+              {OVERVIEW_FILTERS.map((item) => {
+                const active = overviewFilter === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setOverviewFilter(item.id)}
+                    className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                      active
+                        ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                        : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                    }`}
+                    data-testid={`button-hero-overview-filter-${item.id}`}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-black">{item.label}</span>
+                      <span className="text-xl font-black leading-none">{overviewCounts[item.id]}</span>
+                    </span>
+                    <span className={`mt-1 block text-xs font-bold ${active ? "text-purple-100" : "text-[#8b7a73]"}`}>{item.description}</span>
+                  </button>
+                );
+              })}
             </div>
-            <div><p className="text-sm text-[#8b7a73]">Reason</p><p className="font-black">{diagnosticResult.reason}</p></div>
-            <div><p className="text-sm text-[#8b7a73]">Language</p><p className="font-black">{diagnosticResult.language.toUpperCase()}</p></div>
-            <div><p className="text-sm text-[#8b7a73]">Fallback</p><p className="font-black">{diagnosticResult.fallbackReason ?? "No"}</p></div>
-          </div>
+
+            <p className="mt-3 text-sm font-bold text-[#7d6b65]" data-testid="hero-overview-filter-count">
+              Showing {filteredOverview.length} of {overview.length} surfaces.
+            </p>
+
+            <div className="mt-3 overflow-hidden rounded-xl border border-[#eadfd5]">
+              <div className="grid grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] gap-3 border-b border-[#eadfd5] bg-[#fbf8f5] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                <span>Surface and active copy</span>
+                <span>Source</span>
+                <span>Views / clicks</span>
+                <span>CTR</span>
+                <span>Status</span>
+              </div>
+              <div className="max-h-[460px] overflow-auto">
+                {filteredOverview.length === 0 ? (
+                  <div className="p-6 text-center text-sm font-bold text-[#7d6b65]">No hero surfaces match this filter.</div>
+                ) : filteredOverview.map((item) => (
+                  <article
+                    key={item.surface}
+                    className="grid grid-cols-[1fr_0.55fr_0.75fr_0.7fr_0.9fr] items-center gap-3 border-b border-[#f0e7df] px-4 py-3 last:border-b-0"
+                    data-testid={`card-hero-overview-${item.surface}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#7d6b65]">{item.surface}</p>
+                      <h3 className="mt-1 truncate text-base font-black" data-testid={`hero-active-${item.surface}`}>{item.result.headline}</h3>
+                      <p className="mt-1 truncate text-sm text-[#7d6b65]">{item.result.messageId} / {item.result.reason} / priority {item.priority}</p>
+                    </div>
+                    <div>
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${sourceClass(item.result.source)}`}>{sourceLabel(item.result.source)}</span>
+                    </div>
+                    <div className="text-sm">
+                      <p className="flex items-center gap-1 font-black">
+                        <span>{item.impressions}</span>
+                        <span className="text-[#8b7a73]">/</span>
+                        <span>{item.clicks}</span>
+                      </p>
+                      <p className="text-xs font-bold text-[#8b7a73]">views / clicks</p>
+                    </div>
+                    <div className="text-sm font-black">{item.ctr}</div>
+                    <div className="flex flex-wrap gap-1.5">{warningPills(item.warnings)}</div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-purple-700">Selection diagnostics</p>
+                <h2 className="mt-1 text-xl font-black">Simulated winner</h2>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-sm font-black ${sourceClass(diagnosticResult.source)}`}>{sourceLabel(diagnosticResult.source)}</span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <Field label="Surface">
+                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticSurface} onChange={(event) => setDiagnosticSurface(event.target.value as HeroSurface)}>
+                  {SURFACES.map((surface) => <option key={surface} value={surface}>{surface}</option>)}
+                </select>
+              </Field>
+              <Field label="Language">
+                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticLanguage} onChange={(event) => setDiagnosticLanguage(event.target.value as HeroLanguage)}>
+                  {LANGUAGES.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}
+                </select>
+              </Field>
+              <Field label="Period">
+                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticPeriod} onChange={(event) => setDiagnosticPeriod(event.target.value as HeroPeriod)}>
+                  {PERIODS.map((period) => <option key={period} value={period}>{period}</option>)}
+                </select>
+              </Field>
+              <Field label="Safety">
+                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticSafety} onChange={(event) => setDiagnosticSafety(event.target.value as HeroSafetyLevel)}>
+                  {SAFETY_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
+                </select>
+              </Field>
+              <Field label="Event">
+                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticEventType} onChange={(event) => setDiagnosticEventType(event.target.value as (typeof EVENT_TYPES)[number])}>
+                  {EVENT_TYPES.map((eventType) => <option key={eventType || "none"} value={eventType}>{eventType || "none"}</option>)}
+                </select>
+              </Field>
+              <Field label="Recent activity">
+                <select className="w-full rounded-xl border border-[#eadfd5] px-3 py-2" value={diagnosticActivity} onChange={(event) => setDiagnosticActivity(event.target.value as (typeof ACTIVITY_TYPES)[number])}>
+                  {ACTIVITY_TYPES.map((activity) => <option key={activity || "none"} value={activity}>{activity || "none"}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="mt-4 grid gap-3 rounded-xl bg-[#fffaf4] p-4" data-testid="hero-diagnostics-winner">
+              <div>
+                <p className="text-sm text-[#8b7a73]">Active copy</p>
+                <p className="text-xl font-black">{diagnosticResult.headline}</p>
+                <p className="mt-1 text-sm text-[#7d6b65]">{diagnosticResult.messageId}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <div><p className="text-[#8b7a73]">Reason</p><p className="font-black">{diagnosticResult.reason}</p></div>
+                <div><p className="text-[#8b7a73]">Language</p><p className="font-black">{diagnosticResult.language.toUpperCase()}</p></div>
+                <div><p className="text-[#8b7a73]">Fallback</p><p className="font-black">{diagnosticResult.fallbackReason ?? "No"}</p></div>
+              </div>
+            </div>
+          </section>
         </section>
       </section>
     </main>
