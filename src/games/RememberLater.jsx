@@ -37,6 +37,18 @@ const BRAND = {
 };
 
 const MAX_TIER = 10;
+const LEVEL_LOSS_ACCURACY_PCT = 30;
+const LEVEL_REQUIREMENTS = [
+  { maxTier: 1, combinedAccuracyPct: 60, matchingAccuracyPct: 50 },
+  { maxTier: 2, combinedAccuracyPct: 65, matchingAccuracyPct: 60 },
+  { maxTier: MAX_TIER, combinedAccuracyPct: 70, matchingAccuracyPct: 65 },
+];
+const ROUND_TUNING = [
+  { maxTier: 1, minIntervalMs: 2000, maxItems: 6, tailSeconds: 2 },
+  { maxTier: 2, minIntervalMs: 1750, maxItems: 8, tailSeconds: 2 },
+  { maxTier: 3, minIntervalMs: 1550, maxItems: 10, tailSeconds: 2 },
+  { maxTier: MAX_TIER, minIntervalMs: 0, maxItems: Infinity, tailSeconds: 0 },
+];
 const LOCAL_TUTORIAL_KEY = "rememberLater:tutorialSeen:v1";
 
 const COLOR_HEX = {
@@ -116,6 +128,43 @@ function localDayBounds(date = new Date()) {
   return { start, end };
 }
 
+function getTierProfile(profiles, tier) {
+  return profiles.find((profile) => tier <= profile.maxTier) ?? profiles[profiles.length - 1];
+}
+
+export function getRememberLaterLevelRequirements(tier = 1) {
+  return getTierProfile(LEVEL_REQUIREMENTS, clamp(Number(tier ?? 1), 1, MAX_TIER));
+}
+
+function getRememberLaterRoundTuning(tier = 1) {
+  return getTierProfile(ROUND_TUNING, clamp(Number(tier ?? 1), 1, MAX_TIER));
+}
+
+export function isRememberLaterCountedRound(result) {
+  if (!result || result.abandoned || result.pm_hits < 1) return false;
+  const requirements = getRememberLaterLevelRequirements(result.difficulty_tier);
+  return (
+    Number(result.combined_accuracy_pct ?? 0) >= requirements.combinedAccuracyPct
+    && Number(result.ongoing_accuracy_pct ?? 0) >= requirements.matchingAccuracyPct
+  );
+}
+
+function tuneFillerStreamForTier(fillerStream, intentions, tier) {
+  const tuning = getRememberLaterRoundTuning(tier);
+  if (!Number.isFinite(tuning.maxItems) || fillerStream.length <= tuning.maxItems) return fillerStream;
+
+  const lastRequiredCueIndex = intentions.reduce((lastIndex, intention) => {
+    if (intention?.type !== "event") return lastIndex;
+    return Math.max(lastIndex, Number(intention.cue_position_index ?? 0));
+  }, 0);
+  const targetCount = Math.min(
+    fillerStream.length,
+    Math.max(tuning.maxItems, lastRequiredCueIndex + 1),
+  );
+
+  return fillerStream.slice(0, targetCount);
+}
+
 export function getDefaultRememberLaterUserState(userId) {
   return {
     user_id: userId,
@@ -136,16 +185,24 @@ export function getDefaultRememberLaterUserState(userId) {
 export function normalizeRememberLaterRound(row) {
   const fillerStream = asArray(row?.filler_stream);
   const intentions = asArray(row?.intentions);
+  const difficultyTier = clamp(Number(row?.difficulty_tier ?? 1), 1, MAX_TIER);
+  const tuning = getRememberLaterRoundTuning(difficultyTier);
+  const tunedFillerStream = tuneFillerStreamForTier(fillerStream, intentions, difficultyTier);
+  const intervalMs = Math.max(Number(row?.filler_item_interval_ms ?? 1600), tuning.minIntervalMs);
+  const suppliedDurationSeconds = Number(row?.round_duration_seconds ?? 30);
+  const durationSeconds = tuning.tailSeconds > 0
+    ? Math.max(suppliedDurationSeconds, Math.ceil((tunedFillerStream.length * intervalMs) / 1000) + tuning.tailSeconds)
+    : suppliedDurationSeconds;
 
   return {
     ...row,
     round_type: row?.round_type ?? "event_based",
-    difficulty_tier: clamp(Number(row?.difficulty_tier ?? 1), 1, MAX_TIER),
-    round_duration_seconds: Number(row?.round_duration_seconds ?? 30),
+    difficulty_tier: difficultyTier,
+    round_duration_seconds: durationSeconds,
     ongoing_task_rule: row?.ongoing_task_rule ?? "shape_circle",
-    filler_stream: fillerStream,
-    filler_item_count: Number(row?.filler_item_count ?? fillerStream.length),
-    filler_item_interval_ms: Number(row?.filler_item_interval_ms ?? 1600),
+    filler_stream: tunedFillerStream,
+    filler_item_count: tunedFillerStream.length,
+    filler_item_interval_ms: intervalMs,
     intentions,
   };
 }
@@ -232,8 +289,8 @@ export function getNextRememberLaterStateAfterSession(previousState, result, now
   const previous = previousState ?? getDefaultRememberLaterUserState(result.user_id ?? "");
   const today = todayKey(now);
   const yesterday = todayKey(addDays(now, -1));
-  const isWin = result.combined_accuracy_pct >= 65 && result.pm_hits >= 1;
-  const isLoss = result.combined_accuracy_pct < 30;
+  const isWin = isRememberLaterCountedRound(result);
+  const isLoss = result.combined_accuracy_pct < LEVEL_LOSS_ACCURACY_PCT;
   let consecutiveWins = isWin ? Number(previous.consecutive_wins ?? 0) + 1 : 0;
   let consecutiveLosses = isLoss ? Number(previous.consecutive_losses ?? 0) + 1 : 0;
   let currentTier = clamp(Number(previous.current_tier ?? 1), 1, MAX_TIER);
@@ -287,6 +344,40 @@ function writeLocalTutorialSeen() {
 function CueIcon({ icon = "bell", size = 72, className = "" }) {
   const Icon = CUE_ICON_COMPONENTS[icon] ?? Bell;
   return <Icon aria-hidden="true" size={size} strokeWidth={2.5} className={className} />;
+}
+
+function readableKey(value) {
+  return String(value ?? "").replaceAll("_", " ");
+}
+
+function ruleLabel(rule, t) {
+  return t(`games.rememberLater.rules.${rule}`, readableKey(rule));
+}
+
+function shortRuleLabel(rule, t) {
+  return t(`games.rememberLater.shortRules.${rule}`, ruleLabel(rule, t));
+}
+
+function cueLabel(icon, t) {
+  return t(`games.rememberLater.cueLabels.${icon}`, readableKey(icon));
+}
+
+function sentenceCase(value) {
+  const text = String(value ?? "").trim();
+  return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : "";
+}
+
+function RuleVisual({ rule, size = 52 }) {
+  if (rule === "shape_square") return <Square size={size} strokeWidth={2.5} />;
+  if (rule === "shape_triangle") return <Triangle size={size} strokeWidth={2.5} />;
+  if (rule === "color_red" || rule === "color_blue" || rule === "color_yellow") {
+    const color = COLOR_HEX[rule.replace("color_", "")] ?? BRAND.purple;
+    return <Circle size={size} strokeWidth={2.5} fill={color} color={color} />;
+  }
+  if (rule === "number_even" || rule === "number_odd") {
+    return <span className="font-display text-[42px] leading-none">{rule === "number_even" ? "2" : "3"}</span>;
+  }
+  return <Circle size={size} strokeWidth={2.5} />;
 }
 
 function Stimulus({ item, cueIcon }) {
@@ -755,6 +846,56 @@ export default function RememberLater({ userId, onExit }) {
   const resultToneHit = (sessionResult?.pm_hits ?? 0) > 0;
   const nextTier = userState?.current_tier ?? normalizedRound?.difficulty_tier ?? 1;
   const progressWins = userState?.consecutive_wins ?? 0;
+  const ongoingRuleLabel = normalizedRound ? ruleLabel(normalizedRound.ongoing_task_rule, t) : "";
+  const ongoingRuleShortLabel = normalizedRound ? shortRuleLabel(normalizedRound.ongoing_task_rule, t) : "";
+  const matchButtonLabel = normalizedRound
+    ? t("games.rememberLater.matchButtonLabel", "Tap when you see {rule}", { rule: ongoingRuleLabel })
+    : t("games.rememberLater.tapButtonShort", "Tap when it matches");
+  const firstIntention = normalizedRound?.intentions[0] ?? null;
+  const firstCueLabel = cueLabel(firstCueIcon, t);
+  const firstCuePromptLabel = sentenceCase(firstCueLabel);
+  const matchActionLabel = normalizedRound
+    ? t("games.rememberLater.matchActionLabel", "Tap when you see {rule}", { rule: ongoingRuleLabel })
+    : t("games.rememberLater.matchActionFallback", "Target? Tap purple");
+  const waitActionLabel = normalizedRound
+    ? t("games.rememberLater.waitActionLabel", "No {rule}? Wait", { rule: ongoingRuleShortLabel })
+    : t("games.rememberLater.waitActionFallback", "No target? Wait");
+  const starActionLabel =
+    firstIntention?.type === "event"
+      ? t("games.rememberLater.starActionEvent", "{cue}? Tap gold star", { cue: firstCuePromptLabel })
+      : t("games.rememberLater.starActionTime", "Later? Tap gold star");
+  const starReminderText =
+    firstIntention?.type === "event"
+      ? t("games.rememberLater.starReminderEvent", "{cue}: tap gold star.", { cue: firstCueLabel })
+      : t("games.rememberLater.starReminderTime", "Later: tap gold star.");
+  const progressWinsNeeded = Math.max(0, 3 - progressWins);
+  const resultCountsForLevel = isRememberLaterCountedRound(sessionResult);
+  const promotedThisRound = Boolean(sessionResult && resultCountsForLevel && nextTier > sessionResult.difficulty_tier);
+  const resultVerdict = sessionResult
+    ? promotedThisRound
+      ? t("games.rememberLater.verdictLevelUp", "Level up")
+      : resultCountsForLevel
+        ? t("games.rememberLater.verdictCounted", "Good round")
+        : resultToneHit
+          ? t("games.rememberLater.verdictMemoryCredit", "Gold star remembered")
+          : t("games.rememberLater.verdictNotCounted", "Try again")
+    : "";
+  const resultWhy = sessionResult
+    ? resultCountsForLevel
+      ? t("games.rememberLater.resultWhyCounted", "You used both buttons at the right time.")
+      : resultToneHit
+        ? t("games.rememberLater.resultWhyMemoryCredit", "You got the gold star. Next time, tap purple for the target too.")
+        : t("games.rememberLater.resultWhyNeedsRecall", "To count: tap purple for the target and gold star for the reminder.")
+    : "";
+  const levelProgressNote = sessionResult
+    ? promotedThisRound
+      ? t("games.rememberLater.levelProgressPromoted", "Level up. You got 3 counted rounds, so your next round is Level {level}.", { level: nextTier })
+      : resultCountsForLevel
+        ? t("games.rememberLater.levelProgressCounted", "Good round. {count} more to move up.", { count: progressWinsNeeded })
+        : resultToneHit
+          ? t("games.rememberLater.levelProgressNeedsBackground", "You remembered the gold star. To count the round, also tap purple for the target.")
+          : t("games.rememberLater.levelProgressNeedsRecall", "To count the round, use both buttons: purple for the target and gold star for the reminder.")
+    : "";
 
   if (screen === "loading") {
     return (
@@ -769,7 +910,7 @@ export default function RememberLater({ userId, onExit }) {
 
   return (
     <main className="min-h-screen px-5 py-6" style={{ background: BRAND.bg, color: BRAND.ink }}>
-      <div className="mx-auto w-full max-w-[780px]">
+      <div className="mx-auto w-full max-w-[980px]">
         <header className="flex items-center justify-between gap-4">
           <img src={vyvaLogo} alt="VYVA" className="h-12 w-12 rounded-2xl" />
           <button
@@ -783,48 +924,91 @@ export default function RememberLater({ userId, onExit }) {
         </header>
 
         {screen === "intro" && normalizedRound ? (
-          <section className="mt-6 rounded-[28px] border bg-white p-6 text-center shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            {loadError ? <p className="mb-4 rounded-2xl bg-[#FFF7ED] px-4 py-3 text-[20px] font-bold text-[#92400E]">{loadError}</p> : null}
-            <div className="mx-auto flex h-[92px] w-[92px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
-              <Star size={50} fill="currentColor" />
-            </div>
-            <h1 className="mt-6 font-display text-[42px] leading-tight">{t("games.rememberLater.title", "Remember Later")}</h1>
-            <p className="mt-2 text-[24px] font-bold" style={{ color: BRAND.muted }}>
-              {t("games.rememberLater.subtitle", "We will give you something to remember. No hints.")}
-            </p>
-            <p className="mx-auto mt-5 inline-flex rounded-full px-5 py-3 text-[22px] font-black" style={{ background: "#FEF3C7", color: "#92400E" }}>
-              {t("common.level", "Level")} {normalizedRound.difficulty_tier}
-            </p>
+          <section className="mt-5 overflow-hidden rounded-[28px] border bg-white shadow-vyva-card" style={{ borderColor: BRAND.border }}>
+            {loadError ? <p className="m-5 rounded-2xl bg-[#FFF7ED] px-4 py-3 text-[20px] font-bold text-[#92400E]">{loadError}</p> : null}
+            <div className="grid gap-0 md:grid-cols-[1.08fr_0.92fr]">
+              <div className="p-5 text-left sm:p-6">
+                <p className="inline-flex rounded-full px-4 py-2 text-[17px] font-black sm:text-[18px]" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                  {t("common.level", "Level")} {normalizedRound.difficulty_tier}
+                </p>
+                <h1 className="mt-3 font-display text-[38px] leading-tight sm:text-[42px]">{t("games.rememberLater.title", "Remember Later")}</h1>
+                <p className="mt-2 max-w-[540px] text-[22px] font-extrabold leading-snug sm:text-[24px]" style={{ color: BRAND.muted }}>
+                  {t("games.rememberLater.subtitle", "Use two buttons during the round.")}
+                </p>
 
-            <div className="mt-6 grid gap-4 text-left">
-              {normalizedRound.intentions.map((intention, index) => (
-                <div key={`${intention.type}-${index}`} className="rounded-[24px] border p-5" style={{ borderColor: BRAND.border, background: "#FFFEFC" }}>
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-[80px] w-[80px] shrink-0 items-center justify-center rounded-[22px]" style={{ background: "#FFF7ED", color: "#B45309" }}>
-                      {intention.type === "event" ? <CueIcon icon={intention.cue_icon} size={48} /> : <Star size={46} fill="currentColor" />}
+                <div className="mt-5 grid gap-3">
+                  <div className="rounded-[24px] border p-3 sm:p-4" style={{ borderColor: BRAND.border, background: BRAND.softPurple }}>
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-[20px] bg-white sm:h-[76px] sm:w-[76px] sm:rounded-[22px]" style={{ color: BRAND.purple }}>
+                        <RuleVisual rule={normalizedRound.ongoing_task_rule} size={48} />
+                      </div>
+                      <div>
+                        <p className="text-[16px] font-black uppercase tracking-[0.04em] sm:text-[18px]" style={{ color: BRAND.muted }}>
+                          {t("games.rememberLater.matchButtonHeading", "Purple button")}
+                        </p>
+                        <p className="mt-1 text-[23px] font-black leading-tight sm:text-[26px]">{matchActionLabel}</p>
+                        <p className="text-[17px] font-extrabold sm:text-[19px]" style={{ color: BRAND.muted }}>{waitActionLabel}</p>
+                      </div>
                     </div>
-                    <p className="text-[24px] font-extrabold leading-snug">
-                      {intention.type === "event"
-                        ? t("games.rememberLater.intentionEvent", "Remember: when you see the cue icon, tap the gold star.")
-                        : t("games.rememberLater.intentionTime", "Remember: after a while, tap the gold star. We will not remind you.")}
+                  </div>
+
+                  <div className="rounded-[24px] border p-3 sm:p-4" style={{ borderColor: "#FDE68A", background: "#FFF7ED" }}>
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-[20px] bg-white sm:h-[76px] sm:w-[76px] sm:rounded-[22px]" style={{ color: "#B45309" }}>
+                        {firstIntention?.type === "event" ? <CueIcon icon={firstIntention.cue_icon} size={48} /> : <Star size={48} fill="currentColor" />}
+                      </div>
+                      <div>
+                        <p className="text-[16px] font-black uppercase tracking-[0.04em] sm:text-[18px]" style={{ color: BRAND.muted }}>
+                          {t("games.rememberLater.starButtonHeading", "Gold star")}
+                        </p>
+                        <p className="mt-1 text-[23px] font-black leading-tight sm:text-[26px]">{starActionLabel}</p>
+                        <p className="text-[17px] font-extrabold sm:text-[19px]" style={{ color: BRAND.muted }}>
+                          {t("games.rememberLater.keepInMind", "No reminder during the round.")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t p-5 sm:p-6 md:border-l md:border-t-0" style={{ borderColor: BRAND.border, background: "#FFFEFC" }}>
+                <div className="flex h-full min-h-[320px] flex-col justify-between rounded-[26px] border p-5" style={{ borderColor: BRAND.border, background: "#FFFFFF" }}>
+                  <div>
+                    <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>
+                      {t("games.rememberLater.roundGoalHeading", "Round goal")}
+                    </p>
+                    <p className="mt-2 text-[24px] font-black leading-snug">
+                      {t("games.rememberLater.countedRoundIntro", "3 good rounds = next level.")}
+                    </p>
+                  </div>
+
+                  <div className="my-5 grid grid-cols-3 items-center gap-3">
+                    <div className="flex min-h-[98px] items-center justify-center rounded-[24px]" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+                      <RuleVisual rule={normalizedRound.ongoing_task_rule} size={54} />
+                    </div>
+                    <div className="text-center text-[34px] font-black" style={{ color: BRAND.muted }}>+</div>
+                    <div className="flex min-h-[98px] items-center justify-center rounded-[24px]" style={{ background: "#FFF7ED", color: BRAND.gold }}>
+                      <Star size={54} fill="currentColor" />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <button
+                      type="button"
+                      onClick={beginAfterIntro}
+                      className="inline-flex min-h-[78px] w-full items-center justify-center gap-3 rounded-full px-6 text-[26px] font-black text-white shadow-vyva-card"
+                      style={{ background: BRAND.purple }}
+                    >
+                      <Play size={30} fill="currentColor" />
+                      {t("games.rememberLater.startRound", "Start round")}
+                    </button>
+                    <p className="text-center text-[18px] font-extrabold leading-snug" style={{ color: BRAND.muted }}>
+                      {t("games.rememberLater.noReminder", "Remember both rules after you start.")}
                     </p>
                   </div>
                 </div>
-              ))}
+              </div>
             </div>
-
-            <button
-              type="button"
-              onClick={beginAfterIntro}
-              className="mt-7 inline-flex min-h-[76px] w-full items-center justify-center gap-3 rounded-full px-6 text-[26px] font-black text-white shadow-vyva-card"
-              style={{ background: BRAND.purple }}
-            >
-              <Play size={30} fill="currentColor" />
-              {t("common.start", "Start")}
-            </button>
-            <p className="mt-4 text-[20px] font-bold" style={{ color: BRAND.muted }}>
-              {t("games.rememberLater.noReminder", "We will not remind you again during the game.")}
-            </p>
           </section>
         ) : null}
 
@@ -837,7 +1021,7 @@ export default function RememberLater({ userId, onExit }) {
               </button>
             </div>
             <p className="mt-5 text-[24px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-              {t("games.rememberLater.tutorialBody", "While you play, watch the shapes. If you see the cue icon, tap the star. This example is the only time we guide you.")}
+              {t("games.rememberLater.tutorialBody", "Tap when you see {rule}. {cue}: tap gold star. Anything else: wait. This is the only example.", { rule: ongoingRuleLabel || "a circle", cue: firstCueLabel })}
             </p>
             <div className="mt-6 grid grid-cols-4 gap-3">
               {[Circle, Square, Bell, Triangle].map((Icon, index) => (
@@ -859,51 +1043,68 @@ export default function RememberLater({ userId, onExit }) {
         ) : null}
 
         {screen === "playing" && normalizedRound ? (
-          <section className="relative mt-6 rounded-[28px] border bg-white p-5 shadow-vyva-card" style={{ borderColor: BRAND.border }}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h1 className="font-display text-[34px] leading-tight">{t("games.rememberLater.title", "Remember Later")}</h1>
-                <p className="mt-2 text-[22px] font-extrabold" style={{ color: BRAND.teal }}>
-                  {t("games.rememberLater.ongoingRule", "Tap if it matches: {rule}", {
-                    rule: t(`games.rememberLater.rules.${normalizedRound.ongoing_task_rule}`, normalizedRound.ongoing_task_rule.replaceAll("_", " ")),
-                  })}
-                </p>
+          <section className="relative mt-5 rounded-[28px] border bg-white p-5 shadow-vyva-card sm:p-6" style={{ borderColor: BRAND.border }}>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h1 className="font-display text-[34px] leading-tight">{t("games.rememberLater.title", "Remember Later")}</h1>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[18px] font-black" style={{ background: BRAND.softPurple, color: BRAND.purple }}>
+                      <RuleVisual rule={normalizedRound.ongoing_task_rule} size={24} />
+                      {matchActionLabel}
+                    </span>
+                    <span className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-[18px] font-black" style={{ background: "#FFF7ED", color: "#B45309" }}>
+                      <Star size={24} fill="currentColor" />
+                      {starActionLabel}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={handleIntentionTap}
-                aria-label={t("games.rememberLater.intentionButton", "Gold star")}
-                className="sticky top-5 flex h-[86px] w-[86px] shrink-0 items-center justify-center rounded-[26px] text-white shadow-vyva-card"
-                style={{ background: BRAND.gold }}
-              >
-                <Star size={46} fill="currentColor" />
-              </button>
-            </div>
 
-            {normalizedRound.round_type === "event_based" ? (
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#EDE9FE]">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.min(100, ((currentIndex + 1) / normalizedRound.filler_stream.length) * 100)}%`,
-                    background: BRAND.purple,
-                  }}
-                />
+              {normalizedRound.round_type === "event_based" ? (
+                <div className="h-3 overflow-hidden rounded-full bg-[#EDE9FE]">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.min(100, ((currentIndex + 1) / normalizedRound.filler_stream.length) * 100)}%`,
+                      background: BRAND.purple,
+                    }}
+                  />
+                </div>
+              ) : null}
+
+              <div className="flex min-h-[280px] flex-col items-center justify-center rounded-[26px] border bg-[#FFFEFC] sm:min-h-[320px]" style={{ borderColor: BRAND.border }}>
+                <Stimulus item={currentItem} cueIcon={firstCueIcon} />
               </div>
-            ) : null}
 
-            <div className="mt-9 flex min-h-[250px] flex-col items-center justify-center rounded-[26px] border bg-[#FFFEFC]" style={{ borderColor: BRAND.border }}>
-              <Stimulus item={currentItem} cueIcon={firstCueIcon} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={handleOngoingTap}
+                  aria-label={matchButtonLabel}
+                  className="min-h-[88px] rounded-[26px] px-5 text-left text-white shadow-vyva-card active:scale-[0.99]"
+                  style={{ background: BRAND.purple }}
+                >
+                  <span className="block text-[26px] font-black leading-tight">{matchActionLabel}</span>
+                  <span className="mt-1 block text-[17px] font-extrabold opacity-90">{waitActionLabel}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleIntentionTap}
+                  aria-label={t("games.rememberLater.intentionButton", "Gold star")}
+                  className="min-h-[88px] rounded-[26px] px-5 text-left text-white shadow-vyva-card active:scale-[0.99]"
+                  style={{ background: BRAND.gold }}
+                >
+                  <span className="flex items-center gap-3 text-[26px] font-black leading-tight">
+                    <Star size={30} fill="currentColor" />
+                    {starActionLabel}
+                  </span>
+                  <span className="mt-1 block text-[17px] font-extrabold opacity-90">
+                    {t("games.rememberLater.starButtonHint", "Use only for the reminder.")}
+                  </span>
+                </button>
+              </div>
             </div>
-
-            <button
-              type="button"
-              onClick={handleOngoingTap}
-              className="mt-6 min-h-[76px] w-full rounded-full px-6 text-[26px] font-black text-white shadow-vyva-card active:scale-[0.99]"
-              style={{ background: BRAND.purple }}
-            >
-              {t("common.tap", "Tap")}
-            </button>
           </section>
         ) : null}
 
@@ -917,10 +1118,20 @@ export default function RememberLater({ userId, onExit }) {
                 ? t("games.rememberLater.resultHit", "You remembered without anyone reminding you.")
                 : t("games.rememberLater.resultMiss", "You did not remember this time, and that is okay. Let us keep practicing.")}
             </h1>
+            <div
+              className="mt-4 rounded-[22px] px-4 py-3 text-left"
+              style={{
+                background: resultCountsForLevel ? BRAND.tealPale : resultToneHit ? "#FEF3C7" : BRAND.softPurple,
+                color: resultCountsForLevel ? BRAND.teal : resultToneHit ? "#92400E" : BRAND.purple,
+              }}
+            >
+              <p className="text-[20px] font-black uppercase tracking-[0.04em]">{resultVerdict}</p>
+              <p className="mt-1 text-[20px] font-extrabold leading-snug">{resultWhy}</p>
+            </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3 text-left">
               <div className="rounded-[22px] p-4" style={{ background: BRAND.softPurple }}>
-                <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>{t("games.rememberLater.backgroundTask", "Background task")}</p>
+                <p className="text-[18px] font-black uppercase tracking-[0.04em]" style={{ color: BRAND.muted }}>{t("games.rememberLater.matchingTask", "Matching task")}</p>
                 <p className="mt-2 text-[34px] font-black">{Math.round(sessionResult.ongoing_accuracy_pct)}%</p>
               </div>
               <div className="rounded-[22px] p-4" style={{ background: BRAND.tealPale }}>
@@ -947,6 +1158,15 @@ export default function RememberLater({ userId, onExit }) {
               </div>
               <p className="mt-2 text-[18px] font-bold" style={{ color: BRAND.muted }}>
                 {t("games.rememberLater.currentLevel", "Current level")}: {nextTier}
+              </p>
+              <p
+                className="mt-3 rounded-2xl px-4 py-3 text-[18px] font-extrabold leading-snug"
+                style={{
+                  background: resultCountsForLevel ? BRAND.tealPale : "#FFF7ED",
+                  color: resultCountsForLevel ? BRAND.teal : "#92400E",
+                }}
+              >
+                {levelProgressNote}
               </p>
             </div>
 
