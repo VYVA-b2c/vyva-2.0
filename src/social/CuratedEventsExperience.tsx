@@ -5,12 +5,13 @@ import {
   CalendarCheck,
   CheckCircle2,
   Clock3,
+  HeartHandshake,
+  Languages,
   MapPin,
   Monitor,
   ShieldCheck,
   Sparkles,
   ThumbsDown,
-  UsersRound,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -18,6 +19,7 @@ import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import type {
   ParticipationEvent,
+  ParticipationEventFormat,
   ParticipationEventRecommendation,
   ParticipationEventResponseAction,
   ParticipationPulse,
@@ -67,7 +69,7 @@ const copyByLanguage: Record<SocialLanguage, {
   maybeSaved: string;
   notForMeSaved: string;
   checkRequested: string;
-  profileReason: (items: string) => string;
+  profileSignalTitle: string;
   secondaryTitle: string;
   nearbyTitle: string;
   onlineTitle: string;
@@ -77,22 +79,6 @@ const copyByLanguage: Record<SocialLanguage, {
   hybrid: string;
   dateTbc: string;
   confirmFirst: string;
-  timingDetail: string;
-  timingToConfirm: string;
-  frequencyDetail: string;
-  oneOffTaster: string;
-  recurringOption: string;
-  oneGentleSession: string;
-  whereDetail: string;
-  costDetail: string;
-  comfortIncluded: string;
-  seatedOption: string;
-  noPaymentNow: string;
-  costChecked: string;
-  vyvaChecksAccess: string;
-  detailsApproved: string;
-  socialProofTitle: string;
-  socialGoing: (names: string[]) => string;
   responseCounts: (interested: number, maybe: number) => string;
 }> = {
   es: {
@@ -108,39 +94,23 @@ const copyByLanguage: Record<SocialLanguage, {
     savedTitle: "Guardado",
     savedEmpty: "Tus opciones guardadas apareceran aqui.",
     interested: "Me interesa",
-    maybe: "Quizas luego",
+    maybe: "Quizas",
     notForMe: "No es para mi",
-    askVyva: "Comprobar detalles",
+    askVyva: "Comprobar",
     interestedSaved: "Interes guardado",
     maybeSaved: "Guardado para luego",
     notForMeSaved: "No se mostrara primero",
     checkRequested: "Comprobacion pedida",
-    profileReason: (items) => `Porque encaja con ${items}.`,
+    profileSignalTitle: "Basado en",
     secondaryTitle: "Mas",
     nearbyTitle: "Cerca",
-    onlineTitle: "Online",
+    onlineTitle: "Opciones online",
     savedFilterTitle: "Guardado",
     emptyFilter: "No hay opciones aqui todavia.",
     inPerson: "En persona",
     hybrid: "Ambos",
     dateTbc: "Fecha por confirmar",
     confirmFirst: "Tu confirmas primero",
-    timingDetail: "Cuando",
-    timingToConfirm: "Horario por confirmar",
-    frequencyDetail: "Cada cuanto",
-    oneOffTaster: "Sesion de prueba",
-    recurringOption: "Opcion recurrente",
-    oneGentleSession: "Una sesion tranquila",
-    whereDetail: "Lugar",
-    costDetail: "Coste",
-    comfortIncluded: "Comodidad incluida",
-    seatedOption: "Con asiento",
-    noPaymentNow: "Sin pago ahora",
-    costChecked: "Coste comprobado",
-    vyvaChecksAccess: "VYVA revisa acceso",
-    detailsApproved: "Detalles aprobados",
-    socialProofTitle: "Caras conocidas",
-    socialGoing: (names) => `${names[0]}, ${names[1]} y ${names[2]} tambien van`,
     responseCounts: (interested, maybe) => `${interested} interesados - ${maybe} quizas`,
   },
   de: {
@@ -156,14 +126,14 @@ const copyByLanguage: Record<SocialLanguage, {
     savedTitle: "Gespeichert",
     savedEmpty: "Gespeicherte Optionen erscheinen hier.",
     interested: "Interesse",
-    maybe: "Vielleicht spaeter",
-    notForMe: "Nicht fuer mich",
-    askVyva: "Details pruefen",
+    maybe: "Vielleicht",
+    notForMe: "Nein danke",
+    askVyva: "Pruefen",
     interestedSaved: "Interesse gespeichert",
     maybeSaved: "Fuer spaeter gespeichert",
     notForMeSaved: "Wird nicht zuerst gezeigt",
     checkRequested: "Pruefung angefragt",
-    profileReason: (items) => `Passt zu ${items}.`,
+    profileSignalTitle: "Basierend auf",
     secondaryTitle: "Mehr",
     nearbyTitle: "In der Naehe",
     onlineTitle: "Online",
@@ -173,22 +143,6 @@ const copyByLanguage: Record<SocialLanguage, {
     hybrid: "Beides",
     dateTbc: "Datum offen",
     confirmFirst: "Du bestaetigst zuerst",
-    timingDetail: "Wann",
-    timingToConfirm: "Zeit wird geprueft",
-    frequencyDetail: "Wie oft",
-    oneOffTaster: "Einmalige Probe",
-    recurringOption: "Wiederkehrende Option",
-    oneGentleSession: "Eine ruhige Einheit",
-    whereDetail: "Ort",
-    costDetail: "Kosten",
-    comfortIncluded: "Komfort dabei",
-    seatedOption: "Sitzplatz",
-    noPaymentNow: "Keine Zahlung jetzt",
-    costChecked: "Kosten geprueft",
-    vyvaChecksAccess: "VYVA prueft Zugang",
-    detailsApproved: "Details geprueft",
-    socialProofTitle: "Bekannte Gesichter",
-    socialGoing: (names) => `${names[0]}, ${names[1]} und ${names[2]} gehen auch hin`,
     responseCounts: (interested, maybe) => `${interested} interessiert - ${maybe} vielleicht`,
   },
   en: {
@@ -203,15 +157,15 @@ const copyByLanguage: Record<SocialLanguage, {
     saved: "Saved",
     savedTitle: "Saved",
     savedEmpty: "Saved options will appear here.",
-    interested: "I'm interested",
-    maybe: "Maybe later",
-    notForMe: "Not for me",
-    askVyva: "Check details",
+    interested: "Interested",
+    maybe: "Maybe",
+    notForMe: "No thanks",
+    askVyva: "Check",
     interestedSaved: "Interest saved",
     maybeSaved: "Saved for later",
     notForMeSaved: "This will not be shown first",
     checkRequested: "Check requested",
-    profileReason: (items) => `Because you like ${items}.`,
+    profileSignalTitle: "Based on",
     secondaryTitle: "More",
     nearbyTitle: "Nearby",
     onlineTitle: "Online",
@@ -221,29 +175,11 @@ const copyByLanguage: Record<SocialLanguage, {
     hybrid: "Both",
     dateTbc: "Date TBC",
     confirmFirst: "You confirm first",
-    timingDetail: "When",
-    timingToConfirm: "Timing to confirm",
-    frequencyDetail: "How often",
-    oneOffTaster: "One-off taster",
-    recurringOption: "Recurring option",
-    oneGentleSession: "One gentle session",
-    whereDetail: "Where",
-    costDetail: "Cost",
-    comfortIncluded: "Comfort included",
-    seatedOption: "Seated option",
-    noPaymentNow: "No payment now",
-    costChecked: "Cost checked",
-    vyvaChecksAccess: "VYVA checks access",
-    detailsApproved: "Details approved",
-    socialProofTitle: "Friendly faces",
-    socialGoing: (names) => `${names[0]} from Music Room, ${names[1]} and ${names[2]} are going too`,
     responseCounts: (interested, maybe) => `${interested} interested - ${maybe} maybe`,
   },
 };
 
-const SOCIAL_GOING_NAMES = ["Martha", "Layla", "Ali"] as const;
-
-type ParticipateCopy = (typeof copyByLanguage)[SocialLanguage];
+type CuratedActivitiesCopy = (typeof copyByLanguage)[SocialLanguage];
 
 function uniqueEvents<T extends ParticipationEvent>(events: T[]): T[] {
   const seen = new Set<string>();
@@ -280,7 +216,7 @@ function updateEventChoice(
   };
 }
 
-function responseLabel(event: ParticipationEvent, copy: ParticipateCopy) {
+function responseLabel(event: ParticipationEvent, copy: CuratedActivitiesCopy) {
   if (event.myResponse === "interested") return copy.interestedSaved;
   if (event.myResponse === "maybe") return copy.maybeSaved;
   if (event.myResponse === "not_for_me") return copy.notForMeSaved;
@@ -288,8 +224,14 @@ function responseLabel(event: ParticipationEvent, copy: ParticipateCopy) {
   return "";
 }
 
-function eventDateLabel(event: ParticipationEvent, copy: ParticipateCopy, language: SocialLanguage) {
-  if (!event.startsAt) return copy.dateTbc;
+function eventFormatLabel(format: ParticipationEventFormat, copy: CuratedActivitiesCopy) {
+  if (format === "online") return copy.online;
+  if (format === "hybrid") return copy.hybrid;
+  return copy.inPerson;
+}
+
+function eventDateLabel(event: ParticipationEvent, copy: CuratedActivitiesCopy, language: SocialLanguage) {
+  if (!event.startsAt) return event.timeLabel || copy.dateTbc;
 
   const date = new Date(event.startsAt);
   if (Number.isNaN(date.getTime())) return copy.dateTbc;
@@ -303,138 +245,52 @@ function eventDateLabel(event: ParticipationEvent, copy: ParticipateCopy, langua
   }).format(date);
 }
 
-function eventTimingFact(event: ParticipationEvent, copy: ParticipateCopy, language: SocialLanguage) {
-  const dateLabel = eventDateLabel(event, copy, language);
-
-  if (!event.startsAt) {
-    return {
-      label: event.timeLabel || copy.timingToConfirm,
-      detail: copy.timingDetail,
-    };
-  }
-
-  return {
-    label: dateLabel,
-    detail: event.timeLabel && event.timeLabel !== dateLabel ? event.timeLabel : copy.timingDetail,
-  };
+function SignalChip({ icon: Icon, label }: { icon: typeof Sparkles; label: string }) {
+  return (
+    <span className="inline-flex min-h-[34px] items-center gap-2 rounded-full border border-[#DDE8DD] bg-white px-3 font-body text-[12px] font-black text-[#2F4A44] shadow-sm">
+      <Icon size={15} strokeWidth={2.4} className="text-[#0F766E]" />
+      <span className="max-w-[14rem] truncate">{label}</span>
+    </span>
+  );
 }
 
-function eventFrequencyLabel(event: ParticipationEvent, copy: ParticipateCopy) {
-  const text = `${event.title} ${event.summary} ${event.timeLabel} ${event.tags.join(" ")}`.toLowerCase();
-
-  if (text.includes("taster")) return copy.oneOffTaster;
-  if (
-    text.includes("weekly")
-    || text.includes("every ")
-    || text.includes("each ")
-    || text.includes("cada ")
-    || text.includes("seman")
-    || text.includes("woch")
-  ) {
-    return copy.recurringOption;
-  }
-
-  return copy.oneGentleSession;
-}
-
-function readableList(items: string[], language: SocialLanguage) {
-  try {
-    return new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(items);
-  } catch {
-    if (items.length <= 2) return items.join(" and ");
-    return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-  }
-}
-
-function profileReasonLine(pulse: ParticipationPulse, copy: ParticipateCopy, language: SocialLanguage) {
-  const items = [
-    ...pulse.profileSignals.interests.slice(0, 2),
-    pulse.profileSignals.preferredTimes[0] ? `${pulse.profileSignals.preferredTimes[0]} plans` : "",
-  ].filter(Boolean);
-
-  if (items.length === 0) return pulse.reassurance;
-  return copy.profileReason(readableList(items, language));
-}
-
-function confidenceItems(event: ParticipationEvent, copy: ParticipateCopy) {
-  const hasSeating = event.accessibilityTags.some((tag) => tag.toLowerCase().includes("seat"));
-  const costLooksOpen = /free|gratis|kostenlos/i.test(event.costLabel);
-
-  return [
-    hasSeating ? copy.seatedOption : copy.comfortIncluded,
-    costLooksOpen ? copy.noPaymentNow : copy.costChecked,
-    event.needsLiveCheck ? copy.vyvaChecksAccess : copy.detailsApproved,
-  ];
-}
-
-function EventFact({
+function EventMetaItem({
   icon: Icon,
   label,
-  detail,
 }: {
   icon: typeof Sparkles;
   label: string;
-  detail?: string;
 }) {
   return (
-    <span className="flex min-h-[54px] items-center gap-2 rounded-[16px] border border-[#E5DED3] bg-[#FFFCF8] px-3">
-      <Icon size={17} strokeWidth={2.4} className="shrink-0 text-[#0F766E]" />
-      <span className="min-w-0">
-        <span className="block truncate font-body text-[13px] font-black leading-tight text-vyva-text-1">{label}</span>
-        {detail ? (
-          <span className="mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-vyva-text-3">
-            {detail}
-          </span>
-        ) : null}
+    <span className="inline-flex min-w-0 items-center gap-2 font-body text-[14px] font-black leading-tight text-[#31453F]">
+      <Icon size={16} strokeWidth={2.4} className="shrink-0 text-[#0F766E]" />
+      <span className="truncate">
+        {label}
       </span>
     </span>
   );
 }
 
-function ConfidenceStrip({ event, copy }: { event: ParticipationEvent; copy: ParticipateCopy }) {
-  return (
-    <div className="mt-3 flex flex-wrap gap-2" data-testid={`event-confidence-${event.id}`}>
-      {confidenceItems(event, copy).map((item) => (
-        <span
-          key={`${event.id}-${item}`}
-          className="inline-flex min-h-[30px] items-center gap-1.5 rounded-full border border-[#DDEBDD] bg-[#F8FCF8] px-3 font-body text-[12px] font-black text-[#31534A]"
-        >
-          <CheckCircle2 size={14} strokeWidth={2.5} className="text-[#0F766E]" aria-hidden="true" />
-          {item}
-        </span>
-      ))}
-    </div>
-  );
-}
+function FitReasonLine({ reasons }: { reasons: ParticipationFitReason[] }) {
+  const seen = new Set<string>();
+  const highlights = reasons
+    .filter((reason) => reason.kind !== "safety")
+    .filter((reason) => {
+      const key = reason.label.trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 2);
 
-function SocialProofStrip({ event, copy }: { event: ParticipationEvent; copy: ParticipateCopy }) {
-  const names = [...SOCIAL_GOING_NAMES];
+  if (highlights.length === 0) return null;
 
   return (
-    <div
-      className="mt-3 flex flex-col gap-2 rounded-[18px] border border-[#CDE9D8] bg-[#F4FFF9] px-3 py-2.5 sm:flex-row sm:items-center"
-      data-testid={`event-social-proof-${event.id}`}
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 font-body text-[11px] font-black uppercase tracking-[0.08em] text-[#0F766E] shadow-sm">
-          <UsersRound size={14} strokeWidth={2.5} aria-hidden="true" />
-          {copy.socialProofTitle}
-        </span>
-        <span className="flex -space-x-2" aria-hidden="true">
-          {names.map((name, index) => (
-            <span
-              key={`${event.id}-${name}`}
-              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white font-body text-[12px] font-black text-white shadow-sm"
-              style={{ background: ["#0F766E", "#7C3AED", "#C9890A"][index] }}
-            >
-              {name.slice(0, 1)}
-            </span>
-          ))}
-        </span>
-      </div>
-      <span className="min-w-0 flex-1 font-body text-[13px] font-black leading-snug text-[#27463F] sm:pl-1">
-        {copy.socialGoing(names)}
-      </span>
+    <div className="mt-4 flex items-start gap-2 rounded-[14px] bg-[#F5FAF7] px-3 py-2.5">
+      <Sparkles size={16} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#0F766E]" />
+      <p className="font-body text-[13px] font-bold leading-snug text-[#3F5750]">
+        {highlights.map((reason) => reason.label).join(" · ")}
+      </p>
     </div>
   );
 }
@@ -449,15 +305,14 @@ function EventActionButton({
 }: {
   children: ReactNode;
   onClick: () => void;
-  tone: "primary" | "green" | "blue" | "plain" | "rose";
+  tone: "green" | "blue" | "plain" | "rose";
   active?: boolean;
   disabled?: boolean;
   className?: string;
 }) {
   const tones = {
-    primary: "border-[#047857] bg-[#047857] text-white shadow-[0_12px_24px_rgba(4,120,87,0.2)]",
-    green: active ? "border-[#047857] bg-[#047857] text-white" : "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]",
-    blue: active ? "border-[#2563EB] bg-[#2563EB] text-white" : "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]",
+    green: active ? "border-[#035F46] bg-[#035F46] text-white" : "border-[#047857] bg-[#047857] text-white",
+    blue: active ? "border-[#2563EB] bg-[#2563EB] text-white" : "border-[#E5DED3] bg-white text-vyva-text-1",
     rose: active ? "border-[#BE123C] bg-[#BE123C] text-white" : "border-[#FECDD3] bg-[#FFF1F2] text-[#BE123C]",
     plain: "border-[#E5DED3] bg-white text-vyva-text-1",
   }[tone];
@@ -467,41 +322,7 @@ function EventActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`vyva-tap flex min-h-[46px] items-center justify-center rounded-[16px] border px-3 font-body text-[14px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones} ${className}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function EventTextAction({
-  children,
-  onClick,
-  active,
-  disabled,
-  tone = "plain",
-}: {
-  children: ReactNode;
-  onClick: () => void;
-  active?: boolean;
-  disabled?: boolean;
-  tone?: "plain" | "rose";
-}) {
-  const activeClass = tone === "rose"
-    ? "bg-[#FFF1F2] text-[#BE123C]"
-    : "bg-[#F5F3FF] text-[#6B21A8]";
-  const inactiveClass = tone === "rose"
-    ? "text-[#9F1239] hover:bg-[#FFF1F2]"
-    : "text-[#4B5563] hover:bg-[#F8FAFC]";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`vyva-tap inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full px-3 font-body text-[13px] font-black transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${
-        active ? activeClass : inactiveClass
-      }`}
+      className={`vyva-tap flex min-h-[44px] items-center justify-center rounded-full border px-4 font-body text-[14px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones} ${className}`}
     >
       {children}
     </button>
@@ -519,7 +340,7 @@ function EventPanel({
   pending = false,
 }: {
   event: ParticipationEventRecommendation | ParticipationEvent;
-  copy: ParticipateCopy;
+  copy: CuratedActivitiesCopy;
   language: SocialLanguage;
   testIdPrefix: string;
   featured?: boolean;
@@ -528,16 +349,13 @@ function EventPanel({
   pending?: boolean;
 }) {
   const statusLabel = responseLabel(event, copy);
-  const timingFact = eventTimingFact(event, copy, language);
-  const frequencyLabel = eventFrequencyLabel(event, copy);
-  const placeIcon = event.format === "online" ? Monitor : event.format === "hybrid" ? Sparkles : MapPin;
-  const visibleFitReasons = event.fitReasons
-    .filter((reason) => !reason.label.toLowerCase().includes("online"))
-    .slice(0, 2);
+  const dateLabel = eventDateLabel(event, copy, language);
+  const placeLabel = event.locationLabel || eventFormatLabel(event.format, copy);
+  const safetyReason = event.fitReasons.find((reason) => reason.kind === "safety")?.label;
 
   return (
     <article
-      className={`rounded-[22px] border bg-white p-4 shadow-[0_10px_26px_rgba(52,42,30,0.07)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
+      className={`rounded-[20px] border bg-white p-5 shadow-[0_10px_26px_rgba(52,42,30,0.06)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
       data-testid={featured ? `${testIdPrefix}-featured-event` : `${testIdPrefix}-event-${event.id}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -559,69 +377,64 @@ function EventPanel({
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <EventFact icon={Clock3} label={timingFact.label} detail={timingFact.detail} />
-        <EventFact icon={CalendarCheck} label={frequencyLabel} detail={copy.frequencyDetail} />
-        <EventFact icon={placeIcon} label={event.locationLabel} detail={copy.whereDetail} />
-        <EventFact icon={ShieldCheck} label={event.costLabel} detail={copy.costDetail} />
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-[#EFE6DC] py-3">
+        <EventMetaItem icon={Clock3} label={dateLabel} />
+        <EventMetaItem icon={event.format === "online" ? Monitor : event.format === "hybrid" ? Sparkles : MapPin} label={placeLabel} />
+        <EventMetaItem icon={ShieldCheck} label={event.costLabel} />
       </div>
 
-      <SocialProofStrip event={event} copy={copy} />
-      <ConfidenceStrip event={event} copy={copy} />
+      <FitReasonLine reasons={event.fitReasons} />
 
-      {visibleFitReasons.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {visibleFitReasons.map((reason) => (
-            <span
-              key={`${event.id}-${reason.id}-${reason.label}`}
-              className="rounded-full bg-[#F8FAF8] px-3 py-1.5 font-body text-[12px] font-bold text-[#50635E]"
-            >
-              {reason.label}
-            </span>
-          ))}
-        </div>
+      {event.needsLiveCheck || safetyReason ? (
+        <p className="mt-3 inline-flex items-center gap-2 font-body text-[12px] font-black text-[#7A5B1B]">
+          <ShieldCheck size={15} strokeWidth={2.4} className="shrink-0" />
+          {safetyReason ?? copy.confirmFirst}
+        </p>
       ) : null}
 
-      <div className="mt-4 flex flex-col gap-2 lg:flex-row lg:items-center">
-        <EventActionButton
-          tone="primary"
-          active={event.myResponse === "interested"}
-          disabled={pending}
-          className="lg:min-w-[190px] lg:flex-none"
-          onClick={() => onRespond(event.id, event.myResponse === "interested" ? "clear" : "interested")}
-        >
-          <CheckCircle2 size={18} className="mr-2" />
-          {copy.interested}
-        </EventActionButton>
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="sm:w-[15rem]">
+          <EventActionButton
+            tone="green"
+            active={event.myResponse === "interested"}
+            disabled={pending}
+            className="w-full min-h-[50px]"
+            onClick={() => onRespond(event.id, event.myResponse === "interested" ? "clear" : "interested")}
+          >
+            <CheckCircle2 size={18} className="mr-2" />
+            {copy.interested}
+          </EventActionButton>
+        </div>
         <EventActionButton
           tone="plain"
           disabled={pending}
-          className="lg:min-w-[170px] lg:flex-none"
           onClick={() => onAskVyva(event.id)}
         >
           <Sparkles size={18} className="mr-2 text-[#6B21A8]" />
           {copy.askVyva}
         </EventActionButton>
-        <div className="flex flex-wrap gap-2">
-          <EventTextAction
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          <EventActionButton
+            tone="blue"
             active={event.myResponse === "maybe"}
             disabled={pending}
             onClick={() => onRespond(event.id, event.myResponse === "maybe" ? "clear" : "maybe")}
           >
-            <CalendarCheck size={16} />
+            <CalendarCheck size={17} className="mr-2" />
             {copy.maybe}
-          </EventTextAction>
-          <EventTextAction
+          </EventActionButton>
+          <EventActionButton
             tone="rose"
             active={event.myResponse === "not_for_me"}
             disabled={pending}
             onClick={() => onRespond(event.id, event.myResponse === "not_for_me" ? "clear" : "not_for_me")}
           >
-            <ThumbsDown size={15} />
+            <ThumbsDown size={16} className="mr-2" />
             {copy.notForMe}
-          </EventTextAction>
+          </EventActionButton>
         </div>
       </div>
+
     </article>
   );
 }
@@ -663,7 +476,7 @@ function FilterButton({
 }
 
 export default function CuratedEventsExperience({
-  variant = "participate",
+  variant = "activities",
   afterEvents,
 }: CuratedEventsExperienceProps) {
   const navigate = useNavigate();
@@ -763,6 +576,10 @@ export default function CuratedEventsExperience({
     );
   }
 
+  const signalChips = [
+    ...pulse.profileSignals.interests.slice(0, 2).map((interest) => ({ icon: HeartHandshake, label: interest })),
+    { icon: Languages, label: pulse.profileSignals.languageLabel },
+  ];
   const pending = respondMutation.isPending || askVyvaMutation.isPending;
   const filteredTitle = activeFilter === "nearby"
     ? copy.nearbyTitle
@@ -785,24 +602,34 @@ export default function CuratedEventsExperience({
         </button>
       ) : null}
 
-      <section className="px-1 py-1">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="font-display text-[26px] font-semibold leading-[0.98] text-[#223B35] sm:text-[28px]">
+      <section className="rounded-[24px] border border-[#D6E7DC] bg-[#F7FBF8] p-4 shadow-[0_10px_26px_rgba(47,79,65,0.07)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="font-display text-[34px] font-semibold leading-[1.02] text-[#223B35]">
               {copy.activitiesHeadline}
             </h1>
-            <p className="mt-1 hidden max-w-[42rem] font-body text-[13px] font-bold leading-snug text-[#526B63] sm:block sm:text-[14px]">
-              {profileReasonLine(pulse, copy, language)}
+            <p className="mt-2 max-w-[32rem] font-body text-[15px] font-semibold leading-snug text-[#526B63]">
+              {pulse.reassurance}
             </p>
           </div>
-          <div className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-full border border-[#CDE9D8] bg-white px-2.5 shadow-sm">
-            <ShieldCheck size={14} className="shrink-0 text-[#0F766E]" />
-            <p className="whitespace-nowrap font-body text-[11px] font-black leading-tight text-[#0F766E] sm:text-[12px]">
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#CDE9D8] bg-white px-3 py-2">
+            <ShieldCheck size={16} className="shrink-0 text-[#0F766E]" />
+            <p className="font-body text-[13px] font-black leading-tight text-[#0F766E]">
               {copy.confirmFirst}
             </p>
           </div>
         </div>
 
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+            {copy.profileSignalTitle}
+          </p>
+          <div className="flex flex-wrap gap-2" data-testid={`${testIdPrefix}-profile-signals`}>
+            {signalChips.map((chip, index) => (
+              <SignalChip key={`${chip.label}-${index}`} icon={chip.icon} label={chip.label} />
+            ))}
+          </div>
+        </div>
       </section>
 
       {pulse.emptyProfileNudge ? (
@@ -819,7 +646,7 @@ export default function CuratedEventsExperience({
         </section>
       ) : null}
 
-      <div className="mt-3">
+      <div className="mt-5">
         <EventPanel
           event={pulse.featuredEvent}
           copy={copy}
