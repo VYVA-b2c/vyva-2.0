@@ -1,4 +1,6 @@
-const CACHE_VERSION = "vyva-pwa-v1";
+const serviceWorkerUrl = new URL(self.location.href);
+const BUILD_TOKEN = serviceWorkerUrl.searchParams.get("v") || "v1";
+const CACHE_VERSION = `vyva-pwa-${BUILD_TOKEN}`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 const PRECACHE_URLS = [
@@ -18,6 +20,12 @@ self.addEventListener("install", (event) => {
       .then((cache) => cache.addAll(PRECACHE_URLS))
       .then(() => self.skipWaiting())
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    event.waitUntil(self.skipWaiting());
+  }
 });
 
 self.addEventListener("activate", (event) => {
@@ -51,6 +59,21 @@ async function cacheFirst(request) {
   return response;
 }
 
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    throw new Error("Network request failed and no cache entry was available.");
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -63,6 +86,10 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isCacheableStaticRequest(request, url)) {
-    event.respondWith(cacheFirst(request));
+    event.respondWith(
+      ["script", "style"].includes(request.destination)
+        ? networkFirst(request)
+        : cacheFirst(request)
+    );
   }
 });
