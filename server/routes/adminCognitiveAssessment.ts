@@ -9,6 +9,7 @@ import {
   type BulkUploadInsertTable,
   type BulkUploadLanguage,
 } from "../../shared/contentBulkUpload.js";
+import { loadCognitiveAssessmentReadiness } from "../lib/cognitiveAssessmentReadiness.js";
 
 const bulkUploadBodySchema = z.object({
   contentType: z.enum([
@@ -114,6 +115,17 @@ async function insertBulkUploadRows(table: BulkUploadInsertTable, rows: BulkUplo
 }
 
 const adminCognitiveAssessmentRouter = Router();
+
+adminCognitiveAssessmentRouter.get("/readiness", async (_req: Request, res: Response) => {
+  try {
+    return res.json(await loadCognitiveAssessmentReadiness());
+  } catch (error) {
+    console.error("[admin] Cognitive assessment readiness failed:", error);
+    return res.status(500).json({
+      error: "Cognitive Assessment readiness could not be checked. Confirm the Cognitive Compass migrations are applied.",
+    });
+  }
+});
 
 adminCognitiveAssessmentRouter.post("/bulk-upload", async (req: Request, res: Response) => {
   const parsed = bulkUploadBodySchema.safeParse(req.body);
