@@ -169,13 +169,16 @@ describe("RememberLater component", () => {
     render(<RememberLater userId="user-1" onExit={vi.fn()} />);
 
     expect(await screen.findByRole("heading", { name: "Remember Later" })).toBeInTheDocument();
+    expect(screen.getAllByText(/Tap when you see a circle/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/bell: tap gold star/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(screen.getByText(/only time we guide you/i)).toBeInTheDocument();
+    expect(screen.getByText(/only example/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-    expect(await screen.findByRole("button", { name: "Tap" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
+    expect(screen.getByText(/No circle\? Wait/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tap when you see a circle" }));
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 40));
     });
@@ -183,7 +186,7 @@ describe("RememberLater component", () => {
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 40));
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tap when you see a circle" }));
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 1050));
     });

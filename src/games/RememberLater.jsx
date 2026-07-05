@@ -289,6 +289,22 @@ function CueIcon({ icon = "bell", size = 72, className = "" }) {
   return <Icon aria-hidden="true" size={size} strokeWidth={2.5} className={className} />;
 }
 
+function readableKey(value) {
+  return String(value ?? "").replaceAll("_", " ");
+}
+
+function ruleLabel(rule, t) {
+  return t(`games.rememberLater.rules.${rule}`, readableKey(rule));
+}
+
+function shortRuleLabel(rule, t) {
+  return t(`games.rememberLater.shortRules.${rule}`, ruleLabel(rule, t));
+}
+
+function cueLabel(icon, t) {
+  return t(`games.rememberLater.cueLabels.${icon}`, readableKey(icon));
+}
+
 function Stimulus({ item, cueIcon }) {
   if (!item) return null;
   if (item.cue) {
@@ -755,6 +771,17 @@ export default function RememberLater({ userId, onExit }) {
   const resultToneHit = (sessionResult?.pm_hits ?? 0) > 0;
   const nextTier = userState?.current_tier ?? normalizedRound?.difficulty_tier ?? 1;
   const progressWins = userState?.consecutive_wins ?? 0;
+  const ongoingRuleLabel = normalizedRound ? ruleLabel(normalizedRound.ongoing_task_rule, t) : "";
+  const ongoingRuleShortLabel = normalizedRound ? shortRuleLabel(normalizedRound.ongoing_task_rule, t) : "";
+  const matchButtonLabel = normalizedRound
+    ? t("games.rememberLater.matchButtonLabel", "Tap when you see {rule}", { rule: ongoingRuleLabel })
+    : t("games.rememberLater.tapButtonShort", "Tap when it matches");
+  const firstIntention = normalizedRound?.intentions[0] ?? null;
+  const firstCueLabel = cueLabel(firstCueIcon, t);
+  const starReminderText =
+    firstIntention?.type === "event"
+      ? t("games.rememberLater.starReminderEvent", "{cue}: tap gold star.", { cue: firstCueLabel })
+      : t("games.rememberLater.starReminderTime", "Later: tap gold star.");
 
   if (screen === "loading") {
     return (
@@ -790,13 +817,23 @@ export default function RememberLater({ userId, onExit }) {
             </div>
             <h1 className="mt-6 font-display text-[42px] leading-tight">{t("games.rememberLater.title", "Remember Later")}</h1>
             <p className="mt-2 text-[24px] font-bold" style={{ color: BRAND.muted }}>
-              {t("games.rememberLater.subtitle", "We will give you something to remember. No hints.")}
+              {t("games.rememberLater.subtitle", "Read the two rules first, then press Start.")}
             </p>
             <p className="mx-auto mt-5 inline-flex rounded-full px-5 py-3 text-[22px] font-black" style={{ background: "#FEF3C7", color: "#92400E" }}>
               {t("common.level", "Level")} {normalizedRound.difficulty_tier}
             </p>
 
             <div className="mt-6 grid gap-4 text-left">
+              <div className="rounded-[24px] border p-5" style={{ borderColor: BRAND.border, background: "#FFFEFC" }}>
+                <div className="flex items-center gap-4">
+                  <div className="flex min-h-[80px] w-[160px] shrink-0 items-center justify-center rounded-[22px] px-4 text-center text-[18px] font-black leading-tight text-white" style={{ background: BRAND.purple }}>
+                    {matchButtonLabel}
+                  </div>
+                  <p className="text-[24px] font-extrabold leading-snug">
+                    {t("games.rememberLater.shapeRuleIntro", "Tap when you see {rule}. Anything else: wait.", { rule: ongoingRuleLabel })}
+                  </p>
+                </div>
+              </div>
               {normalizedRound.intentions.map((intention, index) => (
                 <div key={`${intention.type}-${index}`} className="rounded-[24px] border p-5" style={{ borderColor: BRAND.border, background: "#FFFEFC" }}>
                   <div className="flex items-center gap-4">
@@ -805,8 +842,8 @@ export default function RememberLater({ userId, onExit }) {
                     </div>
                     <p className="text-[24px] font-extrabold leading-snug">
                       {intention.type === "event"
-                        ? t("games.rememberLater.intentionEvent", "Remember: when you see the cue icon, tap the gold star.")
-                        : t("games.rememberLater.intentionTime", "Remember: after a while, tap the gold star. We will not remind you.")}
+                        ? t("games.rememberLater.intentionEvent", "{cue}: tap gold star.", { cue: cueLabel(intention.cue_icon, t) })
+                        : t("games.rememberLater.intentionTime", "Later: tap gold star. No reminder.")}
                     </p>
                   </div>
                 </div>
@@ -823,7 +860,7 @@ export default function RememberLater({ userId, onExit }) {
               {t("common.start", "Start")}
             </button>
             <p className="mt-4 text-[20px] font-bold" style={{ color: BRAND.muted }}>
-              {t("games.rememberLater.noReminder", "We will not remind you again during the game.")}
+              {t("games.rememberLater.noReminder", "Remember both rules after you start.")}
             </p>
           </section>
         ) : null}
@@ -837,7 +874,7 @@ export default function RememberLater({ userId, onExit }) {
               </button>
             </div>
             <p className="mt-5 text-[24px] font-bold leading-snug" style={{ color: BRAND.muted }}>
-              {t("games.rememberLater.tutorialBody", "While you play, watch the shapes. If you see the cue icon, tap the star. This example is the only time we guide you.")}
+              {t("games.rememberLater.tutorialBody", "Tap when you see {rule}. {cue}: tap gold star. Anything else: wait. This is the only example.", { rule: ongoingRuleLabel || "a circle", cue: firstCueLabel })}
             </p>
             <div className="mt-6 grid grid-cols-4 gap-3">
               {[Circle, Square, Bell, Triangle].map((Icon, index) => (
@@ -864,9 +901,10 @@ export default function RememberLater({ userId, onExit }) {
               <div>
                 <h1 className="font-display text-[34px] leading-tight">{t("games.rememberLater.title", "Remember Later")}</h1>
                 <p className="mt-2 text-[22px] font-extrabold" style={{ color: BRAND.teal }}>
-                  {t("games.rememberLater.ongoingRule", "Tap if it matches: {rule}", {
-                    rule: t(`games.rememberLater.rules.${normalizedRound.ongoing_task_rule}`, normalizedRound.ongoing_task_rule.replaceAll("_", " ")),
-                  })}
+                  {t("games.rememberLater.ongoingRule", "Tap when you see {rule}. Anything else: wait.", { rule: ongoingRuleLabel })}
+                </p>
+                <p className="mt-1 text-[18px] font-bold" style={{ color: BRAND.muted }}>
+                  {starReminderText}
                 </p>
               </div>
               <button
@@ -902,8 +940,11 @@ export default function RememberLater({ userId, onExit }) {
               className="mt-6 min-h-[76px] w-full rounded-full px-6 text-[26px] font-black text-white shadow-vyva-card active:scale-[0.99]"
               style={{ background: BRAND.purple }}
             >
-              {t("common.tap", "Tap")}
+              {matchButtonLabel}
             </button>
+            <p className="mt-4 text-center text-[20px] font-extrabold" style={{ color: BRAND.muted }}>
+              {t("games.rememberLater.noMatchInstruction", "No {rule}? Wait.", { rule: ongoingRuleShortLabel })}
+            </p>
           </section>
         ) : null}
 
