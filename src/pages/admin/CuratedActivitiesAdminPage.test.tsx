@@ -279,6 +279,32 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(body.venueHints).toEqual(expect.arrayContaining(["libraries", "cultural centres", "neighbourhood parks"]));
   });
 
+  it("supports expanded country and city presets for AI discovery", async () => {
+    renderPage([discoveryCandidate]);
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    await openAdminLane("ai");
+    fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "Portugal" } });
+    expect(screen.getByTestId("admin-discovery-province-lisbon-district")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-discovery-province-lisbon-district"));
+    fireEvent.click(screen.getByTestId("admin-discovery-city-option-lisbon"));
+    fireEvent.click(screen.getByTestId("admin-discovery-find"));
+
+    await waitFor(() => {
+      const discoverCall = apiFetchMock.mock.calls.find(([path, init]) => (
+        path === "/api/admin/social/participate/discover" && init?.method === "POST"
+      ));
+      expect(discoverCall).toBeTruthy();
+      const body = JSON.parse(String(discoverCall?.[1]?.body));
+      expect(body).toMatchObject({
+        city: "Lisbon",
+        countryCode: "PT",
+        locality: "Campo de Ourique, Chiado",
+        postalCode: "1200",
+      });
+    });
+  });
+
   it("keeps published, draft, and AI discovery work in separate lanes", async () => {
     renderPage();
 

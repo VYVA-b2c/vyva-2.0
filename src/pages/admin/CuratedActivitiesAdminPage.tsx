@@ -244,6 +244,73 @@ const DISCOVERY_LOCATION_PRESETS: readonly DiscoveryCountryPreset[] = [
           },
         ],
       },
+      {
+        province: "Andalucia",
+        cities: [
+          {
+            city: "Sevilla",
+            defaultLocality: "Centro, Triana",
+            defaultAnchor: "41001",
+            localities: ["Centro", "Triana", "Nervion", "Los Remedios", "Macarena"],
+            anchors: ["41001", "41010", "Biblioteca Publica", "Centro civico", "Parque de Maria Luisa"],
+          },
+          {
+            city: "Granada",
+            defaultLocality: "Centro, Realejo",
+            defaultAnchor: "18009",
+            localities: ["Centro", "Realejo", "Albaicin", "Zaidin"],
+            anchors: ["18009", "18005", "Biblioteca Publica", "Centro civico", "Parque Garcia Lorca"],
+          },
+        ],
+      },
+      {
+        province: "Alicante",
+        cities: [
+          {
+            city: "Alicante",
+            defaultLocality: "Centro, Ensanche",
+            defaultAnchor: "03001",
+            localities: ["Centro", "Ensanche", "Benalua", "San Blas", "Playa de San Juan"],
+            anchors: ["03001", "03003", "Biblioteca Publica", "Centro municipal", "Casa de Cultura"],
+          },
+        ],
+      },
+      {
+        province: "Basque Country",
+        cities: [
+          {
+            city: "Bilbao",
+            defaultLocality: "Abando, Casco Viejo",
+            defaultAnchor: "48001",
+            localities: ["Abando", "Casco Viejo", "Deusto", "Indautxu", "Santutxu"],
+            anchors: ["48001", "48009", "Biblioteca municipal", "Centro civico", "Azkuna Zentroa"],
+          },
+        ],
+      },
+      {
+        province: "Aragon",
+        cities: [
+          {
+            city: "Zaragoza",
+            defaultLocality: "Centro, Delicias",
+            defaultAnchor: "50004",
+            localities: ["Centro", "Delicias", "Actur", "Universidad", "Casco Historico"],
+            anchors: ["50004", "50009", "Biblioteca publica", "Centro civico", "Parque Grande"],
+          },
+        ],
+      },
+      {
+        province: "Balearic Islands",
+        cities: [
+          {
+            city: "Palma",
+            defaultLocality: "Centro, Santa Catalina",
+            defaultAnchor: "07001",
+            localities: ["Centro", "Santa Catalina", "El Terreno", "Son Espanyolet"],
+            anchors: ["07001", "07013", "Biblioteca municipal", "Casal de barrio", "Parc de la Mar"],
+          },
+        ],
+      },
     ],
   },
   {
@@ -286,6 +353,61 @@ const DISCOVERY_LOCATION_PRESETS: readonly DiscoveryCountryPreset[] = [
           },
         ],
       },
+      {
+        province: "Scotland",
+        cities: [
+          {
+            city: "Edinburgh",
+            defaultLocality: "New Town, Leith",
+            defaultAnchor: "EH1",
+            localities: ["New Town", "Leith", "Morningside", "Stockbridge", "Portobello"],
+            anchors: ["EH1", "EH6", "Central Library", "Community centre", "Public library"],
+          },
+          {
+            city: "Glasgow",
+            defaultLocality: "West End, City centre",
+            defaultAnchor: "G12",
+            localities: ["West End", "City centre", "Southside", "Partick", "Dennistoun"],
+            anchors: ["G12", "G1", "Mitchell Library", "Community centre", "Public library"],
+          },
+        ],
+      },
+      {
+        province: "South West England",
+        cities: [
+          {
+            city: "Bristol",
+            defaultLocality: "Clifton, Redland",
+            defaultAnchor: "BS8",
+            localities: ["Clifton", "Redland", "Bedminster", "Stokes Croft", "Easton"],
+            anchors: ["BS8", "BS1", "Central Library", "Community centre", "Local library"],
+          },
+        ],
+      },
+      {
+        province: "Yorkshire",
+        cities: [
+          {
+            city: "Leeds",
+            defaultLocality: "Headingley, Chapel Allerton",
+            defaultAnchor: "LS6",
+            localities: ["Headingley", "Chapel Allerton", "City centre", "Roundhay", "Horsforth"],
+            anchors: ["LS6", "LS7", "Central Library", "Community hub", "Local library"],
+          },
+        ],
+      },
+      {
+        province: "North West England",
+        cities: [
+          {
+            city: "Liverpool",
+            defaultLocality: "City centre, Aigburth",
+            defaultAnchor: "L1",
+            localities: ["City centre", "Aigburth", "Allerton", "Wavertree", "Waterloo"],
+            anchors: ["L1", "L17", "Central Library", "Community centre", "Public library"],
+          },
+        ],
+      },
     ],
   },
   {
@@ -316,6 +438,54 @@ const DISCOVERY_LOCATION_PRESETS: readonly DiscoveryCountryPreset[] = [
           },
         ],
       },
+      {
+        province: "Auvergne-Rhone-Alpes",
+        cities: [
+          {
+            city: "Lyon",
+            defaultLocality: "Presqu'ile, Croix-Rousse",
+            defaultAnchor: "69001",
+            localities: ["Presqu'ile", "Croix-Rousse", "Vieux Lyon", "Part-Dieu", "Monplaisir"],
+            anchors: ["69001", "69004", "Bibliotheque municipale", "Maison des associations", "Centre social"],
+          },
+        ],
+      },
+      {
+        province: "Nouvelle-Aquitaine",
+        cities: [
+          {
+            city: "Bordeaux",
+            defaultLocality: "Chartrons, Saint-Pierre",
+            defaultAnchor: "33000",
+            localities: ["Chartrons", "Saint-Pierre", "Bastide", "Cauderan", "Nansouty"],
+            anchors: ["33000", "33100", "Bibliotheque municipale", "Maison de quartier", "Jardin public"],
+          },
+        ],
+      },
+      {
+        province: "Occitanie",
+        cities: [
+          {
+            city: "Toulouse",
+            defaultLocality: "Capitole, Saint-Cyprien",
+            defaultAnchor: "31000",
+            localities: ["Capitole", "Saint-Cyprien", "Carmes", "Minimes", "Jolimont"],
+            anchors: ["31000", "31300", "Bibliotheque municipale", "Maison de quartier", "Jardin public"],
+          },
+        ],
+      },
+      {
+        province: "Hauts-de-France",
+        cities: [
+          {
+            city: "Lille",
+            defaultLocality: "Vieux-Lille, Wazemmes",
+            defaultAnchor: "59000",
+            localities: ["Vieux-Lille", "Wazemmes", "Vauban", "Fives", "Moulins"],
+            anchors: ["59000", "59800", "Mediatheque", "Maison de quartier", "Centre social"],
+          },
+        ],
+      },
     ],
   },
   {
@@ -343,6 +513,267 @@ const DISCOVERY_LOCATION_PRESETS: readonly DiscoveryCountryPreset[] = [
             defaultAnchor: "80799",
             localities: ["Maxvorstadt", "Schwabing", "Sendling", "Haidhausen"],
             anchors: ["80799", "80802", "Muenchner Stadtbibliothek"],
+          },
+        ],
+      },
+      {
+        province: "Hamburg",
+        cities: [
+          {
+            city: "Hamburg",
+            defaultLocality: "Eimsbuettel, Altona",
+            defaultAnchor: "20253",
+            localities: ["Eimsbuettel", "Altona", "St. Pauli", "Winterhude", "Ottensen"],
+            anchors: ["20253", "22765", "Stadtbibliothek", "Kulturzentrum", "Community centre"],
+          },
+        ],
+      },
+      {
+        province: "North Rhine-Westphalia",
+        cities: [
+          {
+            city: "Cologne",
+            defaultLocality: "Innenstadt, Ehrenfeld",
+            defaultAnchor: "50667",
+            localities: ["Innenstadt", "Ehrenfeld", "Nippes", "Lindenthal", "Deutz"],
+            anchors: ["50667", "50823", "Stadtbibliothek", "Buergerzentrum", "Kulturzentrum"],
+          },
+          {
+            city: "Dusseldorf",
+            defaultLocality: "Pempelfort, Bilk",
+            defaultAnchor: "40213",
+            localities: ["Pempelfort", "Bilk", "Oberkassel", "Flingern", "Altstadt"],
+            anchors: ["40213", "40215", "Stadtbibliothek", "Zentrum plus", "Kulturzentrum"],
+          },
+        ],
+      },
+      {
+        province: "Hesse",
+        cities: [
+          {
+            city: "Frankfurt",
+            defaultLocality: "Bornheim, Westend",
+            defaultAnchor: "60318",
+            localities: ["Bornheim", "Westend", "Sachsenhausen", "Nordend", "Bockenheim"],
+            anchors: ["60318", "60325", "Stadtbuecherei", "Nachbarschaftszentrum", "Kulturzentrum"],
+          },
+        ],
+      },
+      {
+        province: "Baden-Wuerttemberg",
+        cities: [
+          {
+            city: "Stuttgart",
+            defaultLocality: "Mitte, West",
+            defaultAnchor: "70173",
+            localities: ["Mitte", "West", "Bad Cannstatt", "Degerloch", "Sued"],
+            anchors: ["70173", "70197", "Stadtbibliothek", "Begegnungsstaette", "Kulturzentrum"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "PT",
+    countryName: "Portugal",
+    provinces: [
+      {
+        province: "Lisbon District",
+        cities: [
+          {
+            city: "Lisbon",
+            defaultLocality: "Campo de Ourique, Chiado",
+            defaultAnchor: "1200",
+            localities: ["Campo de Ourique", "Chiado", "Alvalade", "Estrela", "Areeiro"],
+            anchors: ["1200", "1700", "Biblioteca municipal", "Centro cultural", "Jardim da Estrela"],
+          },
+          {
+            city: "Cascais",
+            defaultLocality: "Centro, Estoril",
+            defaultAnchor: "2750",
+            localities: ["Centro", "Estoril", "Carcavelos", "Parede"],
+            anchors: ["2750", "2765", "Biblioteca municipal", "Centro cultural", "Parque Marechal Carmona"],
+          },
+        ],
+      },
+      {
+        province: "Porto District",
+        cities: [
+          {
+            city: "Porto",
+            defaultLocality: "Cedofeita, Foz",
+            defaultAnchor: "4050",
+            localities: ["Cedofeita", "Foz", "Boavista", "Ribeira", "Bonfim"],
+            anchors: ["4050", "4150", "Biblioteca municipal", "Casa da Cultura", "Jardim do Palacio"],
+          },
+        ],
+      },
+      {
+        province: "Algarve",
+        cities: [
+          {
+            city: "Faro",
+            defaultLocality: "Centro, Montenegro",
+            defaultAnchor: "8000",
+            localities: ["Centro", "Montenegro", "Penha", "Gambelas"],
+            anchors: ["8000", "8005", "Biblioteca municipal", "Centro cultural", "Jardim Manuel Bivar"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "IT",
+    countryName: "Italy",
+    provinces: [
+      {
+        province: "Lazio",
+        cities: [
+          {
+            city: "Rome",
+            defaultLocality: "Prati, Trastevere",
+            defaultAnchor: "00192",
+            localities: ["Prati", "Trastevere", "Monti", "Testaccio", "Parioli"],
+            anchors: ["00192", "00153", "Biblioteca comunale", "Centro culturale", "Villa Borghese"],
+          },
+        ],
+      },
+      {
+        province: "Lombardy",
+        cities: [
+          {
+            city: "Milan",
+            defaultLocality: "Brera, Porta Venezia",
+            defaultAnchor: "20121",
+            localities: ["Brera", "Porta Venezia", "Isola", "Navigli", "Porta Romana"],
+            anchors: ["20121", "20129", "Biblioteca comunale", "Centro culturale", "Giardini Indro Montanelli"],
+          },
+        ],
+      },
+      {
+        province: "Tuscany",
+        cities: [
+          {
+            city: "Florence",
+            defaultLocality: "Centro, Santo Spirito",
+            defaultAnchor: "50123",
+            localities: ["Centro", "Santo Spirito", "San Niccolo", "Rifredi", "Campo di Marte"],
+            anchors: ["50123", "50125", "Biblioteca comunale", "Centro anziani", "Giardino pubblico"],
+          },
+        ],
+      },
+      {
+        province: "Piedmont",
+        cities: [
+          {
+            city: "Turin",
+            defaultLocality: "Centro, San Salvario",
+            defaultAnchor: "10121",
+            localities: ["Centro", "San Salvario", "Crocetta", "Vanchiglia", "Cit Turin"],
+            anchors: ["10121", "10125", "Biblioteca civica", "Centro d'incontro", "Parco del Valentino"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "US",
+    countryName: "United States",
+    provinces: [
+      {
+        province: "New York",
+        cities: [
+          {
+            city: "New York",
+            defaultLocality: "Upper West Side, Chelsea",
+            defaultAnchor: "10024",
+            localities: ["Upper West Side", "Chelsea", "Brooklyn Heights", "Astoria", "Park Slope"],
+            anchors: ["10024", "10011", "Public library", "Senior center", "Community center"],
+          },
+        ],
+      },
+      {
+        province: "Florida",
+        cities: [
+          {
+            city: "Miami",
+            defaultLocality: "Coral Gables, Coconut Grove",
+            defaultAnchor: "33134",
+            localities: ["Coral Gables", "Coconut Grove", "Brickell", "Little Havana", "Aventura"],
+            anchors: ["33134", "33133", "Public library", "Community center", "Senior center"],
+          },
+        ],
+      },
+      {
+        province: "Massachusetts",
+        cities: [
+          {
+            city: "Boston",
+            defaultLocality: "Back Bay, Brookline",
+            defaultAnchor: "02116",
+            localities: ["Back Bay", "Brookline", "Cambridge", "South End", "Jamaica Plain"],
+            anchors: ["02116", "02446", "Public library", "Community center", "Senior center"],
+          },
+        ],
+      },
+      {
+        province: "California",
+        cities: [
+          {
+            city: "Los Angeles",
+            defaultLocality: "Santa Monica, Westwood",
+            defaultAnchor: "90401",
+            localities: ["Santa Monica", "Westwood", "Pasadena", "Culver City", "Silver Lake"],
+            anchors: ["90401", "90024", "Public library", "Community center", "Senior center"],
+          },
+          {
+            city: "San Francisco",
+            defaultLocality: "Noe Valley, Richmond",
+            defaultAnchor: "94114",
+            localities: ["Noe Valley", "Richmond", "Marina", "Mission", "Sunset"],
+            anchors: ["94114", "94118", "Public library", "Community center", "Senior center"],
+          },
+        ],
+      },
+      {
+        province: "Illinois",
+        cities: [
+          {
+            city: "Chicago",
+            defaultLocality: "Lincoln Park, Lakeview",
+            defaultAnchor: "60614",
+            localities: ["Lincoln Park", "Lakeview", "Hyde Park", "Andersonville", "Logan Square"],
+            anchors: ["60614", "60657", "Public library", "Community center", "Senior center"],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    countryCode: "AE",
+    countryName: "United Arab Emirates",
+    provinces: [
+      {
+        province: "Dubai",
+        cities: [
+          {
+            city: "Dubai",
+            defaultLocality: "Jumeirah, Dubai Marina",
+            defaultAnchor: "Jumeirah",
+            localities: ["Jumeirah", "Dubai Marina", "Downtown Dubai", "Mirdif", "Al Barsha"],
+            anchors: ["Jumeirah", "Dubai Marina", "Public library", "Community centre", "Cultural centre"],
+          },
+        ],
+      },
+      {
+        province: "Abu Dhabi",
+        cities: [
+          {
+            city: "Abu Dhabi",
+            defaultLocality: "Corniche, Al Bateen",
+            defaultAnchor: "Corniche",
+            localities: ["Corniche", "Al Bateen", "Al Khalidiyah", "Saadiyat", "Al Reem"],
+            anchors: ["Corniche", "Al Bateen", "Public library", "Community centre", "Cultural centre"],
           },
         ],
       },
