@@ -1,5 +1,6 @@
 import type {
   CognitiveAssessmentDomainTrend,
+  CognitiveAssessmentDomainTrendSeries,
   CognitiveAssessmentTaskSignal,
   CognitiveAssessmentTrendPoint,
 } from "../../shared/cognitiveAssessmentReport.js";
@@ -22,6 +23,7 @@ export type CognitiveTrendResponseRow = {
 export type CognitiveAssessmentTrendPayload = {
   trendPoints: CognitiveAssessmentTrendPoint[];
   domainTrends: CognitiveAssessmentDomainTrend[];
+  domainTrendSeries: CognitiveAssessmentDomainTrendSeries[];
   taskSignals: CognitiveAssessmentTaskSignal[];
 };
 
@@ -288,7 +290,8 @@ export function buildCognitiveAssessmentTrendPayload(
   totalSteps: number,
 ): CognitiveAssessmentTrendPayload {
   const chronologicalSessions = [...sessions].sort(compareDates);
-  const trendPoints = chronologicalSessions.slice(-6).map((session): CognitiveAssessmentTrendPoint => {
+  const recentSessions = chronologicalSessions.slice(-6);
+  const trendPoints = recentSessions.map((session): CognitiveAssessmentTrendPoint => {
     const responses = responsesBySession.get(session.id) ?? [];
     const completedSteps = countCompletedSteps(session, responses);
     return {
@@ -319,10 +322,24 @@ export function buildCognitiveAssessmentTrendPayload(
     };
   });
 
+  const domainTrendSeries = TREND_DOMAINS.map((trendDomain): CognitiveAssessmentDomainTrendSeries => ({
+    domainId: trendDomain.id,
+    label: trendDomain.label,
+    points: recentSessions.map((session) => {
+      const aggregate = aggregateDomain(responsesBySession.get(session.id) ?? [], trendDomain);
+      return {
+        sessionId: session.id,
+        completedAt: iso(session.completed_at),
+        rawValue: aggregate.rawValue,
+        valueLabel: aggregate.valueLabel,
+      };
+    }),
+  }));
+
   const taskSignals = [...latestResponses]
     .filter(responseIsCompleted)
     .sort((left, right) => (left.display_order ?? 999) - (right.display_order ?? 999))
     .map(cognitiveTaskSignal);
 
-  return { trendPoints, domainTrends, taskSignals };
+  return { trendPoints, domainTrends, domainTrendSeries, taskSignals };
 }

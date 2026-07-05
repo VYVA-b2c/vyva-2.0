@@ -935,7 +935,7 @@ router.get("/reports/:sessionId", async (req: Request, res: Response) => {
 router.get("/history", async (req: Request, res: Response) => {
   const userId = req.user?.id;
   if (!userId || !isUuid(userId)) {
-    return res.json({ history: [], trendPoints: [], domainTrends: [], taskSignals: [] });
+    return res.json({ history: [], trendPoints: [], domainTrends: [], domainTrendSeries: [], taskSignals: [] });
   }
 
   try {

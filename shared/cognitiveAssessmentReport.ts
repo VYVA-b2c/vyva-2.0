@@ -52,6 +52,19 @@ export type CognitiveAssessmentDomainTrend = {
   valueLabel: string;
 };
 
+export type CognitiveAssessmentDomainTrendPoint = {
+  sessionId: string;
+  completedAt: string | null;
+  rawValue: number | null;
+  valueLabel: string;
+};
+
+export type CognitiveAssessmentDomainTrendSeries = {
+  domainId: string;
+  label: string;
+  points: CognitiveAssessmentDomainTrendPoint[];
+};
+
 export type CognitiveAssessmentTaskSignal = {
   taskId: string;
   label: string;
@@ -70,5 +83,6 @@ export type CognitiveAssessmentHistoryResponse = {
   history: CognitiveAssessmentHistoryItem[];
   trendPoints: CognitiveAssessmentTrendPoint[];
   domainTrends: CognitiveAssessmentDomainTrend[];
+  domainTrendSeries: CognitiveAssessmentDomainTrendSeries[];
   taskSignals: CognitiveAssessmentTaskSignal[];
 };

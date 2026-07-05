@@ -36,6 +36,8 @@ describe("cognitive assessment trends", () => {
     const payload = buildCognitiveAssessmentTrendPayload(sessions, new Map(), 12);
 
     expect(payload.trendPoints.map((point) => point.sessionId)).toEqual(["s2", "s3", "s4", "s5", "s6", "s7"]);
+    expect(payload.domainTrendSeries.find((series) => series.domainId === "memory")?.points.map((point) => point.sessionId))
+      .toEqual(["s2", "s3", "s4", "s5", "s6", "s7"]);
     expect(payload.trendPoints[payload.trendPoints.length - 1]).toMatchObject({
       sessionId: "s7",
       completionPercent: 58,
@@ -83,6 +85,20 @@ describe("cognitive assessment trends", () => {
       previousRawValue: null,
       direction: "new",
     });
+    expect(payload.domainTrendSeries.find((series) => series.domainId === "memory")?.points).toEqual([
+      {
+        sessionId: "previous",
+        completedAt: "2026-07-01T10:00:00.000Z",
+        rawValue: 12,
+        valueLabel: "12 words",
+      },
+      {
+        sessionId: "latest",
+        completedAt: "2026-07-08T10:00:00.000Z",
+        rawValue: 18,
+        valueLabel: "18 words",
+      },
+    ]);
   });
 
   it("does not create fake scores when a clock drawing only has saved text", () => {

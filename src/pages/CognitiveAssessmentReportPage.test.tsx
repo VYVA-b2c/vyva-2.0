@@ -95,8 +95,8 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
       domainId: "memory",
       label: "Memory",
       latestRawValue: 3,
-      previousRawValue: null,
-      direction: "new",
+      previousRawValue: 2,
+      direction: "up",
       valueLabel: "3 words",
     },
     {
@@ -119,8 +119,8 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
       domainId: "reasoning",
       label: "Reasoning",
       latestRawValue: 4,
-      previousRawValue: null,
-      direction: "new",
+      previousRawValue: 3,
+      direction: "up",
       valueLabel: "4/8",
     },
     {
@@ -140,6 +140,44 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
       valueLabel: "Not checked",
     },
   ],
+  domainTrendSeries: [
+    {
+      domainId: "memory",
+      label: "Memory",
+      points: [
+        {
+          sessionId: "session-older",
+          completedAt: "2026-06-20T10:12:00.000Z",
+          rawValue: 2,
+          valueLabel: "2 words",
+        },
+        {
+          sessionId: "session-1",
+          completedAt: "2026-07-04T10:12:00.000Z",
+          rawValue: 3,
+          valueLabel: "3 words",
+        },
+      ],
+    },
+    {
+      domainId: "reasoning",
+      label: "Reasoning",
+      points: [
+        {
+          sessionId: "session-older",
+          completedAt: "2026-06-20T10:12:00.000Z",
+          rawValue: 3,
+          valueLabel: "3/8",
+        },
+        {
+          sessionId: "session-1",
+          completedAt: "2026-07-04T10:12:00.000Z",
+          rawValue: 4,
+          valueLabel: "4/8",
+        },
+      ],
+    },
+  ],
   taskSignals: [
     {
       taskId: "story_recall_immediate",
@@ -157,6 +195,14 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
       rawValue: 4,
       maxValue: 8,
       valueLabel: "4/8",
+    },
+    {
+      taskId: "sleep_energy",
+      label: "Sleep and energy",
+      domain: "Mood/Sleep/Daily Context",
+      kind: "score",
+      rawValue: 5,
+      valueLabel: "5",
     },
   ],
 };
@@ -198,15 +244,21 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getAllByText("17%").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Progression")).toBeInTheDocument();
     expect(screen.getByText("+9 pts since last check")).toBeInTheDocument();
+    expect(screen.getByText("What changed")).toBeInTheDocument();
+    expect(screen.getByText("Since last check")).toBeInTheDocument();
     expect(screen.getByText("Domain trends")).toBeInTheDocument();
-    expect(screen.getByText("Raw signals")).toBeInTheDocument();
+    expect(screen.getAllByText("Raw signals").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Mood/Sleep/Daily Context")).toBeInTheDocument();
     expect(screen.getByText("Coverage")).toBeInTheDocument();
     expect(screen.getAllByText("Domains").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Signals")).toBeInTheDocument();
     expect(screen.getByText("Next")).toBeInTheDocument();
     expect(screen.getByText("10 left")).toBeInTheDocument();
-    expect(screen.getByText("2 saved")).toBeInTheDocument();
+    expect(screen.getByText("3 saved")).toBeInTheDocument();
+    expect(screen.getByText("Context")).toBeInTheDocument();
+    expect(screen.getByText("Mood, sleep, daily function")).toBeInTheDocument();
+    expect(screen.getByText("Sleep and energy: 5")).toBeInTheDocument();
+    expect(screen.getAllByText("Mini history").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Areas checked")).toBeInTheDocument();
     expect(screen.getByText("3 words recalled in free text.")).toBeInTheDocument();
     expect(screen.getAllByText("4/8").length).toBeGreaterThanOrEqual(1);

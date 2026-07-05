@@ -102,6 +102,7 @@ function coverageMeaning(report: CognitiveAssessmentReport) {
 type ReportHistory = CognitiveAssessmentHistoryResponse["history"];
 type ReportTrendPoints = CognitiveAssessmentHistoryResponse["trendPoints"];
 type ReportDomainTrends = CognitiveAssessmentHistoryResponse["domainTrends"];
+type ReportDomainTrendSeries = CognitiveAssessmentHistoryResponse["domainTrendSeries"];
 type ReportTaskSignals = CognitiveAssessmentHistoryResponse["taskSignals"];
 
 type ProgressPoint = {
@@ -549,7 +550,171 @@ function domainTrendLabel(trend: CognitiveAssessmentDomainTrend) {
   return delta > 0 ? `+${delta}` : `${delta}`;
 }
 
-function DomainTrendChart({ domainTrends }: { domainTrends: ReportDomainTrends }) {
+function trendDeltaMagnitude(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.latestRawValue === null || trend.previousRawValue === null) return trend.direction === "new" ? 0.5 : 0;
+  return Math.abs(trend.latestRawValue - trend.previousRawValue);
+}
+
+function whatChangedItems(domainTrends: ReportDomainTrends) {
+  const changed = domainTrends
+    .filter((trend) => trend.latestRawValue !== null && trend.direction !== "none" && trend.direction !== "flat")
+    .sort((left, right) => trendDeltaMagnitude(right) - trendDeltaMagnitude(left));
+
+  if (changed.length > 0) return changed.slice(0, 3);
+
+  return domainTrends
+    .filter((trend) => trend.latestRawValue !== null)
+    .slice(0, 3);
+}
+
+function contextSignals(taskSignals: ReportTaskSignals) {
+  const contextTaskIds = new Set(["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"]);
+  return taskSignals.filter((signal) => contextTaskIds.has(signal.taskId));
+}
+
+function miniTrendCoordinates(points: ReportDomainTrendSeries[number]["points"]) {
+  const numeric = points.filter((point) => point.rawValue !== null);
+  const max = Math.max(1, ...numeric.map((point) => point.rawValue ?? 0));
+  const min = Math.min(0, ...numeric.map((point) => point.rawValue ?? 0));
+  const range = Math.max(1, max - min);
+  const left = 8;
+  const top = 8;
+  const width = 196;
+  const height = 46;
+
+  return points.map((point, index) => {
+    const x = points.length === 1 ? left + width / 2 : left + (index / (points.length - 1)) * width;
+    const y = point.rawValue === null
+      ? top + height
+      : top + ((max - point.rawValue) / range) * height;
+    return { ...point, x, y };
+  });
+}
+
+function WhatChangedStrip({ domainTrends }: { domainTrends: ReportDomainTrends }) {
+  const items = whatChangedItems(domainTrends);
+  if (items.length === 0) return null;
+
+  return (
+    <div className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.045)]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">What changed</p>
+          <h2 className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">Since last check</h2>
+        </div>
+        <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-xs font-black text-[#5B21B6]">Raw signals</span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {items.map((trend) => (
+          <div key={trend.domainId} className="flex min-h-[48px] items-center justify-between gap-3 rounded-[16px] bg-[#FBF8F4] px-3">
+            <span className="min-w-0">
+              <span className="block truncate text-[14px] font-black text-[#2f2135]">{trend.label}</span>
+              <span className="block truncate text-[12px] font-bold text-[#766b63]">{trend.valueLabel}</span>
+            </span>
+            <span className={`rounded-full px-2.5 py-1 text-[12px] font-black ${domainTrendTone(trend)}`}>
+              {domainTrendLabel(trend)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContextOverlay({ taskSignals }: { taskSignals: ReportTaskSignals }) {
+  const signals = contextSignals(taskSignals);
+  if (signals.length === 0) return null;
+
+  return (
+    <div className="rounded-[24px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#7C2D12] shadow-[0_10px_24px_rgba(194,65,12,0.055)]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em]">Context</p>
+          <h2 className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">Mood, sleep, daily function</h2>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black shadow-sm">{signals.length} saved</span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {signals.map((signal) => (
+          <span key={signal.taskId} className="rounded-full bg-white px-3 py-2 text-[12px] font-black shadow-sm">
+            {signal.label}: {signal.valueLabel}
+          </span>
+        ))}
+      </div>
+      <p className="mt-3 text-[12px] font-bold leading-snug text-[#8A4B18]">Use these beside the thinking signals.</p>
+    </div>
+  );
+}
+
+function DomainMiniHistory({
+  series,
+}: {
+  series: ReportDomainTrendSeries[number] | null;
+}) {
+  if (!series || series.points.length === 0) {
+    return <p className="mt-3 text-[12px] font-bold text-[#766b63]">Mini history will appear after repeated checks.</p>;
+  }
+  const coordinates = miniTrendCoordinates(series.points);
+  const numericCoordinates = coordinates.filter((point) => point.rawValue !== null);
+  const polyline = numericCoordinates.map((point) => `${point.x},${point.y}`).join(" ");
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+
+  return (
+    <div className="mt-3 rounded-[16px] bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#8A7C73]">Mini history</p>
+        <p className="text-[12px] font-black text-[#2f2135]">{last?.valueLabel ?? "Not checked"}</p>
+      </div>
+      <svg
+        className="mt-2 h-[68px] w-full overflow-visible"
+        viewBox="0 0 212 70"
+        role="img"
+        aria-label={`${series.label} mini history`}
+      >
+        {[0, 1, 2].map((line) => {
+          const y = 10 + line * 18;
+          return <line key={line} x1="8" x2="204" y1={y} y2={y} stroke="#EFE7DE" strokeWidth="1" />;
+        })}
+        {numericCoordinates.length > 1 ? (
+          <polyline
+            points={polyline}
+            fill="none"
+            stroke="#14B8A6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="4"
+          />
+        ) : null}
+        {coordinates.map((point) => (
+          <circle
+            key={point.sessionId}
+            cx={point.x}
+            cy={point.y}
+            r={point.rawValue === null ? 3 : 5}
+            fill={point.rawValue === null ? "#D6CEC7" : "#14B8A6"}
+            stroke="#FFFFFF"
+            strokeWidth="3"
+          />
+        ))}
+        <text x="8" y="68" className="fill-[#8A7C73] text-[10px] font-bold">
+          {shortDate(first?.completedAt)}
+        </text>
+        <text x="204" y="68" textAnchor="end" className="fill-[#8A7C73] text-[10px] font-bold">
+          {shortDate(last?.completedAt)}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function DomainTrendChart({
+  domainTrends,
+  domainTrendSeries,
+}: {
+  domainTrends: ReportDomainTrends;
+  domainTrendSeries: ReportDomainTrendSeries;
+}) {
   const trends = domainTrends.length > 0
     ? domainTrends
     : [
@@ -568,6 +733,7 @@ function DomainTrendChart({ domainTrends }: { domainTrends: ReportDomainTrends }
       valueLabel: "Not checked",
     }));
   const maxValue = Math.max(1, ...trends.map((trend) => trend.latestRawValue ?? 0));
+  const seriesByDomain = new Map(domainTrendSeries.map((series) => [series.domainId, series]));
 
   return (
     <div className="rounded-[28px] border border-[#D9ECE4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.055)]">
@@ -585,24 +751,30 @@ function DomainTrendChart({ domainTrends }: { domainTrends: ReportDomainTrends }
         {trends.map((trend) => {
           const width = trend.latestRawValue === null ? 8 : Math.max(10, (trend.latestRawValue / maxValue) * 100);
           return (
-            <div
+            <details
               key={trend.domainId}
-              className="rounded-[18px] border border-[#E8DED4] bg-[#FBF8F4] p-3"
+              className="group rounded-[18px] border border-[#E8DED4] bg-[#FBF8F4] p-3"
             >
-              <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-[14px] font-black text-[#2f2135]">{trend.label}</p>
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${domainTrendTone(trend)}`}>
-                  {domainTrendLabel(trend)}
-                </span>
-              </div>
-              <div className="mt-2 h-2.5 rounded-full bg-[#EFE7DE]">
-                <div
-                  className="h-2.5 rounded-full bg-[#14B8A6]"
-                  style={{ width: `${width}%` }}
-                />
-              </div>
-              <p className="mt-2 text-[12px] font-black text-[#766b63]">{trend.valueLabel}</p>
-            </div>
+              <summary className="cursor-pointer list-none">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-[14px] font-black text-[#2f2135]">{trend.label}</p>
+                  <span className="flex items-center gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${domainTrendTone(trend)}`}>
+                      {domainTrendLabel(trend)}
+                    </span>
+                    <ChevronRight size={17} className="text-[#9A8F87] transition-transform group-open:rotate-90" />
+                  </span>
+                </div>
+                <div className="mt-2 h-2.5 rounded-full bg-[#EFE7DE]">
+                  <div
+                    className="h-2.5 rounded-full bg-[#14B8A6]"
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+                <span className="mt-2 block text-[12px] font-black text-[#766b63]">{trend.valueLabel}</span>
+              </summary>
+              <DomainMiniHistory series={seriesByDomain.get(trend.domainId) ?? null} />
+            </details>
           );
         })}
       </div>
@@ -654,6 +826,7 @@ function ReportView({
   history,
   trendPoints,
   domainTrends,
+  domainTrendSeries,
   taskSignals,
 }: {
   report: CognitiveAssessmentReport;
@@ -661,6 +834,7 @@ function ReportView({
   history: ReportHistory;
   trendPoints: ReportTrendPoints;
   domainTrends: ReportDomainTrends;
+  domainTrendSeries: ReportDomainTrendSeries;
   taskSignals: ReportTaskSignals;
 }) {
   const navigate = useNavigate();
@@ -704,9 +878,11 @@ function ReportView({
           </div>
         </div>
 
+        <WhatChangedStrip domainTrends={domainTrends} />
+
         <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
 
-        <DomainTrendChart domainTrends={domainTrends} />
+        <DomainTrendChart domainTrends={domainTrends} domainTrendSeries={domainTrendSeries} />
 
         <div className="grid grid-cols-2 gap-3">
           <MetricTile
@@ -739,6 +915,8 @@ function ReportView({
             valueClassName="text-[21px] leading-tight"
           />
         </div>
+
+        <ContextOverlay taskSignals={taskSignals} />
 
         <div className="grid gap-3">
           <h2 className="px-1 text-[24px] font-black leading-tight text-[#2f2135]">Areas checked</h2>
@@ -863,6 +1041,7 @@ export default function CognitiveAssessmentReportPage() {
       history={historyData?.history ?? []}
       trendPoints={historyData?.trendPoints ?? []}
       domainTrends={historyData?.domainTrends ?? []}
+      domainTrendSeries={historyData?.domainTrendSeries ?? []}
       taskSignals={historyData?.taskSignals ?? []}
     />
   );
