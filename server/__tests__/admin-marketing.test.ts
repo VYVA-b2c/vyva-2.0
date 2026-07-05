@@ -198,6 +198,11 @@ describe("admin marketing router", () => {
     await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", expect.objectContaining({
+      headers: expect.objectContaining({
+        Authorization: "Bearer secret",
+      }),
+    }));
     expect(table("marketing_content_assets")).toHaveLength(1);
     expect(table("marketing_contacts")).toHaveLength(1);
     expect(table("marketing_campaigns")).toHaveLength(1);

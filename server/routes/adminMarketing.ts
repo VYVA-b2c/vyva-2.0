@@ -849,10 +849,12 @@ adminMarketingRouter.patch("/contacts/:contactId", async (req, res) => {
 });
 
 adminMarketingRouter.get("/sync/lovable", async (_req, res) => {
+  const hasUrl = Boolean(process.env.LOVABLE_MARKETING_API_URL?.trim());
+  const hasBearerToken = Boolean(process.env.LOVABLE_MARKETING_API_KEY?.trim());
   const runs = await db.select().from(marketingSyncRuns).orderBy(desc(marketingSyncRuns.created_at)).limit(10);
   return res.json({
     provider: "lovable",
-    configured: Boolean(process.env.LOVABLE_MARKETING_API_URL?.trim() && process.env.LOVABLE_MARKETING_API_KEY?.trim()),
+    configured: hasUrl && hasBearerToken,
     apiUrl: safeUrlOrigin(process.env.LOVABLE_MARKETING_API_URL),
     mode: "one_way_into_vyva",
     realSendingLocked: true,
