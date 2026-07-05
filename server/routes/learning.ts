@@ -26,8 +26,8 @@ import {
 const programCreateSchema = z.object({
   interests: z.array(z.string()).optional().default(["general_knowledge"]),
   pace: z.enum(["gentle", "steady", "curious"]).optional().default("gentle"),
-  frequency: z.enum(["daily", "three_times_week", "weekly"]).optional().default("daily"),
-  durationWeeks: z.union([z.literal(1), z.literal(4), z.literal(12)]).optional().default(1),
+  frequency: z.enum(["daily", "three_times_week", "weekly"]).optional(),
+  durationWeeks: z.union([z.literal(1), z.literal(4), z.literal(12)]).optional(),
   dailyTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional().default("09:00"),
   lessonLengthMinutes: z.number().int().min(1).max(8).optional().default(3),
 });
@@ -297,10 +297,11 @@ async function createLearningProgramHandler(req: Request, res: Response) {
       language: preferences.language,
       recentlyCompletedLessonIds: recentRows.map((row) => row.lessonId),
       days: sessionOffsets.length,
+      repeatWhenExhausted: true,
     });
 
-    if (selectedLessons.length < sessionOffsets.length) {
-      return res.status(409).json({ error: "More published learning lessons are required to create this program." });
+    if (selectedLessons.length === 0) {
+      return res.status(409).json({ error: "At least one published learning lesson is required to create a program." });
     }
 
     const start = new Date();

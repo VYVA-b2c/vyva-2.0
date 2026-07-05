@@ -35,8 +35,8 @@ describe("learning program preferences", () => {
     })).toEqual({
       interests: ["science", "music"],
       pace: "curious",
-      frequency: "daily",
-      durationWeeks: 1,
+      frequency: "three_times_week",
+      durationWeeks: 4,
       dailyTime: "09:00",
       lessonLengthMinutes: 8,
       language: "en",
@@ -56,6 +56,17 @@ describe("learning program preferences", () => {
   });
 
   it("normalizes program frequency and duration", () => {
+    expect(normalizeLearningPreferences({
+      interests: ["science"],
+      pace: "curious",
+      dailyTime: "09:30",
+      lessonLengthMinutes: 3,
+      language: "en",
+    })).toMatchObject({
+      frequency: "daily",
+      durationWeeks: 4,
+    });
+
     expect(normalizeLearningPreferences({
       interests: ["science"],
       pace: "gentle",
@@ -78,8 +89,8 @@ describe("learning program preferences", () => {
       lessonLengthMinutes: 4,
       language: "en",
     })).toMatchObject({
-      frequency: "daily",
-      durationWeeks: 1,
+      frequency: "three_times_week",
+      durationWeeks: 4,
     });
   });
 });
@@ -189,5 +200,21 @@ describe("selectLessonsForLearningProgram", () => {
     });
 
     expect(selected.map((item) => item.id)).toEqual(["culture-1", "general-1"]);
+  });
+
+  it("can repeat published lessons when a longer program exhausts the library", () => {
+    const selected = selectLessonsForLearningProgram({
+      lessons: [
+        lesson("science-1", "science"),
+        lesson("general-1", "general_knowledge"),
+      ],
+      interests: ["science"],
+      language: "en",
+      days: 5,
+      repeatWhenExhausted: true,
+    });
+
+    expect(selected).toHaveLength(5);
+    expect(selected.map((item) => item.id)).toEqual(["science-1", "general-1", "science-1", "general-1", "science-1"]);
   });
 });

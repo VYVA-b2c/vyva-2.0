@@ -51,15 +51,17 @@ const supportedProgramLanguages = new Set(["en", "es", "fr", "de", "it", "pt"]);
 const fallbackInterest = "general_knowledge";
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-export function normalizeLearningFrequency(value: unknown): LearningProgramFrequency {
-  return value === "three_times_week" || value === "weekly" ? value : "daily";
+export function normalizeLearningFrequency(value: unknown, fallback: LearningProgramFrequency = "three_times_week"): LearningProgramFrequency {
+  if (value === "daily" || value === "three_times_week" || value === "weekly") return value;
+  return fallback;
 }
 
 export function normalizeLearningDurationWeeks(value: unknown): LearningProgramDurationWeeks {
   const weeks = Number(value);
+  if (weeks === 1) return 1;
   if (weeks === 4) return 4;
   if (weeks === 12) return 12;
-  return 1;
+  return 4;
 }
 
 function normalizeAllowedInterests(allowedInterests?: string[] | null): string[] {
@@ -96,7 +98,8 @@ export function normalizeLearningPreferences(input: LearningProgramPreferenceInp
   const minutes = Number(input.lessonLengthMinutes);
   const lessonLengthMinutes = Number.isFinite(minutes) ? Math.min(8, Math.max(1, Math.round(minutes))) : 3;
   const dailyTime = typeof input.dailyTime === "string" && timePattern.test(input.dailyTime) ? input.dailyTime : "09:00";
-  const frequency = normalizeLearningFrequency(input.frequency);
+  const recommendedFrequency: LearningProgramFrequency = pace === "curious" && lessonLengthMinutes <= 4 ? "daily" : "three_times_week";
+  const frequency = normalizeLearningFrequency(input.frequency, recommendedFrequency);
   const durationWeeks = normalizeLearningDurationWeeks(input.durationWeeks);
 
   return {
@@ -198,6 +201,7 @@ export function selectLessonsForLearningProgram(input: {
   allowedInterests?: string[] | null;
   recentlyCompletedLessonIds?: string[];
   days?: number;
+  repeatWhenExhausted?: boolean;
 }): LearningLessonCandidate[] {
   const interests = normalizeLearningInterests(input.interests, input.allowedInterests);
   const language = normalizeLearningLanguage(input.language);
@@ -209,13 +213,23 @@ export function selectLessonsForLearningProgram(input: {
 
   for (let index = 0; index < days; index += 1) {
     const categorySlug = interests[index % interests.length];
-    const lesson = pickBestLesson({
+    let lesson = pickBestLesson({
       lessons: publishedLessons,
       selectedIds,
       recentIds,
       categorySlug,
       language,
     });
+    if (!lesson && input.repeatWhenExhausted && selectedIds.size > 0) {
+      selectedIds.clear();
+      lesson = pickBestLesson({
+        lessons: publishedLessons,
+        selectedIds,
+        recentIds,
+        categorySlug,
+        language,
+      });
+    }
     if (!lesson) break;
     selected.push(lesson);
     selectedIds.add(lesson.id);

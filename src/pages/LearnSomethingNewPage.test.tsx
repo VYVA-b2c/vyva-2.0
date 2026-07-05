@@ -111,7 +111,7 @@ afterEach(() => {
 });
 
 describe("LearnSomethingNewPage", () => {
-  it("starts a learning program with the chosen rhythm", async () => {
+  it("starts a learning program with the recommended rhythm by default", async () => {
     mocks.apiFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ program }),
@@ -128,8 +128,8 @@ describe("LearnSomethingNewPage", () => {
     fireEvent.click(screen.getByTestId("button-learn-interest-science"));
     fireEvent.click(screen.getByText("Next"));
     fireEvent.click(screen.getByText("Next"));
-    fireEvent.click(screen.getByTestId("button-learn-frequency-three_times_week"));
-    fireEvent.click(screen.getByTestId("button-learn-duration-4"));
+    expect(screen.getByTestId("learn-rhythm-preview")).toHaveTextContent("12 lessons");
+    expect(screen.getByTestId("learn-rhythm-preview")).toHaveTextContent("Mon/Wed/Fri");
     fireEvent.change(screen.getByTestId("input-learn-daily-time"), { target: { value: "10:30" } });
     fireEvent.click(screen.getByTestId("button-learn-start-program"));
 
@@ -141,6 +141,41 @@ describe("LearnSomethingNewPage", () => {
         frequency: "three_times_week",
         durationWeeks: 4,
         dailyTime: "10:30",
+        lessonLengthMinutes: 3,
+      }),
+    })));
+  });
+
+  it("adapts the recommended rhythm for curious short lessons", async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ program }),
+    });
+
+    renderLearningPage({
+      onboardingRequired: true,
+      categories,
+      program: null,
+      todayItem: null,
+    });
+
+    await screen.findByTestId("learn-wizard");
+    fireEvent.click(screen.getByTestId("button-learn-interest-science"));
+    fireEvent.click(screen.getByText("Next"));
+    fireEvent.click(screen.getByTestId("button-learn-pace-curious"));
+    fireEvent.click(screen.getByText("Next"));
+    expect(screen.getByTestId("learn-rhythm-preview")).toHaveTextContent("28 lessons");
+    expect(screen.getByTestId("learn-rhythm-preview")).toHaveTextContent("Every day");
+    fireEvent.click(screen.getByTestId("button-learn-start-program"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/learning/programs", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        interests: ["science"],
+        pace: "curious",
+        frequency: "daily",
+        durationWeeks: 4,
+        dailyTime: "09:00",
         lessonLengthMinutes: 3,
       }),
     })));
@@ -160,6 +195,8 @@ describe("LearnSomethingNewPage", () => {
     });
 
     expect(await screen.findByTestId("learn-hub")).toHaveTextContent("Learn Something New");
+    expect(screen.getByTestId("learn-plan-glance")).toHaveTextContent("Next:");
+    expect(screen.getByTestId("learn-plan-glance")).toHaveTextContent("Science");
     expect(screen.getByTestId("learn-today-lesson")).toHaveTextContent("Why soap helps water clean");
     expect(screen.getByTestId("learn-today-lesson")).toHaveTextContent("Reflection prompt");
 

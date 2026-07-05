@@ -104,8 +104,8 @@ const DEFAULT_INTEREST = "general_knowledge";
 const DEFAULT_FORM: ProgramForm = {
   interests: [DEFAULT_INTEREST],
   pace: "gentle",
-  frequency: "daily",
-  durationWeeks: 1,
+  frequency: "three_times_week",
+  durationWeeks: 4,
   dailyTime: "09:00",
   lessonLengthMinutes: 3,
 };
@@ -129,9 +129,9 @@ const paceOptions: Array<{ id: ProgramForm["pace"]; label: string; description: 
 ];
 
 const frequencyOptions: Array<{ id: ProgramForm["frequency"]; label: string; description: string }> = [
-  { id: "daily", label: "Daily", description: "A small lesson each day." },
-  { id: "three_times_week", label: "3 times a week", description: "A steady rhythm with pauses." },
-  { id: "weekly", label: "Weekly", description: "One calm lesson each week." },
+  { id: "daily", label: "Daily", description: "Every day." },
+  { id: "three_times_week", label: "3 times a week", description: "With rest days." },
+  { id: "weekly", label: "Weekly", description: "Slow pace." },
 ];
 
 const durationOptions: Array<{ id: ProgramForm["durationWeeks"]; label: string; description: string }> = [
@@ -158,20 +158,52 @@ function timeLabel(value: string) {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
 }
 
-function rhythmLabel(frequency: ProgramForm["frequency"]) {
-  if (frequency === "three_times_week") return "3 times a week";
-  if (frequency === "weekly") return "weekly";
-  return "daily";
+function programPeriodLabel(durationWeeks: ProgramForm["durationWeeks"]) {
+  if (durationWeeks === 12) return "in 3 months";
+  if (durationWeeks === 4) return "this month";
+  return "this week";
 }
 
-function durationLabel(durationWeeks: ProgramForm["durationWeeks"]) {
-  if (durationWeeks === 12) return "3 months";
-  if (durationWeeks === 4) return "1 month";
-  return "1 week";
+function recommendedRhythmFor(form: Pick<ProgramForm, "pace" | "lessonLengthMinutes">): Pick<ProgramForm, "frequency" | "durationWeeks"> {
+  const frequency = form.pace === "curious" && form.lessonLengthMinutes <= 4 ? "daily" : "three_times_week";
+  return { frequency, durationWeeks: 4 };
 }
 
-function rhythmSummary(form: ProgramForm) {
-  return `VYVA will prepare ${rhythmLabel(form.frequency)} lessons for ${durationLabel(form.durationWeeks)}, starting today.`;
+function lessonCountForRhythm(form: Pick<ProgramForm, "frequency" | "durationWeeks">) {
+  if (form.frequency === "weekly") return form.durationWeeks;
+  if (form.frequency === "three_times_week") return form.durationWeeks * 3;
+  return form.durationWeeks * 7;
+}
+
+function rhythmDaysLabel(frequency: ProgramForm["frequency"]) {
+  if (frequency === "three_times_week") return "Mon/Wed/Fri";
+  if (frequency === "weekly") return "Weekly";
+  return "Every day";
+}
+
+function rhythmPreview(form: ProgramForm) {
+  const lessonLabel = lessonCountForRhythm(form) === 1 ? "lesson" : "lessons";
+  return `${lessonCountForRhythm(form)} ${lessonLabel} - ${rhythmDaysLabel(form.frequency)} - ${timeLabel(form.dailyTime)}`;
+}
+
+function nextLearningItem(program: LearningProgram): LearningProgramItem | null {
+  return program.items.find((item) => item.status !== "completed" && !item.completedAt) ?? null;
+}
+
+function nextLearningLabel(item: LearningProgramItem | null, dailyTime: string) {
+  if (!item) return "Plan complete";
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const label = item.scheduledDate === todayKey
+    ? "Today"
+    : new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(new Date(`${item.scheduledDate}T12:00:00`));
+  return `${label} at ${timeLabel(dailyTime)}`;
+}
+
+function learningInterestSummary(interests: string[], categories: LearningCategory[]) {
+  const labels = interests
+    .map((slug) => categoryFor(categories, slug)?.label ?? slug.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" "))
+    .slice(0, 2);
+  return labels.length ? labels.join(" + ") : "General Knowledge";
 }
 
 function makeInitialForm(program: LearningProgram | null): ProgramForm {
@@ -214,8 +246,10 @@ function Wizard({
 }) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<ProgramForm>(initialForm);
+  const [rhythmTouched, setRhythmTouched] = useState(false);
   const hasRenderedStepRef = useRef(false);
   const canGoNext = step < 2;
+  const recommendedRhythm = recommendedRhythmFor(form);
 
   useEffect(() => {
     if (!hasRenderedStepRef.current) {
@@ -325,7 +359,10 @@ function Wizard({
                   <button
                     key={option.id}
                     type="button"
-                    onClick={() => setForm((current) => ({ ...current, pace: option.id }))}
+                    onClick={() => setForm((current) => {
+                      const next = { ...current, pace: option.id };
+                      return rhythmTouched ? next : { ...next, ...recommendedRhythmFor(next) };
+                    })}
                     aria-pressed={form.pace === option.id}
                     className={`flex min-h-[82px] items-center justify-between gap-3 rounded-[20px] border px-4 py-3.5 text-left transition-transform hover:-translate-y-0.5 ${
                       form.pace === option.id ? "border-[#8B5CF6] bg-[#F7F2FF] shadow-[0_12px_24px_rgba(109,40,217,0.10)]" : "border-[#E9DFD5] bg-white"
@@ -347,7 +384,10 @@ function Wizard({
                   min={1}
                   max={8}
                   value={form.lessonLengthMinutes}
-                  onChange={(event) => setForm((current) => ({ ...current, lessonLengthMinutes: Number(event.target.value) }))}
+                  onChange={(event) => setForm((current) => {
+                    const next = { ...current, lessonLengthMinutes: Number(event.target.value) };
+                    return rhythmTouched ? next : { ...next, ...recommendedRhythmFor(next) };
+                  })}
                   className="mt-4 w-full accent-purple-700"
                 />
                 <span className="mt-2 inline-flex rounded-full bg-white px-3 py-1.5 text-[13px] font-black text-purple-700 shadow-sm">{form.lessonLengthMinutes} min</span>
@@ -366,14 +406,22 @@ function Wizard({
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => setForm((current) => ({ ...current, frequency: option.id }))}
+                      onClick={() => {
+                        setRhythmTouched(true);
+                        setForm((current) => ({ ...current, frequency: option.id }));
+                      }}
                       aria-pressed={form.frequency === option.id}
                       className={`min-h-[78px] rounded-[18px] border px-3 py-3 text-left transition-transform hover:-translate-y-0.5 ${
                         form.frequency === option.id ? "border-[#8B5CF6] bg-[#F7F2FF] shadow-[0_10px_20px_rgba(109,40,217,0.10)]" : "border-[#E9DFD5] bg-white"
                       }`}
                       data-testid={`button-learn-frequency-${option.id}`}
                     >
-                      <span className="block text-[16px] font-black leading-tight text-[#2f2135]">{option.label}</span>
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="block text-[16px] font-black leading-tight text-[#2f2135]">{option.label}</span>
+                        {recommendedRhythm.frequency === option.id ? (
+                          <span className="rounded-full bg-[#FFF1B8] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">Recommended</span>
+                        ) : null}
+                      </span>
                       <span className="mt-1 block text-[12px] font-bold leading-snug text-[#7d6b65]">{option.description}</span>
                     </button>
                   ))}
@@ -386,20 +434,28 @@ function Wizard({
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => setForm((current) => ({ ...current, durationWeeks: option.id }))}
+                      onClick={() => {
+                        setRhythmTouched(true);
+                        setForm((current) => ({ ...current, durationWeeks: option.id }));
+                      }}
                       aria-pressed={form.durationWeeks === option.id}
                       className={`min-h-[78px] rounded-[18px] border px-3 py-3 text-left transition-transform hover:-translate-y-0.5 ${
                         form.durationWeeks === option.id ? "border-[#8B5CF6] bg-[#F7F2FF] shadow-[0_10px_20px_rgba(109,40,217,0.10)]" : "border-[#E9DFD5] bg-white"
                       }`}
                       data-testid={`button-learn-duration-${option.id}`}
                     >
-                      <span className="block text-[16px] font-black leading-tight text-[#2f2135]">{option.label}</span>
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="block text-[16px] font-black leading-tight text-[#2f2135]">{option.label}</span>
+                        {recommendedRhythm.durationWeeks === option.id ? (
+                          <span className="rounded-full bg-[#FFF1B8] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#7A4C00]">Recommended</span>
+                        ) : null}
+                      </span>
                       <span className="mt-1 block text-[12px] font-bold leading-snug text-[#7d6b65]">{option.description}</span>
                     </button>
                   ))}
                 </div>
               </section>
-              <label className="mt-5 block rounded-[20px] border border-[#E9DFD5] bg-[#FCFAF7] p-4">
+              <label className="mt-4 flex flex-col gap-3 rounded-[18px] border border-[#E9DFD5] bg-[#FCFAF7] p-4 min-[390px]:flex-row min-[390px]:items-center min-[390px]:justify-between">
                 <span className="flex items-center gap-2 text-[16px] font-black text-[#2f2135]">
                   <CalendarDays size={18} />
                   Preferred time
@@ -408,12 +464,12 @@ function Wizard({
                   type="time"
                   value={form.dailyTime}
                   onChange={(event) => setForm((current) => ({ ...current, dailyTime: event.target.value }))}
-                  className="mt-3 h-14 w-full rounded-[18px] border border-[#E4D9CE] bg-white px-4 text-[18px] font-black text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                  className="h-12 w-full rounded-[16px] border border-[#E4D9CE] bg-white px-4 text-[17px] font-black text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100 min-[390px]:w-[150px]"
                   data-testid="input-learn-daily-time"
                 />
               </label>
-              <div className="mt-5 rounded-[20px] border border-[#DDECE2] bg-[#F3FAF5] p-4 text-[14px] font-bold leading-relaxed text-[#0A7C4E]">
-                {rhythmSummary(form)}
+              <div className="mt-4 rounded-[18px] border border-[#DDECE2] bg-[#F3FAF5] px-4 py-3 text-[15px] font-black leading-snug text-[#0A7C4E]" data-testid="learn-rhythm-preview">
+                {rhythmPreview(form)}
               </div>
             </>
           ) : null}
@@ -477,6 +533,7 @@ export default function LearnSomethingNewPage() {
   const today = data?.todayItem ?? null;
   const lesson = today?.lesson ?? null;
   const category = categoryFor(categories, lesson?.categorySlug);
+  const nextItem = program ? nextLearningItem(program) : null;
 
   const createProgram = useMutation({
     mutationFn: async (form: ProgramForm) => {
@@ -539,7 +596,7 @@ export default function LearnSomethingNewPage() {
     if (today) eventMutation.mutate({ eventType: "started", item: today });
   };
 
-  const startAnotherWeek = () => {
+  const startAnotherPlan = () => {
     createProgram.mutate(initialForm);
   };
 
@@ -574,9 +631,11 @@ export default function LearnSomethingNewPage() {
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="font-serif text-[34px] leading-none text-[#211827] sm:text-[48px]">Learn Something New</h1>
-            <p className="mt-3 text-[15px] font-semibold leading-relaxed text-[#6b5d58]">
-              Lesson {program.progress.currentDay} of {program.progress.totalCount || 7} | {program.progress.completedCount}/{program.progress.totalCount || 7} complete | {rhythmLabel(program.frequency)} | {timeLabel(program.dailyTime)} | {program.lessonLengthMinutes} min
-            </p>
+            <div className="mt-4 grid gap-2 text-[13px] font-black text-[#4d403c] sm:grid-cols-3" data-testid="learn-plan-glance">
+              <span className="rounded-[16px] border border-[#E9DFD5] bg-white px-3 py-2">Next: {nextLearningLabel(nextItem, program.dailyTime)}</span>
+              <span className="rounded-[16px] border border-[#E9DFD5] bg-white px-3 py-2">{program.progress.totalCount || lessonCountForRhythm(program)} lessons {programPeriodLabel(program.durationWeeks)}</span>
+              <span className="rounded-[16px] border border-[#E9DFD5] bg-white px-3 py-2">{learningInterestSummary(program.interests, categories)}</span>
+            </div>
           </div>
           <button
             type="button"
@@ -589,7 +648,7 @@ export default function LearnSomethingNewPage() {
           </button>
         </header>
 
-        <div className="mt-5" aria-label="7 day learning progress">
+        <div className="mt-5" aria-label="Learning plan progress">
           <div className="flex gap-2">
             {program.items.map((item) => {
               const isComplete = item.status === "completed";
@@ -597,7 +656,7 @@ export default function LearnSomethingNewPage() {
               return (
                 <span
                   key={item.id}
-                  aria-label={`Day ${item.programDay}${isComplete ? " complete" : isToday ? " today" : ""}`}
+                  aria-label={`Lesson ${item.programDay}${isComplete ? " complete" : isToday ? " today" : ""}`}
                   className={`h-2 flex-1 rounded-full ${
                     isComplete ? "bg-[#16A34A]" : isToday ? "bg-[#6D28D9]" : "bg-[#E5DCD2]"
                   }`}
@@ -675,7 +734,7 @@ export default function LearnSomethingNewPage() {
             <button
               type="button"
               disabled={createProgram.isPending}
-              onClick={startAnotherWeek}
+              onClick={startAnotherPlan}
               className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#6D28D9] px-5 text-sm font-black text-white"
               data-testid="button-learn-start-another-week"
             >
