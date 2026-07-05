@@ -13,7 +13,13 @@ import type {
 type EventStatus = "active" | "draft" | "hidden" | "archived";
 type SafetyStatus = "approved" | "needs_review" | "hidden";
 type DiscoveryFormatPreference = ParticipationEventFormat | "any";
-type DiscoveryCandidate = AdminParticipationEvent & { previewId: string; selected: boolean };
+type PillTone = "purple" | "green" | "amber" | "rose" | "plain";
+type DiscoveryCandidateAction = "review" | "save_later" | "duplicate" | "bad_fit";
+type DiscoveryCandidate = AdminParticipationEvent & {
+  previewId: string;
+  selected: boolean;
+  reviewAction?: DiscoveryCandidateAction;
+};
 type EventSaveFeedback = {
   tone: "green" | "rose";
   message: string;
@@ -1070,7 +1076,7 @@ function SelectInput<T extends string>({
   );
 }
 
-function Pill({ children, tone = "purple" }: { children: ReactNode; tone?: "purple" | "green" | "amber" | "rose" | "plain" }) {
+function Pill({ children, tone = "purple" }: { children: ReactNode; tone?: PillTone }) {
   const tones = {
     purple: "bg-purple-50 text-purple-700",
     green: "bg-emerald-50 text-emerald-700",
@@ -1141,6 +1147,145 @@ function discoveryEvidence(event: AdminParticipationEvent) {
   if (!discovery || typeof discovery !== "object") return "";
   const evidence = (discovery as { evidence?: unknown }).evidence;
   return typeof evidence === "string" ? evidence : "";
+}
+
+function comparableText(value?: string | null) {
+  return cleanText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function comparableTitle(event: Pick<AdminParticipationEvent, "titleEn" | "titleEs" | "titleDe">) {
+  return comparableText(event.titleEn || event.titleEs || event.titleDe);
+}
+
+function comparableUrl(value?: string | null) {
+  const raw = cleanText(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    return `${url.hostname.replace(/^www\./, "").toLowerCase()}${url.pathname.replace(/\/+$/, "").toLowerCase()}`;
+  } catch {
+    return comparableText(raw);
+  }
+}
+
+function sourceHost(value?: string | null) {
+  const raw = cleanText(value);
+  if (!raw) return "";
+  try {
+    return new URL(raw).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function dateKey(value?: string | null) {
+  const trimmed = cleanText(value);
+  return trimmed.length >= 10 ? trimmed.slice(0, 10) : "";
+}
+
+function duplicateMatches(candidate: AdminParticipationEvent, existingEvents: AdminParticipationEvent[]) {
+  const candidateUrl = comparableUrl(candidate.sourceUrl);
+  const candidateTitle = comparableTitle(candidate);
+  const candidateCity = comparableText(candidate.city);
+  const candidateLocation = comparableText(candidate.locationLabel);
+  const candidateStart = dateKey(candidate.startsAt);
+
+  return existingEvents.flatMap((event) => {
+    const reasons: string[] = [];
+    if (candidate.eventKey && candidate.eventKey === event.eventKey) reasons.push("same internal ID");
+    if (candidateUrl && candidateUrl === comparableUrl(event.sourceUrl)) reasons.push("same source link");
+    if (
+      candidateTitle
+      && candidateTitle === comparableTitle(event)
+      && candidateCity
+      && candidateCity === comparableText(event.city)
+    ) {
+      reasons.push("same title and city");
+    }
+    if (
+      candidateLocation
+      && candidateLocation === comparableText(event.locationLabel)
+      && candidateStart
+      && candidateStart === dateKey(event.startsAt)
+    ) {
+      reasons.push("same place and date");
+    }
+    return reasons.length > 0 ? [{ eventKey: event.eventKey, reasons }] : [];
+  });
+}
+
+function sourceQuality(candidate: AdminParticipationEvent): { label: string; tone: PillTone; detail: string } {
+  const host = sourceHost(candidate.sourceUrl);
+  if (!host) {
+    return { label: "Source missing", tone: "rose", detail: "Add a public source before saving." };
+  }
+
+  const weakHost = ["facebook.com", "instagram.com", "eventbrite", "meetup.com", "allevents"].some((item) => host.includes(item));
+  if (weakHost) return { label: "Secondary source", tone: "amber", detail: host };
+
+  const strongHost = (
+    host.endsWith(".gov")
+    || host.endsWith(".gob.es")
+    || host.endsWith(".cat")
+    || host.endsWith("madrid.es")
+    || host.endsWith("barcelona.cat")
+    || host.includes("ayuntamiento")
+    || host.includes("cultura")
+    || host.includes("library")
+    || host.includes("biblioteca")
+    || host.includes("museum")
+    || host.includes("museo")
+  );
+
+  if (strongHost) return { label: "Strong source", tone: "green", detail: host };
+  return { label: "Source linked", tone: "amber", detail: host };
+}
+
+function detailNeedsCheck(value?: string | null) {
+  const normalized = comparableText(value);
+  return !normalized || /\b(check|unclear|unknown|tbc|tbd|confirm|verify)\b/.test(normalized);
+}
+
+function locationNeedsCheck(candidate: AdminParticipationEvent) {
+  const location = comparableText(candidate.locationLabel);
+  if (!location || location === "nearby") return true;
+  const city = comparableText(candidate.city);
+  return Boolean(city && location === city);
+}
+
+function discoveryReview(candidate: DiscoveryCandidate, existingEvents: AdminParticipationEvent[]) {
+  const matches = duplicateMatches(candidate, existingEvents);
+  const source = sourceQuality(candidate);
+  const cues: Array<{ label: string; tone: PillTone; detail?: string }> = [
+    { label: "Draft only", tone: "amber" },
+    { label: "Needs review", tone: "amber" },
+    { label: "Live check required", tone: "amber" },
+  ];
+
+  if (matches.length > 0) {
+    cues.unshift({ label: "Possible duplicate", tone: "rose", detail: `${matches[0].eventKey}: ${matches[0].reasons.join(", ")}` });
+  }
+  if (detailNeedsCheck(candidate.timeLabelEn) && !candidate.startsAt) cues.push({ label: "Needs time check", tone: "amber" });
+  if (detailNeedsCheck(candidate.costLabelEn)) cues.push({ label: "Cost unclear", tone: "amber" });
+  if (locationNeedsCheck(candidate)) cues.push({ label: "Location unclear", tone: "amber" });
+
+  const manualAction = candidate.reviewAction ?? "review";
+  const actionBlocksSave = manualAction !== "review";
+  const saveBlocked = actionBlocksSave || matches.length > 0 || !cleanText(candidate.sourceUrl);
+  const confidence = matches.length > 0
+    ? { label: "Duplicate risk", tone: "rose" as PillTone }
+    : saveBlocked
+      ? { label: "Not save-ready", tone: "rose" as PillTone }
+      : cues.length <= 3 && source.tone === "green"
+        ? { label: "Strong candidate", tone: "green" as PillTone }
+        : { label: "Review details", tone: "amber" as PillTone };
+
+  return { matches, source, cues, confidence, saveBlocked, manualAction };
 }
 
 export default function CuratedActivitiesAdminPage() {
@@ -1365,6 +1510,8 @@ export default function CuratedActivitiesAdminPage() {
   const interestedCount = events.reduce((sum, event) => sum + event.responseCounts.interested, 0);
   const checkRequestCount = events.reduce((sum, event) => sum + event.checkRequestCount, 0);
   const selectedDiscoveryCount = discoveryCandidates.filter((candidate) => candidate.selected).length;
+  const blockedDiscoveryCount = discoveryCandidates.filter((candidate) => discoveryReview(candidate, events).saveBlocked).length;
+  const saveableDiscoveryCount = discoveryCandidates.length - blockedDiscoveryCount;
   const workQueueCounts = useMemo<Record<WorkQueueFilter, number>>(() => ({
     all: events.length,
     review: events.filter((event) => matchesWorkQueue(event, "review")).length,
@@ -1416,12 +1563,23 @@ export default function CuratedActivitiesAdminPage() {
   }
 
   function setDiscoverySelection(selected: boolean) {
-    setDiscoveryCandidates((current) => current.map((candidate) => ({ ...candidate, selected })));
+    setDiscoveryCandidates((current) => current.map((candidate) => ({
+      ...candidate,
+      selected: selected ? !discoveryReview(candidate, events).saveBlocked : false,
+    })));
   }
 
   function discardDiscoveryCandidate(previewId: string) {
     setDiscoveryCandidates((current) => current.filter((candidate) => candidate.previewId !== previewId));
     setExpandedDiscoveryId((current) => (current === previewId ? null : current));
+  }
+
+  function setDiscoveryAction(previewId: string, reviewAction: DiscoveryCandidateAction) {
+    setDiscoveryCandidates((current) => current.map((candidate) => (
+      candidate.previewId === previewId
+        ? { ...candidate, reviewAction, selected: reviewAction === "review" ? candidate.selected : false }
+        : candidate
+    )));
   }
 
   function toggleDiscoveryInterest(tag: string) {
@@ -1505,13 +1663,19 @@ export default function CuratedActivitiesAdminPage() {
       setMessage("Select at least one AI candidate to save as a draft.");
       return;
     }
+    const blocked = selected.filter((candidate) => discoveryReview(candidate, events).saveBlocked);
+    const saveable = selected.filter((candidate) => !discoveryReview(candidate, events).saveBlocked);
+    if (saveable.length === 0) {
+      setMessage(`${blocked.length} selected AI candidate${blocked.length === 1 ? "" : "s"} need review before saving.`);
+      return;
+    }
 
     setSavingDiscovery(true);
     setMessage("");
     try {
       const saved: string[] = [];
       const failed: string[] = [];
-      for (const candidate of selected) {
+      for (const candidate of saveable) {
         try {
           await api("/events", { method: "POST", body: JSON.stringify(aiDraftPayload(candidate)) });
           saved.push(candidate.eventKey);
@@ -1524,7 +1688,9 @@ export default function CuratedActivitiesAdminPage() {
       await refresh();
       setMessage(failed.length > 0
         ? `${saved.length} AI drafts saved. ${failed.length} need another look.`
-        : `${saved.length} AI drafts saved for review.`);
+        : blocked.length > 0
+          ? `${saved.length} AI drafts saved for review. ${blocked.length} selected candidate${blocked.length === 1 ? "" : "s"} stayed in preview for checks.`
+          : `${saved.length} AI drafts saved for review.`);
     } finally {
       setSavingDiscovery(false);
     }
@@ -2039,17 +2205,21 @@ export default function CuratedActivitiesAdminPage() {
                     <p className="text-sm font-black text-[#2f2135]">
                       {discoveryCandidates.length} candidates found. {selectedDiscoveryCount} selected for draft save.
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-[#7d6b65]">Review the full shortlist, open details when needed, then save only the best matches.</p>
+                    <p className="mt-1 text-xs font-semibold text-[#7d6b65]">
+                      {blockedDiscoveryCount > 0
+                        ? `${blockedDiscoveryCount} need duplicate, source, or fit review before saving.`
+                        : "Review the full shortlist, open details when needed, then save only the best matches."}
+                    </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
                       className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
-                      disabled={selectedDiscoveryCount === discoveryCandidates.length}
+                      disabled={saveableDiscoveryCount === 0 || selectedDiscoveryCount === saveableDiscoveryCount}
                       onClick={() => setDiscoverySelection(true)}
                       type="button"
                     >
                       <CheckCircle2 size={14} />
-                      Select all
+                      Select save-ready
                     </button>
                     <button
                       className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#5b4a46] disabled:opacity-50"
@@ -2065,6 +2235,7 @@ export default function CuratedActivitiesAdminPage() {
                 <div className="grid gap-3">
                   {discoveryCandidates.map((candidate) => {
                     const expanded = expandedDiscoveryId === candidate.previewId;
+                    const review = discoveryReview(candidate, events);
                     const previewTags = Array.from(new Set([
                       ...candidate.interestTags,
                       ...candidate.accessibilityTags,
@@ -2076,15 +2247,18 @@ export default function CuratedActivitiesAdminPage() {
                         className={`rounded-2xl border p-4 transition ${
                           candidate.selected
                             ? "border-purple-300 bg-purple-50/60 shadow-sm"
+                            : review.saveBlocked
+                              ? "border-rose-100 bg-rose-50/30"
                             : "border-[#eadfd5] bg-[#fffdf9]"
                         }`}
                       >
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                          <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-3">
+                          <label className={`flex min-w-0 flex-1 items-start gap-3 ${review.saveBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}>
                             <input
                               className="mt-1 h-4 w-4 accent-purple-700"
                               type="checkbox"
                               aria-label={`Select ${candidate.titleEn || candidate.eventKey}`}
+                              disabled={review.saveBlocked}
                               checked={candidate.selected}
                               onChange={(event) => updateDiscoveryCandidate(candidate.previewId, { selected: event.target.checked })}
                             />
@@ -2093,6 +2267,23 @@ export default function CuratedActivitiesAdminPage() {
                               <span className="mt-1 block break-words text-xs font-bold uppercase tracking-wide text-purple-700">{candidate.eventKey}</span>
                               {candidate.summaryEn && (
                                 <span className="mt-2 block text-sm font-semibold leading-relaxed text-[#5b4a46]">{candidate.summaryEn}</span>
+                              )}
+                              <span className="mt-3 flex flex-wrap gap-2" data-testid={`admin-discovery-signals-${candidate.previewId}`}>
+                                <Pill tone={review.confidence.tone}>{review.confidence.label}</Pill>
+                                <Pill tone={review.source.tone}>{review.source.label}</Pill>
+                                {review.manualAction !== "review" && (
+                                  <Pill tone={review.manualAction === "save_later" ? "plain" : "rose"}>
+                                    {review.manualAction === "save_later" ? "Saved for later" : review.manualAction === "duplicate" ? "Marked duplicate" : "Marked bad fit"}
+                                  </Pill>
+                                )}
+                              </span>
+                              {review.matches.length > 0 && (
+                                <span
+                                  className="mt-2 block rounded-2xl bg-white px-3 py-2 text-xs font-bold text-rose-700"
+                                  data-testid={`admin-discovery-duplicate-${candidate.previewId}`}
+                                >
+                                  Possible duplicate of {review.matches.map((match) => `${match.eventKey} (${match.reasons.join(", ")})`).join("; ")}
+                                </span>
                               )}
                             </span>
                           </label>
@@ -2122,6 +2313,43 @@ export default function CuratedActivitiesAdminPage() {
                               {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                               {expanded ? "Hide details" : "View details"}
                             </button>
+                            {review.manualAction === "review" ? (
+                              <>
+                                <button
+                                  className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5b4a46]"
+                                  onClick={() => setDiscoveryAction(candidate.previewId, "save_later")}
+                                  type="button"
+                                  aria-label={`Save ${candidate.titleEn || candidate.eventKey} for later`}
+                                >
+                                  Save later
+                                </button>
+                                <button
+                                  className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5b4a46]"
+                                  onClick={() => setDiscoveryAction(candidate.previewId, "duplicate")}
+                                  type="button"
+                                  aria-label={`Mark ${candidate.titleEn || candidate.eventKey} as duplicate`}
+                                >
+                                  Duplicate
+                                </button>
+                                <button
+                                  className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5b4a46]"
+                                  onClick={() => setDiscoveryAction(candidate.previewId, "bad_fit")}
+                                  type="button"
+                                  aria-label={`Mark ${candidate.titleEn || candidate.eventKey} as bad fit`}
+                                >
+                                  Bad fit
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                className="inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-purple-800"
+                                onClick={() => setDiscoveryAction(candidate.previewId, "review")}
+                                type="button"
+                                aria-label={`Return ${candidate.titleEn || candidate.eventKey} to review`}
+                              >
+                                Review
+                              </button>
+                            )}
                             <button
                               className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700"
                               onClick={() => discardDiscoveryCandidate(candidate.previewId)}
@@ -2159,13 +2387,18 @@ export default function CuratedActivitiesAdminPage() {
                           </div>
                         )}
 
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {review.cues.slice(0, 6).map((cue) => <Pill key={`${candidate.previewId}-${cue.label}`} tone={cue.tone}>{cue.label}</Pill>)}
+                        </div>
+
                         {expanded && (
                           <div className="mt-4 border-t border-[#eadfd5] pt-4" data-testid={`admin-discovery-detail-${candidate.previewId}`}>
                             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                               <p className="text-sm font-black text-[#2f2135]">Review and edit before saving</p>
                               <div className="flex flex-wrap gap-2">
-                                <Pill tone="amber">Draft</Pill>
-                                <Pill tone="amber">Needs review</Pill>
+                                <Pill tone={review.source.tone}>{review.source.label}</Pill>
+                                <Pill tone={review.confidence.tone}>{review.confidence.label}</Pill>
+                                <Pill tone="amber">Live check required</Pill>
                               </div>
                             </div>
 
