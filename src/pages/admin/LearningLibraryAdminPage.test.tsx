@@ -49,6 +49,9 @@ const lessonPayload = {
       body: "Music combines pattern, repetition, emotion, and timing.",
       reflectionPrompt: "What song can you remember from long ago?",
       sourceNotes: "Starter curated library",
+      imageUrl: "https://cdn.example.com/learning/music-memory.png",
+      imageAlt: "A familiar melody represented as notes around a memory box.",
+      imagePrompt: "A custom image showing music notes helping a memory become easier to recall.",
       estimatedMinutes: 3,
       difficulty: "easy",
       tags: ["music", "memory"],
@@ -111,6 +114,8 @@ describe("LearningLibraryAdminPage", () => {
     expect(await screen.findByRole("heading", { name: "Learning library" })).toBeInTheDocument();
     expect(await screen.findByText("Why music sticks in memory")).toBeInTheDocument();
     expect(screen.getByTestId("input-admin-learning-title")).toHaveValue("Why music sticks in memory");
+    expect(screen.getByTestId("input-admin-learning-image-url")).toHaveValue("https://cdn.example.com/learning/music-memory.png");
+    expect(screen.getByTestId("admin-learning-image-preview")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-admin-learning-publish"));
 
@@ -121,6 +126,74 @@ describe("LearningLibraryAdminPage", () => {
     expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Lesson published.");
     expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Lesson published.");
     await waitFor(() => expect(screen.getAllByText("published").length).toBeGreaterThan(0));
+  });
+
+  it("saves the lesson and generates a custom image", async () => {
+    const generatedLesson = {
+      ...lessonPayload.lessons[0],
+      imageUrl: "/api/learning/images/generated-image-1",
+      imageAlt: "A gentle illustration of music notes around a memory box.",
+      imagePrompt: "A gentle illustration of music notes around a memory box.",
+      updatedAt: "2026-06-24T10:00:00.000Z",
+    };
+    mocks.apiFetch.mockImplementation((url: string, options?: RequestInit) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response(lessonPayload));
+      if (url === "/api/admin/learning/lessons/lesson-1" && options?.method === "PATCH") {
+        const body = JSON.parse(String(options.body));
+        return Promise.resolve(response({
+          lesson: {
+            ...lessonPayload.lessons[0],
+            imagePrompt: body.imagePrompt,
+            imageAlt: body.imageAlt,
+          },
+        }));
+      }
+      if (url === "/api/admin/learning/lessons/lesson-1/generate-image" && options?.method === "POST") {
+        return Promise.resolve(response({
+          image: {
+            id: "generated-image-1",
+            url: "/api/learning/images/generated-image-1",
+            mimeType: "image/jpeg",
+            model: "gpt-image-2",
+          },
+          lesson: generatedLesson,
+        }));
+      }
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Why music sticks in memory")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("textarea-admin-learning-image-prompt"), {
+      target: { value: "A gentle illustration of music notes around a memory box." },
+    });
+    fireEvent.click(screen.getByTestId("button-admin-learning-generate-image"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
+      "/api/admin/learning/lessons/lesson-1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining("music notes around a memory box"),
+      }),
+    ));
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith(
+      "/api/admin/learning/lessons/lesson-1/generate-image",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          imagePrompt: "A gentle illustration of music notes around a memory box.",
+          imageAlt: "A familiar melody represented as notes around a memory box.",
+        }),
+      },
+    ));
+    expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Image generated and saved.");
+    expect(screen.getByTestId("input-admin-learning-image-url")).toHaveValue("/api/learning/images/generated-image-1");
   });
 
   it("bulk publishes draft lessons", async () => {
@@ -308,6 +381,9 @@ describe("LearningLibraryAdminPage", () => {
         hook: "A simple cup of tea can become a small ceremony.",
         body: "Tea rituals often slow the body down.",
         reflection_prompt: "What daily routine feels calming to you?",
+        image_url: "https://cdn.example.com/learning/tea-ritual.png",
+        image_alt: "A calm cup of tea beside a small notebook.",
+        image_prompt: "A custom image showing a calming tea ritual.",
         estimated_minutes: 3,
         difficulty: "easy",
         tags: ["culture"],
@@ -413,9 +489,12 @@ describe("LearningLibraryAdminPage", () => {
         external_id_base: "music-lesson-001",
         status: "draft",
         is_active: false,
+        image_url: "https://example.com/learning/custom-lesson-image.png",
+        image_prompt: expect.stringContaining("exact custom image"),
       }));
       expect(template.lessons[0].translations.en).toEqual(expect.objectContaining({
         title: "Replace with a clear English lesson title",
+        image_alt: expect.stringContaining("plain English"),
         reflection_prompt: expect.any(String),
       }));
       expect(template.lessons[0].translations.es).toEqual(expect.objectContaining({

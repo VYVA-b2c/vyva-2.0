@@ -48,6 +48,9 @@ const lesson = {
   hook: "Soap has a tiny split personality.",
   body: "One end of a soap molecule likes water. The other end likes oil and grease.",
   reflectionPrompt: "Where else have you seen two different things work better together?",
+  imageUrl: "https://cdn.example.com/learning/soap-water.png",
+  imageAlt: "Soap molecules helping water lift oil away.",
+  imagePrompt: "A custom image showing soap molecules between water and oil.",
   estimatedMinutes: 3,
   difficulty: "easy",
   tags: ["science"],
@@ -156,6 +159,8 @@ describe("LearnSomethingNewPage", () => {
     expect(await screen.findByTestId("learn-hub")).toHaveTextContent("Learn Something New");
     expect(screen.getByTestId("learn-today-lesson")).toHaveTextContent("Why soap helps water clean");
     expect(screen.getByTestId("learn-today-lesson")).toHaveTextContent("Reflection prompt");
+    expect(screen.getByTestId("learn-lesson-image")).toHaveAttribute("src", "https://cdn.example.com/learning/soap-water.png");
+    expect(screen.getByTestId("learn-lesson-image")).toHaveAttribute("alt", "Soap molecules helping water lift oil away.");
 
     fireEvent.click(screen.getByTestId("button-learn-complete"));
 

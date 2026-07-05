@@ -44,6 +44,9 @@ type LearningLesson = {
   hook: string;
   body: string;
   reflectionPrompt: string;
+  imageUrl: string | null;
+  imageAlt: string | null;
+  imagePrompt: string | null;
   estimatedMinutes: number;
   difficulty: string;
   tags: string[];
@@ -138,6 +141,15 @@ function timeLabel(value: string) {
   const date = new Date();
   date.setHours(hours, minutes, 0, 0);
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function interestSummary(categories: LearningCategory[], interests: string[]) {
+  const labels = interests
+    .map((interest) => categories.find((category) => category.slug === interest)?.label)
+    .filter((label): label is string => Boolean(label));
+  if (!labels.length) return "General Knowledge";
+  if (labels.length <= 2) return labels.join(" + ");
+  return `${labels.slice(0, 2).join(" + ")} + ${labels.length - 2} more`;
 }
 
 function makeInitialForm(program: LearningProgram | null): ProgramForm {
@@ -429,6 +441,10 @@ export default function LearnSomethingNewPage() {
   });
 
   const initialForm = useMemo(() => makeInitialForm(program), [program]);
+  const totalLessons = program?.progress.totalCount || program?.items.length || 7;
+  const currentDay = Math.min(Math.max(program?.progress.currentDay || 1, 1), totalLessons);
+  const completedCount = Math.min(program?.progress.completedCount || 0, totalLessons);
+  const selectedInterests = program ? interestSummary(categories, program.interests) : "General Knowledge";
 
   const readLesson = () => {
     if (!lesson || typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -476,11 +492,11 @@ export default function LearnSomethingNewPage() {
   return (
     <main className="min-h-screen bg-[#FAF8F4] px-4 py-6 text-[#261c29]" data-testid="learn-hub">
       <div className="mx-auto w-full max-w-3xl">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="font-serif text-[34px] leading-none text-[#211827] sm:text-[48px]">Learn Something New</h1>
-            <p className="mt-3 text-[15px] font-semibold leading-relaxed text-[#6b5d58]">
-              Day {program.progress.currentDay} of {program.progress.totalCount || 7} | {program.progress.completedCount}/{program.progress.totalCount || 7} complete | {timeLabel(program.dailyTime)} | {program.lessonLengthMinutes} min
+            <p className="mt-3 max-w-xl text-[15px] font-semibold leading-relaxed text-[#6b5d58]">
+              One short lesson a day, shaped around the topics you chose.
             </p>
           </div>
           <button
@@ -494,30 +510,60 @@ export default function LearnSomethingNewPage() {
           </button>
         </header>
 
-        <div className="mt-5" aria-label="7 day learning progress">
-          <div className="flex gap-2">
-            {program.items.map((item) => {
-              const isComplete = item.status === "completed";
-              const isToday = item.id === today?.id;
-              return (
-                <span
-                  key={item.id}
-                  aria-label={`Day ${item.programDay}${isComplete ? " complete" : isToday ? " today" : ""}`}
-                  className={`h-2 flex-1 rounded-full ${
-                    isComplete ? "bg-[#16A34A]" : isToday ? "bg-[#6D28D9]" : "bg-[#E5DCD2]"
-                  }`}
-                />
-              );
-            })}
+        <section className="mt-5 rounded-lg border border-[#E6DDD2] bg-white px-4 py-4 shadow-sm sm:px-5" aria-label="Learning week summary">
+          <div className="grid gap-4 sm:grid-cols-[1fr_1fr_1fr] sm:items-start">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8a7971]">Today</p>
+              <p className="mt-1 text-[19px] font-black leading-tight text-[#211827]">Lesson {currentDay}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#6b5d58]">{timeLabel(program.dailyTime)} · {program.lessonLengthMinutes} min</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8a7971]">This week</p>
+              <p className="mt-1 text-[19px] font-black leading-tight text-[#211827]">{completedCount} of {totalLessons} complete</p>
+              <p className="mt-1 text-[13px] font-bold text-[#6b5d58]">One lesson each day</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#8a7971]">Interests</p>
+              <p className="mt-1 text-[19px] font-black leading-tight text-[#211827]">{selectedInterests}</p>
+              <p className="mt-1 text-[13px] font-bold text-[#6b5d58]">Read or listen</p>
+            </div>
           </div>
-          <div className="mt-2 flex justify-between text-[12px] font-bold text-[#7d6b65]">
-            <span>Day 1</span>
-            <span>Day {program.progress.totalCount || 7}</span>
+
+          <div className="mt-4" aria-label="7 day learning progress">
+            <div className="flex gap-2">
+              {program.items.map((item) => {
+                const isComplete = item.status === "completed";
+                const isToday = item.id === today?.id;
+                return (
+                  <span
+                    key={item.id}
+                    aria-label={`Day ${item.programDay}${isComplete ? " complete" : isToday ? " today" : ""}`}
+                    className={`h-2 flex-1 rounded-full ${
+                      isComplete ? "bg-[#16A34A]" : isToday ? "bg-[#6D28D9]" : "bg-[#E5DCD2]"
+                    }`}
+                  />
+                );
+              })}
+            </div>
+            <div className="mt-2 flex justify-between text-[12px] font-bold text-[#7d6b65]">
+              <span>Day 1</span>
+              <span>Day {totalLessons}</span>
+            </div>
           </div>
-        </div>
+        </section>
 
         {lesson && today ? (
-          <article className="mt-4 rounded-lg border border-[#E6DDD2] bg-white p-4 shadow-sm sm:mt-5 sm:p-7" data-testid="learn-today-lesson">
+          <article className="mt-5 rounded-lg border border-[#E6DDD2] bg-white p-4 shadow-sm sm:p-7" data-testid="learn-today-lesson">
+            {lesson.imageUrl ? (
+              <figure className="-mx-4 -mt-4 mb-5 overflow-hidden rounded-t-lg border-b border-[#E6DDD2] bg-[#F6F1EA] sm:-mx-7 sm:-mt-7 sm:mb-6">
+                <img
+                  src={lesson.imageUrl}
+                  alt={lesson.imageAlt || `${lesson.title} lesson image`}
+                  className="aspect-[16/7] w-full object-cover"
+                  data-testid="learn-lesson-image"
+                />
+              </figure>
+            ) : null}
             <div className="flex flex-wrap items-center gap-3">
               <span className="inline-flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.12em]" style={{ color: category?.color ?? "#6D28D9" }}>
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: category?.color ?? "#6D28D9" }} />
@@ -534,12 +580,12 @@ export default function LearnSomethingNewPage() {
             <p className="max-w-2xl text-[16px] font-semibold leading-[1.58] text-[#3f343d] sm:text-[18px] sm:leading-relaxed">{lesson.body}</p>
 
             <div className="mt-5 flex flex-col gap-5 sm:mt-6">
-              <div className="order-2 mt-24 border-l-4 border-[#6D28D9] bg-[#FAF8F4] px-4 py-3 sm:order-1 sm:mt-0">
+              <div className="border-l-4 border-[#6D28D9] bg-[#FAF8F4] px-4 py-3">
                 <p className="text-[12px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">Reflection prompt</p>
                 <p className="mt-2 text-[17px] font-black leading-snug text-[#332934]">{lesson.reflectionPrompt}</p>
               </div>
 
-              <div className="order-1 grid grid-cols-2 gap-2 sm:order-2 sm:grid-cols-[1.35fr_1fr_1fr] sm:gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1.35fr_1fr_1fr] sm:gap-3">
                 <button
                   type="button"
                   disabled={eventMutation.isPending || today.status === "completed"}

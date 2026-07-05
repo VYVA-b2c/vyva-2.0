@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Archive, CheckCircle2, Download, FilePlus2, Loader2, Save, Search, Upload } from "lucide-react";
+import { Archive, CheckCircle2, Download, FilePlus2, ImagePlus, Loader2, Save, Search, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -27,6 +27,9 @@ type Lesson = {
   body: string;
   reflectionPrompt: string;
   sourceNotes: string | null;
+  imageUrl: string | null;
+  imageAlt: string | null;
+  imagePrompt: string | null;
   estimatedMinutes: number;
   difficulty: LessonDifficulty;
   tags: string[];
@@ -58,6 +61,9 @@ const emptyLesson = (categorySlug = "general_knowledge"): LessonDraft => ({
   body: "",
   reflectionPrompt: "",
   sourceNotes: "",
+  imageUrl: "",
+  imageAlt: "",
+  imagePrompt: "",
   estimatedMinutes: 3,
   difficulty: "easy",
   tags: [],
@@ -70,6 +76,9 @@ function lessonToDraft(lesson: Lesson): LessonDraft {
   return {
     ...lesson,
     sourceNotes: lesson.sourceNotes ?? "",
+    imageUrl: lesson.imageUrl ?? "",
+    imageAlt: lesson.imageAlt ?? "",
+    imagePrompt: lesson.imagePrompt ?? "",
     tagsText: lesson.tags.join(", "),
   };
 }
@@ -84,6 +93,9 @@ function draftToPayload(draft: LessonDraft) {
     body: draft.body,
     reflectionPrompt: draft.reflectionPrompt,
     sourceNotes: draft.sourceNotes || null,
+    imageUrl: draft.imageUrl || null,
+    imageAlt: draft.imageAlt || null,
+    imagePrompt: draft.imagePrompt || null,
     estimatedMinutes: Number(draft.estimatedMinutes),
     difficulty: draft.difficulty,
     tags: draft.tagsText.split(",").map((tag) => tag.trim()).filter(Boolean),
@@ -241,12 +253,15 @@ function buildLearningContentTemplate(categories: Category[]) {
         tags: ["starter", sampleCategory.slug],
         status: "draft",
         is_active: false,
+        image_url: "https://example.com/learning/custom-lesson-image.png",
+        image_prompt: "Describe the exact custom image for this lesson. Include the subject, setting, objects, mood, style, and what should not appear.",
         translations: {
           en: {
             title: "Replace with a clear English lesson title",
             hook: "Open with one inviting English sentence that makes the topic feel worth learning.",
             body: "Write a short, warm English learning snippet. Keep it practical, accurate, and easy to finish in a few minutes.",
             reflection_prompt: "End with one gentle English question that helps the learner connect the idea to memory or daily life.",
+            image_alt: "Describe the custom image in plain English for screen readers.",
             source_notes: "Add source, citation, reviewer note, or internal provenance here.",
           },
           es: {
@@ -254,6 +269,7 @@ function buildLearningContentTemplate(categories: Category[]) {
             hook: "Write the Spanish hook for this lesson.",
             body: "Write the Spanish learning snippet for this lesson.",
             reflection_prompt: "Write the Spanish reflection prompt for this lesson.",
+            image_alt: "Describe the custom image in Spanish for screen readers.",
             source_notes: "Optional Spanish reviewer note or source.",
           },
           fr: {
@@ -261,6 +277,7 @@ function buildLearningContentTemplate(categories: Category[]) {
             hook: "Write the French hook for this lesson.",
             body: "Write the French learning snippet for this lesson.",
             reflection_prompt: "Write the French reflection prompt for this lesson.",
+            image_alt: "Describe the custom image in French for screen readers.",
             source_notes: "Optional French reviewer note or source.",
           },
           de: {
@@ -268,6 +285,7 @@ function buildLearningContentTemplate(categories: Category[]) {
             hook: "Write the German hook for this lesson.",
             body: "Write the German learning snippet for this lesson.",
             reflection_prompt: "Write the German reflection prompt for this lesson.",
+            image_alt: "Describe the custom image in German for screen readers.",
             source_notes: "Optional German reviewer note or source.",
           },
           it: {
@@ -275,6 +293,7 @@ function buildLearningContentTemplate(categories: Category[]) {
             hook: "Write the Italian hook for this lesson.",
             body: "Write the Italian learning snippet for this lesson.",
             reflection_prompt: "Write the Italian reflection prompt for this lesson.",
+            image_alt: "Describe the custom image in Italian for screen readers.",
             source_notes: "Optional Italian reviewer note or source.",
           },
           pt: {
@@ -282,6 +301,7 @@ function buildLearningContentTemplate(categories: Category[]) {
             hook: "Write the Portuguese hook for this lesson.",
             body: "Write the Portuguese learning snippet for this lesson.",
             reflection_prompt: "Write the Portuguese reflection prompt for this lesson.",
+            image_alt: "Describe the custom image in Portuguese for screen readers.",
             source_notes: "Optional Portuguese reviewer note or source.",
           },
         },
@@ -341,6 +361,7 @@ export default function LearningLibraryAdminPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
   const [importing, setImporting] = useState(false);
   const [bulkPublishing, setBulkPublishing] = useState(false);
   const [message, setMessage] = useState("");
@@ -484,7 +505,7 @@ export default function LearningLibraryAdminPage() {
     });
   }
 
-  async function saveLesson(nextStatus?: LessonStatus) {
+  async function saveLesson(nextStatus?: LessonStatus): Promise<Lesson | null> {
     const nextDraft = nextStatus ? { ...draft, status: nextStatus, isActive: nextStatus === "published" } : draft;
     setSaving(true);
     setMessage("");
@@ -510,12 +531,49 @@ export default function LearningLibraryAdminPage() {
       const nextMessage = nextStatus === "published" ? "Lesson published." : nextStatus === "archived" ? "Lesson archived." : "Lesson saved.";
       setMessage(nextMessage);
       setEditorMessage(nextMessage);
+      return saved;
     } catch (error) {
       const nextMessage = error instanceof Error ? error.message : "Lesson could not be saved.";
       setMessage(nextMessage);
       setEditorMessage(nextMessage);
+      return null;
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function generateLessonImage() {
+    setGeneratingImage(true);
+    setMessage("");
+    setEditorMessage("");
+    try {
+      const saved = await saveLesson();
+      if (!saved) return;
+
+      setMessage("");
+      setEditorMessage("Generating image...");
+      const response = await apiFetch(`/api/admin/learning/lessons/${saved.id}/generate-image`, {
+        method: "POST",
+        body: JSON.stringify({
+          imagePrompt: saved.imagePrompt || null,
+          imageAlt: saved.imageAlt || null,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(responseErrorMessage(payload, "Lesson image could not be generated."));
+      const generatedLesson = payload.lesson as Lesson;
+      setLessons((current) => current.map((lesson) => lesson.id === generatedLesson.id ? generatedLesson : lesson));
+      setCoverageLessons((current) => current.map((lesson) => lesson.id === generatedLesson.id ? generatedLesson : lesson));
+      setSelectedId(generatedLesson.id);
+      setDraft(lessonToDraft(generatedLesson));
+      setMessage("Image generated and saved.");
+      setEditorMessage("Image generated and saved.");
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Lesson image could not be generated.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+    } finally {
+      setGeneratingImage(false);
     }
   }
 
@@ -685,7 +743,7 @@ export default function LearningLibraryAdminPage() {
               <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Content template</p>
               <h2 id="learning-template-title" className="mt-1 text-lg font-black text-[#2f2135]">Learning library JSON</h2>
               <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-[#7d6b65]">
-                Download a ready-to-fill multilingual file with the current categories, one sample lesson, and every field needed for bulk upload. Upload accepts .json files or plain .txt files containing JSON.
+                Download a ready-to-fill multilingual file with the current categories, one sample lesson, custom image fields, and every field needed for bulk upload. Upload accepts .json files or plain .txt files containing JSON.
               </p>
             </div>
             <button
@@ -702,6 +760,7 @@ export default function LearningLibraryAdminPage() {
             <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{categories.length || defaultTemplateCategories.length} categories</span>
             <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{coverageLanguages.length} languages</span>
             <span className="rounded-full bg-[#FBF8F5] px-3 py-1">Grouped translations</span>
+            <span className="rounded-full bg-[#FBF8F5] px-3 py-1">Custom image fields</span>
           </div>
         </section>
 
@@ -942,6 +1001,56 @@ export default function LearningLibraryAdminPage() {
               <Field label="Reflection prompt">
                 <textarea value={draft.reflectionPrompt} onChange={(event) => setDraft({ ...draft, reflectionPrompt: event.target.value })} className={textareaClass} data-testid="textarea-admin-learning-reflection" />
               </Field>
+              <Field label="Custom image URL">
+                <input
+                  value={draft.imageUrl ?? ""}
+                  onChange={(event) => setDraft({ ...draft, imageUrl: event.target.value })}
+                  placeholder="https://..."
+                  className={inputClass}
+                  data-testid="input-admin-learning-image-url"
+                />
+              </Field>
+              {draft.imageUrl ? (
+                <div className="overflow-hidden rounded-2xl border border-[#eadfd5] bg-[#FFFCF8]" data-testid="admin-learning-image-preview">
+                  <img
+                    src={draft.imageUrl}
+                    alt={draft.imageAlt || "Lesson custom image preview"}
+                    className="aspect-[16/9] w-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-[#d8c8bb] bg-[#FFFCF8] px-4 py-5 text-sm font-bold text-[#7d6b65]">
+                  No custom image yet. Add an image URL so this lesson does not use generic art.
+                </div>
+              )}
+              <Field label="Image alt text">
+                <input
+                  value={draft.imageAlt ?? ""}
+                  onChange={(event) => setDraft({ ...draft, imageAlt: event.target.value })}
+                  placeholder="Plain description of the image"
+                  className={inputClass}
+                  data-testid="input-admin-learning-image-alt"
+                />
+              </Field>
+              <Field label="Image prompt / brief">
+                <textarea
+                  value={draft.imagePrompt ?? ""}
+                  onChange={(event) => setDraft({ ...draft, imagePrompt: event.target.value })}
+                  placeholder="The exact prompt or creative brief used to create this lesson's custom image."
+                  className={textareaClass}
+                  data-testid="textarea-admin-learning-image-prompt"
+                />
+              </Field>
+              <button
+                type="button"
+                disabled={saving || generatingImage}
+                onClick={() => void generateLessonImage()}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#6D28D9] px-3 text-sm font-black text-white transition hover:bg-[#5B21B6] disabled:opacity-60"
+                data-testid="button-admin-learning-generate-image"
+              >
+                {generatingImage ? <Loader2 className="animate-spin" size={16} /> : <ImagePlus size={16} />}
+                {generatingImage ? "Generating image" : "Generate image"}
+              </button>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Estimated minutes">
                   <input type="number" min={1} max={15} value={draft.estimatedMinutes} onChange={(event) => setDraft({ ...draft, estimatedMinutes: Number(event.target.value) })} className={inputClass} />
@@ -974,7 +1083,7 @@ export default function LearningLibraryAdminPage() {
               ) : null}
               <button
                 type="button"
-                disabled={saving}
+                disabled={saving || generatingImage}
                 onClick={() => void saveLesson()}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 text-sm font-black text-[#5b4a46] disabled:opacity-60"
                 data-testid="button-admin-learning-save"
@@ -984,7 +1093,7 @@ export default function LearningLibraryAdminPage() {
               </button>
               <button
                 type="button"
-                disabled={saving}
+                disabled={saving || generatingImage}
                 onClick={() => void quickAction("publish")}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white disabled:opacity-60"
                 data-testid="button-admin-learning-publish"
@@ -994,7 +1103,7 @@ export default function LearningLibraryAdminPage() {
               </button>
               <button
                 type="button"
-                disabled={saving}
+                disabled={saving || generatingImage}
                 onClick={() => void quickAction("archive")}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-700 px-3 text-sm font-black text-white disabled:opacity-60"
                 data-testid="button-admin-learning-archive"
