@@ -128,7 +128,7 @@ describe("voice navigation actions", () => {
     expect(routeForVoiceUtterance("I want to learn something")).toBe("/learn");
     expect(routeForVoiceUtterance("Train my senses")).toBe("/senses");
     expect(actionForVoiceUtterance("I want cognitive exercises")?.actionType).toBe("brain.activity");
-    expect(routeForVoiceUtterance("I want cognitive exercises")).toBe("/activities");
+    expect(routeForVoiceUtterance("I want cognitive exercises")).toBe("/mind-memory");
     expect(routeForVoiceUtterance("I want someone to talk to")).toBe("/companions");
   });
 
@@ -183,7 +183,7 @@ describe("voice navigation actions", () => {
 
     expect(action?.actionType).toBe("brain.activity");
     expect(action?.domain).toBe("brain_coach");
-    expect(action?.route).toBe("/activities");
+    expect(action?.route).toBe("/mind-memory");
   });
 
   it("rejects unrecognised app action routes from tool parameters", () => {
@@ -202,7 +202,7 @@ describe("voice navigation actions", () => {
 
     const action = transfer ? actionForSpecialistTransfer(transfer) : null;
     expect(action?.id).toBe("voice_transfer_brain_coach");
-    expect(action?.route).toBe("/activities");
+    expect(action?.route).toBe("/mind-memory");
   });
 
   it("exposes action registry contracts for simulator and app fulfilment", () => {

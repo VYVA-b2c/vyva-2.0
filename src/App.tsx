@@ -45,7 +45,6 @@ const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen")
 const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
 const CognitiveAssessmentReportPage = lazy(() => import("./pages/CognitiveAssessmentReportPage"));
 const CognitiveAssessmentRunnerPage = lazy(() => import("./pages/CognitiveAssessmentRunnerPage"));
-const ActivitiesScreen = lazy(() => import("./pages/ActivitiesScreen"));
 const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
 const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
@@ -185,7 +184,7 @@ function SpatialNavigatorRoute() {
   return (
     <SpatialNavigator
       userId={user?.id ?? ""}
-      onExit={() => navigate("/activities")}
+      onExit={() => navigate("/mind-memory")}
     />
   );
 }
@@ -630,7 +629,7 @@ const App = () => (
                   <Route path="/mind-memory/cognitive-assessment/report" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/report/:sessionId" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/history" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
-                  <Route path="/activities" element={<AppShell><ActivitiesScreen /></AppShell>} />
+                  <Route path="/activities" element={<Navigate to="/mind-memory" replace />} />
                   <Route path="/activities/relax-breathe" element={<AppShell><RelaxBreatheScreen /></AppShell>} />
                   <Route path="/learn" element={<AppShell><LearnSomethingNewPage /></AppShell>} />
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />

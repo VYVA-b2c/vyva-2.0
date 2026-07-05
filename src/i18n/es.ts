@@ -762,6 +762,7 @@ const es = {
       title: "Relajarse y respirar",
       intro: "Una pausa tranquila para el cuerpo y la mente.",
       backToActivities: "Volver a actividades",
+      backToMindMemory: "Volver a Mind & Memory",
       duration: "3 pasos suaves",
       stepLabel: "Paso",
       ofLabel: "de",
