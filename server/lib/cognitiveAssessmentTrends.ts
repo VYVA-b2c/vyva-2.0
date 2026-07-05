@@ -4,13 +4,17 @@ import type {
   CognitiveAssessmentContextInsight,
   CognitiveAssessmentDomainTrend,
   CognitiveAssessmentDomainTrendSeries,
+  CognitiveAssessmentHistoryInsight,
   CognitiveAssessmentTaskSignal,
   CognitiveAssessmentTrendPoint,
 } from "../../shared/cognitiveAssessmentReport.js";
 
 export type CognitiveTrendSession = {
   id: string;
+  started_at?: Date | string | null;
   completed_at: Date | string | null;
+  input_mode?: string | null;
+  language?: string | null;
   response_count?: number | string | null;
 };
 
@@ -31,6 +35,7 @@ export type CognitiveAssessmentTrendPayload = {
   baselineBands: CognitiveAssessmentBaselineBand[];
   checkQuality: CognitiveAssessmentCheckQuality;
   contextInsight: CognitiveAssessmentContextInsight;
+  historyInsights: CognitiveAssessmentHistoryInsight[];
 };
 
 type TrendDomain = {
@@ -102,6 +107,10 @@ const TREND_DOMAINS: TrendDomain[] = [
 ];
 
 const CONTEXT_TASK_IDS = new Set(["orientation", "mood_screen", "sleep_energy", "function_iadl", "subjective_concern"]);
+
+function isContextDomainId(domainId: string) {
+  return domainId === "daily_context";
+}
 
 function iso(value: Date | string | null | undefined) {
   if (!value) return null;
@@ -256,7 +265,7 @@ function domainCount(responses: CognitiveTrendResponseRow[]) {
   const domains = new Set<string>();
   responses.filter(responseIsCompleted).forEach((response) => {
     const trendDomain = trendDomainForTaskId(response.task_definition_id);
-    if (trendDomain) domains.add(trendDomain.id);
+    if (trendDomain && !isContextDomainId(trendDomain.id)) domains.add(trendDomain.id);
   });
   return domains.size;
 }
@@ -357,6 +366,19 @@ function hourDifference(left: Date | string | null | undefined, right: Date | st
   return Math.min(diff, 24 - diff);
 }
 
+function minutesBetween(startedAt: Date | string | null | undefined, completedAt: Date | string | null | undefined) {
+  if (!startedAt || !completedAt) return null;
+  const started = new Date(startedAt).getTime();
+  const completed = new Date(completedAt).getTime();
+  if (!Number.isFinite(started) || !Number.isFinite(completed) || completed < started) return null;
+  return Math.round((completed - started) / 60000);
+}
+
+function sameText(left: string | null | undefined, right: string | null | undefined) {
+  if (!left || !right) return null;
+  return left === right;
+}
+
 function buildCheckQuality(
   recentSessions: CognitiveTrendSession[],
   trendPoints: CognitiveAssessmentTrendPoint[],
@@ -374,20 +396,35 @@ function buildCheckQuality(
   const previousSession = recentSessions[recentSessions.length - 2] ?? null;
   const latestSession = recentSessions[recentSessions.length - 1] ?? null;
   const timeGap = hourDifference(latestSession?.completed_at, previousSession?.completed_at);
+  const sameLanguage = sameText(latestSession?.language, previousSession?.language);
+  const sameInputMode = sameText(latestSession?.input_mode, previousSession?.input_mode);
+  const durationMinutes = minutesBetween(latestSession?.started_at, latestSession?.completed_at);
+  const oneSitting = durationMinutes !== null ? durationMinutes <= 60 : null;
   const factors = [
     `${latest.completedSteps}/${latest.totalSteps} steps`,
-    `${latest.domainCount} domains`,
+    `${latest.domainCount} thinking domains`,
   ];
 
   if (!previousSession) {
     factors.push("First saved check");
-  } else if (timeGap !== null && timeGap <= 3) {
-    factors.push("Similar time of day");
   } else {
-    factors.push("Different time of day");
+    if (sameLanguage !== null) factors.push(sameLanguage ? "Same language" : "Different language");
+    if (sameInputMode !== null) factors.push(sameInputMode ? "Same input mode" : "Different input mode");
+    if (timeGap !== null && timeGap <= 3) {
+      factors.push("Similar time of day");
+    } else {
+      factors.push("Different time of day");
+    }
   }
+  if (oneSitting !== null) factors.push(oneSitting ? "One sitting" : "Longer session");
 
-  if (latest.completionPercent >= 75 && latest.domainCount >= 4) {
+  if (
+    latest.completionPercent >= 75
+    && latest.domainCount >= 4
+    && sameLanguage !== false
+    && sameInputMode !== false
+    && oneSitting !== false
+  ) {
     return {
       status: "good",
       label: "Good comparison",
@@ -474,13 +511,90 @@ function buildContextInsight(
   };
 }
 
+function compactTrendLabel(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.direction === "new") return `${trend.label} added`;
+  if (trend.direction === "flat") return `${trend.label} steady`;
+  if (trend.direction === "none") return `${trend.label} open`;
+  if (trend.latestRawValue === null || trend.previousRawValue === null) return `${trend.label} changed`;
+  const delta = trend.latestRawValue - trend.previousRawValue;
+  return `${trend.label} ${delta > 0 ? "+" : ""}${formatNumber(delta)}`;
+}
+
+function sessionDomainTrends(
+  responses: CognitiveTrendResponseRow[],
+  previousResponses: CognitiveTrendResponseRow[] | null,
+) {
+  return TREND_DOMAINS.map((trendDomain): CognitiveAssessmentDomainTrend => {
+    const current = aggregateDomain(responses, trendDomain);
+    const previous = previousResponses ? aggregateDomain(previousResponses, trendDomain) : { rawValue: null, valueLabel: "Not checked" };
+    return {
+      domainId: trendDomain.id,
+      label: trendDomain.label,
+      latestRawValue: current.rawValue,
+      previousRawValue: previous.rawValue,
+      direction: direction(current.rawValue, previous.rawValue),
+      valueLabel: current.valueLabel,
+    };
+  });
+}
+
+function buildHistoryInsights(
+  chronologicalSessions: CognitiveTrendSession[],
+  responsesBySession: Map<string, CognitiveTrendResponseRow[]>,
+  totalSteps: number,
+): CognitiveAssessmentHistoryInsight[] {
+  return chronologicalSessions.map((session, index): CognitiveAssessmentHistoryInsight => {
+    const responses = responsesBySession.get(session.id) ?? [];
+    const previousSession = chronologicalSessions[index - 1] ?? null;
+    const previousResponses = previousSession ? responsesBySession.get(previousSession.id) ?? [] : null;
+    const completedSteps = countCompletedSteps(session, responses);
+    const trends = sessionDomainTrends(responses, previousResponses);
+    const thinkingChanges = trends
+      .filter((trend) => !isContextDomainId(trend.domainId))
+      .filter((trend) => trend.latestRawValue !== null)
+      .filter((trend) => trend.direction !== "none" && trend.direction !== "flat")
+      .sort((left, right) => numericDeltaMagnitude(right) - numericDeltaMagnitude(left));
+    const thinkingSteady = trends
+      .filter((trend) => !isContextDomainId(trend.domainId))
+      .find((trend) => trend.latestRawValue !== null);
+    const contextTrend = trends.find((trend) => isContextDomainId(trend.domainId)) ?? null;
+    const contextLabel = !contextTrend || contextTrend.latestRawValue === null
+      ? "Context open"
+      : contextTrend.direction === "flat"
+        ? "Context steady"
+        : previousResponses
+          ? "Context changed"
+          : "Context saved";
+
+    return {
+      sessionId: session.id,
+      completionPercent: totalSteps <= 0 ? 0 : Math.round((completedSteps / totalSteps) * 100),
+      completedSteps,
+      totalSteps,
+      thinkingDomainCount: domainCount(responses),
+      biggestChangeLabel: previousResponses
+        ? compactTrendLabel(thinkingChanges[0] ?? thinkingSteady ?? {
+          domainId: "none",
+          label: "Signals",
+          latestRawValue: null,
+          previousRawValue: null,
+          direction: "none",
+          valueLabel: "Not checked",
+        })
+        : "First saved check",
+      contextLabel,
+      comparisonLabel: previousResponses ? "Compared with previous" : "First saved check",
+    };
+  });
+}
+
 export function buildCognitiveAssessmentTrendPayload(
   sessions: CognitiveTrendSession[],
   responsesBySession: Map<string, CognitiveTrendResponseRow[]>,
   totalSteps: number,
 ): CognitiveAssessmentTrendPayload {
   const chronologicalSessions = [...sessions].sort(compareDates);
-  const recentSessions = chronologicalSessions.slice(-6);
+  const recentSessions = chronologicalSessions.slice(-12);
   const trendPoints = recentSessions.map((session): CognitiveAssessmentTrendPoint => {
     const responses = responsesBySession.get(session.id) ?? [];
     const completedSteps = countCompletedSteps(session, responses);
@@ -533,6 +647,16 @@ export function buildCognitiveAssessmentTrendPayload(
   const baselineBands = buildBaselineBands(domainTrendSeries);
   const checkQuality = buildCheckQuality(recentSessions, trendPoints);
   const contextInsight = buildContextInsight(domainTrends, taskSignals);
+  const historyInsights = buildHistoryInsights(chronologicalSessions, responsesBySession, totalSteps);
 
-  return { trendPoints, domainTrends, domainTrendSeries, taskSignals, baselineBands, checkQuality, contextInsight };
+  return {
+    trendPoints,
+    domainTrends,
+    domainTrendSeries,
+    taskSignals,
+    baselineBands,
+    checkQuality,
+    contextInsight,
+    historyInsights,
+  };
 }

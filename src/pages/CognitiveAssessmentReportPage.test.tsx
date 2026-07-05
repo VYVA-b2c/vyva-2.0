@@ -72,6 +72,28 @@ const sampleHistory: CognitiveAssessmentHistoryResponse["history"] = [
 
 const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
   history: sampleHistory,
+  historyInsights: [
+    {
+      sessionId: "session-older",
+      completionPercent: 8,
+      completedSteps: 1,
+      totalSteps: 12,
+      thinkingDomainCount: 1,
+      biggestChangeLabel: "First saved check",
+      contextLabel: "Context open",
+      comparisonLabel: "First saved check",
+    },
+    {
+      sessionId: "session-1",
+      completionPercent: 17,
+      completedSteps: 2,
+      totalSteps: 12,
+      thinkingDomainCount: 2,
+      biggestChangeLabel: "Memory +1",
+      contextLabel: "Context saved",
+      comparisonLabel: "Compared with previous",
+    },
+  ],
   trendPoints: [
     {
       sessionId: "session-older",
@@ -229,7 +251,7 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
     status: "building",
     label: "Building comparison",
     detail: "Complete more areas before reading trends strongly.",
-    factors: ["2/12 steps", "2 domains", "Similar time of day"],
+    factors: ["2/12 steps", "2 thinking domains", "Similar time of day"],
   },
   contextInsight: {
     tone: "changed",
@@ -242,6 +264,7 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
 function renderReport(
   report: CognitiveAssessmentReport = sampleReport,
   historyResponse: CognitiveAssessmentHistoryResponse = sampleHistoryResponse,
+  initialPath = "/mind-memory/cognitive-assessment",
 ) {
   useQueryMock.mockImplementation(({ queryKey, enabled }: { queryKey: string[]; enabled?: boolean }) => {
     if (enabled === false) return { isLoading: false, isError: false, data: undefined };
@@ -255,10 +278,10 @@ function renderReport(
   return render(
     <MemoryRouter
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-      initialEntries={["/mind-memory/cognitive-assessment"]}
+      initialEntries={[initialPath]}
     >
       <Routes>
-        <Route path="/mind-memory/cognitive-assessment" element={<CognitiveAssessmentReportPage />} />
+        <Route path="/mind-memory/cognitive-assessment/*" element={<CognitiveAssessmentReportPage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -287,16 +310,18 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("Mood/Sleep/Daily Context")).toBeInTheDocument();
     expect(screen.getByText("Coverage")).toBeInTheDocument();
     expect(screen.getAllByText("Domains").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Signals")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
     expect(screen.getByText("Next")).toBeInTheDocument();
     expect(screen.getByText("10 left")).toBeInTheDocument();
-    expect(screen.getByText("3 saved")).toBeInTheDocument();
+    expect(screen.getByText("2 saved")).toBeInTheDocument();
     expect(screen.getByText("Context")).toBeInTheDocument();
     expect(screen.getByText("Memory changed")).toBeInTheDocument();
     expect(screen.getByText("Context was saved for comparison with thinking signals.")).toBeInTheDocument();
     expect(screen.getByText("Sleep and energy: 5")).toBeInTheDocument();
     expect(screen.getAllByText("Mini history").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Areas checked")).toBeInTheDocument();
+    expect(screen.getByText("Best next action")).toBeInTheDocument();
+    expect(screen.getByText("Finish Orientation")).toBeInTheDocument();
     expect(screen.getByText("3 words recalled in free text.")).toBeInTheDocument();
     expect(screen.getAllByText("4/8").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Tracking signals are not a diagnosis.")).toBeInTheDocument();
@@ -318,7 +343,17 @@ describe("CognitiveAssessmentReportPage", () => {
       trendPoints: [sampleHistoryResponse.trendPoints[1]],
     });
 
-    expect(screen.getByText("First saved check")).toBeInTheDocument();
+    expect(screen.getAllByText("First saved check").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Domain trends")).toBeInTheDocument();
+  });
+
+  it("renders enriched compact history rows", () => {
+    renderReport(sampleReport, sampleHistoryResponse, "/mind-memory/cognitive-assessment/history");
+
+    expect(screen.getByText("Report history")).toBeInTheDocument();
+    expect(screen.getByText("Memory +1")).toBeInTheDocument();
+    expect(screen.getByText("Context saved")).toBeInTheDocument();
+    expect(screen.getByText("Compared with previous")).toBeInTheDocument();
+    expect(screen.getAllByText("17%").length).toBeGreaterThanOrEqual(1);
   });
 });

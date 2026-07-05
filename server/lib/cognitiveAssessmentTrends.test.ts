@@ -7,9 +7,13 @@ import {
 } from "./cognitiveAssessmentTrends.js";
 
 function session(id: string, day: number, responseCount = 0): CognitiveTrendSession {
+  const dayText = String(day).padStart(2, "0");
   return {
     id,
-    completed_at: `2026-07-${String(day).padStart(2, "0")}T10:00:00.000Z`,
+    started_at: `2026-07-${dayText}T09:45:00.000Z`,
+    completed_at: `2026-07-${dayText}T10:00:00.000Z`,
+    input_mode: "wizard",
+    language: "en",
     response_count: responseCount,
   };
 }
@@ -31,18 +35,19 @@ function response(
 }
 
 describe("cognitive assessment trends", () => {
-  it("returns the last 6 completed sessions in chronological order", () => {
+  it("returns recent completed sessions in chronological order", () => {
     const sessions = [session("s7", 7, 7), session("s6", 6, 6), session("s5", 5, 5), session("s4", 4, 4), session("s3", 3, 3), session("s2", 2, 2), session("s1", 1, 1)];
     const payload = buildCognitiveAssessmentTrendPayload(sessions, new Map(), 12);
 
-    expect(payload.trendPoints.map((point) => point.sessionId)).toEqual(["s2", "s3", "s4", "s5", "s6", "s7"]);
+    expect(payload.trendPoints.map((point) => point.sessionId)).toEqual(["s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
     expect(payload.domainTrendSeries.find((series) => series.domainId === "memory")?.points.map((point) => point.sessionId))
-      .toEqual(["s2", "s3", "s4", "s5", "s6", "s7"]);
+      .toEqual(["s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
     expect(payload.trendPoints[payload.trendPoints.length - 1]).toMatchObject({
       sessionId: "s7",
       completionPercent: 58,
       completedSteps: 7,
     });
+    expect(payload.historyInsights.map((insight) => insight.sessionId)).toEqual(["s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
   });
 
   it("derives domain trends from raw saved responses", () => {
@@ -134,12 +139,23 @@ describe("cognitive assessment trends", () => {
       label: "Good comparison",
     });
     expect(payload.checkQuality.factors).toContain("9/12 steps");
+    expect(payload.checkQuality.factors).toContain("5 thinking domains");
+    expect(payload.checkQuality.factors).toContain("Same language");
+    expect(payload.checkQuality.factors).toContain("Same input mode");
     expect(payload.checkQuality.factors).toContain("Similar time of day");
+    expect(payload.checkQuality.factors).toContain("One sitting");
     expect(payload.contextInsight).toMatchObject({
       tone: "changed",
       label: "Context and thinking changed",
     });
     expect(payload.contextInsight.relatedSignals).toContain("Mood check: 5");
+    expect(payload.historyInsights.find((insight) => insight.sessionId === "latest")).toMatchObject({
+      completionPercent: 75,
+      thinkingDomainCount: 5,
+      biggestChangeLabel: "Memory +7",
+      contextLabel: "Context changed",
+      comparisonLabel: "Compared with previous",
+    });
   });
 
   it("does not create fake scores when a clock drawing only has saved text", () => {

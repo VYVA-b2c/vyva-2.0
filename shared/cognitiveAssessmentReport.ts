@@ -32,6 +32,17 @@ export type CognitiveAssessmentHistoryItem = {
   overview: string;
 };
 
+export type CognitiveAssessmentHistoryInsight = {
+  sessionId: string;
+  completionPercent: number;
+  completedSteps: number;
+  totalSteps: number;
+  thinkingDomainCount: number;
+  biggestChangeLabel: string;
+  contextLabel: string;
+  comparisonLabel: string;
+};
+
 export type CognitiveAssessmentTrendPoint = {
   sessionId: string;
   completedAt: string | null;
@@ -111,6 +122,7 @@ export type CognitiveAssessmentLatestReportResponse = {
 
 export type CognitiveAssessmentHistoryResponse = {
   history: CognitiveAssessmentHistoryItem[];
+  historyInsights: CognitiveAssessmentHistoryInsight[];
   trendPoints: CognitiveAssessmentTrendPoint[];
   domainTrends: CognitiveAssessmentDomainTrend[];
   domainTrendSeries: CognitiveAssessmentDomainTrendSeries[];

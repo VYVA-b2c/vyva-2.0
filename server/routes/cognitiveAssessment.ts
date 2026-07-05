@@ -937,6 +937,7 @@ router.get("/history", async (req: Request, res: Response) => {
   if (!userId || !isUuid(userId)) {
     return res.json({
       history: [],
+      historyInsights: [],
       trendPoints: [],
       domainTrends: [],
       domainTrendSeries: [],
