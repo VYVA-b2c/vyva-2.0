@@ -19,6 +19,7 @@ import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
 import type {
   ParticipationEvent,
+  ParticipationEventFormat,
   ParticipationEventRecommendation,
   ParticipationEventResponseAction,
   ParticipationPulse,
@@ -74,90 +75,106 @@ const copyByLanguage: Record<SocialLanguage, {
   onlineTitle: string;
   savedFilterTitle: string;
   emptyFilter: string;
+  inPerson: string;
+  hybrid: string;
+  dateTbc: string;
+  confirmFirst: string;
   responseCounts: (interested: number, maybe: number) => string;
 }> = {
   es: {
     back: "Volver",
     loading: "Preparando actividades...",
     error: "No se pudieron cargar las actividades. Intentalo de nuevo.",
-    activitiesHeadline: "Actividades elegidas para ti",
-    featured: "Recomendacion principal",
+    activitiesHeadline: "Para ti",
+    featured: "Sugerido",
     forYou: "Para ti",
     nearby: "Cerca",
     online: "Online",
     saved: "Guardado",
-    savedTitle: "Guardado para ti",
-    savedEmpty: "Cuando elijas Me interesa o Quizas, apareceran aqui.",
+    savedTitle: "Guardado",
+    savedEmpty: "Tus opciones guardadas apareceran aqui.",
     interested: "Me interesa",
-    maybe: "Quizas luego",
+    maybe: "Quizas",
     notForMe: "No es para mi",
-    askVyva: "Pedir a VYVA que lo compruebe",
+    askVyva: "Comprobar",
     interestedSaved: "Interes guardado",
     maybeSaved: "Guardado para luego",
     notForMeSaved: "No se mostrara primero",
-    checkRequested: "VYVA lo comprobara antes de comprometerte.",
-    profileSignalTitle: "Como VYVA elige",
-    secondaryTitle: "Mas recomendaciones",
-    nearbyTitle: "Opciones cercanas",
+    checkRequested: "Comprobacion pedida",
+    profileSignalTitle: "Basado en",
+    secondaryTitle: "Mas",
+    nearbyTitle: "Cerca",
     onlineTitle: "Opciones online",
-    savedFilterTitle: "Guardado e interes",
-    emptyFilter: "Aun no hay actividades en este filtro. VYVA seguira buscando opciones tranquilas.",
+    savedFilterTitle: "Guardado",
+    emptyFilter: "No hay opciones aqui todavia.",
+    inPerson: "En persona",
+    hybrid: "Ambos",
+    dateTbc: "Fecha por confirmar",
+    confirmFirst: "Tu confirmas primero",
     responseCounts: (interested, maybe) => `${interested} interesados - ${maybe} quizas`,
   },
   de: {
     back: "Zurueck",
     loading: "Aktivitaeten werden vorbereitet...",
     error: "Aktivitaeten konnten nicht geladen werden. Bitte versuche es erneut.",
-    activitiesHeadline: "Aktivitaeten fuer Sie ausgewaehlt",
-    featured: "Beste Empfehlung",
+    activitiesHeadline: "Fuer dich",
+    featured: "Vorschlag",
     forYou: "Fuer dich",
     nearby: "In der Naehe",
     online: "Online",
     saved: "Gespeichert",
-    savedTitle: "Fuer dich gespeichert",
-    savedEmpty: "Wenn du Interesse oder Vielleicht waehlst, erscheint es hier.",
-    interested: "Ich bin interessiert",
-    maybe: "Vielleicht spaeter",
-    notForMe: "Nicht fuer mich",
-    askVyva: "VYVA soll es pruefen",
+    savedTitle: "Gespeichert",
+    savedEmpty: "Gespeicherte Optionen erscheinen hier.",
+    interested: "Interesse",
+    maybe: "Vielleicht",
+    notForMe: "Nein danke",
+    askVyva: "Pruefen",
     interestedSaved: "Interesse gespeichert",
     maybeSaved: "Fuer spaeter gespeichert",
     notForMeSaved: "Wird nicht zuerst gezeigt",
-    checkRequested: "VYVA prueft es, bevor du dich festlegst.",
-    profileSignalTitle: "Wie VYVA auswaehlt",
-    secondaryTitle: "Weitere Empfehlungen",
-    nearbyTitle: "Optionen in der Naehe",
-    onlineTitle: "Online-Optionen",
-    savedFilterTitle: "Gespeichert und interessiert",
-    emptyFilter: "Noch keine Aktivitaeten in diesem Filter. VYVA sucht weiter nach ruhigen Optionen.",
+    checkRequested: "Pruefung angefragt",
+    profileSignalTitle: "Basierend auf",
+    secondaryTitle: "Mehr",
+    nearbyTitle: "In der Naehe",
+    onlineTitle: "Online",
+    savedFilterTitle: "Gespeichert",
+    emptyFilter: "Hier gibt es noch keine Optionen.",
+    inPerson: "Vor Ort",
+    hybrid: "Beides",
+    dateTbc: "Datum offen",
+    confirmFirst: "Du bestaetigst zuerst",
     responseCounts: (interested, maybe) => `${interested} interessiert - ${maybe} vielleicht`,
   },
   en: {
     back: "Back",
     loading: "Preparing activities...",
     error: "Activities could not load. Please try again.",
-    activitiesHeadline: "Activities chosen for you",
-    featured: "Top recommendation",
+    activitiesHeadline: "For you",
+    featured: "Suggested",
     forYou: "For you",
     nearby: "Nearby",
     online: "Online",
     saved: "Saved",
-    savedTitle: "Saved for you",
-    savedEmpty: "Activities you mark Interested or Maybe will appear here.",
-    interested: "I'm interested",
-    maybe: "Maybe later",
-    notForMe: "Not for me",
-    askVyva: "Ask VYVA to check",
+    savedTitle: "Saved",
+    savedEmpty: "Saved options will appear here.",
+    interested: "Interested",
+    maybe: "Maybe",
+    notForMe: "No thanks",
+    askVyva: "Check",
     interestedSaved: "Interest saved",
     maybeSaved: "Saved for later",
     notForMeSaved: "This will not be shown first",
-    checkRequested: "VYVA will check it before you commit.",
-    profileSignalTitle: "How VYVA chooses",
-    secondaryTitle: "More recommendations",
-    nearbyTitle: "Nearby options",
-    onlineTitle: "Online options",
-    savedFilterTitle: "Saved & interested",
-    emptyFilter: "No activities in this filter yet. VYVA will keep looking for gentle options.",
+    checkRequested: "Check requested",
+    profileSignalTitle: "Based on",
+    secondaryTitle: "More",
+    nearbyTitle: "Nearby",
+    onlineTitle: "Online",
+    savedFilterTitle: "Saved",
+    emptyFilter: "No options here yet.",
+    inPerson: "In person",
+    hybrid: "Both",
+    dateTbc: "Date TBC",
+    confirmFirst: "You confirm first",
     responseCounts: (interested, maybe) => `${interested} interested - ${maybe} maybe`,
   },
 };
@@ -207,11 +224,56 @@ function responseLabel(event: ParticipationEvent, copy: CuratedActivitiesCopy) {
   return "";
 }
 
+function eventFormatLabel(format: ParticipationEventFormat, copy: CuratedActivitiesCopy) {
+  if (format === "online") return copy.online;
+  if (format === "hybrid") return copy.hybrid;
+  return copy.inPerson;
+}
+
+function eventDateLabel(event: ParticipationEvent, copy: CuratedActivitiesCopy, language: SocialLanguage) {
+  if (!event.startsAt) return copy.dateTbc;
+
+  const date = new Date(event.startsAt);
+  if (Number.isNaN(date.getTime())) return copy.dateTbc;
+
+  return new Intl.DateTimeFormat(language, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function SignalChip({ icon: Icon, label }: { icon: typeof Sparkles; label: string }) {
   return (
-    <span className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDE8DD] bg-white px-3 font-body text-[13px] font-black text-[#2F4A44] shadow-sm">
+    <span className="inline-flex min-h-[34px] items-center gap-2 rounded-full border border-[#DDE8DD] bg-white px-3 font-body text-[12px] font-black text-[#2F4A44] shadow-sm">
       <Icon size={15} strokeWidth={2.4} className="text-[#0F766E]" />
       <span className="max-w-[14rem] truncate">{label}</span>
+    </span>
+  );
+}
+
+function EventFact({
+  icon: Icon,
+  label,
+  detail,
+}: {
+  icon: typeof Sparkles;
+  label: string;
+  detail?: string;
+}) {
+  return (
+    <span className="flex min-h-[54px] items-center gap-2 rounded-[16px] border border-[#E5DED3] bg-[#FFFCF8] px-3">
+      <Icon size={17} strokeWidth={2.4} className="shrink-0 text-[#0F766E]" />
+      <span className="min-w-0">
+        <span className="block truncate font-body text-[13px] font-black leading-tight text-vyva-text-1">{label}</span>
+        {detail ? (
+          <span className="mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-vyva-text-3">
+            {detail}
+          </span>
+        ) : null}
+      </span>
     </span>
   );
 }
@@ -241,7 +303,7 @@ function EventActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`vyva-tap flex min-h-[52px] items-center justify-center rounded-[18px] border px-4 font-body text-[15px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones}`}
+      className={`vyva-tap flex min-h-[46px] items-center justify-center rounded-[16px] border px-3 font-body text-[14px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones}`}
     >
       {children}
     </button>
@@ -251,6 +313,7 @@ function EventActionButton({
 function EventPanel({
   event,
   copy,
+  language,
   testIdPrefix,
   featured = false,
   onRespond,
@@ -259,6 +322,7 @@ function EventPanel({
 }: {
   event: ParticipationEventRecommendation | ParticipationEvent;
   copy: CuratedActivitiesCopy;
+  language: SocialLanguage;
   testIdPrefix: string;
   featured?: boolean;
   onRespond: (eventId: string, response: ParticipationEventResponseAction) => void;
@@ -266,21 +330,23 @@ function EventPanel({
   pending?: boolean;
 }) {
   const statusLabel = responseLabel(event, copy);
+  const dateLabel = eventDateLabel(event, copy, language);
+  const showTimeDetail = !event.startsAt && event.timeLabel && event.timeLabel !== dateLabel;
 
   return (
     <article
-      className={`rounded-[24px] border bg-white p-5 shadow-[0_14px_34px_rgba(52,42,30,0.08)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
+      className={`rounded-[22px] border bg-white p-4 shadow-[0_10px_26px_rgba(52,42,30,0.07)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
       data-testid={featured ? `${testIdPrefix}-featured-event` : `${testIdPrefix}-event-${event.id}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
             {featured ? copy.featured : copy.forYou}
           </p>
-          <h2 className="mt-2 font-body text-[24px] font-black leading-tight text-vyva-text-1">
+          <h2 className="mt-1.5 font-body text-[24px] font-black leading-tight text-vyva-text-1">
             {event.title}
           </h2>
-          <p className="mt-2 max-w-[42rem] font-body text-[16px] font-semibold leading-relaxed text-vyva-text-2">
+          <p className="mt-1.5 max-w-[42rem] font-body text-[15px] font-semibold leading-snug text-vyva-text-2">
             {event.summary}
           </p>
         </div>
@@ -291,18 +357,22 @@ function EventPanel({
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <SignalChip icon={MapPin} label={event.locationLabel} />
-        <SignalChip icon={Clock3} label={event.timeLabel} />
-        <SignalChip icon={ShieldCheck} label={event.costLabel} />
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <EventFact
+          icon={event.format === "online" ? Monitor : event.format === "hybrid" ? Sparkles : MapPin}
+          label={eventFormatLabel(event.format, copy)}
+        />
+        <EventFact icon={Clock3} label={dateLabel} detail={showTimeDetail ? event.timeLabel : undefined} />
+        <EventFact icon={MapPin} label={event.locationLabel} />
+        <EventFact icon={ShieldCheck} label={event.costLabel} />
       </div>
 
       {event.fitReasons.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {event.fitReasons.map((reason) => (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {event.fitReasons.slice(0, 2).map((reason) => (
             <span
               key={`${event.id}-${reason.id}-${reason.label}`}
-              className="rounded-full bg-[#F8FAF8] px-3 py-2 font-body text-[12px] font-bold text-[#50635E]"
+              className="rounded-full bg-[#F8FAF8] px-3 py-1.5 font-body text-[12px] font-bold text-[#50635E]"
             >
               {reason.label}
             </span>
@@ -310,7 +380,7 @@ function EventPanel({
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-2 sm:grid-cols-4">
         <EventActionButton
           tone="green"
           active={event.myResponse === "interested"}
@@ -348,9 +418,6 @@ function EventPanel({
         </EventActionButton>
       </div>
 
-      <p className="mt-4 font-body text-[13px] font-bold text-vyva-text-3">
-        {copy.responseCounts(event.responseCounts.interested, event.responseCounts.maybe)}
-      </p>
     </article>
   );
 }
@@ -493,10 +560,8 @@ export default function CuratedEventsExperience({
   }
 
   const signalChips = [
-    ...pulse.profileSignals.interests.slice(0, 3).map((interest) => ({ icon: HeartHandshake, label: interest })),
-    { icon: MapPin, label: pulse.profileSignals.locationLabel },
+    ...pulse.profileSignals.interests.slice(0, 2).map((interest) => ({ icon: HeartHandshake, label: interest })),
     { icon: Languages, label: pulse.profileSignals.languageLabel },
-    ...pulse.profileSignals.preferredTimes.slice(0, 1).map((time) => ({ icon: Clock3, label: time })),
   ];
   const pending = respondMutation.isPending || askVyvaMutation.isPending;
   const filteredTitle = activeFilter === "nearby"
@@ -520,26 +585,26 @@ export default function CuratedEventsExperience({
         </button>
       ) : null}
 
-      <section className="rounded-[28px] border border-[#D6E7DC] bg-[#F7FBF8] p-5 shadow-[0_14px_32px_rgba(47,79,65,0.08)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className="rounded-[24px] border border-[#D6E7DC] bg-[#F7FBF8] p-4 shadow-[0_10px_26px_rgba(47,79,65,0.07)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="font-display text-[38px] font-semibold leading-[1.02] text-[#223B35]">
-              {variant === "activities" ? copy.activitiesHeadline : pulse.headline}
+            <h1 className="font-display text-[34px] font-semibold leading-[1.02] text-[#223B35]">
+              {copy.activitiesHeadline}
             </h1>
-            <p className="mt-3 max-w-[44rem] font-body text-[17px] font-semibold leading-relaxed text-[#526B63]">
+            <p className="mt-2 max-w-[32rem] font-body text-[15px] font-semibold leading-snug text-[#526B63]">
               {pulse.reassurance}
             </p>
           </div>
-          <div className="rounded-[22px] border border-[#CDE9D8] bg-white px-4 py-3">
-            <p className="flex items-start gap-2 font-body text-[14px] font-black leading-snug text-[#0F766E]">
-              <ShieldCheck size={18} className="mt-0.5 flex-shrink-0" />
-              {pulse.safetyCopy}
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#CDE9D8] bg-white px-3 py-2">
+            <ShieldCheck size={16} className="shrink-0 text-[#0F766E]" />
+            <p className="font-body text-[13px] font-black leading-tight text-[#0F766E]">
+              {copy.confirmFirst}
             </p>
           </div>
         </div>
 
-        <div className="mt-5">
-          <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
             {copy.profileSignalTitle}
           </p>
           <div className="flex flex-wrap gap-2" data-testid={`${testIdPrefix}-profile-signals`}>
@@ -568,6 +633,7 @@ export default function CuratedEventsExperience({
         <EventPanel
           event={pulse.featuredEvent}
           copy={copy}
+          language={language}
           testIdPrefix={testIdPrefix}
           featured
           pending={pending}
@@ -618,6 +684,7 @@ export default function CuratedEventsExperience({
                 key={event.id}
                 event={event}
                 copy={copy}
+                language={language}
                 testIdPrefix={testIdPrefix}
                 pending={pending}
                 onRespond={(eventId, response) => respondMutation.mutate({ eventId, response })}
