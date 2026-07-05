@@ -1,17 +1,28 @@
 import express from "express";
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
   insertedValues: [] as unknown[],
   db: {
+    insert: vi.fn(),
     select: vi.fn(),
     update: vi.fn(),
     transaction: vi.fn(),
   },
 }));
+const openAiMock = vi.hoisted(() => ({
+  generate: vi.fn(),
+}));
 
 vi.mock("../db.js", () => dbMock);
+vi.mock("openai", () => ({
+  default: class MockOpenAI {
+    images = {
+      generate: openAiMock.generate,
+    };
+  },
+}));
 
 import adminLearningRouter from "../routes/adminLearning.js";
 
@@ -41,12 +52,18 @@ function makeTransaction() {
 
 const app = buildApp();
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("admin learning import", () => {
   beforeEach(() => {
     dbMock.insertedValues = [];
+    dbMock.db.insert.mockReset();
     dbMock.db.select.mockReset();
     dbMock.db.update.mockReset();
     dbMock.db.transaction.mockReset();
+    openAiMock.generate.mockReset();
     dbMock.db.select
       .mockReturnValueOnce({
         from: () => ({
@@ -89,6 +106,9 @@ describe("admin learning import", () => {
             body: "Soap has two different sides that help water carry oil away.",
             reflection_prompt: "What simple household tool quietly does more than people notice?",
             source_notes: "General chemistry background.",
+            image_url: "https://cdn.example.com/learning/soap-water.png",
+            image_alt: "Soap molecules helping water lift oil from a hand.",
+            image_prompt: "A clear custom image showing soap molecules connecting water and oil.",
             estimated_minutes: 3,
             difficulty: "easy",
             tags: ["chemistry", "cleaning"],
@@ -105,7 +125,80 @@ describe("admin learning import", () => {
     });
     expect(dbMock.insertedValues).toEqual(expect.arrayContaining([
       expect.objectContaining({ slug: "science", sortOrder: 10, isActive: true }),
-      expect.objectContaining({ externalId: "science-soap-cleaning-001", categorySlug: "science" }),
+      expect.objectContaining({
+        externalId: "science-soap-cleaning-001",
+        categorySlug: "science",
+        imageUrl: "https://cdn.example.com/learning/soap-water.png",
+        imageAlt: "Soap molecules helping water lift oil from a hand.",
+        imagePrompt: "A clear custom image showing soap molecules connecting water and oil.",
+      }),
+    ]));
+  });
+
+  it("expands grouped lesson translations into language-specific lessons", async () => {
+    const response = await request(app)
+      .post("/api/admin/learning/import")
+      .send({
+        schema_version: "learning_content_pack_v1",
+        categories: [
+          {
+            slug: "science",
+            label: "Science",
+          },
+        ],
+        lessons: [
+          {
+            external_id_base: "science-soap-cleaning-001",
+            category_slug: "science",
+            estimated_minutes: 3,
+            difficulty: "easy",
+            tags: ["chemistry", "cleaning"],
+            status: "draft",
+            is_active: false,
+            image_url: "https://cdn.example.com/learning/soap-water.png",
+            image_prompt: "A custom image showing soap, water, and oil at a simple molecular level.",
+            translations: {
+              en: {
+                title: "Why Soap Helps Water Do More",
+                hook: "Soap turns an ordinary rinse into a tiny act of chemistry.",
+                body: "Soap has two different sides that help water carry oil away.",
+                reflection_prompt: "What simple household tool quietly does more than people notice?",
+                image_alt: "Soap molecules helping water carry oil away.",
+                source_notes: "General chemistry background.",
+              },
+              es: {
+                title: "Por que el jabon ayuda al agua",
+                hook: "El jabon convierte un enjuague comun en un pequeno acto de quimica.",
+                body: "El jabon tiene dos lados diferentes que ayudan al agua a llevarse el aceite.",
+                reflection_prompt: "Que herramienta sencilla hace mas de lo que parece?",
+                image_alt: "Moleculas de jabon ayudando al agua a retirar aceite.",
+                source_notes: "Revision de contenido en espanol.",
+              },
+            },
+          },
+        ],
+      })
+      .expect(200);
+
+    expect(response.body.summary).toMatchObject({
+      categoriesCreated: 1,
+      lessonsCreated: 2,
+    });
+    expect(dbMock.insertedValues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        externalId: "science-soap-cleaning-001-en",
+        language: "en",
+        title: "Why Soap Helps Water Do More",
+        imageUrl: "https://cdn.example.com/learning/soap-water.png",
+        imageAlt: "Soap molecules helping water carry oil away.",
+      }),
+      expect.objectContaining({
+        externalId: "science-soap-cleaning-001-es",
+        language: "es",
+        title: "Por que el jabon ayuda al agua",
+        imageUrl: "https://cdn.example.com/learning/soap-water.png",
+        imageAlt: "Moleculas de jabon ayudando al agua a retirar aceite.",
+      }),
     ]));
   });
 
@@ -368,6 +461,112 @@ describe("admin learning import", () => {
       lessons: [
         expect.objectContaining({ id: "lesson-2", status: "published", isActive: true }),
       ],
+    });
+  });
+
+  it("generates and stores a custom lesson image", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    const now = new Date("2026-06-24T10:00:00.000Z");
+    const lesson = {
+      id: "11111111-1111-4111-8111-111111111111",
+      externalId: "science-soap-001",
+      categorySlug: "science",
+      language: "en",
+      title: "Why soap helps water do more",
+      hook: "Soap changes how water meets oil.",
+      body: "Soap molecules can connect with oil and water at the same time.",
+      reflectionPrompt: "Where did you see chemistry quietly helping today?",
+      sourceNotes: "General chemistry background.",
+      imageUrl: null,
+      imageAlt: null,
+      imagePrompt: "Show soap molecules lifting oil away in water.",
+      estimatedMinutes: 3,
+      difficulty: "easy",
+      tags: ["science"],
+      status: "draft",
+      isActive: false,
+      reviewedAt: null,
+      reviewedBy: null,
+      publishedAt: null,
+      publishedBy: null,
+      archivedAt: null,
+      archivedBy: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const imageId = "22222222-2222-4222-8222-222222222222";
+    const imageBytes = Buffer.from("generated image bytes");
+    openAiMock.generate.mockResolvedValue({
+      data: [{ b64_json: imageBytes.toString("base64") }],
+    });
+    dbMock.db.select.mockReset();
+    dbMock.db.select.mockReturnValueOnce({
+      from: () => ({
+        where: () => ({
+          limit: async () => [lesson],
+        }),
+      }),
+    });
+    const imageValues = vi.fn(() => ({
+      returning: vi.fn(async () => [{
+        id: imageId,
+        lessonId: lesson.id,
+        mimeType: "image/jpeg",
+        imageBytes,
+        prompt: "stored prompt",
+        model: "gpt-image-2",
+        createdBy: "admin",
+        createdAt: now,
+      }]),
+    }));
+    dbMock.db.insert.mockReturnValue({ values: imageValues });
+    const updatedLesson = {
+      ...lesson,
+      imageUrl: `/api/learning/images/${imageId}`,
+      imageAlt: "Soap molecules helping water lift oil.",
+      updatedAt: now,
+    };
+    const returning = vi.fn(async () => [updatedLesson]);
+    const where = vi.fn(() => ({ returning }));
+    const set = vi.fn(() => ({ where }));
+    dbMock.db.update.mockReturnValue({ set });
+
+    const response = await request(app)
+      .post(`/api/admin/learning/lessons/${lesson.id}/generate-image`)
+      .send({
+        imagePrompt: "Show soap molecules lifting oil away in water.",
+        imageAlt: "Soap molecules helping water lift oil.",
+      })
+      .expect(200);
+
+    expect(openAiMock.generate).toHaveBeenCalledWith(expect.objectContaining({
+      model: "gpt-image-2",
+      prompt: expect.stringContaining("Why soap helps water do more"),
+      output_format: "jpeg",
+    }));
+    expect(imageValues).toHaveBeenCalledWith(expect.objectContaining({
+      lessonId: lesson.id,
+      mimeType: "image/jpeg",
+      imageBytes,
+      model: "gpt-image-2",
+    }));
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      imageUrl: `/api/learning/images/${imageId}`,
+      imageAlt: "Soap molecules helping water lift oil.",
+      imagePrompt: "Show soap molecules lifting oil away in water.",
+    }));
+    expect(response.body).toMatchObject({
+      image: {
+        id: imageId,
+        url: `/api/learning/images/${imageId}`,
+        mimeType: "image/jpeg",
+        model: "gpt-image-2",
+      },
+      lesson: {
+        id: lesson.id,
+        imageUrl: `/api/learning/images/${imageId}`,
+        imageAlt: "Soap molecules helping water lift oil.",
+      },
     });
   });
 });

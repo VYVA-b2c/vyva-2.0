@@ -89,6 +89,7 @@ import checkinsRouter, { analyzeCheckinHandler, checkinHistoryHandler, sharedChe
 import gamesRouter from "./routes/games.js";
 import cognitiveAssessmentRouter from "./routes/cognitiveAssessment.js";
 import learningRouter from "./routes/learning.js";
+import { learningImageHandler } from "./routes/learningImages.js";
 import motivationRouter from "./routes/motivation.js";
 import { dbHealthHandler } from "./routes/dbHealth.js";
 import vyvaDemoRouter from "./routes/vyvaDemo.js";
@@ -222,6 +223,7 @@ app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("sym
 app.use("/api/offers", authMiddleware, offersRouter);
 app.use("/api/utilities", authMiddleware, utilitiesRouter);
 app.use("/api/games", authMiddleware, requireUser, gamesRouter);
+app.get("/api/learning/images/:id", authMiddleware, requireUser, learningImageHandler);
 app.use("/api/cognitive-assessment", authMiddleware, requireUser, cognitiveAssessmentRouter);
 app.use("/api/learning", authMiddleware, requireUser, learningRouter);
 app.use("/api/motivation", authMiddleware, requireUser, motivationRouter);

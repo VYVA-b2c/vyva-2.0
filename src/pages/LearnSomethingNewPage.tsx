@@ -46,6 +46,9 @@ type LearningLesson = {
   hook: string;
   body: string;
   reflectionPrompt: string;
+  imageUrl: string | null;
+  imageAlt: string | null;
+  imagePrompt: string | null;
   estimatedMinutes: number;
   difficulty: string;
   tags: string[];
@@ -491,7 +494,16 @@ function LessonVisual({ lesson, category }: { lesson: LearningLesson; category?:
       style={{ background: theme.background }}
       data-testid="learn-lesson-visual"
     >
-      <LessonScene scene={theme.scene} accent={theme.accent} ink={theme.ink} />
+      {lesson.imageUrl ? (
+        <img
+          src={lesson.imageUrl}
+          alt={lesson.imageAlt || `${lesson.title} lesson image`}
+          className="absolute inset-0 h-full w-full object-cover"
+          data-testid="learn-lesson-image"
+        />
+      ) : (
+        <LessonScene scene={theme.scene} accent={theme.accent} ink={theme.ink} />
+      )}
       <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 bg-gradient-to-t from-black/42 via-black/10 to-transparent p-4 sm:p-5">
         <span className="inline-flex items-center gap-2 rounded-full bg-white/92 px-4 py-2 text-[14px] font-black text-[#271B2F] shadow-sm">
           <Icon size={18} style={{ color: category?.color ?? theme.accent }} />

@@ -1947,6 +1947,9 @@ export const learningLessons = pgTable("learning_lessons", {
   body:             text("body").notNull(),
   reflectionPrompt: text("reflection_prompt").notNull(),
   sourceNotes:      text("source_notes"),
+  imageUrl:         text("image_url"),
+  imageAlt:         text("image_alt"),
+  imagePrompt:      text("image_prompt"),
   estimatedMinutes: integer("estimated_minutes").notNull().default(3),
   difficulty:       text("difficulty").notNull().default("easy"),
   tags:             text("tags").array().notNull().default([]),
@@ -1964,6 +1967,19 @@ export const learningLessons = pgTable("learning_lessons", {
   uniqueIndex("idx_learning_lessons_external_id_unique").on(t.externalId),
   index("idx_learning_lessons_status_language_category").on(t.status, t.language, t.categorySlug),
   index("idx_learning_lessons_active_status").on(t.isActive, t.status),
+]);
+
+export const learningLessonImages = pgTable("learning_lesson_images", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  lessonId:   uuid("lesson_id").notNull().references(() => learningLessons.id, { onDelete: "cascade" }),
+  mimeType:   text("mime_type").notNull().default("image/jpeg"),
+  imageBytes: bytea("image_bytes").notNull(),
+  prompt:     text("prompt"),
+  model:      text("model"),
+  createdBy:  text("created_by"),
+  createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_learning_lesson_images_lesson").on(t.lessonId),
 ]);
 
 export const learningPrograms = pgTable("learning_programs", {
