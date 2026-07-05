@@ -151,6 +151,8 @@ const contacts = [
 const sync = {
   provider: "lovable",
   configured: false,
+  canRunSync: true,
+  requiredRunnerEmail: "karim.assad@mokadigital.net",
   apiUrl: null,
   mode: "one_way_into_vyva",
   realSendingLocked: true,
@@ -166,7 +168,8 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
   });
 }
 
-function renderPage() {
+function renderPage(syncOverride: Partial<typeof sync> = {}) {
+  const syncResponse = { ...sync, ...syncOverride };
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     const method = init?.method ?? "GET";
@@ -175,7 +178,8 @@ function renderPage() {
     if (path === "/api/admin/marketing/journeys" && method === "GET") return jsonResponse({ journeys });
     if (path === "/api/admin/marketing/content" && method === "GET") return jsonResponse({ content });
     if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts });
-    if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(sync);
+    if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
+    if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
   });
@@ -221,6 +225,33 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
+    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
+  });
+
+  it("explains when the current admin cannot run Lovable sync", async () => {
+    renderPage({ configured: true, canRunSync: false, apiUrl: "https://lovable.example.test" });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-settings"));
+
+    expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
+    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Only the super admin (karim.assad@mokadigital.net) can run Lovable sync.");
+  });
+
+  it("shows inline Lovable sync progress and completion after clicking", async () => {
+    renderPage({ configured: true, canRunSync: true, apiUrl: "https://lovable.example.test" });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-settings"));
+    fireEvent.click(screen.getByTestId("button-marketing-run-sync"));
+
+    expect(screen.getByTestId("button-marketing-run-sync")).toHaveTextContent("Running sync...");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/lovable/run", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Lovable sync completed.");
+    });
   });
 
   it("creates campaign metadata without exposing a send action", async () => {

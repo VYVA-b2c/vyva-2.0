@@ -848,13 +848,15 @@ adminMarketingRouter.patch("/contacts/:contactId", async (req, res) => {
   }
 });
 
-adminMarketingRouter.get("/sync/lovable", async (_req, res) => {
+adminMarketingRouter.get("/sync/lovable", async (req, res) => {
   const hasUrl = Boolean(process.env.LOVABLE_MARKETING_API_URL?.trim());
   const hasBearerToken = Boolean(process.env.LOVABLE_MARKETING_API_KEY?.trim());
   const runs = await db.select().from(marketingSyncRuns).orderBy(desc(marketingSyncRuns.created_at)).limit(10);
   return res.json({
     provider: "lovable",
     configured: hasUrl && hasBearerToken,
+    canRunSync: isSuperAdmin(req),
+    requiredRunnerEmail: SUPER_ADMIN_EMAIL,
     apiUrl: safeUrlOrigin(process.env.LOVABLE_MARKETING_API_URL),
     mode: "one_way_into_vyva",
     realSendingLocked: true,
