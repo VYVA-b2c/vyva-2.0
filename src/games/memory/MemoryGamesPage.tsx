@@ -231,7 +231,7 @@ const MemoryGamesPage = () => {
 
       {showExerciseChoices ? (
         <section className="mt-7">
-          <h2 className="font-display text-[28px] leading-tight text-vyva-text-1">{t("memory.chooseAnother")}</h2>
+          <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">{t("memory.chooseAnother")}</h2>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <button
