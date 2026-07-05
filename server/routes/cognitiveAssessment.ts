@@ -218,10 +218,15 @@ function taskDetail(row: ResponseRow) {
   const taskId = row.task_definition_id;
 
   if (taskId.includes("story_recall")) {
-    const units = arrayLength(data, ["idea_units_recalled", "recalled_idea_units", "matched_idea_units"]);
+    const scoringMethod = typeof data.scoring_method === "string" ? data.scoring_method : "";
+    const units = scoringMethod === "word_count_fallback"
+      ? null
+      : numberValue(data, ["idea_units_recalled"])
+        ?? arrayLength(data, ["recalled_idea_units", "matched_idea_units"]);
     const words = numberValue(data, ["word_count"]);
+    if (units !== null) return `${units} ${units === 1 ? "story detail" : "story details"} recalled.`;
     if (words !== null) return `${words} words recalled in free text.`;
-    return units === null ? "Story recall response captured." : `${units} story details recalled.`;
+    return "Story recall response captured.";
   }
 
   if (taskId === "orientation") {
@@ -508,11 +513,13 @@ function buildRunnerTask(
     const linkedItem = linkedId
       ? immediateItems.find((item) => item.id === linkedId) ?? null
       : stablePick(immediateItems, `${sessionId}:story_recall_immediate:${language}`);
+    const linkedContent = objectData(linkedItem?.content);
     return {
       ...base,
       content: {
         delayed: true,
-        title: String(objectData(linkedItem?.content).title ?? "Earlier story"),
+        title: String(linkedContent.title ?? "Earlier story"),
+        idea_units: arrayData(linkedContent.idea_units),
         prompt: "Without looking back, write as much as you remember from the story.",
       },
       itemBankId: linkedItem?.id ?? null,

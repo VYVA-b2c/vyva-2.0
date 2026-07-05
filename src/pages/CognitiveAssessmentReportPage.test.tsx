@@ -29,7 +29,7 @@ const sampleReport: CognitiveAssessmentReport = {
       label: "Story recall",
       domain: "Memory",
       status: "completed",
-      detail: "3 words recalled in free text.",
+      detail: "3 story details recalled.",
       scoreLabel: "1",
     },
     {
@@ -322,7 +322,7 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("Areas checked")).toBeInTheDocument();
     expect(screen.getByText("Best next action")).toBeInTheDocument();
     expect(screen.getByText("Finish Orientation")).toBeInTheDocument();
-    expect(screen.getByText("3 words recalled in free text.")).toBeInTheDocument();
+    expect(screen.getByText("3 story details recalled.")).toBeInTheDocument();
     expect(screen.getAllByText("4/8").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Tracking signals are not a diagnosis.")).toBeInTheDocument();
     expect(screen.queryByText("Scientific basis")).not.toBeInTheDocument();

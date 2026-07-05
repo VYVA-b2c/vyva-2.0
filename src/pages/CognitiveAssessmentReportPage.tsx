@@ -270,7 +270,7 @@ function ReportHeader({
 }) {
   const navigate = useNavigate();
   return (
-    <header className="px-5 pt-5">
+    <header className="mx-auto w-full max-w-[1100px] px-5 pt-5 md:px-7 lg:px-8">
       <button
         type="button"
         onClick={() => navigate("/mind-memory")}
@@ -279,14 +279,14 @@ function ReportHeader({
         <ArrowLeft size={18} />
         Mind & Memory
       </button>
-      <div className="mt-5 rounded-[28px] border border-[#DDD6FE] bg-white p-5 shadow-[0_14px_32px_rgba(63,45,35,0.07)]">
+      <div className="mt-5 rounded-[28px] border border-[#DDD6FE] bg-white p-5 shadow-[0_14px_32px_rgba(63,45,35,0.07)] md:p-6">
         <div className="flex items-start gap-4">
           <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
             <Brain size={30} />
           </span>
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Cognitive Assessment</p>
-            <h1 className="mt-1 text-[32px] font-black leading-[1.02] text-[#2f2135]">{title}</h1>
+            <h1 className="mt-1 text-[32px] font-black leading-[1.02] text-[#2f2135] md:text-[38px]">{title}</h1>
             <p className="mt-2 text-[16px] font-bold leading-snug text-[#766b63]">{subtitle}</p>
           </div>
         </div>
@@ -310,7 +310,7 @@ function EmptyState() {
 
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-10">
-      <header className="px-5 pt-5">
+      <header className="mx-auto w-full max-w-[1100px] px-5 pt-5 md:px-7 lg:px-8">
         <button
           type="button"
           onClick={() => navigate("/mind-memory")}
@@ -321,7 +321,7 @@ function EmptyState() {
         </button>
       </header>
 
-      <section className="px-5 pt-4">
+      <section className="mx-auto w-full max-w-[1100px] px-5 pt-4 md:px-7 lg:px-8">
         <div id="latest-snapshot" className="rounded-[30px] border border-[#DDD6FE] bg-white p-5 shadow-[0_18px_40px_rgba(63,45,35,0.08)]">
           <span className="inline-flex min-h-[36px] items-center gap-2 rounded-full bg-[#F5F3FF] px-3 text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">
             <Brain size={16} />
@@ -347,7 +347,7 @@ function EmptyState() {
         </div>
       </section>
 
-      <section className="grid gap-3 px-5 pt-5">
+      <section className="mx-auto grid w-full max-w-[1100px] gap-3 px-5 pt-5 md:grid-cols-2 md:px-7 lg:grid-cols-4 lg:px-8">
         <div className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)]">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#EFF6FF] text-[#2563EB]">
@@ -433,7 +433,7 @@ function ErrorState() {
         title="Report unavailable"
         subtitle="The Cognitive Assessment report could not be loaded right now."
       />
-      <section className="px-5 pt-5">
+      <section className="mx-auto w-full max-w-[1100px] px-5 pt-5 md:px-7 lg:px-8">
         <div className="rounded-[26px] border border-[#FECACA] bg-white p-5 text-[15px] font-bold leading-relaxed text-[#991B1B] shadow-[0_12px_28px_rgba(63,45,35,0.06)]">
           Try again in a moment. If this keeps happening, the assessment database setup needs attention.
         </div>
@@ -1129,116 +1129,120 @@ function ReportView({
         subtitle={`${formatDate(report.completedAt)} - ${report.tasksCompleted}/${report.totalTasks} steps saved`}
       />
 
-      <section className="grid min-w-0 gap-4 overflow-x-hidden px-5 pt-5">
-        <div id="latest-snapshot" className="min-w-0 max-w-full overflow-hidden rounded-[30px] border border-[#DDD6FE] bg-white p-5 shadow-[0_18px_40px_rgba(63,45,35,0.08)]">
-          <div className="flex min-w-0 items-center gap-4">
-            <div
-              className="flex h-[112px] w-[112px] flex-shrink-0 items-center justify-center rounded-full"
-              style={{ background: `conic-gradient(#7C3AED ${percent}%, #EFE7DE ${percent}% 100%)` }}
-              aria-label={`${percent}% complete`}
-            >
-              <div className="flex h-[82px] w-[82px] flex-col items-center justify-center rounded-full bg-white text-center">
-                <span className="text-[26px] font-black leading-none text-[#2f2135]">{percent}%</span>
-                <span className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#766b63]">complete</span>
+      <section className="mx-auto grid w-full max-w-[1100px] min-w-0 gap-4 overflow-x-hidden px-5 pt-5 md:px-7 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] lg:items-start lg:px-8">
+        <div className="grid min-w-0 gap-4">
+          <div id="latest-snapshot" className="min-w-0 max-w-full overflow-hidden rounded-[30px] border border-[#DDD6FE] bg-white p-5 shadow-[0_18px_40px_rgba(63,45,35,0.08)] md:p-6">
+            <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+              <div
+                className="flex h-[112px] w-[112px] flex-shrink-0 items-center justify-center rounded-full sm:h-[124px] sm:w-[124px]"
+                style={{ background: `conic-gradient(#7C3AED ${percent}%, #EFE7DE ${percent}% 100%)` }}
+                aria-label={`${percent}% complete`}
+              >
+                <div className="flex h-[82px] w-[82px] flex-col items-center justify-center rounded-full bg-white text-center sm:h-[92px] sm:w-[92px]">
+                  <span className="text-[26px] font-black leading-none text-[#2f2135] sm:text-[30px]">{percent}%</span>
+                  <span className="mt-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#766b63]">complete</span>
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Current snapshot</p>
+                <h2 className="mt-1 text-[28px] font-black leading-[1.03] text-[#2f2135] md:text-[34px]">{completionLabel(report)}</h2>
+                <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#62564f]">{snapshotCopy}</p>
               </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Current snapshot</p>
-              <h2 className="mt-1 text-[28px] font-black leading-[1.03] text-[#2f2135]">{completionLabel(report)}</h2>
-              <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#62564f]">{snapshotCopy}</p>
+            <CheckQualityPanel checkQuality={checkQuality} />
+          </div>
+
+          <WhatChangedStrip domainTrends={domainTrends} />
+
+          <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
+
+          <div id="domain-trends">
+            <DomainTrendChart domainTrends={domainTrends} domainTrendSeries={domainTrendSeries} />
+          </div>
+
+          <PersonalBaselineCard baselineBands={baselineBands} />
+        </div>
+
+        <aside className="grid min-w-0 gap-4 lg:sticky lg:top-[84px]">
+          <div className="grid grid-cols-2 gap-3">
+            <MetricTile
+              icon={<ClipboardList size={22} />}
+              label="Coverage"
+              value={`${percent}%`}
+              detail={coverageMeaning(report)}
+              className="border-[#DDD6FE] bg-[#F5F3FF] text-[#5B21B6]"
+              targetId="latest-snapshot"
+            />
+            <MetricTile
+              icon={<Activity size={22} />}
+              label="Domains"
+              value={`${domainTotal}`}
+              detail={shortList(thinkingDomainList, "None yet", 2)}
+              className="border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]"
+              targetId="domain-trends"
+            />
+            <MetricTile
+              icon={<BarChart3 size={22} />}
+              label="Thinking"
+              value={`${scoreSignals}/${signalTotal}`}
+              detail={signalDetail}
+              className="border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
+              targetId="areas-checked"
+            />
+            <MetricTile
+              icon={<Target size={22} />}
+              label="Next"
+              value={nextPriorityLabel(report)}
+              detail={remaining.length ? `${remaining.length} step${remaining.length === 1 ? "" : "s"} remaining` : "No missing areas"}
+              className="border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
+              valueClassName="text-[21px] leading-tight"
+              targetId="report-actions"
+            />
+          </div>
+
+          <ContextOverlay taskSignals={taskSignals} contextInsight={contextInsight} />
+
+          <div id="areas-checked" className="grid gap-3 scroll-mt-4">
+            <h2 className="px-1 text-[24px] font-black leading-tight text-[#2f2135]">Areas checked</h2>
+            {report.sections.map((section) => (
+              <AssessmentAreaRow key={`${section.taskId}-${section.label}`} section={section} taskSignals={taskSignals} />
+            ))}
+          </div>
+
+          {report.sections.length === 0 ? (
+            <div className="rounded-[24px] border border-[#E8DED4] bg-white p-5 text-[15px] font-bold text-[#766b63]">
+              No assessment areas have been saved in this report yet.
             </div>
-          </div>
-          <CheckQualityPanel checkQuality={checkQuality} />
-        </div>
+          ) : null}
 
-        <WhatChangedStrip domainTrends={domainTrends} />
+          <div className="grid gap-3">
+            <BestNextActionCard
+              remaining={remaining}
+              checkQuality={checkQuality}
+              contextInsight={contextInsight}
+              onStart={() => navigate("/mind-memory/cognitive-assessment/start")}
+            />
 
-        <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
-
-        <div id="domain-trends">
-          <DomainTrendChart domainTrends={domainTrends} domainTrendSeries={domainTrendSeries} />
-        </div>
-
-        <PersonalBaselineCard baselineBands={baselineBands} />
-
-        <div className="grid grid-cols-2 gap-3">
-          <MetricTile
-            icon={<ClipboardList size={22} />}
-            label="Coverage"
-            value={`${percent}%`}
-            detail={coverageMeaning(report)}
-            className="border-[#DDD6FE] bg-[#F5F3FF] text-[#5B21B6]"
-            targetId="latest-snapshot"
-          />
-          <MetricTile
-            icon={<Activity size={22} />}
-            label="Domains"
-            value={`${domainTotal}`}
-            detail={shortList(thinkingDomainList, "None yet", 2)}
-            className="border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]"
-            targetId="domain-trends"
-          />
-          <MetricTile
-            icon={<BarChart3 size={22} />}
-            label="Thinking"
-            value={`${scoreSignals}/${signalTotal}`}
-            detail={signalDetail}
-            className="border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]"
-            targetId="areas-checked"
-          />
-          <MetricTile
-            icon={<Target size={22} />}
-            label="Next"
-            value={nextPriorityLabel(report)}
-            detail={remaining.length ? `${remaining.length} step${remaining.length === 1 ? "" : "s"} remaining` : "No missing areas"}
-            className="border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
-            valueClassName="text-[21px] leading-tight"
-            targetId="report-actions"
-          />
-        </div>
-
-        <ContextOverlay taskSignals={taskSignals} contextInsight={contextInsight} />
-
-        <div id="areas-checked" className="grid gap-3 scroll-mt-4">
-          <h2 className="px-1 text-[24px] font-black leading-tight text-[#2f2135]">Areas checked</h2>
-          {report.sections.map((section) => (
-            <AssessmentAreaRow key={`${section.taskId}-${section.label}`} section={section} taskSignals={taskSignals} />
-          ))}
-        </div>
-
-        {report.sections.length === 0 ? (
-          <div className="rounded-[24px] border border-[#E8DED4] bg-white p-5 text-[15px] font-bold text-[#766b63]">
-            No assessment areas have been saved in this report yet.
-          </div>
-        ) : null}
-
-        <div className="grid gap-3">
-          <BestNextActionCard
-            remaining={remaining}
-            checkQuality={checkQuality}
-            contextInsight={contextInsight}
-            onStart={() => navigate("/mind-memory/cognitive-assessment/start")}
-          />
-
-          <button
-            type="button"
-            onClick={() => navigate("/mind-memory/cognitive-assessment/history")}
-            className="flex min-h-[64px] w-full items-center justify-between rounded-[22px] border border-[#E8DED4] bg-white px-4 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)]"
-          >
-            <span className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#FFF7ED] text-[#B45309]">
-                <History size={23} />
+            <button
+              type="button"
+              onClick={() => navigate("/mind-memory/cognitive-assessment/history")}
+              className="flex min-h-[64px] w-full items-center justify-between rounded-[22px] border border-[#E8DED4] bg-white px-4 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)]"
+            >
+              <span className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[#FFF7ED] text-[#B45309]">
+                  <History size={23} />
+                </span>
+                <span>
+                  <span className="block text-[17px] font-black text-[#2f2135]">Report history</span>
+                  <span className="block text-[13px] font-bold text-[#766b63]">Past checks and trends</span>
+                </span>
               </span>
-              <span>
-                <span className="block text-[17px] font-black text-[#2f2135]">Report history</span>
-                <span className="block text-[13px] font-bold text-[#766b63]">Past checks and trends</span>
-              </span>
-            </span>
-            <ChevronRight size={24} className="text-[#9A8F87]" />
-          </button>
-        </div>
+              <ChevronRight size={24} className="text-[#9A8F87]" />
+            </button>
+          </div>
 
-        <p className="px-1 text-[12px] font-bold leading-relaxed text-[#766b63]">Tracking signals are not a diagnosis.</p>
+          <p className="px-1 text-[12px] font-bold leading-relaxed text-[#766b63]">Tracking signals are not a diagnosis.</p>
+        </aside>
       </section>
     </main>
   );
