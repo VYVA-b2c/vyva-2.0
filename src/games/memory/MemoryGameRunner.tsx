@@ -2102,6 +2102,18 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const nextPlayableLevel = getNextPlayableLevel();
   const canOpenNextLevel = nextPlayableLevel > plan.level;
   const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
+  const memoryGridClassName =
+    memoryDeck.length <= 4
+      ? "grid-cols-2 max-w-[460px] sm:max-w-[500px]"
+      : memoryDeck.length <= 6
+        ? "grid-cols-3 max-w-[620px] sm:max-w-[680px]"
+        : "grid-cols-4 max-w-[760px] sm:max-w-[860px]";
+  const memoryCardHeight =
+    memoryDeck.length <= 4
+      ? "clamp(104px, 15dvh, 150px)"
+      : memoryDeck.length <= 6
+        ? "clamp(94px, 14dvh, 136px)"
+        : "clamp(82px, 13dvh, 128px)";
 
   return (
     <div className="px-3 pb-4 sm:px-[22px] sm:pb-6">
@@ -2147,25 +2159,25 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           </p>
         </div>
 
-        <div className={`mt-3 grid gap-2 sm:mt-5 sm:gap-3 ${memoryDeck.length <= 6 ? "grid-cols-2" : "grid-cols-4"}`}>
+        <div className={`mx-auto mt-3 grid w-full gap-2 sm:mt-4 sm:gap-3 ${memoryGridClassName}`}>
           {memoryDeck.map((card) => {
             const isOpen = revealed.includes(card.deckId) || matchedIds.includes(card.deckId);
             return (
               <button
                 key={card.deckId}
                 onClick={() => onMemoryCardClick(card)}
-                className="aspect-[0.9] rounded-[16px] border border-vyva-border p-2 text-center shadow-vyva-card transition-all sm:rounded-[20px] sm:p-3"
+                className="rounded-[16px] border border-vyva-border p-2 text-center shadow-vyva-card transition-all sm:rounded-[20px] sm:p-3"
                 style={
                   isOpen
-                    ? { background: "#FFFFFF", borderColor: "#C4B5FD", transform: "translateY(-1px)" }
-                    : { background: "linear-gradient(145deg, #6B21A8 0%, #8B3FC8 100%)", color: "#FFFFFF" }
+                    ? { height: memoryCardHeight, background: "#FFFFFF", borderColor: "#C4B5FD", transform: "translateY(-1px)" }
+                    : { height: memoryCardHeight, background: "linear-gradient(145deg, #6B21A8 0%, #8B3FC8 100%)", color: "#FFFFFF" }
                 }
               >
                 <div className="flex h-full flex-col items-center justify-center">
                   {isOpen ? (
                     <>
                       <span className="text-[28px] leading-none sm:text-[36px]">{card.emoji}</span>
-                      <span className="mt-1 text-[12px] font-semibold leading-tight text-vyva-text-1 sm:mt-3 sm:text-[18px]">{card.label}</span>
+                      <span className="mt-1 text-[12px] font-semibold leading-tight text-vyva-text-1 [overflow-wrap:anywhere] sm:mt-2 sm:text-[17px]">{card.label}</span>
                     </>
                   ) : (
                     <>
