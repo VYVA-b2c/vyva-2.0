@@ -267,7 +267,7 @@ export function AssessmentConfidenceTracker({
     ? t("health.symptomCheck.tracker.prepared", "Next steps are ready")
     : current === "chat"
       ? t("health.symptomCheck.tracker.checking", "VYVA is checking symptoms and safety signs")
-      : t("health.symptomCheck.tracker.listening", "Tell VYVA what feels wrong");
+      : t("health.symptomCheck.tracker.listening", "Tell me how you feel, right now");
   const milestones = [
     { key: "listen", label: t("health.symptomCheck.tracker.listen", "Symptoms"), Icon: Stethoscope },
     { key: "check", label: t("health.symptomCheck.tracker.check", "Safety check"), Icon: Activity },
@@ -939,7 +939,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
 
         <div className="grid gap-2">
           <h1 className="font-body text-[28px] font-black leading-tight text-vyva-text-1 sm:text-[34px]">
-            {t("health.symptomCheck.intro.simpleTitle", "Tell VYVA what feels wrong")}
+            {t("health.symptomCheck.intro.simpleTitle", "Tell me how you feel, right now")}
           </h1>
           <p className="font-body text-[17px] font-bold leading-relaxed text-vyva-text-2">
             {t("health.symptomCheck.intro.simpleBody", "Speak, type, or tap an example.")}
@@ -948,7 +948,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
 
         <div className="grid gap-2 text-left">
           <label className="sr-only" htmlFor="symptom-clue">
-            {t("health.symptomCheck.intro.simpleTitle", "Tell VYVA what feels wrong")}
+            {t("health.symptomCheck.intro.simpleTitle", "Tell me how you feel, right now")}
           </label>
           <input
             id="symptom-clue"
