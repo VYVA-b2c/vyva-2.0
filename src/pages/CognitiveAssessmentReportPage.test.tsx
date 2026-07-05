@@ -205,6 +205,38 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
       valueLabel: "5",
     },
   ],
+  baselineBands: [
+    {
+      domainId: "memory",
+      label: "Memory",
+      status: "building",
+      valueLabel: "3 words",
+      rangeLabel: "2 checks",
+      detail: "Building a personal baseline.",
+      sampleSize: 2,
+    },
+    {
+      domainId: "reasoning",
+      label: "Reasoning",
+      status: "building",
+      valueLabel: "4/8",
+      rangeLabel: "2 checks",
+      detail: "Building a personal baseline.",
+      sampleSize: 2,
+    },
+  ],
+  checkQuality: {
+    status: "building",
+    label: "Building comparison",
+    detail: "Complete more areas before reading trends strongly.",
+    factors: ["2/12 steps", "2 domains", "Similar time of day"],
+  },
+  contextInsight: {
+    tone: "changed",
+    label: "Memory changed",
+    detail: "Context was saved for comparison with thinking signals.",
+    relatedSignals: ["Sleep and energy: 5"],
+  },
 };
 
 function renderReport(
@@ -246,6 +278,10 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("+9 pts since last check")).toBeInTheDocument();
     expect(screen.getByText("What changed")).toBeInTheDocument();
     expect(screen.getByText("Since last check")).toBeInTheDocument();
+    expect(screen.getByText("Building comparison")).toBeInTheDocument();
+    expect(screen.getByText("Personal baseline")).toBeInTheDocument();
+    expect(screen.getByText("Usual range")).toBeInTheDocument();
+    expect(screen.getAllByText("Building").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Domain trends")).toBeInTheDocument();
     expect(screen.getAllByText("Raw signals").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Mood/Sleep/Daily Context")).toBeInTheDocument();
@@ -256,7 +292,8 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("10 left")).toBeInTheDocument();
     expect(screen.getByText("3 saved")).toBeInTheDocument();
     expect(screen.getByText("Context")).toBeInTheDocument();
-    expect(screen.getByText("Mood, sleep, daily function")).toBeInTheDocument();
+    expect(screen.getByText("Memory changed")).toBeInTheDocument();
+    expect(screen.getByText("Context was saved for comparison with thinking signals.")).toBeInTheDocument();
     expect(screen.getByText("Sleep and energy: 5")).toBeInTheDocument();
     expect(screen.getAllByText("Mini history").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Areas checked")).toBeInTheDocument();

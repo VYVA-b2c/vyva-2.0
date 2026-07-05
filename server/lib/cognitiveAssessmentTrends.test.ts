@@ -101,6 +101,47 @@ describe("cognitive assessment trends", () => {
     ]);
   });
 
+  it("derives personal baseline bands, quality, and context insight from recent checks", () => {
+    const sessions = [session("s1", 1), session("s2", 2), session("s3", 3), session("latest", 4)];
+    const qualityResponses = (sessionId: string, storyWords: number, contextScore: number) => [
+      response(sessionId, "story_recall_immediate", { word_count: storyWords }, 2),
+      response(sessionId, "fluency_semantic", { unique_responses: ["cat", "dog", "bird", "fish"] }, 3),
+      response(sessionId, "fluency_phonemic", { unique_responses: ["fan", "farm", "fall"] }, 4),
+      response(sessionId, "digit_span", { longest_span_forward: 4, longest_span_backward: 3 }, 5),
+      response(sessionId, "similarities", { score: 6, max_score: 8 }, 6),
+      response(sessionId, "clock_drawing", { notes: "saved" }, 7),
+      response(sessionId, "mood_screen", { score: contextScore }, 9),
+      response(sessionId, "sleep_energy", { score: contextScore }, 10),
+      response(sessionId, "function_iadl", { score: 2 }, 11),
+    ];
+    const responsesBySession = new Map<string, CognitiveTrendResponseRow[]>([
+      ["s1", qualityResponses("s1", 10, 2)],
+      ["s2", qualityResponses("s2", 12, 2)],
+      ["s3", qualityResponses("s3", 11, 2)],
+      ["latest", qualityResponses("latest", 18, 5)],
+    ]);
+
+    const payload = buildCognitiveAssessmentTrendPayload(sessions, responsesBySession, 12);
+
+    expect(payload.baselineBands.find((band) => band.domainId === "memory")).toMatchObject({
+      status: "above",
+      valueLabel: "18 words",
+      rangeLabel: "10-12",
+      detail: "Above recent usual range.",
+    });
+    expect(payload.checkQuality).toMatchObject({
+      status: "good",
+      label: "Good comparison",
+    });
+    expect(payload.checkQuality.factors).toContain("9/12 steps");
+    expect(payload.checkQuality.factors).toContain("Similar time of day");
+    expect(payload.contextInsight).toMatchObject({
+      tone: "changed",
+      label: "Context and thinking changed",
+    });
+    expect(payload.contextInsight.relatedSignals).toContain("Mood check: 5");
+  });
+
   it("does not create fake scores when a clock drawing only has saved text", () => {
     const signal = cognitiveTaskSignal(response("latest", "clock_drawing", {
       text: "clock looked round",

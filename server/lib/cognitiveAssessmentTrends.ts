@@ -1,4 +1,7 @@
 import type {
+  CognitiveAssessmentBaselineBand,
+  CognitiveAssessmentCheckQuality,
+  CognitiveAssessmentContextInsight,
   CognitiveAssessmentDomainTrend,
   CognitiveAssessmentDomainTrendSeries,
   CognitiveAssessmentTaskSignal,
@@ -25,6 +28,9 @@ export type CognitiveAssessmentTrendPayload = {
   domainTrends: CognitiveAssessmentDomainTrend[];
   domainTrendSeries: CognitiveAssessmentDomainTrendSeries[];
   taskSignals: CognitiveAssessmentTaskSignal[];
+  baselineBands: CognitiveAssessmentBaselineBand[];
+  checkQuality: CognitiveAssessmentCheckQuality;
+  contextInsight: CognitiveAssessmentContextInsight;
 };
 
 type TrendDomain = {
@@ -95,6 +101,8 @@ const TREND_DOMAINS: TrendDomain[] = [
   },
 ];
 
+const CONTEXT_TASK_IDS = new Set(["orientation", "mood_screen", "sleep_energy", "function_iadl", "subjective_concern"]);
+
 function iso(value: Date | string | null | undefined) {
   if (!value) return null;
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
@@ -123,6 +131,11 @@ function arrayLength(data: Record<string, unknown>, keys: string[]) {
 
 function formatNumber(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function numericDeltaMagnitude(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.latestRawValue === null || trend.previousRawValue === null) return trend.direction === "new" ? 0.5 : 0;
+  return Math.abs(trend.latestRawValue - trend.previousRawValue);
 }
 
 function trendDomainForTaskId(taskId: string) {
@@ -284,6 +297,183 @@ function direction(latest: number | null, previous: number | null): CognitiveAss
   return "flat";
 }
 
+function buildBaselineBands(domainTrendSeries: CognitiveAssessmentDomainTrendSeries[]): CognitiveAssessmentBaselineBand[] {
+  return domainTrendSeries.map((series): CognitiveAssessmentBaselineBand => {
+    const latest = series.points[series.points.length - 1] ?? null;
+    if (!latest || latest.rawValue === null) {
+      return {
+        domainId: series.domainId,
+        label: series.label,
+        status: "not_checked",
+        valueLabel: "Not checked",
+        rangeLabel: "Open",
+        detail: "Not checked in the latest saved check.",
+        sampleSize: 0,
+      };
+    }
+
+    const previousValues = series.points
+      .slice(0, -1)
+      .map((point) => point.rawValue)
+      .filter((value): value is number => value !== null);
+
+    if (previousValues.length < 3) {
+      return {
+        domainId: series.domainId,
+        label: series.label,
+        status: "building",
+        valueLabel: latest.valueLabel,
+        rangeLabel: `${previousValues.length + 1} check${previousValues.length === 0 ? "" : "s"}`,
+        detail: "Building a personal baseline.",
+        sampleSize: previousValues.length + 1,
+      };
+    }
+
+    const min = Math.min(...previousValues);
+    const max = Math.max(...previousValues);
+    const rangeLabel = min === max ? formatNumber(min) : `${formatNumber(min)}-${formatNumber(max)}`;
+    const status = latest.rawValue > max ? "above" : latest.rawValue < min ? "below" : "usual";
+    const detail = status === "above"
+      ? "Above recent usual range."
+      : status === "below"
+        ? "Below recent usual range."
+        : "Within recent usual range.";
+
+    return {
+      domainId: series.domainId,
+      label: series.label,
+      status,
+      valueLabel: latest.valueLabel,
+      rangeLabel,
+      detail,
+      sampleSize: previousValues.length + 1,
+    };
+  });
+}
+
+function hourDifference(left: Date | string | null | undefined, right: Date | string | null | undefined) {
+  if (!left || !right) return null;
+  const diff = Math.abs(new Date(left).getHours() - new Date(right).getHours());
+  return Math.min(diff, 24 - diff);
+}
+
+function buildCheckQuality(
+  recentSessions: CognitiveTrendSession[],
+  trendPoints: CognitiveAssessmentTrendPoint[],
+): CognitiveAssessmentCheckQuality {
+  const latest = trendPoints[trendPoints.length - 1] ?? null;
+  if (!latest) {
+    return {
+      status: "building",
+      label: "No comparison yet",
+      detail: "Complete a check to start tracking.",
+      factors: [],
+    };
+  }
+
+  const previousSession = recentSessions[recentSessions.length - 2] ?? null;
+  const latestSession = recentSessions[recentSessions.length - 1] ?? null;
+  const timeGap = hourDifference(latestSession?.completed_at, previousSession?.completed_at);
+  const factors = [
+    `${latest.completedSteps}/${latest.totalSteps} steps`,
+    `${latest.domainCount} domains`,
+  ];
+
+  if (!previousSession) {
+    factors.push("First saved check");
+  } else if (timeGap !== null && timeGap <= 3) {
+    factors.push("Similar time of day");
+  } else {
+    factors.push("Different time of day");
+  }
+
+  if (latest.completionPercent >= 75 && latest.domainCount >= 4) {
+    return {
+      status: "good",
+      label: "Good comparison",
+      detail: "Enough areas are saved to compare with recent checks.",
+      factors,
+    };
+  }
+
+  if (latest.completionPercent >= 50 && latest.domainCount >= 3) {
+    return {
+      status: "partial",
+      label: "Partial comparison",
+      detail: "Useful, but a few missing areas can affect trend clarity.",
+      factors,
+    };
+  }
+
+  return {
+    status: "building",
+    label: "Building comparison",
+    detail: "Complete more areas before reading trends strongly.",
+    factors,
+  };
+}
+
+function contextSignals(taskSignals: CognitiveAssessmentTaskSignal[]) {
+  return taskSignals.filter((signal) => CONTEXT_TASK_IDS.has(signal.taskId));
+}
+
+function buildContextInsight(
+  domainTrends: CognitiveAssessmentDomainTrend[],
+  taskSignals: CognitiveAssessmentTaskSignal[],
+): CognitiveAssessmentContextInsight {
+  const context = contextSignals(taskSignals);
+  if (context.length === 0) {
+    return {
+      tone: "building",
+      label: "Context not saved",
+      detail: "Mood, sleep, and daily function make comparisons clearer.",
+      relatedSignals: [],
+    };
+  }
+
+  const dailyContext = domainTrends.find((trend) => trend.domainId === "daily_context") ?? null;
+  const contextChanged = dailyContext ? ["up", "down", "new"].includes(dailyContext.direction) : false;
+  const thinkingChanges = domainTrends
+    .filter((trend) => trend.domainId !== "daily_context")
+    .filter((trend) => trend.latestRawValue !== null && ["up", "down", "new"].includes(trend.direction))
+    .sort((left, right) => numericDeltaMagnitude(right) - numericDeltaMagnitude(left));
+  const relatedSignals = context.slice(0, 3).map((signal) => `${signal.label}: ${signal.valueLabel}`);
+
+  if (contextChanged && thinkingChanges.length > 0) {
+    return {
+      tone: "changed",
+      label: "Context and thinking changed",
+      detail: `${thinkingChanges[0].label} changed while context also shifted.`,
+      relatedSignals,
+    };
+  }
+
+  if (contextChanged) {
+    return {
+      tone: "changed",
+      label: "Context changed",
+      detail: "Review thinking signals beside these context answers.",
+      relatedSignals,
+    };
+  }
+
+  if (thinkingChanges.length > 0) {
+    return {
+      tone: "changed",
+      label: `${thinkingChanges[0].label} changed`,
+      detail: "Context was saved for comparison with thinking signals.",
+      relatedSignals,
+    };
+  }
+
+  return {
+    tone: "steady",
+    label: "Context steady",
+    detail: "Context is available beside this check's thinking signals.",
+    relatedSignals,
+  };
+}
+
 export function buildCognitiveAssessmentTrendPayload(
   sessions: CognitiveTrendSession[],
   responsesBySession: Map<string, CognitiveTrendResponseRow[]>,
@@ -340,6 +530,9 @@ export function buildCognitiveAssessmentTrendPayload(
     .filter(responseIsCompleted)
     .sort((left, right) => (left.display_order ?? 999) - (right.display_order ?? 999))
     .map(cognitiveTaskSignal);
+  const baselineBands = buildBaselineBands(domainTrendSeries);
+  const checkQuality = buildCheckQuality(recentSessions, trendPoints);
+  const contextInsight = buildContextInsight(domainTrends, taskSignals);
 
-  return { trendPoints, domainTrends, domainTrendSeries, taskSignals };
+  return { trendPoints, domainTrends, domainTrendSeries, taskSignals, baselineBands, checkQuality, contextInsight };
 }

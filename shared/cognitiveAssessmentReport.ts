@@ -75,6 +75,36 @@ export type CognitiveAssessmentTaskSignal = {
   valueLabel: string;
 };
 
+export type CognitiveAssessmentBaselineBandStatus = "usual" | "above" | "below" | "building" | "not_checked";
+
+export type CognitiveAssessmentBaselineBand = {
+  domainId: string;
+  label: string;
+  status: CognitiveAssessmentBaselineBandStatus;
+  valueLabel: string;
+  rangeLabel: string;
+  detail: string;
+  sampleSize: number;
+};
+
+export type CognitiveAssessmentCheckQualityStatus = "good" | "partial" | "building";
+
+export type CognitiveAssessmentCheckQuality = {
+  status: CognitiveAssessmentCheckQualityStatus;
+  label: string;
+  detail: string;
+  factors: string[];
+};
+
+export type CognitiveAssessmentContextInsightTone = "steady" | "changed" | "building";
+
+export type CognitiveAssessmentContextInsight = {
+  tone: CognitiveAssessmentContextInsightTone;
+  label: string;
+  detail: string;
+  relatedSignals: string[];
+};
+
 export type CognitiveAssessmentLatestReportResponse = {
   report: CognitiveAssessmentReport | null;
 };
@@ -85,4 +115,7 @@ export type CognitiveAssessmentHistoryResponse = {
   domainTrends: CognitiveAssessmentDomainTrend[];
   domainTrendSeries: CognitiveAssessmentDomainTrendSeries[];
   taskSignals: CognitiveAssessmentTaskSignal[];
+  baselineBands: CognitiveAssessmentBaselineBand[];
+  checkQuality: CognitiveAssessmentCheckQuality;
+  contextInsight: CognitiveAssessmentContextInsight;
 };

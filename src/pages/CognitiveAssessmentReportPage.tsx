@@ -104,6 +104,23 @@ type ReportTrendPoints = CognitiveAssessmentHistoryResponse["trendPoints"];
 type ReportDomainTrends = CognitiveAssessmentHistoryResponse["domainTrends"];
 type ReportDomainTrendSeries = CognitiveAssessmentHistoryResponse["domainTrendSeries"];
 type ReportTaskSignals = CognitiveAssessmentHistoryResponse["taskSignals"];
+type ReportBaselineBands = CognitiveAssessmentHistoryResponse["baselineBands"];
+type ReportCheckQuality = CognitiveAssessmentHistoryResponse["checkQuality"];
+type ReportContextInsight = CognitiveAssessmentHistoryResponse["contextInsight"];
+
+const DEFAULT_CHECK_QUALITY: ReportCheckQuality = {
+  status: "building",
+  label: "Building comparison",
+  detail: "Complete more areas before reading trends strongly.",
+  factors: [],
+};
+
+const DEFAULT_CONTEXT_INSIGHT: ReportContextInsight = {
+  tone: "building",
+  label: "Context not saved",
+  detail: "Mood, sleep, and daily function make comparisons clearer.",
+  relatedSignals: [],
+};
 
 type ProgressPoint = {
   sessionId: string;
@@ -621,27 +638,126 @@ function WhatChangedStrip({ domainTrends }: { domainTrends: ReportDomainTrends }
   );
 }
 
-function ContextOverlay({ taskSignals }: { taskSignals: ReportTaskSignals }) {
-  const signals = contextSignals(taskSignals);
-  if (signals.length === 0) return null;
+function checkQualityTone(checkQuality: ReportCheckQuality) {
+  if (checkQuality.status === "good") return "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
+  if (checkQuality.status === "partial") return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]";
+  return "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]";
+}
+
+function CheckQualityPanel({ checkQuality }: { checkQuality: ReportCheckQuality }) {
+  return (
+    <div className={`mt-4 rounded-[18px] border p-3 ${checkQualityTone(checkQuality)}`}>
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-white/80">
+          <ShieldCheck size={22} />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[13px] font-black">{checkQuality.label}</span>
+          <span className="mt-0.5 block text-[12px] font-bold leading-snug opacity-80">{checkQuality.detail}</span>
+        </span>
+      </div>
+      {checkQuality.factors.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {checkQuality.factors.map((factor) => (
+            <span key={factor} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black shadow-sm">
+              {factor}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function baselineTone(status: ReportBaselineBands[number]["status"]) {
+  if (status === "usual") return "bg-[#ECFDF5] text-[#047857]";
+  if (status === "above") return "bg-[#F5F3FF] text-[#5B21B6]";
+  if (status === "below") return "bg-[#FFF7ED] text-[#B45309]";
+  if (status === "not_checked") return "bg-[#F8F4EF] text-[#766b63]";
+  return "bg-[#EFF6FF] text-[#1D4ED8]";
+}
+
+function baselineLabel(status: ReportBaselineBands[number]["status"]) {
+  if (status === "usual") return "Usual";
+  if (status === "above") return "Above usual";
+  if (status === "below") return "Below usual";
+  if (status === "not_checked") return "Open";
+  return "Building";
+}
+
+function baselineRangeCopy(band: ReportBaselineBands[number]) {
+  if (band.status === "building" || band.status === "not_checked") return band.rangeLabel;
+  return `range ${band.rangeLabel}`;
+}
+
+function PersonalBaselineCard({ baselineBands }: { baselineBands: ReportBaselineBands }) {
+  if (baselineBands.length === 0) return null;
 
   return (
-    <div className="rounded-[24px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#7C2D12] shadow-[0_10px_24px_rgba(194,65,12,0.055)]">
+    <div className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.045)]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Personal baseline</p>
+          <h2 className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">Usual range</h2>
+        </div>
+        <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-xs font-black text-[#5B21B6]">Self compare</span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        {baselineBands.map((band) => (
+          <div key={band.domainId} className="rounded-[16px] bg-[#FBF8F4] px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block truncate text-[14px] font-black text-[#2f2135]">{band.label}</span>
+                <span className="block truncate text-[12px] font-bold text-[#766b63]">
+                  {band.valueLabel} - {baselineRangeCopy(band)}
+                </span>
+              </span>
+              <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${baselineTone(band.status)}`}>
+                {baselineLabel(band.status)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function contextInsightTone(contextInsight: ReportContextInsight) {
+  if (contextInsight.tone === "changed") return "border-[#FED7AA] bg-[#FFF7ED] text-[#7C2D12]";
+  if (contextInsight.tone === "steady") return "border-[#BBF7D0] bg-[#ECFDF5] text-[#047857]";
+  return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]";
+}
+
+function ContextOverlay({
+  taskSignals,
+  contextInsight,
+}: {
+  taskSignals: ReportTaskSignals;
+  contextInsight: ReportContextInsight;
+}) {
+  const signals = contextSignals(taskSignals);
+  if (signals.length === 0 && contextInsight.tone !== "building") return null;
+
+  return (
+    <div className={`rounded-[24px] border p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)] ${contextInsightTone(contextInsight)}`}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.12em]">Context</p>
-          <h2 className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">Mood, sleep, daily function</h2>
+          <h2 className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">{contextInsight.label}</h2>
         </div>
         <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black shadow-sm">{signals.length} saved</span>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {signals.map((signal) => (
-          <span key={signal.taskId} className="rounded-full bg-white px-3 py-2 text-[12px] font-black shadow-sm">
-            {signal.label}: {signal.valueLabel}
-          </span>
-        ))}
-      </div>
-      <p className="mt-3 text-[12px] font-bold leading-snug text-[#8A4B18]">Use these beside the thinking signals.</p>
+      <p className="mt-2 text-[13px] font-bold leading-snug opacity-85">{contextInsight.detail}</p>
+      {contextInsight.relatedSignals.length > 0 || signals.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(contextInsight.relatedSignals.length > 0 ? contextInsight.relatedSignals : signals.map((signal) => `${signal.label}: ${signal.valueLabel}`)).map((signal) => (
+            <span key={signal} className="rounded-full bg-white px-3 py-2 text-[12px] font-black shadow-sm">
+              {signal}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -828,6 +944,9 @@ function ReportView({
   domainTrends,
   domainTrendSeries,
   taskSignals,
+  baselineBands,
+  checkQuality,
+  contextInsight,
 }: {
   report: CognitiveAssessmentReport;
   title: string;
@@ -836,6 +955,9 @@ function ReportView({
   domainTrends: ReportDomainTrends;
   domainTrendSeries: ReportDomainTrendSeries;
   taskSignals: ReportTaskSignals;
+  baselineBands: ReportBaselineBands;
+  checkQuality: ReportCheckQuality;
+  contextInsight: ReportContextInsight;
 }) {
   const navigate = useNavigate();
   const percent = completionPercent(report);
@@ -876,6 +998,7 @@ function ReportView({
               <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#62564f]">{snapshotCopy}</p>
             </div>
           </div>
+          <CheckQualityPanel checkQuality={checkQuality} />
         </div>
 
         <WhatChangedStrip domainTrends={domainTrends} />
@@ -883,6 +1006,8 @@ function ReportView({
         <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
 
         <DomainTrendChart domainTrends={domainTrends} domainTrendSeries={domainTrendSeries} />
+
+        <PersonalBaselineCard baselineBands={baselineBands} />
 
         <div className="grid grid-cols-2 gap-3">
           <MetricTile
@@ -916,7 +1041,7 @@ function ReportView({
           />
         </div>
 
-        <ContextOverlay taskSignals={taskSignals} />
+        <ContextOverlay taskSignals={taskSignals} contextInsight={contextInsight} />
 
         <div className="grid gap-3">
           <h2 className="px-1 text-[24px] font-black leading-tight text-[#2f2135]">Areas checked</h2>
@@ -1043,6 +1168,9 @@ export default function CognitiveAssessmentReportPage() {
       domainTrends={historyData?.domainTrends ?? []}
       domainTrendSeries={historyData?.domainTrendSeries ?? []}
       taskSignals={historyData?.taskSignals ?? []}
+      baselineBands={historyData?.baselineBands ?? []}
+      checkQuality={historyData?.checkQuality ?? DEFAULT_CHECK_QUALITY}
+      contextInsight={historyData?.contextInsight ?? DEFAULT_CONTEXT_INSIGHT}
     />
   );
 }

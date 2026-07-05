@@ -935,7 +935,26 @@ router.get("/reports/:sessionId", async (req: Request, res: Response) => {
 router.get("/history", async (req: Request, res: Response) => {
   const userId = req.user?.id;
   if (!userId || !isUuid(userId)) {
-    return res.json({ history: [], trendPoints: [], domainTrends: [], domainTrendSeries: [], taskSignals: [] });
+    return res.json({
+      history: [],
+      trendPoints: [],
+      domainTrends: [],
+      domainTrendSeries: [],
+      taskSignals: [],
+      baselineBands: [],
+      checkQuality: {
+        status: "building",
+        label: "No comparison yet",
+        detail: "Complete a check to start tracking.",
+        factors: [],
+      },
+      contextInsight: {
+        tone: "building",
+        label: "Context not saved",
+        detail: "Mood, sleep, and daily function make comparisons clearer.",
+        relatedSignals: [],
+      },
+    });
   }
 
   try {
