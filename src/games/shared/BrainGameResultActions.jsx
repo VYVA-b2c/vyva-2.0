@@ -13,25 +13,17 @@ export default function BrainGameResultActions({
 }) {
   if (onNextLevel && nextLevelLabel) {
     const secondaryButtonClass =
-      "min-h-[68px] whitespace-normal rounded-[22px] border-2 bg-white px-3 py-3 text-center text-[22px] font-extrabold leading-[1.05] shadow-vyva-card disabled:opacity-60";
+      "min-h-[54px] whitespace-normal rounded-full border-2 bg-white px-4 py-2.5 text-center text-[16px] font-extrabold leading-[1.1] shadow-vyva-card disabled:opacity-60 sm:whitespace-nowrap sm:text-[17px]";
 
     return (
-      <div className={`grid w-full grid-cols-2 gap-3 ${className}`}>
+      <div className={`grid w-full gap-2.5 sm:grid-cols-[1.2fr_1fr_1.15fr] ${className}`}>
         <button
           type="button"
           onClick={onNextLevel}
           disabled={disabled}
-          className="min-h-[68px] whitespace-normal rounded-[22px] bg-vyva-purple px-3 py-3 text-center text-[22px] font-extrabold leading-[1.05] text-white shadow-vyva-card disabled:opacity-60"
+          className="min-h-[54px] whitespace-normal rounded-full bg-vyva-purple px-4 py-2.5 text-center text-[17px] font-extrabold leading-[1.1] text-white shadow-vyva-card disabled:opacity-60 sm:whitespace-nowrap sm:text-[18px]"
         >
           {nextLevelLabel}
-        </button>
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={disabled}
-          className={`${secondaryButtonClass} border-[#D8C7F3] text-vyva-purple`}
-        >
-          {continueLabel}
         </button>
         <button
           type="button"

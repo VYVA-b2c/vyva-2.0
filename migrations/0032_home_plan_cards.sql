@@ -38,7 +38,7 @@ insert into home_plan_cards (
   ('gamesRoom', true, 'G', '#F0FDF4', '#DCFCE7', '#15803D', '/social-rooms/games-room', 74, '{}', array['chess','ajedrez','scrabble','game','juego','puzzle','sudoku','cards','cartas'], '{}', 'Social games and brain play.'),
   ('musicSalon', true, 'M', '#EEF4FF', '#DBEAFE', '#1D4ED8', '/social-rooms/music-salon', 70, '{}', array['music','musica','opera','song','cancion','singing'], '{}', 'Music social room recommendation.'),
   ('movement', true, 'Move', '#ECFDF5', '#D1FAE5', '#065F46', '/health', 68, '{}', array['walking','caminar','yoga','stretch','estirar','gardening','jardin'], array['fall','caida','wheelchair','silla de ruedas','mobility','movilidad'], 'Gentle movement only when mobility profile allows it.'),
-  ('wordGame', true, 'W', '#F0FDF4', '#DCFCE7', '#15803D', '/activities', 64, '{}', array['reading','leer','book','libro','writing','escribir','poetry','poesia'], '{}', 'Light cognitive activity.'),
+  ('wordGame', true, 'W', '#F0FDF4', '#DCFCE7', '#15803D', '/mind-memory', 64, '{}', array['reading','leer','book','libro','writing','escribir','poetry','poesia'], '{}', 'Light cognitive activity.'),
   ('billReview', true, '$', '#F0FDFA', '#CCFBF1', '#0F766E', '/concierge', 58, '{}', array['saving','ahorro','bills','facturas'], '{}', 'Savings and services review.'),
   ('social', true, 'S', '#FFFBEB', '#FEF3C7', '#B45309', '/social-rooms', 54, array['lonely','solo','sola','sad','triste','low mood','animo'], array['friends','amigos','conversation','conversacion','club'], '{}', 'Connection and social room prompt.'),
   ('breathing', true, 'B', '#EEF4FF', '#DBEAFE', '#1D4ED8', '/health', 50, array['stress','estres','anxiety','ansiedad','sleep','sueno'], '{}', '{}', 'Calm breathing support.'),

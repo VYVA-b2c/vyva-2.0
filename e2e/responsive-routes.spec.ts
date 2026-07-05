@@ -944,7 +944,7 @@ const protectedHealthRoutes: ResponsiveRoute[] = [
 ];
 
 const protectedUtilityRoutes: ResponsiveRoute[] = [
-  { name: "activities", path: "/activities", expectedLayout: "wide" },
+  { name: "mind memory", path: "/mind-memory", expectedLayout: "wide" },
   { name: "activity", path: "/activity", expectedLayout: "wide" },
   { name: "concierge", path: "/concierge", expectedLayout: "wide" },
   { name: "shopping helper", path: "/concierge/shopping", expectedLayout: "wide" },

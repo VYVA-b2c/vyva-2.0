@@ -19,7 +19,7 @@ create table if not exists public.listen_closely_soundscapes (
 
 create table if not exists public.listen_closely_sessions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null,
   played_at timestamptz not null default now(),
   soundscape_id uuid references public.listen_closely_soundscapes(id),
   difficulty_tier integer not null check (difficulty_tier between 1 and 10),
@@ -39,7 +39,7 @@ create table if not exists public.listen_closely_sessions (
 );
 
 create table if not exists public.listen_closely_user_state (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  user_id uuid primary key,
   current_tier integer not null default 1 check (current_tier between 1 and 10),
   sessions_at_tier integer not null default 0,
   consecutive_wins integer not null default 0,
@@ -58,17 +58,17 @@ alter table public.listen_closely_user_state enable row level security;
 
 drop policy if exists listen_closely_soundscapes_read on public.listen_closely_soundscapes;
 create policy listen_closely_soundscapes_read on public.listen_closely_soundscapes
-  for select using (auth.role() = 'authenticated' and is_active = true);
+  for select using (is_active = true);
 
 drop policy if exists listen_closely_sessions_user_all on public.listen_closely_sessions;
 create policy listen_closely_sessions_user_all on public.listen_closely_sessions
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);
 
 drop policy if exists listen_closely_state_user_all on public.listen_closely_user_state;
 create policy listen_closely_state_user_all on public.listen_closely_user_state
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);
 
 create index if not exists listen_closely_soundscapes_tier_active_idx
   on public.listen_closely_soundscapes (difficulty_tier, is_active);

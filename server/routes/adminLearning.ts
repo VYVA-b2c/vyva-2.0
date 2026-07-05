@@ -1,8 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import OpenAI from "openai";
 import { z } from "zod";
 import { db } from "../db.js";
-import { learningCategories, learningLessons } from "../../shared/schema.js";
+import { learningCategories, learningLessonImages, learningLessons } from "../../shared/schema.js";
 import { normalizeLearningLanguage } from "../lib/learningProgram.js";
 
 const lessonStatusSchema = z.enum(["draft", "review", "published", "archived"]);
@@ -17,6 +18,9 @@ const lessonBodySchema = z.object({
   body: z.string().trim().min(1).max(5000),
   reflectionPrompt: z.string().trim().min(1).max(300),
   sourceNotes: z.string().trim().max(1000).nullable().optional(),
+  imageUrl: z.string().trim().max(1200).nullable().optional(),
+  imageAlt: z.string().trim().max(300).nullable().optional(),
+  imagePrompt: z.string().trim().max(1200).nullable().optional(),
   estimatedMinutes: z.number().int().min(1).max(15).optional().default(3),
   difficulty: lessonDifficultySchema.optional().default("easy"),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).optional().default([]),
@@ -27,6 +31,10 @@ const lessonBodySchema = z.object({
 const lessonPatchSchema = lessonBodySchema.partial();
 const bulkPublishBodySchema = z.object({
   lessonIds: z.array(z.string().trim().min(1)).max(500).optional(),
+}).optional();
+const generateImageBodySchema = z.object({
+  imagePrompt: z.string().trim().max(1200).nullable().optional(),
+  imageAlt: z.string().trim().max(300).nullable().optional(),
 }).optional();
 
 const categoryBodySchema = z.object({
@@ -59,6 +67,9 @@ function serializeLesson(row: LearningLessonRow) {
     body: row.body,
     reflectionPrompt: row.reflectionPrompt,
     sourceNotes: row.sourceNotes,
+    imageUrl: row.imageUrl,
+    imageAlt: row.imageAlt,
+    imagePrompt: row.imagePrompt,
     estimatedMinutes: row.estimatedMinutes,
     difficulty: row.difficulty,
     tags: row.tags ?? [],
@@ -215,11 +226,61 @@ function normalizeLessonImport(raw: unknown) {
     body: stringValue(row, ["body", "snippet"]),
     reflectionPrompt: stringValue(row, ["reflectionPrompt", "reflection_prompt"]),
     sourceNotes: stringValue(row, ["sourceNotes", "source_notes"], "") || null,
+    imageUrl: stringValue(row, ["imageUrl", "image_url"], "") || null,
+    imageAlt: stringValue(row, ["imageAlt", "image_alt"], "") || null,
+    imagePrompt: stringValue(row, ["imagePrompt", "image_prompt"], "") || null,
     estimatedMinutes: numberValue(row, ["estimatedMinutes", "estimated_minutes"], 3),
     difficulty: normalizeImportDifficulty(stringValue(row, ["difficulty"], "easy")),
     tags: tagsValue(row),
     status: normalizeImportStatus(stringValue(row, ["status"], "draft")),
     isActive: booleanValue(row, ["isActive", "is_active"], false),
+  });
+}
+
+function translationEntriesValue(row: Record<string, unknown>) {
+  const translations = row.translations;
+  if (Array.isArray(translations)) {
+    return translations.map((translation, index) => ({
+      label: `translation ${index + 1}`,
+      language: stringValue(asObject(translation), ["language"]),
+      row: asObject(translation),
+    }));
+  }
+  if (translations && typeof translations === "object") {
+    return Object.entries(translations as Record<string, unknown>).map(([language, translation]) => ({
+      label: language,
+      language,
+      row: asObject(translation),
+    }));
+  }
+  return [];
+}
+
+function expandLessonImportRows(raw: unknown, index: number, errors: string[]) {
+  const row = asObject(raw);
+  if (row.translations === undefined) return [raw];
+
+  const translations = translationEntriesValue(row);
+  if (translations.length === 0) {
+    errors.push(`Lesson row ${index + 1} translations must be an object keyed by language or an array of translations.`);
+    return [];
+  }
+
+  const baseExternalId = stringValue(row, ["externalIdBase", "external_id_base", "externalId", "external_id"]);
+  if (!baseExternalId) {
+    errors.push(`Lesson row ${index + 1} needs external_id_base when using translations.`);
+    return [];
+  }
+
+  return translations.map((translation) => {
+    const language = normalizeLearningLanguage(translation.language || stringValue(translation.row, ["language"], "en"));
+    const externalId = stringValue(translation.row, ["externalId", "external_id"], `${baseExternalId}-${language}`);
+    return {
+      ...row,
+      ...translation.row,
+      externalId,
+      language,
+    };
   });
 }
 
@@ -268,6 +329,49 @@ function importDatabaseDetails(error: unknown) {
     return ["The learning library database is missing a required column. Run the database audit and repair before uploading again."];
   }
   return [];
+}
+
+function learningImageUrl(imageId: string) {
+  return `/api/learning/images/${imageId}`;
+}
+
+function generatedLessonImageAlt(lesson: LearningLessonRow, requestedAlt?: string | null) {
+  const trimmed = requestedAlt?.trim();
+  if (trimmed) return trimmed;
+  const existing = lesson.imageAlt?.trim();
+  if (existing) return existing;
+  return `Illustration for ${lesson.title}`;
+}
+
+function generatedLessonImagePrompt(lesson: LearningLessonRow, requestedPrompt?: string | null) {
+  const brief = requestedPrompt?.trim() || lesson.imagePrompt?.trim();
+  const context = [
+    `Lesson title: ${lesson.title}`,
+    `Lesson category: ${lesson.categorySlug}`,
+    `Lesson hook: ${lesson.hook}`,
+    `Lesson body: ${lesson.body.slice(0, 700)}`,
+  ].join("\n");
+
+  return [
+    "Create a custom lesson image for an older adult learning app.",
+    "Use a warm, polished editorial illustration style with clear subject matter, natural colors, and gentle contrast.",
+    "Make it specific to the lesson idea, not a generic category image.",
+    "Do not include visible words, letters, labels, logos, UI, captions, charts, or brand marks.",
+    "Avoid frightening, medical, political, religious, childish, or overly abstract imagery.",
+    "Composition should work as a landscape lesson header image.",
+    brief ? `Admin creative brief: ${brief}` : "Admin creative brief: infer the best image from the lesson content.",
+    context,
+  ].join("\n");
+}
+
+function generatedImageErrorMessage(error: unknown) {
+  if (!error || typeof error !== "object") return "Lesson image could not be generated.";
+  const record = error as Record<string, unknown>;
+  const status = typeof record.status === "number" ? record.status : undefined;
+  if (status === 401) return "OpenAI image generation is not authorized. Check OPENAI_API_KEY.";
+  if (status === 429) return "OpenAI image generation is rate limited. Try again in a moment.";
+  if (status === 400) return "OpenAI could not generate from this prompt. Adjust the image prompt and try again.";
+  return "Lesson image could not be generated.";
 }
 
 async function listCategoriesHandler(_req: Request, res: Response) {
@@ -376,6 +480,9 @@ async function createLessonHandler(req: Request, res: Response) {
     ...parsed.data,
     language: normalizeLearningLanguage(parsed.data.language),
     sourceNotes: parsed.data.sourceNotes ?? null,
+    imageUrl: parsed.data.imageUrl ?? null,
+    imageAlt: parsed.data.imageAlt ?? null,
+    imagePrompt: parsed.data.imagePrompt ?? null,
     tags: [...new Set(parsed.data.tags)],
     ...lessonPatchForStatus(parsed.data.status, reviewer),
   };
@@ -401,6 +508,9 @@ async function updateLessonHandler(req: Request, res: Response) {
     ...parsed.data,
     ...(parsed.data.language ? { language: normalizeLearningLanguage(parsed.data.language) } : {}),
     ...(parsed.data.sourceNotes === undefined ? {} : { sourceNotes: parsed.data.sourceNotes ?? null }),
+    ...(parsed.data.imageUrl === undefined ? {} : { imageUrl: parsed.data.imageUrl ?? null }),
+    ...(parsed.data.imageAlt === undefined ? {} : { imageAlt: parsed.data.imageAlt ?? null }),
+    ...(parsed.data.imagePrompt === undefined ? {} : { imagePrompt: parsed.data.imagePrompt ?? null }),
     ...(parsed.data.tags ? { tags: [...new Set(parsed.data.tags)] } : {}),
     ...lessonPatchForStatus(parsed.data.status, reviewer),
     updatedAt: new Date(),
@@ -417,6 +527,81 @@ async function updateLessonHandler(req: Request, res: Response) {
   } catch (error) {
     console.error("[admin] learning lesson update failed:", error);
     return res.status(500).json({ error: "Learning lesson could not be updated." });
+  }
+}
+
+async function generateLessonImageHandler(req: Request, res: Response) {
+  const parsed = generateImageBodySchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: "Invalid image generation request." });
+
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return res.status(503).json({ error: "OpenAI image generation is not configured. Add OPENAI_API_KEY, then try again." });
+  }
+
+  try {
+    const [lesson] = await db
+      .select()
+      .from(learningLessons)
+      .where(eq(learningLessons.id, req.params.id))
+      .limit(1);
+    if (!lesson) return res.status(404).json({ error: "Learning lesson was not found." });
+
+    const model = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-2";
+    const outputFormat = "jpeg";
+    const mimeType = "image/jpeg";
+    const prompt = generatedLessonImagePrompt(lesson, parsed.data?.imagePrompt);
+    const client = new OpenAI({ apiKey });
+    const result = await client.images.generate({
+      model,
+      prompt,
+      size: process.env.OPENAI_IMAGE_SIZE?.trim() || "1536x1024",
+      quality: process.env.OPENAI_IMAGE_QUALITY?.trim() || "medium",
+      output_format: outputFormat,
+      output_compression: 82,
+    });
+    const imageBase64 = result.data?.[0]?.b64_json;
+    if (!imageBase64) {
+      return res.status(502).json({ error: "OpenAI did not return image data. Try again." });
+    }
+
+    const [image] = await db
+      .insert(learningLessonImages)
+      .values({
+        lessonId: lesson.id,
+        mimeType,
+        imageBytes: Buffer.from(imageBase64, "base64"),
+        prompt,
+        model,
+        createdBy: actor(req),
+      })
+      .returning();
+
+    const imageUrl = learningImageUrl(image.id);
+    const imageAlt = generatedLessonImageAlt(lesson, parsed.data?.imageAlt);
+    const [updated] = await db
+      .update(learningLessons)
+      .set({
+        imageUrl,
+        imageAlt,
+        imagePrompt: parsed.data?.imagePrompt?.trim() || lesson.imagePrompt || prompt,
+        updatedAt: new Date(),
+      })
+      .where(eq(learningLessons.id, lesson.id))
+      .returning();
+
+    return res.json({
+      lesson: serializeLesson(updated ?? { ...lesson, imageUrl, imageAlt, imagePrompt: lesson.imagePrompt || prompt }),
+      image: {
+        id: image.id,
+        url: imageUrl,
+        mimeType,
+        model,
+      },
+    });
+  } catch (error) {
+    console.error("[admin] learning lesson image generation failed:", error);
+    return res.status(500).json({ error: generatedImageErrorMessage(error) });
   }
 }
 
@@ -507,7 +692,8 @@ async function importContentPackHandler(req: Request, res: Response) {
     return parsed.data;
   }).filter((category): category is z.infer<typeof categoryBodySchema> => Boolean(category));
 
-  const lessons = lessonsRaw.map((lesson, index) => {
+  const expandedLessonsRaw = lessonsRaw.flatMap((lesson, index) => expandLessonImportRows(lesson, index, errors));
+  const lessons = expandedLessonsRaw.map((lesson, index) => {
     const parsed = normalizeLessonImport(lesson);
     if (!parsed.success) {
       errors.push(`Lesson row ${index + 1} is invalid.`);
@@ -519,6 +705,9 @@ async function importContentPackHandler(req: Request, res: Response) {
       language: normalizeLearningLanguage(parsed.data.language),
       tags: [...new Set(parsed.data.tags)],
       sourceNotes: parsed.data.sourceNotes ?? null,
+      imageUrl: parsed.data.imageUrl ?? null,
+      imageAlt: parsed.data.imageAlt ?? null,
+      imagePrompt: parsed.data.imagePrompt ?? null,
     };
   }).filter((lesson): lesson is z.infer<typeof lessonBodySchema> & { externalId: string } => Boolean(lesson));
 
@@ -594,6 +783,9 @@ async function importContentPackHandler(req: Request, res: Response) {
           body: lesson.body,
           reflectionPrompt: lesson.reflectionPrompt,
           sourceNotes: lesson.sourceNotes ?? null,
+          imageUrl: lesson.imageUrl ?? null,
+          imageAlt: lesson.imageAlt ?? null,
+          imagePrompt: lesson.imagePrompt ?? null,
           estimatedMinutes: lesson.estimatedMinutes,
           difficulty: lesson.difficulty,
           tags: lesson.tags,
@@ -645,6 +837,7 @@ router.get("/lessons", listLessonsHandler);
 router.post("/lessons", createLessonHandler);
 router.patch("/lessons/bulk-publish", bulkPublishDraftLessonsHandler);
 router.patch("/lessons/:id", updateLessonHandler);
+router.post("/lessons/:id/generate-image", generateLessonImageHandler);
 router.patch("/lessons/:id/publish", publishLessonHandler);
 router.patch("/lessons/:id/archive", archiveLessonHandler);
 

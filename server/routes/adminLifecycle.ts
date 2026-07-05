@@ -859,10 +859,10 @@ async function searchSupabaseAuthAccounts(query: string): Promise<SupabaseAuthAc
       phone_number: string | null;
       created_at: Date | null;
     }>(
-      `select id::text, email::text, phone::text as phone_number, created_at
-       from auth.users
+      `select id::text, email::text, phone_number::text as phone_number, created_at
+       from users
        where lower(coalesce(email, '')) like $1
-          or coalesce(phone, '') like $1
+          or coalesce(phone_number, '') like $1
        order by created_at desc
        limit 50`,
       [like],
@@ -1143,8 +1143,8 @@ async function searchSupabaseAuthAccountsExact(input: { email?: string | null; p
           phone_number: string | null;
           created_at: Date | null;
         }>(
-          `select id::text, email::text, phone::text as phone_number, created_at
-           from auth.users
+          `select id::text, email::text, phone_number::text as phone_number, created_at
+           from users
            where lower(coalesce(email, '')) = $1
            order by created_at desc
            limit 20`,
@@ -1156,10 +1156,10 @@ async function searchSupabaseAuthAccountsExact(input: { email?: string | null; p
           phone_number: string | null;
           created_at: Date | null;
         }>(
-          `select id::text, email::text, phone::text as phone_number, created_at
-           from auth.users
-           where regexp_replace(coalesce(phone, ''), '[^0-9+]', '', 'g') = $1
-              or regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = $2
+          `select id::text, email::text, phone_number::text as phone_number, created_at
+           from users
+           where regexp_replace(coalesce(phone_number, ''), '[^0-9+]', '', 'g') = $1
+              or regexp_replace(coalesce(phone_number, ''), '[^0-9]', '', 'g') = $2
            order by created_at desc
            limit 20`,
           [phone, digits],

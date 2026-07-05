@@ -1402,7 +1402,7 @@ export function appActionsFor(answers: Answers, result: CheckinResult): AppActio
           key,
           title: "Hacer una pausa guiada",
           description: "Abre respiración o meditación para bajar estímulos sin quedarte solo con la idea.",
-          to: "/activities",
+          to: "/activities/relax-breathe",
           primary,
         };
       case "social":
@@ -1426,7 +1426,7 @@ export function appActionsFor(answers: Answers, result: CheckinResult): AppActio
           key,
           title: "Ejercicios suaves",
           description: "Abre actividades para respiracion, movilidad tranquila o una sesion guiada segura.",
-          to: "/activities",
+          to: "/mind-memory",
           primary,
         };
       case "chess":

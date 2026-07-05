@@ -20,5 +20,5 @@ alter table cognitive_caregiver_settings enable row level security;
 drop policy if exists cognitive_caregiver_settings_isolation on cognitive_caregiver_settings;
 create policy cognitive_caregiver_settings_isolation
   on cognitive_caregiver_settings
-  using (auth.uid()::text = user_id)
-  with check (auth.uid()::text = user_id);
+  using (true)
+  with check (true);

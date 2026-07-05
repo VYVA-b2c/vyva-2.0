@@ -1,10 +1,13 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+﻿import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLanguage } from "@/i18n";
 import RememberLater, {
   computeRememberLaterScore,
   getDefaultRememberLaterUserState,
+  getRememberLaterLevelRequirements,
   getNextRememberLaterStateAfterSession,
+  isRememberLaterCountedRound,
+  normalizeRememberLaterRound,
   pickRememberLaterRound,
 } from "./RememberLater";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
@@ -70,12 +73,13 @@ const testRound = {
 
 const componentRound = {
   ...testRound,
+  difficulty_tier: 4,
   round_duration_seconds: 1,
-  filler_item_interval_ms: 30,
+  filler_item_interval_ms: 80,
 };
 
 describe("RememberLater helpers", () => {
-  it("scores prospective memory higher than the background task", () => {
+  it("scores prospective memory higher than the matching task", () => {
     const result = computeRememberLaterScore({
       round: testRound,
       ongoingTappedIndices: [0],
@@ -92,6 +96,51 @@ describe("RememberLater helpers", () => {
     expect(result.combined_accuracy_pct).toBe(80);
   });
 
+  it("eases early tiers with slower pacing and fewer items", () => {
+    const normalized = normalizeRememberLaterRound({
+      ...testRound,
+      difficulty_tier: 1,
+      round_duration_seconds: 1,
+      filler_item_interval_ms: 400,
+      filler_stream: [
+        { type: "shape", value: "circle", matches_rule: true },
+        { type: "shape", value: "square", matches_rule: false },
+        { type: "shape", value: "triangle", matches_rule: false },
+        { type: "shape", value: "circle", matches_rule: true },
+        { type: "icon", value: "cue", icon: "cue", matches_rule: false, cue: true },
+        { type: "shape", value: "square", matches_rule: false },
+        { type: "shape", value: "circle", matches_rule: true },
+        { type: "shape", value: "triangle", matches_rule: false },
+        { type: "shape", value: "circle", matches_rule: true },
+      ],
+    });
+
+    expect(normalized.filler_stream).toHaveLength(6);
+    expect(normalized.filler_item_interval_ms).toBe(2000);
+    expect(normalized.round_duration_seconds).toBeGreaterThanOrEqual(14);
+  });
+
+  it("counts early rounds with gentler matching requirements, then tightens later", () => {
+    expect(getRememberLaterLevelRequirements(1)).toEqual(expect.objectContaining({
+      combinedAccuracyPct: 60,
+      matchingAccuracyPct: 50,
+    }));
+    expect(isRememberLaterCountedRound({
+      difficulty_tier: 1,
+      combined_accuracy_pct: 80,
+      ongoing_accuracy_pct: 50,
+      pm_hits: 1,
+      abandoned: false,
+    })).toBe(true);
+    expect(isRememberLaterCountedRound({
+      difficulty_tier: 4,
+      combined_accuracy_pct: 80,
+      ongoing_accuracy_pct: 50,
+      pm_hits: 1,
+      abandoned: false,
+    })).toBe(false);
+  });
+
   it("promotes only after three PM-supported wins", () => {
     const previous = {
       ...getDefaultRememberLaterUserState("user-1"),
@@ -100,7 +149,9 @@ describe("RememberLater helpers", () => {
       sessions_at_tier: 2,
     };
     const next = getNextRememberLaterStateAfterSession(previous, {
+      difficulty_tier: 2,
       combined_accuracy_pct: 80,
+      ongoing_accuracy_pct: 80,
       pm_hits: 1,
       score: 850,
       abandoned: false,
@@ -118,13 +169,34 @@ describe("RememberLater helpers", () => {
       consecutive_wins: 2,
     };
     const next = getNextRememberLaterStateAfterSession(previous, {
+      difficulty_tier: 2,
       combined_accuracy_pct: 90,
+      ongoing_accuracy_pct: 90,
       pm_hits: 0,
       score: 760,
       abandoned: false,
     }, new Date("2026-06-20T12:00:00Z"));
 
     expect(next.current_tier).toBe(2);
+    expect(next.consecutive_wins).toBe(0);
+  });
+
+  it("does not add level progress when recall succeeds but the matching task is too low", () => {
+    const previous = {
+      ...getDefaultRememberLaterUserState("user-1"),
+      current_tier: 1,
+      consecutive_wins: 0,
+    };
+    const next = getNextRememberLaterStateAfterSession(previous, {
+      difficulty_tier: 1,
+      combined_accuracy_pct: 60,
+      ongoing_accuracy_pct: 0,
+      pm_hits: 1,
+      score: 600,
+      abandoned: false,
+    }, new Date("2026-06-20T12:00:00Z"));
+
+    expect(next.current_tier).toBe(1);
     expect(next.consecutive_wins).toBe(0);
   });
 
@@ -169,26 +241,33 @@ describe("RememberLater component", () => {
     render(<RememberLater userId="user-1" onExit={vi.fn()} />);
 
     expect(await screen.findByRole("heading", { name: "Remember Later" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(screen.getByText(/only time we guide you/i)).toBeInTheDocument();
+    expect(screen.getByText(/Tap when you see a circle/i)).toBeInTheDocument();
+    expect(screen.getByText(/Bell\? Tap gold star/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 good rounds/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start round" }));
+    expect(screen.getByText(/only example/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-    expect(await screen.findByRole("button", { name: "Tap" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
+    expect(screen.getByText(/No circle\? Wait/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tap when you see a circle" }));
     await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 40));
+      await new Promise((resolve) => window.setTimeout(resolve, 90));
     });
     fireEvent.click(screen.getByRole("button", { name: "Gold star" }));
     await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 40));
+      await new Promise((resolve) => window.setTimeout(resolve, 90));
     });
-    fireEvent.click(screen.getByRole("button", { name: "Tap" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tap when you see a circle" }));
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 1050));
     });
 
     expect(await screen.findByText(/You remembered without anyone reminding you/i)).toBeInTheDocument();
+    expect(screen.getByText("Good round")).toBeInTheDocument();
+    expect(screen.getByText(/used both buttons at the right time/i)).toBeInTheDocument();
+    expect(screen.getByText(/Good round\. 2 more to move up/i)).toBeInTheDocument();
 
     const savedSession = gameDataMock.calls.find((call) => call.table === "remember_later_sessions" && call.type === "insert");
     expect(savedSession?.payload).toEqual(expect.objectContaining({
@@ -206,5 +285,39 @@ describe("RememberLater component", () => {
       accuracyPct: 100,
       sourceTable: "remember_later_sessions",
     }));
+  }, 10_000);
+
+  it("explains when recall alone does not move the level bar", async () => {
+    const userState = {
+      ...getDefaultRememberLaterUserState("user-1"),
+      has_seen_tutorial: true,
+    };
+    gameDataMock.queue.push(
+      { data: userState, error: null },
+      { data: [], error: null },
+      { data: [componentRound], error: null },
+      { data: { id: "session-1" }, error: null },
+      { data: userState, error: null },
+    );
+
+    render(<RememberLater userId="user-1" onExit={vi.fn()} />);
+
+    expect(await screen.findByRole("heading", { name: "Remember Later" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start round" }));
+    expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 90));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gold star" }));
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 1050));
+    });
+
+    expect(await screen.findByText(/You remembered without anyone reminding you/i)).toBeInTheDocument();
+    expect(screen.getByText(/Gold star remembered/i)).toBeInTheDocument();
+    expect(screen.getByText("Matching task")).toBeInTheDocument();
+    expect(screen.getByText(/0%/i)).toBeInTheDocument();
+    expect(screen.getByText(/To count the round, also tap purple for the target/i)).toBeInTheDocument();
   }, 10_000);
 });
