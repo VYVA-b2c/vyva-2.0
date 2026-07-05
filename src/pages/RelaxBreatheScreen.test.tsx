@@ -16,6 +16,13 @@ const labels: Record<string, string> = {
   "activities.relaxBreathe.intro": "A quiet pause for your body and mind.",
   "activities.relaxBreathe.backToMindMemory": "Back to Mind & Memory",
   "activities.relaxBreathe.duration": "3 gentle steps",
+  "activities.relaxBreathe.modeLabel": "Guide mode",
+  "activities.relaxBreathe.visualMode": "Visual",
+  "activities.relaxBreathe.voiceMode": "Voice",
+  "activities.relaxBreathe.visualModeTitle": "Visual mode",
+  "activities.relaxBreathe.visualModeBody": "Follow the breathing circle quietly at your own pace.",
+  "activities.relaxBreathe.voiceModeTitle": "Voice mode",
+  "activities.relaxBreathe.voiceModeBody": "Marco can talk you through each step.",
   "activities.relaxBreathe.stepLabel": "Step",
   "activities.relaxBreathe.ofLabel": "of",
   "activities.relaxBreathe.breatheIn": "Breathe in",
@@ -24,6 +31,7 @@ const labels: Record<string, string> = {
   "activities.relaxBreathe.startGuide": "Start Marco guide",
   "activities.relaxBreathe.guideStarting": "Starting...",
   "activities.relaxBreathe.guideLive": "Marco guide is live",
+  "activities.relaxBreathe.voiceRetry": "Tap Voice again to retry.",
   "activities.relaxBreathe.replay": "Replay",
   "activities.relaxBreathe.back": "Back",
   "activities.relaxBreathe.next": "Next",
@@ -82,7 +90,7 @@ function mockReducedMotion(matches: boolean) {
 
 function renderRelaxBreathe() {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/activities/relax-breathe"]}>
+    <MemoryRouter initialEntries={["/activities/relax-breathe"]}>
       <Routes>
         <Route path="/activities/relax-breathe" element={<RelaxBreatheScreen />} />
         <Route path="/mind-memory" element={<LocationProbe />} />
@@ -111,10 +119,26 @@ describe("RelaxBreatheScreen", () => {
     expect(screen.getByTestId("relax-breathe-visual")).toBeInTheDocument();
     expect(screen.getByTestId("relax-breathe-orb")).toHaveTextContent("Breathe in");
     expect(screen.getByTestId("relax-breathe-safety")).toHaveTextContent("If breathing feels difficult");
+    expect(screen.getByTestId("relax-breathe-mode-switch")).toBeInTheDocument();
+    expect(screen.getByTestId("button-relax-breathe-mode-visual")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("relax-breathe-visual-mode-panel")).toHaveTextContent("Follow the breathing circle");
     expect(within(screen.getByTestId("relax-breathe-stage-list")).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-relax-breathe-start-guide")).toHaveTextContent("Start Marco guide");
-    expect(screen.getByTestId("button-relax-breathe-replay")).toHaveTextContent("Replay");
     expect(screen.getByTestId("button-relax-breathe-finish")).toHaveTextContent("Finish");
+  });
+
+  it("lets the user switch between visual and voice modes with one tap", async () => {
+    renderRelaxBreathe();
+
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mode-voice"));
+    expect(screen.getByTestId("button-relax-breathe-mode-voice")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("relax-breathe-voice-mode-panel")).toHaveTextContent("Marco can talk you through each step.");
+    await waitFor(() => expect(voiceMock.startVoice).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("relax-breathe-voice-status")).toHaveTextContent("Marco guide is live");
+    expect(screen.queryByTestId("button-relax-breathe-start-guide")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mode-visual"));
+    expect(screen.getByTestId("button-relax-breathe-mode-visual")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("relax-breathe-visual-mode-panel")).toHaveTextContent("Follow the breathing circle");
   });
 
   it("lets the user move back and next through the visible stages", () => {
@@ -132,7 +156,7 @@ describe("RelaxBreatheScreen", () => {
   it("starts Marco voice with calm-session context and sends the visible stage prompt", async () => {
     renderRelaxBreathe();
 
-    fireEvent.click(screen.getByTestId("button-relax-breathe-start-guide"));
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mode-voice"));
 
     await waitFor(() => expect(voiceMock.startVoice).toHaveBeenCalled());
     expect(voiceMock.startVoice).toHaveBeenCalledWith(
@@ -160,6 +184,7 @@ describe("RelaxBreatheScreen", () => {
     voiceMock.status = "connected";
     renderRelaxBreathe();
 
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mode-voice"));
     fireEvent.click(screen.getByTestId("button-relax-breathe-stage-next"));
     expect(voiceMock.sendText).toHaveBeenLastCalledWith(
       expect.stringContaining("Current stage 2 of 3: Breathe slowly"),
@@ -171,6 +196,16 @@ describe("RelaxBreatheScreen", () => {
       expect.stringContaining("Current stage 2 of 3: Breathe slowly"),
       { invisibleInTranscript: true },
     );
+  });
+
+  it("stops the voice guide when switching back to visual mode", () => {
+    voiceMock.status = "connected";
+    renderRelaxBreathe();
+
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mode-voice"));
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mode-visual"));
+
+    expect(voiceMock.stopVoice).toHaveBeenCalled();
   });
 
   it("finishes with a calm completion state without activity logging", () => {

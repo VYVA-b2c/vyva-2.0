@@ -215,24 +215,31 @@ describe("CommunityActivitiesScreen", () => {
     renderCommunityActivities();
 
     expect(await screen.findByRole("heading", { name: "For you" })).toBeInTheDocument();
-    expect(screen.getByText("VYVA checks details before you commit.")).toBeInTheDocument();
+    expect(screen.getByText("Because you like music, reading, and afternoon plans.")).toBeInTheDocument();
     expect(screen.getByText("You confirm first")).toBeInTheDocument();
-    expect(screen.getByTestId("activities-profile-signals")).toHaveTextContent("music");
+    expect(screen.queryByTestId("activities-profile-signals")).not.toBeInTheDocument();
     expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Familiar songs table");
     expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Matches music");
-    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Both");
-    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Date TBC");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("This week, time to be checked");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("When");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("How often");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("One gentle session");
     expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Nearby or online");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Seated option");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("No payment now");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("VYVA checks access");
+    expect(screen.getByTestId("activities-featured-event")).toHaveTextContent("Martha from Music Room, Layla and Ali are going too");
     expect(screen.getByText("Book club taster")).toBeInTheDocument();
+    expect(screen.getByTestId("event-social-proof-book-club-taster")).toHaveTextContent("Friendly faces");
 
-    const interested = screen.getAllByRole("button", { name: /Interested/i })[0];
+    const interested = screen.getAllByRole("button", { name: /I'm interested/i })[0];
     const maybe = screen.getAllByRole("button", { name: /Maybe/i })[0];
-    const askVyva = screen.getAllByRole("button", { name: /Check/i })[0];
-    const notForMe = screen.getAllByRole("button", { name: /No thanks/i })[0];
-    expect(interested).toHaveClass("min-h-[46px]");
-    expect(maybe).toHaveClass("min-h-[46px]");
-    expect(askVyva).toHaveClass("min-h-[46px]");
-    expect(notForMe).toHaveClass("min-h-[46px]");
+    const askVyva = screen.getAllByRole("button", { name: /Check details/i })[0];
+    const notForMe = screen.getAllByRole("button", { name: /Not for me/i })[0];
+    expect(interested).toHaveClass("lg:min-w-[190px]");
+    expect(askVyva).toHaveClass("lg:min-w-[170px]");
+    expect(maybe).toHaveClass("min-h-[40px]");
+    expect(notForMe).toHaveClass("min-h-[40px]");
   });
 
   it("saves interested and maybe choices without making a commitment", async () => {
