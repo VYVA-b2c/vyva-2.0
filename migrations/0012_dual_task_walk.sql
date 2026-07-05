@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.dual_task_sequences (
 
 CREATE TABLE IF NOT EXISTS public.dual_task_sessions (
   id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id                 UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id                 UUID NOT NULL,
   played_at               TIMESTAMPTZ DEFAULT NOW(),
   sequence_id             UUID REFERENCES public.dual_task_sequences(id),
   difficulty_tier         INTEGER NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.dual_task_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS public.dual_task_user_state (
-  user_id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id               UUID PRIMARY KEY,
   current_tier          INTEGER NOT NULL DEFAULT 1 CHECK (current_tier BETWEEN 1 AND 10),
   sessions_at_tier      INTEGER NOT NULL DEFAULT 0,
   consecutive_wins      INTEGER NOT NULL DEFAULT 0,
@@ -56,17 +56,17 @@ ALTER TABLE public.dual_task_sequences ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "user_own_dt_sessions" ON public.dual_task_sessions;
 CREATE POLICY "user_own_dt_sessions" ON public.dual_task_sessions
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "user_own_dt_state" ON public.dual_task_user_state;
 CREATE POLICY "user_own_dt_state" ON public.dual_task_user_state
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "dt_sequences_read" ON public.dual_task_sequences;
 CREATE POLICY "dt_sequences_read" ON public.dual_task_sequences
-  FOR SELECT USING (auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_dts_user_played ON public.dual_task_sessions (user_id, played_at DESC);
 CREATE INDEX IF NOT EXISTS idx_dtseq_tier ON public.dual_task_sequences (difficulty_tier, is_active);
