@@ -81,7 +81,7 @@ describe("MemoryGameRunner word recall", () => {
     window.localStorage.clear();
   });
 
-  it("advances after Continue even when result persistence is still pending", async () => {
+  it("keeps the next-level action available when result persistence is still pending", async () => {
     renderWordRecall();
 
     fireEvent.click(await screen.findByRole("button", { name: /je suis pret/i }));
@@ -94,7 +94,7 @@ describe("MemoryGameRunner word recall", () => {
 
     expect(await screen.findByText("Tres bien")).toBeInTheDocument();
     expect(screen.getByText("Vous avez termine cet exercice")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continuer" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continuer au niveau 2" })).not.toBeDisabled();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",

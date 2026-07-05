@@ -7,6 +7,7 @@ import { type UseHeroMessageOptions, useHeroMessage } from "@/hooks/useHeroMessa
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 import { voiceSessionPhaseLabel, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import { emitVoiceOverlayPresence } from "@/lib/voiceOverlayFocus";
+import { VYVA_VOICE_APP_ACTION_EVENT } from "@/lib/voiceNavigation";
 
 const WEATHER_EMOJI: Record<string, string> = {
   "weather.clear": "☀️",
@@ -218,6 +219,16 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   }, []);
 
   useEffect(() => {
+    const handleAppActionOpened = () => {
+      setFocusedVoiceOverlayRequested(false);
+      setFocusedOverlayHasStarted(false);
+    };
+
+    window.addEventListener(VYVA_VOICE_APP_ACTION_EVENT, handleAppActionOpened);
+    return () => window.removeEventListener(VYVA_VOICE_APP_ACTION_EVENT, handleAppActionOpened);
+  }, []);
+
+  useEffect(() => {
     emitVoiceOverlayPresence(showOverlay, "voice_hero");
     return () => {
       if (showOverlay) emitVoiceOverlayPresence(false, "voice_hero");
@@ -280,6 +291,14 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
   const handleOverlayMinimize = () => {
     setFocusedVoiceOverlayRequested(false);
     setFocusedOverlayHasStarted(false);
+  };
+
+  const handleOverlayType = () => {
+    handleOverlayMinimize();
+    if (onChatClick) {
+      stopVoice();
+      onChatClick();
+    }
   };
 
   const handleRetryVoice = () => {
@@ -417,6 +436,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
             connectionErrorCode={lastErrorCode}
             voiceDiagnostics={voiceDiagnostics}
             onRetry={handleRetryVoice}
+            onType={handleOverlayType}
           />
         )}
 
@@ -521,6 +541,7 @@ const VoiceHero: React.FC<VoiceHeroProps> = ({
           connectionErrorCode={lastErrorCode}
           voiceDiagnostics={voiceDiagnostics}
           onRetry={handleRetryVoice}
+          onType={handleOverlayType}
         />
       )}
 

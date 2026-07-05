@@ -382,9 +382,16 @@
         "openLabel": "Open concierge"
       }
     },
+    "nudge": {
+      "text": "Not sure where to start?",
+      "action": "Ask VYVA",
+      "aria": "Ask VYVA where to start"
+    },
     "fastHelp": {
       "kicker": "Fast help",
       "title": "What would you like VYVA to do?",
+      "rotate": "More",
+      "rotateAria": "Show different fast help choices",
       "doctor": {
         "label": "Talk to a real doctor now",
         "sub": "Get live medical help."
@@ -405,9 +412,14 @@
   },
   "voiceHero": {
     "talkToVyva": "Let's Talk",
-    "speaking": "VYVA is speaking...",
+    "speaking": "Speaking",
+    "speakingStatus": "Speaking",
+    "speakingFallback": "One moment",
     "listening": "Listening...",
     "connecting": "Connecting...",
+    "micOffShort": "Mic off",
+    "micOnShort": "Mic on",
+    "touchInsteadShort": "Touch",
     "active": "Active",
     "live": "Live",
     "you": "You",
@@ -1223,7 +1235,7 @@
     "assistant": {
       "interactions": {
         "label": "Check Interactions",
-        "sub": "See if any medications conflict",
+        "sub": "Medicine safety",
         "sheetTitle": "Check Interactions",
         "prompt": "I take the following medications: {{medNames}}. Please check for any known interactions between these medications and let me know if anything I should discuss with my doctor or pharmacist."
       },
@@ -1260,10 +1272,14 @@
         "prompt": "I take the following medications: {{medNames}}. Can you give me a friendly summary of any recent research or news about these medications? I'd like to stay informed about advances that might be relevant to my health."
       },
       "sideEffects": {
-        "label": "Side Effect Check",
-        "sub": "Talk through symptoms to watch",
-        "sheetTitle": "Side Effect Check",
+        "label": "Side Effects",
+        "sub": "What to watch",
+        "sheetTitle": "Side Effects",
         "prompt": "I take the following medications: {{medNames}}. Please help me think through possible side effects, symptoms to monitor, and what I should ask my doctor or pharmacist. If anything sounds urgent, tell me to seek medical help."
+      },
+      "refillHelp": {
+        "label": "Refill Help",
+        "sub": "Order support"
       }
     },
     "notes": {

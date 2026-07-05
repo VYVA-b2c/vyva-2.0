@@ -94,6 +94,39 @@ describe("HeroMessagesAdminPage", () => {
     expect(within(healthCard).getByText("25.0%")).toBeInTheDocument();
   });
 
+  it("filters the live overview by operational attention state", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("card-hero-overview-health")).toBeInTheDocument();
+    expect(screen.getByTestId("card-hero-overview-home")).toBeInTheDocument();
+    expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 10 of 10 surfaces.");
+
+    fireEvent.click(screen.getByTestId("button-hero-overview-filter-managed"));
+
+    expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 1 of 10 surfaces.");
+    expect(screen.getByTestId("card-hero-overview-health")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-hero-overview-home")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-hero-overview-filter-needs_attention"));
+
+    expect(screen.getByTestId("hero-overview-filter-count")).toHaveTextContent("Showing 1 of 10 surfaces.");
+    expect(screen.getByTestId("card-hero-overview-health")).toBeInTheDocument();
+  });
+
+  it("searches the message catalog without losing the selected editor", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+
+    fireEvent.change(screen.getByPlaceholderText("Message, surface, reason, or copy"), {
+      target: { value: "health-admin" },
+    });
+
+    expect(screen.getByText(/1 of \d+ messages/)).toBeInTheDocument();
+    expect(screen.getByText("health-admin / priority 120")).toBeInTheDocument();
+    expect(screen.getByTestId("hero-preview-headline")).toHaveTextContent("VYVA");
+  });
+
   it("previews the selected language and blocks invalid copy", async () => {
     renderPage();
 

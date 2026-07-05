@@ -5,13 +5,12 @@ import {
   CalendarCheck,
   CheckCircle2,
   Clock3,
-  HeartHandshake,
-  Languages,
   MapPin,
   Monitor,
   ShieldCheck,
   Sparkles,
   ThumbsDown,
+  UsersRound,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -68,101 +67,183 @@ const copyByLanguage: Record<SocialLanguage, {
   maybeSaved: string;
   notForMeSaved: string;
   checkRequested: string;
-  profileSignalTitle: string;
+  profileReason: (items: string) => string;
   secondaryTitle: string;
   nearbyTitle: string;
   onlineTitle: string;
   savedFilterTitle: string;
   emptyFilter: string;
+  inPerson: string;
+  hybrid: string;
+  dateTbc: string;
+  confirmFirst: string;
+  timingDetail: string;
+  timingToConfirm: string;
+  frequencyDetail: string;
+  oneOffTaster: string;
+  recurringOption: string;
+  oneGentleSession: string;
+  whereDetail: string;
+  costDetail: string;
+  comfortIncluded: string;
+  seatedOption: string;
+  noPaymentNow: string;
+  costChecked: string;
+  vyvaChecksAccess: string;
+  detailsApproved: string;
+  socialProofTitle: string;
+  socialGoing: (names: string[]) => string;
   responseCounts: (interested: number, maybe: number) => string;
 }> = {
   es: {
     back: "Volver",
     loading: "Preparando actividades...",
     error: "No se pudieron cargar las actividades. Intentalo de nuevo.",
-    activitiesHeadline: "Actividades elegidas para ti",
-    featured: "Recomendacion principal",
+    activitiesHeadline: "Para ti",
+    featured: "Sugerido",
     forYou: "Para ti",
     nearby: "Cerca",
     online: "Online",
     saved: "Guardado",
-    savedTitle: "Guardado para ti",
-    savedEmpty: "Cuando elijas Me interesa o Quizas, apareceran aqui.",
+    savedTitle: "Guardado",
+    savedEmpty: "Tus opciones guardadas apareceran aqui.",
     interested: "Me interesa",
     maybe: "Quizas luego",
     notForMe: "No es para mi",
-    askVyva: "Pedir a VYVA que lo compruebe",
+    askVyva: "Comprobar detalles",
     interestedSaved: "Interes guardado",
     maybeSaved: "Guardado para luego",
     notForMeSaved: "No se mostrara primero",
-    checkRequested: "VYVA lo comprobara antes de comprometerte.",
-    profileSignalTitle: "Como VYVA elige",
-    secondaryTitle: "Mas recomendaciones",
-    nearbyTitle: "Opciones cercanas",
-    onlineTitle: "Opciones online",
-    savedFilterTitle: "Guardado e interes",
-    emptyFilter: "Aun no hay actividades en este filtro. VYVA seguira buscando opciones tranquilas.",
+    checkRequested: "Comprobacion pedida",
+    profileReason: (items) => `Porque encaja con ${items}.`,
+    secondaryTitle: "Mas",
+    nearbyTitle: "Cerca",
+    onlineTitle: "Online",
+    savedFilterTitle: "Guardado",
+    emptyFilter: "No hay opciones aqui todavia.",
+    inPerson: "En persona",
+    hybrid: "Ambos",
+    dateTbc: "Fecha por confirmar",
+    confirmFirst: "Tu confirmas primero",
+    timingDetail: "Cuando",
+    timingToConfirm: "Horario por confirmar",
+    frequencyDetail: "Cada cuanto",
+    oneOffTaster: "Sesion de prueba",
+    recurringOption: "Opcion recurrente",
+    oneGentleSession: "Una sesion tranquila",
+    whereDetail: "Lugar",
+    costDetail: "Coste",
+    comfortIncluded: "Comodidad incluida",
+    seatedOption: "Con asiento",
+    noPaymentNow: "Sin pago ahora",
+    costChecked: "Coste comprobado",
+    vyvaChecksAccess: "VYVA revisa acceso",
+    detailsApproved: "Detalles aprobados",
+    socialProofTitle: "Caras conocidas",
+    socialGoing: (names) => `${names[0]}, ${names[1]} y ${names[2]} tambien van`,
     responseCounts: (interested, maybe) => `${interested} interesados - ${maybe} quizas`,
   },
   de: {
     back: "Zurueck",
     loading: "Aktivitaeten werden vorbereitet...",
     error: "Aktivitaeten konnten nicht geladen werden. Bitte versuche es erneut.",
-    activitiesHeadline: "Aktivitaeten fuer Sie ausgewaehlt",
-    featured: "Beste Empfehlung",
+    activitiesHeadline: "Fuer dich",
+    featured: "Vorschlag",
     forYou: "Fuer dich",
     nearby: "In der Naehe",
     online: "Online",
     saved: "Gespeichert",
-    savedTitle: "Fuer dich gespeichert",
-    savedEmpty: "Wenn du Interesse oder Vielleicht waehlst, erscheint es hier.",
-    interested: "Ich bin interessiert",
+    savedTitle: "Gespeichert",
+    savedEmpty: "Gespeicherte Optionen erscheinen hier.",
+    interested: "Interesse",
     maybe: "Vielleicht spaeter",
     notForMe: "Nicht fuer mich",
-    askVyva: "VYVA soll es pruefen",
+    askVyva: "Details pruefen",
     interestedSaved: "Interesse gespeichert",
     maybeSaved: "Fuer spaeter gespeichert",
     notForMeSaved: "Wird nicht zuerst gezeigt",
-    checkRequested: "VYVA prueft es, bevor du dich festlegst.",
-    profileSignalTitle: "Wie VYVA auswaehlt",
-    secondaryTitle: "Weitere Empfehlungen",
-    nearbyTitle: "Optionen in der Naehe",
-    onlineTitle: "Online-Optionen",
-    savedFilterTitle: "Gespeichert und interessiert",
-    emptyFilter: "Noch keine Aktivitaeten in diesem Filter. VYVA sucht weiter nach ruhigen Optionen.",
+    checkRequested: "Pruefung angefragt",
+    profileReason: (items) => `Passt zu ${items}.`,
+    secondaryTitle: "Mehr",
+    nearbyTitle: "In der Naehe",
+    onlineTitle: "Online",
+    savedFilterTitle: "Gespeichert",
+    emptyFilter: "Hier gibt es noch keine Optionen.",
+    inPerson: "Vor Ort",
+    hybrid: "Beides",
+    dateTbc: "Datum offen",
+    confirmFirst: "Du bestaetigst zuerst",
+    timingDetail: "Wann",
+    timingToConfirm: "Zeit wird geprueft",
+    frequencyDetail: "Wie oft",
+    oneOffTaster: "Einmalige Probe",
+    recurringOption: "Wiederkehrende Option",
+    oneGentleSession: "Eine ruhige Einheit",
+    whereDetail: "Ort",
+    costDetail: "Kosten",
+    comfortIncluded: "Komfort dabei",
+    seatedOption: "Sitzplatz",
+    noPaymentNow: "Keine Zahlung jetzt",
+    costChecked: "Kosten geprueft",
+    vyvaChecksAccess: "VYVA prueft Zugang",
+    detailsApproved: "Details geprueft",
+    socialProofTitle: "Bekannte Gesichter",
+    socialGoing: (names) => `${names[0]}, ${names[1]} und ${names[2]} gehen auch hin`,
     responseCounts: (interested, maybe) => `${interested} interessiert - ${maybe} vielleicht`,
   },
   en: {
     back: "Back",
     loading: "Preparing activities...",
     error: "Activities could not load. Please try again.",
-    activitiesHeadline: "Activities chosen for you",
-    featured: "Top recommendation",
+    activitiesHeadline: "For you",
+    featured: "Suggested",
     forYou: "For you",
     nearby: "Nearby",
     online: "Online",
     saved: "Saved",
-    savedTitle: "Saved for you",
-    savedEmpty: "Activities you mark Interested or Maybe will appear here.",
+    savedTitle: "Saved",
+    savedEmpty: "Saved options will appear here.",
     interested: "I'm interested",
     maybe: "Maybe later",
     notForMe: "Not for me",
-    askVyva: "Ask VYVA to check",
+    askVyva: "Check details",
     interestedSaved: "Interest saved",
     maybeSaved: "Saved for later",
     notForMeSaved: "This will not be shown first",
-    checkRequested: "VYVA will check it before you commit.",
-    profileSignalTitle: "How VYVA chooses",
-    secondaryTitle: "More recommendations",
-    nearbyTitle: "Nearby options",
-    onlineTitle: "Online options",
-    savedFilterTitle: "Saved & interested",
-    emptyFilter: "No activities in this filter yet. VYVA will keep looking for gentle options.",
+    checkRequested: "Check requested",
+    profileReason: (items) => `Because you like ${items}.`,
+    secondaryTitle: "More",
+    nearbyTitle: "Nearby",
+    onlineTitle: "Online",
+    savedFilterTitle: "Saved",
+    emptyFilter: "No options here yet.",
+    inPerson: "In person",
+    hybrid: "Both",
+    dateTbc: "Date TBC",
+    confirmFirst: "You confirm first",
+    timingDetail: "When",
+    timingToConfirm: "Timing to confirm",
+    frequencyDetail: "How often",
+    oneOffTaster: "One-off taster",
+    recurringOption: "Recurring option",
+    oneGentleSession: "One gentle session",
+    whereDetail: "Where",
+    costDetail: "Cost",
+    comfortIncluded: "Comfort included",
+    seatedOption: "Seated option",
+    noPaymentNow: "No payment now",
+    costChecked: "Cost checked",
+    vyvaChecksAccess: "VYVA checks access",
+    detailsApproved: "Details approved",
+    socialProofTitle: "Friendly faces",
+    socialGoing: (names) => `${names[0]} from Music Room, ${names[1]} and ${names[2]} are going too`,
     responseCounts: (interested, maybe) => `${interested} interested - ${maybe} maybe`,
   },
 };
 
-type CuratedActivitiesCopy = (typeof copyByLanguage)[SocialLanguage];
+const SOCIAL_GOING_NAMES = ["Martha", "Layla", "Ali"] as const;
+
+type ParticipateCopy = (typeof copyByLanguage)[SocialLanguage];
 
 function uniqueEvents<T extends ParticipationEvent>(events: T[]): T[] {
   const seen = new Set<string>();
@@ -199,7 +280,7 @@ function updateEventChoice(
   };
 }
 
-function responseLabel(event: ParticipationEvent, copy: CuratedActivitiesCopy) {
+function responseLabel(event: ParticipationEvent, copy: ParticipateCopy) {
   if (event.myResponse === "interested") return copy.interestedSaved;
   if (event.myResponse === "maybe") return copy.maybeSaved;
   if (event.myResponse === "not_for_me") return copy.notForMeSaved;
@@ -207,12 +288,154 @@ function responseLabel(event: ParticipationEvent, copy: CuratedActivitiesCopy) {
   return "";
 }
 
-function SignalChip({ icon: Icon, label }: { icon: typeof Sparkles; label: string }) {
+function eventDateLabel(event: ParticipationEvent, copy: ParticipateCopy, language: SocialLanguage) {
+  if (!event.startsAt) return copy.dateTbc;
+
+  const date = new Date(event.startsAt);
+  if (Number.isNaN(date.getTime())) return copy.dateTbc;
+
+  return new Intl.DateTimeFormat(language, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function eventTimingFact(event: ParticipationEvent, copy: ParticipateCopy, language: SocialLanguage) {
+  const dateLabel = eventDateLabel(event, copy, language);
+
+  if (!event.startsAt) {
+    return {
+      label: event.timeLabel || copy.timingToConfirm,
+      detail: copy.timingDetail,
+    };
+  }
+
+  return {
+    label: dateLabel,
+    detail: event.timeLabel && event.timeLabel !== dateLabel ? event.timeLabel : copy.timingDetail,
+  };
+}
+
+function eventFrequencyLabel(event: ParticipationEvent, copy: ParticipateCopy) {
+  const text = `${event.title} ${event.summary} ${event.timeLabel} ${event.tags.join(" ")}`.toLowerCase();
+
+  if (text.includes("taster")) return copy.oneOffTaster;
+  if (
+    text.includes("weekly")
+    || text.includes("every ")
+    || text.includes("each ")
+    || text.includes("cada ")
+    || text.includes("seman")
+    || text.includes("woch")
+  ) {
+    return copy.recurringOption;
+  }
+
+  return copy.oneGentleSession;
+}
+
+function readableList(items: string[], language: SocialLanguage) {
+  try {
+    return new Intl.ListFormat(language, { style: "long", type: "conjunction" }).format(items);
+  } catch {
+    if (items.length <= 2) return items.join(" and ");
+    return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+  }
+}
+
+function profileReasonLine(pulse: ParticipationPulse, copy: ParticipateCopy, language: SocialLanguage) {
+  const items = [
+    ...pulse.profileSignals.interests.slice(0, 2),
+    pulse.profileSignals.preferredTimes[0] ? `${pulse.profileSignals.preferredTimes[0]} plans` : "",
+  ].filter(Boolean);
+
+  if (items.length === 0) return pulse.reassurance;
+  return copy.profileReason(readableList(items, language));
+}
+
+function confidenceItems(event: ParticipationEvent, copy: ParticipateCopy) {
+  const hasSeating = event.accessibilityTags.some((tag) => tag.toLowerCase().includes("seat"));
+  const costLooksOpen = /free|gratis|kostenlos/i.test(event.costLabel);
+
+  return [
+    hasSeating ? copy.seatedOption : copy.comfortIncluded,
+    costLooksOpen ? copy.noPaymentNow : copy.costChecked,
+    event.needsLiveCheck ? copy.vyvaChecksAccess : copy.detailsApproved,
+  ];
+}
+
+function EventFact({
+  icon: Icon,
+  label,
+  detail,
+}: {
+  icon: typeof Sparkles;
+  label: string;
+  detail?: string;
+}) {
   return (
-    <span className="inline-flex min-h-[38px] items-center gap-2 rounded-full border border-[#DDE8DD] bg-white px-3 font-body text-[13px] font-black text-[#2F4A44] shadow-sm">
-      <Icon size={15} strokeWidth={2.4} className="text-[#0F766E]" />
-      <span className="max-w-[14rem] truncate">{label}</span>
+    <span className="flex min-h-[54px] items-center gap-2 rounded-[16px] border border-[#E5DED3] bg-[#FFFCF8] px-3">
+      <Icon size={17} strokeWidth={2.4} className="shrink-0 text-[#0F766E]" />
+      <span className="min-w-0">
+        <span className="block truncate font-body text-[13px] font-black leading-tight text-vyva-text-1">{label}</span>
+        {detail ? (
+          <span className="mt-0.5 block truncate font-body text-[12px] font-bold leading-tight text-vyva-text-3">
+            {detail}
+          </span>
+        ) : null}
+      </span>
     </span>
+  );
+}
+
+function ConfidenceStrip({ event, copy }: { event: ParticipationEvent; copy: ParticipateCopy }) {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2" data-testid={`event-confidence-${event.id}`}>
+      {confidenceItems(event, copy).map((item) => (
+        <span
+          key={`${event.id}-${item}`}
+          className="inline-flex min-h-[30px] items-center gap-1.5 rounded-full border border-[#DDEBDD] bg-[#F8FCF8] px-3 font-body text-[12px] font-black text-[#31534A]"
+        >
+          <CheckCircle2 size={14} strokeWidth={2.5} className="text-[#0F766E]" aria-hidden="true" />
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function SocialProofStrip({ event, copy }: { event: ParticipationEvent; copy: ParticipateCopy }) {
+  const names = [...SOCIAL_GOING_NAMES];
+
+  return (
+    <div
+      className="mt-3 flex flex-col gap-2 rounded-[18px] border border-[#CDE9D8] bg-[#F4FFF9] px-3 py-2.5 sm:flex-row sm:items-center"
+      data-testid={`event-social-proof-${event.id}`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white px-2.5 py-1 font-body text-[11px] font-black uppercase tracking-[0.08em] text-[#0F766E] shadow-sm">
+          <UsersRound size={14} strokeWidth={2.5} aria-hidden="true" />
+          {copy.socialProofTitle}
+        </span>
+        <span className="flex -space-x-2" aria-hidden="true">
+          {names.map((name, index) => (
+            <span
+              key={`${event.id}-${name}`}
+              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white font-body text-[12px] font-black text-white shadow-sm"
+              style={{ background: ["#0F766E", "#7C3AED", "#C9890A"][index] }}
+            >
+              {name.slice(0, 1)}
+            </span>
+          ))}
+        </span>
+      </div>
+      <span className="min-w-0 flex-1 font-body text-[13px] font-black leading-snug text-[#27463F] sm:pl-1">
+        {copy.socialGoing(names)}
+      </span>
+    </div>
   );
 }
 
@@ -222,14 +445,17 @@ function EventActionButton({
   tone,
   active = false,
   disabled = false,
+  className = "",
 }: {
   children: ReactNode;
   onClick: () => void;
-  tone: "green" | "blue" | "plain" | "rose";
+  tone: "primary" | "green" | "blue" | "plain" | "rose";
   active?: boolean;
   disabled?: boolean;
+  className?: string;
 }) {
   const tones = {
+    primary: "border-[#047857] bg-[#047857] text-white shadow-[0_12px_24px_rgba(4,120,87,0.2)]",
     green: active ? "border-[#047857] bg-[#047857] text-white" : "border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]",
     blue: active ? "border-[#2563EB] bg-[#2563EB] text-white" : "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]",
     rose: active ? "border-[#BE123C] bg-[#BE123C] text-white" : "border-[#FECDD3] bg-[#FFF1F2] text-[#BE123C]",
@@ -241,7 +467,41 @@ function EventActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`vyva-tap flex min-h-[52px] items-center justify-center rounded-[18px] border px-4 font-body text-[15px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones}`}
+      className={`vyva-tap flex min-h-[46px] items-center justify-center rounded-[16px] border px-3 font-body text-[14px] font-black leading-tight shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${tones} ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EventTextAction({
+  children,
+  onClick,
+  active,
+  disabled,
+  tone = "plain",
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  tone?: "plain" | "rose";
+}) {
+  const activeClass = tone === "rose"
+    ? "bg-[#FFF1F2] text-[#BE123C]"
+    : "bg-[#F5F3FF] text-[#6B21A8]";
+  const inactiveClass = tone === "rose"
+    ? "text-[#9F1239] hover:bg-[#FFF1F2]"
+    : "text-[#4B5563] hover:bg-[#F8FAFC]";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`vyva-tap inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full px-3 font-body text-[13px] font-black transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${
+        active ? activeClass : inactiveClass
+      }`}
     >
       {children}
     </button>
@@ -251,6 +511,7 @@ function EventActionButton({
 function EventPanel({
   event,
   copy,
+  language,
   testIdPrefix,
   featured = false,
   onRespond,
@@ -258,7 +519,8 @@ function EventPanel({
   pending = false,
 }: {
   event: ParticipationEventRecommendation | ParticipationEvent;
-  copy: CuratedActivitiesCopy;
+  copy: ParticipateCopy;
+  language: SocialLanguage;
   testIdPrefix: string;
   featured?: boolean;
   onRespond: (eventId: string, response: ParticipationEventResponseAction) => void;
@@ -266,21 +528,27 @@ function EventPanel({
   pending?: boolean;
 }) {
   const statusLabel = responseLabel(event, copy);
+  const timingFact = eventTimingFact(event, copy, language);
+  const frequencyLabel = eventFrequencyLabel(event, copy);
+  const placeIcon = event.format === "online" ? Monitor : event.format === "hybrid" ? Sparkles : MapPin;
+  const visibleFitReasons = event.fitReasons
+    .filter((reason) => !reason.label.toLowerCase().includes("online"))
+    .slice(0, 2);
 
   return (
     <article
-      className={`rounded-[24px] border bg-white p-5 shadow-[0_14px_34px_rgba(52,42,30,0.08)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
+      className={`rounded-[22px] border bg-white p-4 shadow-[0_10px_26px_rgba(52,42,30,0.07)] ${featured ? "border-[#B7E4D2]" : "border-[#E8DED4]"}`}
       data-testid={featured ? `${testIdPrefix}-featured-event` : `${testIdPrefix}-event-${event.id}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
             {featured ? copy.featured : copy.forYou}
           </p>
-          <h2 className="mt-2 font-body text-[24px] font-black leading-tight text-vyva-text-1">
+          <h2 className="mt-1.5 font-body text-[24px] font-black leading-tight text-vyva-text-1">
             {event.title}
           </h2>
-          <p className="mt-2 max-w-[42rem] font-body text-[16px] font-semibold leading-relaxed text-vyva-text-2">
+          <p className="mt-1.5 max-w-[42rem] font-body text-[15px] font-semibold leading-snug text-vyva-text-2">
             {event.summary}
           </p>
         </div>
@@ -291,18 +559,22 @@ function EventPanel({
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <SignalChip icon={MapPin} label={event.locationLabel} />
-        <SignalChip icon={Clock3} label={event.timeLabel} />
-        <SignalChip icon={ShieldCheck} label={event.costLabel} />
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <EventFact icon={Clock3} label={timingFact.label} detail={timingFact.detail} />
+        <EventFact icon={CalendarCheck} label={frequencyLabel} detail={copy.frequencyDetail} />
+        <EventFact icon={placeIcon} label={event.locationLabel} detail={copy.whereDetail} />
+        <EventFact icon={ShieldCheck} label={event.costLabel} detail={copy.costDetail} />
       </div>
 
-      {event.fitReasons.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {event.fitReasons.map((reason) => (
+      <SocialProofStrip event={event} copy={copy} />
+      <ConfidenceStrip event={event} copy={copy} />
+
+      {visibleFitReasons.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {visibleFitReasons.map((reason) => (
             <span
               key={`${event.id}-${reason.id}-${reason.label}`}
-              className="rounded-full bg-[#F8FAF8] px-3 py-2 font-body text-[12px] font-bold text-[#50635E]"
+              className="rounded-full bg-[#F8FAF8] px-3 py-1.5 font-body text-[12px] font-bold text-[#50635E]"
             >
               {reason.label}
             </span>
@@ -310,47 +582,46 @@ function EventPanel({
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 flex flex-col gap-2 lg:flex-row lg:items-center">
         <EventActionButton
-          tone="green"
+          tone="primary"
           active={event.myResponse === "interested"}
           disabled={pending}
+          className="lg:min-w-[190px] lg:flex-none"
           onClick={() => onRespond(event.id, event.myResponse === "interested" ? "clear" : "interested")}
         >
           <CheckCircle2 size={18} className="mr-2" />
           {copy.interested}
         </EventActionButton>
         <EventActionButton
-          tone="blue"
-          active={event.myResponse === "maybe"}
-          disabled={pending}
-          onClick={() => onRespond(event.id, event.myResponse === "maybe" ? "clear" : "maybe")}
-        >
-          <CalendarCheck size={18} className="mr-2" />
-          {copy.maybe}
-        </EventActionButton>
-        <EventActionButton
           tone="plain"
           disabled={pending}
+          className="lg:min-w-[170px] lg:flex-none"
           onClick={() => onAskVyva(event.id)}
         >
           <Sparkles size={18} className="mr-2 text-[#6B21A8]" />
           {copy.askVyva}
         </EventActionButton>
-        <EventActionButton
-          tone="rose"
-          active={event.myResponse === "not_for_me"}
-          disabled={pending}
-          onClick={() => onRespond(event.id, event.myResponse === "not_for_me" ? "clear" : "not_for_me")}
-        >
-          <ThumbsDown size={17} className="mr-2" />
-          {copy.notForMe}
-        </EventActionButton>
+        <div className="flex flex-wrap gap-2">
+          <EventTextAction
+            active={event.myResponse === "maybe"}
+            disabled={pending}
+            onClick={() => onRespond(event.id, event.myResponse === "maybe" ? "clear" : "maybe")}
+          >
+            <CalendarCheck size={16} />
+            {copy.maybe}
+          </EventTextAction>
+          <EventTextAction
+            tone="rose"
+            active={event.myResponse === "not_for_me"}
+            disabled={pending}
+            onClick={() => onRespond(event.id, event.myResponse === "not_for_me" ? "clear" : "not_for_me")}
+          >
+            <ThumbsDown size={15} />
+            {copy.notForMe}
+          </EventTextAction>
+        </div>
       </div>
-
-      <p className="mt-4 font-body text-[13px] font-bold text-vyva-text-3">
-        {copy.responseCounts(event.responseCounts.interested, event.responseCounts.maybe)}
-      </p>
     </article>
   );
 }
@@ -392,7 +663,7 @@ function FilterButton({
 }
 
 export default function CuratedEventsExperience({
-  variant = "activities",
+  variant = "participate",
   afterEvents,
 }: CuratedEventsExperienceProps) {
   const navigate = useNavigate();
@@ -492,12 +763,6 @@ export default function CuratedEventsExperience({
     );
   }
 
-  const signalChips = [
-    ...pulse.profileSignals.interests.slice(0, 3).map((interest) => ({ icon: HeartHandshake, label: interest })),
-    { icon: MapPin, label: pulse.profileSignals.locationLabel },
-    { icon: Languages, label: pulse.profileSignals.languageLabel },
-    ...pulse.profileSignals.preferredTimes.slice(0, 1).map((time) => ({ icon: Clock3, label: time })),
-  ];
   const pending = respondMutation.isPending || askVyvaMutation.isPending;
   const filteredTitle = activeFilter === "nearby"
     ? copy.nearbyTitle
@@ -520,34 +785,24 @@ export default function CuratedEventsExperience({
         </button>
       ) : null}
 
-      <section className="rounded-[28px] border border-[#D6E7DC] bg-[#F7FBF8] p-5 shadow-[0_14px_32px_rgba(47,79,65,0.08)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="font-display text-[38px] font-semibold leading-[1.02] text-[#223B35]">
-              {variant === "activities" ? copy.activitiesHeadline : pulse.headline}
+      <section className="px-1 py-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-[26px] font-semibold leading-[0.98] text-[#223B35] sm:text-[28px]">
+              {copy.activitiesHeadline}
             </h1>
-            <p className="mt-3 max-w-[44rem] font-body text-[17px] font-semibold leading-relaxed text-[#526B63]">
-              {pulse.reassurance}
+            <p className="mt-1 hidden max-w-[42rem] font-body text-[13px] font-bold leading-snug text-[#526B63] sm:block sm:text-[14px]">
+              {profileReasonLine(pulse, copy, language)}
             </p>
           </div>
-          <div className="rounded-[22px] border border-[#CDE9D8] bg-white px-4 py-3">
-            <p className="flex items-start gap-2 font-body text-[14px] font-black leading-snug text-[#0F766E]">
-              <ShieldCheck size={18} className="mt-0.5 flex-shrink-0" />
-              {pulse.safetyCopy}
+          <div className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-full border border-[#CDE9D8] bg-white px-2.5 shadow-sm">
+            <ShieldCheck size={14} className="shrink-0 text-[#0F766E]" />
+            <p className="whitespace-nowrap font-body text-[11px] font-black leading-tight text-[#0F766E] sm:text-[12px]">
+              {copy.confirmFirst}
             </p>
           </div>
         </div>
 
-        <div className="mt-5">
-          <p className="mb-2 font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-            {copy.profileSignalTitle}
-          </p>
-          <div className="flex flex-wrap gap-2" data-testid={`${testIdPrefix}-profile-signals`}>
-            {signalChips.map((chip, index) => (
-              <SignalChip key={`${chip.label}-${index}`} icon={chip.icon} label={chip.label} />
-            ))}
-          </div>
-        </div>
       </section>
 
       {pulse.emptyProfileNudge ? (
@@ -564,10 +819,11 @@ export default function CuratedEventsExperience({
         </section>
       ) : null}
 
-      <div className="mt-5">
+      <div className="mt-3">
         <EventPanel
           event={pulse.featuredEvent}
           copy={copy}
+          language={language}
           testIdPrefix={testIdPrefix}
           featured
           pending={pending}
@@ -618,6 +874,7 @@ export default function CuratedEventsExperience({
                 key={event.id}
                 event={event}
                 copy={copy}
+                language={language}
                 testIdPrefix={testIdPrefix}
                 pending={pending}
                 onRespond={(eventId, response) => respondMutation.mutate({ eventId, response })}

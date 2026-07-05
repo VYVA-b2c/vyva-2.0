@@ -26,6 +26,7 @@ const scryptAsync = promisify(scrypt);
 const isDev = !isProductionRuntime();
 const isProduction = isProductionRuntime();
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
+const REVOKED_LEGACY_LOGIN_INTENT = "admin_deleted_login";
 const emailSchema = z.string().trim().email();
 const SUPPORTED_PROFILE_LANGUAGES = ["es", "en", "fr", "de", "it", "pt"] as const;
 type ProfileLanguage = (typeof SUPPORTED_PROFILE_LANGUAGES)[number];
@@ -160,6 +161,12 @@ async function findUserById(userId: string) {
     .limit(1);
 
   return user ?? null;
+}
+
+function isRevokedLegacyLogin(user: typeof users.$inferSelect | null | undefined) {
+  return !user
+    || user.onboarding_intent === REVOKED_LEGACY_LOGIN_INTENT
+    || user.password_hash.startsWith("revoked:");
 }
 
 async function getOrCreateAuthenticatedUser(userId: string, email?: unknown) {
@@ -1011,7 +1018,7 @@ authRouter.post("/magic-login", async (req: Request, res: Response) => {
     .where(eq(users.id, userId))
     .limit(1);
 
-  if (!user) {
+  if (!user || isRevokedLegacyLogin(user)) {
     return res.status(401).json({ error: "This sign-in link is invalid or expired." });
   }
 

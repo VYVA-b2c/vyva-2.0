@@ -44,7 +44,7 @@ export default function AttentionBoostersPage() {
         icon={Brain}
         iconColor="#7C3AED"
         backLabel={t("common.back")}
-        backTo="/activities"
+        backTo="/mind-memory"
       />
 
       <ResponsiveGrid className="mt-5" columns="two">

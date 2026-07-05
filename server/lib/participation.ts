@@ -105,6 +105,20 @@ type MemoryCheck = {
   createdAt: string;
 };
 
+export class ParticipationAdminEventError extends Error {
+  statusCode: number;
+  code: string;
+  duplicateEventKey?: string;
+
+  constructor(message: string, statusCode = 400, code = "ADMIN_EVENT_INVALID", duplicateEventKey?: string) {
+    super(message);
+    this.name = "ParticipationAdminEventError";
+    this.statusCode = statusCode;
+    this.code = code;
+    this.duplicateEventKey = duplicateEventKey;
+  }
+}
+
 const SAFE_DB_TIMEOUT_MS = 1400;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SUPPORTED_LANGUAGES: SocialLanguage[] = ["es", "de", "en"];
@@ -1244,6 +1258,94 @@ function memoryEventFromAdmin(input: AdminEventInput, adminUserId: string): Even
   };
 }
 
+function aiDiscoveryAdminInput(input: AdminEventInput): AdminEventInput {
+  if (input.source !== "ai-discovery") return input;
+  return {
+    ...input,
+    source: "ai-discovery",
+    status: "draft",
+    safetyStatus: "needs_review",
+    isCurated: true,
+    needsLiveCheck: true,
+  };
+}
+
+function duplicateText(value?: string | null) {
+  return normalizeForMatch(String(value ?? ""))
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function duplicateTitleFromInput(input: AdminEventInput) {
+  return duplicateText(input.titleEn || input.titleEs || input.titleDe);
+}
+
+function duplicateTitleFromRow(row: EventRow) {
+  return duplicateText(row.title_en || row.title_es || row.title_de);
+}
+
+function duplicateUrl(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    return `${url.hostname.replace(/^www\./, "").toLowerCase()}${url.pathname.replace(/\/+$/, "").toLowerCase()}`;
+  } catch {
+    return duplicateText(raw);
+  }
+}
+
+function duplicateDate(value?: string | Date | null) {
+  if (!value) return "";
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
+  return String(value).trim().slice(0, 10);
+}
+
+function findAdminEventDuplicate(input: AdminEventInput, rows: EventRow[]) {
+  const sourceUrl = duplicateUrl(input.sourceUrl);
+  const title = duplicateTitleFromInput(input);
+  const city = duplicateText(input.city);
+  const location = duplicateText(input.locationLabel);
+  const startsAt = duplicateDate(input.startsAt);
+
+  for (const row of rows) {
+    const reasons: string[] = [];
+    if (input.eventKey === row.event_key) reasons.push("same internal ID");
+    if (sourceUrl && sourceUrl === duplicateUrl(row.source_url)) reasons.push("same source URL");
+    if (title && city && title === duplicateTitleFromRow(row) && city === duplicateText(row.city)) {
+      reasons.push("same title and city");
+    }
+    if (location && startsAt && location === duplicateText(row.location_label) && startsAt === duplicateDate(row.starts_at)) {
+      reasons.push("same place and date");
+    }
+    if (reasons.length > 0) return { eventKey: row.event_key, reasons };
+  }
+
+  return null;
+}
+
+async function assertAiDiscoveryAdminEventCanBeCreated(input: AdminEventInput) {
+  if (input.source !== "ai-discovery") return;
+
+  if (!String(input.sourceUrl ?? "").trim()) {
+    throw new ParticipationAdminEventError(
+      "AI discovery saves require a public source URL.",
+      400,
+      "AI_DISCOVERY_SOURCE_REQUIRED",
+    );
+  }
+
+  const duplicate = findAdminEventDuplicate(input, await loadAdminEvents());
+  if (duplicate) {
+    throw new ParticipationAdminEventError(
+      `Possible duplicate of ${duplicate.eventKey}: ${duplicate.reasons.join(", ")}.`,
+      409,
+      "AI_DISCOVERY_DUPLICATE",
+      duplicate.eventKey,
+    );
+  }
+}
+
 export async function listAdminParticipationEvents(language: SocialLanguage = "en") {
   void language;
   const rows = await loadAdminEvents();
@@ -1258,14 +1360,17 @@ export async function listAdminParticipationEvents(language: SocialLanguage = "e
 }
 
 export async function createAdminParticipationEvent(input: AdminEventInput, adminUserId: string) {
+  const normalizedInput = aiDiscoveryAdminInput(input);
+  await assertAiDiscoveryAdminEventCanBeCreated(normalizedInput);
+
   const row = await safeDb(
     "create participation admin event",
     async () => {
-      const [row] = await db.insert(participationEvents).values(eventInsertFromAdmin(input, adminUserId)).returning();
+      const [row] = await db.insert(participationEvents).values(eventInsertFromAdmin(normalizedInput, adminUserId)).returning();
       return row;
     },
     () => {
-      const row = memoryEventFromAdmin(input, adminUserId);
+      const row = memoryEventFromAdmin(normalizedInput, adminUserId);
       memoryEvents.set(row.event_key, row);
       return row;
     },

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Search, UserPlus } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Search, ShieldAlert, ShieldCheck, UserMinus, UserPlus } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/queryClient";
 
 type AdminUser = {
@@ -12,17 +13,32 @@ type AdminUser = {
   created_at?: string | null;
 };
 
+type RoleChangeRequest = {
+  user: AdminUser;
+  role: "user" | "admin";
+};
+
 function formatDate(value?: string | null) {
   if (!value) return "Never";
   return new Date(value).toLocaleString();
 }
 
+function messageTone(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("could not") || normalized.includes("failed") || normalized.includes("cannot")) return "error";
+  if (normalized.includes("already") || normalized.includes("no account") || normalized.includes("enter")) return "warning";
+  return "success";
+}
+
 export default function AdminUsersPage() {
+  const { user: currentUser } = useAuth();
   const [admins, setAdmins] = useState<AdminUser[]>([]);
   const [matches, setMatches] = useState<AdminUser[]>([]);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<RoleChangeRequest | null>(null);
 
   async function api(path: string, options: RequestInit = {}) {
     const res = await apiFetch(`/api/admin/lifecycle${path}`, options);
@@ -49,6 +65,7 @@ export default function AdminUsersPage() {
 
   async function setRole(user: AdminUser, role: "user" | "admin") {
     setMessage("");
+    setBusyUserId(user.id);
     try {
       await api(`/admin-users/${user.id}/role`, {
         method: "PATCH",
@@ -58,7 +75,20 @@ export default function AdminUsersPage() {
       await refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Could not update role");
+    } finally {
+      setBusyUserId(null);
     }
+  }
+
+  function requestRoleChange(user: AdminUser, role: "user" | "admin") {
+    setPendingRoleChange({ user, role });
+  }
+
+  async function confirmRoleChange() {
+    if (!pendingRoleChange) return;
+    const { user, role } = pendingRoleChange;
+    setPendingRoleChange(null);
+    await setRole(user, role);
   }
 
   async function inviteAdmin() {
@@ -101,6 +131,8 @@ export default function AdminUsersPage() {
   }, []);
 
   const resultRows = email.trim().length >= 3 ? matches : [];
+  const currentUserEmail = currentUser?.email?.toLowerCase() ?? "";
+  const messageKind = message ? messageTone(message) : "success";
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -112,10 +144,47 @@ export default function AdminUsersPage() {
           <button className="rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-50" disabled={isLoading} onClick={() => refresh().catch(() => undefined)}>
             Refresh
           </button>
-          {message && <span className="rounded-2xl bg-purple-50 px-4 py-3 text-purple-800">{message}</span>}
         </AdminPageHeader>
 
         <AdminMenu />
+
+        {message && (
+          <div
+            className={`mt-4 flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm font-bold ${
+              messageKind === "success"
+                ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+                : messageKind === "warning"
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-red-200 bg-red-50 text-red-700"
+            }`}
+            role={messageKind === "error" ? "alert" : "status"}
+            data-testid="admin-users-message"
+          >
+            {messageKind === "success" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+            <span className="min-w-0 flex-1">{message}</span>
+            <button type="button" className="text-xs font-black uppercase tracking-[0.08em] opacity-70 hover:opacity-100" onClick={() => setMessage("")}>
+              Clear
+            </button>
+          </div>
+        )}
+
+        <section className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.08em] text-purple-700">Current admins</p>
+            <p className="mt-1 text-3xl font-black">{admins.length}</p>
+            <p className="mt-2 text-sm font-semibold text-[#7d6b65]">People who can access admin tools.</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-emerald-950 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.08em] text-emerald-700">Protected</p>
+            <p className="mt-1 text-sm font-black">Last admin and super admin cannot be removed.</p>
+            <p className="mt-2 text-sm font-semibold opacity-80">The server blocks unsafe demotions even if a page is stale.</p>
+          </div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.08em] text-amber-700">Scope</p>
+            <p className="mt-1 text-sm font-black">Role changes do not delete accounts.</p>
+            <p className="mt-2 text-sm font-semibold opacity-80">Removing admin access only changes dashboard permissions.</p>
+          </div>
+        </section>
 
         <section className="mt-5 rounded-[1.5rem] border border-[#eadfd5] bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -159,7 +228,13 @@ export default function AdminUsersPage() {
           {resultRows.length > 0 && (
             <div className="mt-5 grid gap-3">
               {resultRows.map((user) => (
-                <UserRoleRow key={user.id} user={user} onSetRole={setRole} />
+                <UserRoleRow
+                  key={user.id}
+                  user={user}
+                  busy={busyUserId === user.id}
+                  currentUserEmail={currentUserEmail}
+                  onRequestRoleChange={requestRoleChange}
+                />
               ))}
             </div>
           )}
@@ -174,30 +249,123 @@ export default function AdminUsersPage() {
             {admins.length === 0 ? (
               <p className="rounded-2xl bg-[#fbf8f5] p-4 font-bold text-[#7d6b65]">No admin users found.</p>
             ) : (
-              admins.map((user) => <UserRoleRow key={user.id} user={user} onSetRole={setRole} />)
+              admins.map((user) => (
+                <UserRoleRow
+                  key={user.id}
+                  user={user}
+                  busy={busyUserId === user.id}
+                  currentUserEmail={currentUserEmail}
+                  onRequestRoleChange={requestRoleChange}
+                />
+              ))
             )}
           </div>
         </section>
       </section>
+
+      {pendingRoleChange && (
+        <RoleChangeDialog
+          request={pendingRoleChange}
+          busy={busyUserId === pendingRoleChange.user.id}
+          onCancel={() => setPendingRoleChange(null)}
+          onConfirm={() => confirmRoleChange().catch(() => undefined)}
+        />
+      )}
     </main>
   );
 }
 
-function UserRoleRow({ user, onSetRole }: { user: AdminUser; onSetRole: (user: AdminUser, role: "user" | "admin") => void }) {
+function UserRoleRow({
+  user,
+  busy,
+  currentUserEmail,
+  onRequestRoleChange,
+}: {
+  user: AdminUser;
+  busy: boolean;
+  currentUserEmail: string;
+  onRequestRoleChange: (user: AdminUser, role: "user" | "admin") => void;
+}) {
   const isAdmin = user.role === "admin";
+  const isCurrentUser = Boolean(currentUserEmail && user.email.toLowerCase() === currentUserEmail);
+  const nextRole = isAdmin ? "user" : "admin";
+  const selfDemotionBlocked = isAdmin && isCurrentUser;
 
   return (
     <article className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-[#eadfd5] bg-[#fbf8f5] p-4">
       <div className="min-w-0">
-        <p className="break-words font-black">{user.email}</p>
-        <p className="mt-1 text-sm text-[#7d6b65]">Role: {user.role} - Last seen: {formatDate(user.last_seen_at)}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="break-words font-black">{user.email}</p>
+          {isCurrentUser && <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-black text-purple-700">You</span>}
+          <span className={`rounded-full px-2.5 py-1 text-xs font-black ${isAdmin ? "bg-emerald-50 text-emerald-700" : "bg-white text-[#7d6b65]"}`}>
+            {isAdmin ? "Admin" : "User"}
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-[#7d6b65]">Last seen: {formatDate(user.last_seen_at)}</p>
+        {selfDemotionBlocked && (
+          <p className="mt-2 text-xs font-bold text-amber-800">Use another super-admin session to remove your own admin access.</p>
+        )}
       </div>
       <button
-        className={`rounded-2xl px-5 py-3 font-bold ${isAdmin ? "border border-[#e4d8ce] bg-white text-[#2f2135]" : "bg-purple-700 text-white"}`}
-        onClick={() => onSetRole(user, isAdmin ? "user" : "admin")}
+        type="button"
+        className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 font-bold disabled:cursor-not-allowed disabled:opacity-50 ${isAdmin ? "border border-[#e4d8ce] bg-white text-[#2f2135]" : "bg-purple-700 text-white"}`}
+        disabled={busy || selfDemotionBlocked}
+        title={selfDemotionBlocked ? "You cannot remove your own admin access here." : undefined}
+        onClick={() => onRequestRoleChange(user, nextRole)}
       >
-        {isAdmin ? "Remove admin" : "Make admin"}
+        {isAdmin ? <UserMinus size={16} /> : <UserPlus size={16} />}
+        {busy ? "Updating..." : isAdmin ? "Remove admin" : "Make admin"}
       </button>
     </article>
+  );
+}
+
+function RoleChangeDialog({
+  request,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  request: RoleChangeRequest;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const makingAdmin = request.role === "admin";
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#2f2135]/45 px-4 py-6" role="dialog" aria-modal="true" aria-labelledby="admin-role-change-title">
+      <div className="w-full max-w-lg rounded-[2rem] border border-[#eadfd5] bg-white p-6 text-[#2f2135] shadow-[0_24px_80px_rgba(47,33,53,0.28)]">
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${makingAdmin ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
+          {makingAdmin ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+          {makingAdmin ? "Grant admin" : "Remove admin"}
+        </span>
+        <h2 id="admin-role-change-title" className="mt-3 font-serif text-3xl leading-tight">
+          {makingAdmin ? "Make this account an admin?" : "Remove admin access?"}
+        </h2>
+        <p className="mt-2 break-words text-sm font-bold text-[#5f514b]">{request.user.email}</p>
+        <div className="mt-4 rounded-2xl bg-[#fbf8f5] p-4 text-sm font-semibold leading-relaxed text-[#5f514b]">
+          {makingAdmin ? (
+            <p>This account will be able to use admin tools. Their normal user data and login stay unchanged.</p>
+          ) : (
+            <p>This account will lose admin tools only. Their login, user profile, app access, and care-team data stay unchanged.</p>
+          )}
+          <p className="mt-2">The backend still protects the last admin and configured super admin.</p>
+        </div>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button type="button" className="rounded-2xl border border-[#eadfd5] bg-white px-5 py-3 text-sm font-bold text-[#2f2135]" disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={`rounded-2xl px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 ${makingAdmin ? "bg-purple-700 hover:bg-purple-800" : "bg-amber-700 hover:bg-amber-800"}`}
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            {busy ? "Updating..." : makingAdmin ? "Make admin" : "Remove admin"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -30,7 +30,7 @@ describe("SensesPage", () => {
   });
 
   it("keeps Association out of the Sharpen Senses hub", () => {
-    render(
+    const { container } = render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/senses"]}>
         <Routes>
           <Route path="/senses" element={<SensesPage />} />
@@ -39,6 +39,7 @@ describe("SensesPage", () => {
     );
 
     expect(screen.queryByRole("button", { name: /Association/i })).not.toBeInTheDocument();
+    expect(container.querySelector(".xl\\:grid-cols-4")).not.toBeInTheDocument();
   });
 
   it("opens Scent Memory from the Sharpen Senses hub", () => {

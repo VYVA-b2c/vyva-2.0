@@ -29,6 +29,7 @@ import {
   homeScans,
   lifecycleEvents,
   medicationAdherence,
+  passwordResetTokens,
   onboardingState,
   profiles,
   profileMemberships,
@@ -62,12 +63,14 @@ import { syncProfileEntitlement, type EntitlementSyncResult } from "../lib/entit
 import { listPlans, normalizeSubscriptionTier, upsertPlanWithEntitlement } from "../lib/plans.js";
 import { buildSignupInviteUrl, normalizeSignupInviteLanguage, signupInviteCopyFor, type SignupInvitePrefill } from "../lib/signupInviteLanguage.js";
 import { mergeSignupInviteRecipients } from "../lib/signupInviteRecipients.js";
+import { mergeIdentityGender } from "../lib/userPersonalization.js";
 import { premiumTrialEndsAt } from "../lib/premiumTrial.js";
 
 export const adminLifecycleRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 const DUPLICATE_PROFILE_PHONE_ERROR = "That phone number is already used on another profile. Choose a different profile phone number.";
+const REVOKED_LEGACY_LOGIN_INTENT = "admin_deleted_login";
 
 function requireAdmin(req: Request, res: Response): boolean {
   if (!req.user || req.user.role !== "admin") {
@@ -77,8 +80,12 @@ function requireAdmin(req: Request, res: Response): boolean {
   return true;
 }
 
+function isSuperAdminEmail(email: string | null | undefined): boolean {
+  return typeof email === "string" && email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+}
+
 function isSuperAdmin(req: Request): boolean {
-  return typeof req.user?.email === "string" && req.user.email.toLowerCase() === SUPER_ADMIN_EMAIL;
+  return isSuperAdminEmail(req.user?.email);
 }
 
 function requireSuperAdmin(req: Request, res: Response): boolean {
@@ -220,6 +227,8 @@ const profileUpdateSchema = z.object({
   email: z.string().email().optional().nullable().or(z.literal("")),
   phone_number: z.string().optional().nullable(),
   whatsapp_number: z.string().optional().nullable(),
+  country_code: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
   language: z.string().optional().nullable(),
   timezone: z.string().optional().nullable(),
   caregiver_name: z.string().optional().nullable(),
@@ -3447,7 +3456,14 @@ adminLifecycleRouter.patch("/users/:id/profile", async (req: Request, res: Respo
   if (data.email !== undefined) profilePatch.email = data.email || null;
   if (data.phone_number !== undefined) profilePatch.phone_number = nextProfilePhone;
   if (data.whatsapp_number !== undefined) profilePatch.whatsapp_number = data.whatsapp_number || null;
-  if (data.language !== undefined) profilePatch.language = data.language || "es";
+  if (data.country_code !== undefined) profilePatch.country_code = data.country_code || "ES";
+  if (data.gender !== undefined) {
+    profilePatch.data_sharing_consent = mergeIdentityGender(existingProfile.data_sharing_consent, data.gender || "prefer_not");
+  }
+  if (data.language !== undefined) {
+    profilePatch.language = data.language || "es";
+    profilePatch.language_preference = profilePatch.language;
+  }
   if (data.timezone !== undefined) profilePatch.timezone = data.timezone || "Europe/Madrid";
   if (data.caregiver_name !== undefined) profilePatch.caregiver_name = data.caregiver_name || null;
   if (data.caregiver_contact !== undefined) profilePatch.caregiver_contact = data.caregiver_contact || null;
@@ -3668,6 +3684,7 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
   const parsed = loginAccountDeleteSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: "Type DELETE LOGIN before deleting the login account." });
 
+  try {
   const [intake] = await db.select().from(userIntakes).where(eq(userIntakes.id, req.params.id)).limit(1);
   if (!intake) return res.status(404).json({ error: "User intake not found" });
 
@@ -3755,7 +3772,6 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
     phones: deleteScope.phones,
   });
 
-  try {
     const result = await db.transaction(async (tx) => {
       const intakesToHide = await tx.select().from(userIntakes).where(intakeWhere);
       const intakesById = new Map<string, typeof userIntakes.$inferSelect>();
@@ -3817,10 +3833,17 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
           updated_at: deletedAt,
         }).where(and(
           inArray(profileMemberships.profile_id, ownedProfileIdList),
-          sql`${profileMemberships.user_id} <> ${account.id}`,
           sql`${profileMemberships.status} <> 'revoked'`,
         )).returning({ id: profileMemberships.id })
         : [];
+
+      const revokedAccountMemberships = await tx.update(profileMemberships).set({
+        status: "revoked",
+        updated_at: deletedAt,
+      }).where(and(
+        eq(profileMemberships.user_id, account.id),
+        sql`${profileMemberships.status} <> 'revoked'`,
+      )).returning({ id: profileMemberships.id });
 
       const resetAcceptedInvites = await tx.update(teamInvitations).set({
         status: "pending",
@@ -3855,9 +3878,22 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
         ? await tx.update(users).set({ active_profile_id: null }).where(inArray(users.active_profile_id, ownedProfileIdList)).returning({ id: users.id })
         : [];
 
-      const deletedAccounts = await tx.delete(users).where(eq(users.id, account.id)).returning({ id: users.id });
-      if (deletedAccounts.length !== 1) {
-        throw new Error("Login account could not be deleted. Refresh and try again.");
+      const deletedPasswordResetTokens = await tx
+        .delete(passwordResetTokens)
+        .where(eq(passwordResetTokens.user_id, account.id))
+        .returning({ id: passwordResetTokens.id });
+
+      const scrubbedAccounts = await tx.update(users).set({
+        email: null,
+        phone_number: null,
+        password_hash: `revoked:${deletedAt.getTime()}:${randomUUID()}`,
+        active_profile_id: null,
+        onboarding_intent: REVOKED_LEGACY_LOGIN_INTENT,
+        reset_token: null,
+        reset_token_expires_at: null,
+      }).where(eq(users.id, account.id)).returning({ id: users.id });
+      if (scrubbedAccounts.length !== 1) {
+        throw new Error("Login account could not be revoked. Refresh and try again.");
       }
 
       await tx.insert(lifecycleEvents).values({
@@ -3876,11 +3912,13 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
           owned_profile_ids: ownedProfileIdList,
           disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
           hidden_intake_ids: hiddenIntakeIds,
-          revoked_profile_membership_count: revokedProfileMemberships.length,
+          revoked_profile_membership_count: revokedProfileMemberships.length + revokedAccountMemberships.length,
           reset_care_team_invite_count: resetAcceptedInvites.length,
           revoked_senior_invite_count: revokedSeniorInvites.length,
           revoked_access_link_count: revokedAccessLinks.length,
           cleared_active_profile_count: clearedActiveProfiles.length,
+          deleted_password_reset_token_count: deletedPasswordResetTokens.length,
+          login_account_scrubbed: true,
         },
       });
 
@@ -3891,13 +3929,15 @@ adminLifecycleRouter.post("/users/:id/delete-login-account", async (req: Request
           phone_number: account.phone_number,
         },
         released_contacts: [account.email, account.phone_number].filter((value): value is string => Boolean(value)),
+        login_account_scrubbed: true,
         hidden_intake_ids: hiddenIntakeIds,
         disabled_profile_ids: disabledProfiles.map((profile) => profile.id),
-        revoked_profile_membership_count: revokedProfileMemberships.length,
+        revoked_profile_membership_count: revokedProfileMemberships.length + revokedAccountMemberships.length,
         reset_care_team_invite_count: resetAcceptedInvites.length,
         revoked_senior_invite_count: revokedSeniorInvites.length,
         revoked_access_link_count: revokedAccessLinks.length,
         cleared_active_profile_count: clearedActiveProfiles.length,
+        deleted_password_reset_token_count: deletedPasswordResetTokens.length,
       };
     });
 

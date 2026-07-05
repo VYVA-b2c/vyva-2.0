@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Lock, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, ClipboardCheck, MessageCircle, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -13,7 +13,6 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { displayFirstName } from "@/lib/displayIdentity";
-import { incrementChatNavigationCount } from "@/lib/personaliseCards";
 
 type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
@@ -26,6 +25,56 @@ type WeatherData = {
   city: string;
   temperature: number;
   description: string;
+};
+
+type MedicationHomeSignal = {
+  todaySummary?: {
+    scheduled: number;
+    remaining: number;
+  };
+};
+
+type PreventionHomeSignal = {
+  focus?: "Heart" | "Falls" | "Diabetes" | "Medicine" | "Follow-up" | "Plan";
+};
+
+type LatestVitalsHomeSignal = {
+  analysis?: {
+    safety_status?: string | null;
+    recommended_action?: string | null;
+  } | null;
+  latest_alert?: {
+    severity?: string | null;
+  } | null;
+};
+
+type DailyCheckinHomeSignal = {
+  status?: "completed" | "upcoming" | "due_now" | "overdue" | "not_scheduled";
+};
+
+type BrainCoachHomeSignal = {
+  summary?: {
+    completedSessions?: number;
+    streakDays?: number;
+  };
+  today?: {
+    completedCount?: number;
+  };
+};
+
+type ParticipationPulseHomeSignal = {
+  pulse?: {
+    featuredEvent?: {
+      format?: "nearby" | "online" | "hybrid" | string;
+    } | null;
+    savedEvents?: unknown[];
+    notifications?: unknown[];
+    emptyProfileNudge?: unknown;
+  };
+};
+
+type ConciergePendingHomeSignal = {
+  items?: unknown[];
 };
 
 type HomeFastAction = {
@@ -102,9 +151,103 @@ const HOME_FAST_ACTION_MOBILE_COPY: Record<"doctor" | "appointment" | "ride", { 
   ride: { label: "Find transport", sub: "Compare safe options" },
 };
 
+const HOME_FAST_HELP_VISIBLE_COUNT = 3;
+
 const SECTION_VOICE_AUTO_START_OPTIONS: NavigateOptions = {
   state: { [SECTION_VOICE_AUTO_START_KEY]: true },
 };
+
+type HomeTranslate = (key: string, fallback: string, values?: Record<string, string | number>) => string;
+
+function baseLanguageCode(language?: string | null) {
+  const code = language?.split("-")[0]?.toLowerCase();
+  if (code === "es" || code === "de") return code;
+  return "en";
+}
+
+function homeDueBadge(count: number, t: HomeTranslate) {
+  return count === 1
+    ? t("home.master.badges.oneDue", "1 due")
+    : t("home.master.badges.due", "{{count}} due", { count });
+}
+
+function homeCountBadge(count: number, one: string, manyKey: string, manyFallback: string, t: HomeTranslate) {
+  return count === 1 ? one : t(manyKey, manyFallback, { count });
+}
+
+function healthCardAccent(input: {
+  checkin?: DailyCheckinHomeSignal | null;
+  medication?: MedicationHomeSignal | null;
+  prevention?: PreventionHomeSignal | null;
+  vitals?: LatestVitalsHomeSignal | null;
+}, t: HomeTranslate) {
+  const status = input.vitals?.analysis?.recommended_action || input.vitals?.analysis?.safety_status || "";
+  const alertSeverity = input.vitals?.latest_alert?.severity || "";
+  const vitalsNeedsAttention = Boolean(
+    (status && status !== "steady") ||
+    (alertSeverity && alertSeverity !== "info"),
+  );
+  if (vitalsNeedsAttention) return t("home.master.badges.vitals", "Vitals");
+  if (input.checkin?.status === "overdue") return t("home.master.badges.checkIn", "Check-in");
+
+  const remaining = input.medication?.todaySummary?.remaining ?? 0;
+  if (remaining > 0) return homeDueBadge(remaining, t);
+
+  if (input.checkin?.status === "due_now") return t("home.master.badges.checkIn", "Check-in");
+  const focus = input.prevention?.focus;
+  if (focus && focus !== "Plan") return focus;
+  if ((input.medication?.todaySummary?.scheduled ?? 0) > 0) return t("home.master.badges.allSet", "All set");
+  return t("home.master.badges.today", "Today");
+}
+
+function mindMemoryCardAccent(progress: BrainCoachHomeSignal | null | undefined, t: HomeTranslate) {
+  if ((progress?.today?.completedCount ?? 0) > 0) return t("home.master.badges.done", "Done");
+  const streakDays = progress?.summary?.streakDays ?? 0;
+  if (streakDays > 1) {
+    return homeCountBadge(
+      streakDays,
+      t("home.master.badges.oneDay", "1 day"),
+      "home.master.badges.streakDays",
+      "{{count}} days",
+      t,
+    );
+  }
+  return t("home.master.badges.fiveMin", "5 min");
+}
+
+function communityCardAccent(pulse: ParticipationPulseHomeSignal | null | undefined, t: HomeTranslate) {
+  const notifications = pulse?.pulse?.notifications?.length ?? 0;
+  if (notifications > 0) return t("home.master.badges.new", "New");
+  const saved = pulse?.pulse?.savedEvents?.length ?? 0;
+  if (saved > 0) {
+    return homeCountBadge(
+      saved,
+      t("home.master.badges.saved", "Saved"),
+      "home.master.badges.savedCount",
+      "{{count}} saved",
+      t,
+    );
+  }
+  const format = pulse?.pulse?.featuredEvent?.format;
+  if (format === "online") return t("home.master.badges.online", "Online");
+  if (format === "nearby" || format === "hybrid") return t("home.master.badges.nearby", "Nearby");
+  if (pulse?.pulse?.emptyProfileNudge) return t("home.master.badges.interests", "Interests");
+  return t("home.master.badges.join", "Join");
+}
+
+function conciergeCardAccent(pending: ConciergePendingHomeSignal | null | undefined, t: HomeTranslate) {
+  const count = pending?.items?.length ?? 0;
+  if (count > 0) {
+    return homeCountBadge(
+      count,
+      t("home.master.badges.oneTask", "1 task"),
+      "home.master.badges.tasks",
+      "{{count}} tasks",
+      t,
+    );
+  }
+  return t("home.master.badges.help", "Help");
+}
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
   iconBg: string;
@@ -173,8 +316,9 @@ const HOME_FAST_ACTION_THEMES: Record<HomeFastAction["tone"], {
 
 const HomeScreen = () => {
   const { guardPath, readiness, canUseService } = useServiceGate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { firstName: profileFirstName, profile } = useProfile();
+  const [fastHelpStartIndex, setFastHelpStartIndex] = useState(0);
 
   const firstName = displayFirstName(profileFirstName);
   const homeDoctorContext = t("home.fastHelp.doctorContext", "Home quick doctor help request. Ask what is happening and help prepare a safe next step.");
@@ -255,6 +399,49 @@ const HomeScreen = () => {
   }, [fetchIpWeather, noCityInProfile]);
 
   const weatherData = profileWeatherData ?? coordsWeatherData;
+  const participationLanguage = baseLanguageCode(i18n?.language);
+
+  const { data: medicationHomeSignal } = useQuery<MedicationHomeSignal>({
+    queryKey: ["/api/meds/adherence-report"],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: latestVitalsHomeSignal } = useQuery<LatestVitalsHomeSignal>({
+    queryKey: ["/api/vitals-engine/latest"],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: preventionHomeSignal } = useQuery<PreventionHomeSignal>({
+    queryKey: ["/api/health/prevention"],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: checkinHomeSignal } = useQuery<DailyCheckinHomeSignal>({
+    queryKey: ["/api/checkins/today"],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: brainCoachHomeSignal } = useQuery<BrainCoachHomeSignal>({
+    queryKey: ["/api/games/progress"],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: participationPulseHomeSignal } = useQuery<ParticipationPulseHomeSignal>({
+    queryKey: [`/api/social/participate/pulse?lang=${participationLanguage}`],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: conciergePendingHomeSignal } = useQuery<ConciergePendingHomeSignal>({
+    queryKey: ["/api/concierge/actions/pending"],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
 
   const timeGreetingKey = useMemo(() => {
     const hour = new Date().getHours();
@@ -272,7 +459,6 @@ const HomeScreen = () => {
   }, [firstName, timeGreetingKey, t]);
 
   const handleNavigate = (path: string, options?: NavigateOptions) => {
-    if (path === "/chat") incrementChatNavigationCount();
     guardPath(path, options);
   };
 
@@ -309,7 +495,7 @@ const HomeScreen = () => {
     });
   };
 
-  const homeFastActions: HomeFastAction[] = [
+  const homeFastActions: HomeFastAction[] = useMemo(() => [
     ...(gpPhoneHref
       ? [{
           id: "callGp" as const,
@@ -341,7 +527,45 @@ const HomeScreen = () => {
       mobileLabel: t(`home.fastHelp.${action.id}.mobileLabel`, HOME_FAST_ACTION_MOBILE_COPY[action.id].label),
       mobileSub: t(`home.fastHelp.${action.id}.mobileSub`, HOME_FAST_ACTION_MOBILE_COPY[action.id].sub),
     })),
-  ];
+  ], [gpEmailHref, gpName, gpPhoneHref, t]);
+
+  useEffect(() => {
+    if (fastHelpStartIndex < homeFastActions.length) return;
+    setFastHelpStartIndex(0);
+  }, [fastHelpStartIndex, homeFastActions.length]);
+
+  const homeMasterCardAccents = useMemo(() => ({
+    health: healthCardAccent({
+      checkin: checkinHomeSignal,
+      medication: medicationHomeSignal,
+      prevention: preventionHomeSignal,
+      vitals: latestVitalsHomeSignal,
+    }, t),
+    mindMemory: mindMemoryCardAccent(brainCoachHomeSignal, t),
+    community: communityCardAccent(participationPulseHomeSignal, t),
+    concierge: conciergeCardAccent(conciergePendingHomeSignal, t),
+  }), [
+    brainCoachHomeSignal,
+    checkinHomeSignal,
+    conciergePendingHomeSignal,
+    latestVitalsHomeSignal,
+    medicationHomeSignal,
+    participationPulseHomeSignal,
+    preventionHomeSignal,
+    t,
+  ]);
+
+  const visibleFastActions = useMemo(() => {
+    if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return homeFastActions;
+    return Array.from({ length: HOME_FAST_HELP_VISIBLE_COUNT }, (_item, index) => (
+      homeFastActions[(fastHelpStartIndex + index) % homeFastActions.length]!
+    ));
+  }, [fastHelpStartIndex, homeFastActions]);
+
+  const rotateFastHelp = () => {
+    if (homeFastActions.length <= HOME_FAST_HELP_VISIBLE_COUNT) return;
+    setFastHelpStartIndex((current) => (current + HOME_FAST_HELP_VISIBLE_COUNT) % homeFastActions.length);
+  };
 
   const isSubscriptionLocked = (path: string) => {
     const serviceId = serviceForPath(path);
@@ -354,8 +578,9 @@ const HomeScreen = () => {
     {
       id: "health",
       icon: Heart,
-      title: t("home.master.cards.health", "Health Plan"),
-      detail: t("home.master.cards.healthDetail", "Medication, vitals, symptoms"),
+      title: t("home.master.cards.health", "My Health"),
+      detail: t("home.master.cards.healthDetailShort", ""),
+      accent: homeMasterCardAccents.health,
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/health"),
       testId: "card-home-agent-health",
@@ -363,8 +588,9 @@ const HomeScreen = () => {
     {
       id: "mind-memory",
       icon: Brain,
-      title: t("home.master.cards.mindMemory", "Mind & Memory"),
-      detail: t("home.master.cards.mindMemoryDetail", "Memory, reflexes, thinking"),
+      title: t("home.master.cards.mindMemory", "My Mind"),
+      detail: t("home.master.cards.mindMemoryDetailShort", ""),
+      accent: homeMasterCardAccents.mindMemory,
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/mind-memory"),
       testId: "card-home-agent-cognitive",
@@ -372,8 +598,9 @@ const HomeScreen = () => {
     {
       id: "community",
       icon: Users,
-      title: t("home.master.cards.community", "Community"),
-      detail: t("home.master.cards.communityDetail", "Rooms, matches, activities"),
+      title: t("home.master.cards.community", "My Community"),
+      detail: t("home.master.cards.communityDetailShort", ""),
+      accent: homeMasterCardAccents.community,
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/social-rooms"),
       testId: "card-home-agent-social",
@@ -381,8 +608,9 @@ const HomeScreen = () => {
     {
       id: "concierge",
       icon: ConciergeBell,
-      title: t("home.master.cards.concierge", "Concierge"),
-      detail: t("home.master.cards.conciergeDetail", "Help, rides, orders, schedules"),
+      title: t("home.master.cards.concierge", "My Concierge"),
+      detail: t("home.master.cards.conciergeDetailShort", ""),
+      accent: homeMasterCardAccents.concierge,
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
       onClick: () => handleNavigate("/concierge"),
       testId: "card-home-agent-concierge",
@@ -391,73 +619,82 @@ const HomeScreen = () => {
 
   const homeMasterFastHelpActions: MasterFastHelpAction[] = [
     {
-      id: "ask-vyva",
-      icon: Mic,
-      label: t("home.master.fastHelp.askVyva", "Ask VYVA"),
-      detail: t("home.master.fastHelp.askVyvaDetail", "Talk through anything"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => handleNavigate("/chat", SECTION_VOICE_AUTO_START_OPTIONS),
-      testId: "button-home-fast-ask-vyva",
+      id: "feel-better",
+      icon: HeartPulse,
+      label: t("home.master.fastHelp.feelBetter", "Feel Better"),
+      detail: t("home.master.fastHelp.feelBetterDetail", "Symptoms or worries"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
+      onClick: () => handleNavigate("/health/symptom-check"),
+      testId: "button-home-fast-feel-better",
     },
     {
-      id: "review-today",
-      icon: ClipboardCheck,
-      label: t("home.master.fastHelp.reviewToday", "Review today"),
-      detail: t("home.master.fastHelp.reviewTodayDetail", "Open your plan"),
+      id: "stay-well",
+      icon: ShieldCheck,
+      label: t("home.master.fastHelp.stayWell", "Stay Well"),
+      detail: t("home.master.fastHelp.stayWellDetail", "Prevention tips"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => handleNavigate("/health"),
-      testId: "button-home-fast-review-today",
+      onClick: () => handleNavigate("/health/prevention"),
+      testId: "button-home-fast-stay-well",
     },
     {
-      id: "mind-check",
-      icon: Brain,
-      label: t("home.master.fastHelp.mindCheck", "Mind check"),
-      detail: t("home.master.fastHelp.mindCheckDetail", "Memory or mood"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => handleNavigate("/mind-memory"),
-      testId: "button-home-fast-mind-check",
-    },
-    {
-      id: "join-community",
-      icon: Users,
-      label: t("home.master.fastHelp.joinCommunity", "Join community"),
-      detail: t("home.master.fastHelp.joinCommunityDetail", "Rooms and activities"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => handleNavigate("/social-rooms"),
-      testId: "button-home-fast-join-community",
-    },
-    {
-      id: "concierge-help",
-      icon: ConciergeBell,
-      label: t("home.master.fastHelp.conciergeHelp", "Get concierge help"),
-      detail: t("home.master.fastHelp.conciergeHelpDetail", "Errands or booking"),
+      id: "find-care",
+      icon: HeartHandshake,
+      label: t("home.master.fastHelp.findCare", "Find Care"),
+      detail: t("home.master.fastHelp.findCareDetail", "Support options"),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => handleNavigate("/concierge"),
-      testId: "button-home-fast-concierge-help",
-    },
-    {
-      id: "call-doctor",
-      icon: Stethoscope,
-      label: t("home.master.fastHelp.callDoctor", "Call doctor"),
-      detail: t("home.master.fastHelp.callDoctorDetail", "Prepare next step"),
-      tone: { iconBg: "#EEF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => handleNavigate("/health/doctor", {
+      onClick: () => handleNavigate("/concierge", {
         state: {
-          autoStartVoice: true,
-          latestSymptomReport: homeDoctorContext,
+          conciergePrefill: {
+            kind: "task",
+            message: t("home.master.fastHelp.findCarePrefill", "Help me find care or support options. Ask what kind of care I need and do not contact anyone without my confirmation."),
+            source: "home_quick_action",
+          },
         },
       }),
-      testId: "button-home-fast-call-doctor",
+      testId: "button-home-fast-find-care",
     },
     {
-      id: "safety-help",
+      id: "book-ride",
+      icon: Car,
+      label: t("home.master.fastHelp.bookRide", "Book Ride"),
+      detail: t("home.master.fastHelp.bookRideDetail", "Transport help"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => handleNavigate("/concierge", {
+        state: {
+          conciergePrefill: {
+            kind: "ride",
+            message: t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation."),
+            source: "home_quick_action",
+          },
+        },
+      }),
+      testId: "button-home-fast-book-ride",
+    },
+    {
+      id: "paperwork-help",
+      icon: FileText,
+      label: t("home.master.fastHelp.paperworkHelp", "Paperwork Help"),
+      detail: t("home.master.fastHelp.paperworkHelpDetail", "Forms and admin"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => handleNavigate("/concierge", {
+        state: {
+          conciergePrefill: {
+            kind: "task",
+            message: t("home.master.fastHelp.paperworkHelpPrefill", "Help me with paperwork or a form. Prepare answers and stop before submitting so I can confirm."),
+            source: "home_quick_action",
+          },
+        },
+      }),
+      testId: "button-home-fast-paperwork-help",
+    },
+    {
+      id: "safe-home",
       icon: ShieldCheck,
-      label: t("home.master.fastHelp.safetyHelp", "Safety help"),
-      detail: t("home.master.fastHelp.safetyHelpDetail", "Home or scam worry"),
+      label: t("home.master.fastHelp.safeHome", "Safe Home"),
+      detail: t("home.master.fastHelp.safeHomeDetail", "Home or scam worry"),
       tone: { iconBg: "#FEF2F2", iconColor: "#B91C1C", border: "#FECACA" },
       onClick: () => handleNavigate("/safe-home"),
-      testId: "button-home-fast-safety-help",
-      pinned: true,
+      testId: "button-home-fast-safe-home",
     },
   ];
 
@@ -472,8 +709,13 @@ const HomeScreen = () => {
         eyebrow: t("home.master.heroEyebrow", "Today"),
         title: greetingText,
         action: {
+          kind: "voice",
           label: t("home.mode.voiceCta", "Talk to VYVA"),
-          onClick: () => handleNavigate("/chat", SECTION_VOICE_AUTO_START_OPTIONS),
+          supportingLabel: t("home.master.voiceSupport", "Speak anytime"),
+          contextHint: t("home.master.voiceContext", "Home screen. Ask what the user needs and help them choose the safest next step."),
+          voiceAgentSlug: "main-vyva",
+          voiceDynamicVariables: { app_entrypoint: "home_master_hero" },
+          autoStartListening: true,
           testId: "button-home-hero-talk",
         },
         testId: "home-master-hero",

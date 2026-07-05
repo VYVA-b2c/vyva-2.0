@@ -250,9 +250,16 @@
         "openLabel": "Ouvrir la conciergerie"
       }
     },
+    "nudge": {
+      "text": "Vous ne savez pas par ou commencer?",
+      "action": "Demander a VYVA",
+      "aria": "Demander a VYVA par ou commencer"
+    },
     "fastHelp": {
       "kicker": "Aide rapide",
       "title": "Que voulez-vous que VYVA fasse?",
+      "rotate": "Plus",
+      "rotateAria": "Afficher d'autres choix d'aide rapide",
       "doctor": {
         "label": "Parler a un vrai medecin maintenant",
         "sub": "Obtenez une aide medicale en direct."

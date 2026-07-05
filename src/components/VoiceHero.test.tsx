@@ -1,6 +1,7 @@
 import { act } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import VoiceHero from "./VoiceHero";
+import { VYVA_VOICE_APP_ACTION_EVENT } from "@/lib/voiceNavigation";
 
 const voiceMocks = vi.hoisted(() => ({
   startVoice: vi.fn(),
@@ -348,6 +349,62 @@ describe("VoiceHero status dot", () => {
     );
 
     fireEvent.click(screen.getByTestId("button-minimize-call"));
+
+    expect(voiceMocks.stopVoice).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();
+  });
+
+  it("minimizes the focused overlay when a voice app action opens a page", () => {
+    const baseVoiceControls = {
+      status: "idle" as const,
+      isSpeaking: false,
+      isConnecting: false,
+      transcript: [],
+      onEnd: voiceMocks.stopVoice,
+    };
+    const { rerender } = render(
+      <VoiceHero
+        headline="Brain coach"
+        contextHint="brain training"
+        voiceAgentSlug="brain-coach"
+        showVoiceOverlay={false}
+        voiceControls={baseVoiceControls}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("button-voice-hero-talk"));
+
+    rerender(
+      <VoiceHero
+        headline="Brain coach"
+        contextHint="brain training"
+        voiceAgentSlug="brain-coach"
+        showVoiceOverlay={false}
+        voiceControls={{
+          ...baseVoiceControls,
+          status: "connected",
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("voice-call-overlay")).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_APP_ACTION_EVENT, {
+        detail: {
+          id: "voice_brain_activity",
+          actionType: "brain.activity",
+          domain: "brain_coach",
+          route: "/mind-memory",
+          title: "Mind & Memory",
+          summary: "Opening Mind & Memory.",
+          cue: "Offer a light activity.",
+          sourceText: "I want cognitive exercises",
+          priority: "medium",
+          feedbackReason: "User asked for cognitive exercises.",
+        },
+      }));
+    });
 
     expect(voiceMocks.stopVoice).not.toHaveBeenCalled();
     expect(screen.queryByTestId("voice-call-overlay")).not.toBeInTheDocument();

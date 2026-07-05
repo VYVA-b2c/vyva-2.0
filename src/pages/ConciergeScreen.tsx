@@ -83,17 +83,92 @@ interface ChatMessage {
 type ConciergeRoutePrefill = {
   kind: "ride" | "appointment" | "home_care_quote" | "task";
   message: string;
-  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action";
+  source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
 };
 
 type ConciergeLocationState = {
-  conciergePrefill?: ConciergeRoutePrefill;
+  conciergePrefill?: unknown;
+  voiceActionPayload?: Record<string, unknown>;
 } | null;
 
 type RoutePrefillHighlight = {
   label: string;
   value: string;
 };
+
+const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote", "task"] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isConciergeRoutePrefillKind(value: unknown): value is ConciergeRoutePrefill["kind"] {
+  return typeof value === "string" && CONCIERGE_ROUTE_PREFILL_KINDS.includes(value as ConciergeRoutePrefill["kind"]);
+}
+
+function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | null {
+  if (!isRecord(value) || !isConciergeRoutePrefillKind(value.kind) || typeof value.message !== "string") {
+    return null;
+  }
+
+  const message = value.message.trim();
+  if (!message) return null;
+  return {
+    kind: value.kind,
+    message,
+    source: typeof value.source === "string" ? value.source as ConciergeRoutePrefill["source"] : undefined,
+  };
+}
+
+function routePayloadString(state: ConciergeLocationState, key: string) {
+  const value = state?.voiceActionPayload?.[key];
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function inferRideDestinationFromMessage(message: string) {
+  const normalized = message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const match = normalized.match(/\b(?:ride|taxi|cab|transport|uber|lift|take me|pick me up|llevarme|recogerme)\s+(?:to|towards|at|a|al|hasta)\s+(?:the\s+|el\s+|la\s+)?(.+?)(?:\s+(?:tomorrow|manana|today|hoy|tonight|esta noche|now|ahora|morning|afternoon|evening|night|por la manana|por la tarde|at|around)\b|[.?!]|$)/i)
+    || normalized.match(/\b(?:to|towards|at|al|hasta)\s+(?:the\s+|el\s+|la\s+)?(.+?)(?:\s+(?:tomorrow|manana|today|hoy|tonight|esta noche|now|ahora|morning|afternoon|evening|night|por la manana|por la tarde|at|around)\b|[.?!]|$)/i);
+  return match?.[1]
+    ?.replace(/\b(?:please|thanks|thank you|por favor|gracias|prepare)\b.*$/i, "")
+    .replace(/^(?:the|a|an|el|la)\s+/i, "")
+    .trim() || "";
+}
+
+function inferRideTimeFromMessage(message: string) {
+  const normalized = message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (/\btomorrow morning\b|\bmanana por la manana\b/.test(normalized)) return "tomorrow morning";
+  if (/\btomorrow afternoon\b|\bmanana por la tarde\b/.test(normalized)) return "tomorrow afternoon";
+  if (/\btomorrow\b|\bmanana\b/.test(normalized)) return "tomorrow";
+  if (/\btonight\b|\besta noche\b/.test(normalized)) return "tonight";
+  if (/\btoday\b|\bhoy\b/.test(normalized)) return "today";
+  if (/\bnow\b|\bright now\b|\bahora\b/.test(normalized)) return "now";
+  return "";
+}
+
+function splitRoutePayloadList(value: string) {
+  return value
+    .split(",")
+    .map((item) => {
+      const trimmed = item.trim();
+      const normalized = trimmed.toLowerCase();
+      if (/wheelchair|silla de ruedas/.test(normalized)) return "Wheelchair access";
+      if (/walker|cane|andador|baston/.test(normalized)) return "Walker or cane";
+      if (/door|getting in|getting out|subir|bajar|puerta/.test(normalized)) return "Help to the door";
+      if (/caregiver|carer|cuidador/.test(normalized)) return "Caregiver coming";
+      if (/low walking|short walk|caminar poco/.test(normalized)) return "Low walking distance";
+      return trimmed;
+    })
+    .filter(Boolean);
+}
 
 type ConciergeOnboardingState = {
   profile?: {
@@ -1680,13 +1755,27 @@ const ConciergeScreen = () => {
     payloadValue: conciergePayloadValue,
   } = useVoiceActionFulfillment({
     domain: "concierge",
-    actionTypes: ["concierge.appointment_help", "concierge.home_service", "concierge.task"],
+    actionTypes: [
+      "concierge.appointment_help",
+      "concierge.home_service",
+      "concierge.ride_booking",
+      "concierge.reminder",
+      "concierge.task",
+    ],
   });
   const conciergeVoiceTaskType = conciergePayloadValue("task_type")
     || (conciergeVoiceAction?.actionType === "concierge.appointment_help" ? "appointment" : "");
   const conciergeVoiceProvider = conciergePayloadValue("provider") || conciergePayloadValue("provider_type");
   const conciergeVoiceDate = conciergePayloadValue("date_preference");
   const conciergeVoiceLocation = conciergePayloadValue("location");
+  const conciergeVoicePickup = conciergePayloadValue("pickup");
+  const conciergeVoiceDestination = conciergePayloadValue("destination");
+  const conciergeVoiceTime = conciergePayloadValue("time")
+    || conciergePayloadValue("date_preference")
+    || conciergePayloadValue("reminder_time");
+  const conciergeVoiceMobilityNeeds = conciergePayloadValue("mobility_needs");
+  const conciergeVoiceReminderText = conciergePayloadValue("reminder_text");
+  const conciergeVoiceReminderRecurrence = conciergePayloadValue("recurrence");
   const conciergeVoiceReason = conciergePayloadValue("appointment_reason") || conciergeVoiceAction?.extractedSubject || "";
   const conciergeVoiceServiceType = conciergePayloadValue("service_type")
     || conciergePayloadValue("provider_type")
@@ -1699,9 +1788,14 @@ const ConciergeScreen = () => {
       conciergeVoiceTaskType ? `${isSpanish ? "tipo" : "type"}: ${conciergeVoiceTaskType}` : "",
       conciergeVoiceProvider ? `${isSpanish ? "proveedor" : "provider"}: ${conciergeVoiceProvider}` : "",
       conciergeVoiceServiceType ? `${isSpanish ? "servicio" : "service"}: ${conciergeVoiceServiceType}` : "",
+      conciergeVoicePickup ? `${isSpanish ? "recogida" : "pickup"}: ${conciergeVoicePickup}` : "",
+      conciergeVoiceDestination ? `${isSpanish ? "destino" : "destination"}: ${conciergeVoiceDestination}` : "",
       conciergeVoiceDate ? `${isSpanish ? "fecha" : "date"}: ${conciergeVoiceDate}` : "",
+      conciergeVoiceTime ? `${isSpanish ? "hora" : "time"}: ${conciergeVoiceTime}` : "",
       conciergeVoiceLocation ? `${isSpanish ? "zona" : "location"}: ${conciergeVoiceLocation}` : "",
       conciergeVoiceReason ? `${isSpanish ? "motivo" : "reason"}: ${conciergeVoiceReason}` : "",
+      conciergeVoiceReminderText ? `${isSpanish ? "recordatorio" : "reminder"}: ${conciergeVoiceReminderText}` : "",
+      conciergeVoiceReminderRecurrence ? `${isSpanish ? "repeticion" : "recurrence"}: ${conciergeVoiceReminderRecurrence}` : "",
     ].filter(Boolean).join(", ");
     if (isSpanish) {
       return `Ayudame con ${conciergeVoiceAction.title.toLowerCase()}${details ? ` (${details})` : ""}. Prepara el siguiente paso y pideme confirmacion antes de actuar.`;
@@ -1710,10 +1804,15 @@ const ConciergeScreen = () => {
   }, [
     conciergeVoiceAction,
     conciergeVoiceDate,
+    conciergeVoiceDestination,
     conciergeVoiceLocation,
+    conciergeVoicePickup,
     conciergeVoiceProvider,
     conciergeVoiceReason,
+    conciergeVoiceReminderRecurrence,
+    conciergeVoiceReminderText,
     conciergeVoiceServiceType,
+    conciergeVoiceTime,
     conciergeVoiceTaskType,
     isSpanish,
   ]);
@@ -2184,8 +2283,36 @@ const ConciergeScreen = () => {
     const isHomeServiceVoiceRequest =
       conciergeVoiceAction.actionType === "concierge.home_service"
       || /home service|plumb|fontaner|electric|electricista|locksmith|cerraj|clean|limpiez|repair|repar|handyman|manitas/.test(voiceText);
+    const isRideVoiceRequest =
+      conciergeVoiceAction.actionType === "concierge.ride_booking"
+      || conciergeVoiceTaskType.toLowerCase().includes("ride")
+      || conciergeVoiceTaskType.toLowerCase().includes("transport")
+      || conciergeVoiceTaskType.toLowerCase().includes("taxi");
+    const isReminderVoiceRequest = conciergeVoiceAction.actionType === "concierge.reminder";
 
-    if (isAppointmentRequest || isHomeServiceVoiceRequest) {
+    if (isRideVoiceRequest) {
+      setRoutePrefill({ kind: "ride", message: conciergeVoiceDraft, source: "voice_action" });
+      clearAppointmentAssistantState();
+      setTransportPickup((current) => current.trim() ? current : conciergeVoicePickup || savedTransportPickupLabel);
+      setTransportDestination((current) => current.trim() ? current : conciergeVoiceDestination);
+      setTransportTime((current) => {
+        if (current.trim() && current.trim().toLowerCase() !== "now") return current;
+        return conciergeVoiceTime || "now";
+      });
+      setTransportMobilityNeeds((current) => {
+        if (current.length > 0) return current;
+        return splitRoutePayloadList(conciergeVoiceMobilityNeeds);
+      });
+      setTransportResult(null);
+      setTransportError(null);
+      setTransportNotice(null);
+      setTransportDetailsOpen(Boolean(conciergeVoicePickup || conciergeVoiceTime || conciergeVoiceMobilityNeeds));
+      setOffersOpen(false);
+    } else if (isReminderVoiceRequest) {
+      setRoutePrefill({ kind: "task", message: conciergeVoiceDraft, source: "voice_action" });
+      clearAppointmentAssistantState();
+      setOffersOpen(false);
+    } else if (isAppointmentRequest || isHomeServiceVoiceRequest) {
       setAppointmentOpen(true);
       setOffersOpen(false);
       if (isHomeServiceVoiceRequest) {
@@ -2216,19 +2343,29 @@ const ConciergeScreen = () => {
     conciergePayloadValue,
     conciergeVoiceAction,
     conciergeVoiceCriteria,
+    conciergeVoiceDestination,
     conciergeVoiceDraft,
+    conciergeVoiceMobilityNeeds,
+    conciergeVoicePickup,
     conciergeVoiceProvider,
     conciergeVoiceReason,
     conciergeVoiceServiceType,
+    conciergeVoiceTime,
     conciergeVoiceTaskType,
     conciergeVoiceUrgency,
+    savedTransportPickupLabel,
   ]);
 
   useEffect(() => {
-    const prefill = (location.state as ConciergeLocationState)?.conciergePrefill;
-    if (!prefill) return;
-    const message = prefill.message.trim();
-    if (!message) return;
+    const routeState = location.state as ConciergeLocationState;
+    const prefill = coerceConciergeRoutePrefill(routeState?.conciergePrefill);
+    if (!prefill) {
+      if (routeState?.conciergePrefill) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+      return;
+    }
+    const message = prefill.message;
     const prefillKey = `${prefill.kind}:${message}`;
     if (lastRoutePrefillKeyRef.current === prefillKey) return;
 
@@ -2240,12 +2377,20 @@ const ConciergeScreen = () => {
     setAppointmentOpen(prefill.kind === "appointment");
     setAppointmentNote((current) => current.trim() ? current : message);
     if (prefill.kind === "ride") {
-      setTransportPickup((current) => current.trim() ? current : savedTransportPickupLabel);
+      const routePickup = routePayloadString(routeState, "pickup");
+      const routeDestination = routePayloadString(routeState, "destination") || inferRideDestinationFromMessage(message);
+      const routeTime = routePayloadString(routeState, "time")
+        || routePayloadString(routeState, "requested_time")
+        || inferRideTimeFromMessage(message);
+      const routeMobilityNeeds = splitRoutePayloadList(routePayloadString(routeState, "mobility_needs"));
+      setTransportPickup(routePickup || savedTransportPickupLabel);
+      setTransportDestination(routeDestination);
       setTransportResult(null);
       setTransportError(null);
       setTransportNotice(null);
-      setTransportTime("now");
-      setTransportDetailsOpen(false);
+      setTransportTime(routeTime || "now");
+      setTransportMobilityNeeds(routeMobilityNeeds);
+      setTransportDetailsOpen(Boolean(routePickup || routeTime || routeMobilityNeeds.length));
     }
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -3114,10 +3259,6 @@ const ConciergeScreen = () => {
     setIsRightNowHidden(false);
   }
 
-  function openConciergeChat() {
-    chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   function openShoppingHelp(kind: "groceries" | "essentials" | "prepared-meals" | "pharmacy" = "groceries") {
     const orderCopy = {
       groceries: {
@@ -3175,38 +3316,58 @@ const ConciergeScreen = () => {
 
   const conciergeMasterCards: MasterDashboardCard[] = [
     {
-      id: "help",
-      icon: HeartHandshake,
-      title: t("concierge.master.cards.help", "Help"),
-      detail: t("concierge.master.cards.helpDetail", "Home service, forms, legal/admin, care"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
-      onClick: openHelpRequest,
+      id: "home-care",
+      icon: Home,
+      title: t("concierge.master.cards.homeCare", "Home Care"),
+      detail: t("concierge.master.cards.homeCareDetail", "Plumber, electrician, cleaning"),
+      chips: [
+        t("concierge.master.cards.homeCareChipPlumber", "Plumber"),
+        t("concierge.master.cards.homeCareChipElectrician", "Electrician"),
+        t("concierge.master.cards.homeCareChipCleaning", "Cleaning"),
+      ],
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: openHomeServiceAssistant,
       testId: "button-concierge-card-service",
     },
     {
-      id: "ride",
-      icon: Car,
-      title: t("concierge.master.cards.ride", "Ride"),
-      detail: t("concierge.master.cards.rideDetail", "Now, later, medical transport"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => prepareRideRequest(),
+      id: "personal-care",
+      icon: UserRound,
+      title: t("concierge.master.cards.personalCare", "Personal Care"),
+      detail: t("concierge.master.cards.personalCareDetail", "Find a specialist, find a residence"),
+      chips: [
+        t("concierge.master.cards.personalCareChipSpecialist", "Find a Specialist"),
+        t("concierge.master.cards.personalCareChipResidence", "Find a Residence"),
+      ],
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
+      onClick: () => openSavingsPanel(isSpanish
+        ? "comparar especialista, cuidado personal o residencia"
+        : "compare a specialist, personal care, or residence"),
       testId: "button-concierge-card-ride",
     },
     {
-      id: "order",
+      id: "order-in",
       icon: PackageCheck,
-      title: t("concierge.master.cards.order", "Order"),
-      detail: t("concierge.master.cards.orderDetail", "Groceries, essentials, prepared meals"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
+      title: t("concierge.master.cards.orderIn", "Order In"),
+      detail: t("concierge.master.cards.orderInDetail", "Groceries, household"),
+      chips: [
+        t("concierge.master.cards.orderInChipGroceries", "Groceries"),
+        t("concierge.master.cards.orderInChipHousehold", "Household"),
+      ],
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => openShoppingHelp("groceries"),
       testId: "button-concierge-card-delivery",
     },
     {
-      id: "schedule",
+      id: "book-now",
       icon: Calendar,
-      title: t("concierge.master.cards.schedule", "Schedule"),
-      detail: t("concierge.master.cards.scheduleDetail", "Medical, government, personal care"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE", surface: "#FFFFFF" },
+      title: t("concierge.master.cards.bookNow", "Book Now"),
+      detail: t("concierge.master.cards.bookNowDetail", "Medical, government, ride"),
+      chips: [
+        t("concierge.master.cards.bookNowChipMedical", "Medical"),
+        t("concierge.master.cards.bookNowChipGovernment", "Government"),
+        t("concierge.master.cards.bookNowChipRide", "Ride"),
+      ],
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
       onClick: () => openScheduleAssistant(),
       testId: "button-concierge-card-appointment",
     },
@@ -3214,19 +3375,19 @@ const ConciergeScreen = () => {
 
   const conciergeMasterFastHelpActions: MasterFastHelpAction[] = [
     {
-      id: "home-service",
-      icon: Home,
-      label: t("concierge.master.fastHelp.homeService", "Home service"),
-      detail: t("concierge.master.fastHelp.homeServiceDetail", "Repairs or help at home"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: openHomeServiceAssistant,
-      testId: "button-concierge-fast-home-service",
+      id: "safe-home",
+      icon: ShieldCheck,
+      label: t("concierge.master.fastHelp.safeHome", "Safe Home"),
+      detail: t("concierge.master.fastHelp.safeHomeDetail", "Safety check"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
+      onClick: () => navigate("/safe-home"),
+      testId: "button-concierge-fast-safe-home",
     },
     {
-      id: "fill-form",
+      id: "paperwork-help",
       icon: FileText,
-      label: t("concierge.master.fastHelp.fillForm", "Fill a form"),
-      detail: t("concierge.master.fastHelp.fillFormDetail", "Prepare before submit"),
+      label: t("concierge.master.fastHelp.paperworkHelp", "Paperwork Help"),
+      detail: t("concierge.master.fastHelp.paperworkHelpDetail", "Forms and admin"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
       onClick: () => prepareConciergeRequest(isSpanish
         ? "Ayudame a rellenar un formulario. Prepara respuestas, marca lo que falte y deten antes de enviar para que yo confirme."
@@ -3234,111 +3395,76 @@ const ConciergeScreen = () => {
       testId: "button-concierge-fast-fill-form",
     },
     {
-      id: "find-care",
-      icon: HeartHandshake,
-      label: t("concierge.master.fastHelp.findCare", "Find care"),
-      detail: t("concierge.master.fastHelp.findCareDetail", "Compare care support"),
+      id: "find-plumber",
+      icon: Wrench,
+      label: t("concierge.master.fastHelp.findPlumber", "Find Plumber"),
+      detail: t("concierge.master.fastHelp.findPlumberDetail", "Home repair"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: openHomeServiceAssistant,
+      testId: "button-concierge-fast-home-service",
+    },
+    {
+      id: "book-ride",
+      icon: Car,
+      label: t("concierge.master.fastHelp.bookRide", "Book Ride"),
+      detail: t("concierge.master.fastHelp.bookRideDetail", "Transport help"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => prepareRideRequest(undefined, "now"),
+      testId: "button-concierge-fast-book-ride",
+    },
+    {
+      id: "order-groceries",
+      icon: ShoppingBasket,
+      label: t("concierge.master.fastHelp.orderGroceries", "Order Groceries"),
+      detail: t("concierge.master.fastHelp.orderGroceriesDetail", "Food shopping"),
       tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => openSavingsPanel(isSpanish
-        ? "comparar apoyo en casa, centros de dia, residencias o compania"
-        : "compare home support, day centres, residences, or companionship"),
+      onClick: () => openShoppingHelp("groceries"),
+      testId: "button-concierge-fast-order-groceries",
+    },
+    {
+      id: "find-specialist",
+      icon: UserRound,
+      label: t("concierge.master.fastHelp.findSpecialist", "Find Specialist"),
+      detail: t("concierge.master.fastHelp.findSpecialistDetail", "Care options"),
+      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
+      onClick: () => openSavingsPanel(isSpanish ? "buscar especialista" : "find a specialist"),
       testId: "button-concierge-fast-find-care",
     },
     {
-      id: "legal-admin-help",
-      icon: Scale,
-      label: t("concierge.master.fastHelp.legalAdminHelp", "Legal/admin help"),
-      detail: t("concierge.master.fastHelp.legalAdminHelpDetail", "Documents and options"),
+      id: "find-residence",
+      icon: HeartHandshake,
+      label: t("concierge.master.fastHelp.findResidence", "Find Residence"),
+      detail: t("concierge.master.fastHelp.findResidenceDetail", "Compare support"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
+      onClick: () => openSavingsPanel(isSpanish ? "comparar residencias o centros de cuidado" : "compare residences or care homes"),
+      testId: "button-concierge-fast-find-residence",
+    },
+    {
+      id: "book-medical",
+      icon: Calendar,
+      label: t("concierge.master.fastHelp.bookMedical", "Book Medical"),
+      detail: t("concierge.master.fastHelp.bookMedicalDetail", "Doctor or clinic"),
       tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => prepareConciergeRequest(isSpanish
-        ? "Ayudame con una tarea legal o administrativa. Resume opciones, documentos necesarios y proximos pasos. No contactes ni envies nada sin mi confirmacion."
-        : "Help me with a legal or admin task. Summarize options, needed documents, and next steps. Do not contact or submit anything without my confirmation."),
-      testId: "button-concierge-fast-legal-admin",
+      onClick: () => openScheduleAssistant("medical"),
+      testId: "button-concierge-fast-book-medical",
     },
     {
-      id: "ride-now",
-      icon: Car,
-      label: t("concierge.master.fastHelp.rideNow", "Ride now"),
-      detail: t("concierge.master.fastHelp.rideNowDetail", "Compare immediate rides"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => prepareRideRequest(undefined, "now"),
-      testId: "button-concierge-fast-ride-now",
-    },
-    {
-      id: "ride-later",
-      icon: Car,
-      label: t("concierge.master.fastHelp.rideLater", "Ride later"),
-      detail: t("concierge.master.fastHelp.rideLaterDetail", "Plan pickup time"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => prepareRideRequest(isSpanish
-        ? "Ayudame a planear un transporte para mas tarde. Preguntame destino, hora, movilidad y preferencia. No reserves nada sin mi confirmacion."
-        : "Help me plan transport for later. Ask for destination, time, mobility needs, and preferences. Do not book anything without my confirmation.", "tomorrow morning"),
-      testId: "button-concierge-fast-ride-later",
-    },
-    {
-      id: "medical-transport",
-      icon: Car,
-      label: t("concierge.master.fastHelp.medicalTransport", "Medical transport"),
-      detail: t("concierge.master.fastHelp.medicalTransportDetail", "Clinic-safe options"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => prepareRideRequest(isSpanish
-        ? "Ayudame a encontrar transporte medico o accesible para una cita de salud. Preguntame hora, destino y necesidades de movilidad. No reserves nada sin mi confirmacion."
-        : "Help me find medical or accessible transport for a health appointment. Ask for time, destination, and mobility needs. Do not book anything without my confirmation.", "for my appointment time"),
-      testId: "button-concierge-fast-medical-transport",
-    },
-    {
-      id: "groceries",
-      icon: ShoppingBasket,
-      label: t("concierge.master.fastHelp.groceries", "Groceries"),
-      detail: t("concierge.master.fastHelp.groceriesDetail", "Food shopping"),
+      id: "government-help",
+      icon: Building2,
+      label: t("concierge.master.fastHelp.governmentHelp", "Government Help"),
+      detail: t("concierge.master.fastHelp.governmentHelpDetail", "Official tasks"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => openShoppingHelp("groceries"),
-      testId: "button-concierge-fast-groceries",
-    },
-    {
-      id: "essentials",
-      icon: PackageCheck,
-      label: t("concierge.master.fastHelp.essentials", "Essentials"),
-      detail: t("concierge.master.fastHelp.essentialsDetail", "Household basics"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => openShoppingHelp("essentials"),
-      testId: "button-concierge-fast-essentials",
+      onClick: () => openScheduleAssistant("government"),
+      testId: "button-concierge-fast-government-help",
     },
     {
       id: "prepared-meals",
       icon: PackageCheck,
-      label: t("concierge.master.fastHelp.preparedMeals", "Prepared meals"),
-      detail: t("concierge.master.fastHelp.preparedMealsDetail", "Simple meal delivery"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      label: t("concierge.master.fastHelp.preparedMeals", "Prepared Meals"),
+      detail: t("concierge.master.fastHelp.preparedMealsDetail", "Simple meals"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
       onClick: () => openShoppingHelp("prepared-meals"),
       testId: "button-concierge-fast-prepared-meals",
-    },
-    {
-      id: "medical-schedule",
-      icon: Calendar,
-      label: t("concierge.master.fastHelp.medicalSchedule", "Medical"),
-      detail: t("concierge.master.fastHelp.medicalScheduleDetail", "Doctor or clinic"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => openScheduleAssistant("medical"),
-      testId: "button-concierge-fast-medical-schedule",
-    },
-    {
-      id: "government-schedule",
-      icon: Building2,
-      label: t("concierge.master.fastHelp.governmentSchedule", "Government"),
-      detail: t("concierge.master.fastHelp.governmentScheduleDetail", "Official appointments"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => openScheduleAssistant("government"),
-      testId: "button-concierge-fast-government-schedule",
-    },
-    {
-      id: "personal-care-schedule",
-      icon: UserRound,
-      label: t("concierge.master.fastHelp.personalCareSchedule", "Personal care"),
-      detail: t("concierge.master.fastHelp.personalCareScheduleDetail", "Hair, podiatry, wellness"),
-      tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => openScheduleAssistant("personal-care"),
-      testId: "button-concierge-fast-personal-care-schedule",
     },
   ];
 
@@ -3353,8 +3479,13 @@ const ConciergeScreen = () => {
         eyebrow: t("concierge.master.heroEyebrow", "Concierge"),
         title: t("concierge.master.heroTitle", "Concierge ready"),
         action: {
+          kind: "voice",
           label: t("concierge.master.heroAction", "Talk to VYVA"),
-          onClick: openConciergeChat,
+          supportingLabel: t("concierge.master.voiceSupport", "Speak anytime"),
+          contextHint: t("concierge.master.voiceContext", "Concierge support. Ask what the user needs, compare options, and do not book or submit anything without confirmation."),
+          voiceAgentSlug: "concierge",
+          voiceDynamicVariables: { app_entrypoint: "concierge_master_hero" },
+          autoStartListening: true,
           testId: "button-concierge-hero-talk",
         },
         testId: "concierge-master-hero",

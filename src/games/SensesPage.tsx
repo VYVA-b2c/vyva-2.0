@@ -47,10 +47,10 @@ export default function SensesPage() {
         icon={Headphones}
         iconColor="#0F766E"
         backLabel={t("common.back")}
-        backTo="/activities"
+        backTo="/mind-memory"
       />
 
-      <ResponsiveGrid className="mt-5 xl:grid-cols-4" columns="two">
+      <ResponsiveGrid className="mt-5" columns="two">
         {sensesGames.map((game) => {
           const Icon = game.Icon;
 

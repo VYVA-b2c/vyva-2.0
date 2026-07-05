@@ -7,7 +7,7 @@ const guardPathMock = vi.fn();
 const canUseServiceMock = vi.fn(() => true);
 const queryMock = vi.fn();
 const voiceHeroMock = vi.hoisted(() => vi.fn());
-const profileMock = vi.hoisted(() => ({ firstName: "Karim" }));
+const profileMock = vi.hoisted(() => ({ firstName: "Karim", withGpContact: true }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -20,11 +20,13 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 vi.mock("@/contexts/ProfileContext", () => ({
   useProfile: () => ({
     firstName: profileMock.firstName,
-    profile: {
-      gpName: "Dr Garcia",
-      gpPhone: "+34 612 345 678",
-      gpEmail: "gp@example.com",
-    },
+    profile: profileMock.withGpContact
+      ? {
+          gpName: "Dr Garcia",
+          gpPhone: "+34 612 345 678",
+          gpEmail: "gp@example.com",
+        }
+      : {},
   }),
 }));
 
@@ -77,6 +79,26 @@ vi.mock("@/components/VoiceHero", () => ({
   },
 }));
 
+vi.mock("@/components/VyvaSessionCta", () => ({
+  default: ({
+    label,
+    testId,
+    className,
+    supportingLabel,
+    visual,
+  }: {
+    label?: string;
+    testId?: string;
+    className?: string;
+    supportingLabel?: string;
+    visual?: string;
+  }) => (
+    <button type="button" data-testid={testId} className={className} aria-label={visual === "voiceRail" ? supportingLabel : label}>
+      {visual === "voiceRail" ? null : label}
+    </button>
+  ),
+}));
+
 const labels: Record<string, string> = {
   "home.whatNow": "or explore a topic",
   "home.mode.label": "Choose how to talk with VYVA",
@@ -90,6 +112,8 @@ const labels: Record<string, string> = {
   "home.fastHelp.title": "What would you like VYVA to do?",
   "home.fastHelp.doctor.label": "Talk to a real doctor now",
   "home.fastHelp.doctor.sub": "Get live medical help.",
+  "home.fastHelp.rotate": "More",
+  "home.fastHelp.rotateAria": "Show different fast help choices",
   "home.fastHelp.appointment.label": "Schedule an appointment",
   "home.fastHelp.appointment.sub": "Let VYVA arrange it with you.",
   "home.fastHelp.ride.label": "Find transport",
@@ -97,6 +121,9 @@ const labels: Record<string, string> = {
   "home.fastHelp.doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
   "home.fastHelp.appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
   "home.fastHelp.ridePrefill": "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+  "home.nudge.text": "Not sure where to start?",
+  "home.nudge.action": "Ask VYVA",
+  "home.nudge.aria": "Ask VYVA where to start",
   "meds.callGpNamed": "Call {{name}}",
   "meds.callGp": "Call GP",
   "meds.callGpSub": "Speak to your practice now.",
@@ -122,6 +149,7 @@ vi.mock("react-i18next", async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
+      i18n: { language: "en" },
       t: (key: string, fallbackOrValues?: string | Record<string, unknown>, values?: Record<string, unknown>) => {
         const raw = labels[key] ?? (typeof fallbackOrValues === "string" ? fallbackOrValues : key);
         const interpolation = typeof fallbackOrValues === "object" ? fallbackOrValues : values;
@@ -138,6 +166,7 @@ describe("Home fast service actions", () => {
     canUseServiceMock.mockReturnValue(true);
     voiceHeroMock.mockClear();
     profileMock.firstName = "Karim";
+    profileMock.withGpContact = true;
     window.localStorage.clear();
     window.sessionStorage.clear();
     queryMock.mockImplementation((queryKey: unknown[]) => {
@@ -156,6 +185,9 @@ describe("Home fast service actions", () => {
   });
 
   it("renders the four pillar launcher without the old movement routine card", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-26T22:00:00"));
+
     render(<HomeScreen />);
 
     expect(screen.getByTestId("home-master-layout")).toBeInTheDocument();
@@ -163,10 +195,66 @@ describe("Home fast service actions", () => {
     expect(screen.queryByTestId("home-gentle-routine-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-start-gentle-routine")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-home-browse-gentle-exercises")).not.toBeInTheDocument();
-    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Health Plan");
-    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("Mind & Memory");
-    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Community");
-    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Concierge");
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("My Health");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("My Mind");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("My Community");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("My Concierge");
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("Today");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("5 min");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("Join");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("Help");
+    expect(screen.getByTestId("card-home-agent-health")).not.toHaveTextContent("Medication, vitals, symptoms");
+    expect(screen.getByTestId("card-home-agent-cognitive")).not.toHaveTextContent("Memory, reflexes, thinking");
+    expect(screen.getByTestId("card-home-agent-social")).not.toHaveTextContent("Rooms, matches, activities");
+    expect(screen.getByTestId("card-home-agent-concierge")).not.toHaveTextContent("Help, rides, orders, schedules");
+    expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
+  });
+
+  it("uses live signals for concise pillar card nudges", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/meds/adherence-report") {
+        return { data: { todaySummary: { scheduled: 4, remaining: 2 } }, isError: false, error: null };
+      }
+      if (key === "/api/games/progress") {
+        return { data: { summary: { completedSessions: 8, streakDays: 4 }, today: { completedCount: 0 } }, isError: false, error: null };
+      }
+      if (typeof key === "string" && key.startsWith("/api/social/participate/pulse")) {
+        return {
+          data: {
+            pulse: {
+              featuredEvent: { format: "nearby" },
+              notifications: [],
+              savedEvents: [{ id: "one" }, { id: "two" }],
+            },
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return { data: { items: [{ id: "one" }, { id: "two" }] }, isError: false, error: null };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-agent-health")).toHaveTextContent("2 due");
+    expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("4 days");
+    expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("2 saved");
+    expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("2 tasks");
+  });
+
+  it("does not render the legacy Home chat nudge", () => {
+    render(<HomeScreen />);
+
+    expect(screen.queryByTestId("home-start-nudge")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(guardPathMock).not.toHaveBeenCalledWith("/chat", undefined);
   });
 
   it("renders three visible rotating Fast help actions", () => {
@@ -175,19 +263,16 @@ describe("Home fast service actions", () => {
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(fastHelp).toHaveTextContent("Fast help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-home-fast-safety-help")).toHaveTextContent("Safety help");
-    expect(screen.getByTestId("button-home-fast-ask-vyva")).toHaveTextContent("Ask VYVA");
-    expect(screen.getByTestId("button-home-fast-review-today")).toHaveTextContent("Review today");
+    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Feel Better");
+    expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Stay Well");
+    expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
   });
 
-  it("opens VYVA chat from the main hero CTA", () => {
+  it("renders the session-aware main hero CTA", () => {
     render(<HomeScreen />);
 
-    fireEvent.click(screen.getByTestId("button-home-hero-talk"));
-
-    expect(guardPathMock).toHaveBeenCalledWith("/chat", {
-      state: { autoStartSectionVoice: true },
-    });
+    expect(screen.getByTestId("button-home-hero-talk")).toHaveAccessibleName("Speak anytime");
+    expect(screen.getByTestId("button-home-hero-talk")).not.toHaveTextContent("Talk to VYVA");
   });
 
   it("keeps the Home hero greeting on the user's first name", () => {

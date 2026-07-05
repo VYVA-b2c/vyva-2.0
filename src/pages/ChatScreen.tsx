@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Settings, Square, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
+import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 
 const ChatScreen = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const {
@@ -15,30 +18,37 @@ const ChatScreen = () => {
     transcript,
     status,
     isConnecting,
+    isSpeaking,
+    voiceSessionPhase,
+    isMicMuted,
+    setMicrophoneMuted,
+    lastError,
+    lastErrorCode,
   } = useVyvaVoice();
   const [text, setText] = useState("");
   const pendingRef = useRef<string | null>(searchParams.get("q"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const isLegacyVoiceMode = searchParams.get("mode") === "voice";
+  const routeState = location.state as Record<string, unknown> | null;
+  const hasRouteVoiceAutoStart = routeState?.[SECTION_VOICE_AUTO_START_KEY] === true;
+  const isVoiceMode = searchParams.get("mode") === "voice" || hasRouteVoiceAutoStart;
 
   useEffect(() => {
-    if (!isLegacyVoiceMode) return;
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.set("mode", "type");
-    navigate(`/chat?${nextParams.toString()}`, { replace: true });
-  }, [isLegacyVoiceMode, navigate, searchParams]);
-
-  useEffect(() => {
-    if (isLegacyVoiceMode) return;
     void startVoice("companion", undefined, {
-      skipMicrophone: true,
-      autoStartListening: false,
+      skipMicrophone: !isVoiceMode,
+      autoStartListening: isVoiceMode,
       dynamicVariables: {
-        app_entrypoint: "chat_type_mode",
+        app_entrypoint: isVoiceMode ? "chat_voice_mode" : "chat_type_mode",
       },
     });
-  }, [isLegacyVoiceMode, startVoice]);
+  }, [isVoiceMode, startVoice]);
+
+  useEffect(() => {
+    if (!hasRouteVoiceAutoStart) return;
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("mode", "voice");
+    navigate(`${location.pathname}?${nextParams.toString()}`, { replace: true, state: null });
+  }, [hasRouteVoiceAutoStart, location.pathname, navigate, searchParams]);
 
   useEffect(() => {
     if (status === "connected" && pendingRef.current) {
@@ -62,6 +72,38 @@ const ChatScreen = () => {
     : status === "connected"
     ? t("chat.mode.typeStatus", "Text mode")
     : t("chat.tapToConnect");
+
+  const handleEndVoiceMode = () => {
+    stopVoice();
+    navigate("/", { replace: true });
+  };
+
+  const handleRetryVoiceMode = () => {
+    stopVoice();
+    void startVoice("companion", undefined, {
+      autoStartListening: true,
+      dynamicVariables: {
+        app_entrypoint: "chat_voice_mode",
+      },
+    });
+  };
+
+  if (isVoiceMode) {
+    return (
+      <VoiceCallOverlay
+        isSpeaking={isSpeaking}
+        isConnecting={isConnecting || (status === "idle" && !lastError)}
+        transcript={transcript}
+        onEnd={handleEndVoiceMode}
+        voiceSessionPhase={voiceSessionPhase}
+        isMicMuted={isMicMuted}
+        onMicToggle={setMicrophoneMuted}
+        connectionError={lastError}
+        connectionErrorCode={lastErrorCode}
+        onRetry={handleRetryVoiceMode}
+      />
+    );
+  }
 
   return (
     <div
@@ -94,11 +136,35 @@ const ChatScreen = () => {
         className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-3"
         style={{ scrollbarWidth: "none" }}
       >
-        <div className="text-center py-3">
-          <span className="font-body text-[13px]" style={{ color: "rgba(255,255,255,0.38)" }}>
-            {t("chat.started")}
-          </span>
-        </div>
+        {transcript.length === 0 ? (
+          <div
+            data-testid="chat-empty-state"
+            className="mx-auto flex min-h-[44vh] w-full max-w-[360px] flex-col items-center justify-center text-center"
+          >
+            <div
+              className="mb-5 flex h-16 w-16 items-center justify-center rounded-full font-display text-[30px] font-black text-white"
+              style={{
+                background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)",
+                boxShadow: "0 18px 42px rgba(124,58,237,0.24)",
+              }}
+              aria-hidden="true"
+            >
+              V
+            </div>
+            <h1 className="font-body text-[30px] font-black leading-tight text-white">
+              {t("chat.emptyTitle", "Ask VYVA")}
+            </h1>
+            <p className="mt-3 max-w-[280px] font-body text-[16px] font-semibold leading-relaxed" style={{ color: "rgba(255,255,255,0.66)" }}>
+              {t("chat.emptyBody", "Health, rides, reminders, or a quiet chat.")}
+            </p>
+          </div>
+        ) : (
+          <div className="text-center py-3">
+            <span className="font-body text-[13px]" style={{ color: "rgba(255,255,255,0.38)" }}>
+              {t("chat.started")}
+            </span>
+          </div>
+        )}
 
         {transcript.map((msg, i) => (
           <div

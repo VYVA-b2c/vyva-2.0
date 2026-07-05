@@ -69,6 +69,16 @@ const lessonPayload = {
   ],
 };
 
+function makeLesson(id: string, title: string) {
+  return {
+    ...lessonPayload.lessons[0],
+    id,
+    externalId: id,
+    title,
+    hook: `Hook for ${title}.`,
+  };
+}
+
 function response(payload: unknown, ok = true) {
   return {
     ok,
@@ -106,7 +116,7 @@ describe("LearningLibraryAdminPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
         <LearningLibraryAdminPage />
       </MemoryRouter>,
     );
@@ -231,7 +241,7 @@ describe("LearningLibraryAdminPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
         <LearningLibraryAdminPage />
       </MemoryRouter>,
     );
@@ -284,7 +294,7 @@ describe("LearningLibraryAdminPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
         <LearningLibraryAdminPage />
       </MemoryRouter>,
     );
@@ -303,6 +313,32 @@ describe("LearningLibraryAdminPage", () => {
     ));
     expect(await screen.findByTestId("admin-learning-message")).toHaveTextContent("Published 1 selected lesson.");
     expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Published 1 selected lesson.");
+  });
+
+  it("paginates long lesson lists", async () => {
+    const lessons = Array.from({ length: 26 }, (_, index) => makeLesson(`lesson-${index + 1}`, `Lesson ${index + 1}`));
+
+    mocks.apiFetch.mockImplementation((url: string) => {
+      if (url === "/api/admin/learning/categories") return Promise.resolve(response(categoryPayload));
+      if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response({ lessons }));
+      return Promise.resolve(response({}));
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
+        <LearningLibraryAdminPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Lesson 1")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-learning-list-count")).toHaveTextContent("Showing 1-25 of 26 lessons");
+    expect(screen.queryByText("Lesson 26")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-admin-learning-page-next"));
+
+    expect(await screen.findByText("Lesson 26")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-learning-list-count")).toHaveTextContent("Showing 26-26 of 26 lessons");
+    expect(screen.queryByText("Lesson 1")).not.toBeInTheDocument();
   });
 
   it("shows language coverage across the full lesson library", async () => {
@@ -325,12 +361,18 @@ describe("LearningLibraryAdminPage", () => {
       if (url === "/api/admin/learning/lessons?status=all&category=all&language=all") {
         return Promise.resolve(response({ lessons: [englishDraft, spanishPublished] }));
       }
+      if (url === "/api/admin/learning/lessons?status=published&category=music&language=es") {
+        return Promise.resolve(response({ lessons: [spanishPublished] }));
+      }
+      if (url === "/api/admin/learning/lessons?status=all&category=music&language=fr") {
+        return Promise.resolve(response({ lessons: [] }));
+      }
       if (url.startsWith("/api/admin/learning/lessons?")) return Promise.resolve(response({ lessons: [englishDraft] }));
       return Promise.resolve(response({}));
     });
 
     render(
-      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
         <LearningLibraryAdminPage />
       </MemoryRouter>,
     );
@@ -341,6 +383,17 @@ describe("LearningLibraryAdminPage", () => {
     expect(screen.getByTestId("admin-learning-coverage-cell-music-es")).toHaveTextContent("1 live");
     expect(screen.getByTestId("admin-learning-coverage-cell-music-es")).toHaveTextContent("1 total");
     expect(screen.getByTestId("admin-learning-coverage-cell-music-fr")).toHaveTextContent("missing");
+
+    fireEvent.click(screen.getByTestId("admin-learning-coverage-cell-music-es"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/admin/learning/lessons?status=published&category=music&language=es"));
+
+    fireEvent.click(screen.getByTestId("admin-learning-coverage-cell-music-fr"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/admin/learning/lessons?status=all&category=music&language=fr"));
+    expect(screen.getByTestId("admin-learning-editor-message")).toHaveTextContent("Ready to create a FR lesson for Music.");
+    await waitFor(() => expect(screen.getByTestId("select-admin-learning-editor-language")).toHaveValue("fr"));
+    expect(screen.getByTestId("select-admin-learning-editor-category")).toHaveValue("music");
   });
 
   it("uploads a learning content pack", async () => {
@@ -363,7 +416,7 @@ describe("LearningLibraryAdminPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
         <LearningLibraryAdminPage />
       </MemoryRouter>,
     );
@@ -423,7 +476,7 @@ describe("LearningLibraryAdminPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/admin/learning-library"]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
         <LearningLibraryAdminPage />
       </MemoryRouter>,
     );
@@ -459,7 +512,7 @@ describe("LearningLibraryAdminPage", () => {
 
     try {
       render(
-        <MemoryRouter initialEntries={["/admin/learning-library"]}>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/admin/learning-library"]}>
           <LearningLibraryAdminPage />
         </MemoryRouter>,
       );

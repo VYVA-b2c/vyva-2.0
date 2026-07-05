@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Archive, CheckCircle2, Download, FilePlus2, ImagePlus, Loader2, Save, Search, Upload } from "lucide-react";
+import { Archive, CheckCircle2, ChevronLeft, ChevronRight, Download, FilePlus2, ImagePlus, Loader2, Save, Search, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -124,7 +124,10 @@ function normalizeCoverageLanguage(language: string) {
   return isCoverageLanguage(normalized) ? normalized : null;
 }
 
-function coverageCellClass(counts: { published: number; pending: number; archived: number; total: number }) {
+type CoverageCounts = { published: number; pending: number; archived: number; total: number };
+
+function coverageCellClass(counts: CoverageCounts, active = false) {
+  if (active) return "border-purple-300 bg-purple-50 text-purple-800 ring-2 ring-purple-100";
   if (counts.published > 0) return "border-emerald-100 bg-emerald-50 text-emerald-800";
   if (counts.pending > 0) return "border-amber-100 bg-amber-50 text-amber-800";
   if (counts.archived > 0) return "border-slate-100 bg-slate-50 text-slate-600";
@@ -149,6 +152,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
+const lessonPageSizeOptions = [25, 50, 100];
 
 const defaultTemplateCategories = [
   {
@@ -359,6 +363,8 @@ export default function LearningLibraryAdminPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [lessonPage, setLessonPage] = useState(1);
+  const [lessonPageSize, setLessonPageSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -368,15 +374,27 @@ export default function LearningLibraryAdminPage() {
   const [editorMessage, setEditorMessage] = useState("");
 
   const selectedLesson = useMemo(() => lessons.find((lesson) => lesson.id === selectedId) ?? null, [lessons, selectedId]);
+  const lessonById = useMemo(() => new Map(lessons.map((lesson) => [lesson.id, lesson])), [lessons]);
   const selectedLessonIdSet = useMemo(() => new Set(selectedLessonIds), [selectedLessonIds]);
-  const publishableVisibleLessonIds = useMemo(
-    () => lessons.filter((lesson) => isPublishableStatus(lesson.status)).map((lesson) => lesson.id),
-    [lessons],
+  const lessonCount = lessons.length;
+  const lessonPageCount = Math.max(1, Math.ceil(lessonCount / lessonPageSize));
+  const boundedLessonPage = Math.min(lessonPage, lessonPageCount);
+  const lessonPageStartIndex = lessonCount === 0 ? 0 : (boundedLessonPage - 1) * lessonPageSize;
+  const lessonPageEndIndex = Math.min(lessonPageStartIndex + lessonPageSize, lessonCount);
+  const visibleLessons = useMemo(
+    () => lessons.slice(lessonPageStartIndex, lessonPageEndIndex),
+    [lessonPageEndIndex, lessonPageStartIndex, lessons],
   );
-  const publishableVisibleLessonIdSet = useMemo(() => new Set(publishableVisibleLessonIds), [publishableVisibleLessonIds]);
+  const publishableVisibleLessonIds = useMemo(
+    () => visibleLessons.filter((lesson) => isPublishableStatus(lesson.status)).map((lesson) => lesson.id),
+    [visibleLessons],
+  );
   const selectedPublishableLessonIds = useMemo(
-    () => selectedLessonIds.filter((id) => publishableVisibleLessonIdSet.has(id)),
-    [publishableVisibleLessonIdSet, selectedLessonIds],
+    () => selectedLessonIds.filter((id) => {
+      const lesson = lessonById.get(id);
+      return lesson ? isPublishableStatus(lesson.status) : false;
+    }),
+    [lessonById, selectedLessonIds],
   );
   const allVisibleDraftsSelected = publishableVisibleLessonIds.length > 0 && publishableVisibleLessonIds.every((id) => selectedLessonIdSet.has(id));
   const coverageRows = useMemo(() => {
@@ -459,7 +477,9 @@ export default function LearningLibraryAdminPage() {
         setDraft(lessonToDraft(nextLessons[0]));
       } else if ((!selectedId || !selectedLessonIsVisible) && !nextLessons[0]) {
         setSelectedId("");
-        setDraft(emptyLesson(nextCategories[0]?.slug ?? "general_knowledge"));
+        const nextDraft = emptyLesson(categoryFilter === "all" ? nextCategories[0]?.slug ?? "general_knowledge" : categoryFilter);
+        const focusedLanguage = normalizeCoverageLanguage(languageFilter);
+        setDraft(focusedLanguage ? { ...nextDraft, language: focusedLanguage } : nextDraft);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Learning library could not be loaded.");
@@ -472,6 +492,14 @@ export default function LearningLibraryAdminPage() {
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonQuery]);
+
+  useEffect(() => {
+    setLessonPage(1);
+  }, [lessonQuery]);
+
+  useEffect(() => {
+    setLessonPage((current) => Math.min(current, lessonPageCount));
+  }, [lessonPageCount]);
 
   useEffect(() => {
     if (selectedLesson) setDraft(lessonToDraft(selectedLesson));
@@ -613,6 +641,31 @@ export default function LearningLibraryAdminPage() {
     setDraft(emptyLesson(categories[0]?.slug ?? "general_knowledge"));
     setEditorMessage("");
   };
+
+  function focusCoverageCell(category: Category, language: CoverageLanguage, counts: CoverageCounts) {
+    setCategoryFilter(category.slug);
+    setLanguageFilter(language);
+    setSearch("");
+    setLessonPage(1);
+    if (counts.published > 0) {
+      setStatusFilter("published");
+      setEditorMessage("");
+      return;
+    }
+    if (counts.archived > 0 && counts.pending === 0) {
+      setStatusFilter("archived");
+      setEditorMessage("");
+      return;
+    }
+    setStatusFilter("all");
+    if (counts.total === 0) {
+      setSelectedId("");
+      setDraft({ ...emptyLesson(category.slug), language });
+      setEditorMessage(`Ready to create a ${language.toUpperCase()} lesson for ${category.label}.`);
+    } else {
+      setEditorMessage("");
+    }
+  }
 
   async function bulkPublishDrafts(lessonIds?: string[]) {
     const selectedIds = lessonIds ? [...new Set(lessonIds)] : [];
@@ -820,15 +873,19 @@ export default function LearningLibraryAdminPage() {
                             ? `${counts.archived} archived`
                             : `${counts.total} total`;
 
+                      const active = categoryFilter === row.category.slug && languageFilter === language;
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={`${row.category.slug}-${language}`}
-                          className={`rounded-xl border px-3 py-2 ${coverageCellClass(counts)}`}
+                          onClick={() => focusCoverageCell(row.category, language, counts)}
+                          className={`rounded-xl border px-3 py-2 text-left transition hover:border-purple-200 hover:bg-purple-50 focus:outline-none focus:ring-4 focus:ring-purple-100 ${coverageCellClass(counts, active)}`}
+                          aria-label={`${row.category.label} ${language.toUpperCase()} coverage: ${counts.published} live, ${detail}`}
                           data-testid={`admin-learning-coverage-cell-${row.category.slug}-${language}`}
                         >
                           <p className="text-sm font-black">{counts.published > 0 ? `${counts.published} live` : "0 live"}</p>
                           <p className="mt-0.5 text-xs font-bold opacity-80">{detail}</p>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -871,7 +928,7 @@ export default function LearningLibraryAdminPage() {
               <p className="text-sm font-bold text-[#7d6b65]">
                 {selectedPublishableLessonIds.length > 0
                   ? `${selectedPublishableLessonIds.length} draft lesson${selectedPublishableLessonIds.length === 1 ? "" : "s"} selected`
-                  : publishableVisibleLessonIds.length > 0 ? `${publishableVisibleLessonIds.length} visible draft lesson${publishableVisibleLessonIds.length === 1 ? "" : "s"} can be selected` : "No visible drafts to publish"}
+                  : publishableVisibleLessonIds.length > 0 ? `${publishableVisibleLessonIds.length} draft lesson${publishableVisibleLessonIds.length === 1 ? "" : "s"} on this page can be selected` : "No drafts on this page to publish"}
               </p>
               <button
                 type="button"
@@ -885,76 +942,132 @@ export default function LearningLibraryAdminPage() {
               </button>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-[#eadfd5]">
-              <div className="grid grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center bg-[#FBF8F5] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">
-                <label className="flex h-5 w-5 items-center justify-center" title="Select visible drafts">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleDraftsSelected}
-                    disabled={publishableVisibleLessonIds.length === 0}
-                    onChange={toggleVisibleDraftSelection}
-                    className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700"
-                    aria-label="Select visible draft lessons"
-                    data-testid="checkbox-admin-learning-select-visible-drafts"
-                  />
-                </label>
-                <span>Lessons</span>
-                <span>Category</span>
-                <span>Status</span>
-                <span>Updated</span>
-              </div>
-
-              {loading ? (
-                <div className="flex min-h-48 items-center justify-center text-sm font-black text-purple-700">
-                  <Loader2 className="mr-2 animate-spin" size={18} />
-                  Loading lessons
-                </div>
-              ) : lessons.length === 0 ? (
-                <div className="min-h-48 px-4 py-10 text-center text-sm font-bold text-[#7d6b65]">
-                  No lessons match these filters.
-                </div>
-              ) : lessons.map((lesson) => {
-                const category = categories.find((candidate) => candidate.slug === lesson.categorySlug);
-                const active = lesson.id === draft.id;
-                const publishable = isPublishableStatus(lesson.status);
-                const selectedForPublish = selectedLessonIdSet.has(lesson.id);
-                return (
-                  <div
-                    key={lesson.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedId(lesson.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedId(lesson.id);
-                      }
+            <div
+              className="mt-3 flex flex-col gap-3 rounded-2xl border border-[#eadfd5] bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+              data-testid="admin-learning-list-controls"
+            >
+              <p className="text-sm font-bold text-[#7d6b65]" data-testid="admin-learning-list-count">
+                {loading
+                  ? "Loading lessons"
+                  : lessonCount === 0
+                    ? "No lessons"
+                    : `Showing ${lessonPageStartIndex + 1}-${lessonPageEndIndex} of ${lessonCount} lessons`}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">
+                  Rows
+                  <select
+                    value={lessonPageSize}
+                    onChange={(event) => {
+                      setLessonPageSize(Number(event.target.value));
+                      setLessonPage(1);
                     }}
-                    className={`grid min-h-[82px] w-full grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center gap-3 border-t border-[#eadfd5] px-4 py-3 text-left transition ${active ? "bg-[#F5F3FF]" : "bg-white hover:bg-[#FFFCF8]"}`}
-                    data-testid={`button-admin-learning-lesson-${lesson.id}`}
+                    className="h-10 rounded-xl border border-[#E5D8CA] bg-white px-2 text-sm font-black normal-case tracking-normal text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100"
+                    data-testid="select-admin-learning-page-size"
                   >
-                    <label className="flex h-8 w-8 items-center justify-center" title={publishable ? "Select for publishing" : "Already published or archived"}>
-                      <input
-                        type="checkbox"
-                        checked={selectedForPublish}
-                        disabled={!publishable}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={() => toggleLessonSelection(lesson.id)}
-                        className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700 disabled:opacity-40"
-                        aria-label={`Select ${lesson.title} for publishing`}
-                        data-testid={`checkbox-admin-learning-select-${lesson.id}`}
-                      />
-                    </label>
-                    <span className="min-w-0">
-                      <span className="block truncate text-[15px] font-black text-[#2f2135]">{lesson.title}</span>
-                      <span className="mt-1 block truncate text-xs font-semibold text-[#7d6b65]">{lesson.hook}</span>
-                    </span>
-                    <span className="truncate text-sm font-bold text-[#5b4a46]">{category?.label ?? lesson.categorySlug}</span>
-                    <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-black ${statusClass(lesson.status)}`}>{lesson.status}</span>
-                    <span className="text-xs font-bold text-[#7d6b65]">{formatDate(lesson.updatedAt)}</span>
+                    {lessonPageSizeOptions.map((pageSize) => (
+                      <option key={pageSize} value={pageSize}>{pageSize}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setLessonPage((current) => Math.max(1, current - 1))}
+                  disabled={loading || lessonCount === 0 || boundedLessonPage <= 1}
+                  className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 text-sm font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700 disabled:opacity-50"
+                  data-testid="button-admin-learning-page-prev"
+                >
+                  <ChevronLeft size={16} />
+                  Previous
+                </button>
+                <span className="min-w-[6rem] text-center text-sm font-black text-[#5b4a46]">
+                  Page {lessonCount === 0 ? 0 : boundedLessonPage} of {lessonCount === 0 ? 0 : lessonPageCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLessonPage((current) => Math.min(lessonPageCount, current + 1))}
+                  disabled={loading || lessonCount === 0 || boundedLessonPage >= lessonPageCount}
+                  className="inline-flex h-10 items-center justify-center gap-1 rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 text-sm font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700 disabled:opacity-50"
+                  data-testid="button-admin-learning-page-next"
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-2xl border border-[#eadfd5]">
+              <div className="max-h-[640px] overflow-auto">
+                <div className="sticky top-0 z-10 grid min-w-[720px] grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center bg-[#FBF8F5] px-4 py-3 text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">
+                  <label className="flex h-5 w-5 items-center justify-center" title="Select current page drafts">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleDraftsSelected}
+                      disabled={publishableVisibleLessonIds.length === 0}
+                      onChange={toggleVisibleDraftSelection}
+                      className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700"
+                      aria-label="Select current page draft lessons"
+                      data-testid="checkbox-admin-learning-select-visible-drafts"
+                    />
+                  </label>
+                  <span>Lessons</span>
+                  <span>Category</span>
+                  <span>Status</span>
+                  <span>Updated</span>
+                </div>
+
+                {loading ? (
+                  <div className="flex min-h-48 min-w-[720px] items-center justify-center text-sm font-black text-purple-700">
+                    <Loader2 className="mr-2 animate-spin" size={18} />
+                    Loading lessons
                   </div>
-                );
-              })}
+                ) : lessons.length === 0 ? (
+                  <div className="min-h-48 min-w-[720px] px-4 py-10 text-center text-sm font-bold text-[#7d6b65]">
+                    No lessons match these filters.
+                  </div>
+                ) : visibleLessons.map((lesson) => {
+                  const category = categories.find((candidate) => candidate.slug === lesson.categorySlug);
+                  const active = lesson.id === draft.id;
+                  const publishable = isPublishableStatus(lesson.status);
+                  const selectedForPublish = selectedLessonIdSet.has(lesson.id);
+                  return (
+                    <div
+                      key={lesson.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedId(lesson.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedId(lesson.id);
+                        }
+                      }}
+                      className={`grid min-h-[82px] min-w-[720px] grid-cols-[44px_minmax(0,1fr)_130px_100px_90px] items-center gap-3 border-t border-[#eadfd5] px-4 py-3 text-left transition ${active ? "bg-[#F5F3FF]" : "bg-white hover:bg-[#FFFCF8]"}`}
+                      data-testid={`button-admin-learning-lesson-${lesson.id}`}
+                    >
+                      <label className="flex h-8 w-8 items-center justify-center" title={publishable ? "Select for publishing" : "Already published or archived"}>
+                        <input
+                          type="checkbox"
+                          checked={selectedForPublish}
+                          disabled={!publishable}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={() => toggleLessonSelection(lesson.id)}
+                          className="h-4 w-4 rounded border-[#d8c8bb] text-purple-700 disabled:opacity-40"
+                          aria-label={`Select ${lesson.title} for publishing`}
+                          data-testid={`checkbox-admin-learning-select-${lesson.id}`}
+                        />
+                      </label>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[15px] font-black text-[#2f2135]">{lesson.title}</span>
+                        <span className="mt-1 block truncate text-xs font-semibold text-[#7d6b65]">{lesson.hook}</span>
+                      </span>
+                      <span className="truncate text-sm font-bold text-[#5b4a46]">{category?.label ?? lesson.categorySlug}</span>
+                      <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-black ${statusClass(lesson.status)}`}>{lesson.status}</span>
+                      <span className="text-xs font-bold text-[#7d6b65]">{formatDate(lesson.updatedAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -982,12 +1095,22 @@ export default function LearningLibraryAdminPage() {
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Category">
-                  <select value={draft.categorySlug} onChange={(event) => setDraft({ ...draft, categorySlug: event.target.value })} className={inputClass}>
+                  <select
+                    value={draft.categorySlug}
+                    onChange={(event) => setDraft({ ...draft, categorySlug: event.target.value })}
+                    className={inputClass}
+                    data-testid="select-admin-learning-editor-category"
+                  >
                     {categories.map((category) => <option key={category.slug} value={category.slug}>{category.label}</option>)}
                   </select>
                 </Field>
                 <Field label="Language">
-                  <select value={draft.language} onChange={(event) => setDraft({ ...draft, language: event.target.value })} className={inputClass}>
+                  <select
+                    value={draft.language}
+                    onChange={(event) => setDraft({ ...draft, language: event.target.value })}
+                    className={inputClass}
+                    data-testid="select-admin-learning-editor-language"
+                  >
                     {["en", "es", "fr", "de", "it", "pt"].map((language) => <option key={language} value={language}>{language.toUpperCase()}</option>)}
                   </select>
                 </Field>

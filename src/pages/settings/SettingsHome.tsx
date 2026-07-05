@@ -240,11 +240,6 @@ export default function SettingsHome() {
           title={t("settings.home.title")}
           kicker="VYVA settings"
           description={t("settings.home.subtitle")}
-          badges={[
-            { label: t("settings.home.sections.account"), color: "purple" },
-            { label: t("settings.home.sections.privacy"), color: "green" },
-            { label: t("settings.home.sections.subscription"), color: "amber" },
-          ]}
           className="md:col-span-2"
         />
 

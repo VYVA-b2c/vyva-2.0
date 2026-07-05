@@ -572,6 +572,13 @@ export const languageOptions = [
   { value: "pt", label: "Portuguese" },
 ];
 export const timezoneOptions = ["Europe/Madrid", "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Rome", "Europe/Lisbon"];
+export const profileCountryOptions = ["ES", "UK", "US", "DE", "FR", "IT", "PT", "AE"];
+export const profileGenderOptions = [
+  { value: "female", label: "Female" },
+  { value: "male", label: "Male" },
+  { value: "non_binary", label: "Non-binary" },
+  { value: "prefer_not", label: "Prefer not to say" },
+];
 export const countryCodeOptions = ["+34 ES", "+44 UK", "+33 FR", "+49 DE", "+39 IT", "+351 PT", "+1 US"];
 
 export const emptyIntakeForm = {

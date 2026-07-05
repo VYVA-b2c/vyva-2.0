@@ -21,8 +21,13 @@ import {
   listAdminParticipationActivity,
   listAdminParticipationEvents,
   parseParticipationLanguage,
+  ParticipationAdminEventError,
   updateAdminParticipationEvent,
 } from "../lib/participation.js";
+import {
+  discoverParticipationEvents,
+  ParticipationDiscoveryError,
+} from "../lib/participationDiscovery.js";
 
 const router = Router();
 
@@ -95,6 +100,20 @@ const participationEventPatchSchema = participationEventSchema.omit({ eventKey: 
   { message: "At least one field is required" },
 );
 
+const participationDiscoverySchema = z.object({
+  city: z.string().trim().min(2).max(120),
+  countryCode: z.string().trim().max(2).nullable().optional(),
+  locality: z.string().trim().max(200).nullable().optional(),
+  postalCode: z.string().trim().max(32).nullable().optional(),
+  radiusKm: z.coerce.number().min(0.5).max(50).nullable().optional(),
+  venueHints: z.array(z.string().trim().min(1).max(80)).max(12).optional(),
+  languageCodes: z.array(z.string().trim().min(2).max(8)).max(8).optional(),
+  interests: z.array(z.string().trim().min(1).max(60)).max(12).optional(),
+  refinementTags: z.array(z.string().trim().min(1).max(60)).max(16).optional(),
+  format: z.enum(["any", "nearby", "online", "hybrid"]).optional(),
+  maxResults: z.coerce.number().int().min(1).max(12).optional(),
+});
+
 async function resolveRoomId(roomSlug: string) {
   try {
     const [room] = await db
@@ -121,6 +140,17 @@ function isTogetherModerationRoom(slug: string) {
   return slug === "together-room";
 }
 
+function forceAiDiscoveryDraft<T extends z.infer<typeof participationEventSchema>>(event: T): T {
+  if (event.source !== "ai-discovery") return event;
+  return {
+    ...event,
+    status: "draft",
+    safetyStatus: "needs_review",
+    isCurated: true,
+    needsLiveCheck: true,
+  };
+}
+
 router.get("/participate/events", async (req: Request, res: Response) => {
   const language = parseParticipationLanguage(req.query.lang as string | undefined);
   const events = await listAdminParticipationEvents(language);
@@ -133,8 +163,44 @@ router.post("/participate/events", async (req: Request, res: Response) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
-  const event = await createAdminParticipationEvent(parsed.data, adminUserId(req));
-  return res.status(201).json({ ok: true, event });
+  try {
+    const event = await createAdminParticipationEvent(forceAiDiscoveryDraft(parsed.data), adminUserId(req));
+    return res.status(201).json({ ok: true, event });
+  } catch (error) {
+    if (error instanceof ParticipationAdminEventError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+        duplicateEventKey: error.duplicateEventKey,
+      });
+    }
+    console.error("[admin/social] participation event save failed", error);
+    return res.status(500).json({ error: "Participation event could not be saved." });
+  }
+});
+
+router.post("/participate/discover", async (req: Request, res: Response) => {
+  const parsed = participationDiscoverySchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  try {
+    const discovery = await discoverParticipationEvents(parsed.data);
+    return res.json({ ok: true, ...discovery });
+  } catch (error) {
+    if (error instanceof ParticipationDiscoveryError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        code: error.code,
+      });
+    }
+    console.error("[admin/social] participation discovery failed", error);
+    return res.status(500).json({
+      error: "AI discovery could not complete. Nothing was created.",
+      code: "DISCOVERY_FAILED",
+    });
+  }
 });
 
 router.patch("/participate/events/:eventId", async (req: Request, res: Response) => {

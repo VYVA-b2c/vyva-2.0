@@ -40,7 +40,7 @@ export function voiceSessionPhaseLabel(phase: VoiceSessionPhase) {
     case "muted":
       return "Mic off";
     case "speaking":
-      return "VYVA speaking";
+      return "Speaking";
     case "transferring":
       return "Transferring";
     case "ended":

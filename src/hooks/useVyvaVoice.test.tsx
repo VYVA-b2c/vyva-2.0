@@ -43,6 +43,14 @@ type MockConversation = {
   sendContextualUpdate: ReturnType<typeof vi.fn>;
 };
 
+type MockStartSessionOptions = {
+  onConversationCreated?: (conversation: MockConversation) => void;
+  onConnect?: () => void;
+  onMessage?: (payload: unknown) => void;
+  onAgentChatResponsePart?: (part: unknown) => void;
+  onDebug?: (payload: unknown) => void;
+};
+
 const createdConversations: MockConversation[] = [];
 
 function jsonResponse(body: unknown) {
@@ -70,7 +78,14 @@ function VoiceHarness({ onController }: { onController: (controller: VoiceContro
     onController(controller);
   }, [controller, onController]);
 
-  return <div data-testid="voice-status">{controller.status}</div>;
+  return (
+    <>
+      <div data-testid="voice-status">{controller.status}</div>
+      <div data-testid="voice-transcript">
+        {controller.transcript.map((entry) => `${entry.from}:${entry.text}`).join("|")}
+      </div>
+    </>
+  );
 }
 
 describe("useVyvaVoice", () => {
@@ -117,10 +132,7 @@ describe("useVyvaVoice", () => {
 
       throw new Error(`Unexpected voice API request: ${url}`);
     });
-    voiceMocks.startSession.mockImplementation(async (options: {
-      onConversationCreated?: (conversation: MockConversation) => void;
-      onConnect?: () => void;
-    }) => {
+    voiceMocks.startSession.mockImplementation(async (options: MockStartSessionOptions) => {
       const conversation = createConversation();
       options.onConversationCreated?.(conversation);
       options.onConnect?.();
@@ -207,5 +219,178 @@ describe("useVyvaVoice", () => {
     expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(
       "Use the health voice context without overriding the ElevenLabs prompt.",
     );
+  });
+
+  it("adds final ElevenLabs agent messages to the visible VYVA transcript", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("app_open", undefined, {
+        agentId: "agent_test",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    act(() => {
+      sessionOptions?.onMessage?.({ role: "agent", source: "ai", message: "Hola Karim" });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
+  });
+
+  it("adds raw ElevenLabs agent response events to the visible VYVA transcript", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("app_open", undefined, {
+        agentId: "agent_test",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    act(() => {
+      sessionOptions?.onDebug?.({
+        type: "agent_response",
+        agent_response_event: {
+          agent_response: "Soy su asistente personal.",
+          event_id: 7,
+        },
+      });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Soy su asistente personal.");
+  });
+
+  it("streams ElevenLabs agent response parts into one visible VYVA transcript", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("app_open", undefined, {
+        agentId: "agent_test",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    act(() => {
+      sessionOptions?.onAgentChatResponsePart?.({ type: "start", text: "" });
+      sessionOptions?.onAgentChatResponsePart?.({ type: "delta", text: "Hola" });
+      sessionOptions?.onAgentChatResponsePart?.({ type: "delta", text: " Karim" });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
+
+    act(() => {
+      sessionOptions?.onMessage?.({ role: "agent", source: "ai", message: "Hola Karim" });
+    });
+
+    expect(screen.getByTestId("voice-transcript").textContent?.split("vyva:").length).toBe(2);
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Hola Karim");
+  });
+
+  it("streams raw ElevenLabs text response parts into one visible VYVA transcript", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("app_open", undefined, {
+        agentId: "agent_test",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    act(() => {
+      sessionOptions?.onDebug?.({
+        type: "agent_chat_response_part",
+        text_response_part: { type: "start", text: "", event_id: 12 },
+      });
+      sessionOptions?.onDebug?.({
+        type: "agent_chat_response_part",
+        text_response_part: { type: "delta", text: "Puedo ayudar", event_id: 12 },
+      });
+      sessionOptions?.onDebug?.({
+        type: "agent_chat_response_part",
+        text_response_part: { type: "delta", text: " con salud.", event_id: 12 },
+      });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:Puedo ayudar con salud.");
+  });
+
+  it("keeps user messages separate from VYVA transcript events", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("app_open", undefined, {
+        agentId: "agent_test",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionOptions = voiceMocks.startSession.mock.calls[0]?.[0] as MockStartSessionOptions | undefined;
+    act(() => {
+      sessionOptions?.onMessage?.({ role: "user", source: "user", message: "I need help" });
+      sessionOptions?.onAgentChatResponsePart?.({ type: "delta", text: "I can help with that." });
+    });
+
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("user:I need help");
+    expect(screen.getByTestId("voice-transcript")).toHaveTextContent("vyva:I can help with that.");
   });
 });

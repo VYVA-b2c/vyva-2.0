@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   BookOpen,
   Calendar,
   ChefHat,
@@ -13,7 +14,7 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -25,8 +26,7 @@ import MasterDashboardLayout, {
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
 import { BottomSheet, EmptyState } from "@/components/vyva-ui";
-import { SECTION_VOICE_AUTO_START_KEY, useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
-import { incrementChatNavigationCount } from "@/lib/personaliseCards";
+import { useRouteVoiceAutoStart } from "@/hooks/useRouteVoiceAutoStart";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
 import {
@@ -46,15 +46,7 @@ import {
 } from "./togetherRoom";
 import type { SocialGameLanguage, SocialHubResponse, SocialLanguage, SocialRoom } from "./types";
 
-const FAST_HELP_WINDOW_SIZE = 3;
-const ROOM_ROTATION_MS = 9000;
 const FAST_HELP_PRIORITY = ["kitchen-table", "music-room", "garden-corner"] as const;
-
-function getMoreRoomsLabel(language: SocialLanguage) {
-  if (language === "es") return "Mostrar más salas";
-  if (language === "de") return "Mehr Räume zeigen";
-  return "Show more rooms";
-}
 
 function getLoadingRoomsLabel(language: SocialLanguage) {
   if (language === "es") return "Preparando salas...";
@@ -404,7 +396,7 @@ function FastHelpRoomRow({ room, language, onSelect }: FastHelpRoomRowProps) {
   return (
     <button
       type="button"
-      data-testid={`button-social-fast-help-${room.slug}`}
+      data-testid={`button-social-room-list-${room.slug}`}
       aria-label={roomCopy.title}
       onClick={() => onSelect(room)}
       className="vyva-tap flex min-h-[86px] w-full items-center gap-4 rounded-[22px] border bg-white px-4 py-4 text-left transition-transform hover:-translate-y-0.5 active:scale-[0.99]"
@@ -434,6 +426,69 @@ function FastHelpRoomRow({ room, language, onSelect }: FastHelpRoomRowProps) {
       </span>
       <ChevronRight size={22} strokeWidth={2.5} className="shrink-0 text-vyva-text-3" aria-hidden="true" />
     </button>
+  );
+}
+
+type RoomsListSectionProps = {
+  copy: ReturnType<typeof getSocialCopy>;
+  language: SocialLanguage;
+  rooms: SocialRoom[];
+  isLoading: boolean;
+  isError: boolean;
+  loadingRoomsLabel: string;
+  onSelect: (room: SocialRoom) => void;
+  className?: string;
+};
+
+function RoomsListSection({
+  copy,
+  language,
+  rooms,
+  isLoading,
+  isError,
+  loadingRoomsLabel,
+  onSelect,
+  className = "",
+}: RoomsListSectionProps) {
+  return (
+    <section
+      className={`rounded-[24px] border border-[#D7E8DB] bg-white p-3 shadow-[0_12px_28px_rgba(63,45,35,0.055)] min-[390px]:rounded-[26px] min-[390px]:p-4 ${className}`}
+      data-testid="social-room-list"
+      aria-label={copy.allRooms}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {copy.allRooms}
+          </p>
+          <h2 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">
+            {copy.chooseRoom}
+          </h2>
+        </div>
+      </div>
+      <p className="mt-1 max-w-[28rem] font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+        {copy.chooseRoomSubtitle}
+      </p>
+
+      <div className="mt-3 grid gap-2.5 min-[390px]:gap-3" data-testid="social-room-list-options">
+        {isLoading ? (
+          <div className="rounded-[20px] border border-[#E8DDCF] bg-[#FFFCF8] px-4 py-5 font-body text-[16px] font-bold text-vyva-text-2">
+            {loadingRoomsLabel}
+          </div>
+        ) : isError || !rooms.length ? (
+          <EmptyState title={copy.noRooms} />
+        ) : (
+          rooms.map((room) => (
+            <FastHelpRoomRow
+              key={room.slug}
+              room={room}
+              language={language}
+              onSelect={onSelect}
+            />
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -607,7 +662,11 @@ function RoomDetailSheet({ room, language, togetherLanguage, onClose, onEnter }:
   );
 }
 
-const SocialHub = () => {
+type SocialHubProps = {
+  roomsOnly?: boolean;
+};
+
+const SocialHub = ({ roomsOnly = false }: SocialHubProps) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { language: appLanguage } = useLanguage();
@@ -618,7 +677,6 @@ const SocialHub = () => {
   const loadingRoomsLabel = getLoadingRoomsLabel(language);
   const autoStartVoice = useRouteVoiceAutoStart();
   const [selectedRoomSlug, setSelectedRoomSlug] = useState<string | null>(null);
-  const [fastHelpWindowIndex, setFastHelpWindowIndex] = useState(0);
 
   const { data, isLoading, isError } = useQuery<SocialHubResponse>({
     queryKey: [`/api/social/hub?lang=${togetherLanguage}`],
@@ -632,48 +690,13 @@ const SocialHub = () => {
     () => hubRooms.find((room) => room.slug === selectedRoomSlug) ?? null,
     [hubRooms, selectedRoomSlug],
   );
-  const fastHelpWindowCount = Math.max(1, Math.ceil(fastHelpRooms.length / FAST_HELP_WINDOW_SIZE));
-  const visibleFastHelpRooms = useMemo(() => {
-    if (fastHelpRooms.length <= FAST_HELP_WINDOW_SIZE) return fastHelpRooms;
-    const start = (fastHelpWindowIndex * FAST_HELP_WINDOW_SIZE) % fastHelpRooms.length;
-    return Array.from(
-      { length: FAST_HELP_WINDOW_SIZE },
-      (_, index) => fastHelpRooms[(start + index) % fastHelpRooms.length],
-    );
-  }, [fastHelpRooms, fastHelpWindowIndex]);
-  const moreRoomsLabel = getMoreRoomsLabel(language);
-  const canRotateRooms = fastHelpRooms.length > FAST_HELP_WINDOW_SIZE;
 
-  const showNextRooms = useCallback(() => {
-    setFastHelpWindowIndex((current) => (current + 1) % fastHelpWindowCount);
-  }, [fastHelpWindowCount]);
-
-  useEffect(() => {
-    setFastHelpWindowIndex(0);
-  }, [language, fastHelpRooms.length]);
-
-  useEffect(() => {
-    if (fastHelpWindowIndex >= fastHelpWindowCount) {
-      setFastHelpWindowIndex(0);
-    }
-  }, [fastHelpWindowCount, fastHelpWindowIndex]);
-
-  useEffect(() => {
-    if (!canRotateRooms || selectedRoom) return undefined;
-    const timer = window.setInterval(showNextRooms, ROOM_ROTATION_MS);
-    return () => window.clearInterval(timer);
-  }, [canRotateRooms, selectedRoom, showNextRooms]);
-
-  const openChat = () => {
-    incrementChatNavigationCount();
-    navigate("/chat", { state: { [SECTION_VOICE_AUTO_START_KEY]: true } });
-  };
   const openRoom = (slug: string) => navigate(`/social-rooms/${slug}`);
   const communityCards: MasterDashboardCard[] = [
     {
       id: "match",
       icon: HeartHandshake,
-      title: t("community.master.cards.match", "Match"),
+      title: t("community.master.cards.match", "Make Friends"),
       detail: t("community.master.cards.matchDetail", "Find people like me"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
       onClick: () => openRoom("kitchen-table"),
@@ -682,105 +705,126 @@ const SocialHub = () => {
     {
       id: "rooms",
       icon: Users,
-      title: t("community.master.cards.rooms", "Rooms"),
+      title: t("community.master.cards.rooms", "Join In"),
       detail: t("community.master.cards.roomsDetail", "Join a live table"),
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE", surface: "#FFFFFF" },
-      onClick: () => openRoom("kitchen-table"),
+      onClick: () => navigate("/social-rooms/join-in"),
       testId: "card-social-primary-rooms",
-    },
-    {
-      id: "activities",
-      icon: Footprints,
-      title: t("community.master.cards.activities", "Activities"),
-      detail: t("community.master.cards.activitiesDetail", "Movement and clubs"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
-      onClick: () => navigate("/social-rooms/activities"),
-      testId: "card-social-primary-activities",
     },
     {
       id: "share",
       icon: Share2,
-      title: t("community.master.cards.share", "Share"),
+      title: t("community.master.cards.share", "Share Stories"),
       detail: t("community.master.cards.shareDetail", "A memory or song"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
       onClick: () => openRoom("kitchen-table"),
       testId: "card-social-primary-share",
     },
+    {
+      id: "activities",
+      icon: Footprints,
+      title: t("community.master.cards.activities", "What's On"),
+      detail: t("community.master.cards.activitiesDetail", "Movement and clubs"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0", surface: "#FFFFFF" },
+      onClick: () => navigate("/social-rooms/activities"),
+      testId: "card-social-primary-activities",
+    },
   ];
   const communityFastHelpActions: MasterFastHelpAction[] = [
     {
-      id: "join-room",
-      icon: Users,
-      label: t("community.master.fastHelp.joinRoom", "Join a room"),
-      detail: t("community.master.fastHelp.joinRoomDetail", "Kitchen table"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => openRoom("kitchen-table"),
-      testId: "button-social-fast-help-join-room",
-    },
-    {
-      id: "find-match",
-      icon: HeartHandshake,
-      label: t("community.master.fastHelp.findMatch", "Find a match"),
-      detail: t("community.master.fastHelp.findMatchDetail", "People and interests"),
-      tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
-      onClick: () => openRoom("kitchen-table"),
-      testId: "button-social-fast-help-find-match",
-    },
-    {
-      id: "morning-movement",
-      icon: Footprints,
-      label: t("community.master.fastHelp.morningMovement", "Morning movement"),
-      detail: t("community.master.fastHelp.morningMovementDetail", "Gentle activity"),
-      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
-      onClick: () => openRoom("morning-movement"),
-      testId: "button-social-fast-help-morning-movement",
-    },
-    {
-      id: "music-room",
+      id: "bring-song",
       icon: Music2,
-      label: t("community.master.fastHelp.musicRoom", "Music room"),
-      detail: t("community.master.fastHelp.musicRoomDetail", "Songs and company"),
+      label: t("community.master.fastHelp.bringSong", "Bring Song"),
+      detail: t("community.master.fastHelp.bringSongDetail", "Start a room"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
       onClick: () => openRoom("music-room"),
-      testId: "button-social-fast-help-music-room",
+      testId: "button-social-fast-help-bring-song",
     },
     {
-      id: "reading-club",
-      icon: BookOpen,
-      label: t("community.master.fastHelp.readingClub", "Reading club"),
-      detail: t("community.master.fastHelp.readingClubDetail", "Stories and chat"),
-      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
-      onClick: () => openRoom("reading-club"),
-      testId: "button-social-fast-help-reading-club",
-    },
-    {
-      id: "garden-table",
-      icon: Leaf,
-      label: t("community.master.fastHelp.gardenTable", "Garden table"),
-      detail: t("community.master.fastHelp.gardenTableDetail", "Calm conversation"),
-      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
-      onClick: () => openRoom("garden-corner"),
-      testId: "button-social-fast-help-garden-table",
-    },
-    {
-      id: "nearby-activities",
-      icon: Calendar,
-      label: t("community.master.fastHelp.nearbyActivities", "Nearby activities"),
-      detail: t("community.master.fastHelp.nearbyActivitiesDetail", "What is on"),
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
-      onClick: () => navigate("/social-rooms/activities"),
-      testId: "button-social-fast-help-nearby-activities",
-    },
-    {
-      id: "share-memory",
-      icon: Share2,
-      label: t("community.master.fastHelp.shareMemory", "Share a memory"),
-      detail: t("community.master.fastHelp.shareMemoryDetail", "Post to a room"),
+      id: "cook-together",
+      icon: ChefHat,
+      label: t("community.master.fastHelp.cookTogether", "Cook Together"),
+      detail: t("community.master.fastHelp.cookTogetherDetail", "Kitchen table"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
       onClick: () => openRoom("kitchen-table"),
-      testId: "button-social-fast-help-share-memory",
+      testId: "button-social-fast-help-cook-together",
+    },
+    {
+      id: "garden-chat",
+      icon: Leaf,
+      label: t("community.master.fastHelp.gardenChat", "Garden Chat"),
+      detail: t("community.master.fastHelp.gardenChatDetail", "Calm table"),
+      tone: { iconBg: "#ECFDF5", iconColor: "#047857", border: "#BBF7D0" },
+      onClick: () => openRoom("garden-corner"),
+      testId: "button-social-fast-help-garden-chat",
+    },
+    {
+      id: "reading-corner",
+      icon: BookOpen,
+      label: t("community.master.fastHelp.readingCorner", "Reading Corner"),
+      detail: t("community.master.fastHelp.readingCornerDetail", "Quiet stories"),
+      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      onClick: () => openRoom("reading-room"),
+      testId: "button-social-fast-help-reading-corner",
+    },
+    {
+      id: "light-game",
+      icon: Gamepad2,
+      label: t("community.master.fastHelp.lightGame", "Light Game"),
+      detail: t("community.master.fastHelp.lightGameDetail", "Easy play"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: () => openRoom("kitchen-table"),
+      testId: "button-social-fast-help-light-game",
+    },
+    {
+      id: "move-together",
+      icon: Footprints,
+      label: t("community.master.fastHelp.moveTogether", "Move Together"),
+      detail: t("community.master.fastHelp.moveTogetherDetail", "Gentle activity"),
+      tone: { iconBg: "#F0FDFA", iconColor: "#0F766E", border: "#99F6E4" },
+      onClick: () => openRoom("morning-movement"),
+      testId: "button-social-fast-help-move-together",
     },
   ];
+
+  if (roomsOnly) {
+    return (
+      <>
+        <SocialStyles />
+        <main className="vyva-page pb-[120px]" data-testid="social-rooms-only-screen">
+          <button
+            type="button"
+            onClick={() => navigate("/social-rooms")}
+            className="vyva-tap mb-4 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-white px-4 font-body text-[15px] font-black text-vyva-text-1 shadow-sm"
+            data-testid="button-social-rooms-back"
+          >
+            <ArrowLeft size={18} strokeWidth={2.5} aria-hidden="true" />
+            {t("community.roomsOnly.back", "Back to Community")}
+          </button>
+
+          <RoomsListSection
+            copy={copy}
+            language={language}
+            rooms={fastHelpRooms}
+            isLoading={isLoading}
+            isError={isError}
+            loadingRoomsLabel={loadingRoomsLabel}
+            onSelect={(nextRoom) => setSelectedRoomSlug(nextRoom.slug)}
+          />
+        </main>
+
+        {selectedRoom ? (
+          <RoomDetailSheet
+            room={selectedRoom}
+            language={language}
+            togetherLanguage={togetherLanguage}
+            onClose={() => setSelectedRoomSlug(null)}
+            onEnter={openRoom}
+          />
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <>
@@ -795,8 +839,13 @@ const SocialHub = () => {
           eyebrow: t("community.master.heroEyebrow", "Community"),
           title: t("community.master.heroTitle", "Community ready"),
           action: {
+            kind: "voice",
             label: t("community.master.heroAction", "Talk to VYVA"),
-            onClick: openChat,
+            supportingLabel: t("community.master.voiceSupport", "Speak anytime"),
+            contextHint: t("community.master.voiceContext", "Community support. Help the user join a room, find a match, share a memory, or choose a gentle activity."),
+            voiceAgentSlug: "community",
+            voiceDynamicVariables: { app_entrypoint: "community_master_hero" },
+            autoStartListening: true,
             testId: "button-community-hero-talk",
           },
           testId: "community-master-hero",
@@ -810,8 +859,22 @@ const SocialHub = () => {
         cards={communityCards}
         fastHelpActions={communityFastHelpActions}
       />
+
+      {selectedRoom ? (
+        <RoomDetailSheet
+          room={selectedRoom}
+          language={language}
+          togetherLanguage={togetherLanguage}
+          onClose={() => setSelectedRoomSlug(null)}
+          onEnter={openRoom}
+        />
+      ) : null}
     </>
   );
 };
+
+export function SocialRoomsOnlyScreen() {
+  return <SocialHub roomsOnly />;
+}
 
 export default SocialHub;

@@ -39,10 +39,12 @@ const ProfileSelectPage = lazy(() => import("@/pages/ProfileSelectPage"));
 const HomeScreen = lazy(() => import("./pages/HomeScreen"));
 const ChatScreen = lazy(() => import("./pages/ChatScreen"));
 const HealthScreen = lazy(() => import("./pages/HealthScreen"));
+const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
 const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
 const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
-const ActivitiesScreen = lazy(() => import("./pages/ActivitiesScreen"));
+const CognitiveAssessmentReportPage = lazy(() => import("./pages/CognitiveAssessmentReportPage"));
+const CognitiveAssessmentRunnerPage = lazy(() => import("./pages/CognitiveAssessmentRunnerPage"));
 const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
 const LearnSomethingNewPage = lazy(() => import("./pages/LearnSomethingNewPage"));
 const RelaxBreatheScreen = lazy(() => import("./pages/RelaxBreatheScreen"));
@@ -109,6 +111,7 @@ const NotificationsSettings = lazy(() => import("./pages/settings/NotificationsS
 const ScheduledSupportSettings = lazy(() => import("./pages/settings/ScheduledSupportSettings"));
 const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage"));
 const SocialHub = lazy(() => import("./social/SocialHub"));
+const SocialRoomsOnlyScreen = lazy(() => import("./social/SocialRoomsOnlyScreen"));
 const CommunityActivitiesScreen = lazy(() => import("./social/CommunityActivitiesScreen"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
@@ -122,6 +125,7 @@ const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdmin
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
+const CognitiveAssessmentAdminPage = lazy(() => import("./pages/admin/CognitiveAssessmentAdminPage"));
 const LearningLibraryAdminPage = lazy(() => import("./pages/admin/LearningLibraryAdminPage"));
 const CuratedActivitiesAdminPage = lazy(() => import("./pages/admin/CuratedActivitiesAdminPage"));
 
@@ -181,7 +185,7 @@ function SpatialNavigatorRoute() {
   return (
     <SpatialNavigator
       userId={user?.id ?? ""}
-      onExit={() => navigate("/activities")}
+      onExit={() => navigate("/mind-memory")}
     />
   );
 }
@@ -531,6 +535,8 @@ const App = () => (
                     <Routes>
                 <Route path="/" element={<RootRoute />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/caregiver/login" element={<LoginPage />} />
+                <Route path="/caregiver/register" element={<LoginPage />} />
                 <Route path="/invite" element={<InviteLandingPage />} />
                 <Route path="/admin/login" element={<LoginPage adminOnly />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -569,7 +575,9 @@ const App = () => (
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
+                <Route path="/admin/content-review" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
                 <Route path="/admin/curious-minds" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
+                <Route path="/admin/cognitive-assessment" element={<AdminRoute><CognitiveAssessmentAdminPage /></AdminRoute>} />
                 <Route path="/admin/learning-library" element={<AdminRoute><LearningLibraryAdminPage /></AdminRoute>} />
                 <Route path="/admin/curated-activities" element={<AdminRoute><CuratedActivitiesAdminPage /></AdminRoute>} />
                 <Route element={<ProtectedRoute />}>
@@ -598,6 +606,7 @@ const App = () => (
                   <Route path="/settings/scheduled-support" element={<AppShell><ScheduledSupportSettings /></AppShell>} />
                   <Route path="/chat" element={<AppShell><ServiceGateRoute service="chat"><ChatScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health" element={<AppShell><HealthScreen /></AppShell>} />
+                  <Route path="/health/prevention" element={<AppShell><PreventionScreen /></AppShell>} />
                   <Route path="/health/doctor" element={<AppShell><ServiceGateRoute service="doctor"><DoctorChoiceScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/check-in" element={<AppShell><CheckHowIFeelScreen /></AppShell>} />
                   <Route path="/health/check-ins" element={<AppShell><CheckinHistoryScreen /></AppShell>} />
@@ -610,13 +619,19 @@ const App = () => (
                   <Route path="/caregiver-dashboard" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
+                  <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
                   <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/activities" replace />} />
                   <Route path="/social-rooms/activities" element={<AppShell><CommunityActivitiesScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
-                  <Route path="/activities" element={<AppShell><ActivitiesScreen /></AppShell>} />
+                  <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
+                  <Route path="/mind-memory/cognitive-assessment/start" element={<AppShell><CognitiveAssessmentRunnerPage /></AppShell>} />
+                  <Route path="/mind-memory/cognitive-assessment/report" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
+                  <Route path="/mind-memory/cognitive-assessment/report/:sessionId" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
+                  <Route path="/mind-memory/cognitive-assessment/history" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
+                  <Route path="/activities" element={<Navigate to="/mind-memory" replace />} />
                   <Route path="/activities/relax-breathe" element={<AppShell><RelaxBreatheScreen /></AppShell>} />
                   <Route path="/learn" element={<AppShell><LearnSomethingNewPage /></AppShell>} />
                   <Route path="/activity" element={<AppShell><ActivityScreen /></AppShell>} />
