@@ -17,7 +17,7 @@ create table if not exists public.scent_memory_prompts (
 
 create table if not exists public.scent_memory_sessions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null,
   played_at timestamptz default now(),
   prompt_id uuid references public.scent_memory_prompts(id),
   response_text text,
@@ -28,7 +28,7 @@ create table if not exists public.scent_memory_sessions (
 );
 
 create table if not exists public.scent_memory_user_state (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  user_id uuid primary key,
   total_sessions integer not null default 0,
   last_played_at timestamptz,
   streak_days integer not null default 0,
@@ -53,16 +53,16 @@ alter table public.scent_memory_user_state enable row level security;
 drop policy if exists scent_memory_prompts_read on public.scent_memory_prompts;
 create policy scent_memory_prompts_read on public.scent_memory_prompts
   for select
-  using (auth.role() = 'authenticated' and is_active = true and rejected = false);
+  using (is_active = true and rejected = false);
 
 drop policy if exists scent_memory_sessions_user_all on public.scent_memory_sessions;
 create policy scent_memory_sessions_user_all on public.scent_memory_sessions
   for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using (true)
+  with check (true);
 
 drop policy if exists scent_memory_state_user_all on public.scent_memory_user_state;
 create policy scent_memory_state_user_all on public.scent_memory_user_state
   for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using (true)
+  with check (true);

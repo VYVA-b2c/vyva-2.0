@@ -17,7 +17,7 @@ create table if not exists spatial_nav_maps (
 
 create table if not exists spatial_nav_sessions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null,
   played_at timestamptz default now(),
   map_id uuid references spatial_nav_maps(id),
   difficulty_tier integer not null,
@@ -31,7 +31,7 @@ create table if not exists spatial_nav_sessions (
 );
 
 create table if not exists spatial_nav_user_state (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  user_id uuid primary key,
   current_tier integer not null default 1 check (current_tier between 1 and 10),
   sessions_at_tier integer not null default 0,
   consecutive_wins integer not null default 0,
@@ -50,17 +50,17 @@ alter table spatial_nav_maps enable row level security;
 
 drop policy if exists user_own_sn_sessions on spatial_nav_sessions;
 create policy user_own_sn_sessions on spatial_nav_sessions
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);
 
 drop policy if exists user_own_sn_state on spatial_nav_user_state;
 create policy user_own_sn_state on spatial_nav_user_state
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);
 
 drop policy if exists sn_maps_read on spatial_nav_maps;
 create policy sn_maps_read on spatial_nav_maps
-  for select using (auth.role() = 'authenticated');
+  for select using (true);
 
 create index if not exists idx_sns_user_played on spatial_nav_sessions (user_id, played_at desc);
 create index if not exists idx_snm_tier on spatial_nav_maps (difficulty_tier, is_active);
