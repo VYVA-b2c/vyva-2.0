@@ -78,6 +78,20 @@ const onlineEvent: AdminParticipationEvent = {
   checkRequestCount: 0,
 };
 
+const draftEvent: AdminParticipationEvent = {
+  ...madridEvent,
+  id: "madrid-draft-singalong",
+  eventKey: "madrid-draft-singalong",
+  titleEn: "Draft singalong",
+  titleEs: "Canto en borrador",
+  titleDe: "Entwurf Mitsingen",
+  sourceUrl: "https://example.org/draft-singalong",
+  status: "draft",
+  safetyStatus: "needs_review",
+  responseCounts: baseCounts,
+  checkRequestCount: 0,
+};
+
 const discoveryCandidate: AdminParticipationEvent = {
   ...madridEvent,
   id: "madrid-library-music",
@@ -135,7 +149,7 @@ function renderPage(
   discovered: AdminParticipationEvent[] = [discoveryCandidate],
   options: { patchError?: unknown } = {},
 ) {
-  let events = [madridEvent, onlineEvent].map((event) => ({ ...event }));
+  let events = [madridEvent, onlineEvent, draftEvent].map((event) => ({ ...event }));
 
   apiFetchMock.mockImplementation((path, init) => {
     const method = init?.method ?? "GET";
@@ -194,6 +208,10 @@ function renderPage(
   );
 }
 
+async function openAdminLane(lane: "published" | "drafts" | "ai") {
+  fireEvent.click(await screen.findByTestId(`admin-participate-lane-${lane}`));
+}
+
 afterEach(() => {
   apiFetchMock.mockReset();
 });
@@ -216,6 +234,7 @@ describe("CuratedActivitiesAdminPage", () => {
     renderPage([discoveryCandidate, secondDiscoveryCandidate]);
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    await openAdminLane("ai");
     fireEvent.change(screen.getByTestId("admin-discovery-country"), { target: { value: "Spain" } });
     expect(screen.getByTestId("admin-discovery-province-valencia")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("admin-discovery-province-valencia"));
@@ -260,34 +279,41 @@ describe("CuratedActivitiesAdminPage", () => {
     expect(body.venueHints).toEqual(expect.arrayContaining(["libraries", "cultural centres", "neighbourhood parks"]));
   });
 
-  it("filters the activity list with work queue shortcuts", async () => {
+  it("keeps published, draft, and AI discovery work in separate lanes", async () => {
     renderPage();
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
-    const list = screen.getByTestId("admin-participate-events");
+    expect(screen.getByTestId("admin-participate-lane-published")).toHaveTextContent("2");
+    expect(screen.getByTestId("admin-participate-lane-drafts")).toHaveTextContent("1");
+    expect(screen.getByTestId("admin-participate-lane-ai")).toHaveTextContent("0");
+
+    let list = screen.getByTestId("admin-participate-events");
     expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
     expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
-    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 2 of 2 activities.");
+    expect(within(list).queryByText("madrid-draft-singalong")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("admin-participate-queue-checks"));
+    await openAdminLane("drafts");
 
-    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 1 of 2 activities.");
-    expect(within(list).getByText("madrid-garden-walk")).toBeInTheDocument();
-    expect(within(list).queryByText("online-music-hour")).not.toBeInTheDocument();
+    list = screen.getByTestId("admin-participate-events");
+    expect(screen.getByTestId("admin-participate-work-queue")).toHaveTextContent("Showing 1 of 1 saved drafts or review items.");
+    expect(within(list).getByText("madrid-draft-singalong")).toBeInTheDocument();
+    expect(within(list).queryByText("madrid-garden-walk")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("admin-participate-queue-review"));
 
-    expect(screen.getByText("No activities match this queue and filter combination.")).toBeInTheDocument();
+    expect(within(list).getByText("madrid-draft-singalong")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("admin-participate-clear-work-queue"));
+    await openAdminLane("ai");
 
-    expect(within(list).getByText("online-music-hour")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-ai-discovery-lane")).toBeInTheDocument();
+    expect(screen.queryByTestId("admin-participate-events")).not.toBeInTheDocument();
   });
 
   it("flags duplicate AI candidates and keeps blocked items out of draft saves", async () => {
     renderPage([duplicateDiscoveryCandidate, secondDiscoveryCandidate]);
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    await openAdminLane("ai");
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
 
     const duplicateCard = await screen.findByTestId("admin-discovery-candidate-madrid-garden-walk-0");
@@ -322,6 +348,7 @@ describe("CuratedActivitiesAdminPage", () => {
     renderPage([discoveryCandidate, secondDiscoveryCandidate]);
 
     expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    await openAdminLane("ai");
     fireEvent.click(screen.getByTestId("admin-discovery-find"));
     expect(await screen.findByText("Art workshop")).toBeInTheDocument();
 
@@ -345,6 +372,7 @@ describe("CuratedActivitiesAdminPage", () => {
       expect(body.eventKey).not.toBe("madrid-art-workshop");
     });
 
+    await openAdminLane("drafts");
     expect(await screen.findByText("madrid-library-music")).toBeInTheDocument();
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Needs review").length).toBeGreaterThan(0);
@@ -360,6 +388,7 @@ describe("CuratedActivitiesAdminPage", () => {
     fireEvent.change(screen.getByLabelText("Filter by city"), { target: { value: "Valencia" } });
     expect(screen.getByText(/Valencia has no active approved local events/)).toBeInTheDocument();
 
+    await openAdminLane("drafts");
     fireEvent.change(screen.getByLabelText("Internal ID"), { target: { value: "valencia-art-hour" } });
     fireEvent.change(screen.getAllByLabelText("Title (English)")[0], { target: { value: "Valencia art hour" } });
     fireEvent.change(screen.getAllByLabelText("Title (Spanish)")[0], { target: { value: "Arte en Valencia" } });
@@ -450,6 +479,7 @@ describe("CuratedActivitiesAdminPage", () => {
     });
 
     expect(await screen.findByText(/1 activity imported from activities.csv/)).toBeInTheDocument();
+    await openAdminLane("drafts");
     expect(await screen.findByText("community-choir")).toBeInTheDocument();
   }, 15_000);
 });

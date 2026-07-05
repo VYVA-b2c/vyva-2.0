@@ -24,6 +24,7 @@ type EventSaveFeedback = {
   tone: "green" | "rose";
   message: string;
 };
+type AdminActivityLane = "published" | "drafts" | "ai";
 type DiscoveryFormState = {
   city: string;
   province: string;
@@ -139,11 +140,16 @@ const LANGUAGE_LABELS: Record<string, string> = {
 };
 const HELPER_ACTION_OPTIONS: ParticipationHelperAction[] = ["check_details", "transport", "reminder", "bring_friend"];
 const WORK_QUEUE_FILTERS: Array<{ id: WorkQueueFilter; label: string; description: string }> = [
-  { id: "all", label: "All activities", description: "Everything in the library" },
+  { id: "all", label: "All review items", description: "Everything saved but not public" },
   { id: "review", label: "Review queue", description: "Drafts or safety review" },
   { id: "checks", label: "Concierge checks", description: "User check requests" },
   { id: "popular", label: "User interest", description: "Interested or maybe" },
   { id: "live", label: "Live coverage", description: "Active and approved" },
+];
+const ADMIN_ACTIVITY_LANES: Array<{ id: AdminActivityLane; label: string; description: string }> = [
+  { id: "published", label: "Published", description: "Visible to users: active and approved" },
+  { id: "drafts", label: "Drafts & review", description: "Saved, but not public yet" },
+  { id: "ai", label: "AI discovery", description: "Unsaved candidates from search" },
 ];
 type DiscoveryCityPreset = {
   city: string;
@@ -1142,6 +1148,16 @@ function matchesWorkQueue(event: AdminParticipationEvent, queue: WorkQueueFilter
   return event.status === "active" && event.safetyStatus === "approved";
 }
 
+function isPublishedEvent(event: AdminParticipationEvent) {
+  return event.status === "active" && event.safetyStatus === "approved";
+}
+
+function matchesActivityLane(event: AdminParticipationEvent, lane: AdminActivityLane) {
+  if (lane === "published") return isPublishedEvent(event);
+  if (lane === "drafts") return !isPublishedEvent(event);
+  return false;
+}
+
 function discoveryEvidence(event: AdminParticipationEvent) {
   const discovery = event.metadata?.discovery;
   if (!discovery || typeof discovery !== "object") return "";
@@ -1307,6 +1323,7 @@ export default function CuratedActivitiesAdminPage() {
   const [importing, setImporting] = useState(false);
   const [discovering, setDiscovering] = useState(false);
   const [savingDiscovery, setSavingDiscovery] = useState(false);
+  const [activeLane, setActiveLane] = useState<AdminActivityLane>("published");
   const [workQueueFilter, setWorkQueueFilter] = useState<WorkQueueFilter>("all");
   const [savingEventKey, setSavingEventKey] = useState<string | null>(null);
   const [eventSaveFeedback, setEventSaveFeedback] = useState<Record<string, EventSaveFeedback>>({});
@@ -1476,9 +1493,19 @@ export default function CuratedActivitiesAdminPage() {
     Array.from(new Set(events.map((event) => cleanText(event.countryCode).toUpperCase()).filter(Boolean))).sort()
   ), [events]);
 
+  const publishedEvents = useMemo(() => (
+    events.filter(isPublishedEvent)
+  ), [events]);
+
+  const draftReviewEvents = useMemo(() => (
+    events.filter((event) => !isPublishedEvent(event))
+  ), [events]);
+
   const filteredEvents = useMemo(() => {
     const query = filters.search.trim().toLowerCase();
+    if (activeLane === "ai") return [];
     return events.filter((event) => {
+      if (!matchesActivityLane(event, activeLane)) return false;
       const haystack = [
         event.eventKey,
         event.titleEn,
@@ -1496,14 +1523,14 @@ export default function CuratedActivitiesAdminPage() {
       if (filters.status && event.status !== filters.status) return false;
       if (filters.format && event.format !== filters.format) return false;
       if (filters.safety && event.safetyStatus !== filters.safety) return false;
-      if (!matchesWorkQueue(event, workQueueFilter)) return false;
+      if (activeLane === "drafts" && !matchesWorkQueue(event, workQueueFilter)) return false;
       return true;
     });
-  }, [events, filters, workQueueFilter]);
+  }, [activeLane, events, filters, workQueueFilter]);
 
   const activeApproved = useMemo(() => (
-    events.filter((event) => event.status === "active" && event.safetyStatus === "approved")
-  ), [events]);
+    publishedEvents
+  ), [publishedEvents]);
 
   const onlineFallbackCount = activeApproved.filter((event) => event.format === "online" || event.format === "hybrid").length;
   const localCityCount = new Set(activeApproved.map(cityKey).filter(Boolean)).size;
@@ -1512,13 +1539,18 @@ export default function CuratedActivitiesAdminPage() {
   const selectedDiscoveryCount = discoveryCandidates.filter((candidate) => candidate.selected).length;
   const blockedDiscoveryCount = discoveryCandidates.filter((candidate) => discoveryReview(candidate, events).saveBlocked).length;
   const saveableDiscoveryCount = discoveryCandidates.length - blockedDiscoveryCount;
+  const laneBaseCount = activeLane === "published"
+    ? publishedEvents.length
+    : activeLane === "drafts"
+      ? draftReviewEvents.length
+      : discoveryCandidates.length;
   const workQueueCounts = useMemo<Record<WorkQueueFilter, number>>(() => ({
-    all: events.length,
-    review: events.filter((event) => matchesWorkQueue(event, "review")).length,
-    checks: events.filter((event) => matchesWorkQueue(event, "checks")).length,
-    popular: events.filter((event) => matchesWorkQueue(event, "popular")).length,
-    live: events.filter((event) => matchesWorkQueue(event, "live")).length,
-  }), [events]);
+    all: draftReviewEvents.length,
+    review: draftReviewEvents.filter((event) => matchesWorkQueue(event, "review")).length,
+    checks: draftReviewEvents.filter((event) => matchesWorkQueue(event, "checks")).length,
+    popular: draftReviewEvents.filter((event) => matchesWorkQueue(event, "popular")).length,
+    live: draftReviewEvents.filter((event) => matchesWorkQueue(event, "live")).length,
+  }), [draftReviewEvents]);
 
   const coverageRows = useMemo(() => {
     const map = new Map<string, { label: string; active: number; drafts: number; checks: number; interested: number }>();
@@ -1837,12 +1869,50 @@ export default function CuratedActivitiesAdminPage() {
           </div>
         </section>
 
+        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-4 shadow-sm" data-testid="admin-participate-lanes">
+          <div className="grid gap-3 lg:grid-cols-3">
+            {ADMIN_ACTIVITY_LANES.map((lane) => {
+              const active = activeLane === lane.id;
+              const count = lane.id === "published"
+                ? publishedEvents.length
+                : lane.id === "drafts"
+                  ? draftReviewEvents.length
+                  : discoveryCandidates.length;
+              return (
+                <button
+                  key={lane.id}
+                  type="button"
+                  data-testid={`admin-participate-lane-${lane.id}`}
+                  onClick={() => {
+                    setActiveLane(lane.id);
+                    if (lane.id !== "drafts") setWorkQueueFilter("all");
+                  }}
+                  className={`min-h-[112px] rounded-2xl border px-5 py-4 text-left transition ${
+                    active
+                      ? "border-purple-600 bg-purple-700 text-white shadow-sm"
+                      : "border-[#eadfd5] bg-[#fffaf4] text-[#2f2135] hover:border-purple-200"
+                  }`}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span>
+                      <span className="block text-lg font-black">{lane.label}</span>
+                      <span className={`mt-1 block text-sm font-semibold ${active ? "text-purple-100" : "text-[#7d6b65]"}`}>{lane.description}</span>
+                    </span>
+                    <span className="text-3xl font-black leading-none">{count}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {activeLane === "drafts" && (
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="admin-participate-work-queue">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="font-serif text-3xl">Work queue</h2>
+              <h2 className="font-serif text-3xl">Review shortcuts</h2>
               <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
-                Showing {filteredEvents.length} of {events.length} activities.
+                Showing {filteredEvents.length} of {draftReviewEvents.length} saved drafts or review items.
               </p>
             </div>
             {workQueueFilter !== "all" && (
@@ -1852,12 +1922,12 @@ export default function CuratedActivitiesAdminPage() {
                 onClick={() => setWorkQueueFilter("all")}
                 data-testid="admin-participate-clear-work-queue"
               >
-                Show all
+                Show all review items
               </button>
             )}
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-            {WORK_QUEUE_FILTERS.map((queue) => {
+            {WORK_QUEUE_FILTERS.filter((queue) => queue.id !== "live").map((queue) => {
               const active = workQueueFilter === queue.id;
               return (
                 <button
@@ -1881,8 +1951,10 @@ export default function CuratedActivitiesAdminPage() {
             })}
           </div>
         </section>
+        )}
 
-        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
+        {activeLane === "ai" && (
+        <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm" data-testid="admin-ai-discovery-lane">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 font-serif text-3xl"><Bot size={24} /> AI discovery</h2>
@@ -2466,7 +2538,9 @@ export default function CuratedActivitiesAdminPage() {
             )}
           </div>
         </section>
+        )}
 
+        {activeLane === "published" && (
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -2495,13 +2569,20 @@ export default function CuratedActivitiesAdminPage() {
             ))}
           </div>
         </section>
+        )}
 
+        {activeLane !== "ai" && (
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="font-serif text-3xl">Find events</h2>
-              <p className="mt-2 text-sm text-[#7d6b65]">{filteredEvents.length} visible of {events.length} events.</p>
+              <h2 className="font-serif text-3xl">{activeLane === "published" ? "Published activities" : "Drafts & review"}</h2>
+              <p className="mt-2 text-sm text-[#7d6b65]">
+                {filteredEvents.length} visible of {laneBaseCount} {activeLane === "published" ? "published activities" : "saved drafts or review items"}.
+              </p>
             </div>
+            <Pill tone={activeLane === "published" ? "green" : "amber"}>
+              {activeLane === "published" ? "Public in What's On" : "Not public until approved"}
+            </Pill>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-7">
             <Field label="Search">
@@ -2551,7 +2632,9 @@ export default function CuratedActivitiesAdminPage() {
             </Field>
           </div>
         </section>
+        )}
 
+        {activeLane === "drafts" && (
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -2626,11 +2709,13 @@ export default function CuratedActivitiesAdminPage() {
             </button>
           </div>
         </section>
+        )}
 
+        {activeLane !== "ai" && (
         <section className="mt-5 grid gap-4" data-testid="admin-participate-events">
           {filteredEvents.length === 0 ? (
             <div className="rounded-[2rem] border border-[#eadfd5] bg-white p-8 text-center text-sm font-bold text-[#7d6b65]">
-              No activities match this queue and filter combination.
+              No {activeLane === "published" ? "published activities" : "drafts or review items"} match this filter combination.
             </div>
           ) : filteredEvents.map((event) => {
             const saveFeedback = eventSaveFeedback[event.eventKey];
@@ -2777,7 +2862,9 @@ export default function CuratedActivitiesAdminPage() {
             );
           })}
         </section>
+        )}
 
+        {activeLane === "drafts" && (
         <section className="mt-5 rounded-[2rem] border border-[#eadfd5] bg-white p-5 shadow-sm">
           <h2 className="font-serif text-3xl">Recent Concierge checks</h2>
           <div className="mt-4 grid gap-2">
@@ -2791,6 +2878,7 @@ export default function CuratedActivitiesAdminPage() {
             ))}
           </div>
         </section>
+        )}
       </section>
     </main>
   );
