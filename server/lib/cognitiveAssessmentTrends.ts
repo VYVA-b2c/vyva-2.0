@@ -1,0 +1,662 @@
+import type {
+  CognitiveAssessmentBaselineBand,
+  CognitiveAssessmentCheckQuality,
+  CognitiveAssessmentContextInsight,
+  CognitiveAssessmentDomainTrend,
+  CognitiveAssessmentDomainTrendSeries,
+  CognitiveAssessmentHistoryInsight,
+  CognitiveAssessmentTaskSignal,
+  CognitiveAssessmentTrendPoint,
+} from "../../shared/cognitiveAssessmentReport.js";
+
+export type CognitiveTrendSession = {
+  id: string;
+  started_at?: Date | string | null;
+  completed_at: Date | string | null;
+  input_mode?: string | null;
+  language?: string | null;
+  response_count?: number | string | null;
+};
+
+export type CognitiveTrendResponseRow = {
+  session_id?: string;
+  task_definition_id: string;
+  completed_at: Date | string | null;
+  response_data: unknown;
+  domain: string | null;
+  display_order?: number | null;
+};
+
+export type CognitiveAssessmentTrendPayload = {
+  trendPoints: CognitiveAssessmentTrendPoint[];
+  domainTrends: CognitiveAssessmentDomainTrend[];
+  domainTrendSeries: CognitiveAssessmentDomainTrendSeries[];
+  taskSignals: CognitiveAssessmentTaskSignal[];
+  baselineBands: CognitiveAssessmentBaselineBand[];
+  checkQuality: CognitiveAssessmentCheckQuality;
+  contextInsight: CognitiveAssessmentContextInsight;
+  historyInsights: CognitiveAssessmentHistoryInsight[];
+};
+
+type TrendDomain = {
+  id: string;
+  label: string;
+  taskIds: string[];
+};
+
+const TASK_LABELS: Record<string, string> = {
+  orientation: "Orientation",
+  story_recall_immediate: "Story recall",
+  fluency_semantic: "Category fluency",
+  fluency_phonemic: "Letter fluency",
+  digit_span: "Digit span",
+  similarities: "Similarities",
+  clock_drawing: "Clock drawing",
+  story_recall_delayed: "Delayed story recall",
+  mood_screen: "Mood check",
+  sleep_energy: "Sleep and energy",
+  function_iadl: "Daily function",
+  subjective_concern: "Memory concern",
+};
+
+const DOMAIN_LABELS: Record<string, string> = {
+  awareness: "Daily context",
+  episodic_memory: "Memory",
+  language_executive: "Language",
+  executive_language: "Language",
+  working_memory: "Attention",
+  abstract_reasoning: "Reasoning",
+  visuospatial_executive: "Visual/Clock",
+  mood: "Daily context",
+  sleep: "Daily context",
+  function: "Daily context",
+  insight: "Daily context",
+};
+
+const TREND_DOMAINS: TrendDomain[] = [
+  {
+    id: "memory",
+    label: "Memory",
+    taskIds: ["story_recall_immediate", "story_recall_delayed"],
+  },
+  {
+    id: "language",
+    label: "Language",
+    taskIds: ["fluency_semantic", "fluency_phonemic"],
+  },
+  {
+    id: "attention",
+    label: "Attention",
+    taskIds: ["digit_span"],
+  },
+  {
+    id: "reasoning",
+    label: "Reasoning",
+    taskIds: ["similarities"],
+  },
+  {
+    id: "visual_clock",
+    label: "Visual/Clock",
+    taskIds: ["clock_drawing"],
+  },
+  {
+    id: "daily_context",
+    label: "Mood/Sleep/Daily Context",
+    taskIds: ["orientation", "mood_screen", "sleep_energy", "function_iadl", "subjective_concern"],
+  },
+];
+
+const CONTEXT_TASK_IDS = new Set(["orientation", "mood_screen", "sleep_energy", "function_iadl", "subjective_concern"]);
+
+function isContextDomainId(domainId: string) {
+  return domainId === "daily_context";
+}
+
+function iso(value: Date | string | null | undefined) {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function objectData(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function numberValue(data: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  }
+  return null;
+}
+
+function arrayLength(data: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = data[key];
+    if (Array.isArray(value)) return value.length;
+  }
+  return null;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function numericDeltaMagnitude(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.latestRawValue === null || trend.previousRawValue === null) return trend.direction === "new" ? 0.5 : 0;
+  return Math.abs(trend.latestRawValue - trend.previousRawValue);
+}
+
+function trendDomainForTaskId(taskId: string) {
+  return TREND_DOMAINS.find((domain) => domain.taskIds.includes(taskId)) ?? null;
+}
+
+function scoreSignal(data: Record<string, unknown>, scoreKeys = ["score", "raw_score", "total_score", "correct_count", "sum"]) {
+  const score = numberValue(data, scoreKeys);
+  const max = numberValue(data, ["max_score", "maxScore", "possible_score"]);
+  if (score === null) return null;
+  return {
+    rawValue: score,
+    maxValue: max,
+    valueLabel: max === null ? formatNumber(score) : `${formatNumber(score)}/${formatNumber(max)}`,
+  };
+}
+
+export function cognitiveTaskSignal(row: CognitiveTrendResponseRow): CognitiveAssessmentTaskSignal {
+  const taskId = row.task_definition_id;
+  const data = objectData(row.response_data);
+  const trendDomain = trendDomainForTaskId(taskId);
+  const label = TASK_LABELS[taskId] ?? taskId.replace(/_/g, " ");
+  const domain = trendDomain?.label ?? DOMAIN_LABELS[row.domain ?? ""] ?? row.domain ?? "Assessment";
+
+  if (taskId.includes("story_recall")) {
+    const ideaUnits = arrayLength(data, ["idea_units_recalled", "recalled_idea_units", "matched_idea_units"]);
+    if (ideaUnits !== null) {
+      return {
+        taskId,
+        label,
+        domain,
+        kind: "count",
+        rawValue: ideaUnits,
+        valueLabel: `${formatNumber(ideaUnits)} details`,
+      };
+    }
+    const words = numberValue(data, ["word_count"]);
+    return {
+      taskId,
+      label,
+      domain,
+      kind: words === null ? "saved" : "count",
+      rawValue: words,
+      valueLabel: words === null ? "saved" : `${formatNumber(words)} words`,
+    };
+  }
+
+  if (taskId.includes("fluency")) {
+    const uniqueResponses = arrayLength(data, ["unique_responses", "valid_responses", "responses", "words"]);
+    if (uniqueResponses !== null) {
+      return {
+        taskId,
+        label,
+        domain,
+        kind: "count",
+        rawValue: uniqueResponses,
+        valueLabel: `${formatNumber(uniqueResponses)} unique`,
+      };
+    }
+    const score = scoreSignal(data);
+    if (score) {
+      return { taskId, label, domain, kind: "count", ...score };
+    }
+  }
+
+  if (taskId === "digit_span") {
+    const forward = numberValue(data, ["longest_span_forward", "forward_span"]);
+    const backward = numberValue(data, ["longest_span_backward", "backward_span"]);
+    const total = forward !== null || backward !== null ? (forward ?? 0) + (backward ?? 0) : null;
+    if (total !== null) {
+      return {
+        taskId,
+        label,
+        domain,
+        kind: "score",
+        rawValue: total,
+        maxValue: numberValue(data, ["max_score", "maxScore", "possible_score"]) ?? 17,
+        valueLabel: `${formatNumber(total)} span total`,
+      };
+    }
+  }
+
+  if (taskId === "clock_drawing") {
+    const score = scoreSignal(data, ["clock_score", "raw_score", "total_score", "correct_count"]);
+    if (score) {
+      return { taskId, label, domain, kind: "score", ...score };
+    }
+    return { taskId, label, domain, kind: "saved", rawValue: null, valueLabel: "saved" };
+  }
+
+  const score = scoreSignal(data);
+  if (score) {
+    return { taskId, label, domain, kind: "score", ...score };
+  }
+
+  return { taskId, label, domain, kind: "saved", rawValue: null, valueLabel: "saved" };
+}
+
+function responseIsCompleted(row: CognitiveTrendResponseRow) {
+  return Boolean(row.completed_at);
+}
+
+function countCompletedSteps(session: CognitiveTrendSession, responses: CognitiveTrendResponseRow[]) {
+  const completedResponses = responses.filter(responseIsCompleted).length;
+  if (completedResponses > 0) return completedResponses;
+  const fallback = Number(session.response_count ?? 0);
+  return Number.isFinite(fallback) ? fallback : 0;
+}
+
+function compareDates(left: CognitiveTrendSession, right: CognitiveTrendSession) {
+  const leftDate = left.completed_at ? new Date(left.completed_at).getTime() : 0;
+  const rightDate = right.completed_at ? new Date(right.completed_at).getTime() : 0;
+  if (leftDate !== rightDate) return leftDate - rightDate;
+  return left.id.localeCompare(right.id);
+}
+
+function domainCount(responses: CognitiveTrendResponseRow[]) {
+  const domains = new Set<string>();
+  responses.filter(responseIsCompleted).forEach((response) => {
+    const trendDomain = trendDomainForTaskId(response.task_definition_id);
+    if (trendDomain && !isContextDomainId(trendDomain.id)) domains.add(trendDomain.id);
+  });
+  return domains.size;
+}
+
+function aggregateDomain(responses: CognitiveTrendResponseRow[], trendDomain: TrendDomain) {
+  const domainResponses = responses
+    .filter(responseIsCompleted)
+    .filter((response) => trendDomain.taskIds.includes(response.task_definition_id));
+  const signals = domainResponses.map(cognitiveTaskSignal);
+  const numericSignals = signals.filter((signal) => signal.rawValue !== null);
+
+  if (numericSignals.length > 0) {
+    const rawValue = numericSignals.reduce((sum, signal) => sum + (signal.rawValue ?? 0), 0);
+    const valueLabel = numericSignals.length === 1
+      ? numericSignals[0].valueLabel
+      : `${formatNumber(rawValue)} total signal`;
+    return { rawValue, valueLabel };
+  }
+
+  if (signals.length > 0) {
+    return {
+      rawValue: signals.length,
+      valueLabel: `${signals.length} saved`,
+    };
+  }
+
+  return {
+    rawValue: null,
+    valueLabel: "Not checked",
+  };
+}
+
+function direction(latest: number | null, previous: number | null): CognitiveAssessmentDomainTrend["direction"] {
+  if (latest === null) return "none";
+  if (previous === null) return "new";
+  if (latest > previous) return "up";
+  if (latest < previous) return "down";
+  return "flat";
+}
+
+function buildBaselineBands(domainTrendSeries: CognitiveAssessmentDomainTrendSeries[]): CognitiveAssessmentBaselineBand[] {
+  return domainTrendSeries.map((series): CognitiveAssessmentBaselineBand => {
+    const latest = series.points[series.points.length - 1] ?? null;
+    if (!latest || latest.rawValue === null) {
+      return {
+        domainId: series.domainId,
+        label: series.label,
+        status: "not_checked",
+        valueLabel: "Not checked",
+        rangeLabel: "Open",
+        detail: "Not checked in the latest saved check.",
+        sampleSize: 0,
+      };
+    }
+
+    const previousValues = series.points
+      .slice(0, -1)
+      .map((point) => point.rawValue)
+      .filter((value): value is number => value !== null);
+
+    if (previousValues.length < 3) {
+      return {
+        domainId: series.domainId,
+        label: series.label,
+        status: "building",
+        valueLabel: latest.valueLabel,
+        rangeLabel: `${previousValues.length + 1} check${previousValues.length === 0 ? "" : "s"}`,
+        detail: "Building a personal baseline.",
+        sampleSize: previousValues.length + 1,
+      };
+    }
+
+    const min = Math.min(...previousValues);
+    const max = Math.max(...previousValues);
+    const rangeLabel = min === max ? formatNumber(min) : `${formatNumber(min)}-${formatNumber(max)}`;
+    const status = latest.rawValue > max ? "above" : latest.rawValue < min ? "below" : "usual";
+    const detail = status === "above"
+      ? "Above recent usual range."
+      : status === "below"
+        ? "Below recent usual range."
+        : "Within recent usual range.";
+
+    return {
+      domainId: series.domainId,
+      label: series.label,
+      status,
+      valueLabel: latest.valueLabel,
+      rangeLabel,
+      detail,
+      sampleSize: previousValues.length + 1,
+    };
+  });
+}
+
+function hourDifference(left: Date | string | null | undefined, right: Date | string | null | undefined) {
+  if (!left || !right) return null;
+  const diff = Math.abs(new Date(left).getHours() - new Date(right).getHours());
+  return Math.min(diff, 24 - diff);
+}
+
+function minutesBetween(startedAt: Date | string | null | undefined, completedAt: Date | string | null | undefined) {
+  if (!startedAt || !completedAt) return null;
+  const started = new Date(startedAt).getTime();
+  const completed = new Date(completedAt).getTime();
+  if (!Number.isFinite(started) || !Number.isFinite(completed) || completed < started) return null;
+  return Math.round((completed - started) / 60000);
+}
+
+function sameText(left: string | null | undefined, right: string | null | undefined) {
+  if (!left || !right) return null;
+  return left === right;
+}
+
+function buildCheckQuality(
+  recentSessions: CognitiveTrendSession[],
+  trendPoints: CognitiveAssessmentTrendPoint[],
+): CognitiveAssessmentCheckQuality {
+  const latest = trendPoints[trendPoints.length - 1] ?? null;
+  if (!latest) {
+    return {
+      status: "building",
+      label: "No comparison yet",
+      detail: "Complete a check to start tracking.",
+      factors: [],
+    };
+  }
+
+  const previousSession = recentSessions[recentSessions.length - 2] ?? null;
+  const latestSession = recentSessions[recentSessions.length - 1] ?? null;
+  const timeGap = hourDifference(latestSession?.completed_at, previousSession?.completed_at);
+  const sameLanguage = sameText(latestSession?.language, previousSession?.language);
+  const sameInputMode = sameText(latestSession?.input_mode, previousSession?.input_mode);
+  const durationMinutes = minutesBetween(latestSession?.started_at, latestSession?.completed_at);
+  const oneSitting = durationMinutes !== null ? durationMinutes <= 60 : null;
+  const factors = [
+    `${latest.completedSteps}/${latest.totalSteps} steps`,
+    `${latest.domainCount} thinking domains`,
+  ];
+
+  if (!previousSession) {
+    factors.push("First saved check");
+  } else {
+    if (sameLanguage !== null) factors.push(sameLanguage ? "Same language" : "Different language");
+    if (sameInputMode !== null) factors.push(sameInputMode ? "Same input mode" : "Different input mode");
+    if (timeGap !== null && timeGap <= 3) {
+      factors.push("Similar time of day");
+    } else {
+      factors.push("Different time of day");
+    }
+  }
+  if (oneSitting !== null) factors.push(oneSitting ? "One sitting" : "Longer session");
+
+  if (
+    latest.completionPercent >= 75
+    && latest.domainCount >= 4
+    && sameLanguage !== false
+    && sameInputMode !== false
+    && oneSitting !== false
+  ) {
+    return {
+      status: "good",
+      label: "Good comparison",
+      detail: "Enough areas are saved to compare with recent checks.",
+      factors,
+    };
+  }
+
+  if (latest.completionPercent >= 50 && latest.domainCount >= 3) {
+    return {
+      status: "partial",
+      label: "Partial comparison",
+      detail: "Useful, but a few missing areas can affect trend clarity.",
+      factors,
+    };
+  }
+
+  return {
+    status: "building",
+    label: "Building comparison",
+    detail: "Complete more areas before reading trends strongly.",
+    factors,
+  };
+}
+
+function contextSignals(taskSignals: CognitiveAssessmentTaskSignal[]) {
+  return taskSignals.filter((signal) => CONTEXT_TASK_IDS.has(signal.taskId));
+}
+
+function buildContextInsight(
+  domainTrends: CognitiveAssessmentDomainTrend[],
+  taskSignals: CognitiveAssessmentTaskSignal[],
+): CognitiveAssessmentContextInsight {
+  const context = contextSignals(taskSignals);
+  if (context.length === 0) {
+    return {
+      tone: "building",
+      label: "Context not saved",
+      detail: "Mood, sleep, and daily function make comparisons clearer.",
+      relatedSignals: [],
+    };
+  }
+
+  const dailyContext = domainTrends.find((trend) => trend.domainId === "daily_context") ?? null;
+  const contextChanged = dailyContext ? ["up", "down", "new"].includes(dailyContext.direction) : false;
+  const thinkingChanges = domainTrends
+    .filter((trend) => trend.domainId !== "daily_context")
+    .filter((trend) => trend.latestRawValue !== null && ["up", "down", "new"].includes(trend.direction))
+    .sort((left, right) => numericDeltaMagnitude(right) - numericDeltaMagnitude(left));
+  const relatedSignals = context.slice(0, 3).map((signal) => `${signal.label}: ${signal.valueLabel}`);
+
+  if (contextChanged && thinkingChanges.length > 0) {
+    return {
+      tone: "changed",
+      label: "Context and thinking changed",
+      detail: `${thinkingChanges[0].label} changed while context also shifted.`,
+      relatedSignals,
+    };
+  }
+
+  if (contextChanged) {
+    return {
+      tone: "changed",
+      label: "Context changed",
+      detail: "Review thinking signals beside these context answers.",
+      relatedSignals,
+    };
+  }
+
+  if (thinkingChanges.length > 0) {
+    return {
+      tone: "changed",
+      label: `${thinkingChanges[0].label} changed`,
+      detail: "Context was saved for comparison with thinking signals.",
+      relatedSignals,
+    };
+  }
+
+  return {
+    tone: "steady",
+    label: "Context steady",
+    detail: "Context is available beside this check's thinking signals.",
+    relatedSignals,
+  };
+}
+
+function compactTrendLabel(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.direction === "new") return `${trend.label} added`;
+  if (trend.direction === "flat") return `${trend.label} steady`;
+  if (trend.direction === "none") return `${trend.label} open`;
+  if (trend.latestRawValue === null || trend.previousRawValue === null) return `${trend.label} changed`;
+  const delta = trend.latestRawValue - trend.previousRawValue;
+  return `${trend.label} ${delta > 0 ? "+" : ""}${formatNumber(delta)}`;
+}
+
+function sessionDomainTrends(
+  responses: CognitiveTrendResponseRow[],
+  previousResponses: CognitiveTrendResponseRow[] | null,
+) {
+  return TREND_DOMAINS.map((trendDomain): CognitiveAssessmentDomainTrend => {
+    const current = aggregateDomain(responses, trendDomain);
+    const previous = previousResponses ? aggregateDomain(previousResponses, trendDomain) : { rawValue: null, valueLabel: "Not checked" };
+    return {
+      domainId: trendDomain.id,
+      label: trendDomain.label,
+      latestRawValue: current.rawValue,
+      previousRawValue: previous.rawValue,
+      direction: direction(current.rawValue, previous.rawValue),
+      valueLabel: current.valueLabel,
+    };
+  });
+}
+
+function buildHistoryInsights(
+  chronologicalSessions: CognitiveTrendSession[],
+  responsesBySession: Map<string, CognitiveTrendResponseRow[]>,
+  totalSteps: number,
+): CognitiveAssessmentHistoryInsight[] {
+  return chronologicalSessions.map((session, index): CognitiveAssessmentHistoryInsight => {
+    const responses = responsesBySession.get(session.id) ?? [];
+    const previousSession = chronologicalSessions[index - 1] ?? null;
+    const previousResponses = previousSession ? responsesBySession.get(previousSession.id) ?? [] : null;
+    const completedSteps = countCompletedSteps(session, responses);
+    const trends = sessionDomainTrends(responses, previousResponses);
+    const thinkingChanges = trends
+      .filter((trend) => !isContextDomainId(trend.domainId))
+      .filter((trend) => trend.latestRawValue !== null)
+      .filter((trend) => trend.direction !== "none" && trend.direction !== "flat")
+      .sort((left, right) => numericDeltaMagnitude(right) - numericDeltaMagnitude(left));
+    const thinkingSteady = trends
+      .filter((trend) => !isContextDomainId(trend.domainId))
+      .find((trend) => trend.latestRawValue !== null);
+    const contextTrend = trends.find((trend) => isContextDomainId(trend.domainId)) ?? null;
+    const contextLabel = !contextTrend || contextTrend.latestRawValue === null
+      ? "Context open"
+      : contextTrend.direction === "flat"
+        ? "Context steady"
+        : previousResponses
+          ? "Context changed"
+          : "Context saved";
+
+    return {
+      sessionId: session.id,
+      completionPercent: totalSteps <= 0 ? 0 : Math.round((completedSteps / totalSteps) * 100),
+      completedSteps,
+      totalSteps,
+      thinkingDomainCount: domainCount(responses),
+      biggestChangeLabel: previousResponses
+        ? compactTrendLabel(thinkingChanges[0] ?? thinkingSteady ?? {
+          domainId: "none",
+          label: "Signals",
+          latestRawValue: null,
+          previousRawValue: null,
+          direction: "none",
+          valueLabel: "Not checked",
+        })
+        : "First saved check",
+      contextLabel,
+      comparisonLabel: previousResponses ? "Compared with previous" : "First saved check",
+    };
+  });
+}
+
+export function buildCognitiveAssessmentTrendPayload(
+  sessions: CognitiveTrendSession[],
+  responsesBySession: Map<string, CognitiveTrendResponseRow[]>,
+  totalSteps: number,
+): CognitiveAssessmentTrendPayload {
+  const chronologicalSessions = [...sessions].sort(compareDates);
+  const recentSessions = chronologicalSessions.slice(-12);
+  const trendPoints = recentSessions.map((session): CognitiveAssessmentTrendPoint => {
+    const responses = responsesBySession.get(session.id) ?? [];
+    const completedSteps = countCompletedSteps(session, responses);
+    return {
+      sessionId: session.id,
+      completedAt: iso(session.completed_at),
+      completionPercent: totalSteps <= 0 ? 0 : Math.round((completedSteps / totalSteps) * 100),
+      completedSteps,
+      totalSteps,
+      domainCount: domainCount(responses),
+    };
+  });
+
+  const latestSession = chronologicalSessions[chronologicalSessions.length - 1] ?? null;
+  const previousSession = chronologicalSessions[chronologicalSessions.length - 2] ?? null;
+  const latestResponses = latestSession ? responsesBySession.get(latestSession.id) ?? [] : [];
+  const previousResponses = previousSession ? responsesBySession.get(previousSession.id) ?? [] : [];
+
+  const domainTrends = TREND_DOMAINS.map((trendDomain): CognitiveAssessmentDomainTrend => {
+    const latest = aggregateDomain(latestResponses, trendDomain);
+    const previous = aggregateDomain(previousResponses, trendDomain);
+    return {
+      domainId: trendDomain.id,
+      label: trendDomain.label,
+      latestRawValue: latest.rawValue,
+      previousRawValue: previous.rawValue,
+      direction: direction(latest.rawValue, previous.rawValue),
+      valueLabel: latest.valueLabel,
+    };
+  });
+
+  const domainTrendSeries = TREND_DOMAINS.map((trendDomain): CognitiveAssessmentDomainTrendSeries => ({
+    domainId: trendDomain.id,
+    label: trendDomain.label,
+    points: recentSessions.map((session) => {
+      const aggregate = aggregateDomain(responsesBySession.get(session.id) ?? [], trendDomain);
+      return {
+        sessionId: session.id,
+        completedAt: iso(session.completed_at),
+        rawValue: aggregate.rawValue,
+        valueLabel: aggregate.valueLabel,
+      };
+    }),
+  }));
+
+  const taskSignals = [...latestResponses]
+    .filter(responseIsCompleted)
+    .sort((left, right) => (left.display_order ?? 999) - (right.display_order ?? 999))
+    .map(cognitiveTaskSignal);
+  const baselineBands = buildBaselineBands(domainTrendSeries);
+  const checkQuality = buildCheckQuality(recentSessions, trendPoints);
+  const contextInsight = buildContextInsight(domainTrends, taskSignals);
+  const historyInsights = buildHistoryInsights(chronologicalSessions, responsesBySession, totalSteps);
+
+  return {
+    trendPoints,
+    domainTrends,
+    domainTrendSeries,
+    taskSignals,
+    baselineBands,
+    checkQuality,
+    contextInsight,
+    historyInsights,
+  };
+}
