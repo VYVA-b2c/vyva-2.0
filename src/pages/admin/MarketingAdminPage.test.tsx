@@ -130,6 +130,11 @@ const contacts = [
     consentStatus: "unknown",
     source: "vyva",
     tags: [],
+    language: null,
+    category: null,
+    vertical: null,
+    market: null,
+    lists: [],
     lovableExternalId: null,
   },
   {
@@ -143,7 +148,12 @@ const contacts = [
     companyName: "Moka Digital",
     consentStatus: "pending",
     source: "lovable",
-    tags: ["partner"],
+    tags: ["partner", "madrid"],
+    language: "en",
+    category: "lead",
+    vertical: "healthcare",
+    market: "Spain",
+    lists: ["Partners"],
     lovableExternalId: "lovable-contact-2",
   },
 ];
@@ -181,6 +191,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
   });
 
@@ -221,6 +232,8 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Vertical: healthcare");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("List: Partners");
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
@@ -251,6 +264,54 @@ describe("MarketingAdminPage", () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Lovable sync completed.");
+    });
+  });
+
+  it("validates and creates richer marketing contacts", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-add-contact"));
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Add at least a name, email, phone, or WhatsApp");
+
+    fireEvent.change(screen.getByTestId("input-marketing-contact-name"), { target: { value: "New Partner" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-email"), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-phone"), { target: { value: "+34 600 000 002" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-whatsapp"), { target: { value: "+34 600 000 003" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-role"), { target: { value: "Director" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-company"), { target: { value: "New Org" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-language"), { target: { value: "es" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-category"), { target: { value: "partner" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-vertical"), { target: { value: "health" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-market"), { target: { value: "Spain" } });
+    fireEvent.change(screen.getByTestId("input-marketing-contact-tags"), { target: { value: "partner, madrid" } });
+    fireEvent.click(screen.getByTestId("button-marketing-add-contact"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/contacts" && init?.method === "POST");
+    expect(JSON.parse(String(postCall?.[1]?.body))).toMatchObject({
+      fullName: "New Partner",
+      email: "new@example.com",
+      phoneNumber: "+34 600 000 002",
+      whatsappNumber: "+34 600 000 003",
+      roleLabel: "Director",
+      companyName: "New Org",
+      tags: ["partner", "madrid"],
+      metadata: {
+        segmentation: {
+          language: "es",
+          category: "partner",
+          vertical: "health",
+          market: "Spain",
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Marketing contact created.");
     });
   });
 
