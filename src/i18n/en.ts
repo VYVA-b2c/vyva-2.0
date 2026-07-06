@@ -996,6 +996,16 @@
       completeBody: "You can come back to this whenever you want a quieter moment.",
       tryAgain: "Try again",
       audioUnavailable: "The visual guide still works without audio.",
+      routineTitle: "Your calm routine",
+      routineStart: "First pause today",
+      routineDoneToday: "Done today",
+      routineCountOne: "{n} calm pause",
+      routineCountMany: "{n} calm pauses",
+      routineStreak: "{n} day streak",
+      motionPause: "Pause motion",
+      motionResume: "Resume motion",
+      motionSystemPaused: "Motion paused",
+      nowLabel: "Now",
       stages: {
         settle: {
           title: "Settle",

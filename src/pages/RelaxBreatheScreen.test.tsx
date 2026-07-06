@@ -40,6 +40,16 @@ const labels: Record<string, string> = {
   "activities.relaxBreathe.completeBody": "You can come back to this whenever you want a quieter moment.",
   "activities.relaxBreathe.tryAgain": "Try again",
   "activities.relaxBreathe.audioUnavailable": "The visual guide still works without audio.",
+  "activities.relaxBreathe.routineTitle": "Your calm routine",
+  "activities.relaxBreathe.routineStart": "First pause today",
+  "activities.relaxBreathe.routineDoneToday": "Done today",
+  "activities.relaxBreathe.routineCountOne": "{n} calm pause",
+  "activities.relaxBreathe.routineCountMany": "{n} calm pauses",
+  "activities.relaxBreathe.routineStreak": "{n} day streak",
+  "activities.relaxBreathe.motionPause": "Pause motion",
+  "activities.relaxBreathe.motionResume": "Resume motion",
+  "activities.relaxBreathe.motionSystemPaused": "Motion paused",
+  "activities.relaxBreathe.nowLabel": "Now",
   "activities.relaxBreathe.stages.settle.title": "Settle",
   "activities.relaxBreathe.stages.settle.instruction": "Sit comfortably. Let your shoulders soften.",
   "activities.relaxBreathe.stages.settle.cue": "Find a comfortable seat.",
@@ -53,7 +63,14 @@ const labels: Record<string, string> = {
 
 vi.mock("@/i18n", () => ({
   useLanguage: () => ({
-    t: (key: string, fallback?: string) => labels[key] ?? fallback ?? key,
+    t: (key: string, fallback?: string, params?: Record<string, string | number>) => {
+      const value = labels[key] ?? fallback ?? key;
+      if (!params) return value;
+      return Object.entries(params).reduce(
+        (text, [paramKey, paramValue]) => text.replaceAll(`{${paramKey}}`, String(paramValue)),
+        value,
+      );
+    },
   }),
 }));
 
@@ -106,6 +123,7 @@ describe("RelaxBreatheScreen", () => {
     voiceMock.startVoice.mockResolvedValue(undefined);
     mockReducedMotion(false);
     vi.stubGlobal("fetch", vi.fn());
+    window.localStorage.removeItem("vyva_relax_breathe_progress");
   });
 
   afterEach(() => {
@@ -121,6 +139,9 @@ describe("RelaxBreatheScreen", () => {
     expect(screen.getByTestId("relax-breathe-safety")).toHaveTextContent("If breathing feels difficult");
     expect(screen.getByTestId("relax-breathe-mode-switch")).toBeInTheDocument();
     expect(screen.getByTestId("button-relax-breathe-mode-visual")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("relax-breathe-routine")).toHaveTextContent("First pause today");
+    expect(screen.getByTestId("button-relax-breathe-motion-toggle")).toHaveTextContent("Pause motion");
+    expect(screen.getByTestId("relax-breathe-mobile-focus")).toHaveTextContent("Sit comfortably");
     expect(screen.getByTestId("relax-breathe-visual-mode-panel")).toHaveTextContent("Follow the breathing circle");
     expect(within(screen.getByTestId("relax-breathe-stage-list")).getAllByRole("button")).toHaveLength(3);
     expect(screen.getByTestId("button-relax-breathe-finish")).toHaveTextContent("Finish");
@@ -151,6 +172,30 @@ describe("RelaxBreatheScreen", () => {
 
     fireEvent.click(screen.getByTestId("button-relax-breathe-stage-back"));
     expect(screen.getByTestId("relax-breathe-stage-instruction")).toHaveTextContent("Sit comfortably");
+  });
+
+  it("keeps the next step reachable in the mobile focus card", () => {
+    renderRelaxBreathe();
+
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mobile-stage-next"));
+    expect(screen.getByTestId("relax-breathe-mobile-focus")).toHaveTextContent("Breathe in as the circle grows");
+
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mobile-stage-next"));
+    fireEvent.click(screen.getByTestId("button-relax-breathe-mobile-finish"));
+
+    expect(screen.getByTestId("relax-breathe-complete")).toHaveTextContent("A calm pause is complete.");
+  });
+
+  it("lets the user pause breathing motion and remembers the choice", () => {
+    renderRelaxBreathe();
+
+    expect(screen.getByTestId("relax-breathe-orb")).toHaveAttribute("data-motion", "animated");
+
+    fireEvent.click(screen.getByTestId("button-relax-breathe-motion-toggle"));
+
+    expect(screen.getByTestId("relax-breathe-orb")).toHaveAttribute("data-motion", "static");
+    expect(screen.getByTestId("button-relax-breathe-motion-toggle")).toHaveTextContent("Resume motion");
+    expect(window.localStorage.getItem("vyva_relax_breathe_progress")).toContain('"motionPaused":true');
   });
 
   it("starts Marco voice with calm-session context and sends the visible stage prompt", async () => {
@@ -215,6 +260,9 @@ describe("RelaxBreatheScreen", () => {
     fireEvent.click(screen.getByTestId("button-relax-breathe-finish"));
 
     expect(screen.getByTestId("relax-breathe-complete")).toHaveTextContent("A calm pause is complete.");
+    expect(screen.getByTestId("relax-breathe-progress-summary")).toHaveTextContent("1 calm pause");
+    expect(screen.getByTestId("relax-breathe-progress-summary")).toHaveTextContent("Done today");
+    expect(window.localStorage.getItem("vyva_relax_breathe_progress")).toContain('"totalSessions":1');
     expect(voiceMock.stopVoice).toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("/api/activity/log"), expect.anything());
   });

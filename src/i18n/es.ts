@@ -780,6 +780,16 @@ const es = {
       completeBody: "Puedes volver a esto cuando quieras un momento mas tranquilo.",
       tryAgain: "Intentar de nuevo",
       audioUnavailable: "La guia visual tambien funciona sin audio.",
+      routineTitle: "Tu rutina de calma",
+      routineStart: "Primera pausa hoy",
+      routineDoneToday: "Hecho hoy",
+      routineCountOne: "{n} pausa tranquila",
+      routineCountMany: "{n} pausas tranquilas",
+      routineStreak: "Racha de {n} dia",
+      motionPause: "Pausar movimiento",
+      motionResume: "Reanudar movimiento",
+      motionSystemPaused: "Movimiento pausado",
+      nowLabel: "Ahora",
       stages: {
         settle: {
           title: "Acomodate",

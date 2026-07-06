@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Headphones, Loader2, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Headphones, Loader2, PauseCircle, PlayCircle, RotateCcw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
@@ -13,6 +13,80 @@ type RelaxBreatheStage = {
 
 const RELAX_BREATHE_STAGE_KEYS = ["settle", "breathe", "return"] as const;
 type RelaxBreatheGuideMode = "visual" | "voice";
+type RelaxBreatheProgress = {
+  totalSessions: number;
+  lastCompletedDate: string | null;
+  streakDays: number;
+  motionPaused: boolean;
+};
+
+const RELAX_BREATHE_PROGRESS_KEY = "vyva_relax_breathe_progress";
+const DEFAULT_RELAX_BREATHE_PROGRESS: RelaxBreatheProgress = {
+  totalSessions: 0,
+  lastCompletedDate: null,
+  streakDays: 0,
+  motionPaused: false,
+};
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getYesterdayDateKey() {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  return getLocalDateKey(date);
+}
+
+function readRelaxBreatheProgress(): RelaxBreatheProgress {
+  if (typeof window === "undefined") return DEFAULT_RELAX_BREATHE_PROGRESS;
+
+  try {
+    const stored = window.localStorage.getItem(RELAX_BREATHE_PROGRESS_KEY);
+    if (!stored) return DEFAULT_RELAX_BREATHE_PROGRESS;
+
+    const parsed = JSON.parse(stored) as Partial<RelaxBreatheProgress>;
+    return {
+      totalSessions: Math.max(0, Number(parsed.totalSessions) || 0),
+      lastCompletedDate: typeof parsed.lastCompletedDate === "string" ? parsed.lastCompletedDate : null,
+      streakDays: Math.max(0, Number(parsed.streakDays) || 0),
+      motionPaused: Boolean(parsed.motionPaused),
+    };
+  } catch {
+    return DEFAULT_RELAX_BREATHE_PROGRESS;
+  }
+}
+
+function writeRelaxBreatheProgress(progress: RelaxBreatheProgress) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(RELAX_BREATHE_PROGRESS_KEY, JSON.stringify(progress));
+  } catch {
+    // The guide still works if local storage is unavailable.
+  }
+}
+
+function recordRelaxBreatheCompletion(progress: RelaxBreatheProgress): RelaxBreatheProgress {
+  const today = getLocalDateKey();
+  const completedYesterday = progress.lastCompletedDate === getYesterdayDateKey();
+  const completedToday = progress.lastCompletedDate === today;
+  const streakDays = completedToday
+    ? Math.max(1, progress.streakDays)
+    : completedYesterday
+      ? Math.max(1, progress.streakDays) + 1
+      : 1;
+
+  return {
+    ...progress,
+    totalSessions: progress.totalSessions + 1,
+    lastCompletedDate: today,
+    streakDays,
+  };
+}
 
 function usePrefersReducedMotion() {
   const readPreference = () => (
@@ -69,6 +143,7 @@ export default function RelaxBreatheScreen() {
   const [isAudioStarting, setAudioStarting] = useState(false);
   const [guideMode, setGuideMode] = useState<RelaxBreatheGuideMode>("visual");
   const [voiceStartFailed, setVoiceStartFailed] = useState(false);
+  const [progress, setProgress] = useState<RelaxBreatheProgress>(readRelaxBreatheProgress);
   const {
     startVoice,
     stopVoice,
@@ -108,6 +183,16 @@ export default function RelaxBreatheScreen() {
     completeBody: t("activities.relaxBreathe.completeBody", "You can come back to this whenever you want a quieter moment."),
     tryAgain: t("activities.relaxBreathe.tryAgain", "Try again"),
     audioUnavailable: t("activities.relaxBreathe.audioUnavailable", "The visual guide still works without audio."),
+    routineTitle: t("activities.relaxBreathe.routineTitle", "Your calm routine"),
+    routineStart: t("activities.relaxBreathe.routineStart", "First pause today"),
+    routineDoneToday: t("activities.relaxBreathe.routineDoneToday", "Done today"),
+    routineCountOne: t("activities.relaxBreathe.routineCountOne", "{n} calm pause"),
+    routineCountMany: t("activities.relaxBreathe.routineCountMany", "{n} calm pauses"),
+    routineStreak: t("activities.relaxBreathe.routineStreak", "{n} day streak"),
+    motionPause: t("activities.relaxBreathe.motionPause", "Pause motion"),
+    motionResume: t("activities.relaxBreathe.motionResume", "Resume motion"),
+    motionSystemPaused: t("activities.relaxBreathe.motionSystemPaused", "Motion paused"),
+    nowLabel: t("activities.relaxBreathe.nowLabel", "Now"),
     stages: RELAX_BREATHE_STAGE_KEYS.map((key) => ({
       key,
       title: t(`activities.relaxBreathe.stages.${key}.title`),
@@ -119,6 +204,12 @@ export default function RelaxBreatheScreen() {
   const currentStage = copy.stages[stageIndex] ?? copy.stages[0];
   const stageCount = copy.stages.length;
   const audioIsLive = isGuideStarted || voiceStatus === "connected";
+  const isMotionPaused = prefersReducedMotion || progress.motionPaused;
+  const completedToday = progress.lastCompletedDate === getLocalDateKey();
+  const sessionCountText = progress.totalSessions === 1
+    ? t("activities.relaxBreathe.routineCountOne", copy.routineCountOne, { n: progress.totalSessions })
+    : t("activities.relaxBreathe.routineCountMany", copy.routineCountMany, { n: progress.totalSessions });
+  const streakText = t("activities.relaxBreathe.routineStreak", copy.routineStreak, { n: Math.max(1, progress.streakDays) });
 
   const voiceVariables = useCallback((nextStageIndex: number) => {
     const stage = copy.stages[nextStageIndex] ?? copy.stages[0];
@@ -212,10 +303,28 @@ export default function RelaxBreatheScreen() {
     }
   }, [audioIsLive, sendStagePrompt, stageIndex]);
 
+  const toggleMotionPaused = useCallback(() => {
+    if (prefersReducedMotion) return;
+
+    setProgress((currentProgress) => {
+      const nextProgress = {
+        ...currentProgress,
+        motionPaused: !currentProgress.motionPaused,
+      };
+      writeRelaxBreatheProgress(nextProgress);
+      return nextProgress;
+    });
+  }, [prefersReducedMotion]);
+
   const finishSession = useCallback(() => {
     stopVoice();
     setGuideStarted(false);
     setVoiceStartFailed(false);
+    setProgress((currentProgress) => {
+      const nextProgress = recordRelaxBreatheCompletion(currentProgress);
+      writeRelaxBreatheProgress(nextProgress);
+      return nextProgress;
+    });
     setCompleted(true);
   }, [stopVoice]);
 
@@ -286,6 +395,27 @@ export default function RelaxBreatheScreen() {
               <p className="mt-4 max-w-[520px] font-body text-[19px] font-bold leading-snug text-[#5F706C]">
                 {copy.completeBody}
               </p>
+              <div
+                className="mt-6 grid w-full max-w-[520px] gap-3 rounded-[26px] border border-[#CDEBE5] bg-[#F8FFFC] p-4 text-left sm:grid-cols-2"
+                data-testid="relax-breathe-progress-summary"
+              >
+                <div>
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                    {copy.routineTitle}
+                  </p>
+                  <p className="mt-1 font-body text-[20px] font-black text-[#173B35]">
+                    {sessionCountText}
+                  </p>
+                </div>
+                <div>
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                    {completedToday ? copy.routineDoneToday : copy.routineStart}
+                  </p>
+                  <p className="mt-1 font-body text-[20px] font-black text-[#173B35]">
+                    {streakText}
+                  </p>
+                </div>
+              </div>
               <div className="mt-8 grid w-full max-w-[520px] gap-3 sm:grid-cols-2">
                 <button
                   type="button"
@@ -305,8 +435,8 @@ export default function RelaxBreatheScreen() {
               </div>
             </div>
           ) : (
-            <div className="grid min-h-[650px] lg:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="relative flex min-w-0 flex-col justify-between overflow-hidden bg-[linear-gradient(145deg,#F5FFFB_0%,#E7FFF7_54%,#F9FBF8_100%)] p-5 sm:p-7">
+            <div className="grid lg:min-h-[650px] lg:grid-cols-[minmax(0,1fr)_320px]">
+              <section className="relative flex min-w-0 flex-col justify-between overflow-hidden bg-[linear-gradient(145deg,#F5FFFB_0%,#E7FFF7_54%,#F9FBF8_100%)] p-4 sm:p-7">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -318,10 +448,10 @@ export default function RelaxBreatheScreen() {
                         {copy.stepLabel} {stageIndex + 1} {copy.ofLabel} {stageCount}
                       </span>
                     </div>
-                    <h1 className="mt-4 font-display text-[42px] leading-[0.98] text-[#173B35] sm:text-[58px]">
+                    <h1 className="mt-4 font-display text-[38px] leading-[0.98] text-[#173B35] sm:text-[58px]">
                       {copy.title}
                     </h1>
-                    <p className="mt-3 max-w-[520px] font-body text-[18px] font-bold leading-snug text-[#5F706C] sm:text-[21px]">
+                    <p className="mt-3 max-w-[520px] font-body text-[16px] font-bold leading-snug text-[#5F706C] sm:text-[21px]">
                       {copy.intro}
                     </p>
                     <div
@@ -359,23 +489,107 @@ export default function RelaxBreatheScreen() {
                         {copy.voiceMode}
                       </button>
                     </div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <div
+                        className="inline-flex min-h-[48px] items-center gap-3 rounded-[18px] border border-[#CDEBE5] bg-white/82 px-4 py-2 shadow-[0_8px_18px_rgba(15,118,110,0.08)]"
+                        data-testid="relax-breathe-routine"
+                      >
+                        <Sparkles size={19} strokeWidth={2.5} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+                        <div className="min-w-0">
+                          <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                            {copy.routineTitle}
+                          </p>
+                          <p className="break-words font-body text-[14px] font-black text-[#173B35]">
+                            {progress.totalSessions > 0 ? sessionCountText : copy.routineStart}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={toggleMotionPaused}
+                        disabled={prefersReducedMotion}
+                        aria-pressed={isMotionPaused}
+                        className="inline-flex min-h-[48px] items-center gap-2 rounded-[18px] border border-[#CDEBE5] bg-white/82 px-4 py-2 font-body text-[14px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)] disabled:opacity-70"
+                        data-testid="button-relax-breathe-motion-toggle"
+                      >
+                        {isMotionPaused ? (
+                          <PlayCircle size={19} strokeWidth={2.5} aria-hidden="true" />
+                        ) : (
+                          <PauseCircle size={19} strokeWidth={2.5} aria-hidden="true" />
+                        )}
+                        {prefersReducedMotion
+                          ? copy.motionSystemPaused
+                          : isMotionPaused
+                            ? copy.motionResume
+                            : copy.motionPause}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 <div
-                  className="relative mx-auto mt-8 flex aspect-square w-full max-w-[400px] items-center justify-center"
+                  className="mt-5 rounded-[26px] border border-[#0F766E] bg-white p-4 shadow-[0_14px_28px_rgba(15,118,110,0.14)] lg:hidden"
+                  data-testid="relax-breathe-mobile-focus"
+                  aria-live="polite"
+                >
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                    {copy.nowLabel}
+                  </p>
+                  <h2 className="mt-1 break-words font-display text-[30px] leading-[1.02] text-[#173B35]">
+                    {currentStage.title}
+                  </h2>
+                  <p className="mt-2 break-words font-body text-[18px] font-black leading-snug text-[#203B37]">
+                    {currentStage.instruction}
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => goToStage(stageIndex - 1)}
+                      disabled={stageIndex === 0}
+                      className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] border border-[#CDEBE5] bg-white px-4 font-body text-[16px] font-black text-[#0F766E] disabled:opacity-45"
+                      data-testid="button-relax-breathe-mobile-stage-back"
+                    >
+                      <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
+                      {copy.back}
+                    </button>
+                    {stageIndex === stageCount - 1 ? (
+                      <button
+                        type="button"
+                        onClick={finishSession}
+                        className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)]"
+                        data-testid="button-relax-breathe-mobile-finish"
+                      >
+                        <CheckCircle2 size={19} strokeWidth={2.6} aria-hidden="true" />
+                        {copy.finish}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => goToStage(stageIndex + 1)}
+                        className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)]"
+                        data-testid="button-relax-breathe-mobile-stage-next"
+                      >
+                        {copy.next}
+                        <ArrowRight size={19} strokeWidth={2.6} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="relative mx-auto mt-5 flex aspect-square w-full max-w-[230px] items-center justify-center sm:mt-8 sm:max-w-[400px]"
                   data-testid="relax-breathe-visual"
                 >
-                  <div className={`relax-breathe-halo absolute h-[92%] w-[92%] rounded-[34%_66%_45%_55%] border border-[#A8EFE1] bg-white/45 ${prefersReducedMotion ? "" : "animate-[relax-breathe-halo_5.8s_ease-in-out_infinite]"}`} aria-hidden="true" />
-                  <div className={`relax-breathe-halo absolute h-[72%] w-[72%] rounded-[60%_40%_58%_42%] border border-white bg-[#D8FFF6]/80 ${prefersReducedMotion ? "" : "animate-[relax-breathe-halo_5.8s_ease-in-out_infinite_0.3s]"}`} aria-hidden="true" />
+                  <div className={`relax-breathe-halo absolute h-[92%] w-[92%] rounded-[34%_66%_45%_55%] border border-[#A8EFE1] bg-white/45 ${isMotionPaused ? "" : "animate-[relax-breathe-halo_5.8s_ease-in-out_infinite]"}`} aria-hidden="true" />
+                  <div className={`relax-breathe-halo absolute h-[72%] w-[72%] rounded-[60%_40%_58%_42%] border border-white bg-[#D8FFF6]/80 ${isMotionPaused ? "" : "animate-[relax-breathe-halo_5.8s_ease-in-out_infinite_0.3s]"}`} aria-hidden="true" />
                   <div
-                    className={`relax-breathe-orb relative z-10 flex h-[58%] w-[58%] max-w-[280px] items-center justify-center rounded-full bg-[#0F766E] text-center text-white shadow-[0_28px_70px_rgba(15,118,110,0.28)] ${prefersReducedMotion ? "" : "animate-[relax-breathe-pulse_5.8s_ease-in-out_infinite]"}`}
+                    className={`relax-breathe-orb relative z-10 flex h-[58%] w-[58%] max-w-[280px] items-center justify-center rounded-full bg-[#0F766E] text-center text-white shadow-[0_28px_70px_rgba(15,118,110,0.28)] ${isMotionPaused ? "" : "animate-[relax-breathe-pulse_5.8s_ease-in-out_infinite]"}`}
                     data-testid="relax-breathe-orb"
-                    data-motion={prefersReducedMotion ? "static" : "animated"}
+                    data-motion={isMotionPaused ? "static" : "animated"}
                     aria-label={`${copy.breatheIn}. ${copy.breatheOut}.`}
                   >
                     <div className="px-4">
-                      <p className="font-display text-[31px] leading-none sm:text-[40px]">{copy.breatheIn}</p>
+                      <p className="font-display text-[25px] leading-none sm:text-[40px]">{copy.breatheIn}</p>
                       <p className="mt-3 font-body text-[14px] font-black uppercase tracking-[0.14em] text-[#BFF7EA] sm:text-[16px]">
                         {copy.breatheOut}
                       </p>
@@ -425,7 +639,7 @@ export default function RelaxBreatheScreen() {
                   <p className="mt-3 break-words rounded-[18px] bg-white px-4 py-3 font-body text-[17px] font-black leading-snug text-[#0F766E]">
                     {currentStage.cue}
                   </p>
-                  <p className="mt-5 break-words font-body text-[22px] font-black leading-snug text-[#203B37]" data-testid="relax-breathe-stage-instruction">
+                  <p className="mt-5 break-words font-body text-[22px] font-black leading-snug text-[#203B37]" data-testid="relax-breathe-stage-instruction" aria-live="polite">
                     {currentStage.instruction}
                   </p>
                   <p className="mt-5 break-words rounded-[18px] bg-white px-4 py-3 font-body text-[14px] font-bold leading-snug text-[#60716D]" data-testid="relax-breathe-safety">
