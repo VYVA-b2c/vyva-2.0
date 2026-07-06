@@ -437,27 +437,27 @@ function outcomeCopy(report: CognitiveAssessmentReport, checkQuality: ReportChec
     return {
       label: "Result",
       title: "A clear starting map",
-      detail: "Enough areas were captured to guide today's practice and compare future checks.",
+      detail: "Ready for one small practice and future comparison.",
     };
   }
   if (percent >= 70) {
     return {
       label: "Result",
       title: "A useful snapshot",
-      detail: "There is enough signal to choose one focused practice. Repeating later makes it stronger.",
+      detail: "Choose one practice now. Repeat later for a stronger trend.",
     };
   }
   if (percent >= 35) {
     return {
       label: "Result",
       title: "A snapshot is building",
-      detail: "You have a helpful start. Practice can begin now, and the next check can fill the gaps.",
+      detail: "Practice can begin now. Fill the gaps next time.",
     };
   }
   return {
     label: "Result",
     title: "A first step is saved",
-    detail: "This is not a score. It is the beginning of a personal map for support and practice.",
+    detail: "Not a score. A starting point for support and practice.",
   };
 }
 
@@ -505,6 +505,111 @@ function outcomeHighlights({
   }
 
   return highlights.slice(0, 3);
+}
+
+function bestThinkingSignal(taskSignals: ReportTaskSignals) {
+  return taskSignals
+    .filter((signal) => !isContextSignal(signal) && signal.rawValue !== null)
+    .sort((left, right) => signalStrength(right) - signalStrength(left))[0] ?? null;
+}
+
+function strengthMapItems({
+  report,
+  taskSignals,
+  domainTrends,
+  baselineBands,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  taskSignals: ReportTaskSignals;
+  domainTrends: ReportDomainTrends;
+  baselineBands: ReportBaselineBands;
+  contextInsight: ReportContextInsight;
+}) {
+  const bestSignal = bestThinkingSignal(taskSignals);
+  const practiceKey = primaryPracticeKey({ report, taskSignals, domainTrends, baselineBands, contextInsight });
+  const practice = PRACTICE_RECOMMENDATIONS[practiceKey];
+  const trend = domainTrends.find((item) => item.latestRawValue !== null && item.direction !== "none");
+  const contextPercent = contextInsight.tone === "building" ? 42 : contextInsight.tone === "changed" ? 74 : 68;
+
+  return [
+    {
+      label: "Bright spot",
+      value: bestSignal?.domain ?? trend?.label ?? "First signal",
+      detail: bestSignal?.valueLabel ?? trend?.valueLabel ?? "Saved",
+      percent: bestSignal ? Math.max(34, Math.min(100, Math.round(signalStrength(bestSignal) * 100))) : completionPercent(report),
+      tone: "bg-[#ECFDF5] text-[#047857] border-[#BBF7D0]",
+      bar: "#047857",
+    },
+    {
+      label: "Focus next",
+      value: practice.domainLabel,
+      detail: practice.title,
+      percent: 68,
+      tone: "bg-[#F5F3FF] text-[#6B21A8] border-[#DDD6FE]",
+      bar: practice.tone.accent,
+    },
+    {
+      label: "Life context",
+      value: contextInsight.label,
+      detail: contextInsight.tone === "changed" ? "May explain changes" : "Helps comparisons",
+      percent: contextPercent,
+      tone: "bg-[#FFF7ED] text-[#C2410C] border-[#FED7AA]",
+      bar: "#C2410C",
+    },
+  ];
+}
+
+function StrengthMapCard({
+  report,
+  taskSignals,
+  domainTrends,
+  baselineBands,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  taskSignals: ReportTaskSignals;
+  domainTrends: ReportDomainTrends;
+  baselineBands: ReportBaselineBands;
+  contextInsight: ReportContextInsight;
+}) {
+  const items = strengthMapItems({ report, taskSignals, domainTrends, baselineBands, contextInsight });
+
+  return (
+    <section
+      className="min-w-0 max-w-full overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white p-4 shadow-[0_12px_28px_rgba(63,45,35,0.06)]"
+      data-testid="assessment-strength-map"
+      aria-labelledby="assessment-strength-map-title"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Strength map</p>
+          <h2 id="assessment-strength-map-title" className="mt-1 text-[24px] font-black leading-tight text-[#2f2135]">
+            What to use next
+          </h2>
+        </div>
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
+          <Sparkles size={22} />
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {items.map((item) => (
+          <div key={item.label} className={`min-w-0 rounded-[20px] border px-3 py-3 ${item.tone}`}>
+            <span className="block text-[11px] font-black uppercase tracking-[0.1em] opacity-80">{item.label}</span>
+            <span className="mt-1 block truncate text-[18px] font-black leading-tight text-[#2f2135]">{item.value}</span>
+            <span className="mt-1 block truncate text-[12px] font-bold opacity-85">{item.detail}</span>
+            <span className="mt-3 block h-2 overflow-hidden rounded-full bg-white/80">
+              <span
+                className="block h-full rounded-full"
+                style={{ width: `${Math.max(18, Math.min(100, item.percent))}%`, backgroundColor: item.bar }}
+              />
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function ReportHeader({
@@ -1535,6 +1640,109 @@ function bestNextAction(
   };
 }
 
+type WeeklyPracticeState = "done" | "today" | "later";
+
+function practiceByTitle(title: string) {
+  return Object.values(PRACTICE_RECOMMENDATIONS).find((practice) => practice.title === title) ?? null;
+}
+
+function weeklyPracticeItems(
+  practices: PracticeRecommendation[],
+  practiceStatus: ReturnType<typeof cognitiveAssessmentPracticeStatusForReport>,
+) {
+  const completedTitle = practiceStatus?.status === "completed" ? practiceStatus.practiceTitle : "";
+  const completedPractice = completedTitle ? practiceByTitle(completedTitle) : null;
+  const planPractices = completedPractice && !practices.some((practice) => practice.key === completedPractice.key)
+    ? [completedPractice, ...practices.filter((practice) => practice.key !== completedPractice.key)].slice(0, 3)
+    : practices;
+  const activeIndex = planPractices.findIndex((practice) => practice.title !== completedTitle);
+  const nextIndex = activeIndex === -1 ? 0 : activeIndex;
+
+  return planPractices.map((practice, index) => {
+    const state: WeeklyPracticeState = practice.title === completedTitle ? "done" : index === nextIndex ? "today" : "later";
+    return { practice, state };
+  });
+}
+
+function activeWeeklyPractice(items: ReturnType<typeof weeklyPracticeItems>) {
+  return items.find((item) => item.state !== "done")?.practice ?? items[0]?.practice ?? PRACTICE_RECOMMENDATIONS.memory;
+}
+
+function WeeklyPracticePlan({
+  items,
+  onOpenPractice,
+}: {
+  items: ReturnType<typeof weeklyPracticeItems>;
+  onOpenPractice: (practice: PracticeRecommendation) => void;
+}) {
+  const completed = items.filter((item) => item.state === "done").length;
+  const progress = Math.round((completed / Math.max(1, items.length)) * 100);
+
+  return (
+    <section
+      className="mt-4 rounded-[24px] border border-[#E8DED4] bg-[#FBF8F4] p-4"
+      data-testid="assessment-weekly-plan"
+      aria-labelledby="assessment-weekly-plan-title"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">This week</p>
+          <h3 id="assessment-weekly-plan-title" className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">
+            3 small practices
+          </h3>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#6B21A8] shadow-sm">
+          {completed}/{items.length}
+        </span>
+      </div>
+      <span className="mt-3 block h-2 overflow-hidden rounded-full bg-white">
+        <span className="block h-full rounded-full bg-[#7C3AED]" style={{ width: `${progress}%` }} />
+      </span>
+
+      <div className="mt-4 grid gap-2">
+        {items.map(({ practice, state }, index) => {
+          const Icon = practice.Icon;
+          const label = state === "done" ? "Done" : state === "today" ? "Start" : "Later";
+          const buttonLabel = state === "done" ? "Do again" : state === "today" ? "Start practice" : "Open";
+          return (
+            <button
+              key={practice.key}
+              type="button"
+              onClick={() => onOpenPractice(practice)}
+              className="group flex min-h-[74px] w-full items-center justify-between gap-3 rounded-[18px] border bg-white px-3 py-3 text-left shadow-sm transition-transform hover:-translate-y-0.5"
+              style={{ borderColor: practice.tone.border }}
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+                  style={{ backgroundColor: practice.tone.bg, color: practice.tone.accent }}
+                >
+                  {state === "done" ? <CheckCircle2 size={22} /> : <Icon size={22} />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-black uppercase tracking-[0.1em] text-[#766b63]">
+                    {index + 1}. {label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[16px] font-black text-[#2f2135]">{practice.title}</span>
+                  <span className="mt-0.5 block truncate text-[12px] font-bold text-[#766b63]">
+                    {practice.domainLabel} - {practice.minutes}
+                  </span>
+                </span>
+              </span>
+              <span
+                className="flex-shrink-0 rounded-full px-3 py-2 text-[12px] font-black"
+                style={{ backgroundColor: practice.tone.bg, color: practice.tone.accent }}
+              >
+                {buttonLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function PostAssessmentRecommendationPanel({
   report,
   taskSignals,
@@ -1555,8 +1763,6 @@ function PostAssessmentRecommendationPanel({
   const highlights = outcomeHighlights({ report, taskSignals, domainTrends, contextInsight });
   const practiceKey = primaryPracticeKey({ report, taskSignals, domainTrends, baselineBands, contextInsight });
   const practices = practiceSequence(practiceKey);
-  const primary = practices[0];
-  const PrimaryIcon = primary.Icon;
   const [practiceIntent, setPracticeIntent] = useState(() => cognitiveAssessmentPracticeStatusForReport(report.sessionId));
 
   useEffect(() => {
@@ -1577,6 +1783,9 @@ function PostAssessmentRecommendationPanel({
   };
 
   const practiceStatus = practiceIntent?.reportSessionId === report.sessionId ? practiceIntent : null;
+  const weeklyItems = weeklyPracticeItems(practices, practiceStatus);
+  const primary = activeWeeklyPractice(weeklyItems);
+  const PrimaryIcon = primary.Icon;
 
   return (
     <div
@@ -1665,22 +1874,7 @@ function PostAssessmentRecommendationPanel({
         </div>
       </div>
 
-      {practices.length > 1 ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-[12px] font-black text-[#766b63]">Also useful:</span>
-          {practices.slice(1).map((practice) => (
-            <button
-              key={practice.key}
-              type="button"
-              onClick={() => openPractice(practice)}
-              className="rounded-full border px-3 py-2 text-[12px] font-black"
-              style={{ borderColor: practice.tone.border, backgroundColor: practice.tone.bg, color: practice.tone.accent }}
-            >
-              {practice.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <WeeklyPracticePlan items={weeklyItems} onOpenPractice={openPractice} />
     </div>
   );
 }
@@ -1818,6 +2012,14 @@ function ReportView({
             report={report}
             domainTrends={domainTrends}
             checkQuality={checkQuality}
+            contextInsight={contextInsight}
+          />
+
+          <StrengthMapCard
+            report={report}
+            taskSignals={taskSignals}
+            domainTrends={domainTrends}
+            baselineBands={baselineBands}
             contextInsight={contextInsight}
           />
 
