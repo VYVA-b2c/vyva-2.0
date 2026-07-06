@@ -342,7 +342,13 @@ function safeRound(value, digits = 2) {
   return Number(value.toFixed(digits));
 }
 
-export default function BreathGarden({ userId, onExit }) {
+export default function BreathGarden({
+  userId,
+  onExit,
+  assessmentPractice = null,
+  onAssessmentPracticeComplete,
+  onAssessmentPracticeReturn,
+}) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
   const [screen, setScreen] = useState("loading");
@@ -550,6 +556,10 @@ export default function BreathGarden({ userId, onExit }) {
     setSaveWarning("");
     try {
       await saveSession({ completed: true, abandoned: false });
+      onAssessmentPracticeComplete?.({
+        practiceTitle: assessmentPractice?.practiceTitle,
+        bloomLevel,
+      });
     } catch (error) {
       console.warn("Breath Garden could not save the completed session.", error);
       setSaveWarning(t("games.breathGarden.saveWarning", "Your garden is shown here, but saving may need to be retried."));
@@ -792,6 +802,23 @@ export default function BreathGarden({ userId, onExit }) {
               {t("games.breathGarden.streakLabel", "{n} days tending your garden", { n: userState?.streak_days ?? 1 })}
             </p>
             {saveWarning ? <p className="mt-4 text-[20px] font-bold text-[#92400E]">{saveWarning}</p> : null}
+            {assessmentPractice ? (
+              <div className="mt-5 rounded-[22px] border px-4 py-4 text-left" style={{ borderColor: "#A7F3D0", background: "#ECFDF5", color: BRAND.teal }}>
+                <p className="text-[18px] font-black uppercase tracking-[0.05em]">{t("brainGames.resultActions.assessmentPractice", "Assessment practice")}</p>
+                <p className="mt-1 text-[21px] font-extrabold leading-snug" style={{ color: BRAND.ink }}>
+                  {t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")}
+                </p>
+                <button
+                  type="button"
+                  onClick={onAssessmentPracticeReturn}
+                  disabled={!onAssessmentPracticeReturn}
+                  className="mt-4 min-h-[62px] w-full rounded-full px-5 text-[21px] font-black text-white shadow-vyva-card disabled:opacity-60"
+                  style={{ background: BRAND.teal }}
+                >
+                  {t("brainGames.resultActions.backToResults", "Back to my results")}
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={onExit}

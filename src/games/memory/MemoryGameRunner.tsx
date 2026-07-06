@@ -22,6 +22,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import {
+  cognitiveAssessmentPracticeStateFromRoute,
+  completeCognitiveAssessmentPractice,
+} from "@/lib/cognitiveAssessmentPracticeBridge";
 import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
 import { saveGameResult } from "./gameStorage";
 import {
@@ -425,6 +429,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const { language, t } = useLanguage();
   const { speakSequence, stopTts, isTtsSpeaking } = useTtsReadout();
   const userId = user?.id ?? FALLBACK_USER_ID;
+  const assessmentPractice = cognitiveAssessmentPracticeStateFromRoute(location.state);
 
   const routeGameType = forcedGameType ?? gameType;
   const validGameType = routeGameType && routeGameType in memoryGameRegistry ? (routeGameType as MemoryGameType) : null;
@@ -474,6 +479,7 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const wordRecallCommandCooldownRef = useRef(0);
   const isMemoryAudioMutedRef = useRef(isMemoryAudioMuted);
   const isTtsSpeakingRef = useRef(isTtsSpeaking);
+  const assessmentPracticeCompletedRef = useRef(false);
   const companionLineKeyRef = useRef("");
   const wordRecallRepeatTimerRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
@@ -1224,6 +1230,29 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     }
   };
 
+  const memoryComplete = Boolean(plan?.gameType === "memory_match" && memoryDeck.length > 0 && matchedIds.length === memoryDeck.length);
+
+  const completeAssessmentPractice = useCallback(() => {
+    if (!assessmentPractice || assessmentPracticeCompletedRef.current) return;
+    assessmentPracticeCompletedRef.current = true;
+    completeCognitiveAssessmentPractice(assessmentPractice);
+  }, [assessmentPractice]);
+
+  const returnToAssessment = useCallback(() => {
+    if (!assessmentPractice) return;
+    completeAssessmentPractice();
+    navigate(assessmentPractice.returnTo, {
+      state: {
+        assessmentPracticeCompleted: true,
+        recommendedDomain: assessmentPractice.recommendedDomain,
+      },
+    });
+  }, [assessmentPractice, completeAssessmentPractice, navigate]);
+
+  useEffect(() => {
+    if (memoryComplete) completeAssessmentPractice();
+  }, [completeAssessmentPractice, memoryComplete]);
+
   if (!validGameType) {
     return (
       <div className="px-[22px] py-8">
@@ -1261,7 +1290,6 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const gamePrompt = localizedVariant?.prompt ?? getGameDescription(plan.gameType, language);
   const GameIcon = getMemoryGameIcon(plan.gameType);
   const gameIconStyle = { background: definition.iconBg, color: definition.accentColor };
-  const memoryComplete = plan.gameType === "memory_match" && memoryDeck.length > 0 && matchedIds.length === memoryDeck.length;
   const voiceGameContextPanel = (
     <VoiceActionFulfillmentPanel
       domain="brain_coach"
@@ -1427,10 +1455,17 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
           nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
           replayLabel={t("brainGames.resultActions.playAgain")}
           anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
+          assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+          assessmentReturnHint={
+            assessmentPractice
+              ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+              : undefined
+          }
           onContinue={openRecommended}
           onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
           onReplay={() => void openSameGame()}
           onAnother={backToList}
+          onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
           disabled={actionLoading !== null}
           details={completionDetails && (
             <div className="grid gap-2">
@@ -2212,10 +2247,17 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
             nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
             replayLabel={t("brainGames.resultActions.playAgain")}
             anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
+            assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+            assessmentReturnHint={
+              assessmentPractice
+                ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+                : undefined
+            }
             onContinue={openRecommended}
             onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
             onReplay={() => void openSameGame()}
             onAnother={backToList}
+            onAssessmentReturn={assessmentPractice ? returnToAssessment : undefined}
             disabled={actionLoading !== null}
           />
         )}

@@ -1530,6 +1530,9 @@
       playAgain: "Play again",
       playAnotherGame: "Play another game",
       moreGames: "More games",
+      assessmentPractice: "Assessment practice",
+      assessmentPracticeComplete: "Good. You practiced the area VYVA noticed.",
+      backToResults: "Back to my results",
     },
       attentionBoosters: {
         title: "Focus & Attention",

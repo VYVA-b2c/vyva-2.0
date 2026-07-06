@@ -1120,6 +1120,9 @@ const pt = {
       playAgain: "Jogar novamente",
       playAnotherGame: "Jogar outro jogo",
       moreGames: "Mais jogos",
+      assessmentPractice: "Pratica da avaliacao",
+      assessmentPracticeComplete: "Bem. Voce praticou a area que a VYVA notou.",
+      backToResults: "Voltar aos meus resultados",
     },
       attentionBoosters: {
         title: "Foco e atencao",

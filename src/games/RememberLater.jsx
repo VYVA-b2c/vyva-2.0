@@ -421,7 +421,13 @@ function useLatestRef(value) {
   return ref;
 }
 
-export default function RememberLater({ userId, onExit }) {
+export default function RememberLater({
+  userId,
+  onExit,
+  assessmentPractice = null,
+  onAssessmentPracticeComplete,
+  onAssessmentPracticeReturn,
+}) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
   const [screen, setScreen] = useState("loading");
@@ -688,11 +694,18 @@ export default function RememberLater({ userId, onExit }) {
 
     await saveSession(result);
     if (!abandoned) await updateUserState(result);
+    if (!abandoned) {
+      onAssessmentPracticeComplete?.({
+        score: result.score,
+        accuracyPct: result.pm_accuracy_pct,
+        practiceTitle: assessmentPractice?.practiceTitle,
+      });
+    }
     setSessionResult(result);
     setSaving(false);
     if (!abandoned) setScreen("result");
     return result;
-  }, [roundRef, saveSession, stopTimers, updateUserState]);
+  }, [assessmentPractice, onAssessmentPracticeComplete, roundRef, saveSession, stopTimers, updateUserState]);
 
   const finishRoundRef = useLatestRef(finishRound);
 
@@ -1169,6 +1182,24 @@ export default function RememberLater({ userId, onExit }) {
                 {levelProgressNote}
               </p>
             </div>
+
+            {assessmentPractice ? (
+              <div className="mt-6 rounded-[22px] border px-4 py-4 text-left" style={{ borderColor: "#A7F3D0", background: "#ECFDF5", color: BRAND.teal }}>
+                <p className="text-[18px] font-black uppercase tracking-[0.05em]">{t("brainGames.resultActions.assessmentPractice", "Assessment practice")}</p>
+                <p className="mt-1 text-[21px] font-extrabold leading-snug" style={{ color: BRAND.ink }}>
+                  {t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")}
+                </p>
+                <button
+                  type="button"
+                  onClick={onAssessmentPracticeReturn}
+                  disabled={saving || !onAssessmentPracticeReturn}
+                  className="mt-4 min-h-[62px] w-full rounded-full px-5 text-[21px] font-black text-white shadow-vyva-card disabled:opacity-60"
+                  style={{ background: BRAND.teal }}
+                >
+                  {t("brainGames.resultActions.backToResults", "Back to my results")}
+                </button>
+              </div>
+            ) : null}
 
             <div className="mt-7 grid gap-3">
               <button

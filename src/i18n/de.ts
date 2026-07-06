@@ -1152,6 +1152,9 @@ const de = {
       playAgain: "Noch einmal",
       playAnotherGame: "Anderes Spiel",
       moreGames: "Mehr Spiele",
+      assessmentPractice: "Ubung zur Auswertung",
+      assessmentPracticeComplete: "Gut. Sie haben den Bereich geubt, den VYVA bemerkt hat.",
+      backToResults: "Zuruck zu meinen Ergebnissen",
     },
       attentionBoosters: {
         title: "Fokus und Aufmerksamkeit",

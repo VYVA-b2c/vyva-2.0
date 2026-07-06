@@ -18,10 +18,13 @@ export default function BrainGameCompletionDialog({
   nextLevelDisplayLabel,
   replayLabel,
   anotherLabel,
+  assessmentReturnLabel,
+  assessmentReturnHint,
   onContinue,
   onNextLevel,
   onReplay,
   onAnother,
+  onAssessmentReturn,
   disabled = false,
   className = "",
 }) {
@@ -64,6 +67,25 @@ export default function BrainGameCompletionDialog({
               </div>
             ))}
           </dl>
+        )}
+
+        {onAssessmentReturn && assessmentReturnLabel && (
+          <div className="mt-5 rounded-[20px] border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-4 text-left text-[#0F766E]">
+            <p className="text-[13px] font-black uppercase tracking-[0.1em]">Assessment practice</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <p className="text-[17px] font-extrabold leading-snug text-vyva-text-1">
+                {assessmentReturnHint || "Good. You practiced the area VYVA noticed."}
+              </p>
+              <button
+                type="button"
+                onClick={onAssessmentReturn}
+                disabled={disabled}
+                className="min-h-[54px] rounded-full bg-[#0F766E] px-5 text-[17px] font-black text-white shadow-vyva-card disabled:opacity-60"
+              >
+                {assessmentReturnLabel}
+              </button>
+            </div>
+          </div>
         )}
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
