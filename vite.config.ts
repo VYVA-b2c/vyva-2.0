@@ -12,6 +12,47 @@ const appVersion = process.env.VITE_APP_VERSION || packageJson.version || "0.0.0
 const localApiUnavailableMessage =
   "Local API is not running. Start the backend on port 3001 and make sure DATABASE_URL is set.";
 
+function vendorChunkName(id: string) {
+  if (!id.includes("node_modules")) return undefined;
+
+  const normalizedId = id.replace(/\\/g, "/");
+
+  if (/\/node_modules\/(react|react-dom|scheduler|use-sync-external-store)\//.test(normalizedId)) {
+    return "vendor-react";
+  }
+
+  if (/\/node_modules\/(react-router|react-router-dom)\//.test(normalizedId)) {
+    return "vendor-router";
+  }
+
+  if (normalizedId.includes("/node_modules/@tanstack/")) {
+    return "vendor-query";
+  }
+
+  if (normalizedId.includes("/node_modules/i18next/") || normalizedId.includes("/node_modules/react-i18next/")) {
+    return "vendor-i18n";
+  }
+
+  if (
+    normalizedId.includes("/node_modules/@radix-ui/") ||
+    normalizedId.includes("/node_modules/lucide-react/") ||
+    normalizedId.includes("/node_modules/sonner/") ||
+    normalizedId.includes("/node_modules/vaul/") ||
+    normalizedId.includes("/node_modules/cmdk/") ||
+    normalizedId.includes("/node_modules/class-variance-authority/") ||
+    normalizedId.includes("/node_modules/clsx/") ||
+    normalizedId.includes("/node_modules/tailwind-merge/")
+  ) {
+    return "vendor-ui";
+  }
+
+  if (normalizedId.includes("/node_modules/recharts/") || normalizedId.includes("/node_modules/d3-")) {
+    return "vendor-charts";
+  }
+
+  return undefined;
+}
+
 function forwardApiRequest(req: IncomingMessage, res: ServerResponse) {
   const target = `http://127.0.0.1:3001${req.url ?? ""}`;
   const headers = new Headers();
@@ -52,6 +93,11 @@ export default defineConfig({
   },
   build: {
     chunkSizeWarningLimit: 1900,
+    rollupOptions: {
+      output: {
+        manualChunks: vendorChunkName,
+      },
+    },
   },
   server: {
     host: "0.0.0.0",

@@ -82,7 +82,7 @@ describe("SymptomCheck intro chips", () => {
   it("renders one senior-friendly start panel", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
-    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what feels wrong");
+    expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what has changed");
     expect(screen.getByText("Speak, type, or tap an example.")).toBeVisible();
     expect(screen.getByPlaceholderText("Type what you feel...")).toBeVisible();
     expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();

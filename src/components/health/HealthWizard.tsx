@@ -31,6 +31,7 @@ type HealthWizardTopBarProps = {
   backLabel?: string;
   action?: ReactNode;
   className?: string;
+  compact?: boolean;
 };
 
 export function HealthWizardTopBar({
@@ -40,26 +41,30 @@ export function HealthWizardTopBar({
   backLabel = "Back",
   action,
   className,
+  compact = false,
 }: HealthWizardTopBarProps) {
   return (
-    <div className={cn("mb-4 mt-1 flex items-center gap-3", className)}>
+    <div className={cn(compact ? "mb-2 mt-0 flex items-center gap-2" : "mb-4 mt-1 flex items-center gap-3", className)}>
       {onBack ? (
         <button
           type="button"
           onClick={onBack}
           aria-label={backLabel}
-          className="vyva-tap flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-white text-vyva-text-1 shadow-[0_8px_22px_rgba(63,45,35,0.08)]"
+          className={cn(
+            "vyva-tap flex flex-shrink-0 items-center justify-center rounded-full bg-white text-vyva-text-1 shadow-[0_8px_22px_rgba(63,45,35,0.08)]",
+            compact ? "h-10 w-10" : "h-12 w-12",
+          )}
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={compact ? 18 : 20} />
         </button>
       ) : null}
       <div className="min-w-0 flex-1">
         {kicker ? (
-          <p className="font-body text-[12px] font-black uppercase tracking-[0.14em] text-vyva-purple/75">
+          <p className={cn("font-body font-black uppercase tracking-[0.14em] text-vyva-purple/75", compact ? "text-[10px]" : "text-[12px]")}>
             {kicker}
           </p>
         ) : null}
-        <h1 className="font-display text-[27px] leading-tight text-vyva-text-1">
+        <h1 className={cn("font-display leading-tight text-vyva-text-1", compact ? "text-[23px]" : "text-[27px]")}>
           {title}
         </h1>
       </div>

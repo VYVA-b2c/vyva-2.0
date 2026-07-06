@@ -3,7 +3,7 @@ import { ArrowLeft, Loader2, MousePointer2, Play, Route, Smile, Sparkles, Square
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { gameData } from "./shared/gameDataApi";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -1422,8 +1422,15 @@ export default function NumberTrails({ userId, onExit }) {
             </div>
           )}
 
-          <BrainGameResultActions
-            className="mt-6"
+          <BrainGameCompletionDialog
+            title={resultIsGood ? text.resultGood : text.resultTry}
+            summary={`${formatTemplate(text.completedIn, { n: completionSeconds })} | ${formatTemplate(text.parTime, { n: parSeconds })}`}
+            metrics={[
+              { label: text.accuracy, value: `${Math.round(result?.accuracy_pct ?? 0)}%` },
+              { label: text.speed, value: `${Math.round(result?.speed_pct ?? 0)}%` },
+              { label: text.score, value: score },
+              { label: text.streak, value: `${resultState.streak_days ?? 0} ${text.days}` },
+            ]}
             continueLabel={continueLabel}
             replayLabel={text.tryThisTrail}
             anotherLabel={text.playAnotherGame}

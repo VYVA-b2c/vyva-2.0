@@ -58,14 +58,175 @@ vi.mock("@/components/VitalsScan", () => ({
 
 const apiFetchMock = vi.mocked(apiFetch);
 
-function renderScreen() {
+const defaultVitals = {
+  summary: {
+    hr: {
+      latest_value: "72",
+      latest_recorded_at: "2026-07-05T08:00:00.000Z",
+      trend: ["72"],
+      has_data: true,
+    },
+    rr: {
+      latest_value: "16",
+      latest_recorded_at: "2026-07-05T08:02:00.000Z",
+      trend: ["16"],
+      has_data: true,
+    },
+    bp: {
+      latest_value: null,
+      latest_recorded_at: null,
+      trend: [],
+      has_data: false,
+    },
+  },
+  compliance_days: [false, false, false, false, false, false, false],
+};
+
+const defaultPrevention = {
+  focus: "Heart",
+  headline: "Complete your heart picture.",
+  why: ["Blood pressure is the missing signal today."],
+  todayAction: "Add a blood pressure reading.",
+  helpSigns: ["Chest pain", "Shortness of breath", "New weakness"],
+  primaryRoute: "/health/vitals",
+  confidence: "moderate",
+  signals: [
+    {
+      id: "medicine-routine",
+      label: "Routine steady",
+      detail: "Medication routine has enough context today.",
+      category: "medicine",
+      strength: "medium",
+    },
+    {
+      id: "symptom-follow-up",
+      label: "No active symptom flag",
+      detail: "Latest symptom report does not add a new follow-up flag.",
+      category: "symptom",
+      strength: "low",
+    },
+  ],
+  insights: [
+    {
+      id: "medication-adherence",
+      label: "Medicine",
+      value: "Routine steady",
+      detail: "Dose routine is available for the plan.",
+      tone: "steady",
+    },
+    {
+      id: "symptom-follow-up",
+      label: "Symptoms",
+      value: "No active symptom flag",
+      detail: "Latest symptom report does not add a new follow-up flag.",
+      tone: "steady",
+    },
+  ],
+  dailyActions: [
+    {
+      id: "low-salt-lunch",
+      step: "Eat",
+      title: "Lower-salt lunch",
+      detail: "Choose a simple lower-salt meal.",
+      why: "This fits your heart focus and blood pressure context.",
+      evidenceLabel: "Heart",
+      tone: "food",
+      actionSheet: {
+        title: "Lower-salt lunch",
+        summary: "Choose a lower-salt meal.",
+        primaryAction: {
+          id: "food-help",
+          label: "Food ideas",
+          detail: "Open groceries",
+          route: "/concierge/shopping",
+          priority: "primary",
+        },
+        secondaryActions: [],
+      },
+      feedbackOptions: [
+        { id: "done", label: "Done" },
+        { id: "too_hard", label: "Too hard" },
+      ],
+    },
+    {
+      id: "calm-walk",
+      step: "Move",
+      title: "Gentle walk",
+      detail: "Keep an easy talk pace.",
+      why: "A calm pace supports heart health without pushing hard.",
+      evidenceLabel: "Mobility",
+      tone: "movement",
+      actionSheet: {
+        title: "Gentle walk",
+        summary: "Move gently.",
+        primaryAction: {
+          id: "walk-help",
+          label: "Start easy",
+          detail: "Open gentle movement",
+          route: "/social-rooms/morning-movement/exercises/chair-yoga",
+          priority: "primary",
+        },
+        secondaryActions: [],
+      },
+      feedbackOptions: [
+        { id: "done", label: "Done" },
+        { id: "too_hard", label: "Too hard" },
+      ],
+    },
+    {
+      id: "check-bp",
+      step: "Check",
+      title: "Add blood pressure",
+      detail: "One reading completes the picture.",
+      why: "BP is the biggest missing signal in today's plan.",
+      evidenceLabel: "Missing BP",
+      tone: "check",
+      actionSheet: {
+        title: "Add blood pressure",
+        summary: "Add one reading.",
+        primaryAction: {
+          id: "add-bp",
+          label: "Add reading",
+          detail: "Open vitals",
+          route: "/health/vitals",
+          priority: "primary",
+        },
+        secondaryActions: [],
+      },
+      feedbackOptions: [
+        { id: "done", label: "Done" },
+        { id: "too_hard", label: "Too hard" },
+      ],
+    },
+  ],
+  personalizationSummary: ["High blood pressure", "Lives alone"],
+  profileSignals: ["Mobility level"],
+  weeklySummary: {
+    headline: "VYVA is learning what works.",
+    detail: "Last week, simple food swaps were easiest.",
+    bullets: ["Food swaps helped"],
+    doctorSummary: "Weekly prevention summary.",
+    caregiverSummary: "Caregiver prevention summary.",
+  },
+  generatedAt: "2026-07-05T08:05:00.000Z",
+};
+
+function renderScreen(options: {
+  vitals?: typeof defaultVitals;
+  prevention?: typeof defaultPrevention;
+  preventionError?: boolean;
+} = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
         queryFn: async ({ queryKey }) => {
           const key = queryKey[0];
-          if (key === "/api/vitals") return { summary: {}, compliance_days: [false, false, false, false, false, false, false] };
+          if (key === "/api/vitals") return options.vitals ?? defaultVitals;
+          if (key === "/api/health/prevention") {
+            if (options.preventionError) throw new Error("Could not load prevention");
+            return options.prevention ?? defaultPrevention;
+          }
           if (key === "/api/profile/personalisation") return { conditions: ["diabetes", "hypertension"], hobbies: [], hasMedications: true };
           if (key === "/api/vitals-engine/latest") return { analysis: null, recent_readings: [], latest_alert: null };
           return {};
@@ -80,6 +241,12 @@ function renderScreen() {
         <Routes>
           <Route path="/health/vitals" element={<SignosScreen />} />
           <Route path="/settings/health-devices" element={<div data-testid="health-devices-route">Health devices settings</div>} />
+          <Route path="/health/doctor" element={<div data-testid="doctor-route">Doctor route</div>} />
+          <Route path="/health/prevention" element={<div data-testid="prevention-route">Prevention route</div>} />
+          <Route path="/health/symptom-check" element={<div data-testid="symptom-route">Symptoms route</div>} />
+          <Route path="/meds" element={<div data-testid="meds-route">Meds route</div>} />
+          <Route path="/concierge/shopping" element={<div data-testid="shopping-route">Shopping route</div>} />
+          <Route path="/social-rooms/morning-movement/exercises/chair-yoga" element={<div data-testid="movement-route">Movement route</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -104,24 +271,31 @@ describe("Vitals Hub", () => {
     renderScreen();
 
     expect(await screen.findByText("My Health Plan")).toBeInTheDocument();
-    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("VYVA's focus today");
-    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Add your blood pressure");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("AgeWell Score");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Your biggest opportunity today: complete your heart picture.");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Add blood pressure");
+    expect(screen.getByTestId("agewell-score-value")).toHaveTextContent("90");
     expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Add blood pressure");
+    expect(screen.getByTestId("button-agewell-ask-vyva")).toHaveTextContent("Ask VYVA");
     expect(screen.queryByText("Good afternoon.")).not.toBeInTheDocument();
     expect(screen.queryByText("Your plan gets clearer with every health signal.")).not.toBeInTheDocument();
     expect(screen.queryByText("Today's Health Plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Plan confidence")).not.toBeInTheDocument();
     expect(screen.queryByText("5 of 8 signals ready")).not.toBeInTheDocument();
-    expect(screen.getByTestId("health-snapshot-section")).toHaveTextContent("Your health snapshot");
-    expect(screen.getByTestId("health-snapshot-section")).toHaveTextContent("Energy");
-    expect(screen.getByTestId("health-snapshot-section")).toHaveTextContent("Routine");
-    expect(screen.getByTestId("gentle-plan-section")).toHaveTextContent("Today's next steps");
-    expect(screen.getByTestId("gentle-plan-section")).toHaveTextContent("Recommended");
-    expect(screen.getByTestId("vyva-insight-section")).toHaveTextContent("VYVA insight");
-    expect(screen.getByTestId("vyva-insight-section")).toHaveTextContent("Your energy looks a little lower than usual.");
-    expect(screen.getByTestId("signals-powering-plan-section")).toHaveTextContent("Signals powering your plan");
-    expect(screen.getByTestId("signals-powering-plan-section")).toHaveTextContent("Blood pressure");
-    expect(screen.getByTestId("latest-readings-summary")).toHaveTextContent("Fresh signals help VYVA personalise your plan.");
+    expect(screen.getByTestId("agewell-signals-section")).toHaveTextContent("What VYVA is using");
+    expect(screen.getByTestId("agewell-signal-vitals")).toHaveTextContent("Pulse 72");
+    expect(screen.getByTestId("agewell-signal-vitals")).toHaveTextContent("Breathing 16");
+    expect(screen.getByTestId("agewell-signal-vitals")).toHaveTextContent("Missing: BP");
+    expect(screen.getByTestId("agewell-signal-medicine")).toHaveTextContent("Routine steady");
+    expect(screen.getByTestId("agewell-signal-symptoms")).toHaveTextContent("No active symptom flag");
+    expect(screen.getByTestId("agewell-signal-prevention")).toHaveTextContent("Heart");
+    expect(screen.getByTestId("agewell-signal-prevention")).toHaveTextContent("High blood pressure");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Today's 3 longevity moves");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Lower-salt lunch");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Gentle walk");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Add blood pressure");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Done");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Too hard");
     expect(screen.queryByText("Overall status")).not.toBeInTheDocument();
     expect(screen.queryByText("Weekly rhythm")).not.toBeInTheDocument();
     expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
@@ -136,6 +310,48 @@ describe("Vitals Hub", () => {
     expect(screen.queryByTestId("button-vitals-say-reading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-vitals-snap-reading")).not.toBeInTheDocument();
     expect(screen.queryByTestId("connect-health-devices")).not.toBeInTheDocument();
+  });
+
+  it("updates feedback controls on longevity moves", async () => {
+    renderScreen();
+
+    expect(await screen.findByTestId("agewell-longevity-moves")).toHaveTextContent("Lower-salt lunch");
+    fireEvent.click(screen.getByTestId("button-agewell-feedback-low-salt-lunch-done"));
+    expect(screen.getByTestId("agewell-feedback-low-salt-lunch")).toHaveTextContent("Done");
+
+    fireEvent.click(screen.getByTestId("button-agewell-feedback-calm-walk-too_hard"));
+    expect(screen.getByTestId("agewell-feedback-calm-walk")).toHaveTextContent("Too hard");
+  });
+
+  it("opens the first prevention action from a completed vitals hero", async () => {
+    renderScreen({
+      vitals: {
+        ...defaultVitals,
+        summary: {
+          ...defaultVitals.summary,
+          bp: {
+            latest_value: "128/76",
+            latest_recorded_at: "2026-07-05T08:04:00.000Z",
+            trend: ["128/76"],
+            has_data: true,
+          },
+        },
+      },
+    });
+
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Complete your heart picture.");
+    expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Food ideas");
+    fireEvent.click(screen.getByTestId("button-open-add-reading-sheet"));
+    expect(await screen.findByTestId("shopping-route")).toBeInTheDocument();
+  });
+
+  it("falls back to a building AgeWell plan when prevention does not load", async () => {
+    renderScreen({ preventionError: true });
+
+    expect(await screen.findByTestId("agewell-score-ring")).toHaveTextContent("Building");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Your biggest opportunity today: complete your heart picture.");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Steady meal");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Using a simple AgeWell plan");
   });
 
   it("opens the add-reading sheet from the primary blood pressure action", async () => {
@@ -283,7 +499,7 @@ describe("Vitals Hub", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Add your blood pressure");
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("complete your heart picture");
     await openAddReadingSheet();
     expect(screen.getByTestId("button-vitals-say-reading")).toBeInTheDocument();
     expect(screen.getByTestId("button-vitals-snap-reading")).toBeInTheDocument();

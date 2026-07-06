@@ -113,6 +113,7 @@ const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage
 const SocialHub = lazy(() => import("./social/SocialHub"));
 const SocialRoomsOnlyScreen = lazy(() => import("./social/SocialRoomsOnlyScreen"));
 const CommunityActivitiesScreen = lazy(() => import("./social/CommunityActivitiesScreen"));
+const ShareStoriesScreen = lazy(() => import("./social/ShareStoriesScreen"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
@@ -624,6 +625,7 @@ const App = () => (
                   <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
                   <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/activities" replace />} />
                   <Route path="/social-rooms/activities" element={<AppShell><CommunityActivitiesScreen /></AppShell>} />
+                  <Route path="/social-rooms/share" element={<AppShell><ShareStoriesScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
