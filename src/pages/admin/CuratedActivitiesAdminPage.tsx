@@ -1666,6 +1666,36 @@ function duplicateMatches(candidate: AdminParticipationEvent, existingEvents: Ad
   });
 }
 
+function discoveryDuplicateKeys(candidate: AdminParticipationEvent) {
+  const title = comparableTitle(candidate);
+  const sourceUrl = comparableUrl(candidate.sourceUrl);
+  const city = comparableText(candidate.city);
+  const location = comparableText(candidate.locationLabel);
+  const start = dateKey(candidate.startsAt) || comparableText(candidate.timeLabelEn);
+  return [
+    candidate.eventKey ? `event:${candidate.eventKey}` : "",
+    sourceUrl && title ? `source-title:${sourceUrl}:${title}` : "",
+    title && city && location ? `title-city-location:${title}:${city}:${location}` : "",
+    title && location && start ? `title-location-time:${title}:${location}:${start}` : "",
+  ].filter(Boolean);
+}
+
+function uniqueDiscoveryCandidates(candidates: AdminParticipationEvent[]) {
+  const seen = new Set<string>();
+  const unique: AdminParticipationEvent[] = [];
+  let skipped = 0;
+  for (const candidate of candidates) {
+    const keys = discoveryDuplicateKeys(candidate);
+    if (keys.some((key) => seen.has(key))) {
+      skipped += 1;
+      continue;
+    }
+    keys.forEach((key) => seen.add(key));
+    unique.push(candidate);
+  }
+  return { candidates: unique, skipped };
+}
+
 function sourceQuality(candidate: AdminParticipationEvent): { label: string; tone: PillTone; detail: string } {
   const host = sourceHost(candidate.sourceUrl);
   if (!host) {
@@ -1759,6 +1789,7 @@ export default function CuratedActivitiesAdminPage() {
   const [savingEventKey, setSavingEventKey] = useState<string | null>(null);
   const [eventSaveFeedback, setEventSaveFeedback] = useState<Record<string, EventSaveFeedback>>({});
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([]);
+  const [hiddenDiscoveryDuplicateCount, setHiddenDiscoveryDuplicateCount] = useState(0);
   const [expandedDiscoveryId, setExpandedDiscoveryId] = useState<string | null>(null);
   const [countryQuery, setCountryQuery] = useState("Spain");
   const [customCity, setCustomCity] = useState("");
@@ -2104,16 +2135,26 @@ export default function CuratedActivitiesAdminPage() {
         maxResults: discoveryForm.maxResults,
       };
       const data = await api("/discover", { method: "POST", body: JSON.stringify(body) });
-      const candidates = (data.candidates ?? []) as AdminParticipationEvent[];
+      const discoveredCandidates = (data.candidates ?? []) as AdminParticipationEvent[];
+      const { candidates, skipped } = uniqueDiscoveryCandidates(discoveredCandidates);
       const rejected = Array.isArray(data.rejected) ? data.rejected.length : 0;
+      const serverDuplicateCount = Array.isArray(data.rejected)
+        ? data.rejected.filter((candidate: { reason?: unknown }) => cleanText(candidate.reason).toLowerCase().includes("duplicate")).length
+        : 0;
+      const hiddenRepeats = skipped + serverDuplicateCount;
       setDiscoveryCandidates(candidates.map((candidate, index) => ({
         ...candidate,
         previewId: `${slugifyEventKey(candidate.eventKey, "candidate")}-${index}`,
         selected: false,
       })));
+      setHiddenDiscoveryDuplicateCount(hiddenRepeats);
       setExpandedDiscoveryId(null);
-      setMessage(rejected > 0
-        ? `${candidates.length} AI candidates ready for review. Select the ones to save as drafts. ${rejected} skipped because they were missing sources or required fields.`
+      const skippedDetails = [
+        rejected > hiddenRepeats ? `${rejected - hiddenRepeats} missing sources or required fields` : "",
+        hiddenRepeats > 0 ? `${hiddenRepeats} repeated result${hiddenRepeats === 1 ? "" : "s"} hidden` : "",
+      ].filter(Boolean).join("; ");
+      setMessage(skippedDetails
+        ? `${candidates.length} AI candidates ready for review. Select the ones to save as drafts. Skipped: ${skippedDetails}.`
         : `${candidates.length} AI candidates ready for review. Select the ones to save as drafts.`);
     } finally {
       setDiscovering(false);
@@ -2675,10 +2716,10 @@ export default function CuratedActivitiesAdminPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap sm:items-center">
             <button
               data-testid="admin-discovery-find"
-              className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 font-bold text-white disabled:opacity-60"
+              className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 py-3 text-center font-bold text-white disabled:opacity-60 sm:w-auto"
               onClick={() => discoverActivities().catch((err) => setMessage(err.message))}
               disabled={discovering || savingDiscovery}
               type="button"
@@ -2688,13 +2729,18 @@ export default function CuratedActivitiesAdminPage() {
             </button>
             <button
               data-testid="admin-discovery-save"
-              className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-purple-200 bg-white px-5 py-3 font-bold text-purple-800 disabled:opacity-60"
+              className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-purple-200 bg-white px-5 py-3 text-center font-bold text-purple-800 disabled:opacity-60 sm:w-auto"
               onClick={() => saveDiscoveryDrafts().catch((err) => setMessage(err.message))}
               disabled={savingDiscovery || discovering || selectedDiscoveryCount === 0}
               type="button"
             >
               <Save size={17} />
-              {savingDiscovery ? "Saving..." : `Save selected as drafts (${selectedDiscoveryCount})`}
+              <span className="sm:hidden">
+                {savingDiscovery ? "Saving..." : `Save drafts (${selectedDiscoveryCount})`}
+              </span>
+              <span className="hidden sm:inline">
+                {savingDiscovery ? "Saving..." : `Save selected as drafts (${selectedDiscoveryCount})`}
+              </span>
             </button>
           </div>
 
@@ -2703,35 +2749,57 @@ export default function CuratedActivitiesAdminPage() {
               <p className="rounded-2xl bg-[#f7f2eb] p-4 text-sm font-bold text-[#7d6b65]">No AI candidates in preview yet.</p>
             ) : (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#f7f2eb] px-4 py-3">
-                  <div>
-                    <p className="text-sm font-black text-[#2f2135]">
-                      {discoveryCandidates.length} candidates found. {selectedDiscoveryCount} selected for draft save.
-                    </p>
-                    <p className="mt-1 text-xs font-semibold text-[#7d6b65]">
-                      {blockedDiscoveryCount > 0
-                        ? `${blockedDiscoveryCount} need duplicate, source, or fit review before saving.`
-                        : "Review the full shortlist, open details when needed, then save only the best matches."}
-                    </p>
+                <div className="rounded-3xl border border-[#eadfd5] bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wide text-purple-700">AI review shortlist</p>
+                      <p className="mt-1 text-sm font-black text-[#2f2135]">
+                        {discoveryCandidates.length} candidates found. {selectedDiscoveryCount} selected for draft save.
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-[#7d6b65]">
+                        {blockedDiscoveryCount > 0
+                          ? `${blockedDiscoveryCount} need duplicate, source, or fit review before saving.`
+                          : "Open details only when a candidate needs edits. Save-ready items can be selected in one click."}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-4 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
+                        disabled={saveableDiscoveryCount === 0 || selectedDiscoveryCount === saveableDiscoveryCount}
+                        onClick={() => setDiscoverySelection(true)}
+                        type="button"
+                      >
+                        <CheckCircle2 size={14} />
+                        Select save-ready
+                      </button>
+                      <button
+                        className="inline-flex items-center gap-2 rounded-full bg-[#f7f2eb] px-4 py-2 text-sm font-black text-[#5b4a46] disabled:opacity-50"
+                        disabled={selectedDiscoveryCount === 0}
+                        onClick={() => setDiscoverySelection(false)}
+                        type="button"
+                      >
+                        Clear
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-purple-800 disabled:opacity-50"
-                      disabled={saveableDiscoveryCount === 0 || selectedDiscoveryCount === saveableDiscoveryCount}
-                      onClick={() => setDiscoverySelection(true)}
-                      type="button"
-                    >
-                      <CheckCircle2 size={14} />
-                      Select save-ready
-                    </button>
-                    <button
-                      className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-black text-[#5b4a46] disabled:opacity-50"
-                      disabled={selectedDiscoveryCount === 0}
-                      onClick={() => setDiscoverySelection(false)}
-                      type="button"
-                    >
-                      Clear
-                    </button>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Ready to save</p>
+                      <p className="mt-1 text-2xl font-black text-emerald-900">{saveableDiscoveryCount}</p>
+                    </div>
+                    <div className="rounded-2xl bg-amber-50 px-4 py-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-amber-700">Needs review</p>
+                      <p className="mt-1 text-2xl font-black text-amber-900">{blockedDiscoveryCount}</p>
+                    </div>
+                    <div className="rounded-2xl bg-[#f7f2eb] px-4 py-3" data-testid="admin-discovery-repeat-count">
+                      <p className="text-xs font-black uppercase tracking-wide text-[#7d6b65]">Repeats hidden</p>
+                      <p className="mt-1 text-2xl font-black text-[#2f2135]">{hiddenDiscoveryDuplicateCount}</p>
+                      {hiddenDiscoveryDuplicateCount > 0 && (
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">
+                          {hiddenDiscoveryDuplicateCount} repeated result{hiddenDiscoveryDuplicateCount === 1 ? "" : "s"} hidden.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
