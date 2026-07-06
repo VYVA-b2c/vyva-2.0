@@ -106,6 +106,11 @@ type MarketingContact = {
   consentStatus: string;
   source: string;
   tags: string[];
+  language: string | null;
+  category: string | null;
+  vertical: string | null;
+  market: string | null;
+  lists: string[];
   lovableExternalId: string | null;
 };
 
@@ -160,8 +165,15 @@ type ContactDraft = {
   fullName: string;
   audienceType: Audience;
   email: string;
+  phoneNumber: string;
   whatsappNumber: string;
+  roleLabel: string;
   companyName: string;
+  language: string;
+  category: string;
+  vertical: string;
+  market: string;
+  tags: string;
 };
 
 const emptySummary: MarketingSummary = {
@@ -240,6 +252,47 @@ function channelClass(channel: Channel) {
 
 function lower(value: string | null | undefined) {
   return value?.toLowerCase() ?? "";
+}
+
+function splitTags(value: string) {
+  return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function contactSearchText(contact: MarketingContact) {
+  return [
+    contact.fullName,
+    contact.email,
+    contact.phoneNumber,
+    contact.whatsappNumber,
+    contact.roleLabel,
+    contact.companyName,
+    contact.language,
+    contact.category,
+    contact.vertical,
+    contact.market,
+    contact.source,
+    ...(contact.tags ?? []),
+    ...(contact.lists ?? []),
+  ].map((value) => lower(value)).join(" ");
+}
+
+function contactDirectChannels(contact: MarketingContact) {
+  return [
+    contact.email ? `Email: ${contact.email}` : "",
+    contact.phoneNumber ? `Phone: ${contact.phoneNumber}` : "",
+    contact.whatsappNumber ? `WhatsApp: ${contact.whatsappNumber}` : "",
+  ].filter(Boolean);
+}
+
+function contactSegments(contact: MarketingContact) {
+  return [
+    contact.language ? `Lang: ${contact.language}` : "",
+    contact.category ? `Category: ${contact.category}` : "",
+    contact.vertical ? `Vertical: ${contact.vertical}` : "",
+    contact.market ? `Market: ${contact.market}` : "",
+    ...(contact.tags ?? []),
+    ...(contact.lists ?? []).map((list) => `List: ${list}`),
+  ].filter(Boolean);
 }
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
@@ -325,6 +378,7 @@ export default function MarketingAdminPage() {
   const [syncState, setSyncState] = useState<SyncState>(emptySync);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
+  const [contactFeedback, setContactFeedback] = useState("");
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
@@ -332,7 +386,20 @@ export default function MarketingAdminPage() {
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>({ name: "", audienceType: "b2c", channel: "email", status: "draft", scheduleStartsAt: "", objective: "" });
   const [journeyDraft, setJourneyDraft] = useState<JourneyDraft>({ name: "", audienceType: "b2c", channel: "email", objective: "" });
   const [contentDraft, setContentDraft] = useState<ContentDraft>({ title: "", channel: "email", subject: "", body: "" });
-  const [contactDraft, setContactDraft] = useState<ContactDraft>({ fullName: "", audienceType: "b2b", email: "", whatsappNumber: "", companyName: "" });
+  const [contactDraft, setContactDraft] = useState<ContactDraft>({
+    fullName: "",
+    audienceType: "b2b",
+    email: "",
+    phoneNumber: "",
+    whatsappNumber: "",
+    roleLabel: "",
+    companyName: "",
+    language: "",
+    category: "",
+    vertical: "",
+    market: "",
+    tags: "",
+  });
 
   async function refreshAll() {
     const [summaryBody, campaignBody, journeyBody, contentBody, contactBody, syncBody] = await Promise.all([
@@ -369,14 +436,17 @@ export default function MarketingAdminPage() {
   }), [content, search, channelFilter]);
 
   const visibleContacts = useMemo(() => contacts.filter((contact) => {
-    const matchesSearch = !search || lower(contact.fullName).includes(search.toLowerCase()) || lower(contact.email).includes(search.toLowerCase()) || lower(contact.companyName).includes(search.toLowerCase());
+    const matchesSearch = !search || contactSearchText(contact).includes(search.toLowerCase());
     const matchesAudience = audienceFilter === "all" || contact.audienceType === audienceFilter;
     return matchesSearch && matchesAudience;
   }), [contacts, search, audienceFilter]);
 
   async function createCampaign(event: FormEvent) {
     event.preventDefault();
-    if (!campaignDraft.name.trim()) return;
+    if (!campaignDraft.name.trim()) {
+      setMessage("Campaign name is required before creating a draft.");
+      return;
+    }
     await api("/api/admin/marketing/campaigns", {
       method: "POST",
       body: JSON.stringify({
@@ -395,7 +465,10 @@ export default function MarketingAdminPage() {
 
   async function createJourney(event: FormEvent) {
     event.preventDefault();
-    if (!journeyDraft.name.trim()) return;
+    if (!journeyDraft.name.trim()) {
+      setMessage("Journey name is required before creating a draft.");
+      return;
+    }
     await api("/api/admin/marketing/journeys", {
       method: "POST",
       body: JSON.stringify({
@@ -412,7 +485,10 @@ export default function MarketingAdminPage() {
 
   async function createContent(event: FormEvent) {
     event.preventDefault();
-    if (!contentDraft.title.trim()) return;
+    if (!contentDraft.title.trim()) {
+      setMessage("Content title is required before creating a draft.");
+      return;
+    }
     await api("/api/admin/marketing/content", {
       method: "POST",
       body: JSON.stringify({
@@ -429,22 +505,52 @@ export default function MarketingAdminPage() {
 
   async function createContact(event: FormEvent) {
     event.preventDefault();
-    if (!contactDraft.fullName.trim() && !contactDraft.email.trim()) return;
+    setContactFeedback("");
+    if (!contactDraft.fullName.trim() && !contactDraft.email.trim() && !contactDraft.phoneNumber.trim() && !contactDraft.whatsappNumber.trim()) {
+      setContactFeedback("Add at least a name, email, phone, or WhatsApp before saving.");
+      return;
+    }
     await api("/api/admin/marketing/contacts", {
       method: "POST",
       body: JSON.stringify({
         fullName: contactDraft.fullName,
         audienceType: contactDraft.audienceType,
         email: contactDraft.email || null,
+        phoneNumber: contactDraft.phoneNumber || null,
         whatsappNumber: contactDraft.whatsappNumber || null,
+        roleLabel: contactDraft.roleLabel || null,
         companyName: contactDraft.companyName || null,
+        tags: splitTags(contactDraft.tags),
+        metadata: {
+          segmentation: {
+            language: contactDraft.language || null,
+            category: contactDraft.category || null,
+            vertical: contactDraft.vertical || null,
+            market: contactDraft.market || null,
+          },
+        },
         channelAvailability: {
           email: Boolean(contactDraft.email),
+          phone: Boolean(contactDraft.phoneNumber),
           whatsapp: Boolean(contactDraft.whatsappNumber),
         },
       }),
     });
-    setContactDraft({ fullName: "", audienceType: "b2b", email: "", whatsappNumber: "", companyName: "" });
+    setContactDraft({
+      fullName: "",
+      audienceType: "b2b",
+      email: "",
+      phoneNumber: "",
+      whatsappNumber: "",
+      roleLabel: "",
+      companyName: "",
+      language: "",
+      category: "",
+      vertical: "",
+      market: "",
+      tags: "",
+    });
+    setContactFeedback("Marketing contact created.");
     setMessage("Marketing contact created.");
     await refreshAll();
   }
@@ -568,9 +674,9 @@ export default function MarketingAdminPage() {
                       <div key={item.audienceType} className="flex items-center justify-between rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <div>
                           <p className="font-black">{item.audienceType.toUpperCase()}</p>
-                          <p className="text-xs font-bold text-[#8b7a73]">{item.contacts} contacts</p>
+                          <p className="text-xs font-bold text-[#8b7a73]">{item.campaigns} campaigns / {item.contacts} contacts</p>
                         </div>
-                        <span className="text-2xl font-black">{item.campaigns}</span>
+                        <span className="text-sm font-black text-[#8b7a73]">Audience</span>
                       </div>
                     ))}
                   </div>
@@ -710,24 +816,62 @@ export default function MarketingAdminPage() {
           {activeTab === "contacts" && (
             <div className="grid gap-4" data-testid="marketing-contacts-tab">
               <SectionCard title="Contact draft" subtitle="Create B2B contacts or planning records before sync/cutover.">
-                <form className="grid gap-3 xl:grid-cols-[1fr_160px_1fr_1fr_auto]" onSubmit={(event) => createContact(event).catch((error) => setMessage(error.message))}>
-                  <Field label="Name">
-                    <input className={inputClass} value={contactDraft.fullName} onChange={(event) => setContactDraft((draft) => ({ ...draft, fullName: event.target.value }))} placeholder="Contact name" data-testid="input-marketing-contact-name" />
-                  </Field>
-                  <Field label="Audience">
-                    <select className={inputClass} value={contactDraft.audienceType} onChange={(event) => setContactDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))}>
-                      {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Email">
-                    <input className={inputClass} value={contactDraft.email} onChange={(event) => setContactDraft((draft) => ({ ...draft, email: event.target.value }))} placeholder="name@example.com" />
-                  </Field>
-                  <Field label="Company">
-                    <input className={inputClass} value={contactDraft.companyName} onChange={(event) => setContactDraft((draft) => ({ ...draft, companyName: event.target.value }))} placeholder="Organization" />
-                  </Field>
-                  <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit">
-                    <UsersRound size={16} /> Add contact
-                  </button>
+                <form className="grid gap-3" onSubmit={(event) => createContact(event).catch((error) => {
+                  setContactFeedback(error.message);
+                  setMessage(error.message);
+                })}>
+                  <div className="grid gap-3 xl:grid-cols-[1.3fr_160px_1fr_1fr]">
+                    <Field label="Name">
+                      <input className={inputClass} value={contactDraft.fullName} onChange={(event) => setContactDraft((draft) => ({ ...draft, fullName: event.target.value }))} placeholder="Contact name" data-testid="input-marketing-contact-name" />
+                    </Field>
+                    <Field label="Audience">
+                      <select className={inputClass} value={contactDraft.audienceType} onChange={(event) => setContactDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))}>
+                        {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Email">
+                      <input className={inputClass} value={contactDraft.email} onChange={(event) => setContactDraft((draft) => ({ ...draft, email: event.target.value }))} placeholder="name@example.com" data-testid="input-marketing-contact-email" />
+                    </Field>
+                    <Field label="Phone">
+                      <input className={inputClass} value={contactDraft.phoneNumber} onChange={(event) => setContactDraft((draft) => ({ ...draft, phoneNumber: event.target.value }))} placeholder="+34 ..." data-testid="input-marketing-contact-phone" />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 xl:grid-cols-4">
+                    <Field label="WhatsApp">
+                      <input className={inputClass} value={contactDraft.whatsappNumber} onChange={(event) => setContactDraft((draft) => ({ ...draft, whatsappNumber: event.target.value }))} placeholder="Leave blank if same" data-testid="input-marketing-contact-whatsapp" />
+                    </Field>
+                    <Field label="Role">
+                      <input className={inputClass} value={contactDraft.roleLabel} onChange={(event) => setContactDraft((draft) => ({ ...draft, roleLabel: event.target.value }))} placeholder="Founder, lead, caregiver..." data-testid="input-marketing-contact-role" />
+                    </Field>
+                    <Field label="Company">
+                      <input className={inputClass} value={contactDraft.companyName} onChange={(event) => setContactDraft((draft) => ({ ...draft, companyName: event.target.value }))} placeholder="Organization" data-testid="input-marketing-contact-company" />
+                    </Field>
+                    <Field label="Tags">
+                      <input className={inputClass} value={contactDraft.tags} onChange={(event) => setContactDraft((draft) => ({ ...draft, tags: event.target.value }))} placeholder="lead, partner, madrid" data-testid="input-marketing-contact-tags" />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+                    <Field label="Language">
+                      <input className={inputClass} value={contactDraft.language} onChange={(event) => setContactDraft((draft) => ({ ...draft, language: event.target.value }))} placeholder="en, es..." data-testid="input-marketing-contact-language" />
+                    </Field>
+                    <Field label="Category">
+                      <input className={inputClass} value={contactDraft.category} onChange={(event) => setContactDraft((draft) => ({ ...draft, category: event.target.value }))} placeholder="Lead category" data-testid="input-marketing-contact-category" />
+                    </Field>
+                    <Field label="Vertical">
+                      <input className={inputClass} value={contactDraft.vertical} onChange={(event) => setContactDraft((draft) => ({ ...draft, vertical: event.target.value }))} placeholder="Healthcare, public..." data-testid="input-marketing-contact-vertical" />
+                    </Field>
+                    <Field label="Market">
+                      <input className={inputClass} value={contactDraft.market} onChange={(event) => setContactDraft((draft) => ({ ...draft, market: event.target.value }))} placeholder="Spain, UK..." data-testid="input-marketing-contact-market" />
+                    </Field>
+                    <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit" data-testid="button-marketing-add-contact">
+                      <UsersRound size={16} /> Add contact
+                    </button>
+                  </div>
+                  {contactFeedback ? (
+                    <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contactFeedback.includes("created") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-contact-feedback">
+                      {contactFeedback}
+                    </p>
+                  ) : null}
                 </form>
               </SectionCard>
               <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
@@ -737,6 +881,8 @@ export default function MarketingAdminPage() {
                       <tr>
                         <th className="px-4 py-3">Contact</th>
                         <th className="px-4 py-3">Audience</th>
+                        <th className="px-4 py-3">Details</th>
+                        <th className="px-4 py-3">Segments</th>
                         <th className="px-4 py-3">Channels</th>
                         <th className="px-4 py-3">Consent</th>
                         <th className="px-4 py-3">Source</th>
@@ -744,19 +890,39 @@ export default function MarketingAdminPage() {
                     </thead>
                     <tbody>
                       {visibleContacts.length === 0 ? (
-                        <tr><td colSpan={5} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
-                      ) : visibleContacts.map((contact) => (
-                        <tr key={contact.id} className="border-t border-[#f0e7df]">
-                          <td className="px-4 py-3">
-                            <p className="font-black">{contact.fullName || contact.email || "Unnamed contact"}</p>
-                            <p className="text-xs font-semibold text-[#7d6b65]">{contact.companyName || contact.roleLabel || "No organization"}</p>
-                          </td>
-                          <td className="px-4 py-3 font-black">{contact.audienceType.toUpperCase()}</td>
-                          <td className="px-4 py-3 text-xs font-bold text-[#7d6b65]">{[contact.email ? "email" : "", contact.whatsappNumber ? "whatsapp" : ""].filter(Boolean).join(", ") || "No direct channel"}</td>
-                          <td className="px-4 py-3"><Pill className={statusClass(contact.consentStatus)}>{contact.consentStatus}</Pill></td>
-                          <td className="px-4 py-3 font-bold">{contact.source}</td>
-                        </tr>
-                      ))}
+                        <tr><td colSpan={7} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
+                      ) : visibleContacts.map((contact) => {
+                        const directChannels = contactDirectChannels(contact);
+                        const segments = contactSegments(contact);
+                        return (
+                          <tr key={contact.id} className="border-t border-[#f0e7df] align-top">
+                            <td className="px-4 py-3">
+                              <p className="font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
+                              <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{contact.email || contact.phoneNumber || contact.whatsappNumber || "No direct contact"}</p>
+                            </td>
+                            <td className="px-4 py-3 font-black">{contact.audienceType.toUpperCase()}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#7d6b65]">
+                              <p>{contact.companyName || "No company"}</p>
+                              <p>{contact.roleLabel || "No role"}</p>
+                            </td>
+                            <td className="max-w-[360px] px-4 py-3">
+                              {segments.length ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {segments.slice(0, 8).map((segment, index) => (
+                                    <Pill key={`${segment}-${index}`} className="bg-purple-50 text-purple-800">{segment}</Pill>
+                                  ))}
+                                  {segments.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{segments.length - 8}</Pill> : null}
+                                </div>
+                              ) : (
+                                <span className="text-xs font-bold text-[#8b7a73]">No segment fields yet</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#7d6b65]">{directChannels.join(" / ") || "No direct channel"}</td>
+                            <td className="px-4 py-3"><Pill className={statusClass(contact.consentStatus)}>{contact.consentStatus}</Pill></td>
+                            <td className="px-4 py-3 font-bold">{contact.source}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
