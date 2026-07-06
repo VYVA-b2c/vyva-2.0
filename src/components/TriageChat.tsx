@@ -6,7 +6,6 @@ import {
   BookOpenCheck,
   CheckCircle,
   ChevronDown,
-  ClipboardList,
   HeartPulse,
   HelpCircle,
   ListChecks,
@@ -21,6 +20,7 @@ import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import { HealthWizardCard, HealthWizardChoiceTile, HealthWizardHero } from "@/components/health/HealthWizard";
 import TriageScanCard from "@/components/TriageScanCard";
+import { ListenButton } from "@/components/ListenButton";
 import { selectTriageScanOffer } from "@/lib/triageScanOffers";
 import type { TriageScanResult, TriageScanType } from "../../shared/triageScans";
 
@@ -80,7 +80,24 @@ interface TriageResponse {
   emergencyContact?: EmergencyContact;
   medisearchConversationId?: string;
   medicalFollowups?: string[];
+  questionReason?: string | null;
+  profileContextUsed?: boolean;
+  vitalsPrompt?: TriageVitalsPrompt | null;
 }
+
+type TriageVitalsPromptAction = {
+  id: "pulse" | "oxygen" | "blood_pressure" | "temperature" | "glucose";
+  label: string;
+  value: string;
+  icon: QuickAnswerIcon;
+  tone: QuickAnswerTone;
+};
+
+type TriageVitalsPrompt = {
+  title: string;
+  body: string;
+  actions: TriageVitalsPromptAction[];
+};
 
 type WizardEntryMode = "with_vitals" | "without_vitals";
 
@@ -160,6 +177,9 @@ export type TriageChatDraft = {
   wizardSymptomId?: string;
   medisearchConversationId?: string | null;
   medicalFollowups?: string[];
+  questionReason?: string | null;
+  profileContextUsed?: boolean;
+  vitalsPrompt?: TriageVitalsPrompt | null;
   scanResults?: TriageScanResult[];
   declinedScanTypes?: TriageScanType[];
   pendingRequest?: boolean;
@@ -314,6 +334,9 @@ export default function TriageChat({
   const [wizardSymptomId, setWizardSymptomId] = useState(() => initialDraft?.wizardSymptomId ?? "");
   const [medisearchConversationId, setMedisearchConversationId] = useState<string | null>(() => initialDraft?.medisearchConversationId ?? null);
   const [medicalFollowups, setMedicalFollowups] = useState<string[]>(() => initialDraft?.medicalFollowups ?? []);
+  const [questionReason, setQuestionReason] = useState<string | null>(() => initialDraft?.questionReason ?? null);
+  const [profileContextUsed, setProfileContextUsed] = useState(() => Boolean(initialDraft?.profileContextUsed));
+  const [vitalsPrompt, setVitalsPrompt] = useState<TriageVitalsPrompt | null>(() => initialDraft?.vitalsPrompt ?? null);
   const [scanResults, setScanResults] = useState<TriageScanResult[]>(() => initialDraft?.scanResults ?? []);
   const [declinedScanTypes, setDeclinedScanTypes] = useState<TriageScanType[]>(() => initialDraft?.declinedScanTypes ?? []);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -480,6 +503,9 @@ export default function TriageChat({
         if (res.wizardStageLabel) setWizardStageLabel(res.wizardStageLabel);
         if (res.wizardSymptomId) setWizardSymptomId(res.wizardSymptomId);
         if (res.medisearchConversationId) setMedisearchConversationId(res.medisearchConversationId);
+        setQuestionReason(res.questionReason?.trim() || null);
+        setProfileContextUsed(Boolean(res.profileContextUsed));
+        setVitalsPrompt(res.vitalsPrompt && Array.isArray(res.vitalsPrompt.actions) && res.vitalsPrompt.actions.length ? res.vitalsPrompt : null);
         setMedicalFollowups(
           !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
             ? res.medicalFollowups
@@ -563,11 +589,14 @@ export default function TriageChat({
       wizardSymptomId,
       medisearchConversationId,
       medicalFollowups,
+      questionReason,
+      profileContextUsed,
+      vitalsPrompt,
       scanResults,
       declinedScanTypes,
       pendingRequest: loading || (!languageReady && !initiated),
     });
-  }, [apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, safetyAlert, scanResults, selectedQuickAnswers, wizardStageLabel, wizardSymptomId]);
+  }, [apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, profileContextUsed, questionReason, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -663,7 +692,12 @@ export default function TriageChat({
     { key: "safety", label: t("health.symptomCheck.tracker.check", "Safety check"), Icon: Activity },
     { key: "next", label: t("health.symptomCheck.tracker.nextStep", "Next step"), Icon: CheckCircle },
   ];
-  const hasReusableVitals = bpm != null || respiratoryRate != null;
+  const readoutText = [
+    latestQuestion,
+    visibleQuickAnswers.length
+      ? t("health.symptomCheck.chat.readoutChoices", "Choices: {{choices}}", { choices: visibleQuickAnswers.map((answer) => answer.label).join(". ") })
+      : "",
+  ].filter(Boolean).join(" ");
 
   const handleSkipScan = (type: TriageScanType) => {
     setDeclinedScanTypes((current) => current.includes(type) ? current : [...current, type]);
@@ -801,35 +835,6 @@ export default function TriageChat({
             </HealthWizardCard>
           ) : null}
 
-          {hasReusableVitals && (
-            <HealthWizardCard tone="blue" className="px-4 py-3" testId="triage-existing-vitals">
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-blue-700 shadow-sm">
-                  <ClipboardList className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-body text-[16px] font-black text-vyva-text-1">
-                    {t("health.symptomCheck.chat.usingVitals", "Using vitals already here")}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {bpm != null && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-blue-800 shadow-sm">
-                        <HeartPulse className="h-3.5 w-3.5" />
-                        {t("health.symptomCheck.chat.heartRateValue", "{{value}} bpm", { value: bpm })}
-                      </span>
-                    )}
-                    {respiratoryRate != null && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-blue-800 shadow-sm">
-                        <Wind className="h-3.5 w-3.5" />
-                        {t("health.symptomCheck.chat.breathingRateValue", "{{value}} breaths/min", { value: respiratoryRate })}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </HealthWizardCard>
-          )}
-
           {safetyAlert && (
             <HealthWizardHero
               tone="red"
@@ -858,9 +863,18 @@ export default function TriageChat({
 
           {showQuestion && (
             <HealthWizardCard className="px-5 py-5">
-              <p data-testid="triage-question-progress" className="mb-2 font-body text-[14px] font-black text-vyva-text-2">
-                {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
-              </p>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <p data-testid="triage-question-progress" className="font-body text-[14px] font-black text-vyva-text-2">
+                  {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
+                </p>
+                <ListenButton
+                  text={readoutText}
+                  language={activeLanguage}
+                  label={t("health.symptomCheck.chat.playQuestion", "Play question")}
+                  stopLabel={t("health.symptomCheck.chat.stopQuestion", "Stop")}
+                  className="min-h-[40px] px-3 text-[13px]"
+                />
+              </div>
               <h2 className={`font-body text-[26px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
                 {latestQuestion}
                 {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
@@ -872,6 +886,30 @@ export default function TriageChat({
               </h2>
             </HealthWizardCard>
           )}
+
+          {canAnswer && questionReason ? (
+            <details
+              data-testid="triage-question-reason"
+              className="group rounded-[22px] border border-[#E8DED4] bg-white/85 px-4 py-3 shadow-[0_8px_20px_rgba(63,45,35,0.05)]"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <span className="font-body text-[15px] font-black text-vyva-text-1">
+                  {t("health.symptomCheck.chat.whyThisQuestion", "Why VYVA is asking this")}
+                </span>
+                <ChevronDown size={18} className="flex-shrink-0 text-vyva-purple transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="mt-3 border-t border-[#EADFD5] pt-3">
+                <p className="font-body text-[15px] font-bold leading-relaxed text-vyva-text-2">
+                  {questionReason}
+                </p>
+                {profileContextUsed ? (
+                  <p className="mt-2 font-body text-[13px] font-black leading-snug text-[#047857]">
+                    {t("health.symptomCheck.chat.profileContextUsed", "VYVA quietly used your health profile to choose this question.")}
+                  </p>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
 
           {(loading || waitingForLanguage) && (
             <TriageReviewPanel />
@@ -962,6 +1000,44 @@ export default function TriageChat({
               ) : null}
             </div>
           )}
+
+          {canAnswer && vitalsPrompt ? (
+            <section
+              data-testid="triage-contextual-vitals-prompt"
+              className="rounded-[24px] border border-[#DDD6FE] bg-[#FBFAFF] p-4 shadow-[0_8px_22px_rgba(107,33,168,0.07)]"
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-vyva-purple shadow-sm">
+                  <Activity size={22} strokeWidth={2.7} />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                    {vitalsPrompt.title}
+                  </p>
+                  <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {vitalsPrompt.body}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {vitalsPrompt.actions.map((action) => {
+                  const Icon = iconByKey[action.icon] ?? Activity;
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => void sendText(action.value)}
+                      disabled={!canAnswer}
+                      className="vyva-tap flex min-h-[58px] items-center justify-center gap-2 rounded-[18px] border border-[#DDD6FE] bg-white px-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm disabled:opacity-45"
+                    >
+                      <Icon size={18} strokeWidth={2.6} />
+                      {action.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
           {canShowMedicalFollowups && (
             <details
