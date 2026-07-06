@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
-  CheckCircle2,
   Loader2,
   Pause,
   Play,
@@ -14,7 +13,7 @@ import type { LanguageCode } from "@/i18n/languages";
 import { useAIScoring } from "@/games/shared/useAIScoring";
 import { useTTS } from "@/games/shared/useTTS";
 import { saveGameResult } from "./gameStorage";
-import BrainGameResultActions from "../shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
 import type { CognitiveDomain, MemoryGameVariantContent, Recommendation } from "./types";
 
 export type StoryChoiceQuestion = {
@@ -302,75 +301,62 @@ export default function StoryRecallGame({
     const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextLevel));
 
     return (
-      <div className="px-[22px] pb-4">
-        <div className="mt-3 rounded-[28px] bg-white p-4 shadow-vyva-card sm:p-5">
-          <div className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
-            <CheckCircle2 size={30} />
-          </div>
-          <h1 className="mt-3 font-display text-[30px] leading-tight text-vyva-text-1">{t("storyRecall.completionTitle")}</h1>
-          <p className="mt-1 text-[16px] leading-[1.45] text-vyva-text-2">{t("storyRecall.completionBody")}</p>
+      <div className="min-h-[100dvh] bg-[#FFF9F1]">
+        <BrainGameCompletionDialog
+          title={t("storyRecall.completionTitle")}
+          summary={t("storyRecall.completionBody")}
+          metrics={[
+            { label: t("memory.score"), value: `${result.score}` },
+            { label: t("memory.accuracy"), value: `${result.accuracy}%` },
+            { label: t("storyRecall.questions"), value: `${result.correctAnswers}/${result.totalQuestions}` },
+            { label: t("storyRecall.recall"), value: `${result.coveredFacts.length}/${payload.keyFacts.length}` },
+          ]}
+          continueLabel={t("brainGames.resultActions.continue")}
+          nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+          nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextLevel}` : undefined}
+          replayLabel={t("brainGames.resultActions.playAgain")}
+          anotherLabel={t("brainGames.resultActions.playAnotherGame")}
+          onContinue={onOpenRecommended}
+          onNextLevel={canOpenNextLevel ? () => void onOpenNextLevel() : undefined}
+          onReplay={() => void onOpenSameGame(plan.level)}
+          onAnother={onBack}
+          disabled={actionLoading !== null}
+          details={
+            <div className="grid gap-2">
+              {result.scoringError && (
+                <div className="rounded-[20px] border border-[#CFE9D9] bg-[#F0FDF4] p-4 text-[15px] leading-[1.55] text-vyva-text-2">
+                  {t("storyRecall.scoringFallback")}
+                </div>
+              )}
 
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {[
-              { label: t("memory.score"), value: `${result.score}` },
-              { label: t("memory.accuracy"), value: `${result.accuracy}%` },
-              { label: t("storyRecall.questions"), value: `${result.correctAnswers}/${result.totalQuestions}` },
-              { label: t("storyRecall.recall"), value: `${result.coveredFacts.length}/${payload.keyFacts.length}` },
-            ].map((item) => (
-              <div key={item.label} className="rounded-[18px] border border-vyva-border bg-vyva-cream p-3">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{item.label}</p>
-                <p className="mt-1 text-[22px] font-semibold text-vyva-text-1">{item.value}</p>
-              </div>
-            ))}
-          </div>
+              {result.coveredFacts.length > 0 && (
+                <div className="rounded-[18px] border border-[#CFE9D9] bg-[#F0FDF4] p-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("storyRecall.remembered")}</p>
+                  <div className="mt-2 grid gap-2">
+                    {result.coveredFacts.map((fact) => (
+                      <p key={`covered-${fact}`} className="rounded-[16px] bg-white px-3 py-2 text-[14px] leading-[1.4] text-vyva-text-1 shadow-sm">
+                        {fact}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          <BrainGameResultActions
-            className="mt-4"
-            continueLabel={t("brainGames.resultActions.continue")}
-            nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
-            replayLabel={t("brainGames.resultActions.playAgain")}
-            anotherLabel={t("brainGames.resultActions.playAnotherGame")}
-            onContinue={onOpenRecommended}
-            onNextLevel={canOpenNextLevel ? () => void onOpenNextLevel() : undefined}
-            onReplay={() => void onOpenSameGame(plan.level)}
-            onAnother={onBack}
-            disabled={actionLoading !== null}
-          />
-
-          {result.scoringError && (
-            <div className="mt-5 rounded-[20px] border border-[#CFE9D9] bg-[#F0FDF4] p-4 text-[15px] leading-[1.55] text-vyva-text-2">
-              {t("storyRecall.scoringFallback")}
+              {result.missedFacts.length > 0 && (
+                <div className="rounded-[18px] border border-[#F3E0BD] bg-[#FFF7ED] p-3">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("storyRecall.alsoInStory")}</p>
+                  <div className="mt-2 grid gap-2">
+                    {result.missedFacts.map((fact) => (
+                      <p key={`missed-${fact}`} className="rounded-[16px] bg-white px-3 py-2 text-[14px] leading-[1.4] text-vyva-text-1 shadow-sm">
+                        {fact}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-
-          <div className="mt-3 grid max-h-[32dvh] gap-2 overflow-y-auto pr-1">
-            {result.coveredFacts.length > 0 && (
-              <div className="rounded-[18px] border border-[#CFE9D9] bg-[#F0FDF4] p-3">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("storyRecall.remembered")}</p>
-                <div className="mt-2 grid gap-2">
-                  {result.coveredFacts.map((fact) => (
-                    <p key={`covered-${fact}`} className="rounded-[16px] bg-white px-3 py-2 text-[14px] leading-[1.4] text-vyva-text-1 shadow-sm">
-                      {fact}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {result.missedFacts.length > 0 && (
-              <div className="rounded-[18px] border border-[#F3E0BD] bg-[#FFF7ED] p-3">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("storyRecall.alsoInStory")}</p>
-                <div className="mt-2 grid gap-2">
-                  {result.missedFacts.map((fact) => (
-                    <p key={`missed-${fact}`} className="rounded-[16px] bg-white px-3 py-2 text-[14px] leading-[1.4] text-vyva-text-1 shadow-sm">
-                      {fact}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+          }
+        />
       </div>
     );
   }
