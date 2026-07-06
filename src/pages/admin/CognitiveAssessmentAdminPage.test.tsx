@@ -78,10 +78,13 @@ describe("CognitiveAssessmentAdminPage", () => {
 
     await waitFor(() => expect(screen.getByText("12/12")).toBeInTheDocument());
 
+    expect(screen.getByText("5-language readiness")).toBeInTheDocument();
+    expect(screen.getByText("Member start status")).toBeInTheDocument();
     expect(screen.getByText("Task registry")).toBeInTheDocument();
     expect(screen.getByText("12/12")).toBeInTheDocument();
     expect(screen.getByText("Languages")).toBeInTheDocument();
     expect(screen.getByText("5/5 languages ready")).toBeInTheDocument();
+    expect(screen.getByText("Confirms every member language can start the full 12-step assessment.")).toBeInTheDocument();
     expect(screen.getAllByText("5/5").length).toBeGreaterThan(0);
     expect(screen.getByText("English")).toBeInTheDocument();
     expect(screen.getByText("French")).toBeInTheDocument();

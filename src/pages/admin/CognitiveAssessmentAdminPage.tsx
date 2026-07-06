@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type ChangeEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Database, FileJson, RefreshCw, Upload, XCircle } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import {
@@ -25,6 +25,8 @@ type BulkUploadResponse = {
   skippedCount?: number;
   error?: string;
 };
+
+const READINESS_QUERY_KEY = ["/api/admin/cognitive-assessment/readiness"] as const;
 
 function previewSummary(preview: BulkUploadPreview) {
   if (preview.totalItems === 0) return "No items detected.";
@@ -118,7 +120,7 @@ function readinessRequirementTotals(readiness: CognitiveAssessmentReadinessRespo
 
 function CognitiveReadinessPanel() {
   const readinessQuery = useQuery<CognitiveAssessmentReadinessResponse>({
-    queryKey: ["/api/admin/cognitive-assessment/readiness"],
+    queryKey: READINESS_QUERY_KEY,
   });
   const readiness = readinessQuery.data;
   const readyLanguages = readiness?.languages.filter((item) => item.ready).length ?? 0;
@@ -133,9 +135,9 @@ function CognitiveReadinessPanel() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Readiness</p>
-          <h1 className="font-serif text-3xl">Cognitive Assessment readiness</h1>
+          <h1 className="font-serif text-3xl">5-language readiness</h1>
           <p className="mt-1 text-sm font-bold text-[#7d6b65]">
-            Checks task registry, language coverage, seeded prompts, and uploaded item-bank content.
+            Confirms every member language can start the full 12-step assessment.
           </p>
         </div>
         <button
@@ -163,16 +165,26 @@ function CognitiveReadinessPanel() {
       {readiness ? (
         <>
           <div className={`mt-5 rounded-2xl border px-4 py-3 ${readinessPill(readiness.ready)}`}>
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.12em]">Language coverage</p>
+                <p className="text-xs font-black uppercase tracking-[0.12em]">Member start status</p>
                 <p className="mt-1 text-2xl font-black">{readyLanguages}/{languageTotal} languages ready</p>
               </div>
-              <p className="text-sm font-bold">
-                {readiness.ready
-                  ? "Members can start the full 12-step assessment in every supported language."
-                  : "Some languages are still blocked from member start."}
-              </p>
+              <div className="flex flex-wrap gap-2">
+                {readiness.languages.map((languageStatus) => (
+                  <span
+                    key={languageStatus.language}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${
+                      languageStatus.ready
+                        ? "border-emerald-200 bg-white text-emerald-800"
+                        : "border-amber-200 bg-white text-amber-900"
+                    }`}
+                  >
+                    {languageStatus.ready ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                    {languageStatus.language}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -236,6 +248,7 @@ function CognitiveReadinessPanel() {
 }
 
 function CognitiveBulkUploadPanel() {
+  const queryClient = useQueryClient();
   const [contentType, setContentType] = useState<BulkUploadContentType>("cc_story_recall");
   const [language, setLanguage] = useState<BulkUploadLanguage>("es");
   const [jsonText, setJsonText] = useState("");
@@ -310,12 +323,13 @@ function CognitiveBulkUploadPanel() {
         return;
       }
       setUploadStatus(`${body.insertedCount ?? 0} items loaded. ${body.skippedCount ?? 0} skipped.`);
+      void queryClient.invalidateQueries({ queryKey: READINESS_QUERY_KEY });
     } catch (error) {
       setPreviewError(error instanceof Error ? error.message : "Bulk upload failed.");
     } finally {
       setUploading(false);
     }
-  }, [contentType, jsonText, language, preview, skipAdminReview]);
+  }, [contentType, jsonText, language, preview, queryClient, skipAdminReview]);
 
   const canLoad = Boolean(preview && preview.validItems.length > 0 && !uploadStatus);
   const invalidItems = preview?.invalidItems.slice(0, 20) ?? [];
