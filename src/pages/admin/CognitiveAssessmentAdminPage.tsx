@@ -90,12 +90,40 @@ function LanguageReadinessCard({ languageStatus }: { languageStatus: CognitiveAs
   );
 }
 
+function readinessRequirementTotals(readiness: CognitiveAssessmentReadinessResponse) {
+  const requirementMap = new Map<string, {
+    label: string;
+    activeCount: number;
+    expectedCount: number;
+    readyLanguages: number;
+  }>();
+
+  readiness.languages.forEach((languageStatus) => {
+    languageStatus.requirements.forEach((requirement) => {
+      const current = requirementMap.get(requirement.key) ?? {
+        label: requirement.label,
+        activeCount: 0,
+        expectedCount: 0,
+        readyLanguages: 0,
+      };
+      current.activeCount += requirement.activeCount;
+      current.expectedCount += requirement.expectedCount;
+      current.readyLanguages += requirement.ready ? 1 : 0;
+      requirementMap.set(requirement.key, current);
+    });
+  });
+
+  return Array.from(requirementMap.entries()).map(([key, value]) => ({ key, ...value }));
+}
+
 function CognitiveReadinessPanel() {
   const readinessQuery = useQuery<CognitiveAssessmentReadinessResponse>({
     queryKey: ["/api/admin/cognitive-assessment/readiness"],
   });
   const readiness = readinessQuery.data;
   const readyLanguages = readiness?.languages.filter((item) => item.ready).length ?? 0;
+  const languageTotal = readiness?.languages.length ?? 0;
+  const requirementTotals = readiness ? readinessRequirementTotals(readiness) : [];
   const errorMessage = readinessQuery.error instanceof Error
     ? readinessQuery.error.message
     : "Readiness could not be checked.";
@@ -134,7 +162,21 @@ function CognitiveReadinessPanel() {
 
       {readiness ? (
         <>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className={`mt-5 rounded-2xl border px-4 py-3 ${readinessPill(readiness.ready)}`}>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em]">Language coverage</p>
+                <p className="mt-1 text-2xl font-black">{readyLanguages}/{languageTotal} languages ready</p>
+              </div>
+              <p className="text-sm font-bold">
+                {readiness.ready
+                  ? "Members can start the full 12-step assessment in every supported language."
+                  : "Some languages are still blocked from member start."}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
             <ReadinessMetric
               label="Overall"
               value={readiness.ready ? "Ready" : "Needs attention"}
@@ -147,9 +189,22 @@ function CognitiveReadinessPanel() {
             />
             <ReadinessMetric
               label="Languages"
-              value={`${readyLanguages}/${readiness.languages.length}`}
-              ready={readyLanguages === readiness.languages.length}
+              value={`${readyLanguages}/${languageTotal}`}
+              ready={readyLanguages === languageTotal}
             />
+          </div>
+
+          <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+            {requirementTotals.map((requirement) => (
+              <div
+                key={requirement.key}
+                className={`rounded-2xl border px-3 py-3 ${readinessPill(requirement.readyLanguages === languageTotal)}`}
+              >
+                <p className="truncate text-xs font-black uppercase tracking-[0.08em]">{requirement.label}</p>
+                <p className="mt-1 text-lg font-black">{requirement.readyLanguages}/{languageTotal}</p>
+                <p className="mt-1 text-[11px] font-bold">{requirement.activeCount}/{requirement.expectedCount} active</p>
+              </div>
+            ))}
           </div>
 
           {readiness.blockers.length ? (
