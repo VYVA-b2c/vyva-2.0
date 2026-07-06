@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { gameData } from "./shared/gameDataApi";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -1142,8 +1142,15 @@ export default function DualTaskWalk({ userId, onExit }) {
           </div>
         </div>
 
-        <BrainGameResultActions
-          className="shrink-0 pt-3"
+        <BrainGameCompletionDialog
+          title={resultToneGreat ? text.resultGreat : text.resultGood}
+          summary={`${text.totalScore}: ${result.dual_task_score}`}
+          metrics={[
+            { label: text.mathTask, value: `${Math.round(result.serial7s_accuracy_pct)}%` },
+            { label: text.visualTask, value: `${Math.round(result.tap_accuracy_pct)}%` },
+            { label: text.totalScore, value: result.dual_task_score },
+            { label: text.streak, value: `${userState?.streak_days ?? 0} ${text.days}` },
+          ]}
           continueLabel={continueLabel}
           replayLabel={text.playAgain}
           anotherLabel={text.playAnotherGame}

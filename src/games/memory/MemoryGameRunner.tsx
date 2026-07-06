@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
-  CheckCircle2,
   CircleHelp,
   Clock3,
   Grid2x2,
@@ -23,7 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n";
 import { useTtsReadout } from "@/hooks/useVyvaVoice";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
-import BrainGameResultActions from "../shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "../shared/BrainGameCompletionDialog";
 import { saveGameResult } from "./gameStorage";
 import {
   getGameDefinition,
@@ -1410,56 +1409,31 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
     const finishedMistakes = completionMetrics?.mistakes ?? summaryMistakes;
     const nextPlayableLevel = getNextPlayableLevel();
     const canOpenNextLevel = nextPlayableLevel > plan.level;
-    const nextLevelLabel = t("brainGames.resultActions.nextLevel", "Next level");
-    const hasCompletionDetails = Boolean(
-      completionDetails?.rememberedWords?.length ||
-        completionDetails?.correctWords?.length ||
-        completionDetails?.missedWords?.length,
-    );
+    const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
 
     return (
-      <div className="px-3 pb-4 sm:px-4">
-        <div className={hasCompletionDetails ? "mx-auto mt-2 w-full max-w-[940px]" : "mx-auto flex min-h-[calc(100dvh-96px)] w-full max-w-[900px] items-center py-3"}>
-          <div className="w-full rounded-[22px] bg-white p-4 shadow-vyva-card sm:rounded-[28px] sm:p-5">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
-                <CheckCircle2 size={26} />
-              </div>
-              <div className="min-w-0">
-                <h1 className="font-display text-[30px] leading-none text-vyva-text-1 sm:text-[38px]">{t("memory.wellDone")}</h1>
-                <p className="mt-1 text-[15px] font-medium leading-[1.35] text-vyva-text-2">{t("memory.exerciseCompleted")}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {[
-                { label: t("memory.score"), value: `${score}` },
-                { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
-                { label: t("memory.mistakes"), value: `${finishedMistakes}` },
-                { label: t("memory.duration"), value: `${durationSeconds}s` },
-              ].map((item) => (
-                <div key={item.label} className="min-h-[70px] rounded-[18px] border border-vyva-border bg-vyva-cream px-3.5 py-2.5">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.05em] text-vyva-text-2">{item.label}</p>
-                  <p className="mt-1.5 text-[22px] font-semibold leading-none text-vyva-text-1">{item.value}</p>
-                </div>
-              ))}
-            </div>
-
-            <BrainGameResultActions
-              className="mt-4"
-              continueLabel={t("brainGames.resultActions.continue")}
-              nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
-              replayLabel={t("brainGames.resultActions.playAgain")}
-              anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
-              onContinue={openRecommended}
-              onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-              onReplay={() => void openSameGame()}
-              onAnother={backToList}
-              disabled={actionLoading !== null}
-            />
-
-            {completionDetails && (
-              <div className="mt-3 grid max-h-[26dvh] gap-2 overflow-y-auto pr-1">
+      <div className="min-h-[100dvh] bg-[#FFF9F1]">
+        <BrainGameCompletionDialog
+          title={t("memory.wellDone")}
+          summary={t("memory.exerciseCompleted")}
+          metrics={[
+            { label: t("memory.score"), value: `${score}` },
+            { label: t("memory.accuracy"), value: `${finishedAccuracy}%` },
+            { label: t("memory.mistakes"), value: `${finishedMistakes}` },
+            { label: t("memory.duration"), value: `${durationSeconds}s` },
+          ]}
+          continueLabel={t("brainGames.resultActions.continue")}
+          nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+          nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
+          replayLabel={t("brainGames.resultActions.playAgain")}
+          anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
+          onContinue={openRecommended}
+          onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
+          onReplay={() => void openSameGame()}
+          onAnother={backToList}
+          disabled={actionLoading !== null}
+          details={completionDetails && (
+            <div className="grid gap-2">
                 {completionDetails.rememberedWords && completionDetails.rememberedWords.length > 0 && (
                   <div className="rounded-[16px] border border-vyva-border bg-[#F8FAFC] p-2.5">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-vyva-text-2">{t("wordRecall.remembered")}</p>
@@ -1497,9 +1471,8 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
+          )}
+        />
       </div>
     );
   }
@@ -2108,19 +2081,13 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
   const totalPairs = memoryDeck.length / 2;
   const nextPlayableLevel = getNextPlayableLevel();
   const canOpenNextLevel = nextPlayableLevel > plan.level;
-  const nextLevelLabel = t("brainGames.resultActions.nextLevel", "Next level");
+  const nextLevelLabel = t("brainGames.resultActions.continueToLevel").replace("{level}", String(nextPlayableLevel));
   const memoryGridClassName =
     memoryDeck.length <= 4
       ? "grid-cols-2 max-w-[540px] sm:max-w-[620px]"
       : memoryDeck.length <= 6
         ? "grid-cols-3 max-w-[620px] sm:max-w-[680px]"
         : "grid-cols-4 max-w-[760px] sm:max-w-[860px]";
-  const memoryResultPanelClassName =
-    memoryDeck.length <= 4
-      ? "max-w-[760px]"
-      : memoryDeck.length <= 6
-        ? "max-w-[760px]"
-        : "max-w-[900px]";
   const memoryCardHeight =
     memoryComplete
       ? "clamp(108px, 16dvh, 132px)"
@@ -2229,34 +2196,28 @@ const MemoryGameRunner = ({ forcedGameType, returnPath = "/memory-games" }: Memo
         </div>
 
         {memoryComplete && (
-          <div className={`mx-auto mt-3 w-full rounded-[18px] border border-[#D8C7F3] bg-white/95 p-3 shadow-vyva-card backdrop-blur ${memoryResultPanelClassName}`}>
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#0A7C4E]">
-                <CheckCircle2 size={22} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[18px] font-semibold leading-tight text-vyva-text-1">{t("memory.wellDone")}</p>
-                <p className="mt-0.5 text-[13px] font-medium text-vyva-text-2">
-                  {completionMetrics
-                    ? `${t("memory.score")}: ${completionMetrics.score} | ${t("memory.accuracy")}: ${completionMetrics.accuracy}%`
-                    : t("memory.exerciseCompleted")}
-                </p>
-              </div>
-            </div>
-
-            <BrainGameResultActions
-              className="mt-3"
-              continueLabel={t("brainGames.resultActions.continue")}
-              nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
-              replayLabel={t("brainGames.resultActions.playAgain")}
-              anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
-              onContinue={openRecommended}
-              onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
-              onReplay={() => void openSameGame()}
-              onAnother={backToList}
-              disabled={actionLoading !== null}
-            />
-          </div>
+          <BrainGameCompletionDialog
+            title={t("memory.wellDone")}
+            summary={
+              completionMetrics
+                ? `${t("memory.score")}: ${completionMetrics.score} | ${t("memory.accuracy")}: ${completionMetrics.accuracy}%`
+                : t("memory.exerciseCompleted")
+            }
+            metrics={[
+              { label: t("memory.score"), value: completionMetrics?.score ?? "-" },
+              { label: t("memory.accuracy"), value: completionMetrics ? `${completionMetrics.accuracy}%` : "-" },
+            ]}
+            continueLabel={t("brainGames.resultActions.continue")}
+            nextLevelLabel={canOpenNextLevel ? nextLevelLabel : undefined}
+            nextLevelDisplayLabel={canOpenNextLevel ? `${t("common.level")} ${nextPlayableLevel}` : undefined}
+            replayLabel={t("brainGames.resultActions.playAgain")}
+            anotherLabel={t("brainGames.resultActions.moreGames", "More games")}
+            onContinue={openRecommended}
+            onNextLevel={canOpenNextLevel ? () => void openNextLevel() : undefined}
+            onReplay={() => void openSameGame()}
+            onAnother={backToList}
+            disabled={actionLoading !== null}
+          />
         )}
       </section>
     </div>

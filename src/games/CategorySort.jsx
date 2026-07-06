@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, CircleHelp, Layers, Loader2, Palette, Ruler, Shapes, Square } from "lucide-react";
 import { useLanguage } from "@/i18n";
 import { gameData } from "./shared/gameDataApi";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -1309,8 +1309,15 @@ export default function CategorySort({ userId, onExit }) {
           </section>
         </div>
 
-        <BrainGameResultActions
-          className="shrink-0 pt-3"
+        <BrainGameCompletionDialog
+          title={result.score >= 600 ? text.resultGreat : text.resultGood}
+          summary={`${text.score}: ${result.score} | ${text.accuracy}: ${Math.round(result.accuracy_pct)}%`}
+          metrics={[
+            { label: text.accuracy, value: `${Math.round(result.accuracy_pct)}%` },
+            { label: text.flexibility, value: `${Math.round(result.flexibility_pct)}%` },
+            { label: text.score, value: String(result.score) },
+            { label: text.streak, value: `${userState?.streak_days ?? 1} ${text.days}` },
+          ]}
           continueLabel={continueLabel}
           replayLabel={text.playAgain}
           anotherLabel={text.playAnotherGame}
