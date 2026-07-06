@@ -52,8 +52,83 @@ const categoryPatchSchema = categoryBodySchema.partial().omit({ slug: true });
 type LearningLessonRow = typeof learningLessons.$inferSelect;
 type LearningCategoryRow = typeof learningCategories.$inferSelect;
 
+const learningLessonBaseSelection = {
+  id: learningLessons.id,
+  externalId: learningLessons.externalId,
+  categorySlug: learningLessons.categorySlug,
+  language: learningLessons.language,
+  title: learningLessons.title,
+  hook: learningLessons.hook,
+  body: learningLessons.body,
+  reflectionPrompt: learningLessons.reflectionPrompt,
+  sourceNotes: learningLessons.sourceNotes,
+  estimatedMinutes: learningLessons.estimatedMinutes,
+  difficulty: learningLessons.difficulty,
+  tags: learningLessons.tags,
+  status: learningLessons.status,
+  isActive: learningLessons.isActive,
+  reviewedAt: learningLessons.reviewedAt,
+  reviewedBy: learningLessons.reviewedBy,
+  publishedAt: learningLessons.publishedAt,
+  publishedBy: learningLessons.publishedBy,
+  archivedAt: learningLessons.archivedAt,
+  archivedBy: learningLessons.archivedBy,
+  createdAt: learningLessons.createdAt,
+  updatedAt: learningLessons.updatedAt,
+};
+
 function actor(req: Request) {
   return String(req.user?.email ?? req.user?.id ?? "admin");
+}
+
+function lessonTags(value: unknown) {
+  return Array.isArray(value) ? value.filter((tag): tag is string => typeof tag === "string") : [];
+}
+
+function errorText(error: unknown): string {
+  if (!error) return "";
+  if (error instanceof Error) {
+    const cause = "cause" in error ? (error as Error & { cause?: unknown }).cause : undefined;
+    return `${error.message} ${errorText(cause)}`.trim();
+  }
+  if (typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    return [record.message, record.detail, record.where, errorText(record.cause)].filter(Boolean).join(" ");
+  }
+  return String(error);
+}
+
+function isMissingLearningImageColumnError(error: unknown) {
+  const text = errorText(error).toLowerCase();
+  const code = typeof error === "object" && error ? String((error as Record<string, unknown>).code ?? "") : "";
+  return (
+    (code === "42703" || text.includes("does not exist")) &&
+    (text.includes("image_url") || text.includes("image_alt") || text.includes("image_prompt"))
+  );
+}
+
+async function selectLessonsForAdmin() {
+  try {
+    return await db
+      .select()
+      .from(learningLessons)
+      .orderBy(desc(learningLessons.updatedAt), desc(learningLessons.createdAt))
+      .limit(1000);
+  } catch (error) {
+    if (!isMissingLearningImageColumnError(error)) throw error;
+    console.warn("[admin] learning image columns are missing; loading lessons without image metadata:", error);
+    const rows = await db
+      .select(learningLessonBaseSelection)
+      .from(learningLessons)
+      .orderBy(desc(learningLessons.updatedAt), desc(learningLessons.createdAt))
+      .limit(1000);
+    return rows.map((row) => ({
+      ...row,
+      imageUrl: null,
+      imageAlt: null,
+      imagePrompt: null,
+    })) satisfies LearningLessonRow[];
+  }
 }
 
 function serializeLesson(row: LearningLessonRow) {
@@ -72,7 +147,7 @@ function serializeLesson(row: LearningLessonRow) {
     imagePrompt: row.imagePrompt,
     estimatedMinutes: row.estimatedMinutes,
     difficulty: row.difficulty,
-    tags: row.tags ?? [],
+    tags: lessonTags(row.tags),
     status: row.status,
     isActive: row.isActive,
     reviewedAt: row.reviewedAt?.toISOString() ?? null,
@@ -440,11 +515,7 @@ async function listLessonsHandler(req: Request, res: Response) {
     const language = typeof req.query.language === "string" ? req.query.language : "all";
     const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
 
-    const rows = await db
-      .select()
-      .from(learningLessons)
-      .orderBy(desc(learningLessons.updatedAt), desc(learningLessons.createdAt))
-      .limit(1000);
+    const rows = await selectLessonsForAdmin();
 
     const filtered = rows.filter((lesson) => {
       if (status !== "all" && lesson.status !== status) return false;
@@ -457,7 +528,7 @@ async function listLessonsHandler(req: Request, res: Response) {
           lesson.body,
           lesson.reflectionPrompt,
           lesson.categorySlug,
-          ...(lesson.tags ?? []),
+          ...lessonTags(lesson.tags),
         ].join(" ").toLowerCase();
         if (!haystack.includes(search)) return false;
       }
