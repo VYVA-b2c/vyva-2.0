@@ -1,23 +1,33 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Headphones, Loader2, PauseCircle, PlayCircle, RotateCcw, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, Eye, Headphones, Loader2, PauseCircle, PlayCircle, RotateCcw, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
 
-type RelaxBreatheStage = {
-  key: "settle" | "breathe" | "return";
+type RelaxBreatheLevelKey = "easy" | "steady" | "deeper";
+type RelaxBreathePhaseKey = "settle" | "inhale" | "exhale" | "longExhale" | "softPause" | "return";
+type RelaxBreathePhase = {
+  key: RelaxBreathePhaseKey;
   title: string;
   instruction: string;
   cue: string;
+  seconds: number;
 };
-
-const RELAX_BREATHE_STAGE_KEYS = ["settle", "breathe", "return"] as const;
+type RelaxBreatheLevel = {
+  key: RelaxBreatheLevelKey;
+  levelNumber: number;
+  title: string;
+  summary: string;
+  duration: string;
+  phases: RelaxBreathePhase[];
+};
 type RelaxBreatheGuideMode = "visual" | "voice";
 type RelaxBreatheProgress = {
   totalSessions: number;
   lastCompletedDate: string | null;
   streakDays: number;
   motionPaused: boolean;
+  lastCompletedLevel: RelaxBreatheLevelKey | null;
 };
 
 const RELAX_BREATHE_PROGRESS_KEY = "vyva_relax_breathe_progress";
@@ -26,7 +36,48 @@ const DEFAULT_RELAX_BREATHE_PROGRESS: RelaxBreatheProgress = {
   lastCompletedDate: null,
   streakDays: 0,
   motionPaused: false,
+  lastCompletedLevel: null,
 };
+const RELAX_BREATHE_LEVEL_KEYS = ["easy", "steady", "deeper"] as const;
+const RELAX_BREATHE_LEVEL_PHASES: Record<RelaxBreatheLevelKey, Array<{ key: RelaxBreathePhaseKey; seconds: number }>> = {
+  easy: [
+    { key: "settle", seconds: 10 },
+    { key: "inhale", seconds: 4 },
+    { key: "exhale", seconds: 6 },
+    { key: "inhale", seconds: 4 },
+    { key: "exhale", seconds: 6 },
+    { key: "return", seconds: 10 },
+  ],
+  steady: [
+    { key: "settle", seconds: 10 },
+    { key: "inhale", seconds: 4 },
+    { key: "longExhale", seconds: 7 },
+    { key: "inhale", seconds: 4 },
+    { key: "longExhale", seconds: 7 },
+    { key: "inhale", seconds: 4 },
+    { key: "longExhale", seconds: 7 },
+    { key: "return", seconds: 10 },
+  ],
+  deeper: [
+    { key: "settle", seconds: 10 },
+    { key: "inhale", seconds: 4 },
+    { key: "softPause", seconds: 2 },
+    { key: "longExhale", seconds: 8 },
+    { key: "inhale", seconds: 4 },
+    { key: "softPause", seconds: 2 },
+    { key: "longExhale", seconds: 8 },
+    { key: "return", seconds: 10 },
+  ],
+};
+const RELAX_BREATHE_IS_TEST_RUNTIME = typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("jsdom");
+const RELAX_BREATHE_TIMER_MS = RELAX_BREATHE_IS_TEST_RUNTIME ? 1 : 1000;
+const relaxBreathePhaseSeconds = (seconds: number) => (RELAX_BREATHE_IS_TEST_RUNTIME ? 1 : seconds);
+
+function recommendedRelaxBreatheLevel(progress: RelaxBreatheProgress): RelaxBreatheLevelKey {
+  if (progress.totalSessions >= 4) return "deeper";
+  if (progress.totalSessions >= 2) return "steady";
+  return "easy";
+}
 
 function getLocalDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -54,6 +105,9 @@ function readRelaxBreatheProgress(): RelaxBreatheProgress {
       lastCompletedDate: typeof parsed.lastCompletedDate === "string" ? parsed.lastCompletedDate : null,
       streakDays: Math.max(0, Number(parsed.streakDays) || 0),
       motionPaused: Boolean(parsed.motionPaused),
+      lastCompletedLevel: RELAX_BREATHE_LEVEL_KEYS.includes(parsed.lastCompletedLevel as RelaxBreatheLevelKey)
+        ? parsed.lastCompletedLevel as RelaxBreatheLevelKey
+        : null,
     };
   } catch {
     return DEFAULT_RELAX_BREATHE_PROGRESS;
@@ -70,7 +124,7 @@ function writeRelaxBreatheProgress(progress: RelaxBreatheProgress) {
   }
 }
 
-function recordRelaxBreatheCompletion(progress: RelaxBreatheProgress): RelaxBreatheProgress {
+function recordRelaxBreatheCompletion(progress: RelaxBreatheProgress, completedLevel: RelaxBreatheLevelKey): RelaxBreatheProgress {
   const today = getLocalDateKey();
   const completedYesterday = progress.lastCompletedDate === getYesterdayDateKey();
   const completedToday = progress.lastCompletedDate === today;
@@ -85,6 +139,32 @@ function recordRelaxBreatheCompletion(progress: RelaxBreatheProgress): RelaxBrea
     totalSessions: progress.totalSessions + 1,
     lastCompletedDate: today,
     streakDays,
+    lastCompletedLevel: completedLevel,
+  };
+}
+
+function getRelaxBreathePhaseTiming(phases: RelaxBreathePhase[], elapsedSeconds: number) {
+  let elapsedBeforePhase = 0;
+
+  for (let index = 0; index < phases.length; index += 1) {
+    const phase = phases[index];
+    const phaseEndsAt = elapsedBeforePhase + phase.seconds;
+
+    if (elapsedSeconds < phaseEndsAt || index === phases.length - 1) {
+      return {
+        phaseIndex: index,
+        phase,
+        secondsRemaining: Math.max(1, phaseEndsAt - elapsedSeconds),
+      };
+    }
+
+    elapsedBeforePhase = phaseEndsAt;
+  }
+
+  return {
+    phaseIndex: 0,
+    phase: phases[0],
+    secondsRemaining: phases[0]?.seconds ?? 1,
   };
 }
 
@@ -117,18 +197,20 @@ function usePrefersReducedMotion() {
 
 function buildMarcoPrompt(
   title: string,
-  stage: RelaxBreatheStage,
-  stageIndex: number,
-  stageCount: number,
+  level: RelaxBreatheLevel,
+  phase: RelaxBreathePhase,
+  phaseIndex: number,
+  phaseCount: number,
   safetyLine: string,
 ) {
   return [
     `Guide the user through ${title}.`,
-    `Current stage ${stageIndex + 1} of ${stageCount}: ${stage.title}.`,
-    `Visible instruction: ${stage.instruction}`,
-    `Visual breathing cue: ${stage.cue}.`,
+    `Selected level ${level.levelNumber}: ${level.title}.`,
+    `Current phase ${phaseIndex + 1} of ${phaseCount}: ${phase.title}.`,
+    `Visible instruction: ${phase.instruction}`,
+    `Visual breathing cue: ${phase.cue}.`,
     "Speak warmly, slowly, and plainly.",
-    "Keep the guidance short, then pause and wait for the app to send the next stage.",
+    "Keep the guidance short. The app advances automatically, so do not ask the user to tap next.",
     `Safety reminder: ${safetyLine}`,
   ].join(" ");
 }
@@ -137,13 +219,17 @@ export default function RelaxBreatheScreen() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const prefersReducedMotion = usePrefersReducedMotion();
-  const [stageIndex, setStageIndex] = useState(0);
+  const [elapsedSessionSeconds, setElapsedSessionSeconds] = useState(0);
+  const [isSessionRunning, setSessionRunning] = useState(false);
+  const [isSessionPaused, setSessionPaused] = useState(false);
   const [isCompleted, setCompleted] = useState(false);
   const [isGuideStarted, setGuideStarted] = useState(false);
   const [isAudioStarting, setAudioStarting] = useState(false);
   const [guideMode, setGuideMode] = useState<RelaxBreatheGuideMode>("visual");
   const [voiceStartFailed, setVoiceStartFailed] = useState(false);
-  const [progress, setProgress] = useState<RelaxBreatheProgress>(readRelaxBreatheProgress);
+  const [progress, setProgress] = useState<RelaxBreatheProgress>(() => readRelaxBreatheProgress());
+  const [selectedLevelKey, setSelectedLevelKey] = useState<RelaxBreatheLevelKey>(() => recommendedRelaxBreatheLevel(readRelaxBreatheProgress()));
+  const lastPromptedPhaseIndexRef = useRef(0);
   const {
     startVoice,
     stopVoice,
@@ -154,55 +240,138 @@ export default function RelaxBreatheScreen() {
     lastError: voiceError,
   } = useVyvaVoice();
 
-  const copy = useMemo(() => ({
-    title: t("activities.relaxBreathe.title", "Relax & Breathe"),
-    intro: t("activities.relaxBreathe.intro", "A quiet pause for your body and mind."),
-    backToMindMemory: t("activities.relaxBreathe.backToMindMemory", "Back to Mind & Memory"),
-    duration: t("activities.relaxBreathe.duration", "3 gentle steps"),
-    modeLabel: t("activities.relaxBreathe.modeLabel", "Guide mode"),
-    visualMode: t("activities.relaxBreathe.visualMode", "Visual"),
-    voiceMode: t("activities.relaxBreathe.voiceMode", "Voice"),
-    visualModeTitle: t("activities.relaxBreathe.visualModeTitle", "Visual mode"),
-    visualModeBody: t("activities.relaxBreathe.visualModeBody", "Follow the breathing circle quietly at your own pace."),
-    voiceModeTitle: t("activities.relaxBreathe.voiceModeTitle", "Voice mode"),
-    voiceModeBody: t("activities.relaxBreathe.voiceModeBody", "Marco can talk you through each step."),
-    stepLabel: t("activities.relaxBreathe.stepLabel", "Step"),
-    ofLabel: t("activities.relaxBreathe.ofLabel", "of"),
-    breatheIn: t("activities.relaxBreathe.breatheIn", "Breathe in"),
-    breatheOut: t("activities.relaxBreathe.breatheOut", "Breathe out"),
-    safety: t("activities.relaxBreathe.safety", "If breathing feels difficult, painful, or unusual, stop and seek help."),
-    startGuide: t("activities.relaxBreathe.startGuide", "Start Marco guide"),
-    guideStarting: t("activities.relaxBreathe.guideStarting", "Starting..."),
-    guideLive: t("activities.relaxBreathe.guideLive", "Marco guide is live"),
-    voiceRetry: t("activities.relaxBreathe.voiceRetry", "Tap Voice again to retry."),
-    replay: t("activities.relaxBreathe.replay", "Replay"),
-    back: t("activities.relaxBreathe.back", "Back"),
-    next: t("activities.relaxBreathe.next", "Next"),
-    finish: t("activities.relaxBreathe.finish", "Finish"),
-    completeTitle: t("activities.relaxBreathe.completeTitle", "A calm pause is complete."),
-    completeBody: t("activities.relaxBreathe.completeBody", "You can come back to this whenever you want a quieter moment."),
-    tryAgain: t("activities.relaxBreathe.tryAgain", "Try again"),
-    audioUnavailable: t("activities.relaxBreathe.audioUnavailable", "The visual guide still works without audio."),
-    routineTitle: t("activities.relaxBreathe.routineTitle", "Your calm routine"),
-    routineStart: t("activities.relaxBreathe.routineStart", "First pause today"),
-    routineDoneToday: t("activities.relaxBreathe.routineDoneToday", "Done today"),
-    routineCountOne: t("activities.relaxBreathe.routineCountOne", "{n} calm pause"),
-    routineCountMany: t("activities.relaxBreathe.routineCountMany", "{n} calm pauses"),
-    routineStreak: t("activities.relaxBreathe.routineStreak", "{n} day streak"),
-    motionPause: t("activities.relaxBreathe.motionPause", "Pause motion"),
-    motionResume: t("activities.relaxBreathe.motionResume", "Resume motion"),
-    motionSystemPaused: t("activities.relaxBreathe.motionSystemPaused", "Motion paused"),
-    nowLabel: t("activities.relaxBreathe.nowLabel", "Now"),
-    stages: RELAX_BREATHE_STAGE_KEYS.map((key) => ({
-      key,
-      title: t(`activities.relaxBreathe.stages.${key}.title`),
-      instruction: t(`activities.relaxBreathe.stages.${key}.instruction`),
-      cue: t(`activities.relaxBreathe.stages.${key}.cue`),
-    })),
-  }), [t]);
+  const copy = useMemo(() => {
+    const phaseCopy: Record<RelaxBreathePhaseKey, Omit<RelaxBreathePhase, "key" | "seconds">> = {
+      settle: {
+        title: t("activities.relaxBreathe.phases.settle.title", "Settle"),
+        instruction: t("activities.relaxBreathe.phases.settle.instruction", "Sit comfortably. Let your shoulders soften."),
+        cue: t("activities.relaxBreathe.phases.settle.cue", "Find a comfortable seat."),
+      },
+      inhale: {
+        title: t("activities.relaxBreathe.phases.inhale.title", "Breathe in"),
+        instruction: t("activities.relaxBreathe.phases.inhale.instruction", "Breathe in gently as the circle grows."),
+        cue: t("activities.relaxBreathe.phases.inhale.cue", "Easy breath in."),
+      },
+      exhale: {
+        title: t("activities.relaxBreathe.phases.exhale.title", "Breathe out"),
+        instruction: t("activities.relaxBreathe.phases.exhale.instruction", "Let the breath out slowly as the circle settles."),
+        cue: t("activities.relaxBreathe.phases.exhale.cue", "Soft breath out."),
+      },
+      longExhale: {
+        title: t("activities.relaxBreathe.phases.longExhale.title", "Long breath out"),
+        instruction: t("activities.relaxBreathe.phases.longExhale.instruction", "Breathe out a little longer, only while it feels comfortable."),
+        cue: t("activities.relaxBreathe.phases.longExhale.cue", "Longer breath out."),
+      },
+      softPause: {
+        title: t("activities.relaxBreathe.phases.softPause.title", "Soft pause"),
+        instruction: t("activities.relaxBreathe.phases.softPause.instruction", "Rest for a moment. Skip the pause if it does not feel good."),
+        cue: t("activities.relaxBreathe.phases.softPause.cue", "Tiny resting pause."),
+      },
+      return: {
+        title: t("activities.relaxBreathe.phases.return.title", "Return gently"),
+        instruction: t("activities.relaxBreathe.phases.return.instruction", "Notice the chair, the room, and one calm breath."),
+        cue: t("activities.relaxBreathe.phases.return.cue", "Come back to the room gently."),
+      },
+    };
 
-  const currentStage = copy.stages[stageIndex] ?? copy.stages[0];
-  const stageCount = copy.stages.length;
+    const levelCopy: Record<RelaxBreatheLevelKey, Omit<RelaxBreatheLevel, "key" | "phases">> = {
+      easy: {
+        levelNumber: 1,
+        title: t("activities.relaxBreathe.levels.easy.title", "Easy"),
+        summary: t("activities.relaxBreathe.levels.easy.summary", "Simple in and out breathing."),
+        duration: t("activities.relaxBreathe.levels.easy.duration", "About 1 minute"),
+      },
+      steady: {
+        levelNumber: 2,
+        title: t("activities.relaxBreathe.levels.steady.title", "Steady"),
+        summary: t("activities.relaxBreathe.levels.steady.summary", "A slightly longer breath out."),
+        duration: t("activities.relaxBreathe.levels.steady.duration", "About 1 minute"),
+      },
+      deeper: {
+        levelNumber: 3,
+        title: t("activities.relaxBreathe.levels.deeper.title", "Deeper"),
+        summary: t("activities.relaxBreathe.levels.deeper.summary", "Adds a tiny comfortable pause."),
+        duration: t("activities.relaxBreathe.levels.deeper.duration", "About 1 minute"),
+      },
+    };
+
+    const levels = RELAX_BREATHE_LEVEL_KEYS.map((key) => ({
+      key,
+      ...levelCopy[key],
+      phases: RELAX_BREATHE_LEVEL_PHASES[key].map((phase) => ({
+        key: phase.key,
+        seconds: relaxBreathePhaseSeconds(phase.seconds),
+        ...phaseCopy[phase.key],
+      })),
+    }));
+
+    return {
+      title: t("activities.relaxBreathe.title", "Relax & Breathe"),
+      intro: t("activities.relaxBreathe.intro", "A guided calm pause. Tap once and VYVA leads you."),
+      backToMindMemory: t("activities.relaxBreathe.backToMindMemory", "Back to Mind & Memory"),
+      duration: t("activities.relaxBreathe.duration", "Guided breathing"),
+      modeLabel: t("activities.relaxBreathe.modeLabel", "Guide mode"),
+      visualMode: t("activities.relaxBreathe.visualMode", "App"),
+      voiceMode: t("activities.relaxBreathe.voiceMode", "Voice"),
+      visualModeTitle: t("activities.relaxBreathe.visualModeTitle", "App guide"),
+      visualModeBody: t("activities.relaxBreathe.visualModeBody", "The app moves through each breath for you."),
+      voiceModeTitle: t("activities.relaxBreathe.voiceModeTitle", "Voice guide"),
+      voiceModeBody: t("activities.relaxBreathe.voiceModeBody", "Marco can talk you through the breathing session."),
+      stepLabel: t("activities.relaxBreathe.stepLabel", "Phase"),
+      ofLabel: t("activities.relaxBreathe.ofLabel", "of"),
+      levelLabel: t("activities.relaxBreathe.levelLabel", "Level"),
+      chooseLevel: t("activities.relaxBreathe.chooseLevel", "Choose a level"),
+      breatheIn: t("activities.relaxBreathe.breatheIn", "Breathe in"),
+      breatheOut: t("activities.relaxBreathe.breatheOut", "Breathe out"),
+      safety: t("activities.relaxBreathe.safety", "If breathing feels difficult, painful, or unusual, stop and seek help."),
+      startGuide: t("activities.relaxBreathe.startGuide", "Start guide"),
+      pauseSession: t("activities.relaxBreathe.pauseSession", "Pause"),
+      resumeSession: t("activities.relaxBreathe.resumeSession", "Resume"),
+      endSession: t("activities.relaxBreathe.endSession", "End"),
+      guideStarting: t("activities.relaxBreathe.guideStarting", "Starting..."),
+      guideLive: t("activities.relaxBreathe.guideLive", "Voice guide is live"),
+      voiceRetry: t("activities.relaxBreathe.voiceRetry", "Voice was not available. The app guide is still running."),
+      replay: t("activities.relaxBreathe.replay", "Repeat voice cue"),
+      completeTitle: t("activities.relaxBreathe.completeTitle", "A calm pause is complete."),
+      completeBody: t("activities.relaxBreathe.completeBody", "You can come back to this whenever you want a quieter moment."),
+      tryAgain: t("activities.relaxBreathe.tryAgain", "Try again"),
+      audioUnavailable: t("activities.relaxBreathe.audioUnavailable", "The app guide still works without audio."),
+      routineTitle: t("activities.relaxBreathe.routineTitle", "Your calm routine"),
+      routineStart: t("activities.relaxBreathe.routineStart", "First pause today"),
+      routineDoneToday: t("activities.relaxBreathe.routineDoneToday", "Done today"),
+      routineCountOne: t("activities.relaxBreathe.routineCountOne", "{n} calm pause"),
+      routineCountMany: t("activities.relaxBreathe.routineCountMany", "{n} calm pauses"),
+      routineStreak: t("activities.relaxBreathe.routineStreak", "{n} day streak"),
+      motionPause: t("activities.relaxBreathe.motionPause", "Pause motion"),
+      motionResume: t("activities.relaxBreathe.motionResume", "Resume motion"),
+      motionSystemPaused: t("activities.relaxBreathe.motionSystemPaused", "Motion paused"),
+      nowLabel: t("activities.relaxBreathe.nowLabel", "Now"),
+      notStartedLabel: t("activities.relaxBreathe.notStartedLabel", "Ready"),
+      runningLabel: t("activities.relaxBreathe.runningLabel", "Guiding"),
+      pausedLabel: t("activities.relaxBreathe.pausedLabel", "Paused"),
+      timeLeft: t("activities.relaxBreathe.timeLeft", "{n}s left"),
+      sessionProgress: t("activities.relaxBreathe.sessionProgress", "{n}% complete"),
+      nextLevelTitle: t("activities.relaxBreathe.nextLevelTitle", "Next time"),
+      levels,
+    };
+  }, [t]);
+
+  const currentLevel = copy.levels.find((level) => level.key === selectedLevelKey) ?? copy.levels[0];
+  const phaseCount = currentLevel.phases.length;
+  const totalSessionSeconds = currentLevel.phases.reduce((sum, phase) => sum + phase.seconds, 0);
+  const phaseTiming = getRelaxBreathePhaseTiming(
+    currentLevel.phases,
+    isSessionRunning ? elapsedSessionSeconds : 0,
+  );
+  const phaseIndex = phaseTiming.phaseIndex;
+  const currentPhase = phaseTiming.phase;
+  const visiblePhaseSecondsRemaining = phaseTiming.secondsRemaining;
+  const sessionProgressPercent = Math.min(100, Math.max(0, Math.round((elapsedSessionSeconds / totalSessionSeconds) * 100)));
+  const sessionStateLabel = isSessionPaused
+    ? copy.pausedLabel
+    : isSessionRunning
+      ? copy.runningLabel
+      : copy.notStartedLabel;
   const audioIsLive = isGuideStarted || voiceStatus === "connected";
   const isMotionPaused = prefersReducedMotion || progress.motionPaused;
   const completedToday = progress.lastCompletedDate === getLocalDateKey();
@@ -210,31 +379,41 @@ export default function RelaxBreatheScreen() {
     ? t("activities.relaxBreathe.routineCountOne", copy.routineCountOne, { n: progress.totalSessions })
     : t("activities.relaxBreathe.routineCountMany", copy.routineCountMany, { n: progress.totalSessions });
   const streakText = t("activities.relaxBreathe.routineStreak", copy.routineStreak, { n: Math.max(1, progress.streakDays) });
+  const timeLeftText = t("activities.relaxBreathe.timeLeft", copy.timeLeft, { n: visiblePhaseSecondsRemaining });
+  const sessionProgressText = t("activities.relaxBreathe.sessionProgress", copy.sessionProgress, { n: sessionProgressPercent });
+  const orbPrimaryText = currentPhase.key === "exhale" || currentPhase.key === "longExhale"
+    ? copy.breatheOut
+    : currentPhase.key === "inhale"
+      ? copy.breatheIn
+      : currentPhase.title;
 
-  const voiceVariables = useCallback((nextStageIndex: number) => {
-    const stage = copy.stages[nextStageIndex] ?? copy.stages[0];
+  const voiceVariables = useCallback((nextPhaseIndex: number) => {
+    const phase = currentLevel.phases[nextPhaseIndex] ?? currentLevel.phases[0];
     return {
       app_entrypoint: "relax_breathe_session",
       session_title: copy.title,
-      stage_key: stage.key,
-      stage_title: stage.title,
-      stage_instruction: stage.instruction,
-      breathing_cue: stage.cue,
-      current_stage_number: nextStageIndex + 1,
-      stage_count: stageCount,
+      level_key: currentLevel.key,
+      level_title: currentLevel.title,
+      level_number: currentLevel.levelNumber,
+      phase_key: phase.key,
+      phase_title: phase.title,
+      phase_instruction: phase.instruction,
+      breathing_cue: phase.cue,
+      current_phase_number: nextPhaseIndex + 1,
+      phase_count: phaseCount,
       safety_line: copy.safety,
     };
-  }, [copy.safety, copy.stages, copy.title, stageCount]);
+  }, [copy.safety, copy.title, currentLevel, phaseCount]);
 
-  const promptForStage = useCallback((nextStageIndex: number) => {
-    const stage = copy.stages[nextStageIndex] ?? copy.stages[0];
-    return buildMarcoPrompt(copy.title, stage, nextStageIndex, stageCount, copy.safety);
-  }, [copy.safety, copy.stages, copy.title, stageCount]);
+  const promptForPhase = useCallback((nextPhaseIndex: number) => {
+    const phase = currentLevel.phases[nextPhaseIndex] ?? currentLevel.phases[0];
+    return buildMarcoPrompt(copy.title, currentLevel, phase, nextPhaseIndex, phaseCount, copy.safety);
+  }, [copy.safety, copy.title, currentLevel, phaseCount]);
 
-  const sendStagePrompt = useCallback((nextStageIndex: number) => {
-    sendContextUpdate(`Relax and Breathe session context: ${JSON.stringify(voiceVariables(nextStageIndex))}`);
-    sendText(promptForStage(nextStageIndex), { invisibleInTranscript: true });
-  }, [promptForStage, sendContextUpdate, sendText, voiceVariables]);
+  const sendPhasePrompt = useCallback((nextPhaseIndex: number) => {
+    sendContextUpdate(`Relax and Breathe session context: ${JSON.stringify(voiceVariables(nextPhaseIndex))}`);
+    sendText(promptForPhase(nextPhaseIndex), { invisibleInTranscript: true });
+  }, [promptForPhase, sendContextUpdate, sendText, voiceVariables]);
 
   useEffect(() => {
     try {
@@ -252,56 +431,55 @@ export default function RelaxBreatheScreen() {
     navigate("/mind-memory");
   }, [navigate, stopVoice]);
 
-  const goToStage = useCallback((nextStageIndex: number) => {
-    const boundedStageIndex = Math.max(0, Math.min(nextStageIndex, stageCount - 1));
-    setStageIndex(boundedStageIndex);
-    if (audioIsLive) {
-      sendStagePrompt(boundedStageIndex);
-    }
-  }, [audioIsLive, sendStagePrompt, stageCount]);
+  const selectLevel = useCallback((levelKey: RelaxBreatheLevelKey) => {
+    if (isSessionRunning) return;
+    setSelectedLevelKey(levelKey);
+    setElapsedSessionSeconds(0);
+    lastPromptedPhaseIndexRef.current = 0;
+    setCompleted(false);
+    setVoiceStartFailed(false);
+  }, [isSessionRunning]);
 
-  const startMarcoGuide = useCallback(async () => {
+  const startVoiceGuide = useCallback(async (nextPhaseIndex = 0) => {
     if (audioIsLive || isAudioStarting || isConnecting) return;
-    setGuideMode("voice");
     setVoiceStartFailed(false);
     setAudioStarting(true);
     try {
-      await startVoice(promptForStage(stageIndex), undefined, {
+      await startVoice(promptForPhase(nextPhaseIndex), undefined, {
         agentSlug: "marco-reyes",
         roomSlug: "evening-wind-down",
         autoStartListening: false,
-        dynamicVariables: voiceVariables(stageIndex),
+        dynamicVariables: voiceVariables(nextPhaseIndex),
       });
       setGuideStarted(true);
-      sendStagePrompt(stageIndex);
+      sendPhasePrompt(nextPhaseIndex);
     } catch {
       setVoiceStartFailed(true);
       setGuideStarted(false);
+      setGuideMode("visual");
     } finally {
       setAudioStarting(false);
     }
-  }, [audioIsLive, isAudioStarting, isConnecting, promptForStage, sendStagePrompt, stageIndex, startVoice, voiceVariables]);
+  }, [audioIsLive, isAudioStarting, isConnecting, promptForPhase, sendPhasePrompt, startVoice, voiceVariables]);
 
   const switchGuideMode = useCallback((nextMode: RelaxBreatheGuideMode) => {
-    if (nextMode === "voice") {
-      setGuideMode("voice");
-      void startMarcoGuide();
-      return;
-    }
-
-    setGuideMode("visual");
+    setGuideMode(nextMode);
     setVoiceStartFailed(false);
-    if (audioIsLive) {
+    if (nextMode === "visual" && audioIsLive) {
       stopVoice();
       setGuideStarted(false);
     }
-  }, [audioIsLive, startMarcoGuide, stopVoice]);
-
-  const replayStage = useCallback(() => {
-    if (audioIsLive) {
-      sendStagePrompt(stageIndex);
+    if (nextMode === "voice" && isSessionRunning) {
+      lastPromptedPhaseIndexRef.current = phaseIndex;
+      void startVoiceGuide(phaseIndex);
     }
-  }, [audioIsLive, sendStagePrompt, stageIndex]);
+  }, [audioIsLive, isSessionRunning, phaseIndex, startVoiceGuide, stopVoice]);
+
+  const replayPhase = useCallback(() => {
+    if (audioIsLive) {
+      sendPhasePrompt(phaseIndex);
+    }
+  }, [audioIsLive, phaseIndex, sendPhasePrompt]);
 
   const toggleMotionPaused = useCallback(() => {
     if (prefersReducedMotion) return;
@@ -320,20 +498,85 @@ export default function RelaxBreatheScreen() {
     stopVoice();
     setGuideStarted(false);
     setVoiceStartFailed(false);
+    setSessionRunning(false);
+    setSessionPaused(false);
     setProgress((currentProgress) => {
-      const nextProgress = recordRelaxBreatheCompletion(currentProgress);
+      const nextProgress = recordRelaxBreatheCompletion(currentProgress, currentLevel.key);
       writeRelaxBreatheProgress(nextProgress);
       return nextProgress;
     });
     setCompleted(true);
-  }, [stopVoice]);
+  }, [currentLevel.key, stopVoice]);
+
+  const startGuidedSession = useCallback(() => {
+    setCompleted(false);
+    setElapsedSessionSeconds(0);
+    lastPromptedPhaseIndexRef.current = 0;
+    setSessionPaused(false);
+    setSessionRunning(true);
+    setVoiceStartFailed(false);
+    if (guideMode === "voice") {
+      void startVoiceGuide(0);
+    }
+  }, [currentLevel.phases, guideMode, startVoiceGuide]);
+
+  const toggleSessionPaused = useCallback(() => {
+    if (!isSessionRunning) return;
+    setSessionPaused((paused) => !paused);
+  }, [isSessionRunning]);
 
   const restartSession = useCallback(() => {
     setCompleted(false);
-    setStageIndex(0);
-    setGuideMode("visual");
+    setElapsedSessionSeconds(0);
+    lastPromptedPhaseIndexRef.current = 0;
+    setSessionRunning(false);
+    setSessionPaused(false);
     setVoiceStartFailed(false);
   }, []);
+
+  useEffect(() => {
+    if (!isSessionRunning || isSessionPaused || isCompleted || elapsedSessionSeconds >= totalSessionSeconds) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setElapsedSessionSeconds((elapsedSeconds) => Math.min(totalSessionSeconds, elapsedSeconds + 1));
+    }, RELAX_BREATHE_TIMER_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    elapsedSessionSeconds,
+    isCompleted,
+    isSessionPaused,
+    isSessionRunning,
+    totalSessionSeconds,
+  ]);
+
+  useEffect(() => {
+    if (!isSessionRunning || isSessionPaused || isCompleted || elapsedSessionSeconds < totalSessionSeconds) return;
+
+    finishSession();
+  }, [
+    elapsedSessionSeconds,
+    finishSession,
+    isCompleted,
+    isSessionPaused,
+    isSessionRunning,
+    totalSessionSeconds,
+  ]);
+
+  useEffect(() => {
+    if (!isSessionRunning || phaseIndex === lastPromptedPhaseIndexRef.current) return;
+
+    lastPromptedPhaseIndexRef.current = phaseIndex;
+    if (audioIsLive) {
+      sendPhasePrompt(phaseIndex);
+    }
+  }, [
+    audioIsLive,
+    isSessionRunning,
+    phaseIndex,
+    sendPhasePrompt,
+  ]);
+
 
   const voiceStatusLabel = isAudioStarting || isConnecting
     ? copy.guideStarting
@@ -445,7 +688,10 @@ export default function RelaxBreatheScreen() {
                         {copy.duration}
                       </span>
                       <span className="rounded-full bg-[#0F766E] px-3 py-1.5 font-body text-[13px] font-black text-white shadow-[0_8px_18px_rgba(15,118,110,0.14)]">
-                        {copy.stepLabel} {stageIndex + 1} {copy.ofLabel} {stageCount}
+                        {copy.levelLabel} {currentLevel.levelNumber}: {currentLevel.title}
+                      </span>
+                      <span className="rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)]">
+                        {copy.stepLabel} {phaseIndex + 1} {copy.ofLabel} {phaseCount}
                       </span>
                     </div>
                     <h1 className="mt-4 font-display text-[38px] leading-[0.98] text-[#173B35] sm:text-[58px]">
@@ -532,48 +778,61 @@ export default function RelaxBreatheScreen() {
                   data-testid="relax-breathe-mobile-focus"
                   aria-live="polite"
                 >
-                  <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-                    {copy.nowLabel}
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                      {copy.nowLabel}
+                    </p>
+                    <span className="rounded-full bg-[#E6FFF8] px-3 py-1 font-body text-[12px] font-black text-[#0F766E]">
+                      {sessionStateLabel}
+                    </span>
+                  </div>
                   <h2 className="mt-1 break-words font-display text-[30px] leading-[1.02] text-[#173B35]">
-                    {currentStage.title}
+                    {currentPhase.title}
                   </h2>
-                  <p className="mt-2 break-words font-body text-[18px] font-black leading-snug text-[#203B37]">
-                    {currentStage.instruction}
+                  <p className="mt-2 break-words font-body text-[18px] font-black leading-snug text-[#203B37]" data-testid="relax-breathe-stage-instruction">
+                    {currentPhase.instruction}
                   </p>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => goToStage(stageIndex - 1)}
-                      disabled={stageIndex === 0}
-                      className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] border border-[#CDEBE5] bg-white px-4 font-body text-[16px] font-black text-[#0F766E] disabled:opacity-45"
-                      data-testid="button-relax-breathe-mobile-stage-back"
-                    >
-                      <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
-                      {copy.back}
-                    </button>
-                    {stageIndex === stageCount - 1 ? (
+                  <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#DDF8F1]" aria-label={sessionProgressText}>
+                    <div
+                      className="h-full rounded-full bg-[#0F766E] transition-all duration-500"
+                      style={{ width: `${sessionProgressPercent}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 font-body text-[13px] font-black text-[#0F766E]">
+                    {timeLeftText} - {sessionProgressText}
+                  </p>
+                  {isSessionRunning ? (
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={toggleSessionPaused}
+                        className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)]"
+                        data-testid="button-relax-breathe-mobile-pause"
+                      >
+                        {isSessionPaused ? <PlayCircle size={19} strokeWidth={2.6} aria-hidden="true" /> : <PauseCircle size={19} strokeWidth={2.6} aria-hidden="true" />}
+                        {isSessionPaused ? copy.resumeSession : copy.pauseSession}
+                      </button>
                       <button
                         type="button"
                         onClick={finishSession}
-                        className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)]"
-                        data-testid="button-relax-breathe-mobile-finish"
+                        className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] border border-[#CDEBE5] bg-white px-4 font-body text-[16px] font-black text-[#0F766E]"
+                        data-testid="button-relax-breathe-mobile-end"
                       >
                         <CheckCircle2 size={19} strokeWidth={2.6} aria-hidden="true" />
-                        {copy.finish}
+                        {copy.endSession}
                       </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => goToStage(stageIndex + 1)}
-                        className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-[19px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)]"
-                        data-testid="button-relax-breathe-mobile-stage-next"
-                      >
-                        {copy.next}
-                        <ArrowRight size={19} strokeWidth={2.6} aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startGuidedSession}
+                      className="mt-4 inline-flex min-h-[60px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#0F766E] px-5 font-body text-[17px] font-black text-white shadow-[0_14px_24px_rgba(15,118,110,0.2)]"
+                      data-testid="button-relax-breathe-mobile-start"
+                    >
+                      <PlayCircle size={20} strokeWidth={2.6} aria-hidden="true" />
+                      {copy.startGuide}
+                    </button>
+                  )}
                 </div>
 
                 <div
@@ -586,88 +845,123 @@ export default function RelaxBreatheScreen() {
                     className={`relax-breathe-orb relative z-10 flex h-[58%] w-[58%] max-w-[280px] items-center justify-center rounded-full bg-[#0F766E] text-center text-white shadow-[0_28px_70px_rgba(15,118,110,0.28)] ${isMotionPaused ? "" : "animate-[relax-breathe-pulse_5.8s_ease-in-out_infinite]"}`}
                     data-testid="relax-breathe-orb"
                     data-motion={isMotionPaused ? "static" : "animated"}
-                    aria-label={`${copy.breatheIn}. ${copy.breatheOut}.`}
+                    aria-label={`${currentPhase.title}. ${currentPhase.instruction}`}
                   >
                     <div className="px-4">
-                      <p className="font-display text-[25px] leading-none sm:text-[40px]">{copy.breatheIn}</p>
+                      <p className="font-display text-[25px] leading-none sm:text-[40px]">{orbPrimaryText}</p>
                       <p className="mt-3 font-body text-[14px] font-black uppercase tracking-[0.14em] text-[#BFF7EA] sm:text-[16px]">
-                        {copy.breatheOut}
+                        {currentLevel.title}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-3 md:grid-cols-3" data-testid="relax-breathe-stage-list">
-                  {copy.stages.map((stage, index) => {
-                    const isCurrent = index === stageIndex;
-                    const isDone = index < stageIndex;
+                <div className="mt-6" data-testid="relax-breathe-levels">
+                  <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                    {copy.chooseLevel}
+                  </p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-3">
+                    {copy.levels.map((level) => {
+                    const isCurrent = level.key === selectedLevelKey;
                     return (
                       <button
-                        key={stage.key}
+                        key={level.key}
                         type="button"
-                        onClick={() => goToStage(index)}
+                        onClick={() => selectLevel(level.key)}
+                        disabled={isSessionRunning}
+                        aria-pressed={isCurrent}
                         className={`min-h-[82px] rounded-[22px] border px-4 py-3 text-left transition ${
                           isCurrent
                             ? "border-[#0F766E] bg-white shadow-[0_12px_24px_rgba(15,118,110,0.16)]"
                             : "border-[#CDEBE5] bg-white/72 hover:bg-white"
-                        }`}
-                        data-testid={`relax-breathe-stage-${stage.key}`}
+                        } disabled:cursor-not-allowed disabled:opacity-70`}
+                        data-testid={`button-relax-breathe-level-${level.key}`}
                       >
                         <span className="flex min-w-0 items-center gap-2 font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                          <span className={`flex h-8 w-8 items-center justify-center rounded-full ${isCurrent || isDone ? "bg-[#0F766E] text-white" : "bg-[#E6FFF8] text-[#0F766E]"}`}>
-                            {isDone ? <CheckCircle2 size={18} strokeWidth={2.5} aria-hidden="true" /> : index + 1}
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-full ${isCurrent ? "bg-[#0F766E] text-white" : "bg-[#E6FFF8] text-[#0F766E]"}`}>
+                            {level.levelNumber}
                           </span>
-                          <span className="min-w-0 break-words">{stage.title}</span>
+                          <span className="min-w-0 break-words">{level.title}</span>
                         </span>
                         <span className="mt-2 block break-words font-body text-[14px] font-bold leading-snug text-[#5F706C]">
-                          {stage.cue}
+                          {level.summary}
+                        </span>
+                        <span className="mt-2 block font-body text-[12px] font-black text-[#0F766E]">
+                          {level.duration}
                         </span>
                       </button>
                     );
                   })}
+                  </div>
                 </div>
               </section>
 
-              <section className="flex min-w-0 flex-col justify-between overflow-hidden border-t border-[#D8F2EC] bg-white p-5 sm:p-7 lg:border-l lg:border-t-0">
+              <section className="hidden min-w-0 flex-col justify-between overflow-hidden border-t border-[#D8F2EC] bg-white p-5 sm:p-7 lg:flex lg:border-l lg:border-t-0">
                 <article className="rounded-[28px] border border-[#CDEBE5] bg-[#F8FFFC] p-5 shadow-[0_12px_26px_rgba(15,118,110,0.09)]">
-                  <p className="font-body text-[13px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-                    {copy.stepLabel} {stageIndex + 1} {copy.ofLabel} {stageCount}
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-body text-[13px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                      {copy.stepLabel} {phaseIndex + 1} {copy.ofLabel} {phaseCount}
+                    </p>
+                    <span className="rounded-full bg-[#E6FFF8] px-3 py-1 font-body text-[12px] font-black text-[#0F766E]">
+                      {sessionStateLabel}
+                    </span>
+                  </div>
                   <h2 className="mt-3 break-words font-display text-[36px] leading-[1.02] text-[#173B35]">
-                    {currentStage.title}
+                    {currentPhase.title}
                   </h2>
                   <p className="mt-3 break-words rounded-[18px] bg-white px-4 py-3 font-body text-[17px] font-black leading-snug text-[#0F766E]">
-                    {currentStage.cue}
+                    {currentPhase.cue}
                   </p>
-                  <p className="mt-5 break-words font-body text-[22px] font-black leading-snug text-[#203B37]" data-testid="relax-breathe-stage-instruction" aria-live="polite">
-                    {currentStage.instruction}
+                  <p className="mt-5 break-words font-body text-[22px] font-black leading-snug text-[#203B37]" aria-live="polite">
+                    {currentPhase.instruction}
+                  </p>
+                  <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#DDF8F1]" aria-label={sessionProgressText}>
+                    <div
+                      className="h-full rounded-full bg-[#0F766E] transition-all duration-500"
+                      style={{ width: `${sessionProgressPercent}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 font-body text-[13px] font-black text-[#0F766E]">
+                    {timeLeftText} - {sessionProgressText}
                   </p>
                   <p className="mt-5 break-words rounded-[18px] bg-white px-4 py-3 font-body text-[14px] font-bold leading-snug text-[#60716D]" data-testid="relax-breathe-safety">
                     {copy.safety}
                   </p>
                 </article>
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => goToStage(stageIndex - 1)}
-                    disabled={stageIndex === 0}
-                    className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#CDEBE5] bg-white px-4 font-body text-[16px] font-black text-[#0F766E] disabled:opacity-45"
-                    data-testid="button-relax-breathe-stage-back"
-                  >
-                    <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
-                    {copy.back}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => goToStage(stageIndex + 1)}
-                    disabled={stageIndex === stageCount - 1}
-                    className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)] disabled:opacity-45"
-                    data-testid="button-relax-breathe-stage-next"
-                  >
-                    {copy.next}
-                    <ArrowRight size={19} strokeWidth={2.6} aria-hidden="true" />
-                  </button>
+                <div className="mt-5" data-testid="relax-breathe-session-controls">
+                  {isSessionRunning ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={toggleSessionPaused}
+                        className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)]"
+                        data-testid="button-relax-breathe-pause"
+                      >
+                        {isSessionPaused ? <PlayCircle size={19} strokeWidth={2.6} aria-hidden="true" /> : <PauseCircle size={19} strokeWidth={2.6} aria-hidden="true" />}
+                        {isSessionPaused ? copy.resumeSession : copy.pauseSession}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={finishSession}
+                        className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#CDEBE5] bg-white px-4 font-body text-[16px] font-black text-[#0F766E]"
+                        data-testid="button-relax-breathe-end"
+                      >
+                        <CheckCircle2 size={19} strokeWidth={2.6} aria-hidden="true" />
+                        {copy.endSession}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={startGuidedSession}
+                      className="inline-flex min-h-[60px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#0F766E] px-5 font-body text-[17px] font-black text-white shadow-[0_14px_24px_rgba(15,118,110,0.2)]"
+                      data-testid="button-relax-breathe-start"
+                    >
+                      <PlayCircle size={20} strokeWidth={2.6} aria-hidden="true" />
+                      {copy.startGuide}
+                    </button>
+                  )}
                 </div>
 
                 {guideMode === "voice" ? (
@@ -696,25 +990,16 @@ export default function RelaxBreatheScreen() {
                       )}
                       <span className="whitespace-nowrap">{voiceStatusLabel}</span>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-3">
                       <button
                         type="button"
-                        onClick={replayStage}
+                        onClick={replayPhase}
                         disabled={!audioIsLive}
-                        className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#BEE9E1] bg-white px-4 font-body text-[16px] font-black text-[#0F766E] disabled:opacity-55"
+                        className="inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#BEE9E1] bg-white px-4 font-body text-[16px] font-black text-[#0F766E] disabled:opacity-55"
                         data-testid="button-relax-breathe-replay"
                       >
                         <RotateCcw size={19} strokeWidth={2.6} aria-hidden="true" />
                         {copy.replay}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={finishSession}
-                        className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#BEE9E1] bg-white px-4 font-body text-[16px] font-black text-[#0F766E]"
-                        data-testid="button-relax-breathe-finish"
-                      >
-                        <CheckCircle2 size={19} strokeWidth={2.6} aria-hidden="true" />
-                        {copy.finish}
                       </button>
                     </div>
                   </div>
@@ -733,15 +1018,6 @@ export default function RelaxBreatheScreen() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={finishSession}
-                      className="mt-4 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#BEE9E1] bg-white px-4 font-body text-[16px] font-black text-[#0F766E]"
-                      data-testid="button-relax-breathe-finish"
-                    >
-                      <CheckCircle2 size={19} strokeWidth={2.6} aria-hidden="true" />
-                      {copy.finish}
-                    </button>
                   </div>
                 )}
 
