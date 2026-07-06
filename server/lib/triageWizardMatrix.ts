@@ -565,6 +565,36 @@ const otherAnxietyVariants: Partial<Record<TriageWizardMatrixStage, TriageWizard
   },
 };
 
+const otherMedicationVariants: Partial<Record<TriageWizardMatrixStage, TriageWizardMatrixNode>> = {
+  red_flag: {
+    question: t("Could this medicine change be causing any urgent warning signs?", "Este cambio de medicina causa alguna senal urgente?"),
+    replies: [
+      r("allergic_swelling", "red_flag", "Face, lip, tongue, or throat swelling", "Cara, labio, lengua o garganta hinchada", "My face, lips, tongue, or throat is swelling.", "Se hincha mi cara, labios, lengua o garganta.", "alert", "red"),
+      r("opioid_breathing", "red_flag", "Very sleepy or breathing slowly", "Mucho sueno o respiracion lenta", "I am very sleepy or breathing slower than usual.", "Tengo mucho sueno o respiro mas lento de lo normal.", "alert", "red"),
+      r("unusual_bleeding", "red_flag", "Unusual bleeding or black stool", "Sangrado raro o heces negras", "I have unusual bleeding, black stool, vomiting blood, or a large bruise.", "Tengo sangrado raro, heces negras, vomito sangre o moreton grande.", "alert", "red"),
+      r("no_red_flag", "red_flag", "No, none of these", "No, nada de esto", "None of these warning signs apply.", "Ninguna de estas senales aplica.", "help", "green"),
+    ],
+  },
+  severity: {
+    question: t("What changed with the medicine?", "Que cambio con la medicina?"),
+    replies: [
+      r("took_extra_medicine", "severity", "I may have taken extra", "Puede que tome de mas", "I may have taken an extra dose or the wrong dose.", "Puede que tome una dosis extra o incorrecta.", "alert", "amber"),
+      r("missed_important_medicine", "severity", "I missed an important dose", "Olvide una dosis importante", "I missed an important dose.", "Olvide una dosis importante.", "activity", "amber"),
+      r("new_medicine_side_effect", "severity", "New medicine or new side effect", "Medicina nueva o efecto nuevo", "This started after a new medicine or a dose change.", "Esto empezo tras medicina nueva o cambio de dosis.", "help", "purple"),
+      r("mild_medicine_question", "severity", "Mild question about medicine", "Duda leve sobre medicina", "I have a mild medicine question and feel safe right now.", "Tengo una duda leve de medicina y me siento seguro ahora.", "help", "green"),
+    ],
+  },
+  trend: {
+    question: t("How is the medicine-related feeling changing?", "Como cambia la sensacion relacionada con medicina?"),
+    replies: [
+      r("after_medicine_surgery_fall", "trend", "Started soon after a dose or medicine change", "Empezo tras dosis o cambio", "It started soon after a dose or medicine change.", "Empezo poco despues de una dosis o cambio de medicina.", "activity", "amber"),
+      r("new_symptoms", "trend", "New symptoms appeared", "Aparecieron sintomas nuevos", "New symptoms have appeared.", "Han aparecido sintomas nuevos.", "alert", "amber"),
+      r("worse", "trend", "It is getting worse", "Esta empeorando", "It is getting worse.", "Esta empeorando.", "alert", "amber"),
+      r("better", "trend", "It is settling", "Se esta calmando", "It is settling and I feel safe.", "Se esta calmando y me siento seguro.", "help", "green"),
+    ],
+  },
+};
+
 const painTrendVariants: Record<"head_neck_pain" | "back_pain" | "limb_joint_pain", TriageWizardMatrixNode> = {
   head_neck_pain: {
     question: t("Does the head or neck pain have any of these signs?", "El dolor de cabeza o cuello tiene estas senales?"),
@@ -612,6 +642,10 @@ export function triageWizardNodeFor(
   if (symptomId === "other" && answerIds.has("anxiety_context")) {
     const anxietyNode = otherAnxietyVariants[stage];
     if (anxietyNode) return anxietyNode;
+  }
+  if (symptomId === "other" && answerIds.has("medication_context")) {
+    const medicationNode = otherMedicationVariants[stage];
+    if (medicationNode) return medicationNode;
   }
   if (stage === "trend" && symptomId === "pain") {
     for (const id of Object.keys(painTrendVariants) as Array<keyof typeof painTrendVariants>) {
