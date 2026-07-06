@@ -1509,16 +1509,6 @@
         number_even: "an even number",
         number_odd: "an odd number",
       },
-      shortRules: {
-        shape_circle: "circle",
-        shape_square: "square",
-        shape_triangle: "triangle",
-        color_red: "red",
-        color_blue: "blue",
-        color_yellow: "yellow",
-        number_even: "even number",
-        number_odd: "odd number",
-      },
       cueLabels: {
         bell: "bell",
         moon: "moon",
