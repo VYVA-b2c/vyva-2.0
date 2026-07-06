@@ -8,6 +8,7 @@ import type {
 } from "../../shared/cognitiveAssessmentReport";
 
 const useQueryMock = vi.hoisted(() => vi.fn());
+const assessmentPracticeStorageKey = "cognitiveAssessment:recommendedPractice:v1";
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: useQueryMock,
@@ -374,6 +375,7 @@ function renderReport(
 describe("CognitiveAssessmentReportPage", () => {
   beforeEach(() => {
     useQueryMock.mockReset();
+    window.localStorage.clear();
   });
 
   it("renders a chart-led member report with compact tracking signals", () => {
@@ -442,6 +444,33 @@ describe("CognitiveAssessmentReportPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /start recommended practice/i }));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/executive-function/category-sort");
+    expect(JSON.parse(window.localStorage.getItem(assessmentPracticeStorageKey) ?? "{}")).toEqual(expect.objectContaining({
+      source: "cognitive_assessment_report",
+      reportSessionId: "session-1",
+      recommendedDomain: "reasoning",
+      practiceTitle: "Category Sort",
+      route: "/executive-function/category-sort",
+      status: "opened",
+    }));
+  });
+
+  it("shows when a recommended practice was completed from the report", () => {
+    window.localStorage.setItem(assessmentPracticeStorageKey, JSON.stringify({
+      source: "cognitive_assessment_report",
+      reportSessionId: "session-complete",
+      recommendedDomain: "reasoning",
+      practiceTitle: "Category Sort",
+      route: "/executive-function/category-sort",
+      returnTo: "/mind-memory/cognitive-assessment",
+      status: "completed",
+      startedAt: "2026-07-05T09:20:00.000Z",
+      completedAt: "2026-07-05T09:25:00.000Z",
+    }));
+
+    renderReport(completeReport, completeHistoryResponse);
+
+    expect(screen.getByTestId("assessment-practice-status")).toHaveTextContent("Practiced today");
+    expect(screen.getByText("Good. You practiced Category Sort after this check.")).toBeInTheDocument();
   });
 
   it("keeps program and evidence explanation in the empty state", () => {

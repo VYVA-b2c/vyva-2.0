@@ -1120,6 +1120,9 @@ const it = {
       playAgain: "Gioca ancora",
       playAnotherGame: "Gioca a un altro gioco",
       moreGames: "Altri giochi",
+      assessmentPractice: "Esercizio dal risultato",
+      assessmentPracticeComplete: "Bene. Hai esercitato l'area notata da VYVA.",
+      backToResults: "Torna ai miei risultati",
     },
       attentionBoosters: {
         title: "Concentrazione e attenzione",
