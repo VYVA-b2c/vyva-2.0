@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
-import { Router } from "express";
+import { raw, Router } from "express";
 import type { Request, Response } from "express";
+import OpenAI from "openai";
 import { and, desc, eq, inArray, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
@@ -16,6 +17,8 @@ import {
   socialRoomSessions,
   socialRoomVisits,
   socialRooms,
+  socialShareDropboxAudio,
+  socialShareDropboxNotes,
   socialUserInterests,
 } from "../../shared/schema.js";
 import type {
@@ -120,6 +123,12 @@ type MemoryMusicReaction = {
   createdAt: string;
 };
 
+type ShareDropboxNoteRow = typeof socialShareDropboxNotes.$inferSelect;
+type ShareDropboxAudioRow = typeof socialShareDropboxAudio.$inferSelect;
+
+type MemoryShareDropboxNote = ShareDropboxNoteRow;
+type MemoryShareDropboxAudio = ShareDropboxAudioRow;
+
 type MusicCatalogSong = {
   id: string;
   songText: string;
@@ -153,6 +162,8 @@ const memoryConnections = new Map<string, { matchedUserId: string; matchedViaRoo
 const memoryMusicThreads = new Map<string, MemoryMusicThread>();
 const memoryMusicCircleItems = new Map<string, MemoryMusicCircleItem>();
 const memoryMusicReactions = new Map<string, MemoryMusicReaction>();
+const memoryShareDropboxNotes = new Map<string, MemoryShareDropboxNote>();
+const memoryShareDropboxAudio = new Map<string, MemoryShareDropboxAudio>();
 const memoryRoomOccupancy = new Map<string, number>();
 const memberCatalog = [
   { id: "member-ana", name: "Ana", topics: ["plantas", "cocina", "paseos"] },
@@ -317,6 +328,82 @@ const musicCircleReactionSchema = z.object({
   kind: z.enum(["heart"]).optional().default("heart"),
 });
 
+const SHARE_DROPBOX_AUDIO_MAX_BYTES = 8 * 1024 * 1024;
+const SHARE_DROPBOX_AUDIO_MAX_DURATION_MS = 30_000;
+const SHARE_DROPBOX_AUDIO_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const SHARE_DROPBOX_TEXT_LIMIT = 800;
+
+const SHARE_AUDIO_EXTENSION_BY_MIME: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/mp4": "mp4",
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/mpga": "mpga",
+  "audio/m4a": "m4a",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+};
+
+const shareDropboxNoteTypeSchema = z.enum(["memory", "song", "recipe", "reading", "hello"]);
+const shareDropboxSourceSchema = z.enum(["voice", "typed"]);
+type ShareDropboxNoteType = z.infer<typeof shareDropboxNoteTypeSchema>;
+type ShareDropboxSource = z.infer<typeof shareDropboxSourceSchema>;
+
+const shareDropboxAudioBody = raw({
+  type: ["audio/*", "application/octet-stream"],
+  limit: "8mb",
+});
+
+const shareDropboxAudioQuerySchema = z.object({
+  noteType: shareDropboxNoteTypeSchema.optional().default("memory"),
+  lang: z.string().optional(),
+  durationMs: z.coerce.number().int().min(0).max(SHARE_DROPBOX_AUDIO_MAX_DURATION_MS).optional(),
+  promptId: z.string().trim().max(80).optional(),
+  promptText: z.string().trim().max(240).optional(),
+  promptKind: z.string().trim().max(80).optional(),
+  connectionGoal: z.string().trim().max(180).optional(),
+});
+
+const shareDropboxCreateNoteSchema = z.object({
+  noteType: shareDropboxNoteTypeSchema.optional().default("memory"),
+  source: shareDropboxSourceSchema.optional().default("typed"),
+  transcript: z.string().trim().min(1).max(SHARE_DROPBOX_TEXT_LIMIT),
+  editedText: z.string().trim().max(SHARE_DROPBOX_TEXT_LIMIT).optional(),
+  lang: z.string().optional(),
+  promptId: z.string().trim().max(80).optional(),
+  promptText: z.string().trim().max(240).optional(),
+  promptKind: z.string().trim().max(80).optional(),
+  connectionGoal: z.string().trim().max(180).optional(),
+});
+
+const shareDropboxPatchNoteSchema = z.object({
+  noteType: shareDropboxNoteTypeSchema.optional(),
+  editedText: z.string().trim().min(1).max(SHARE_DROPBOX_TEXT_LIMIT).optional(),
+  promptId: z.string().trim().max(80).optional(),
+  promptText: z.string().trim().max(240).optional(),
+  promptKind: z.string().trim().max(80).optional(),
+  connectionGoal: z.string().trim().max(180).optional(),
+}).refine((value) => Boolean(
+  value.noteType
+  || value.editedText
+  || value.promptId
+  || value.promptText
+  || value.promptKind
+  || value.connectionGoal,
+), {
+  message: "noteType, editedText, or prompt metadata is required",
+});
+
+const shareDropboxPublishNoteSchema = z.object({
+  lang: z.string().optional(),
+  country: z.string().optional(),
+  countryCode: z.string().optional(),
+  editedText: z.string().trim().min(1).max(SHARE_DROPBOX_TEXT_LIMIT).optional(),
+  songText: z.string().trim().min(1).max(160).optional(),
+  memoryText: z.string().trim().max(280).optional(),
+});
+
 const agreementAcknowledgementSchema = z.object({
   lang: z.string().optional(),
   visitId: z.string().optional(),
@@ -376,6 +463,509 @@ function requestCountryCode(req: Request, body?: { country?: unknown; countryCod
 
 function normalizeGameLanguage(raw?: string | null): SocialGameLanguage {
   return normalizeAppLanguage(raw, "es");
+}
+
+function shareDropboxSuggestedRoomSlug(noteType: ShareDropboxNoteType) {
+  if (noteType === "song") return "music-room";
+  if (noteType === "recipe") return "kitchen-table";
+  if (noteType === "reading") return "reading-room";
+  if (noteType === "hello") return "together-room";
+  return "memory-lane";
+}
+
+function shareDropboxPlacementKind(noteType: ShareDropboxNoteType) {
+  return noteType === "song" ? "music_circle_item" : "room_handoff";
+}
+
+function shareDropboxPublishLabel(noteType: ShareDropboxNoteType, language: SocialLanguage) {
+  if (noteType === "song") {
+    if (language === "de") return "Im Musikraum teilen";
+    if (language === "es") return "Compartir en Musica";
+    return "Share in Music Room";
+  }
+  if (language === "de") return "In passenden Raum legen";
+  if (language === "es") return "Llevar a la sala";
+  return "Place in room";
+}
+
+function shareDropboxRoomName(noteType: ShareDropboxNoteType, language: SocialLanguage) {
+  const slug = shareDropboxSuggestedRoomSlug(noteType);
+  const names: Record<ShareDropboxNoteType, Record<SocialLanguage, string>> = {
+    song: { en: "Music Room", es: "Sala de Musica", de: "Musikraum" },
+    reading: { en: "Reading Room", es: "Sala de Lectura", de: "Leseraum" },
+    hello: { en: "Together Room", es: "Sala Juntos", de: "Gemeinsam-Raum" },
+    recipe: { en: "Kitchen Table", es: "Mesa de Cocina", de: "Kuechentisch" },
+    memory: { en: "Memory Lane", es: "Calle de Recuerdos", de: "Erinnerungsweg" },
+  };
+  return names[noteType]?.[language] ?? slug.replace(/-/g, " ");
+}
+
+function shareDropboxDefaultConnectionGoal(noteType: ShareDropboxNoteType, language: SocialLanguage) {
+  if (language === "es") {
+    if (noteType === "song") return "Encontrar a alguien que recuerde esta cancion.";
+    if (noteType === "reading") return "Abrir una charla suave sobre un libro o idea.";
+    if (noteType === "recipe") return "Invitar recuerdos de cocina y consejos.";
+    if (noteType === "hello") return "Empezar con un saludo protegido.";
+    return "Compartir un recuerdo que pueda despertar una respuesta amable.";
+  }
+  if (language === "de") {
+    if (noteType === "song") return "Jemanden finden, der sich an dieses Lied erinnert.";
+    if (noteType === "reading") return "Ein ruhiges Gespraech ueber ein Buch oder eine Idee starten.";
+    if (noteType === "recipe") return "Kuechenerinnerungen und Tipps einladen.";
+    if (noteType === "hello") return "Mit einem geschuetzten Hallo beginnen.";
+    return "Eine Erinnerung teilen, die eine freundliche Antwort ermoeglicht.";
+  }
+  if (noteType === "song") return "Find someone who remembers this song too.";
+  if (noteType === "reading") return "Open a gentle book or reflection chat.";
+  if (noteType === "recipe") return "Invite kitchen memories and tips.";
+  if (noteType === "hello") return "Start with a protected hello.";
+  return "Share a memory that can invite a kind reply.";
+}
+
+function shareDropboxConnectionLabel(noteType: ShareDropboxNoteType, language: SocialLanguage) {
+  if (language === "es") {
+    if (noteType === "song") return "Ver la Sala de Musica";
+    if (noteType === "hello") return "Abrir la Sala Juntos";
+    return `Ver ${shareDropboxRoomName(noteType, language)}`;
+  }
+  if (language === "de") {
+    if (noteType === "song") return "Musikraum ansehen";
+    if (noteType === "hello") return "Gemeinsam-Raum oeffnen";
+    return `${shareDropboxRoomName(noteType, language)} ansehen`;
+  }
+  if (noteType === "song") return "See the Music Room";
+  if (noteType === "hello") return "Open Together Room";
+  return `See ${shareDropboxRoomName(noteType, language)}`;
+}
+
+function shareDropboxNextActionLabel(noteType: ShareDropboxNoteType, language: SocialLanguage) {
+  if (language === "es") {
+    if (noteType === "hello") return "Enviar un saludo amable";
+    return "Compartir otra historia";
+  }
+  if (language === "de") {
+    if (noteType === "hello") return "Ein freundliches Hallo senden";
+    return "Noch eine Geschichte teilen";
+  }
+  if (noteType === "hello") return "Send a kind hello";
+  return "Share another";
+}
+
+type ShareStoryPrompt = {
+  id: string;
+  noteType: ShareDropboxNoteType;
+  title: string;
+  body: string;
+  promptText: string;
+  promptKind: string;
+  connectionGoal: string;
+};
+
+function shareStoryPromptCatalog(language: SocialLanguage): ShareStoryPrompt[] {
+  if (language === "es") {
+    return [
+      { id: "song-old-favourite", noteType: "song", title: "Una cancion de antes", body: "Cuenta la cancion y el recuerdo que trae.", promptText: "Que cancion te gustaria compartir hoy?", promptKind: "song", connectionGoal: "Encontrar a alguien que recuerde esta cancion." },
+      { id: "memory-small-moment", noteType: "memory", title: "Un pequeno recuerdo", body: "Comparte un momento que todavia te haga sonreir.", promptText: "Que pequeno recuerdo te vino a la mente?", promptKind: "memory", connectionGoal: "Abrir una respuesta amable en Memory Lane." },
+      { id: "recipe-family-table", noteType: "recipe", title: "Mesa familiar", body: "Deja una receta, truco o olor de cocina.", promptText: "Que receta o consejo de cocina quieres guardar?", promptKind: "recipe", connectionGoal: "Invitar recuerdos de cocina y consejos." },
+      { id: "reading-line", noteType: "reading", title: "Linea de lectura", body: "Comparte una idea de un libro, poema o articulo.", promptText: "Que lectura te gustaria comentar?", promptKind: "reading", connectionGoal: "Encontrar lectores con una idea parecida." },
+      { id: "hello-soft-start", noteType: "hello", title: "Un hola amable", body: "Dile a VYVA que tipo de saludo quieres enviar.", promptText: "Que saludo amable quieres probar?", promptKind: "hello", connectionGoal: "Empezar con un saludo protegido." },
+    ];
+  }
+  if (language === "de") {
+    return [
+      { id: "song-old-favourite", noteType: "song", title: "Ein altes Lieblingslied", body: "Nenne das Lied und die Erinnerung dahinter.", promptText: "Welches Lied moechtest du heute teilen?", promptKind: "song", connectionGoal: "Jemanden finden, der sich an dieses Lied erinnert." },
+      { id: "memory-small-moment", noteType: "memory", title: "Eine kleine Erinnerung", body: "Teile einen Moment, der dich noch laecheln laesst.", promptText: "Welche kleine Erinnerung kam dir heute?", promptKind: "memory", connectionGoal: "Eine freundliche Antwort in Memory Lane einladen." },
+      { id: "recipe-family-table", noteType: "recipe", title: "Am Familientisch", body: "Erzaehle von einem Rezept, Tipp oder Kuechenduft.", promptText: "Welches Rezept oder welchen Kuechentipp willst du festhalten?", promptKind: "recipe", connectionGoal: "Kuechenerinnerungen und Tipps einladen." },
+      { id: "reading-line", noteType: "reading", title: "Ein Lesegedanke", body: "Teile eine Idee aus Buch, Gedicht oder Artikel.", promptText: "Ueber welche Lektuere moechtest du sprechen?", promptKind: "reading", connectionGoal: "Leser mit aehnlichen Gedanken finden." },
+      { id: "hello-soft-start", noteType: "hello", title: "Ein freundliches Hallo", body: "Sag VYVA, welche Art Hallo du senden moechtest.", promptText: "Welches freundliche Hallo moechtest du versuchen?", promptKind: "hello", connectionGoal: "Mit einem geschuetzten Hallo beginnen." },
+    ];
+  }
+  return [
+    { id: "song-old-favourite", noteType: "song", title: "An old favourite song", body: "Say the song and the memory it brings back.", promptText: "What song would you like to share today?", promptKind: "song", connectionGoal: "Find someone who remembers this song too." },
+    { id: "memory-small-moment", noteType: "memory", title: "A small memory", body: "Share a moment that still makes you smile.", promptText: "What small memory came to mind today?", promptKind: "memory", connectionGoal: "Invite a kind response in Memory Lane." },
+    { id: "recipe-family-table", noteType: "recipe", title: "Family table", body: "Leave a recipe, kitchen trick, or food memory.", promptText: "What recipe or kitchen tip would you like to save?", promptKind: "recipe", connectionGoal: "Invite kitchen memories and tips." },
+    { id: "reading-line", noteType: "reading", title: "A reading thought", body: "Share one idea from a book, poem, or article.", promptText: "What did you read that stayed with you?", promptKind: "reading", connectionGoal: "Find readers with a similar thought." },
+    { id: "hello-soft-start", noteType: "hello", title: "A gentle hello", body: "Tell VYVA what kind of hello you want to send.", promptText: "What kind hello would you like to try?", promptKind: "hello", connectionGoal: "Start with a protected hello." },
+  ];
+}
+
+function shareStoryDailyPrompt(prompts: ShareStoryPrompt[]) {
+  const day = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+  return prompts[day % Math.max(1, prompts.length)];
+}
+
+function shareStoryStats(notes: ShareDropboxNoteRow[]) {
+  const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  return notes.reduce((stats, note) => {
+    const createdAt = new Date(note.created_at).getTime();
+    if (createdAt >= weekAgo) stats.sharedThisWeek += 1;
+    if (note.status === "placed" && createdAt >= weekAgo) stats.placedThisWeek += 1;
+    if (note.status === "ready") stats.readyCount += 1;
+    if (note.status === "blocked") stats.blockedCount += 1;
+    return stats;
+  }, {
+    sharedThisWeek: 0,
+    placedThisWeek: 0,
+    readyCount: 0,
+    blockedCount: 0,
+  });
+}
+
+function shareDropboxAudioMimeType(req: Request) {
+  const rawType = String(req.headers["content-type"] ?? "audio/webm").split(";")[0]?.trim().toLowerCase();
+  return rawType && rawType !== "application/octet-stream" ? rawType : "audio/webm";
+}
+
+function shareDropboxAudioFileNameFor(mimeType: string) {
+  return `share-dropbox.${SHARE_AUDIO_EXTENSION_BY_MIME[mimeType] ?? "webm"}`;
+}
+
+function shareDropboxIsoDate(value: Date | string | null | undefined) {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function shareDropboxSafety(text: string) {
+  const safetyFlags = detectSafetyFlags({ category: "other", title: "", details: text });
+  return {
+    safetyFlags,
+    blocked: shouldBlockReply(safetyFlags),
+  };
+}
+
+function isShareDropboxAudioActive(audio?: ShareDropboxAudioRow | null) {
+  if (!audio || audio.deleted_at) return false;
+  return new Date(audio.expires_at).getTime() > Date.now();
+}
+
+function formatShareDropboxNote(
+  note: ShareDropboxNoteRow,
+  audio?: ShareDropboxAudioRow | null,
+  language: SocialLanguage = "en",
+) {
+  const noteType = shareDropboxNoteTypeSchema.catch("memory").parse(note.note_type);
+  const activeAudio = isShareDropboxAudioActive(audio) ? audio : null;
+  const suggestedRoomSlug = note.suggested_room_slug || shareDropboxSuggestedRoomSlug(noteType);
+  return {
+    id: note.id,
+    noteType,
+    source: shareDropboxSourceSchema.catch("voice").parse(note.source),
+    transcript: note.transcript,
+    editedText: note.edited_text,
+    suggestedRoomSlug,
+    promptId: note.prompt_id,
+    promptText: note.prompt_text,
+    promptKind: note.prompt_kind,
+    connectionGoal: note.connection_goal || shareDropboxDefaultConnectionGoal(noteType, language),
+    connectionLabel: shareDropboxConnectionLabel(noteType, language),
+    nextActionLabel: shareDropboxNextActionLabel(noteType, language),
+    roomPath: `/social-rooms/${suggestedRoomSlug}`,
+    status: note.status,
+    safetyFlags: note.safety_flags ?? [],
+    placementKind: note.placement_kind ?? shareDropboxPlacementKind(noteType),
+    placementTargetId: note.placement_target_id,
+    publishLabel: shareDropboxPublishLabel(noteType, language),
+    publishedAt: shareDropboxIsoDate(note.published_at),
+    deletedAt: shareDropboxIsoDate(note.deleted_at),
+    createdAt: shareDropboxIsoDate(note.created_at),
+    updatedAt: shareDropboxIsoDate(note.updated_at),
+    audio: activeAudio ? {
+      id: activeAudio.id,
+      url: `/api/social/share-dropbox/notes/${note.id}/audio`,
+      mimeType: activeAudio.mime_type,
+      byteSize: activeAudio.byte_size,
+      durationMs: activeAudio.duration_ms,
+      expiresAt: shareDropboxIsoDate(activeAudio.expires_at),
+    } : null,
+  };
+}
+
+async function transcribeShareDropboxAudio(audio: Buffer, mimeType: string, noteType: ShareDropboxNoteType) {
+  const apiKey = process.env.OPENAI_API_KEY ?? "";
+  if (!apiKey) {
+    const error = new Error("Voice transcription is not configured.") as Error & { status?: number };
+    error.status = 503;
+    throw error;
+  }
+
+  const client = new OpenAI({ apiKey });
+  const file = await OpenAI.toFile(audio, shareDropboxAudioFileNameFor(mimeType), { type: mimeType });
+  const transcription = await client.audio.transcriptions.create({
+    model: process.env.OPENAI_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe",
+    file,
+    prompt: [
+      "Transcribe a short social voice note for an older-adult social app.",
+      `The user labelled the note as ${noteType}.`,
+      "Preserve names of songs, books, recipes, people, places, and memories plainly. Do not add commentary.",
+    ].join(" "),
+  });
+  const transcript = transcription.text.trim();
+  if (!transcript) {
+    const error = new Error("No speech detected.") as Error & { status?: number };
+    error.status = 422;
+    throw error;
+  }
+  return transcript;
+}
+
+async function createShareDropboxNoteRecord(input: {
+  userId: string;
+  noteType: ShareDropboxNoteType;
+  source: ShareDropboxSource;
+  transcript: string;
+  editedText?: string;
+  promptId?: string;
+  promptText?: string;
+  promptKind?: string;
+  connectionGoal?: string;
+  audio?: {
+    bytes: Buffer;
+    mimeType: string;
+    durationMs?: number;
+  };
+}): Promise<{ note: ShareDropboxNoteRow; audio: ShareDropboxAudioRow | null }> {
+  const now = new Date();
+  const editedText = (input.editedText?.trim() || input.transcript.trim()).slice(0, SHARE_DROPBOX_TEXT_LIMIT);
+  const { safetyFlags, blocked } = shareDropboxSafety(editedText);
+  const suggestedRoomSlug = shareDropboxSuggestedRoomSlug(input.noteType);
+  const status = blocked ? "blocked" : "ready";
+  const expiresAt = new Date(now.getTime() + SHARE_DROPBOX_AUDIO_RETENTION_MS);
+
+  return safeDb(
+    "create share dropbox note",
+    async () => db.transaction(async (tx) => {
+      const [noteRow] = await tx
+        .insert(socialShareDropboxNotes)
+        .values({
+          user_id: input.userId,
+          note_type: input.noteType,
+          source: input.source,
+          transcript: input.transcript.trim(),
+          edited_text: editedText,
+          suggested_room_slug: suggestedRoomSlug,
+          prompt_id: input.promptId,
+          prompt_text: input.promptText,
+          prompt_kind: input.promptKind,
+          connection_goal: input.connectionGoal,
+          status,
+          safety_flags: safetyFlags,
+          placement_kind: shareDropboxPlacementKind(input.noteType),
+          updated_at: now,
+        })
+        .returning();
+
+      if (!noteRow) throw new Error("Share note was not created");
+      if (!input.audio) return { note: noteRow, audio: null };
+
+      const [audioRow] = await tx
+        .insert(socialShareDropboxAudio)
+        .values({
+          note_id: noteRow.id,
+          user_id: input.userId,
+          mime_type: input.audio.mimeType,
+          byte_size: input.audio.bytes.byteLength,
+          duration_ms: input.audio.durationMs,
+          audio_data: input.audio.bytes,
+          expires_at: expiresAt,
+        })
+        .returning();
+
+      return { note: noteRow, audio: audioRow ?? null };
+    }),
+    () => {
+      const note: MemoryShareDropboxNote = {
+        id: randomUUID(),
+        user_id: input.userId,
+        note_type: input.noteType,
+        source: input.source,
+        transcript: input.transcript.trim(),
+        edited_text: editedText,
+        suggested_room_slug: suggestedRoomSlug,
+        prompt_id: input.promptId ?? null,
+        prompt_text: input.promptText ?? null,
+        prompt_kind: input.promptKind ?? null,
+        connection_goal: input.connectionGoal ?? null,
+        status,
+        safety_flags: safetyFlags,
+        placement_kind: shareDropboxPlacementKind(input.noteType),
+        placement_target_id: null,
+        published_at: null,
+        deleted_at: null,
+        created_at: now,
+        updated_at: now,
+      };
+      memoryShareDropboxNotes.set(note.id, note);
+
+      if (!input.audio) return { note, audio: null };
+      const audio: MemoryShareDropboxAudio = {
+        id: randomUUID(),
+        note_id: note.id,
+        user_id: input.userId,
+        mime_type: input.audio.mimeType,
+        byte_size: input.audio.bytes.byteLength,
+        duration_ms: input.audio.durationMs ?? null,
+        audio_data: input.audio.bytes,
+        expires_at: expiresAt,
+        deleted_at: null,
+        created_at: now,
+      };
+      memoryShareDropboxAudio.set(audio.id, audio);
+      return { note, audio };
+    },
+  );
+}
+
+async function loadShareDropboxNote(userId: string, noteId: string): Promise<ShareDropboxNoteRow | null> {
+  return safeDb(
+    "load share dropbox note",
+    async () => {
+      const [note] = await db
+        .select()
+        .from(socialShareDropboxNotes)
+        .where(and(
+          eq(socialShareDropboxNotes.id, noteId),
+          eq(socialShareDropboxNotes.user_id, userId),
+        ))
+        .limit(1);
+      return note ?? null;
+    },
+    () => {
+      const note = memoryShareDropboxNotes.get(noteId);
+      return note?.user_id === userId ? note : null;
+    },
+  );
+}
+
+async function loadShareDropboxAudio(userId: string, noteId: string): Promise<ShareDropboxAudioRow | null> {
+  return safeDb(
+    "load share dropbox audio",
+    async () => {
+      const [audio] = await db
+        .select()
+        .from(socialShareDropboxAudio)
+        .where(and(
+          eq(socialShareDropboxAudio.note_id, noteId),
+          eq(socialShareDropboxAudio.user_id, userId),
+        ))
+        .limit(1);
+      return isShareDropboxAudioActive(audio) ? audio : null;
+    },
+    () => Array.from(memoryShareDropboxAudio.values())
+      .find((audio) => audio.note_id === noteId && audio.user_id === userId && isShareDropboxAudioActive(audio)) ?? null,
+  );
+}
+
+async function listShareDropboxNotes(userId: string): Promise<Array<{ note: ShareDropboxNoteRow; audio: ShareDropboxAudioRow | null }>> {
+  return safeDb(
+    "list share dropbox notes",
+    async () => {
+      const notes = await db
+        .select()
+        .from(socialShareDropboxNotes)
+        .where(and(
+          eq(socialShareDropboxNotes.user_id, userId),
+          ne(socialShareDropboxNotes.status, "deleted"),
+        ))
+        .orderBy(desc(socialShareDropboxNotes.created_at))
+        .limit(12);
+
+      if (notes.length === 0) return [];
+      const audioRows = await db
+        .select()
+        .from(socialShareDropboxAudio)
+        .where(inArray(socialShareDropboxAudio.note_id, notes.map((note) => note.id)));
+      const audioByNote = new Map(audioRows.filter(isShareDropboxAudioActive).map((audio) => [audio.note_id, audio]));
+      return notes.map((note) => ({ note, audio: audioByNote.get(note.id) ?? null }));
+    },
+    () => {
+      const notes = Array.from(memoryShareDropboxNotes.values())
+        .filter((note) => note.user_id === userId && note.status !== "deleted")
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 12);
+      return notes.map((note) => ({
+        note,
+        audio: Array.from(memoryShareDropboxAudio.values())
+          .find((audio) => audio.note_id === note.id && audio.user_id === userId && isShareDropboxAudioActive(audio)) ?? null,
+      }));
+    },
+  );
+}
+
+async function updateShareDropboxNoteRecord(
+  userId: string,
+  noteId: string,
+  updater: (note: ShareDropboxNoteRow) => Partial<ShareDropboxNoteRow>,
+): Promise<ShareDropboxNoteRow | null> {
+  const existing = await loadShareDropboxNote(userId, noteId);
+  if (!existing) return null;
+
+  const now = new Date();
+  const patch = {
+    ...updater(existing),
+    updated_at: now,
+  };
+
+  return safeDb(
+    "update share dropbox note",
+    async () => {
+      const [note] = await db
+        .update(socialShareDropboxNotes)
+        .set(patch)
+        .where(and(
+          eq(socialShareDropboxNotes.id, noteId),
+          eq(socialShareDropboxNotes.user_id, userId),
+        ))
+        .returning();
+      return note ?? null;
+    },
+    () => {
+      const current = memoryShareDropboxNotes.get(noteId);
+      if (!current || current.user_id !== userId) return null;
+      const next = { ...current, ...patch };
+      memoryShareDropboxNotes.set(noteId, next);
+      return next;
+    },
+  );
+}
+
+async function deleteShareDropboxNoteRecord(userId: string, noteId: string): Promise<ShareDropboxNoteRow | null> {
+  const now = new Date();
+  const note = await updateShareDropboxNoteRecord(userId, noteId, () => ({
+    status: "deleted",
+    deleted_at: now,
+  }));
+  if (!note) return null;
+
+  await safeDb(
+    "delete share dropbox audio",
+    async () => {
+      await db
+        .update(socialShareDropboxAudio)
+        .set({ deleted_at: now })
+        .where(and(
+          eq(socialShareDropboxAudio.note_id, noteId),
+          eq(socialShareDropboxAudio.user_id, userId),
+        ));
+    },
+    () => {
+      for (const [audioId, audio] of memoryShareDropboxAudio.entries()) {
+        if (audio.note_id === noteId && audio.user_id === userId) {
+          memoryShareDropboxAudio.set(audioId, { ...audio, deleted_at: now });
+        }
+      }
+    },
+  );
+
+  return note;
+}
+
+function shareDropboxSongText(note: ShareDropboxNoteRow, override?: string) {
+  return (override?.trim() || note.edited_text || note.transcript).trim().slice(0, 160);
+}
+
+function shareDropboxMusicMemoryText(note: ShareDropboxNoteRow, songText: string, override?: string) {
+  const candidate = override?.trim() || note.edited_text || note.transcript;
+  return candidate.trim() === songText.trim() ? "" : candidate.trim().slice(0, 280);
 }
 
 function appendReadingPreferenceTags(tags: string[], value: unknown, tagMap: Record<string, string[]>) {
@@ -2291,6 +2881,318 @@ router.post("/participate/events/:eventId/ask-vyva", async (req: Request, res: R
   } catch (error) {
     return res.status(404).json({ error: error instanceof Error ? error.message : "Participation event not found" });
   }
+});
+
+router.get("/share-stories/home", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const profile = await loadProfileSummary(userId);
+  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const prompts = shareStoryPromptCatalog(language).map((prompt) => {
+    const suggestedRoomSlug = shareDropboxSuggestedRoomSlug(prompt.noteType);
+    return {
+      ...prompt,
+      suggestedRoomSlug,
+      roomPath: `/social-rooms/${suggestedRoomSlug}`,
+      roomName: shareDropboxRoomName(prompt.noteType, language),
+      connectionLabel: shareDropboxConnectionLabel(prompt.noteType, language),
+      nextActionLabel: shareDropboxNextActionLabel(prompt.noteType, language),
+    };
+  });
+  const notes = await listShareDropboxNotes(userId);
+  const formattedNotes = notes.map(({ note, audio }) => formatShareDropboxNote(note, audio, language));
+
+  return res.json({
+    todayPrompt: shareStoryDailyPrompt(prompts),
+    prompts,
+    recentNotes: formattedNotes,
+    stats: shareStoryStats(notes.map(({ note }) => note)),
+    suggestedRooms: prompts.map((prompt) => ({
+      noteType: prompt.noteType,
+      slug: prompt.suggestedRoomSlug,
+      name: prompt.roomName,
+      path: prompt.roomPath,
+      connectionGoal: prompt.connectionGoal,
+    })),
+  });
+});
+
+router.get("/share-dropbox/notes", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const profile = await loadProfileSummary(userId);
+  const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
+  const notes = await listShareDropboxNotes(userId);
+  return res.json({
+    notes: notes.map(({ note, audio }) => formatShareDropboxNote(note, audio, language)),
+  });
+});
+
+router.post("/share-dropbox/notes/audio", shareDropboxAudioBody, async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = shareDropboxAudioQuerySchema.safeParse(req.query ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const audio = Buffer.isBuffer(req.body) ? req.body : null;
+  if (!audio || audio.length < 32) return res.status(400).json({ error: "audio is required" });
+  if (audio.length > SHARE_DROPBOX_AUDIO_MAX_BYTES) return res.status(413).json({ error: "audio is too large" });
+
+  const mimeType = shareDropboxAudioMimeType(req);
+  try {
+    const transcript = await transcribeShareDropboxAudio(audio, mimeType, parsed.data.noteType);
+    const created = await createShareDropboxNoteRecord({
+      userId,
+      noteType: parsed.data.noteType,
+      source: "voice",
+      transcript,
+      promptId: parsed.data.promptId,
+      promptText: parsed.data.promptText,
+      promptKind: parsed.data.promptKind,
+      connectionGoal: parsed.data.connectionGoal,
+      audio: {
+        bytes: audio,
+        mimeType,
+        durationMs: parsed.data.durationMs,
+      },
+    });
+    return res.status(201).json({
+      ok: true,
+      note: formatShareDropboxNote(created.note, created.audio, normalizeLanguage(parsed.data.lang)),
+    });
+  } catch (err) {
+    const status = typeof (err as { status?: unknown }).status === "number" ? (err as { status: number }).status : 500;
+    if (status === 500) console.error("[social-share-dropbox-audio] Error:", err);
+    return res.status(status).json({
+      error: status === 503
+        ? "Voice transcription is not configured."
+        : status === 422
+          ? "No speech detected."
+          : "Failed to save voice note.",
+    });
+  }
+});
+
+router.post("/share-dropbox/notes", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = shareDropboxCreateNoteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const created = await createShareDropboxNoteRecord({
+    userId,
+    noteType: parsed.data.noteType,
+    source: parsed.data.source,
+    transcript: parsed.data.transcript,
+    editedText: parsed.data.editedText,
+    promptId: parsed.data.promptId,
+    promptText: parsed.data.promptText,
+    promptKind: parsed.data.promptKind,
+    connectionGoal: parsed.data.connectionGoal,
+  });
+
+  return res.status(201).json({
+    ok: true,
+    note: formatShareDropboxNote(created.note, created.audio, normalizeLanguage(parsed.data.lang)),
+  });
+});
+
+router.patch("/share-dropbox/notes/:noteId", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = shareDropboxPatchNoteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const existing = await loadShareDropboxNote(userId, req.params.noteId);
+  if (!existing || existing.status === "deleted") return res.status(404).json({ error: "Share note not found" });
+  if (existing.status === "placed") return res.status(409).json({ error: "Placed notes cannot be edited." });
+
+  const nextNoteType = parsed.data.noteType ?? shareDropboxNoteTypeSchema.catch("memory").parse(existing.note_type);
+  const nextEditedText = (parsed.data.editedText ?? existing.edited_text).trim();
+  const { safetyFlags, blocked } = shareDropboxSafety(nextEditedText);
+
+  const updated = await updateShareDropboxNoteRecord(userId, req.params.noteId, () => ({
+    note_type: nextNoteType,
+    edited_text: nextEditedText,
+    suggested_room_slug: shareDropboxSuggestedRoomSlug(nextNoteType),
+    ...(parsed.data.promptId !== undefined ? { prompt_id: parsed.data.promptId } : {}),
+    ...(parsed.data.promptText !== undefined ? { prompt_text: parsed.data.promptText } : {}),
+    ...(parsed.data.promptKind !== undefined ? { prompt_kind: parsed.data.promptKind } : {}),
+    ...(parsed.data.connectionGoal !== undefined ? { connection_goal: parsed.data.connectionGoal } : {}),
+    placement_kind: shareDropboxPlacementKind(nextNoteType),
+    status: blocked ? "blocked" : "ready",
+    safety_flags: safetyFlags,
+  }));
+  if (!updated) return res.status(404).json({ error: "Share note not found" });
+
+  const audio = await loadShareDropboxAudio(userId, updated.id);
+  return res.json({ ok: true, note: formatShareDropboxNote(updated, audio, normalizeLanguage(req.body?.lang)) });
+});
+
+router.get("/share-dropbox/notes/:noteId/audio", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const note = await loadShareDropboxNote(userId, req.params.noteId);
+  if (!note || note.status === "deleted") return res.status(404).json({ error: "Share note not found" });
+
+  const audio = await loadShareDropboxAudio(userId, req.params.noteId);
+  if (!audio) return res.status(404).json({ error: "Voice note audio is no longer available." });
+
+  const bytes = Buffer.from(audio.audio_data);
+  res.setHeader("Cache-Control", "private, max-age=60");
+  res.setHeader("Content-Length", String(bytes.byteLength));
+  res.type(audio.mime_type);
+  return res.send(bytes);
+});
+
+router.delete("/share-dropbox/notes/:noteId", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const note = await deleteShareDropboxNoteRecord(userId, req.params.noteId);
+  if (!note) return res.status(404).json({ error: "Share note not found" });
+  return res.json({ ok: true });
+});
+
+router.post("/share-dropbox/notes/:noteId/publish", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = shareDropboxPublishNoteSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  let note = await loadShareDropboxNote(userId, req.params.noteId);
+  if (!note || note.status === "deleted") return res.status(404).json({ error: "Share note not found" });
+  if (note.status === "placed") {
+    const audio = await loadShareDropboxAudio(userId, note.id);
+    const language = normalizeLanguage(parsed.data.lang);
+    const noteType = shareDropboxNoteTypeSchema.catch("memory").parse(note.note_type);
+    return res.json({
+      ok: true,
+      note: formatShareDropboxNote(note, audio, language),
+      connection: {
+        label: shareDropboxConnectionLabel(noteType, language),
+        nextActionLabel: shareDropboxNextActionLabel(noteType, language),
+        roomPath: `/social-rooms/${note.suggested_room_slug || shareDropboxSuggestedRoomSlug(noteType)}`,
+      },
+    });
+  }
+
+  const nextText = (parsed.data.editedText ?? note.edited_text).trim();
+  const { safetyFlags, blocked } = shareDropboxSafety(nextText);
+  if (blocked || note.status === "blocked") {
+    note = await updateShareDropboxNoteRecord(userId, note.id, () => ({
+      edited_text: nextText,
+      status: "blocked",
+      safety_flags: safetyFlags,
+    })) ?? note;
+    const audio = await loadShareDropboxAudio(userId, note.id);
+    return res.status(400).json({
+      error: "This note needs VYVA review before it can be shared.",
+      note: formatShareDropboxNote(note, audio, normalizeLanguage(parsed.data.lang)),
+    });
+  }
+
+  const noteType = shareDropboxNoteTypeSchema.catch("memory").parse(note.note_type);
+  const language = normalizeLanguage(parsed.data.lang);
+  const publishedAt = new Date();
+
+  if (noteType === "song") {
+    const records = await ensureRoomRecords("music-room");
+    const profile = await loadProfileSummary(userId);
+    const rawLanguage = parsed.data.lang ?? profile.appLanguage;
+    const musicLanguage = normalizeLanguage(rawLanguage);
+    const musicCulture = resolveMusicCulture({
+      countryCode: profile.countryCode ?? requestCountryCode(req, parsed.data),
+      appLanguage: normalizeAppLanguage(rawLanguage, profile.appLanguage),
+    });
+    const songText = shareDropboxSongText(note, parsed.data.songText);
+    const memoryText = shareDropboxMusicMemoryText(note, songText, parsed.data.memoryText);
+    const result = await createMusicCircleItem({
+      userId,
+      roomSlug: "music-room",
+      roomId: records?.roomId ?? null,
+      language: musicLanguage,
+      culture: musicCulture,
+      songText,
+      causeId: "memory",
+      memoryText,
+    });
+
+    if (result.error) {
+      note = await updateShareDropboxNoteRecord(userId, note.id, () => ({
+        status: result.safetyFlags ? "blocked" : "ready",
+        safety_flags: result.safetyFlags ?? safetyFlags,
+      })) ?? note;
+      const audio = await loadShareDropboxAudio(userId, note.id);
+      return res.status(result.safetyFlags ? 400 : 404).json({
+        error: result.error,
+        note: formatShareDropboxNote(note, audio, language),
+        ...(result.safetyFlags ? { safetyFlags: result.safetyFlags } : {}),
+      });
+    }
+
+    note = await updateShareDropboxNoteRecord(userId, note.id, () => ({
+      edited_text: nextText,
+      status: "placed",
+      safety_flags: [],
+      placement_kind: "music_circle_item",
+      placement_target_id: result.item?.id ?? null,
+      published_at: publishedAt,
+    })) ?? note;
+    const audio = await loadShareDropboxAudio(userId, note.id);
+    return res.json({
+      ok: true,
+      note: formatShareDropboxNote(note, audio, language),
+      item: result.item,
+      musicCircle: result.musicCircle,
+      roomPath: "/social-rooms/music-room",
+      connection: {
+        label: shareDropboxConnectionLabel(noteType, language),
+        nextActionLabel: shareDropboxNextActionLabel(noteType, language),
+        roomPath: "/social-rooms/music-room",
+      },
+    });
+  }
+
+  const roomSlug = note.suggested_room_slug || shareDropboxSuggestedRoomSlug(noteType);
+  note = await updateShareDropboxNoteRecord(userId, note.id, () => ({
+    edited_text: nextText,
+    status: "placed",
+    safety_flags: [],
+    placement_kind: "room_handoff",
+    placement_target_id: roomSlug,
+    published_at: publishedAt,
+  })) ?? note;
+  const audio = await loadShareDropboxAudio(userId, note.id);
+
+  return res.json({
+    ok: true,
+    note: formatShareDropboxNote(note, audio, language),
+    connection: {
+      label: shareDropboxConnectionLabel(noteType, language),
+      nextActionLabel: shareDropboxNextActionLabel(noteType, language),
+      roomPath: `/social-rooms/${roomSlug}`,
+    },
+    handoff: {
+      roomSlug,
+      path: `/social-rooms/${roomSlug}`,
+      state: {
+        socialShareDropBoxNote: {
+          id: note.id,
+          noteType,
+          text: note.edited_text,
+          source: "share-dropbox",
+        },
+      },
+    },
+  });
 });
 
 router.get("/rooms/:slug", async (req: Request, res: Response) => {
