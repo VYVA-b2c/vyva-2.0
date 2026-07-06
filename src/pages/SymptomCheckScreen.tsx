@@ -937,43 +937,43 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-[1040px] flex-1 flex-col gap-4 px-4 py-3 sm:px-5 lg:px-0" data-testid="symptom-check-intro">
       <section
-        className="rounded-[24px] border border-[#FECACA] bg-[#FFF7F7] p-3 shadow-[0_10px_24px_rgba(185,28,28,0.07)] sm:p-4"
+        className="rounded-[22px] border border-[#FECACA] bg-[#FFF7F7] p-3 shadow-[0_10px_24px_rgba(185,28,28,0.07)] sm:p-4"
         aria-label={t("health.symptomCheck.intro.emergencyTitle", "Emergency warning")}
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#FEE2E2] text-[#B91C1C]">
-              <AlertTriangle size={24} strokeWidth={2.8} />
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#FEE2E2] text-[#B91C1C] sm:h-12 sm:w-12 sm:rounded-[18px]">
+              <AlertTriangle size={22} strokeWidth={2.8} />
             </span>
             <div className="min-w-0">
-              <p className="font-body text-[17px] font-black leading-tight text-[#7F1D1D]">
+              <p className="font-body text-[16px] font-black leading-tight text-[#7F1D1D] sm:text-[17px]">
                 {t("health.symptomCheck.intro.emergencyTitle", "If this feels urgent, do not wait")}
               </p>
-              <p className="mt-1 font-body text-[14px] font-bold leading-relaxed text-[#991B1B] sm:text-[15px]">
-                {t("health.symptomCheck.intro.emergencyBody", "Severe chest pain, trouble breathing, sudden weakness, confusion, heavy bleeding, or collapse should be treated as an emergency.")}
+              <p className="mt-1 font-body text-[13px] font-bold leading-snug text-[#991B1B] sm:text-[15px]">
+                {t("health.symptomCheck.intro.emergencyBody", "Chest pain, breathing trouble, sudden weakness, heavy bleeding, or collapse needs emergency help.")}
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row lg:flex-shrink-0">
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-shrink-0 lg:flex-row">
             {emergencyContact?.telHref ? (
               <a
                 href={emergencyContact.telHref}
-                className="vyva-tap flex min-h-[52px] items-center justify-center gap-2 rounded-[18px] bg-[#B91C1C] px-4 text-center font-body text-[15px] font-black text-white shadow-[0_10px_24px_rgba(185,28,28,0.22)]"
+                className="vyva-tap flex min-h-[48px] items-center justify-center gap-2 rounded-[17px] bg-[#B91C1C] px-3 text-center font-body text-[14px] font-black text-white shadow-[0_10px_24px_rgba(185,28,28,0.22)] sm:text-[15px]"
               >
-                <PhoneCall size={19} strokeWidth={2.8} />
+                <PhoneCall size={18} strokeWidth={2.8} />
                 {emergencyCallLabel}
               </a>
             ) : (
-              <span className="flex min-h-[52px] items-center justify-center rounded-[18px] bg-[#B91C1C] px-4 text-center font-body text-[15px] font-black text-white">
+              <span className="flex min-h-[48px] items-center justify-center rounded-[17px] bg-[#B91C1C] px-3 text-center font-body text-[14px] font-black text-white sm:text-[15px]">
                 {emergencyCallLabel}
               </span>
             )}
             <button
               type="button"
-              onClick={() => setClue(t("health.symptomCheck.intro.notSureEmergencyClue", "I am not sure if this is urgent"))}
-              className="vyva-tap min-h-[52px] rounded-[18px] border border-[#FCA5A5] bg-white px-4 font-body text-[15px] font-black text-[#991B1B]"
+              onClick={() => onStart(t("health.symptomCheck.intro.notSureEmergencyClue", "I am not sure if this is urgent"))}
+              className="vyva-tap min-h-[48px] rounded-[17px] border border-[#FCA5A5] bg-white px-3 font-body text-[14px] font-black text-[#991B1B] sm:text-[15px]"
             >
-              {t("health.symptomCheck.intro.notSureEmergency", "I am not sure")}
+              {t("health.symptomCheck.intro.notSureEmergency", "Help me decide")}
             </button>
           </div>
         </div>
@@ -1021,7 +1021,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
               <div className="grid gap-2 text-left">
                 <label className="sr-only" htmlFor="symptom-clue">
-                  {t("health.symptomCheck.intro.inputLabel", "What feels wrong?")}
+                  {t("health.symptomCheck.intro.inputLabel", "What feels different?")}
                 </label>
                 <input
                   id="symptom-clue"
@@ -1030,7 +1030,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
                     setClue(event.target.value);
                     if (voiceError) setVoiceError(null);
                   }}
-                  placeholder={t("health.symptomCheck.intro.simplePlaceholder", "Type what you feel...")}
+                  placeholder={t("health.symptomCheck.intro.simplePlaceholder", "Type what changed...")}
                   data-testid="input-symptom-clue"
                   className="min-h-[70px] w-full min-w-0 max-w-full rounded-[22px] border-2 border-transparent bg-white px-5 py-3 font-body text-[18px] font-black text-vyva-text-1 shadow-[0_8px_18px_rgba(63,45,35,0.05)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:text-[22px]"
                 />
@@ -1068,28 +1068,28 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
 
         </div>
 
-        <aside className="grid content-start gap-2 rounded-[26px] border border-[#D8C7FF] bg-[linear-gradient(180deg,#FBFAFF_0%,#FFFFFF_100%)] p-3 text-left shadow-[0_14px_34px_rgba(107,33,168,0.08)]">
-          <div className="rounded-[20px] bg-vyva-purple px-4 py-3 text-white shadow-[0_16px_32px_rgba(107,33,168,0.18)]">
-            <p className="font-body text-[17px] font-black leading-tight">
-              {t("health.symptomCheck.intro.guideTitle", "Careful check")}
-            </p>
-            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-white/88">
-              {t("health.symptomCheck.intro.guideBody", "Safety first. Then the next question.")}
-            </p>
-          </div>
-          <div className="grid gap-2">
-            {guidancePromises.map(({ key, label, body, Icon }) => (
-              <div key={key} className="flex gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-2">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-vyva-purple-light text-vyva-purple shadow-sm">
-                  <Icon size={18} strokeWidth={2.7} />
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">{label}</span>
-                  <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
-                </span>
-              </div>
-            ))}
-          </div>
+        <aside className="rounded-[24px] border border-[#D8C7FF] bg-[linear-gradient(180deg,#FBFAFF_0%,#FFFFFF_100%)] p-3 text-left shadow-[0_14px_34px_rgba(107,33,168,0.08)]">
+          <details className="group">
+            <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 rounded-[18px] bg-vyva-purple px-4 py-3 text-white shadow-[0_12px_28px_rgba(107,33,168,0.16)]">
+              <span className="font-body text-[15px] font-black leading-tight">
+                {t("health.symptomCheck.intro.guideTitle", "How VYVA helps")}
+              </span>
+              <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 transition-transform group-open:rotate-90" />
+            </summary>
+            <div className="mt-2 grid gap-2">
+              {guidancePromises.map(({ key, label, body, Icon }) => (
+                <div key={key} className="flex gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-2">
+                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-vyva-purple-light text-vyva-purple shadow-sm">
+                    <Icon size={18} strokeWidth={2.7} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">{label}</span>
+                    <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
         </aside>
       </section>
 

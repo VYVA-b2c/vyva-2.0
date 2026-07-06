@@ -606,7 +606,7 @@ const es = {
         clueSub: "Di o escribe unas palabras.",
         simpleTitle: "Cuenta a VYVA que notas",
         simpleBody: "Habla, escribe o toca un ejemplo.",
-        simplePlaceholder: "Escribe que notas...",
+        simplePlaceholder: "Escribe que cambio...",
         startBtn: "Empezar chequeo",
         examplesLabel: "Ejemplos",
         moreIdeas: "Mas ideas",

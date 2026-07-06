@@ -810,7 +810,7 @@
         clueSub: "Say or type a few words.",
         simpleTitle: "Tell me how you feel, right now",
         simpleBody: "Speak, type, or tap an example.",
-        simplePlaceholder: "Type what you feel...",
+        simplePlaceholder: "Type what changed...",
         startBtn: "Start check",
         examplesLabel: "Examples",
         moreIdeas: "More ideas",
