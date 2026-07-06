@@ -717,7 +717,7 @@ const SocialHub = ({ roomsOnly = false }: SocialHubProps) => {
       title: t("community.master.cards.share", "Share Stories"),
       detail: t("community.master.cards.shareDetail", "A memory or song"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA", surface: "#FFFFFF" },
-      onClick: () => openRoom("kitchen-table"),
+      onClick: () => navigate("/social-rooms/share"),
       testId: "card-social-primary-share",
     },
     {

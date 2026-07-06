@@ -105,6 +105,7 @@ function renderSocialHub() {
       <Routes>
         <Route path="/social-rooms" element={<><SocialHub /><LocationProbe /></>} />
         <Route path="/social-rooms/join-in" element={<><SocialHub roomsOnly /><LocationProbe /></>} />
+        <Route path="/social-rooms/share" element={<LocationProbe />} />
         <Route path="/social-rooms/activities" element={<LocationProbe />} />
         <Route path="/social-rooms/:slug" element={<LocationProbe />} />
       </Routes>
@@ -178,6 +179,14 @@ describe("SocialHub home-style layout", () => {
     fireEvent.click(screen.getByTestId("card-social-primary-activities"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/activities");
+  });
+
+  it("opens Share Stories as the dedicated story drop box", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("card-social-primary-share"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/share");
   });
 
   it("shows three visible Fast help actions", () => {

@@ -1350,6 +1350,55 @@ export const insertSocialRoomNotificationSchema = createInsertSchema(socialRoomN
 export type InsertSocialRoomNotification = z.infer<typeof insertSocialRoomNotificationSchema>;
 export type SocialRoomNotification = typeof socialRoomNotifications.$inferSelect;
 
+export const socialShareDropboxNotes = pgTable("social_share_dropbox_notes", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  user_id:             text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  note_type:           text("note_type").notNull(),
+  source:              text("source").notNull().default("voice"),
+  transcript:          text("transcript").notNull().default(""),
+  edited_text:         text("edited_text").notNull().default(""),
+  suggested_room_slug: text("suggested_room_slug").notNull(),
+  prompt_id:           text("prompt_id"),
+  prompt_text:         text("prompt_text"),
+  prompt_kind:         text("prompt_kind"),
+  connection_goal:     text("connection_goal"),
+  status:              text("status").notNull().default("ready"),
+  safety_flags:        text("safety_flags").array().notNull().default([]),
+  placement_kind:      text("placement_kind"),
+  placement_target_id: text("placement_target_id"),
+  published_at:        timestamp("published_at", { withTimezone: true }),
+  deleted_at:          timestamp("deleted_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("social_share_dropbox_notes_user_status_created_idx").on(t.user_id, t.status, t.created_at),
+  index("social_share_dropbox_notes_user_created_idx").on(t.user_id, t.created_at),
+]);
+
+export const insertSocialShareDropboxNoteSchema = createInsertSchema(socialShareDropboxNotes).omit({ id: true, created_at: true, updated_at: true });
+export type InsertSocialShareDropboxNote = z.infer<typeof insertSocialShareDropboxNoteSchema>;
+export type SocialShareDropboxNote = typeof socialShareDropboxNotes.$inferSelect;
+
+export const socialShareDropboxAudio = pgTable("social_share_dropbox_audio", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  note_id:     uuid("note_id").notNull().references(() => socialShareDropboxNotes.id, { onDelete: "cascade" }),
+  user_id:     text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  mime_type:   text("mime_type").notNull(),
+  byte_size:   integer("byte_size").notNull(),
+  duration_ms: integer("duration_ms"),
+  audio_data:  bytea("audio_data").notNull(),
+  expires_at:  timestamp("expires_at", { withTimezone: true }).notNull(),
+  deleted_at:  timestamp("deleted_at", { withTimezone: true }),
+  created_at:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("social_share_dropbox_audio_note_idx").on(t.note_id),
+  index("social_share_dropbox_audio_user_expires_idx").on(t.user_id, t.expires_at),
+]);
+
+export const insertSocialShareDropboxAudioSchema = createInsertSchema(socialShareDropboxAudio).omit({ id: true, created_at: true });
+export type InsertSocialShareDropboxAudio = z.infer<typeof insertSocialShareDropboxAudioSchema>;
+export type SocialShareDropboxAudio = typeof socialShareDropboxAudio.$inferSelect;
+
 export const participationEvents = pgTable("participation_events", {
   id:                 uuid("id").primaryKey().defaultRandom(),
   event_key:          text("event_key").notNull().unique(),
