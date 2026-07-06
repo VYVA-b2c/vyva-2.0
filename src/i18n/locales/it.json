@@ -413,8 +413,13 @@
   "voiceHero": {
     "talkToVyva": "Parliamo",
     "speaking": "VYVA sta parlando...",
+    "speakingStatus": "VYVA parla",
+    "speakingFallback": "Un momento",
     "listening": "In ascolto...",
     "connecting": "Connessione...",
+    "micOffShort": "Micro spento",
+    "micOnShort": "Micro acceso",
+    "touchInsteadShort": "Tocca",
     "active": "Attiva",
     "live": "In diretta",
     "you": "Tu",
@@ -1271,6 +1276,10 @@
         "sub": "Parla dei sintomi da osservare",
         "sheetTitle": "Controllo effetti collaterali",
         "prompt": "Prendo i seguenti farmaci: {{medNames}}. Aiutami a ragionare su possibili effetti collaterali, sintomi da monitorare e domande da fare al medico o al farmacista. Se qualcosa sembra urgente, dimmi di cercare assistenza medica."
+      },
+      "refillHelp": {
+        "label": "Aiuto rifornimento",
+        "sub": "Supporto ordine"
       }
     },
     "notes": {
