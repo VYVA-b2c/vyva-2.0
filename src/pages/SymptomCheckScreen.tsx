@@ -915,46 +915,25 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
   const guidancePromises = [
     {
       key: "listen",
-      label: t("health.symptomCheck.intro.promiseListen", "VYVA listens first"),
-      body: t("health.symptomCheck.intro.promiseListenBody", "Use a sentence, a few words, or your voice. You do not need medical terms."),
+      label: t("health.symptomCheck.intro.promiseListen", "Speak freely"),
+      body: t("health.symptomCheck.intro.promiseListenBody", "No medical words needed."),
       Icon: Mic,
     },
     {
       key: "profile",
-      label: t("health.symptomCheck.intro.promiseProfile", "Your profile helps quietly"),
+      label: t("health.symptomCheck.intro.promiseProfile", "Profile-aware"),
       body: profileContextItems.length
-        ? t("health.symptomCheck.intro.promiseProfileReady", "Medicines, recent readings, and care context help choose safer questions.")
-        : t("health.symptomCheck.intro.promiseProfileFallback", "When profile details are missing, VYVA still starts with safety questions."),
+        ? t("health.symptomCheck.intro.promiseProfileReady", "Medicines and context guide questions.")
+        : t("health.symptomCheck.intro.promiseProfileFallback", "Safety questions come first."),
       Icon: Brain,
     },
     {
       key: "handoff",
-      label: t("health.symptomCheck.intro.promiseHandoff", "You get a clear next step"),
-      body: t("health.symptomCheck.intro.promiseHandoffBody", "At the end, VYVA prepares guidance you can follow or share."),
+      label: t("health.symptomCheck.intro.promiseHandoff", "Clear next step"),
+      body: t("health.symptomCheck.intro.promiseHandoffBody", "Follow it or share it."),
       Icon: Share2,
     },
   ];
-  const assistantSteps = [
-    {
-      key: "describe",
-      label: t("health.symptomCheck.intro.stepDescribe", "Describe what changed"),
-      body: t("health.symptomCheck.intro.stepDescribeBody", "Use your own words, voice, or one of the examples."),
-      Icon: Mic,
-    },
-    {
-      key: "safety",
-      label: t("health.symptomCheck.intro.stepSafety", "Answer safety questions"),
-      body: t("health.symptomCheck.intro.stepSafetyBody", "VYVA checks warning signs before anything else."),
-      Icon: ShieldCheck,
-    },
-    {
-      key: "next",
-      label: t("health.symptomCheck.intro.stepNext", "Get a clear next step"),
-      body: t("health.symptomCheck.intro.stepNextBody", "Know whether to monitor, call support, or seek care."),
-      Icon: Share2,
-    },
-  ];
-
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-[1040px] flex-1 flex-col gap-4 px-4 py-3 sm:px-5 lg:px-0" data-testid="symptom-check-intro">
       <section
@@ -1002,9 +981,9 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
 
       <section
         data-testid="symptom-check-start-panel"
-        className="grid min-w-0 gap-5 rounded-[32px] border border-[#E8DED4] bg-white p-4 shadow-[0_18px_46px_rgba(63,45,35,0.10)] sm:p-5 lg:grid-cols-[minmax(0,1.32fr)_330px] lg:p-6"
+        className="grid min-w-0 gap-4 rounded-[32px] border border-[#E8DED4] bg-white p-4 shadow-[0_18px_46px_rgba(63,45,35,0.10)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_270px] lg:p-6"
       >
-        <div className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-4">
           <div className="flex flex-col gap-4 text-left sm:flex-row sm:items-center">
             <button
               type="button"
@@ -1032,8 +1011,8 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
               <h1 className="font-body text-[31px] font-black leading-[1.05] text-vyva-text-1 sm:text-[40px]">
                 {t("health.symptomCheck.intro.assistantTitle", "Tell VYVA what has changed")}
               </h1>
-              <p className="mt-3 max-w-[620px] font-body text-[17px] font-bold leading-relaxed text-vyva-text-2 sm:text-[19px]">
-                {t("health.symptomCheck.intro.assistantBody", "Speak or type what feels different. VYVA checks urgent warning signs first, then helps you choose the safest next step.")}
+              <p className="mt-2 max-w-[520px] font-body text-[17px] font-bold leading-snug text-vyva-text-2 sm:text-[18px]">
+                {t("health.symptomCheck.intro.assistantBody", "Use your voice or type a few words.")}
               </p>
             </div>
           </div>
@@ -1041,7 +1020,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
           <div className="rounded-[26px] border border-[#DDD6FE] bg-[#FBFAFF] p-3 shadow-[0_10px_26px_rgba(63,45,35,0.06)]">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
               <div className="grid gap-2 text-left">
-                <label className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple" htmlFor="symptom-clue">
+                <label className="sr-only" htmlFor="symptom-clue">
                   {t("health.symptomCheck.intro.inputLabel", "What feels wrong?")}
                 </label>
                 <input
@@ -1075,11 +1054,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
               >
                 {voiceStatus}
               </p>
-            ) : (
-              <p className="mt-2 px-2 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
-                {t("health.symptomCheck.intro.simpleBody", "Speak, type, or tap an example.")}
-              </p>
-            )}
+            ) : null}
           </div>
 
           <div className="grid gap-2 text-left" data-testid="symptom-check-example-chips">
@@ -1091,46 +1066,26 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
             </div>
           </div>
 
-          <div className="grid gap-2 rounded-[24px] border border-[#BBF7D0] bg-[#ECFDF5] px-4 py-4 text-left sm:grid-cols-3">
-            {assistantSteps.map(({ key, label, body, Icon }, index) => (
-              <div key={key} className="flex gap-3">
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#047857]">
-                  <Icon size={22} strokeWidth={2.7} />
-                </span>
-                <div>
-                  <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#059669]">
-                    {t("health.symptomCheck.intro.stepNumber", "Step {{number}}", { number: index + 1 })}
-                  </p>
-                  <p className="mt-1 font-body text-[15px] font-black leading-tight text-[#064E3B]">
-                    {label}
-                  </p>
-                  <p className="mt-1 font-body text-[13px] font-bold leading-snug text-[#047857]">
-                    {body}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
 
-        <aside className="grid content-start gap-3 rounded-[28px] border border-[#D8C7FF] bg-[linear-gradient(180deg,#FBFAFF_0%,#FFFFFF_100%)] p-4 text-left shadow-[0_14px_34px_rgba(107,33,168,0.08)]">
-          <div className="rounded-[22px] bg-vyva-purple px-4 py-4 text-white shadow-[0_16px_32px_rgba(107,33,168,0.18)]">
-            <p className="font-body text-[18px] font-black leading-tight">
-              {t("health.symptomCheck.intro.guideTitle", "A careful check, one answer at a time")}
+        <aside className="grid content-start gap-2 rounded-[26px] border border-[#D8C7FF] bg-[linear-gradient(180deg,#FBFAFF_0%,#FFFFFF_100%)] p-3 text-left shadow-[0_14px_34px_rgba(107,33,168,0.08)]">
+          <div className="rounded-[20px] bg-vyva-purple px-4 py-3 text-white shadow-[0_16px_32px_rgba(107,33,168,0.18)]">
+            <p className="font-body text-[17px] font-black leading-tight">
+              {t("health.symptomCheck.intro.guideTitle", "Careful check")}
             </p>
-            <p className="mt-2 font-body text-[14px] font-bold leading-relaxed text-white/88">
-              {t("health.symptomCheck.intro.guideBody", "VYVA starts with safety, then adapts each question to what you say.")}
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-white/88">
+              {t("health.symptomCheck.intro.guideBody", "Safety first. Then the next question.")}
             </p>
           </div>
           <div className="grid gap-2">
             {guidancePromises.map(({ key, label, body, Icon }) => (
-              <div key={key} className="flex gap-3 rounded-[20px] border border-[#E8DED4] bg-white px-3 py-3">
-                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-vyva-purple-light text-vyva-purple shadow-sm">
-                  <Icon size={20} strokeWidth={2.7} />
+              <div key={key} className="flex gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-2">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-vyva-purple-light text-vyva-purple shadow-sm">
+                  <Icon size={18} strokeWidth={2.7} />
                 </span>
                 <span className="min-w-0">
                   <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">{label}</span>
-                  <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
+                  <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
                 </span>
               </div>
             ))}
@@ -2805,12 +2760,22 @@ export default function SymptomCheckScreen() {
   return (
     <HealthWizardShell contentClassName={`flex min-h-[calc(100dvh-204px)] ${shellMaxWidth} flex-col px-0 pb-10 pt-0`}>
       <div className={`mx-auto w-full ${topBarMaxWidth} px-4 pt-3 sm:px-5 lg:px-0`} data-testid="symptom-check-shell">
-        <HealthWizardTopBar
-          title={stepTitle[step]}
-          kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
-          onBack={handleBack}
-          backLabel={t("common.back", "Back")}
-          action={step === "intro" ? undefined : (
+        {step === "intro" ? (
+          <button
+            type="button"
+            onClick={handleBack}
+            aria-label={t("common.back", "Back")}
+            className="vyva-tap flex h-12 w-12 items-center justify-center rounded-full bg-white text-vyva-text-1 shadow-[0_8px_24px_rgba(63,45,35,0.10)]"
+          >
+            <ChevronLeft size={24} strokeWidth={2.6} />
+          </button>
+        ) : (
+          <HealthWizardTopBar
+            title={stepTitle[step]}
+            kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
+            onBack={handleBack}
+            backLabel={t("common.back", "Back")}
+            action={(
             <button
               type="button"
               onClick={resetSymptomCheck}
@@ -2819,8 +2784,9 @@ export default function SymptomCheckScreen() {
             >
               {t("health.symptomCheck.startOver", "Start over")}
             </button>
-          )}
-        />
+            )}
+          />
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
