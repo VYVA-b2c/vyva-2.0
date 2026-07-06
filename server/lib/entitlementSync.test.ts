@@ -11,6 +11,7 @@ vi.mock("../db.js", () => ({
 }));
 
 import { syncProfileEntitlement } from "./entitlementSync.js";
+import type { Profile } from "../../shared/schema.js";
 
 function queryRejects(message: string) {
   return {
@@ -36,8 +37,8 @@ function queryResolves(rows: unknown[]) {
   };
 }
 
-function profile(overrides: Record<string, unknown> = {}) {
-  return {
+function profile(overrides: Partial<Profile> = {}): Profile {
+  return ({
     id: "profile-1",
     email: null,
     phone_number: null,
@@ -47,7 +48,7 @@ function profile(overrides: Record<string, unknown> = {}) {
     stripe_subscription_id: null,
     trial_ends_at: null,
     ...overrides,
-  } as any;
+  } as Partial<Profile>) as Profile;
 }
 
 describe("syncProfileEntitlement", () => {

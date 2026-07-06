@@ -428,6 +428,104 @@ export type SocialRoomNotification = {
   readAt?: string | null;
 };
 
+export type SocialShareDropBoxNoteType = "memory" | "song" | "recipe" | "reading" | "hello";
+export type SocialShareDropBoxStatus = "ready" | "blocked" | "placed" | "deleted" | string;
+export type SocialShareDropBoxSource = "voice" | "typed";
+
+export type SocialShareDropBoxAudio = {
+  id: string;
+  url: string;
+  mimeType: string;
+  byteSize: number;
+  durationMs?: number | null;
+  expiresAt?: string | null;
+};
+
+export type SocialShareDropBoxNote = {
+  id: string;
+  noteType: SocialShareDropBoxNoteType;
+  source: SocialShareDropBoxSource;
+  transcript: string;
+  editedText: string;
+  suggestedRoomSlug: string;
+  promptId?: string | null;
+  promptText?: string | null;
+  promptKind?: string | null;
+  connectionGoal?: string | null;
+  connectionLabel?: string | null;
+  nextActionLabel?: string | null;
+  roomPath: string;
+  status: SocialShareDropBoxStatus;
+  safetyFlags: SocialRoomSafetyFlag[];
+  placementKind?: string | null;
+  placementTargetId?: string | null;
+  publishLabel: string;
+  publishedAt?: string | null;
+  deletedAt?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  audio?: SocialShareDropBoxAudio | null;
+};
+
+export type SocialShareDropBoxHandoffState = {
+  socialShareDropBoxNote: {
+    id: string;
+    noteType: SocialShareDropBoxNoteType;
+    text: string;
+    source: "share-dropbox";
+  };
+};
+
+export type SocialShareDropBoxPublishResponse = {
+  ok: boolean;
+  note: SocialShareDropBoxNote;
+  roomPath?: string;
+  connection?: {
+    label: string;
+    nextActionLabel: string;
+    roomPath: string;
+  };
+  handoff?: {
+    roomSlug: string;
+    path: string;
+    state: SocialShareDropBoxHandoffState;
+  };
+};
+
+export type SocialShareStoryPrompt = {
+  id: string;
+  noteType: SocialShareDropBoxNoteType;
+  title: string;
+  body: string;
+  promptText: string;
+  promptKind: string;
+  connectionGoal: string;
+  suggestedRoomSlug: string;
+  roomPath: string;
+  roomName: string;
+  connectionLabel: string;
+  nextActionLabel: string;
+};
+
+export type SocialShareStoriesHomeResponse = {
+  todayPrompt: SocialShareStoryPrompt;
+  prompts: SocialShareStoryPrompt[];
+  recentNotes: SocialShareDropBoxNote[];
+  stats: {
+    sharedThisWeek: number;
+    placedThisWeek: number;
+    readyCount: number;
+    blockedCount: number;
+  };
+  suggestedRooms: Array<{
+    noteType: SocialShareDropBoxNoteType;
+    slug: string;
+    name: string;
+    path: string;
+    connectionGoal: string;
+  }>;
+};
+
 export type SocialRoomVisibilityItem = {
   id: "private" | "totals" | "shared" | string;
   title: string;

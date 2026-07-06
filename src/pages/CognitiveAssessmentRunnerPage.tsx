@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Brain, CheckCircle2, ChevronRight, Clock3, Loader2, PlayCircle } from "lucide-react";
+import { ArrowLeft, Brain, CheckCircle2, ChevronRight, Clock3, Loader2, PlayCircle, Plus, Timer } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
@@ -27,6 +27,17 @@ const ASSESSMENT_LANGUAGES: Array<{ value: CognitiveAssessmentLanguage; label: s
 ];
 
 type FormState = Record<string, unknown>;
+
+type StepTransition = {
+  savedLabel: string;
+  savedDomain: string;
+  nextLabel: string;
+  nextDomain: string;
+  nextIndex: number;
+  completedCount: number;
+  totalSteps: number;
+  remainingMinutes: number;
+};
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -88,6 +99,52 @@ function storyReadSeconds(body: unknown) {
   return Math.min(45, Math.max(25, Math.ceil(countWords(body) * 0.6)));
 }
 
+function itemId(item: Record<string, unknown>, index: number) {
+  return text(item.id) || text(item.prompt_key) || `item-${index}`;
+}
+
+function answeredValue(value: unknown) {
+  return value !== undefined && value !== null && String(value).trim() !== "";
+}
+
+function answeredCountForItems(items: Record<string, unknown>[], answers: Record<string, unknown>) {
+  return items.filter((item, index) => answeredValue(answers[itemId(item, index)])).length;
+}
+
+function estimatedRemainingMinutes(tasks: CognitiveAssessmentRunnerSession["tasks"], currentIndex: number) {
+  const seconds = tasks
+    .slice(Math.max(0, currentIndex))
+    .reduce((sum, task) => sum + Math.max(30, task.expectedDurationSec), 0);
+  return Math.max(1, Math.ceil(seconds / 60));
+}
+
+function orientationPlaceholder(promptKey: string) {
+  if (promptKey.includes("date")) return "Example: 6 July";
+  if (promptKey.includes("year")) return "Example: 2026";
+  if (promptKey.includes("month")) return "Example: July";
+  if (promptKey.includes("day")) return "Example: Monday";
+  if (promptKey.includes("hour")) return "Example: 10";
+  if (promptKey.includes("country")) return "Example: Spain";
+  if (promptKey.includes("city")) return "Example: Madrid";
+  if (promptKey.includes("season")) return "Example: summer";
+  if (promptKey.includes("region") || promptKey.includes("departement") || promptKey.includes("distrito") || promptKey.includes("concelho")) return "Type the local area";
+  return "Type a short answer";
+}
+
+function taskInstruction(task: CognitiveAssessmentRunnerTask, formState: FormState) {
+  if (task.id === "orientation") return "Answer each context question in a few words.";
+  if (task.id === "story_recall_immediate") {
+    return formState.storyReadComplete ? "Write remembered details, then save this step." : "Read the story once. It will hide before recall.";
+  }
+  if (task.id === "story_recall_delayed") return "Without looking back, type anything you remember from the earlier story.";
+  if (task.id.includes("fluency")) return "Start the timer, add words one by one, then finish the round.";
+  if (task.id === "digit_span") return "Show the numbers, type them back, then save after both rounds.";
+  if (task.id === "similarities") return "Give a short answer for each pair.";
+  if (task.id === "clock_drawing") return "Set both clock hands before saving.";
+  if (["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"].includes(task.id)) return "Tap one answer for every question.";
+  return "Complete the response, then save this step.";
+}
+
 function languageFromApp(value: string): CognitiveAssessmentLanguage {
   return ASSESSMENT_LANGUAGES.some((language) => language.value === value)
     ? value as CognitiveAssessmentLanguage
@@ -125,7 +182,8 @@ function buildInitialState(task: CognitiveAssessmentRunnerTask | null): FormStat
   if (task.id === "orientation") return { answers: {} };
   if (["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"].includes(task.id)) return { answers: {} };
   if (task.id === "similarities") return { answers: {} };
-  if (task.id === "story_recall_immediate") return { text: "", storyReadComplete: false };
+  if (task.id === "story_recall_immediate") return { text: "", storyReadComplete: false, storyNoRecall: false };
+  if (task.id === "story_recall_delayed") return { text: "", storyNoRecall: false };
   if (task.id === "clock_drawing") return { text: "", clockHour: "", clockMinute: "" };
   return { text: "" };
 }
@@ -167,6 +225,7 @@ export function buildResponseData(task: CognitiveAssessmentRunnerTask, formState
       ...buildStoryRecallScoringFields(formState.text, content.idea_units),
       title: text(content.title),
       delayed: Boolean(content.delayed),
+      no_recall: Boolean(formState.storyNoRecall),
     };
   }
 
@@ -272,38 +331,42 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 function RunnerHeader({
   currentStep,
   totalSteps,
+  detail,
 }: {
   currentStep: number;
   totalSteps: number;
+  detail?: string;
 }) {
   const navigate = useNavigate();
   const progress = totalSteps > 0 ? Math.round((currentStep / totalSteps) * 100) : 0;
 
   return (
-    <header className="px-5 pt-5">
-      <button
-        type="button"
-        onClick={() => navigate("/mind-memory/cognitive-assessment")}
-        className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-white px-4 text-sm font-black text-[#2f2135] shadow-[0_8px_20px_rgba(63,45,35,0.07)]"
-      >
-        <ArrowLeft size={18} />
-        Cognitive Assessment
-      </button>
-      <div className="mt-5 rounded-[28px] border border-[#DDD6FE] bg-white p-5 shadow-[0_14px_32px_rgba(63,45,35,0.07)]">
-        <div className="flex items-start gap-4">
-          <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-[20px] bg-[#F5F3FF] text-[#6B21A8]">
-            <Brain size={30} />
+    <header className="px-5 pt-3">
+      <div className="rounded-[22px] border border-[#DDD6FE] bg-white p-3 shadow-[0_10px_24px_rgba(63,45,35,0.06)]">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/mind-memory/cognitive-assessment")}
+            aria-label="Back to Cognitive Assessment"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#FFFCF8] text-[#2f2135] shadow-sm"
+          >
+            <ArrowLeft size={19} />
+          </button>
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#F5F3FF] text-[#6B21A8]">
+            <Brain size={23} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Mind & Memory</p>
-            <h1 className="mt-1 text-[32px] font-black leading-[1.02] text-[#2f2135]">Guided check</h1>
-            <p className="mt-2 text-[16px] font-bold leading-snug text-[#766b63]">
-              Step {Math.min(currentStep, totalSteps)} of {totalSteps}
+            <p className="text-[18px] font-black leading-tight text-[#2f2135]">Guided check</p>
+            <p className="mt-0.5 text-[13px] font-black text-[#766b63]">
+              {detail ?? `Step ${Math.min(currentStep, totalSteps)} of ${totalSteps}`}
             </p>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#EFE7DE]">
-              <div className="h-full rounded-full bg-[#7C3AED]" style={{ width: `${progress}%` }} />
-            </div>
           </div>
+          <div className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-xs font-black text-[#6B21A8]">
+            {progress}%
+          </div>
+        </div>
+        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#EFE7DE]">
+          <div className="h-full rounded-full bg-[#7C3AED]" style={{ width: `${progress}%` }} />
         </div>
       </div>
     </header>
@@ -324,7 +387,7 @@ function IntroScreen({
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-32">
       <RunnerHeader currentStep={0} totalSteps={12} />
-      <section className="grid gap-4 px-5 pt-5">
+      <section className="grid gap-4 px-5 pt-4">
         <div className="rounded-[26px] border border-[#E8DED4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.06)]">
           <h2 className="text-[24px] font-black leading-tight text-[#2f2135]">Start a new check</h2>
           <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#766b63]">
@@ -364,6 +427,7 @@ function TextArea({
   placeholder,
   helperText,
   autoFocus = false,
+  rows = 6,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -371,6 +435,7 @@ function TextArea({
   placeholder: string;
   helperText?: string;
   autoFocus?: boolean;
+  rows?: number;
 }) {
   return (
     <label className="block">
@@ -378,7 +443,7 @@ function TextArea({
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        rows={7}
+        rows={rows}
         placeholder={placeholder}
         autoFocus={autoFocus}
         className="mt-2 w-full resize-y rounded-[20px] border border-[#E8DED4] bg-white px-4 py-3 text-[16px] font-bold leading-relaxed text-[#2f2135] outline-none focus:border-[#A855F7]"
@@ -445,8 +510,8 @@ function StoryRecallImmediateFields({
             <div className="h-full rounded-full bg-[#7C3AED] transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
           <p className="mt-4 text-[17px] font-black leading-relaxed">{body}</p>
-          <p className="mt-4 text-[13px] font-bold leading-relaxed text-[#62564f]">
-            Read calmly. When the timer ends, the story will hide and you will write what you remember.
+          <p className="mt-4 rounded-[18px] bg-white/70 px-4 py-3 text-[13px] font-bold leading-relaxed text-[#62564f]">
+            Read once. Then write what you remember.
           </p>
           <button
             type="button"
@@ -470,7 +535,7 @@ function StoryRecallImmediateFields({
           <div>
             <h3 className="text-[20px] font-black leading-tight">Story hidden</h3>
             <p className="mt-1 text-[14px] font-bold leading-relaxed">
-              Now write the details you remember. You do not need perfect sentences.
+              Write any details. Fragments are fine.
             </p>
           </div>
         </div>
@@ -481,8 +546,60 @@ function StoryRecallImmediateFields({
         helperText="It is fine to write fragments. The report uses what you recall, not spelling or grammar."
         autoFocus
         value={text(formState.text)}
-        onChange={(value) => setFormState((current) => ({ ...current, text: value }))}
+        onChange={(value) => setFormState((current) => ({ ...current, text: value, storyNoRecall: false }))}
       />
+      <button
+        type="button"
+        onClick={() => setFormState((current) => ({ ...current, text: "", storyNoRecall: true }))}
+        className={`min-h-[48px] rounded-[18px] border px-4 text-[14px] font-black ${
+          formState.storyNoRecall
+            ? "border-[#7C3AED] bg-[#F5F3FF] text-[#5B21B6]"
+            : "border-[#E8DED4] bg-white text-[#62564f]"
+        }`}
+      >
+        I do not remember any details
+      </button>
+    </div>
+  );
+}
+
+function StoryRecallDelayedFields({
+  content,
+  formState,
+  setFormState,
+}: {
+  content: Record<string, unknown>;
+  formState: FormState;
+  setFormState: Dispatch<SetStateAction<FormState>>;
+}) {
+  return (
+    <div className="grid gap-4">
+      <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] px-4 py-3">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Delayed recall</p>
+        <h3 className="mt-1 text-[20px] font-black leading-tight text-[#2f2135]">
+          Recall the story: {text(content.title, "Earlier story")}
+        </h3>
+        <p className="mt-2 text-[14px] font-bold leading-relaxed text-[#62564f]">
+          Do not look back. Fragments are fine.
+        </p>
+      </div>
+      <TextArea
+        label="What do you remember now?"
+        placeholder="Type anything you remember from the earlier story."
+        value={text(formState.text)}
+        onChange={(value) => setFormState((current) => ({ ...current, text: value, storyNoRecall: false }))}
+      />
+      <button
+        type="button"
+        onClick={() => setFormState((current) => ({ ...current, text: "", storyNoRecall: true }))}
+        className={`min-h-[48px] rounded-[18px] border px-4 text-[14px] font-black ${
+          formState.storyNoRecall
+            ? "border-[#7C3AED] bg-[#F5F3FF] text-[#5B21B6]"
+            : "border-[#E8DED4] bg-white text-[#62564f]"
+        }`}
+      >
+        I do not remember any details
+      </button>
     </div>
   );
 }
@@ -498,6 +615,7 @@ function OrientationFields({
 }) {
   const answers = asRecord(formState.answers);
   const items = asArray(content.items).map((item) => asRecord(item));
+  const answeredCount = answeredCountForItems(items, answers);
 
   if (items.length === 0) {
     return <p className="text-[15px] font-bold text-[#766b63]">Orientation form content is not ready yet.</p>;
@@ -506,9 +624,17 @@ function OrientationFields({
   return (
     <div className="grid gap-3">
       <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] px-4 py-3">
-        <p className="text-[15px] font-black leading-relaxed text-[#5B21B6]">
-          A few quick context questions. Short answers are fine.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <span className="min-w-0">
+            <span className="block text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Quick context</span>
+            <span className="mt-1 block text-[17px] font-black leading-snug text-[#2f2135]">
+              Short answers are fine.
+            </span>
+          </span>
+          <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#6B21A8]">
+            {answeredCount}/{items.length} answered
+          </span>
+        </div>
       </div>
       {items.map((item, index) => {
         const promptKey = text(item.prompt_key);
@@ -522,7 +648,7 @@ function OrientationFields({
             </span>
             <input
               value={text(answers[promptKey])}
-              placeholder="Type a short answer"
+              placeholder={orientationPlaceholder(promptKey)}
               onChange={(event) => setFormState((current) => ({
                 ...current,
                 answers: { ...asRecord(current.answers), [promptKey]: event.target.value },
@@ -545,9 +671,15 @@ function FluencyFields({
   formState: FormState;
   setFormState: Dispatch<SetStateAction<FormState>>;
 }) {
-  const prompt = text(content.letter)
-    ? `Words beginning with ${text(content.letter)}`
-    : `Words in this category: ${text(content.category, "category")}`;
+  const letter = text(content.letter);
+  const category = text(content.category, "category");
+  const targetLabel = letter ? letter.toUpperCase() : category;
+  const instruction = letter
+    ? `Say words that start with ${targetLabel}`
+    : `Name ${targetLabel}`;
+  const hint = letter
+    ? "Add one word each time it comes to mind."
+    : "Any real word in this group counts.";
   const durationSeconds = 60;
   const [draft, setDraft] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(durationSeconds);
@@ -559,7 +691,7 @@ function FluencyFields({
   useEffect(() => {
     setDraft("");
     setSecondsLeft(durationSeconds);
-  }, [prompt]);
+  }, [instruction]);
 
   useEffect(() => {
     if (!started || complete) return;
@@ -579,37 +711,40 @@ function FluencyFields({
   };
 
   return (
-    <div className="grid gap-4">
-      <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Timed word round</p>
-            <h3 className="mt-1 text-[21px] font-black leading-tight text-[#2f2135]">{prompt}</h3>
-          </div>
-          <span className="rounded-full bg-white px-3 py-2 text-sm font-black text-[#6B21A8]" aria-live="polite">
-            {complete ? "Done" : started ? `${secondsLeft}s` : "60s"}
-          </span>
+    <section className="overflow-hidden rounded-[24px] border border-[#D8C7FF] bg-[#F8F4FF]">
+      <div className="grid gap-3 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div>
+          <h3 className="text-[30px] font-black leading-none text-[#2f2135] sm:text-[36px]">{instruction}</h3>
+          <p className="mt-2 text-[16px] font-bold leading-snug text-[#62564f]">{hint}</p>
         </div>
-        <p className="mt-3 text-[14px] font-bold leading-relaxed text-[#62564f]">
-          Add one word at a time. Repeats are saved but only unique words count in the report.
-        </p>
-        {!started ? (
+        <div className="flex items-center gap-3 sm:justify-end">
+          <div className="flex h-[74px] w-[74px] shrink-0 flex-col items-center justify-center rounded-[22px] bg-white text-[#6B21A8] shadow-sm" aria-live="polite">
+            {complete ? <CheckCircle2 size={23} /> : <Timer size={21} />}
+            <span className="mt-1 text-[22px] font-black leading-none">{complete ? "Done" : started ? secondsLeft : 60}</span>
+            {!complete ? <span className="text-[11px] font-black uppercase tracking-[0.08em]">sec</span> : null}
+          </div>
+          <div className="flex h-[74px] min-w-[88px] flex-col items-center justify-center rounded-[22px] bg-[#ECFDF5] px-4 text-[#047857] shadow-sm">
+            <span className="text-[26px] font-black leading-none">{uniqueWords.length}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.08em]">unique</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-[#E8DDFF] bg-white/70 p-4">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[160px_minmax(0,1fr)_112px]">
           <button
             type="button"
             onClick={() => setFormState((current) => ({ ...current, fluencyStarted: true, fluencyComplete: false }))}
-            className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center rounded-[18px] bg-[#2f2135] px-4 text-[15px] font-black text-white"
+            disabled={started && !complete}
+            className="col-span-2 inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[20px] bg-[#2f2135] px-5 text-[17px] font-black text-white shadow-[0_12px_22px_rgba(47,33,53,0.16)] disabled:bg-[#EDE9FE] disabled:text-[#6B21A8] sm:col-span-1"
           >
-            Start word round
+            {started && !complete ? <CheckCircle2 size={22} /> : <PlayCircle size={22} />}
+            {started && !complete ? "Started" : complete ? "Start again" : "Start"}
           </button>
-        ) : null}
-      </div>
-
-      <div className="rounded-[22px] border border-[#EFE7DE] bg-[#FFFCF8] p-4">
-        <div className="flex gap-2">
           <input
             value={draft}
             disabled={!started || complete}
-            placeholder={complete ? "Time complete" : "Type a word"}
+            placeholder={complete ? "Round complete" : started ? "Type one word" : "Press Start first"}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === ",") {
@@ -617,39 +752,55 @@ function FluencyFields({
                 addWord();
               }
             }}
-            className="min-h-[52px] min-w-0 flex-1 rounded-[18px] border border-[#E8DED4] bg-white px-4 text-[16px] font-bold text-[#2f2135] outline-none focus:border-[#A855F7] disabled:opacity-60"
+            className="min-h-[56px] min-w-0 flex-1 rounded-[20px] border border-[#E8DED4] bg-white px-5 text-[18px] font-black text-[#2f2135] outline-none focus:border-[#A855F7] disabled:opacity-60"
+            aria-label="Type one word"
           />
           <button
             type="button"
             onClick={addWord}
             disabled={!started || complete || !draft.trim()}
-            className="min-h-[52px] rounded-[18px] bg-[#7C3AED] px-4 text-[15px] font-black text-white disabled:opacity-50"
+            className="inline-flex min-h-[56px] min-w-[92px] items-center justify-center gap-2 rounded-[20px] bg-[#7C3AED] px-4 text-[16px] font-black text-white disabled:opacity-50 sm:min-w-[112px]"
           >
+            <Plus size={20} />
             Add
           </button>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {words.length === 0 ? (
-            <span className="text-[13px] font-bold text-[#766b63]">Words will appear here.</span>
-          ) : words.map((word, index) => (
-            <span key={`${word}-${index}`} className="rounded-full bg-white px-3 py-1.5 text-sm font-black text-[#2f2135] shadow-sm">
-              {word}
-            </span>
-          ))}
+
+        <div className="mt-3 flex flex-wrap gap-2 text-[13px] font-black text-[#6B21A8]">
+          <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Type word</span>
+          <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Press Enter</span>
+          <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Keep going</span>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2 text-sm font-black">
-          <span className="rounded-full bg-[#ECFDF5] px-3 py-1.5 text-[#047857]">{uniqueWords.length} unique</span>
+
+        <div className="mt-3 min-h-[50px] rounded-[20px] border border-[#F3E8DD] bg-white/80 p-3">
+          <div className="flex flex-wrap gap-2">
+            {words.length === 0 ? (
+              <span className="text-[14px] font-bold text-[#766b63]">
+                {started ? "Your words will appear here." : "Start the timer, then add words quickly."}
+              </span>
+            ) : words.map((word, index) => (
+              <span key={`${word}-${index}`} className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-sm font-black text-[#2f2135] shadow-sm">
+                {word}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[13px] font-bold text-[#766b63]">
+            Repeats are okay. Only different words count.
+          </p>
           <button
             type="button"
             onClick={() => setFormState((current) => ({ ...current, fluencyComplete: true }))}
             disabled={!started || complete}
-            className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-[#6B21A8] disabled:opacity-50"
+            className="min-h-[42px] rounded-full bg-[#F5F3FF] px-5 text-[15px] font-black text-[#6B21A8] disabled:opacity-50"
           >
-            Finish round
+            Done
           </button>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -669,6 +820,7 @@ function DigitSpanFields({
   const [direction, setDirection] = useState<DigitDirection>("forward");
   const [trialIndex, setTrialIndex] = useState(0);
   const [showing, setShowing] = useState(false);
+  const [hasShown, setHasShown] = useState(false);
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState("");
   const trials = direction === "forward" ? forwardTrials : backwardTrials;
@@ -681,6 +833,7 @@ function DigitSpanFields({
     setDirection("forward");
     setTrialIndex(0);
     setShowing(false);
+    setHasShown(false);
     setAnswer("");
     setFeedback("");
   }, [content.forward_prompt]);
@@ -697,7 +850,8 @@ function DigitSpanFields({
       setDirection("backward");
       setTrialIndex(0);
       setAnswer("");
-      setFeedback("Now try the numbers backward.");
+      setHasShown(false);
+      setFeedback("Good. Now try the numbers backward.");
       return;
     }
     setFeedback("Digit span complete. You can continue.");
@@ -724,12 +878,12 @@ function DigitSpanFields({
     finishDirection();
   };
 
-  const checkAnswer = () => {
+  const checkAnswer = (overrideAnswer?: string) => {
     if (!trial || isComplete) return;
     const shownDigits = sequenceDigits(trial.sequence);
     const expectedDigits = direction === "forward" ? shownDigits : [...shownDigits].reverse();
     const expected = expectedDigits.join("");
-    const actual = digitsOnly(answer);
+    const actual = digitsOnly(overrideAnswer ?? answer);
     const correct = actual === expected;
     const nextSpan = correct ? trial.length : 0;
     setFormState((current) => {
@@ -752,10 +906,19 @@ function DigitSpanFields({
         ],
       };
     });
-    setFeedback(correct ? "Correct. Try the next one." : "That one was not exact. Try one more at this level.");
+    const skipped = overrideAnswer !== undefined && actual.length === 0;
+    setFeedback(correct ? "Correct. Try the next one." : skipped ? "No problem. Try one more at this level." : "That one was not exact. Try one more at this level.");
     setAnswer("");
     setShowing(false);
+    setHasShown(false);
     moveAfterAnswer(correct);
+  };
+
+  const showNumbers = () => {
+    setShowing(true);
+    setHasShown(true);
+    setAnswer("");
+    setFeedback("");
   };
 
   if (forwardTrials.length === 0 || backwardTrials.length === 0) {
@@ -769,7 +932,28 @@ function DigitSpanFields({
   return (
     <div className="grid gap-4">
       <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] p-4">
-        <p className="text-[15px] font-black leading-relaxed text-[#5B21B6]">
+        <div className="mb-4 grid grid-cols-3 gap-2 text-center text-[11px] font-black uppercase tracking-[0.08em]">
+          {[
+            { key: "forward", label: "Forward", done: forwardSpan > 0 || direction === "backward" || isComplete, active: direction === "forward" && !isComplete },
+            { key: "backward", label: "Backward", done: backwardSpan > 0 || isComplete, active: direction === "backward" && !isComplete },
+            { key: "save", label: "Save", done: isComplete, active: isComplete },
+          ].map((step) => (
+            <span
+              key={step.key}
+              className={`rounded-full px-2 py-2 ${
+                step.done
+                  ? "bg-[#ECFDF5] text-[#047857]"
+                  : step.active
+                  ? "bg-white text-[#6B21A8] shadow-sm"
+                  : "bg-white/60 text-[#8A7C73]"
+              }`}
+            >
+              {step.label}
+            </span>
+          ))}
+        </div>
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Number memory</p>
+        <p className="mt-1 text-[18px] font-black leading-snug text-[#2f2135]">
           {isComplete
             ? "Digit span complete. You can continue."
             : direction === "forward"
@@ -790,8 +974,18 @@ function DigitSpanFields({
 
       <div className="rounded-[22px] border border-[#EFE7DE] bg-[#FFFCF8] p-4">
         {isComplete ? (
-          <div className="rounded-[18px] bg-[#ECFDF5] px-4 py-3 text-[15px] font-black text-[#047857]">
-            Digit span saved: {forwardSpan + backwardSpan} total span.
+          <div className="rounded-[20px] border border-[#BBF7D0] bg-[#ECFDF5] px-4 py-4 text-[#047857]">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white">
+                <CheckCircle2 size={22} />
+              </span>
+              <span>
+                <span className="block text-[17px] font-black">Both rounds are complete.</span>
+                <span className="mt-1 block text-[13px] font-bold leading-snug">
+                  {forwardSpan + backwardSpan} total span. Press Save and continue below to store this step.
+                </span>
+              </span>
+            </div>
           </div>
         ) : (
           <>
@@ -800,46 +994,62 @@ function DigitSpanFields({
                 <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">{direction} round</p>
                 <h3 className="mt-1 text-[21px] font-black text-[#2f2135]">Length {trial?.length ?? "-"}</h3>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowing(true);
-                  setFeedback("");
-                }}
-                className="min-h-[44px] rounded-[16px] bg-[#2f2135] px-4 text-sm font-black text-white"
-              >
-                Show numbers
-              </button>
+              <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-xs font-black text-[#6B21A8]">
+                {direction === "forward" ? "Same order" : "Reverse order"}
+              </span>
             </div>
             <div className="mt-4 flex min-h-[86px] items-center justify-center rounded-[20px] bg-white px-4 text-center">
               {showing && trial ? (
                 <p className="text-[34px] font-black tracking-[0.3em] text-[#2f2135]">{sequenceDigits(trial.sequence).join(" ")}</p>
+              ) : hasShown ? (
+                <p className="text-[17px] font-black leading-relaxed text-[#2f2135]">
+                  Now type {direction === "forward" ? "the same numbers" : "the numbers backward"}.
+                </p>
               ) : (
                 <p className="text-[15px] font-bold leading-relaxed text-[#766b63]">
-                  Press Show numbers. They will disappear, then type what you remember.
+                  Press Show numbers. Then type what you remember.
                 </p>
               )}
             </div>
-            <div className="mt-4 flex gap-2">
-              <input
-                value={answer}
-                inputMode="numeric"
-                placeholder={direction === "forward" ? "Type same order" : "Type reverse order"}
-                onChange={(event) => setAnswer(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") checkAnswer();
-                }}
-                className="min-h-[52px] min-w-0 flex-1 rounded-[18px] border border-[#E8DED4] bg-white px-4 text-[18px] font-black tracking-[0.12em] text-[#2f2135] outline-none focus:border-[#A855F7]"
-              />
+            {!hasShown && !showing ? (
               <button
                 type="button"
-                onClick={checkAnswer}
-                disabled={!answer.trim()}
-                className="min-h-[52px] rounded-[18px] bg-[#7C3AED] px-4 text-[15px] font-black text-white disabled:opacity-50"
+                onClick={showNumbers}
+                className="mt-4 inline-flex min-h-[56px] w-full items-center justify-center rounded-[18px] bg-[#2f2135] px-4 text-[16px] font-black text-white"
               >
-                Check
+                Show numbers
               </button>
-            </div>
+            ) : null}
+            {hasShown && !showing ? (
+              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+                <input
+                  value={answer}
+                  inputMode="numeric"
+                  placeholder={direction === "forward" ? "Type same order" : "Type reverse order"}
+                  autoFocus
+                  onChange={(event) => setAnswer(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") checkAnswer();
+                  }}
+                  className="min-h-[56px] min-w-0 rounded-[18px] border border-[#E8DED4] bg-white px-4 text-[20px] font-black tracking-[0.12em] text-[#2f2135] outline-none focus:border-[#A855F7]"
+                />
+                <button
+                  type="button"
+                  onClick={() => checkAnswer()}
+                  disabled={!answer.trim()}
+                  className="min-h-[56px] rounded-[18px] bg-[#7C3AED] px-5 text-[16px] font-black text-white disabled:opacity-50"
+                >
+                  Check answer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => checkAnswer("")}
+                  className="min-h-[56px] rounded-[18px] border border-[#E8DED4] bg-white px-5 text-[15px] font-black text-[#62564f]"
+                >
+                  I don't remember
+                </button>
+              </div>
+            ) : null}
           </>
         )}
         {feedback ? <p className="mt-3 text-[13px] font-black text-[#5B21B6]">{feedback}</p> : null}
@@ -915,7 +1125,7 @@ function ClockDrawingFields({
           Set the clock to {targetTime}
         </h3>
         <p className="mt-2 text-[14px] font-bold leading-relaxed text-[#62564f]">
-          Use the controls to place the clock hands. This records a tracking signal, not a diagnosis.
+          Choose the hour and minute. The preview updates as you go.
         </p>
       </div>
       <div className="rounded-[22px] border border-[#EFE7DE] bg-[#FFFCF8] p-4">
@@ -944,12 +1154,15 @@ function ClockDrawingFields({
             </select>
           </label>
         </div>
-        <TextArea
-          label="Optional note"
-          placeholder="Add anything you want to note about the drawing."
-          value={text(formState.text)}
-          onChange={(value) => setFormState((current) => ({ ...current, text: value }))}
-        />
+        <div className="mt-4">
+          <TextArea
+            label="Optional note"
+            placeholder="Add anything you want to note about the drawing."
+            rows={3}
+            value={text(formState.text)}
+            onChange={(value) => setFormState((current) => ({ ...current, text: value }))}
+          />
+        </div>
       </div>
     </div>
   );
@@ -980,12 +1193,7 @@ function TaskFields({
 
   if (task.id === "story_recall_delayed") {
     return (
-      <TextArea
-        label={`Recall the story: ${text(content.title, "Earlier story")}`}
-        placeholder="Without looking back, type anything you remember."
-        value={text(formState.text)}
-        onChange={(value) => setFormState((current) => ({ ...current, text: value }))}
-      />
+      <StoryRecallDelayedFields content={content} formState={formState} setFormState={setFormState} />
     );
   }
 
@@ -1004,8 +1212,19 @@ function TaskFields({
   if (task.id === "similarities") {
     const answers = asRecord(formState.answers);
     const items = asArray(content.items).map((item) => asRecord(item));
+    const answeredCount = answeredCountForItems(items, answers);
     return (
       <div className="grid gap-4">
+        <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <p className="text-[15px] font-black leading-relaxed text-[#5B21B6]">
+              Think of the shared idea. A short phrase is enough.
+            </p>
+            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#6B21A8]">
+              {answeredCount}/{items.length} answered
+            </span>
+          </div>
+        </div>
         {items.length === 0 ? (
           <p className="rounded-[20px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 text-[15px] font-black text-[#92400E]">
             Similarities content is not loaded for this language yet.
@@ -1014,17 +1233,23 @@ function TaskFields({
           const itemId = text(item.id, `item-${index}`);
           const pair = asArray(asRecord(item.content).pair).map(String);
           return (
-            <label key={itemId} className="block">
-              <span className="text-sm font-black text-[#2f2135]">
-                How are {pair[0] ?? "these"} and {pair[1] ?? "these"} alike?
+            <label key={itemId} className="block rounded-[22px] border border-[#EFE7DE] bg-[#FFFCF8] p-4">
+              <span className="flex items-start gap-3">
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#F5F3FF] text-sm font-black text-[#6B21A8]">
+                  {index + 1}
+                </span>
+                <span className="pt-1 text-[16px] font-black leading-snug text-[#2f2135]">
+                  How are {pair[0] ?? "these"} and {pair[1] ?? "these"} alike?
+                </span>
               </span>
               <input
                 value={text(answers[itemId])}
+                placeholder="Type the shared idea"
                 onChange={(event) => setFormState((current) => ({
                   ...current,
                   answers: { ...asRecord(current.answers), [itemId]: event.target.value },
                 }))}
-                className="mt-2 min-h-[52px] w-full rounded-[18px] border border-[#E8DED4] bg-white px-4 text-[16px] font-bold text-[#2f2135] outline-none focus:border-[#A855F7]"
+                className="mt-3 min-h-[52px] w-full rounded-[18px] border border-[#E8DED4] bg-white px-4 text-[16px] font-bold text-[#2f2135] outline-none focus:border-[#A855F7]"
               />
             </label>
           );
@@ -1040,44 +1265,8 @@ function TaskFields({
   }
 
   if (["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"].includes(task.id)) {
-    const answers = asRecord(formState.answers);
-    const items = asArray(content.items).map((item) => asRecord(item));
-    const scale = asArray(content.scale).map((item) => asRecord(item));
     return (
-      <div className="grid gap-5">
-        {text(content.intro) ? (
-          <p className="rounded-[20px] bg-[#F5F3FF] px-4 py-3 text-[15px] font-bold leading-relaxed text-[#5B21B6]">{text(content.intro)}</p>
-        ) : null}
-        {items.map((item) => {
-          const itemId = text(item.id);
-          return (
-            <fieldset key={itemId} className="rounded-[22px] border border-[#EFE7DE] bg-[#FFFCF8] p-4">
-              <legend className="text-[16px] font-black leading-snug text-[#2f2135]">{text(item.text)}</legend>
-              <div className="mt-3 grid gap-2">
-                {scale.map((option) => {
-                  const value = String(numberValue(option.value));
-                  return (
-                    <label key={`${itemId}-${value}`} className="flex min-h-[48px] items-center gap-3 rounded-[16px] bg-white px-3 text-[15px] font-bold text-[#2f2135] shadow-sm">
-                      <input
-                        type="radio"
-                        name={itemId}
-                        value={value}
-                        checked={String(answers[itemId] ?? "") === value}
-                        onChange={(event) => setFormState((current) => ({
-                          ...current,
-                          answers: { ...asRecord(current.answers), [itemId]: event.target.value },
-                        }))}
-                        className="h-5 w-5 accent-[#7C3AED]"
-                      />
-                      {text(option.label)}
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-          );
-        })}
-      </div>
+      <QuestionnaireFields content={content} formState={formState} setFormState={setFormState} />
     );
   }
 
@@ -1091,12 +1280,173 @@ function TaskFields({
   );
 }
 
+function QuestionnaireFields({
+  content,
+  formState,
+  setFormState,
+}: {
+  content: Record<string, unknown>;
+  formState: FormState;
+  setFormState: Dispatch<SetStateAction<FormState>>;
+}) {
+  const answers = asRecord(formState.answers);
+  const items = asArray(content.items).map((item) => asRecord(item));
+  const scale = asArray(content.scale).map((item) => asRecord(item));
+  const answeredCount = items.filter((item) => {
+    const itemId = text(item.id);
+    return itemId && answers[itemId] !== undefined && answers[itemId] !== null && String(answers[itemId]).trim() !== "";
+  }).length;
+
+  return (
+    <div className="grid gap-4">
+      {text(content.intro) ? (
+        <div className="rounded-[22px] border border-[#DDD6FE] bg-[#F5F3FF] px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Quick check</p>
+              <p className="mt-1 text-[16px] font-black leading-snug text-[#4C1D95]">{text(content.intro)}</p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-[#6B21A8]">
+              {answeredCount}/{items.length || 0} answered
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      {items.map((item, index) => {
+        const itemId = text(item.id, `item-${index}`);
+        const selectedValue = String(answers[itemId] ?? "");
+        return (
+          <fieldset key={itemId} className="rounded-[24px] border border-[#E8DED4] bg-[#FFFCF8] p-4 shadow-[0_8px_20px_rgba(63,45,35,0.04)]">
+            <legend className="sr-only">{text(item.text)}</legend>
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-[#6B21A8] shadow-sm">
+                {index + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[18px] font-black leading-snug text-[#2f2135]">{text(item.text)}</h3>
+                {selectedValue ? (
+                  <p className="mt-1 text-xs font-black uppercase tracking-[0.08em] text-[#059669]">Answered</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              {scale.map((option) => {
+                const value = String(numberValue(option.value));
+                const checked = selectedValue === value;
+                return (
+                  <label
+                    key={`${itemId}-${value}`}
+                    className={`flex min-h-[64px] cursor-pointer items-center gap-3 rounded-[18px] border px-3 py-3 text-[14px] font-black leading-snug shadow-sm transition ${
+                      checked
+                        ? "border-[#7C3AED] bg-[#F5F3FF] text-[#4C1D95] shadow-[0_8px_18px_rgba(124,58,237,0.13)]"
+                        : "border-[#EFE7DE] bg-white text-[#2f2135] hover:border-[#D8B4FE] hover:bg-[#FAF5FF]"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={itemId}
+                      value={value}
+                      checked={checked}
+                      onChange={(event) => setFormState((current) => ({
+                        ...current,
+                        answers: { ...asRecord(current.answers), [itemId]: event.target.value },
+                      }))}
+                      className="sr-only"
+                    />
+                    <span className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border ${
+                      checked ? "border-[#7C3AED] bg-[#7C3AED] text-white" : "border-[#9C918A] bg-white text-transparent"
+                    }`}>
+                      <CheckCircle2 size={16} />
+                    </span>
+                    <span>{text(option.label)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        );
+      })}
+    </div>
+  );
+}
+
 function taskBlocker(task: CognitiveAssessmentRunnerTask, formState: FormState) {
+  const content = asRecord(task.content);
+  const answers = asRecord(formState.answers);
   if (task.id === "story_recall_immediate" && !formState.storyReadComplete) return "Read story first";
-  if (task.id.includes("fluency") && !formState.fluencyComplete) return "Finish word round";
+  if (task.id.includes("story_recall") && !text(formState.text) && !formState.storyNoRecall) return "Add recall or mark none";
+  if (task.id === "orientation") {
+    const items = asArray(content.items).map((item) => asRecord(item));
+    if (items.length > 0 && answeredCountForItems(items, answers) < items.length) return "Answer each question";
+  }
+  if (task.id === "similarities") {
+    const items = asArray(content.items).map((item) => asRecord(item));
+    if (items.length > 0 && answeredCountForItems(items, answers) < items.length) return "Answer each pair";
+  }
+  if (["mood_screen", "sleep_energy", "function_iadl", "subjective_concern"].includes(task.id)) {
+    const items = asArray(content.items).map((item) => asRecord(item));
+    if (items.length > 0 && answeredCountForItems(items, answers) < items.length) return "Answer every item";
+  }
+  if (task.id.includes("fluency") && !formState.fluencyComplete) return "Finish this round";
   if (task.id === "digit_span" && !formState.digitComplete) return "Complete digit span";
   if (task.id === "clock_drawing" && (!text(formState.clockHour) || !text(formState.clockMinute))) return "Set clock hands";
   return null;
+}
+
+function StepTransitionScreen({
+  transition,
+  onContinue,
+}: {
+  transition: StepTransition;
+  onContinue: () => void;
+}) {
+  return (
+    <main className="min-h-screen bg-[#F7F2EB] pb-32">
+      <RunnerHeader
+        currentStep={transition.nextIndex + 1}
+        totalSteps={transition.totalSteps}
+        detail={`${transition.completedCount}/${transition.totalSteps} saved, about ${transition.remainingMinutes} min left`}
+      />
+      <section className="px-5 pt-5">
+        <div className="rounded-[28px] border border-[#DDD6FE] bg-white p-5 text-center shadow-[0_18px_40px_rgba(63,45,35,0.08)]">
+          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#ECFDF5] text-[#059669]">
+            <CheckCircle2 size={34} />
+          </span>
+          <p className="mt-4 text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Step saved</p>
+          <h1 className="mt-1 text-[30px] font-black leading-tight text-[#2f2135]">{transition.savedLabel}</h1>
+          <div className="mx-auto mt-5 max-w-[420px] rounded-[22px] border border-[#E8DED4] bg-[#FFFCF8] px-4 py-4 text-left">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#8A7C73]">
+              {transition.savedDomain === transition.nextDomain ? "Next step" : "New section"}
+            </p>
+            <p className="mt-1 text-[20px] font-black leading-tight text-[#2f2135]">{transition.nextLabel}</p>
+            <p className="mt-1 text-[13px] font-bold text-[#766b63]">
+              {transition.savedDomain === transition.nextDomain
+                ? transition.nextDomain
+                : `${transition.savedDomain} complete. Next: ${transition.nextDomain}.`}
+            </p>
+          </div>
+          <div className="mt-5 flex flex-wrap justify-center gap-2 text-[12px] font-black">
+            <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-[#6B21A8]">
+              {transition.completedCount}/{transition.totalSteps} saved
+            </span>
+            <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 text-[#9A3412]">
+              Take a breath
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onContinue}
+            className="mt-6 inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#2f2135] px-5 text-[16px] font-black text-white"
+          >
+            Continue now
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function RunnerTaskScreen({
@@ -1122,26 +1472,61 @@ function RunnerTaskScreen({
 }) {
   const isLast = currentIndex >= session.tasks.length - 1;
   const completedCount = session.completedTaskIds.length;
+  const remainingMinutes = estimatedRemainingMinutes(session.tasks, currentIndex);
   const blocker = taskBlocker(task, formState);
+  const usesInlineGuidedControls = task.id === "digit_span" || task.id.includes("fluency");
+  const showPrimarySubmit = !blocker || !usesInlineGuidedControls;
   const submitDisabled = isSaving || Boolean(blocker);
+  const guidedBlockerCopy = task.id === "digit_span"
+    ? "Use Show numbers, then Check answer. Save unlocks after forward and backward rounds."
+    : "Finish the round above";
+  const isFluencyTask = task.id.includes("fluency");
+  const durationLabel = `${Math.round(task.expectedDurationSec / 60) || 1} min`;
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-32">
-      <RunnerHeader currentStep={currentIndex + 1} totalSteps={session.tasks.length} />
-      <section className="grid gap-4 px-5 pt-5">
+      <RunnerHeader
+        currentStep={currentIndex + 1}
+        totalSteps={session.tasks.length}
+        detail={`${completedCount}/${session.tasks.length} saved, about ${remainingMinutes} min left`}
+      />
+      <section className="grid gap-4 px-5 pt-4">
         <div className="rounded-[26px] border border-[#E8DED4] bg-white p-5 shadow-[0_12px_28px_rgba(63,45,35,0.06)]">
-          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">{task.domain}</p>
-          <h2 className="mt-1 text-[26px] font-black leading-tight text-[#2f2135]">{task.label}</h2>
-          <div className="mt-2 flex flex-wrap gap-2 text-[13px] font-black">
-            <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-[#6B21A8]">
-              {completedCount}/{session.tasks.length} saved
-            </span>
-            <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 text-[#9A3412]">
-              About {Math.round(task.expectedDurationSec / 60) || 1} minute
-            </span>
+          {isFluencyTask ? (
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Word round</p>
+                <h2 className="mt-1 text-[25px] font-black leading-tight text-[#2f2135]">{task.label}</h2>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[13px] font-black sm:justify-end">
+                <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-[#6B21A8]">
+                  {completedCount}/{session.tasks.length} saved
+                </span>
+                <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 text-[#9A3412]">
+                  {durationLabel}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">{task.domain}</p>
+              <h2 className="mt-1 text-[26px] font-black leading-tight text-[#2f2135]">{task.label}</h2>
+              <div className="mt-2 flex flex-wrap gap-2 text-[13px] font-black">
+                <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-[#6B21A8]">
+                  {completedCount}/{session.tasks.length} saved
+                </span>
+                <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 text-[#9A3412]">
+                  {durationLabel}
+                </span>
+              </div>
+            </>
+          )}
+          <div className="mt-4 rounded-[18px] border border-[#EFE7DE] bg-[#FFFCF8] px-4 py-3">
+            <p className="text-xs font-black uppercase tracking-[0.1em] text-[#8A7C73]">What to do now</p>
+            <p className="mt-1 text-[14px] font-black leading-relaxed text-[#2f2135]">{taskInstruction(task, formState)}</p>
+            <p className="mt-1 text-[12px] font-bold leading-relaxed text-[#766b63]">
+              You can pause and come back; VYVA will continue from the next unfinished step.
+            </p>
           </div>
-          <p className="mt-3 text-[14px] font-bold leading-relaxed text-[#766b63]">
-            You can pause and come back; VYVA will continue from the next unfinished step.
-          </p>
           <div className="mt-5">
             <TaskFields task={task} formState={formState} setFormState={setFormState} />
           </div>
@@ -1162,15 +1547,21 @@ function RunnerTaskScreen({
           >
             Back
           </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={submitDisabled}
-            className="inline-flex min-h-[56px] flex-[1.4] items-center justify-center gap-2 rounded-[20px] bg-[#7C3AED] px-5 text-[16px] font-black text-white disabled:opacity-60"
-          >
-            {isSaving ? <Loader2 className="animate-spin" size={20} /> : blocker ? <Clock3 size={20} /> : isLast ? <CheckCircle2 size={20} /> : <ChevronRight size={20} />}
-            {blocker ?? (isLast ? "Finish and view report" : "Save and continue")}
-          </button>
+          {showPrimarySubmit ? (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={submitDisabled}
+              className="inline-flex min-h-[56px] flex-[1.4] items-center justify-center gap-2 rounded-[20px] bg-[#7C3AED] px-5 text-[16px] font-black text-white disabled:opacity-60"
+            >
+              {isSaving ? <Loader2 className="animate-spin" size={20} /> : blocker ? <Clock3 size={20} /> : isLast ? <CheckCircle2 size={20} /> : <ChevronRight size={20} />}
+              {blocker ?? (isLast ? "Finish and view report" : "Save and continue")}
+            </button>
+          ) : (
+            <div className="inline-flex min-h-[56px] flex-[1.4] items-center justify-center rounded-[20px] border border-[#E8DED4] bg-[#FFFCF8] px-5 text-center text-[15px] font-black text-[#766b63]">
+              {guidedBlockerCopy}
+            </div>
+          )}
         </div>
       </section>
     </main>
@@ -1223,6 +1614,7 @@ export default function CognitiveAssessmentRunnerPage() {
   });
   const [currentIndex, setCurrentIndex] = useState(0);
   const [formState, setFormState] = useState<FormState>({});
+  const [stepTransition, setStepTransition] = useState<StepTransition | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const sessionQuery = useQuery<CognitiveAssessmentLoadSessionResponse>({
@@ -1255,7 +1647,7 @@ export default function CognitiveAssessmentRunnerPage() {
   const task = session?.tasks[currentIndex] ?? null;
 
   useEffect(() => {
-    if (!session || session.completedAt || session.tasks.length === 0) return;
+    if (stepTransition || !session || session.completedAt || session.tasks.length === 0) return;
     const completed = new Set(session.completedTaskIds);
     const firstOpenIndex = session.tasks.findIndex((candidate) => !completed.has(candidate.id));
     if (firstOpenIndex < 0) return;
@@ -1263,7 +1655,16 @@ export default function CognitiveAssessmentRunnerPage() {
     if (!currentTask || completed.has(currentTask.id)) {
       setCurrentIndex(firstOpenIndex);
     }
-  }, [currentIndex, session]);
+  }, [currentIndex, session, stepTransition]);
+
+  useEffect(() => {
+    if (!stepTransition) return undefined;
+    const timer = window.setTimeout(() => {
+      setCurrentIndex(stepTransition.nextIndex);
+      setStepTransition(null);
+    }, 1100);
+    return () => window.clearTimeout(timer);
+  }, [stepTransition]);
 
   useEffect(() => {
     if (!sessionQuery.data) return;
@@ -1328,7 +1729,18 @@ export default function CognitiveAssessmentRunnerPage() {
       if (currentIndex >= session.tasks.length - 1) {
         await completeMutation.mutateAsync();
       } else {
-        setCurrentIndex((index) => Math.min(index + 1, session.tasks.length - 1));
+        const nextIndex = Math.min(currentIndex + 1, session.tasks.length - 1);
+        const nextTask = session.tasks[nextIndex];
+        setStepTransition({
+          savedLabel: task.label,
+          savedDomain: task.domain,
+          nextLabel: nextTask?.label ?? "Next step",
+          nextDomain: nextTask?.domain ?? "Cognitive Assessment",
+          nextIndex,
+          completedCount: Math.min(session.completedTaskIds.length + 1, session.tasks.length),
+          totalSteps: session.tasks.length,
+          remainingMinutes: estimatedRemainingMinutes(session.tasks, nextIndex),
+        });
       }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Assessment response could not be saved.");
@@ -1336,6 +1748,7 @@ export default function CognitiveAssessmentRunnerPage() {
   };
 
   const handleBack = () => {
+    setStepTransition(null);
     setCurrentIndex((index) => Math.max(index - 1, 0));
   };
 
@@ -1353,6 +1766,17 @@ export default function CognitiveAssessmentRunnerPage() {
   if (sessionQuery.isLoading || !session) return <LoadingScreen />;
   if (session.tasks.length === 0) return <NoTasksScreen />;
   if (!task) return <LoadingScreen />;
+  if (stepTransition) {
+    return (
+      <StepTransitionScreen
+        transition={stepTransition}
+        onContinue={() => {
+          setCurrentIndex(stepTransition.nextIndex);
+          setStepTransition(null);
+        }}
+      />
+    );
+  }
 
   return (
     <RunnerTaskScreen

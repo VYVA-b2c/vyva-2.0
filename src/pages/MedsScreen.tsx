@@ -832,9 +832,9 @@ const MedsScreen = () => {
   const progressPercent = totalScheduledDoseCount > 0 ? (totalTakenDoseCount / totalScheduledDoseCount) * 100 : 0;
   const progressPercentRounded = Math.round(progressPercent);
   const nextMedication = pendingMeds[0] ?? null;
-  const savedProviders = onboardingState?.profile?.data_sharing_consent?.providers?.providers ?? [];
+  const savedProviders = onboardingState?.profile?.data_sharing_consent?.providers?.providers;
   const pharmacyProvider = useMemo(
-    () => savedProviders.find(isPharmacyProvider) ?? null,
+    () => savedProviders?.find(isPharmacyProvider) ?? null,
     [savedProviders],
   );
   const pharmacyPhone = providerPhone(pharmacyProvider);

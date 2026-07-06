@@ -124,6 +124,8 @@ type SyncRun = {
 type SyncState = {
   provider: string;
   configured: boolean;
+  canRunSync: boolean;
+  requiredRunnerEmail: string | null;
   apiUrl: string | null;
   mode: string;
   realSendingLocked: boolean;
@@ -186,6 +188,8 @@ const emptySummary: MarketingSummary = {
 const emptySync: SyncState = {
   provider: "lovable",
   configured: false,
+  canRunSync: false,
+  requiredRunnerEmail: null,
   apiUrl: null,
   mode: "one_way_into_vyva",
   realSendingLocked: true,
@@ -319,6 +323,8 @@ export default function MarketingAdminPage() {
   const [content, setContent] = useState<ContentAsset[]>([]);
   const [contacts, setContacts] = useState<MarketingContact[]>([]);
   const [syncState, setSyncState] = useState<SyncState>(emptySync);
+  const [syncRunning, setSyncRunning] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState("");
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
@@ -444,10 +450,31 @@ export default function MarketingAdminPage() {
   }
 
   async function runLovableSync() {
-    await api("/api/admin/marketing/sync/lovable/run", { method: "POST" });
-    setMessage("Lovable sync completed.");
-    await refreshAll();
+    setSyncFeedback("");
+    setMessage("Running Lovable sync...");
+    setSyncRunning(true);
+    try {
+      await api("/api/admin/marketing/sync/lovable/run", { method: "POST" });
+      await refreshAll();
+      setMessage("Lovable sync completed.");
+      setSyncFeedback("Lovable sync completed.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Lovable sync failed.";
+      setMessage(errorMessage);
+      setSyncFeedback(errorMessage);
+    } finally {
+      setSyncRunning(false);
+    }
   }
+
+  const syncBlockedReason = !syncState.configured
+    ? "Set LOVABLE_MARKETING_API_URL and LOVABLE_MARKETING_API_KEY before running a sync."
+    : syncState.canRunSync === false
+      ? `Only the super admin${syncState.requiredRunnerEmail ? ` (${syncState.requiredRunnerEmail})` : ""} can run Lovable sync.`
+      : "";
+  const syncButtonDisabled = Boolean(syncBlockedReason) || syncRunning;
+  const syncFeedbackText = syncFeedback || syncBlockedReason;
+  const syncFeedbackIsError = Boolean(syncBlockedReason) || /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(syncFeedback);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -752,13 +779,21 @@ export default function MarketingAdminPage() {
                   </div>
                   <button
                     type="button"
-                    disabled={!syncState.configured}
-                    onClick={() => runLovableSync().catch((error) => setMessage(error.message))}
+                    disabled={syncButtonDisabled}
+                    onClick={() => void runLovableSync()}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
                     data-testid="button-marketing-run-sync"
                   >
-                    <RefreshCw size={16} /> Run one-way sync
+                    <RefreshCw size={16} className={syncRunning ? "animate-spin" : ""} /> {syncRunning ? "Running sync..." : "Run one-way sync"}
                   </button>
+                  {syncFeedbackText ? (
+                    <p
+                      className={`rounded-xl px-4 py-3 text-sm font-bold ${syncFeedbackIsError ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
+                      data-testid="marketing-sync-feedback"
+                    >
+                      {syncFeedbackText}
+                    </p>
+                  ) : null}
                   <div className="grid gap-2">
                     {syncState.runs.length === 0 ? <EmptyState text="No Lovable sync runs yet." /> : syncState.runs.map((run) => (
                       <div key={run.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">

@@ -161,7 +161,7 @@ const MemoryGamesPage = () => {
   };
 
   return (
-    <div className="px-[22px] pb-7">
+    <div className="mx-auto w-full max-w-[920px] px-4 pb-28 sm:px-[22px]">
       <button
         onClick={() => navigate("/mind-memory")}
         className="mt-2 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-[15px] font-medium text-vyva-text-1 shadow-vyva-card"
@@ -170,11 +170,11 @@ const MemoryGamesPage = () => {
         {t("common.back")}
       </button>
 
-      <section className="mt-5">
-        <h1 className="font-display text-[38px] leading-[1.02] text-vyva-text-1">
+      <section className="mt-3">
+        <h1 className="font-display text-[32px] leading-[1.02] text-vyva-text-1 sm:text-[36px]">
           {t("memory.title")}
         </h1>
-        <p className="mt-3 text-[20px] leading-[1.45] text-vyva-text-2">
+        <p className="mt-1.5 text-[17px] leading-[1.35] text-vyva-text-2 sm:text-[19px]">
           {t("memory.subtitle")}
         </p>
         {hasLastSession ? (
@@ -200,16 +200,16 @@ const MemoryGamesPage = () => {
         type="button"
         onClick={() => recommendation && openPlan(recommendation)}
         disabled={!recommendation || loading}
-        className="mt-5 w-full rounded-[26px] bg-vyva-purple p-5 text-left text-white shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-60"
+        className="mt-4 w-full rounded-[20px] bg-vyva-purple p-3.5 text-left text-white shadow-vyva-card transition-transform active:scale-[0.99] disabled:opacity-60 sm:p-4"
       >
-        <div className="grid grid-cols-[70px_1fr_auto] items-center gap-4">
+        <div className="grid grid-cols-[52px_1fr_auto] items-center gap-3 sm:grid-cols-[58px_1fr_auto]">
           <div
-            className="flex h-[70px] w-[70px] items-center justify-center rounded-[22px] bg-white/16"
+            className="flex h-[52px] w-[52px] items-center justify-center rounded-[17px] bg-white/16 sm:h-[58px] sm:w-[58px] sm:rounded-[19px]"
             style={{
               color: "#FFFFFF",
             }}
           >
-            <RecommendedIcon size={34} />
+            <RecommendedIcon size={28} />
           </div>
 
           <div className="min-w-0">
@@ -217,10 +217,10 @@ const MemoryGamesPage = () => {
               <Sparkles size={14} />
               {t("memory.recommendedToday")}
             </div>
-            <h2 className="mt-2 text-[26px] font-extrabold leading-[1.08] text-white">
+            <h2 className="mt-1 text-[23px] font-extrabold leading-[1.08] text-white sm:text-[25px]">
               {recommendation ? getGameTitle(recommendation.gameType, language) : t("common.loading")}
             </h2>
-            <p className="mt-1 text-[18px] font-semibold text-white/80">{summary.levelLabel}</p>
+            <p className="mt-0.5 text-[17px] font-semibold text-white/80">{summary.levelLabel}</p>
           </div>
 
           <div className="flex h-[50px] w-[50px] items-center justify-center rounded-full bg-white/14">
@@ -230,18 +230,18 @@ const MemoryGamesPage = () => {
       </button>
 
       {showExerciseChoices ? (
-        <section className="mt-7">
+        <section className="mt-5">
           <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[26px]">{t("memory.chooseAnother")}</h2>
 
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <button
               type="button"
               onClick={openRememberLater}
-              className="min-h-[160px] rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
+              className="relative h-[148px] overflow-hidden rounded-[18px] border border-vyva-border bg-white p-3.5 text-left shadow-vyva-card transition-transform active:scale-[0.99] sm:h-[152px]"
             >
               <div className="flex items-start justify-between gap-2">
-                <div className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-[20px] bg-[#FEF3C7] text-[#B45309]">
-                  <Bell size={28} />
+                <div className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FEF3C7] text-[#B45309]">
+                  <Bell size={21} />
                 </div>
 
                 <div className="rounded-full bg-[#FEF3C7] px-3 py-1 text-[12px] font-bold text-[#B45309]">
@@ -249,15 +249,15 @@ const MemoryGamesPage = () => {
                 </div>
               </div>
 
-              <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
+              <h3 className="mt-2.5 text-[19px] font-semibold leading-[1.12] text-vyva-text-1">
                 {t("games.rememberLater.cardTitle", "Remember Later")}
               </h3>
-              <p className="mt-2 line-clamp-2 text-[16px] leading-[1.35] text-vyva-text-2">
+              <p className="mt-1 line-clamp-2 text-[14px] leading-[1.28] text-vyva-text-2">
                 {t("games.rememberLater.cardDescription", "Remember a future action while you keep playing.")}
               </p>
 
-              <div className="mt-4 flex justify-end">
-                <ChevronRight size={24} style={{ color: "#B45309" }} />
+              <div className="absolute bottom-3 right-3 flex justify-end">
+                <ChevronRight size={21} style={{ color: "#B45309" }} />
               </div>
             </button>
 
@@ -270,14 +270,14 @@ const MemoryGamesPage = () => {
                 <button
                   key={gameType}
                   onClick={() => plan && openPlan(plan)}
-                  className="min-h-[160px] rounded-[22px] border border-vyva-border bg-white p-4 text-left shadow-vyva-card transition-transform active:scale-[0.99]"
+                  className="relative h-[148px] overflow-hidden rounded-[18px] border border-vyva-border bg-white p-3.5 text-left shadow-vyva-card transition-transform active:scale-[0.99] sm:h-[152px]"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div
-                      className="flex h-[60px] w-[60px] flex-shrink-0 items-center justify-center rounded-[20px]"
+                      className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[14px]"
                       style={{ background: definition.iconBg, color: definition.accentColor }}
                     >
-                      <GameIcon size={28} />
+                      <GameIcon size={21} />
                     </div>
 
                     <div
@@ -288,15 +288,15 @@ const MemoryGamesPage = () => {
                     </div>
                   </div>
 
-                  <h3 className="mt-4 text-[22px] font-semibold leading-[1.15] text-vyva-text-1">
+                  <h3 className="mt-2.5 text-[19px] font-semibold leading-[1.12] text-vyva-text-1">
                     {getGameTitle(gameType, language)}
                   </h3>
-                  <p className="mt-2 line-clamp-2 text-[16px] leading-[1.35] text-vyva-text-2">
+                  <p className="mt-1 line-clamp-2 text-[14px] leading-[1.28] text-vyva-text-2">
                     {t(definition.descriptionKey)}
                   </p>
 
-                  <div className="mt-4 flex justify-end">
-                    <ChevronRight size={24} style={{ color: definition.accentColor }} />
+                  <div className="absolute bottom-3 right-3 flex justify-end">
+                    <ChevronRight size={21} style={{ color: definition.accentColor }} />
                   </div>
                 </button>
               );

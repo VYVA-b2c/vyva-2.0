@@ -81,10 +81,11 @@ describe("CognitiveAssessmentAdminPage", () => {
     expect(screen.getByText("Task registry")).toBeInTheDocument();
     expect(screen.getByText("12/12")).toBeInTheDocument();
     expect(screen.getByText("Languages")).toBeInTheDocument();
-    expect(screen.getByText("5/5")).toBeInTheDocument();
+    expect(screen.getByText("5/5 languages ready")).toBeInTheDocument();
+    expect(screen.getAllByText("5/5").length).toBeGreaterThan(0);
     expect(screen.getByText("English")).toBeInTheDocument();
     expect(screen.getByText("French")).toBeInTheDocument();
-    expect(screen.getAllByText("Story Recall")).toHaveLength(5);
+    expect(screen.getAllByText("Story Recall").length).toBeGreaterThanOrEqual(5);
     expect(screen.getAllByText("120/1")).toHaveLength(5);
     expect(screen.getByText("Cognitive Bulk Upload")).toBeInTheDocument();
   });

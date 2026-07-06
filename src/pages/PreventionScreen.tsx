@@ -6,6 +6,24 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useServiceGate } from "@/hooks/useServiceGate";
 import { apiFetch } from "@/lib/queryClient";
+import {
+  appendPreventionLoopHistory as appendLoopHistory,
+  encodePreventionLearningQuery as encodeLearningQuery,
+  learningContextForPreventionRequest as learningContextForRequest,
+  PREVENTION_LOOP_LAST_FEEDBACK_KEY as loopLastFeedbackKey,
+  PREVENTION_LOOP_LAST_VIEW_KEY as loopLastViewKey,
+  preventionBarrierStorageKey,
+  preventionDateKey,
+  preventionFeedbackStorageKey,
+  readStoredJson,
+  writeStoredJson,
+} from "@/lib/preventionLoop";
+import type {
+  PreventionLoopBarrier as PreventionBarrier,
+  PreventionLoopHistoryEvent as PreventionHistoryEvent,
+  PreventionLoopLastFeedback as PreventionLoopLastFeedback,
+  PreventionLoopLastView as PreventionLoopLastView,
+} from "@/lib/preventionLoop";
 
 type PreventionFocus = "Heart" | "Falls" | "Diabetes" | "Medicine" | "Follow-up" | "Plan";
 
@@ -116,47 +134,6 @@ type PreventionDailyAction = {
 type PreventionFeedback = PreventionDailyAction["feedbackOptions"][number]["id"];
 
 type StoredPreventionFeedback = Record<string, PreventionFeedback>;
-
-type PreventionBarrier =
-  | "physical"
-  | "cooking"
-  | "no_ingredients"
-  | "confusing"
-  | "not_interested"
-  | "needs_help";
-
-type PreventionHistoryFeedback = Exclude<PreventionFeedback, "ask_vyva"> | "shown";
-
-type PreventionHistoryEvent = {
-  actionId: string;
-  title?: string;
-  step?: PreventionDailyAction["step"];
-  tone?: PreventionDailyAction["tone"];
-  focus?: PreventionFocus;
-  feedback: PreventionHistoryFeedback;
-  barrier?: PreventionBarrier;
-  date?: string;
-  savedAt?: string;
-};
-
-type PreventionLoopLastFeedback = {
-  focus: PreventionFocus;
-  date: string;
-  actionId: string;
-  step: PreventionDailyAction["step"];
-  tone: PreventionDailyAction["tone"];
-  feedback: Exclude<PreventionFeedback, "ask_vyva">;
-  barrier?: PreventionBarrier;
-  title: string;
-  savedAt: string;
-};
-
-type PreventionLoopLastView = {
-  focus: PreventionFocus;
-  date: string;
-  actionIds?: string[];
-  viewedAt: string;
-};
 
 type PreventionLearning = {
   title: string;
@@ -738,11 +715,6 @@ const feedbackDisplay: Record<Exclude<PreventionFeedback, "ask_vyva">, string> =
   remind: "Reminder",
 };
 
-const loopLastFeedbackKey = "vyva-prevention-loop:last-feedback";
-const loopLastViewKey = "vyva-prevention-loop:last-view";
-const loopHistoryKey = "vyva-prevention-loop:history";
-const maxLoopHistory = 30;
-
 const barrierOptions: Array<{ id: PreventionBarrier; label: string }> = [
   { id: "physical", label: "Body" },
   { id: "cooking", label: "Cooking" },
@@ -751,62 +723,6 @@ const barrierOptions: Array<{ id: PreventionBarrier; label: string }> = [
   { id: "not_interested", label: "Not today" },
   { id: "needs_help", label: "Need help" },
 ];
-
-function preventionDateKey(value: string | undefined): string {
-  const raw = String(value ?? "").slice(0, 10);
-  if (raw === "1970-01-01") return "today";
-  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : "today";
-}
-
-function readStoredJson<T>(key: string): T | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) as T : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredJson(key: string, value: unknown) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Local loop memory is useful but not required for the page to work.
-  }
-}
-
-function readLoopHistory(): PreventionHistoryEvent[] {
-  const history = readStoredJson<PreventionHistoryEvent[]>(loopHistoryKey);
-  return Array.isArray(history) ? history.filter((item) => item && typeof item.actionId === "string").slice(0, maxLoopHistory) : [];
-}
-
-function appendLoopHistory(events: PreventionHistoryEvent[]) {
-  if (!events.length) return;
-  const next = [...events, ...readLoopHistory()]
-    .filter((item, index, all) => {
-      const key = `${item.date}:${item.actionId}:${item.feedback}:${item.barrier ?? ""}`;
-      return all.findIndex((candidate) => `${candidate.date}:${candidate.actionId}:${candidate.feedback}:${candidate.barrier ?? ""}` === key) === index;
-    })
-    .slice(0, maxLoopHistory);
-  writeStoredJson(loopHistoryKey, next);
-}
-
-function learningContextForRequest() {
-  const now = new Date();
-  return {
-    clientHour: now.getHours(),
-    recentFeedback: readLoopHistory(),
-  };
-}
-
-function encodeLearningQuery(value: ReturnType<typeof learningContextForRequest>): string {
-  return encodeURIComponent(JSON.stringify({
-    clientHour: value.clientHour,
-    recentFeedback: value.recentFeedback.slice(0, maxLoopHistory),
-  }));
-}
 
 function easierPrimaryAction(action: PreventionDailyAction): PreventionGuidanceAction {
   if (action.tone === "food") {
@@ -979,11 +895,12 @@ export default function PreventionScreen() {
   const tone = toneByFocus[focus.focus] ?? toneByFocus.Plan;
   const FocusIcon = tone.icon;
   const primaryRoute = focus.primaryRoute || fallbackFocus.primaryRoute;
-  const guidanceItems = focus.guidance?.length ? focus.guidance : fallbackFocus.guidance ?? [];
   const currentDateKey = preventionDateKey(focus.generatedAt);
-  const baseDailyActions = useMemo(() => (focus.dailyActions?.length
-    ? focus.dailyActions
-    : guidanceItems.slice(0, 3).map((item) => guidanceToDailyAction(item, focus.focus))).slice(0, 3), [focus.dailyActions, focus.focus, guidanceItems]);
+  const baseDailyActions = useMemo(() => {
+    if (focus.dailyActions?.length) return focus.dailyActions.slice(0, 3);
+    const guidanceItems = focus.guidance?.length ? focus.guidance : fallbackFocus.guidance ?? [];
+    return guidanceItems.slice(0, 3).map((item) => guidanceToDailyAction(item, focus.focus));
+  }, [focus.dailyActions, focus.focus, focus.guidance]);
   const dailyActions = useMemo(() => adaptDailyActionsForLoop(
     baseDailyActions,
     actionFeedback,
@@ -1026,8 +943,8 @@ export default function PreventionScreen() {
   const doctorNote = [focus.doctorNote || focus.why.concat(focus.todayAction).join(" "), weeklySummary?.doctorSummary].filter(Boolean).join(" ");
   const talkContext = `${focus.focus}: ${learning?.askPrompt ?? focus.headline} ${doctorNote}`;
   const loopSummary = loopSummaryFor(focus, actionFeedback, lastLoopFeedback, lastLoopView, currentDateKey);
-  const feedbackStorageKey = `vyva-prevention-feedback:${focus.focus}:${currentDateKey}`;
-  const barrierStorageKey = `vyva-prevention-barriers:${focus.focus}:${currentDateKey}`;
+  const feedbackStorageKey = preventionFeedbackStorageKey(focus.focus, currentDateKey);
+  const barrierStorageKey = preventionBarrierStorageKey(focus.focus, currentDateKey);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

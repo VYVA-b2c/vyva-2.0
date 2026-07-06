@@ -158,6 +158,33 @@ describe("admin marketing router", () => {
       });
   });
 
+  it("reports whether the current admin can run Lovable sync", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+
+    await request(buildApp("ops@example.com"))
+      .get("/api/admin/marketing/sync/lovable")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          configured: true,
+          canRunSync: false,
+          requiredRunnerEmail: "karim.assad@mokadigital.net",
+        });
+      });
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .get("/api/admin/marketing/sync/lovable")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          configured: true,
+          canRunSync: true,
+          requiredRunnerEmail: "karim.assad@mokadigital.net",
+        });
+      });
+  });
+
   it("creates scheduled campaign snapshots without communication dispatch rows", async () => {
     const response = await request(buildApp())
       .post("/api/admin/marketing/campaigns")
