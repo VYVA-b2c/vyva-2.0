@@ -387,6 +387,11 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("+9 pts since last check")).toBeInTheDocument();
     expect(screen.getByText("Insight snapshot")).toBeInTheDocument();
     expect(screen.getByText("What to notice")).toBeInTheDocument();
+    expect(screen.getByTestId("assessment-strength-map")).toHaveTextContent("Strength map");
+    expect(screen.getByText("Bright spot")).toBeInTheDocument();
+    expect(screen.getByText("Focus next")).toBeInTheDocument();
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("3 small practices");
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("0/3");
     expect(screen.getByText("Most changed")).toBeInTheDocument();
     expect(screen.getByText("Memory +1")).toBeInTheDocument();
     expect(screen.getByText("Comparison confidence")).toBeInTheDocument();
@@ -412,7 +417,7 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("A first step is saved")).toBeInTheDocument();
     expect(screen.getByText("Recommended practice")).toBeInTheDocument();
     expect(screen.getByText("Why this practice")).toBeInTheDocument();
-    expect(screen.getByText("Category Sort")).toBeInTheDocument();
+    expect(screen.getAllByText("Category Sort").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("button", { name: /start recommended practice/i })).toBeInTheDocument();
     expect(screen.getByText("Use this report")).toBeInTheDocument();
     expect(screen.getAllByText("Mini history").length).toBeGreaterThanOrEqual(1);
@@ -432,7 +437,7 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("Complete baseline")).toBeInTheDocument();
     expect(screen.getByText("Baseline ready for future comparison")).toBeInTheDocument();
     expect(screen.getByText("A clear starting map")).toBeInTheDocument();
-    expect(screen.getByText("Enough areas were captured to guide today's practice and compare future checks.")).toBeInTheDocument();
+    expect(screen.getByText("Ready for one small practice and future comparison.")).toBeInTheDocument();
     expect(screen.getByText("The report is ready for future comparison after the next check.")).toBeInTheDocument();
     expect(screen.getAllByText("Repeat later").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/Finish Orientation/i)).not.toBeInTheDocument();
@@ -471,6 +476,9 @@ describe("CognitiveAssessmentReportPage", () => {
 
     expect(screen.getByTestId("assessment-practice-status")).toHaveTextContent("Practiced today");
     expect(screen.getByText("Good. You practiced Category Sort after this check.")).toBeInTheDocument();
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("1/3");
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("Done");
+    expect(screen.getByTestId("post-assessment-recommendations")).toHaveTextContent("Remember Later");
   });
 
   it("keeps program and evidence explanation in the empty state", () => {
