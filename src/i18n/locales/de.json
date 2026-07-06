@@ -293,8 +293,13 @@
   "voiceHero": {
     "talkToVyva": "Reden",
     "speaking": "VYVA spricht...",
+    "speakingStatus": "VYVA spricht",
+    "speakingFallback": "Einen Moment",
     "listening": "Hört zu...",
     "connecting": "Verbinde...",
+    "micOffShort": "Mikro aus",
+    "micOnShort": "Mikro an",
+    "touchInsteadShort": "Tippen",
     "active": "Aktiv",
     "live": "Live",
     "you": "Sie",
@@ -1151,6 +1156,10 @@
         "sub": "Symptome besprechen, auf die Sie achten sollten",
         "sheetTitle": "Nebenwirkungen prüfen",
         "prompt": "Ich nehme folgende Medikamente: {{medNames}}. Bitte helfen Sie mir, mögliche Nebenwirkungen, Symptome zur Beobachtung und Fragen für meinen Arzt oder Apotheker zu überlegen. Wenn etwas dringend klingt, sagen Sie mir, dass ich medizinische Hilfe suchen soll."
+      },
+      "refillHelp": {
+        "label": "Nachfuellhilfe",
+        "sub": "Bestellhilfe"
       }
     },
     "notes": {

@@ -7,6 +7,7 @@ import {
   BookOpen,
   Brain,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   ExternalLink,

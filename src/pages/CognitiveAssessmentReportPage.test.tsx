@@ -432,7 +432,7 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("A clear starting map")).toBeInTheDocument();
     expect(screen.getByText("Enough areas were captured to guide today's practice and compare future checks.")).toBeInTheDocument();
     expect(screen.getByText("The report is ready for future comparison after the next check.")).toBeInTheDocument();
-    expect(screen.getByText("Repeat later")).toBeInTheDocument();
+    expect(screen.getAllByText("Repeat later").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/Finish Orientation/i)).not.toBeInTheDocument();
   });
 

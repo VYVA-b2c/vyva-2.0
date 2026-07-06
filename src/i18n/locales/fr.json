@@ -293,8 +293,13 @@
   "voiceHero": {
     "talkToVyva": "Discuter",
     "speaking": "VYVA parle...",
+    "speakingStatus": "VYVA parle",
+    "speakingFallback": "Un instant",
     "listening": "En écoute...",
     "connecting": "Connexion...",
+    "micOffShort": "Micro coupe",
+    "micOnShort": "Micro actif",
+    "touchInsteadShort": "Toucher",
     "active": "Active",
     "live": "En direct",
     "you": "Vous",
@@ -1151,6 +1156,10 @@
         "sub": "Parler des signes a surveiller",
         "sheetTitle": "Verifier les effets secondaires",
         "prompt": "Je prends les medicaments suivants : {{medNames}}. Aidez-moi a reflechir aux effets secondaires possibles, aux symptomes a surveiller et aux questions a poser a mon medecin ou pharmacien. Si quelque chose semble urgent, dites-moi de consulter rapidement."
+      },
+      "refillHelp": {
+        "label": "Aide au renouvellement",
+        "sub": "Aide commande"
       }
     },
     "notes": {
