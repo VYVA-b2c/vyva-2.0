@@ -1,9 +1,9 @@
 import { Router, raw } from "express";
 import type { Request, Response } from "express";
 import OpenAI from "openai";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db.js";
-import { profiles } from "../../shared/schema.js";
+import { profiles, userHealthConditions } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
 import { getMediSearchTriageContext, type MediSearchTriageContext } from "../services/medisearch.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
@@ -73,6 +73,26 @@ function transcriptionLanguageFor(value: unknown) {
   if (typeof value !== "string") return undefined;
   const normalized = normalizeAppLanguage(value, "en");
   return normalized || undefined;
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function activeHealthConditionsFor(userId: string): Promise<string[]> {
+  if (!looksLikeUuid(userId)) return [];
+
+  const rows = await db
+    .select({ condition: userHealthConditions.condition })
+    .from(userHealthConditions)
+    .where(and(
+      eq(userHealthConditions.user_id, userId),
+      eq(userHealthConditions.is_active, true),
+    ));
+
+  return rows
+    .map((row) => row.condition.trim())
+    .filter(Boolean);
 }
 
 export async function transcribeTriageAudioHandler(req: Request, res: Response) {
@@ -1036,6 +1056,7 @@ router.get("/context", async (req: Request, res: Response) => {
       memory.latestSymptomReport ? "Recent symptoms" : "",
     ].filter(Boolean);
     const language = normalizeAppLanguage(req.language ?? req.header("X-VYVA-Language"), "en");
+    const activeConditions = await activeHealthConditionsFor(userId);
 
     return res.json({
       memory,
@@ -1043,6 +1064,7 @@ router.get("/context", async (req: Request, res: Response) => {
       countryCode: memory.countryCode || undefined,
       emergencyContact: emergencyContactForCountry(memory.countryCode),
       personalizedSuggestions: buildPersonalizedTriageSuggestions(memory, language),
+      activeConditions,
     });
   } catch (err) {
     console.error("[triage/context]", err);

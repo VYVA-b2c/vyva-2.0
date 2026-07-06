@@ -1532,6 +1532,24 @@ export const insertTriageReportSchema = createInsertSchema(triageReports).omit({
 export type InsertTriageReport = z.infer<typeof insertTriageReportSchema>;
 export type TriageReport = typeof triageReports.$inferSelect;
 
+export const insightOutcomes = pgTable("insight_outcomes", {
+  id:                 uuid("id").primaryKey().defaultRandom(),
+  user_id:            text("user_id").notNull(),
+  triage_report_id:   uuid("triage_report_id"),
+  delivered_surface:  text("delivered_surface").notNull(),
+  action_taken:       text("action_taken").notNull().default("none"),
+  tier_at_generation: integer("tier_at_generation").notNull().default(4),
+  outcome_payload:    jsonb("outcome_payload").notNull().default({}),
+  created_at:         timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("insight_outcomes_user_time_idx").on(t.user_id, t.created_at.desc()),
+  index("insight_outcomes_triage_report_idx").on(t.triage_report_id),
+]);
+
+export const insertInsightOutcomeSchema = createInsertSchema(insightOutcomes).omit({ id: true, created_at: true });
+export type InsertInsightOutcome = z.infer<typeof insertInsightOutcomeSchema>;
+export type InsightOutcome = typeof insightOutcomes.$inferSelect;
+
 
 // ============================================================
 // NEW TABLE: vitals_readings — persisted heart rate readings per user
@@ -3023,6 +3041,7 @@ export const schema = {
   participationEventChecks,
   participationNotifications,
   triageReports,
+  insightOutcomes,
   vitalsReadings,
   vyvaSignalReadings,
   vyvaUserBaselines,

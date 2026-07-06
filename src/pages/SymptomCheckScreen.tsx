@@ -16,6 +16,7 @@ import { useLanguage } from "@/i18n";
 import { apiFetch, queryClient } from "@/lib/queryClient";
 import { compactReportRecommendations, uniqueReportLines } from "@/lib/reportRecommendations";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
+import { emitVoiceSpecialistTransfer, VOICE_SPECIALIST_AGENT_SLUGS } from "@/lib/voiceNavigation";
 import type { TriagePersonalizedSuggestion } from "@/triage";
 import type { ShoppingSupportPackageId } from "../../shared/shopping";
 import type { TriageScanResult } from "../../shared/triageScans";
@@ -118,6 +119,7 @@ type TriageContextResponse = {
   countryCode?: string;
   emergencyContact?: EmergencyContact;
   personalizedSuggestions?: TriagePersonalizedSuggestion[];
+  activeConditions?: string[];
 };
 
 type ProfileContactsResponse = {
@@ -158,6 +160,7 @@ type SavedTriageReport = {
   respiratory_rate?: number | null;
   duration_seconds?: number | null;
   created_at?: string;
+  sent_to?: string[];
 };
 
 type ConciergePrefillKind = "ride" | "appointment" | "home_care_quote";
@@ -173,6 +176,7 @@ type ReportAction = {
 
 const SYMPTOM_CHECK_DRAFT_KEY = "vyva.symptomCheck.draft.v1";
 const SYMPTOM_CHECK_DRAFT_TTL_MS = 2 * 60 * 60 * 1000;
+const SYMPTOM_CHECK_VISITED_KEY = "vyva_symptom_check_visited";
 
 type SymptomCheckDraft = {
   version: 1;
@@ -191,6 +195,24 @@ type SymptomCheckDraft = {
 };
 
 const canUseSessionStorage = () => typeof window !== "undefined" && Boolean(window.sessionStorage);
+
+function readSymptomCheckVisited() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SYMPTOM_CHECK_VISITED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeSymptomCheckVisited() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SYMPTOM_CHECK_VISITED_KEY, "true");
+  } catch {
+    return;
+  }
+}
 
 function clearSymptomCheckDraft() {
   if (!canUseSessionStorage()) return;
@@ -529,10 +551,13 @@ export function AssessmentConfidenceTracker({
 
 type IntroScreenProps = {
   onStart: (clue: string) => void;
+  onEmergencyUnsure?: () => void;
   onNavigate?: (route: string) => void;
   personalizedSuggestions?: TriagePersonalizedSuggestion[];
+  activeConditions?: string[];
   profileContextItems?: string[];
   emergencyContact?: EmergencyContact | null;
+  showGuide?: boolean;
 };
 
 function fallbackIntroSuggestions(t: ReturnType<typeof useTranslation>["t"]): TriagePersonalizedSuggestion[] {
@@ -593,6 +618,240 @@ function fallbackIntroSuggestions(t: ReturnType<typeof useTranslation>["t"]): Tr
       priority: 41,
     },
   ];
+}
+
+function symptomSeverityForSummary(summary: TriageSummary): "mild" | "moderate" | "severe" {
+  if (summary.nextStepLevel === "emergency" || summary.nextStepLevel === "doctor_today" || summary.urgency === "urgent") {
+    return "severe";
+  }
+  if (summary.nextStepLevel === "doctor_24_48" || summary.urgency === "routine") {
+    return "moderate";
+  }
+  return "mild";
+}
+
+type ConditionChipGroup = "heart" | "diabetes" | "alzheimers" | "asthma" | "anxiety" | "falls" | "oncology";
+
+const conditionChipGroups: Array<{ group: ConditionChipGroup; pattern: RegExp }> = [
+  { group: "heart", pattern: /\b(heart|cardiac|coronary|angina|atrial|afib|hypertension|blood pressure|stroke|tia)\b/i },
+  { group: "diabetes", pattern: /\b(diabetes|diabetic|glucose|blood sugar|insulin|metformin)\b/i },
+  { group: "alzheimers", pattern: /\b(alzheimer|dementia|memory|cognitive)\b/i },
+  { group: "asthma", pattern: /\b(asthma|copd|emphysema|inhaler|breathing)\b/i },
+  { group: "anxiety", pattern: /\b(anxiety|panic|anxious|depression|low mood)\b/i },
+  { group: "falls", pattern: /\b(fall|falls|unsteady|frail|frailty|balance|walker|walking aid|mobility)\b/i },
+  { group: "oncology", pattern: /\b(cancer|oncology|chemo|chemotherapy|tumou?r|malignan)\b/i },
+];
+
+function matchedConditionGroups(activeConditions: string[]): ConditionChipGroup[] {
+  const normalized = activeConditions.join(" ");
+  const groups: ConditionChipGroup[] = [];
+  for (const item of conditionChipGroups) {
+    if (item.pattern.test(normalized) && !groups.includes(item.group)) groups.push(item.group);
+  }
+  return groups;
+}
+
+function conditionAwareIntroSuggestions(
+  activeConditions: string[],
+  t: ReturnType<typeof useTranslation>["t"],
+): TriagePersonalizedSuggestion[] {
+  const groupSuggestions: Record<ConditionChipGroup, TriagePersonalizedSuggestion[]> = {
+    heart: [
+      {
+        id: "condition-heart-chest-tight",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionHeartChest", "Chest feels tight"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionHeartChestClue", "Chest feels tight"),
+        tone: "red",
+        icon: "heart",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 120,
+      },
+      {
+        id: "condition-heart-short-breath",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionShortBreath", "Short of breath"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionShortBreathClue", "I feel short of breath"),
+        tone: "red",
+        icon: "wind",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 119,
+      },
+    ],
+    diabetes: [
+      {
+        id: "condition-diabetes-shaky",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionDiabetesShaky", "Feeling shaky or weak"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionDiabetesShakyClue", "I feel shaky or weak"),
+        tone: "amber",
+        icon: "activity",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 118,
+      },
+      {
+        id: "condition-diabetes-thirsty",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionDiabetesThirsty", "Very thirsty"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionDiabetesThirstyClue", "I feel very thirsty"),
+        tone: "amber",
+        icon: "droplet",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 117,
+      },
+    ],
+    alzheimers: [
+      {
+        id: "condition-alzheimers-confused",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionAlzheimersConfused", "Feeling confused"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionAlzheimersConfusedClue", "I feel confused"),
+        tone: "red",
+        icon: "brain",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 116,
+      },
+      {
+        id: "condition-alzheimers-memory",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionAlzheimersMemory", "Memory feels off"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionAlzheimersMemoryClue", "My memory feels off"),
+        tone: "purple",
+        icon: "brain",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 115,
+      },
+    ],
+    asthma: [
+      {
+        id: "condition-asthma-hard-breathe",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionAsthmaBreathe", "Hard to breathe"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionAsthmaBreatheClue", "It is hard to breathe"),
+        tone: "red",
+        icon: "wind",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 114,
+      },
+      {
+        id: "condition-asthma-chest-tight",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionHeartChest", "Chest feels tight"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionHeartChestClue", "Chest feels tight"),
+        tone: "red",
+        icon: "heart",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 113,
+      },
+    ],
+    anxiety: [
+      {
+        id: "condition-anxiety-heart-racing",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionAnxietyHeart", "Heart racing"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionAnxietyHeartClue", "My heart is racing"),
+        tone: "amber",
+        icon: "heart",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 112,
+      },
+      {
+        id: "condition-anxiety-panicked",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionAnxietyPanicked", "Feeling panicked"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionAnxietyPanickedClue", "I feel panicked"),
+        tone: "purple",
+        icon: "brain",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 111,
+      },
+    ],
+    falls: [
+      {
+        id: "condition-falls-unsteady",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionFallsUnsteady", "Feeling unsteady"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionFallsUnsteadyClue", "I feel unsteady"),
+        tone: "amber",
+        icon: "activity",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 110,
+      },
+      {
+        id: "condition-falls-dizzy",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionFallsDizzy", "Dizzy or lightheaded"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionFallsDizzyClue", "I feel dizzy or lightheaded"),
+        tone: "amber",
+        icon: "activity",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 109,
+      },
+    ],
+    oncology: [
+      {
+        id: "condition-oncology-tired",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionOncologyTired", "More tired than usual"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionOncologyTiredClue", "I feel more tired than usual"),
+        tone: "amber",
+        icon: "activity",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 108,
+      },
+      {
+        id: "condition-oncology-sick",
+        kind: "common_concern",
+        label: t("health.symptomCheck.intro.conditionOncologySick", "Feeling sick"),
+        description: t("health.symptomCheck.intro.conditionProfileChipDesc", "Start here if this fits today."),
+        initialClue: t("health.symptomCheck.intro.conditionOncologySickClue", "I feel sick"),
+        tone: "amber",
+        icon: "stethoscope",
+        source: "profile",
+        reasonCode: "condition_match",
+        priority: 107,
+      },
+    ],
+  };
+
+  const seen = new Set<string>();
+  const chips: TriagePersonalizedSuggestion[] = [];
+  for (const group of matchedConditionGroups(activeConditions)) {
+    for (const suggestion of groupSuggestions[group]) {
+      const dedupeKey = suggestion.label.toLowerCase();
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      chips.push(suggestion);
+      if (chips.length >= 4) return chips;
+    }
+  }
+  return chips;
 }
 
 const suggestionIconByKey: Record<TriagePersonalizedSuggestion["icon"], LucideIcon> = {
@@ -661,7 +920,16 @@ function stopVoiceStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
 }
 
-export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, profileContextItems = [], emergencyContact = null }: IntroScreenProps) {
+export function IntroScreen({
+  onStart,
+  onEmergencyUnsure,
+  onNavigate,
+  personalizedSuggestions,
+  activeConditions = [],
+  profileContextItems = [],
+  emergencyContact = null,
+  showGuide = true,
+}: IntroScreenProps) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const [clue, setClue] = useState("");
@@ -677,12 +945,19 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
   const isTranscribingVoice = voiceState === "transcribing";
   const fallbackSuggestions = fallbackIntroSuggestions(t);
   const suggestions = personalizedSuggestions?.length ? personalizedSuggestions : fallbackSuggestions;
+  const conditionExamples = conditionAwareIntroSuggestions(activeConditions, t);
   const candidateConcerns = suggestions.filter((suggestion) => suggestion.kind === "common_concern");
   const fallbackConcerns = fallbackSuggestions.filter((suggestion) => suggestion.kind === "common_concern");
-  const visibleExamples = [
+  const defaultExamples = [
     ...candidateConcerns,
     ...fallbackConcerns.filter((fallback) => !candidateConcerns.some((suggestion) => suggestion.id === fallback.id)),
-  ].slice(0, 3);
+  ];
+  const visibleExamples = conditionExamples.length
+    ? [
+        ...conditionExamples,
+        ...fallbackConcerns.filter((fallback) => !conditionExamples.some((suggestion) => suggestion.label.toLowerCase() === fallback.label.toLowerCase())),
+      ].slice(0, 4)
+    : defaultExamples.slice(0, 3);
   const visibleExampleIds = new Set(visibleExamples.map((suggestion) => suggestion.id));
   const healthImprovements = suggestions.filter((suggestion) => suggestion.kind === "health_improvement").slice(0, 5);
   const moreIdeas = [
@@ -697,6 +972,13 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
     recent_report: t("health.symptomCheck.intro.sourceRecentReport", "Recent report"),
     vitals: t("health.symptomCheck.intro.sourceVitals", "Recent vitals"),
   };
+  const handleEmergencyUnsure = useCallback(() => {
+    if (onEmergencyUnsure) {
+      onEmergencyUnsure();
+      return;
+    }
+    onStart(t("health.symptomCheck.intro.notSureEmergencyClue", "I am not sure if this is urgent"));
+  }, [onEmergencyUnsure, onStart, t]);
 
   const renderSuggestion = (suggestion: TriagePersonalizedSuggestion) => {
     const Icon = suggestionIconByKey[suggestion.icon] ?? Stethoscope;
@@ -970,7 +1252,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
             )}
             <button
               type="button"
-              onClick={() => onStart(t("health.symptomCheck.intro.notSureEmergencyClue", "I am not sure if this is urgent"))}
+              onClick={handleEmergencyUnsure}
               className="vyva-tap min-h-[48px] rounded-[17px] border border-[#FCA5A5] bg-white px-3 font-body text-[14px] font-black text-[#991B1B] sm:text-[15px]"
             >
               {t("health.symptomCheck.intro.notSureEmergency", "Help me decide")}
@@ -981,7 +1263,7 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
 
       <section
         data-testid="symptom-check-start-panel"
-        className="grid min-w-0 gap-4 rounded-[32px] border border-[#E8DED4] bg-white p-4 shadow-[0_18px_46px_rgba(63,45,35,0.10)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_270px] lg:p-6"
+        className={`grid min-w-0 gap-4 rounded-[32px] border border-[#E8DED4] bg-white p-4 shadow-[0_18px_46px_rgba(63,45,35,0.10)] sm:p-5 lg:p-6 ${showGuide ? "lg:grid-cols-[minmax(0,1fr)_270px]" : ""}`}
       >
         <div className="min-w-0 space-y-4">
           <div className="flex flex-col gap-4 text-left sm:flex-row sm:items-center">
@@ -1061,36 +1343,38 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
             <p className="px-1 font-body text-[12px] font-black uppercase tracking-[0.12em] text-vyva-text-3">
               {t("health.symptomCheck.intro.examplesLabel", "Examples")}
             </p>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className={`grid gap-2 ${visibleExamples.length > 3 ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}>
               {visibleExamples.map(renderExampleChip)}
             </div>
           </div>
 
         </div>
 
-        <aside className="rounded-[24px] border border-[#D8C7FF] bg-[linear-gradient(180deg,#FBFAFF_0%,#FFFFFF_100%)] p-3 text-left shadow-[0_14px_34px_rgba(107,33,168,0.08)]">
-          <details className="group">
-            <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 rounded-[18px] bg-vyva-purple px-4 py-3 text-white shadow-[0_12px_28px_rgba(107,33,168,0.16)]">
-              <span className="font-body text-[15px] font-black leading-tight">
-                {t("health.symptomCheck.intro.guideTitle", "How VYVA helps")}
-              </span>
-              <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 transition-transform group-open:rotate-90" />
-            </summary>
-            <div className="mt-2 grid gap-2">
-              {guidancePromises.map(({ key, label, body, Icon }) => (
-                <div key={key} className="flex gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-2">
-                  <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-vyva-purple-light text-vyva-purple shadow-sm">
-                    <Icon size={18} strokeWidth={2.7} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">{label}</span>
-                    <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </details>
-        </aside>
+        {showGuide ? (
+          <aside className="rounded-[24px] border border-[#D8C7FF] bg-[linear-gradient(180deg,#FBFAFF_0%,#FFFFFF_100%)] p-3 text-left shadow-[0_14px_34px_rgba(107,33,168,0.08)]">
+            <details className="group">
+              <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 rounded-[18px] bg-vyva-purple px-4 py-3 text-white shadow-[0_12px_28px_rgba(107,33,168,0.16)]">
+                <span className="font-body text-[15px] font-black leading-tight">
+                  {t("health.symptomCheck.intro.guideTitle", "How VYVA helps")}
+                </span>
+                <ChevronLeft size={18} className="-rotate-90 flex-shrink-0 transition-transform group-open:rotate-90" />
+              </summary>
+              <div className="mt-2 grid gap-2">
+                {guidancePromises.map(({ key, label, body, Icon }) => (
+                  <div key={key} className="flex gap-2 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-2">
+                    <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-vyva-purple-light text-vyva-purple shadow-sm">
+                      <Icon size={18} strokeWidth={2.7} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">{label}</span>
+                      <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </aside>
+        ) : null}
       </section>
 
       {(moreIdeas.length || profileContextItems.length) ? (
@@ -2488,6 +2772,7 @@ export default function SymptomCheckScreen() {
   const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>(() => restoredDraft?.refinementStatus ?? { state: "idle" });
   const [chatDraft, setChatDraft] = useState<TriageChatDraft | null>(() => restoredDraft?.chatDraft ?? null);
   const [resumePendingRequest] = useState(() => Boolean(restoredDraft?.chatDraft?.pendingRequest));
+  const [showFirstVisitGuide, setShowFirstVisitGuide] = useState(() => !readSymptomCheckVisited());
 
   const stepTitle: Record<Step, string> = {
     intro: t("health.symptomCheck.title"),
@@ -2555,6 +2840,25 @@ export default function SymptomCheckScreen() {
     setStep("chat");
   };
 
+  const handleIntroStart = useCallback((clue: string) => {
+    writeSymptomCheckVisited();
+    setShowFirstVisitGuide(false);
+    startChatDirectly(clue, false);
+  }, []);
+
+  const handleEmergencyUnsure = useCallback(() => {
+    const contextHint = "The user is unsure if their situation is an emergency. Start by asking one calm question about their most urgent symptom to help them decide whether to call 112.";
+    emitVoiceSpecialistTransfer({
+      domain: "health",
+      reason: "The user tapped Help me decide on the symptom-check emergency banner.",
+      evidence: "Emergency banner uncertainty action",
+      contextHint,
+      route: "/health/symptom-check",
+      agentSlug: VOICE_SPECIALIST_AGENT_SLUGS.health,
+      autoStart: true,
+    });
+  }, []);
+
   const handleChatDraftChange = useCallback((draft: TriageChatDraft) => {
     setChatDraft(draft);
   }, []);
@@ -2595,6 +2899,30 @@ export default function SymptomCheckScreen() {
     return res.json().catch(() => null) as Promise<SavedTriageReport | null>;
   };
 
+  const logSymptomResult = (triageSummary: TriageSummary, saved: SavedTriageReport | null) => {
+    if (!saved?.id) return;
+
+    void apiFetch("/api/symptoms/log", {
+      method: "POST",
+      body: JSON.stringify({
+        triage_report_id: saved.id,
+        symptom_description: triageSummary.chiefComplaint,
+        severity: symptomSeverityForSummary(triageSummary),
+        check_completed: true,
+        vyva_recommendation: triageSummary.nextStepLabel || triageSummary.recommendations[0] || "",
+        escalated_to_caregiver: Boolean(saved.sent_to?.length),
+      }),
+    })
+      .then((response) => {
+        if (!response.ok) return;
+        void queryClient.invalidateQueries({ queryKey: ["/api/health/prevention"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
+      })
+      .catch((err) => {
+        console.warn("[symptoms/log] refresh skipped:", err);
+      });
+  };
+
   const applySavedReport = (saved: SavedTriageReport | null) => {
     setReportId(saved?.id ?? null);
     setReportSaveState("saved");
@@ -2622,7 +2950,10 @@ export default function SymptomCheckScreen() {
     setReportSaveState("saving");
     setStep("report");
     saveTriageReport(triageSummary, durationSeconds)
-      .then(applySavedReport)
+      .then((saved) => {
+        applySavedReport(saved);
+        logSymptomResult(triageSummary, saved);
+      })
       .catch((err) => {
         console.error("[reports/triage] save failed:", err);
         setReportSaveState("error");
@@ -2728,6 +3059,7 @@ export default function SymptomCheckScreen() {
         respiratoryRate: parsed.vitals.respiratoryRate ?? respiratoryRate,
       });
       applySavedReport(saved);
+      logSymptomResult(refinedSummary, saved);
 
       const nextStepChanged = Boolean(
         previousNextStep &&
@@ -2792,11 +3124,14 @@ export default function SymptomCheckScreen() {
       <div className="flex min-h-0 flex-1 flex-col">
         {step === "intro" && (
           <IntroScreen
-            onStart={(clue) => startChatDirectly(clue, false)}
+            onStart={handleIntroStart}
+            onEmergencyUnsure={handleEmergencyUnsure}
             onNavigate={(route) => navigate(route)}
             personalizedSuggestions={triageContext?.personalizedSuggestions}
+            activeConditions={triageContext?.activeConditions ?? []}
             profileContextItems={triageContext?.usedItems ?? []}
             emergencyContact={triageContext?.emergencyContact ?? null}
+            showGuide={showFirstVisitGuide}
           />
         )}
 
