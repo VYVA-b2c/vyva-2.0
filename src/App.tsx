@@ -13,6 +13,10 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
+import {
+  cognitiveAssessmentPracticeStateFromRoute,
+  completeCognitiveAssessmentPractice,
+} from "@/lib/cognitiveAssessmentPracticeBridge";
 import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
@@ -205,13 +209,16 @@ function FaceNameMatchRoute() {
 }
 
 function RememberLaterRoute() {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/memory-games");
 
   return (
     <RememberLater
       userId={user?.id ?? ""}
-      onExit={() => navigate("/memory-games")}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
     />
   );
 }
@@ -228,13 +235,16 @@ function RememberLaterPreviewRoute() {
 }
 
 function CuriousMindsRoute() {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/memory-games");
 
   return (
     <CuriousMinds
       userId={user?.id ?? ""}
-      onExit={() => navigate("/memory-games")}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
     />
   );
 }
@@ -275,13 +285,16 @@ function ListenCloselyRoute() {
 }
 
 function BreathGardenRoute() {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/senses");
 
   return (
     <BreathGarden
       userId={user?.id ?? ""}
-      onExit={() => navigate("/senses")}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
     />
   );
 }
@@ -428,18 +441,66 @@ function DualTaskWalkRoute() {
   return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/attention-boosters")} />;
 }
 
+function useCognitiveAssessmentPracticeHandoff(defaultExitPath: string) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const practiceState = cognitiveAssessmentPracticeStateFromRoute(location.state);
+
+  const exit = React.useCallback(() => {
+    navigate(defaultExitPath);
+  }, [defaultExitPath, navigate]);
+
+  const completePractice = React.useCallback(() => {
+    if (!practiceState) return null;
+    return completeCognitiveAssessmentPractice(practiceState);
+  }, [practiceState]);
+
+  const returnToAssessment = React.useCallback(() => {
+    if (!practiceState) {
+      navigate(defaultExitPath);
+      return;
+    }
+
+    const completed = completeCognitiveAssessmentPractice(practiceState);
+    navigate(completed?.returnTo ?? practiceState.returnTo, {
+      state: {
+        assessmentPracticeCompleted: true,
+        recommendedDomain: completed?.recommendedDomain ?? practiceState.recommendedDomain,
+      },
+    });
+  }, [defaultExitPath, navigate, practiceState]);
+
+  return { practiceState, completePractice, returnToAssessment, exit };
+}
+
 function CategorySortRoute() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/executive-function");
 
-  return <CategorySort userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+  return (
+    <CategorySort
+      userId={user?.id ?? ""}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
+    />
+  );
 }
 
 function NumberTrailsRoute() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/executive-function");
 
-  return <NumberTrails userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+  return (
+    <NumberTrails
+      userId={user?.id ?? ""}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
+    />
+  );
 }
 
 function RootRoute() {

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
   ArrowRight,
@@ -7,6 +7,7 @@ import {
   BookOpen,
   Brain,
   CalendarDays,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   ExternalLink,
@@ -25,6 +26,10 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  cognitiveAssessmentPracticeStatusForReport,
+  startCognitiveAssessmentPractice,
+} from "@/lib/cognitiveAssessmentPracticeBridge";
 import type {
   CognitiveAssessmentDomainTrend,
   CognitiveAssessmentHistoryResponse,
@@ -1552,15 +1557,26 @@ function PostAssessmentRecommendationPanel({
   const practices = practiceSequence(practiceKey);
   const primary = practices[0];
   const PrimaryIcon = primary.Icon;
+  const [practiceIntent, setPracticeIntent] = useState(() => cognitiveAssessmentPracticeStatusForReport(report.sessionId));
+
+  useEffect(() => {
+    setPracticeIntent(cognitiveAssessmentPracticeStatusForReport(report.sessionId));
+  }, [report.sessionId]);
 
   const openPractice = (practice: PracticeRecommendation) => {
+    const intent = startCognitiveAssessmentPractice({
+      reportSessionId: report.sessionId,
+      recommendedDomain: practice.key,
+      practiceTitle: practice.title,
+      route: practice.route,
+    });
+    setPracticeIntent(intent);
     navigate(practice.route, {
-      state: {
-        source: "cognitive_assessment_report",
-        recommendedDomain: practice.key,
-      },
+      state: intent,
     });
   };
+
+  const practiceStatus = practiceIntent?.reportSessionId === report.sessionId ? practiceIntent : null;
 
   return (
     <div
@@ -1578,6 +1594,27 @@ function PostAssessmentRecommendationPanel({
           <p className="mt-2 text-[14px] font-bold leading-relaxed text-[#62564f]">{outcome.detail}</p>
         </div>
       </div>
+
+      {practiceStatus ? (
+        <div
+          className="mt-4 flex items-start gap-3 rounded-[20px] border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-3 text-[#0F766E]"
+          data-testid="assessment-practice-status"
+        >
+          <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white">
+            <CheckCircle2 size={18} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-black uppercase tracking-[0.1em]">
+              {practiceStatus.status === "completed" ? "Practiced today" : "Practice started"}
+            </span>
+            <span className="mt-1 block text-[14px] font-black leading-snug text-[#2f2135]">
+              {practiceStatus.status === "completed"
+                ? `Good. You practiced ${practiceStatus.practiceTitle} after this check.`
+                : `${practiceStatus.practiceTitle} is ready. Come back here after the activity to keep going.`}
+            </span>
+          </span>
+        </div>
+      ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,0.82fr)]">
         <div className="grid gap-2">
