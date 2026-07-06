@@ -94,7 +94,7 @@ describe("MemoryGameRunner word recall", () => {
 
     expect(await screen.findByText("Tres bien")).toBeInTheDocument();
     expect(screen.getByText("Vous avez termine cet exercice")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continuer au niveau 2" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Niveau suivant" })).not.toBeDisabled();
     expect(saveGameResult).toHaveBeenCalledWith(expect.objectContaining({
       userId: "user-1",
       gameType: "word_recall",
