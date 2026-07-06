@@ -385,6 +385,7 @@ export default function TriageChat({
     setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        scrollRef.current.scrollIntoView?.({ block: "end", behavior: "smooth" });
       }
     }, 80);
   }, []);
@@ -734,8 +735,7 @@ export default function TriageChat({
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-4"
-        style={{ overscrollBehavior: "contain" }}
+        className="px-4 py-4"
       >
         <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
           {showProgressCard ? (
