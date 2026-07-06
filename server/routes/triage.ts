@@ -129,6 +129,20 @@ type TriageQuickReply = {
   kind: "symptom" | "red_flag" | "duration" | "severity" | "trend" | "support" | "free_text";
 };
 
+type TriageVitalsPromptAction = {
+  id: "pulse" | "oxygen" | "blood_pressure" | "temperature" | "glucose";
+  label: string;
+  value: string;
+  icon: TriageQuickReply["icon"];
+  tone: TriageQuickReply["tone"];
+};
+
+type TriageVitalsPrompt = {
+  title: string;
+  body: string;
+  actions: TriageVitalsPromptAction[];
+} | null;
+
 interface TriageRequestBody {
   messages?: ChatMessage[];
   vitals?: {
@@ -306,7 +320,7 @@ function inferSymptomFromClue(rawClue: string, locale: string): TriageQuickReply
   if (/\b(fever|temperature|chills|hot|fiebre|temperatura|escalofrio|caliente)\b/.test(clue)) {
     return reply(locale, "fever", "symptom", "Fever", "Fiebre", "I have a fever.", "Tengo fiebre.", "thermometer", "amber");
   }
-  if (/\b(dizz|vertigo|lightheaded|faint|mareo|maread|vertigo|desmay)\b/.test(clue)) {
+  if (/\b(dizzy|dizziness|dizzier|vertigo|lightheaded|light headed|faint|fainting|mareo|maread|desmay)\b/.test(clue)) {
     return reply(locale, "dizzy", "symptom", "Dizzy", "Mareo", "I feel dizzy.", "Me siento mareada o mareado.", "activity", "amber");
   }
   if (/\b(tired|weak|fatigue|exhaust|sleepy|cansad|debil|fatiga|agotad|sueno)\b/.test(clue)) {
@@ -602,6 +616,123 @@ function profileRedFlagReplies(
   }
 
   return replies;
+}
+
+function profileContextUsedForQuestion(stage: WizardStage, symptomId: string | undefined, healthMemory?: TriageHealthMemory) {
+  if (stage !== "red_flag") return false;
+  return profileRedFlagReplies("en", symptomId, profileRiskFlags(healthMemory)).length > 0;
+}
+
+function questionReasonFor(
+  stage: WizardStage,
+  wizard: TriageWizardContext | undefined,
+  locale: string,
+  healthMemory?: TriageHealthMemory,
+) {
+  const symptomId = selectedSymptomId(wizard);
+  const profileUsed = profileContextUsedForQuestion(stage, symptomId, healthMemory);
+  if (profileUsed) {
+    return text(
+      locale,
+      "I am checking this because your health profile can make this symptom more important.",
+      "Lo estoy comprobando porque tu perfil de salud puede hacer que este sintoma sea mas importante.",
+    );
+  }
+
+  const reasons: Record<WizardStage, { en: string; es: string }> = {
+    symptom: {
+      en: "I first need to understand what feels different so I can choose the safest next question.",
+      es: "Primero necesito entender que se siente diferente para elegir la siguiente pregunta mas segura.",
+    },
+    red_flag: {
+      en: "I am checking urgent warning signs first, before asking about smaller details.",
+      es: "Primero compruebo senales urgentes de alerta, antes de preguntar detalles menores.",
+    },
+    duration: {
+      en: "When it started helps decide whether to monitor, call support, or seek care.",
+      es: "Cuando empezo ayuda a decidir si vigilar, llamar a apoyo o buscar atencion.",
+    },
+    severity: {
+      en: "How strong it feels helps choose the safest next step.",
+      es: "La intensidad ayuda a elegir el siguiente paso mas seguro.",
+    },
+    trend: {
+      en: "Whether it is getting better or worse helps decide what to do next.",
+      es: "Saber si mejora o empeora ayuda a decidir que hacer despues.",
+    },
+    support: {
+      en: "I am helping you choose the safest way to get support.",
+      es: "Te ayudo a elegir la forma mas segura de recibir apoyo.",
+    },
+    complete: {
+      en: "Your answers are enough to prepare the next step.",
+      es: "Tus respuestas son suficientes para preparar el siguiente paso.",
+    },
+  };
+  const reason = reasons[stage] ?? reasons.symptom;
+  return text(locale, reason.en, reason.es);
+}
+
+function hasPromptVital(wizard: TriageWizardContext | undefined, actionId: TriageVitalsPromptAction["id"]) {
+  const vitals = wizard?.vitals;
+  if (!vitals) return false;
+  if (actionId === "pulse") return typeof vitals.bpm === "number";
+  if (actionId === "oxygen") return typeof vitals.oxygenSaturation === "number";
+  if (actionId === "blood_pressure") return typeof vitals.systolicBp === "number" && typeof vitals.diastolicBp === "number";
+  if (actionId === "temperature") return typeof vitals.temperatureC === "number";
+  if (actionId === "glucose") return typeof vitals.glucoseMgdl === "number";
+  return false;
+}
+
+function vitalsAction(
+  locale: string,
+  id: TriageVitalsPromptAction["id"],
+  labelEn: string,
+  labelEs: string,
+  valueEn: string,
+  valueEs: string,
+  icon: TriageVitalsPromptAction["icon"],
+  tone: TriageVitalsPromptAction["tone"],
+): TriageVitalsPromptAction {
+  return { id, label: text(locale, labelEn, labelEs), value: text(locale, valueEn, valueEs), icon, tone };
+}
+
+function vitalsPromptFor(stage: WizardStage, wizard: TriageWizardContext | undefined, locale: string, healthMemory?: TriageHealthMemory): TriageVitalsPrompt {
+  if (stage === "symptom" || stage === "red_flag" || stage === "support" || stage === "complete") return null;
+  const symptomId = selectedSymptomId(wizard);
+  const risks = profileRiskFlags(healthMemory);
+  const requested: TriageVitalsPromptAction[] = [];
+  const add = (action: TriageVitalsPromptAction) => {
+    if (!hasPromptVital(wizard, action.id) && !requested.some((item) => item.id === action.id)) {
+      requested.push(action);
+    }
+  };
+
+  if (symptomId === "breathing" || symptomId === "chest") {
+    add(vitalsAction(locale, "oxygen", "Oxygen", "Oxigeno", "I can check my oxygen level if that would help.", "Puedo comprobar mi oxigeno si ayuda.", "wind", "blue"));
+    add(vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple"));
+  }
+  if (["dizzy", "tired", "fall"].includes(symptomId ?? "")) {
+    add(vitalsAction(locale, "pulse", "Pulse", "Pulso", "I can check my pulse if that would help.", "Puedo comprobar mi pulso si ayuda.", "heart", "purple"));
+    add(vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue"));
+  }
+  if (["fever", "urinary", "stomach", "skin", "confusion"].includes(symptomId ?? "")) {
+    add(vitalsAction(locale, "temperature", "Temperature", "Temperatura", "I can check my temperature if that would help.", "Puedo comprobar mi temperatura si ayuda.", "thermometer", "amber"));
+  }
+  if (risks.diabetes && ["dizzy", "tired", "stomach", "confusion", "other"].includes(symptomId ?? "")) {
+    add(vitalsAction(locale, "glucose", "Blood sugar", "Azucar", "I can check my blood sugar if that would help.", "Puedo comprobar mi azucar si ayuda.", "activity", "amber"));
+  }
+  if (risks.hypertension && ["chest", "dizzy", "pain", "confusion", "other"].includes(symptomId ?? "")) {
+    add(vitalsAction(locale, "blood_pressure", "Blood pressure", "Presion arterial", "I can check my blood pressure if that would help.", "Puedo comprobar mi presion arterial si ayuda.", "activity", "blue"));
+  }
+
+  const actions = requested.slice(0, 2);
+  if (!actions.length) return null;
+  return {
+    title: text(locale, "If you can, one reading may help", "Si puedes, una medicion puede ayudar"),
+    body: text(locale, "Only do this if it is easy and safe. You can keep answering without it.", "Hazlo solo si es facil y seguro. Puedes seguir respondiendo sin eso."),
+    actions,
+  };
 }
 
 function matrixReplyToQuickReply(locale: string, item: TriageWizardMatrixReply): TriageQuickReply {
@@ -934,6 +1065,9 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: "support",
       wizardStageLabel: wizardStageLabel("support", normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
+      questionReason: questionReasonFor("support", effectiveWizard, normalizedLocale, healthMemory),
+      profileContextUsed: false,
+      vitalsPrompt: null,
       evidenceSources: [],
       medicalFollowups: [],
     });
@@ -942,6 +1076,9 @@ router.post("/message", async (req: Request, res: Response) => {
   const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
   if (stage !== "complete") {
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
+    const symptomId = selectedSymptomId(effectiveWizard);
+    const profileContextUsed = profileContextUsedForQuestion(stage, symptomId, healthMemory);
+    const vitalsPrompt = vitalsPromptFor(stage, effectiveWizard, normalizedLocale, healthMemory);
     const latestMessage = validMessages[validMessages.length - 1];
     const medisearchContext = latestMessage?.role === "user"
       ? await getMediSearchTriageContext({
@@ -958,7 +1095,10 @@ router.post("/message", async (req: Request, res: Response) => {
       quickReplies: quickRepliesFor(effectiveWizard, normalizedLocale, healthMemory),
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
-      wizardSymptomId: selectedSymptomId(effectiveWizard),
+      wizardSymptomId: symptomId,
+      questionReason: questionReasonFor(stage, effectiveWizard, normalizedLocale, healthMemory),
+      profileContextUsed,
+      vitalsPrompt,
       evidenceSources: [],
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: medisearchContext?.followups ?? [],
@@ -978,6 +1118,9 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
+      questionReason: null,
+      profileContextUsed: false,
+      vitalsPrompt: null,
       evidenceSources: [],
       medicalFollowups: [],
     });
@@ -1039,6 +1182,9 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStage: stage,
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
+      questionReason: null,
+      profileContextUsed: false,
+      vitalsPrompt: null,
       evidenceSources,
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: [],
