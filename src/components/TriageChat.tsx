@@ -32,6 +32,28 @@ export interface ChatMessage {
 type TriageEvidenceSource = { title?: string; url?: string; year?: string; journal?: string };
 type TriageSafetyAlert = { id: string; label: string; recommendation: string; emergencyContact?: EmergencyContact };
 
+type TriageGuidanceSignal = {
+  id: string;
+  label: string;
+  status: "available" | "missing" | "not_needed";
+};
+
+type TriageGuidancePlan = {
+  protocolId: string;
+  protocolLabel: string;
+  stage: string;
+  priorityLabel: string;
+  nextQuestionFocus: string;
+  confidence: {
+    score: number;
+    label: string;
+    reasons: string[];
+    missing: string[];
+  };
+  profileContextUsed: boolean;
+  usefulSignals: TriageGuidanceSignal[];
+};
+
 type TriageRefinementAnswer = {
   id: string;
   label: string;
@@ -83,6 +105,7 @@ interface TriageResponse {
   questionReason?: string | null;
   profileContextUsed?: boolean;
   vitalsPrompt?: TriageVitalsPrompt | null;
+  guidancePlan?: TriageGuidancePlan | null;
 }
 
 type TriageVitalsPromptAction = {
@@ -180,6 +203,7 @@ export type TriageChatDraft = {
   questionReason?: string | null;
   profileContextUsed?: boolean;
   vitalsPrompt?: TriageVitalsPrompt | null;
+  guidancePlan?: TriageGuidancePlan | null;
   scanResults?: TriageScanResult[];
   declinedScanTypes?: TriageScanType[];
   pendingRequest?: boolean;
@@ -341,6 +365,7 @@ export default function TriageChat({
   const [questionReason, setQuestionReason] = useState<string | null>(() => initialDraft?.questionReason ?? null);
   const [profileContextUsed, setProfileContextUsed] = useState(() => Boolean(initialDraft?.profileContextUsed));
   const [vitalsPrompt, setVitalsPrompt] = useState<TriageVitalsPrompt | null>(() => initialDraft?.vitalsPrompt ?? null);
+  const [guidancePlan, setGuidancePlan] = useState<TriageGuidancePlan | null>(() => initialDraft?.guidancePlan ?? null);
   const [scanResults, setScanResults] = useState<TriageScanResult[]>(() => initialDraft?.scanResults ?? []);
   const [declinedScanTypes, setDeclinedScanTypes] = useState<TriageScanType[]>(() => initialDraft?.declinedScanTypes ?? []);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -519,6 +544,7 @@ export default function TriageChat({
         setQuestionReason(res.questionReason?.trim() || null);
         setProfileContextUsed(Boolean(res.profileContextUsed));
         setVitalsPrompt(res.vitalsPrompt && Array.isArray(res.vitalsPrompt.actions) && res.vitalsPrompt.actions.length ? res.vitalsPrompt : null);
+        setGuidancePlan(res.guidancePlan ?? null);
         setMedicalFollowups(
           !res.done && !res.safetyAlert && Array.isArray(res.medicalFollowups)
             ? res.medicalFollowups
@@ -605,11 +631,12 @@ export default function TriageChat({
       questionReason,
       profileContextUsed,
       vitalsPrompt,
+      guidancePlan,
       scanResults,
       declinedScanTypes,
       pendingRequest: loading || (!languageReady && !initiated),
     });
-  }, [apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, profileContextUsed, questionReason, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
+  }, [apiQuickReplies, declinedScanTypes, emergencyContact, evidenceSources, guidancePlan, initiated, languageReady, loading, medicalFollowups, medisearchConversationId, messages, onDraftChange, profileContextUsed, questionReason, safetyAlert, scanResults, selectedQuickAnswers, vitalsPrompt, wizardStageLabel, wizardSymptomId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -686,14 +713,17 @@ export default function TriageChat({
   const questionNumber = answeredCount + 1;
   const visibleQuickAnswers = quickAnswers.slice(0, 4);
   const extraQuickAnswers = quickAnswers.slice(4);
-  const confidenceSignals = Math.min(5, Math.max(2, answeredCount + 2));
+  const guidanceConfidenceScore = guidancePlan?.confidence?.score;
+  const confidenceSignals = typeof guidanceConfidenceScore === "number"
+    ? Math.min(5, Math.max(1, guidanceConfidenceScore))
+    : Math.min(5, Math.max(2, answeredCount + 2));
   const confidencePercent = confidenceSignals * 20;
   const confidenceValue = `${confidenceSignals}/5`;
-  const confidenceLevel = answeredCount >= 3
+  const confidenceLevel = guidancePlan?.confidence?.label ?? (answeredCount >= 3
     ? t("health.symptomCheck.tracker.high", "High")
     : answeredCount > 0
       ? t("health.symptomCheck.tracker.medium", "Medium")
-      : t("health.symptomCheck.tracker.low", "Low");
+      : t("health.symptomCheck.tracker.low", "Low"));
   const confidenceStatus = answeredCount >= 3
     ? t("health.symptomCheck.tracker.ready", "Ready to guide")
     : answeredCount > 0
@@ -877,9 +907,19 @@ export default function TriageChat({
           {showQuestion && (
             <HealthWizardCard className="px-5 py-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <p data-testid="triage-question-progress" className="font-body text-[14px] font-black text-vyva-text-2">
-                  {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
-                </p>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <p data-testid="triage-question-progress" className="font-body text-[14px] font-black text-vyva-text-2">
+                    {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
+                  </p>
+                  {guidancePlan ? (
+                    <span
+                      data-testid="triage-guidance-confidence"
+                      className="rounded-full border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-black leading-none text-[#047857]"
+                    >
+                      {guidancePlan.confidence.label} - {guidancePlan.confidence.score}/5
+                    </span>
+                  ) : null}
+                </div>
                 <ListenButton
                   text={readoutText}
                   language={activeLanguage}
@@ -897,6 +937,12 @@ export default function TriageChat({
                   />
                 )}
               </h2>
+              {guidancePlan ? (
+                <p data-testid="triage-guidance-focus" className="mt-3 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                  <span className="font-black text-vyva-purple">{guidancePlan.priorityLabel}:</span>{" "}
+                  {guidancePlan.protocolLabel}
+                </p>
+              ) : null}
             </HealthWizardCard>
           )}
 
@@ -919,6 +965,35 @@ export default function TriageChat({
                   <p className="mt-2 font-body text-[13px] font-black leading-snug text-[#047857]">
                     {t("health.symptomCheck.chat.profileContextUsed", "VYVA quietly used your health profile to choose this question.")}
                   </p>
+                ) : null}
+                {guidancePlan ? (
+                  <div data-testid="triage-guidance-plan" className="mt-4 rounded-[18px] border border-[#E8DED4] bg-[#FFFCF8] p-3">
+                    <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+                      {guidancePlan.protocolLabel}
+                    </p>
+                    <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                      {guidancePlan.nextQuestionFocus}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {guidancePlan.usefulSignals.slice(0, 3).map((signal) => (
+                        <span
+                          key={signal.id}
+                          className={`rounded-full px-3 py-1 font-body text-[12px] font-black ${
+                            signal.status === "available"
+                              ? "bg-[#ECFDF5] text-[#047857]"
+                              : "bg-white text-vyva-text-2"
+                          }`}
+                        >
+                          {signal.label}
+                        </span>
+                      ))}
+                    </div>
+                    {guidancePlan.confidence.missing.length ? (
+                      <p className="mt-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                        {t("health.symptomCheck.chat.confidenceMissing", "Confidence improves with: {{items}}", { items: guidancePlan.confidence.missing.join(", ") })}
+                      </p>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             </details>

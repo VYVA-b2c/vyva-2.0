@@ -265,6 +265,13 @@ describe("senior triage protocols", () => {
     expect(result.recommendations.join(" ")).not.toContain("same-day help");
   });
 
+  it("treats medicine-related dose changes as same-day advice", () => {
+    const result = decision("other", ["no_red_flag", "new_medicine_side_effect"], { sedatingMedication: true });
+
+    expect(result.level).toBe("doctor_today");
+    expect(result.reasons.join(" ")).toContain("medication-related");
+  });
+
   it.each([
     ["chest pressure with sweating and nausea", "chest", ["chest_pressure", "chest_sweaty_faint"], { diabetes: true, hypertension: true }, true, {}, "emergency"],
     ["chest pain spreading to jaw", "chest", ["chest_spreading"], { afib: true }, true, { pulseBpm: 118 }, "emergency"],
