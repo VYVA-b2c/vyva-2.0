@@ -83,15 +83,24 @@ describe("SymptomCheck intro chips", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
     expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what has changed");
-    expect(screen.getByText("Speak, type, or tap an example.")).toBeVisible();
-    expect(screen.getByPlaceholderText("Type what you feel...")).toBeVisible();
+    expect(screen.getByPlaceholderText("Type what changed...")).toBeVisible();
     expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();
+    expect(screen.getByText("How VYVA helps")).toBeVisible();
     expect(screen.queryByTestId("symptom-check-one-question-note")).not.toBeInTheDocument();
     expect(screen.queryByText("One question at a time")).not.toBeInTheDocument();
     expect(screen.queryByText("Profile tuned")).not.toBeInTheDocument();
     expect(screen.queryByText("Common concerns from your profile")).not.toBeInTheDocument();
     expect(screen.queryByText("Ways to improve health")).not.toBeInTheDocument();
     expect(screen.getAllByTestId(/button-symptom-example-/)).toHaveLength(3);
+  });
+
+  it("starts a guided check when the emergency banner uncertainty action is used", () => {
+    const onStart = vi.fn();
+    render(<IntroScreen onStart={onStart} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Help me decide" }));
+
+    expect(onStart).toHaveBeenCalledWith("I am not sure if this is urgent");
   });
 
   it("shows profile-aware examples and keeps extra ideas collapsed", () => {
