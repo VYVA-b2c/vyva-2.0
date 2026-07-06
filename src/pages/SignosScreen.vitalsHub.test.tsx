@@ -216,6 +216,20 @@ function renderScreen(options: {
   prevention?: typeof defaultPrevention;
   preventionError?: boolean;
 } = {}) {
+  const existingApiFetch = apiFetchMock.getMockImplementation();
+  apiFetchMock.mockImplementation(async (...args) => {
+    const [input] = args;
+    const url = String(input);
+    if (url.startsWith("/api/health/prevention")) {
+      if (options.preventionError) {
+        return new Response(JSON.stringify({ error: "Could not load prevention" }), { status: 500 });
+      }
+      return new Response(JSON.stringify(options.prevention ?? defaultPrevention), { status: 200 });
+    }
+    if (existingApiFetch) return existingApiFetch(...args);
+    return new Response(JSON.stringify({}), { status: 200 });
+  });
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -223,10 +237,6 @@ function renderScreen(options: {
         queryFn: async ({ queryKey }) => {
           const key = queryKey[0];
           if (key === "/api/vitals") return options.vitals ?? defaultVitals;
-          if (key === "/api/health/prevention") {
-            if (options.preventionError) throw new Error("Could not load prevention");
-            return options.prevention ?? defaultPrevention;
-          }
           if (key === "/api/profile/personalisation") return { conditions: ["diabetes", "hypertension"], hobbies: [], hasMedications: true };
           if (key === "/api/vitals-engine/latest") return { analysis: null, recent_readings: [], latest_alert: null };
           return {};
@@ -262,6 +272,7 @@ describe("Vitals Hub", () => {
   afterEach(() => {
     apiFetchMock.mockReset();
     vi.restoreAllMocks();
+    window.localStorage.clear();
     Object.defineProperty(navigator, "bluetooth", { configurable: true, value: undefined });
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: undefined });
     delete (window as Window & { __VYVA_FACE_SCAN_TEST_DURATION_MS?: number }).__VYVA_FACE_SCAN_TEST_DURATION_MS;
@@ -296,6 +307,7 @@ describe("Vitals Hub", () => {
     expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Add blood pressure");
     expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Done");
     expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Too hard");
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("Tap Done or Too hard");
     expect(screen.queryByText("Overall status")).not.toBeInTheDocument();
     expect(screen.queryByText("Weekly rhythm")).not.toBeInTheDocument();
     expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
@@ -318,9 +330,56 @@ describe("Vitals Hub", () => {
     expect(await screen.findByTestId("agewell-longevity-moves")).toHaveTextContent("Lower-salt lunch");
     fireEvent.click(screen.getByTestId("button-agewell-feedback-low-salt-lunch-done"));
     expect(screen.getByTestId("agewell-feedback-low-salt-lunch")).toHaveTextContent("Done");
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("what worked today");
+    expect(JSON.parse(window.localStorage.getItem("vyva-prevention-feedback:Heart:2026-07-05") || "{}")).toMatchObject({
+      "low-salt-lunch": "done",
+    });
 
     fireEvent.click(screen.getByTestId("button-agewell-feedback-calm-walk-too_hard"));
     expect(screen.getByTestId("agewell-feedback-calm-walk")).toHaveTextContent("Too hard");
+    expect(screen.getByTestId("agewell-move-calm-walk")).toHaveTextContent("Easier version");
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("made this easier");
+  });
+
+  it("passes recent feedback to the prevention engine", async () => {
+    window.localStorage.setItem("vyva-prevention-loop:history", JSON.stringify([
+      {
+        actionId: "calm-walk",
+        title: "Gentle walk",
+        step: "Move",
+        tone: "movement",
+        focus: "Heart",
+        feedback: "too_hard",
+        date: "2026-07-04",
+        savedAt: "2026-07-04T12:00:00.000Z",
+      },
+    ]));
+
+    renderScreen();
+    await screen.findByTestId("agewell-longevity-moves");
+
+    const preventionCall = apiFetchMock.mock.calls.find(([url]) => String(url).startsWith("/api/health/prevention?learning="));
+    expect(preventionCall).toBeTruthy();
+    expect(decodeURIComponent(String(preventionCall?.[0]))).toContain("calm-walk");
+    expect(decodeURIComponent(String(preventionCall?.[0]))).toContain("too_hard");
+  });
+
+  it("starts easier after previous too-hard feedback", async () => {
+    window.localStorage.setItem("vyva-prevention-loop:last-feedback", JSON.stringify({
+      focus: "Heart",
+      date: "2026-07-04",
+      actionId: "calm-walk",
+      step: "Move",
+      tone: "movement",
+      feedback: "too_hard",
+      title: "Gentle walk",
+      savedAt: "2026-07-04T12:00:00.000Z",
+    }));
+
+    renderScreen();
+
+    await waitFor(() => expect(screen.getByTestId("agewell-move-calm-walk")).toHaveTextContent("Easier version"));
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("started easier");
   });
 
   it("opens the first prevention action from a completed vitals hero", async () => {
