@@ -5,9 +5,9 @@ import {
   BarChart3,
   Brain,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   ClipboardList,
+  ExternalLink,
   FileText,
   History,
   Loader2,
@@ -297,15 +297,49 @@ function ReportHeader({
 
 function EmptyState() {
   const navigate = useNavigate();
-  const programSteps = [
-    "Memory, attention, language, reasoning, and everyday function are checked in one guided flow.",
-    "The report appears immediately after completion and is saved for later review.",
-    "Repeating the check over time helps show whether things are stable, improving, or changing.",
-  ];
-  const evidencePoints = [
-    "Built from established cognitive-screening domains, including story recall, verbal fluency, digit span, similarities, and clock drawing.",
-    "Language content is localized across English, Spanish, German, French, and Portuguese so members can answer naturally.",
-    "The result is a wellness report for tracking and conversation, not a medical diagnosis.",
+  const cards = [
+    {
+      title: "What it checks",
+      icon: ClipboardList,
+      tone: "white",
+      summary: "12 short tasks across memory, language, attention, reasoning, mood, sleep, and daily function.",
+      chips: ["Memory", "Attention", "Daily life"],
+      links: [
+        { label: "Memory and aging", href: "https://www.nia.nih.gov/health/memory-loss-and-forgetfulness/memory-problems-forgetfulness-and-aging" },
+        { label: "Cognitive testing", href: "https://medlineplus.gov/lab-tests/cognitive-testing/" },
+      ],
+    },
+    {
+      title: "The report",
+      icon: FileText,
+      tone: "blue",
+      summary: "A saved snapshot today, then trend views as the member repeats the check over time.",
+      chips: ["Snapshot", "Trends", "History"],
+      links: [
+        { label: "How checks are used", href: "https://www.alz.org/alzheimers-dementia/diagnosis/medical_tests" },
+      ],
+    },
+    {
+      title: "Scientific basis",
+      icon: Microscope,
+      tone: "green",
+      summary: "Built from familiar screening-style tasks. The result is a tracking signal, not a diagnosis.",
+      chips: ["Recall", "Fluency", "Clock"],
+      links: [
+        { label: "Assessment overview", href: "https://www.alz.org/professionals/health-systems-medical-professionals/cognitive-assessment" },
+        { label: "Mood screen", href: "https://www.apa.org/pi/about/publications/caregivers/practice-settings/assessment/tools/patient-health" },
+      ],
+    },
+    {
+      title: "How to use it",
+      icon: ShieldCheck,
+      tone: "orange",
+      summary: "Use changes over time to prepare calmer conversations with caregivers or clinicians.",
+      chips: ["Patterns", "Questions", "Context"],
+      links: [
+        { label: "Sleep context", href: "https://www.cdc.gov/sleep/about/index.html" },
+      ],
+    },
   ];
 
   return (
@@ -331,7 +365,7 @@ function EmptyState() {
             A guided check for memory and thinking
           </h1>
           <p className="mt-3 text-[17px] font-bold leading-relaxed text-[#62564f]">
-            VYVA walks the member through a short, structured assessment and turns the answers into a clear report that can be reviewed today and compared over time.
+            Answer 12 quick tasks. VYVA turns them into a saved report that can be compared over time.
           </p>
           <button
             type="button"
@@ -342,76 +376,95 @@ function EmptyState() {
             Start guided check
           </button>
           <p className="mt-3 text-center text-[12px] font-bold leading-relaxed text-[#766b63]">
-            Takes about 10 to 15 minutes. No report exists yet.
+            About 10 to 15 minutes. The report saves automatically.
           </p>
         </div>
       </section>
 
       <section className="mx-auto grid w-full max-w-[1100px] gap-3 px-5 pt-5 md:grid-cols-2 md:px-7 lg:grid-cols-4 lg:px-8">
-        <div className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#EFF6FF] text-[#2563EB]">
-              <ClipboardList size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight text-[#2f2135]">What the program checks</h2>
-              <div className="mt-3 grid gap-2">
-                {programSteps.map((item) => (
-                  <p key={item} className="flex gap-2 text-[14px] font-bold leading-relaxed text-[#62564f]">
-                    <CheckCircle2 className="mt-0.5 flex-shrink-0 text-[#059669]" size={18} />
-                    <span>{item}</span>
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-[#1E3A8A] shadow-[0_10px_24px_rgba(37,99,235,0.07)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#2563EB]">
-              <FileText size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight">The report</h2>
-              <p className="mt-2 text-[14px] font-bold leading-relaxed">
-                After the check, VYVA summarizes completed areas, saved answers, score-style signals where available, and practical next steps. Later visits show the latest report first, with history kept underneath.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-[#D9ECE4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-              <Microscope size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight text-[#2f2135]">Scientific basis</h2>
-              <div className="mt-3 grid gap-2">
-                {evidencePoints.map((item) => (
-                  <p key={item} className="text-[14px] font-bold leading-relaxed text-[#62564f]">{item}</p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#7C2D12] shadow-[0_10px_24px_rgba(194,65,12,0.055)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#C2410C]">
-              <ShieldCheck size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight">How to use it</h2>
-              <p className="mt-2 text-[14px] font-bold leading-relaxed">
-                Use the report to notice patterns and prepare better conversations with caregivers or clinicians, especially when sleep, mood, medicines, or daily function may be affecting memory.
-              </p>
-            </div>
-          </div>
-        </div>
+        {cards.map((card) => (
+          <IntroInfoCard key={card.title} {...card} />
+        ))}
       </section>
     </main>
+  );
+}
+
+function IntroInfoCard({
+  title,
+  icon: Icon,
+  tone,
+  summary,
+  chips,
+  links,
+}: {
+  title: string;
+  icon: typeof ClipboardList;
+  tone: "white" | "blue" | "green" | "orange";
+  summary: string;
+  chips: string[];
+  links: { label: string; href: string }[];
+}) {
+  const toneClasses = {
+    white: {
+      card: "border-[#E8DED4] bg-white text-[#2f2135]",
+      icon: "bg-[#EFF6FF] text-[#2563EB]",
+      chip: "bg-[#F8F4EF] text-[#62564f]",
+      link: "text-[#1D4ED8]",
+    },
+    blue: {
+      card: "border-[#BFDBFE] bg-[#EFF6FF] text-[#1E3A8A]",
+      icon: "bg-white text-[#2563EB]",
+      chip: "bg-white text-[#1E40AF]",
+      link: "text-[#1D4ED8]",
+    },
+    green: {
+      card: "border-[#D9ECE4] bg-white text-[#2f2135]",
+      icon: "bg-[#ECFDF5] text-[#047857]",
+      chip: "bg-[#ECFDF5] text-[#047857]",
+      link: "text-[#047857]",
+    },
+    orange: {
+      card: "border-[#FED7AA] bg-[#FFF7ED] text-[#7C2D12]",
+      icon: "bg-white text-[#C2410C]",
+      chip: "bg-white text-[#9A3412]",
+      link: "text-[#9A3412]",
+    },
+  }[tone];
+
+  return (
+    <div className={`rounded-[24px] border p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)] ${toneClasses.card}`}>
+      <div className="flex items-start gap-3">
+        <span className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] ${toneClasses.icon}`}>
+          <Icon size={23} />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-[20px] font-black leading-tight">{title}</h2>
+          <p className="mt-2 text-[13px] font-bold leading-snug text-current/80">{summary}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {chips.map((chip) => (
+          <span key={chip} className={`rounded-full px-3 py-1 text-[11px] font-black ${toneClasses.chip}`}>
+            {chip}
+          </span>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-2">
+        {links.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            className={`inline-flex min-h-[32px] items-center gap-1 text-[12px] font-black underline-offset-4 hover:underline ${toneClasses.link}`}
+          >
+            {link.label}
+            <ExternalLink size={13} />
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -696,27 +749,169 @@ function checkQualityTone(checkQuality: ReportCheckQuality) {
   return "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]";
 }
 
-function CheckQualityPanel({ checkQuality }: { checkQuality: ReportCheckQuality }) {
+function comparisonConfidencePercent(checkQuality: ReportCheckQuality, report: CognitiveAssessmentReport) {
+  const statusBase = checkQuality.status === "good" ? 88 : checkQuality.status === "partial" ? 68 : 42;
+  const coverage = completionPercent(report);
+  return Math.min(100, Math.max(24, Math.round((statusBase * 0.65) + (coverage * 0.35))));
+}
+
+function comparisonConfidenceLabel(checkQuality: ReportCheckQuality) {
+  if (checkQuality.status === "good") return "High";
+  if (checkQuality.status === "partial") return "Useful";
+  return "Building";
+}
+
+function primaryInsightTrend(domainTrends: ReportDomainTrends) {
+  const active = domainTrends.filter((trend) => trend.latestRawValue !== null && trend.direction !== "none");
+  const changed = active
+    .filter((trend) => trend.direction !== "flat")
+    .sort((left, right) => trendDeltaMagnitude(right) - trendDeltaMagnitude(left));
+
+  return changed[0] ?? active[0] ?? null;
+}
+
+function primaryTrendHeadline(trend: CognitiveAssessmentDomainTrend | null) {
+  if (!trend) return "No signal yet";
+  if (trend.direction === "new") return `${trend.label} saved`;
+  if (trend.direction === "flat") return `${trend.label} steady`;
+  if (trend.latestRawValue !== null && trend.previousRawValue !== null) {
+    const delta = trend.latestRawValue - trend.previousRawValue;
+    return `${trend.label} ${delta > 0 ? `+${delta}` : delta}`;
+  }
+  return trend.label;
+}
+
+function compactContextDetail(contextInsight: ReportContextInsight) {
+  if (contextInsight.relatedSignals.length > 0) return contextInsight.relatedSignals[0];
+  if (contextInsight.tone === "building") return "Add mood, sleep, and daily function";
+  return "Saved for comparison";
+}
+
+function insightSnapshotItems(
+  report: CognitiveAssessmentReport,
+  domainTrends: ReportDomainTrends,
+  checkQuality: ReportCheckQuality,
+  contextInsight: ReportContextInsight,
+) {
+  const trend = primaryInsightTrend(domainTrends);
+  const remaining = remainingAreas(report);
+  const action = bestNextAction(remaining, checkQuality, contextInsight);
+
+  return [
+    {
+      id: "change",
+      label: trend?.direction === "new" ? "New signal" : "Most changed",
+      value: primaryTrendHeadline(trend),
+      detail: trend ? domainTrendPlainCopy(trend) : "Finish a step to start tracking.",
+      icon: <Activity size={19} />,
+      tone: "border-[#BBF7D0] bg-[#F4FFFB] text-[#047857]",
+    },
+    {
+      id: "coverage",
+      label: "Coverage",
+      value: `${report.tasksCompleted}/${report.totalTasks} steps`,
+      detail: coverageMeaning(report),
+      icon: <ClipboardList size={19} />,
+      tone: "border-[#DDD6FE] bg-[#F7F3FF] text-[#5B21B6]",
+    },
+    {
+      id: "context",
+      label: "Context",
+      value: contextInsight.label,
+      detail: compactContextDetail(contextInsight),
+      icon: <ShieldCheck size={19} />,
+      tone: contextInsightTone(contextInsight),
+    },
+    {
+      id: "next",
+      label: "Next",
+      value: action.title,
+      detail: remaining.length ? `${remaining.length} step${remaining.length === 1 ? "" : "s"} remaining` : "Ready to compare later",
+      icon: <Target size={19} />,
+      tone: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]",
+    },
+  ];
+}
+
+function ComparisonConfidenceMeter({
+  checkQuality,
+  report,
+}: {
+  checkQuality: ReportCheckQuality;
+  report: CognitiveAssessmentReport;
+}) {
+  const confidence = comparisonConfidencePercent(checkQuality, report);
+  const label = comparisonConfidenceLabel(checkQuality);
+
   return (
-    <div className={`mt-4 min-w-0 max-w-full overflow-hidden rounded-[18px] border p-3 ${checkQualityTone(checkQuality)}`}>
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-white/80">
-          <ShieldCheck size={22} />
+    <div className={`min-w-0 rounded-[20px] border p-4 ${checkQualityTone(checkQuality)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-[11px] font-black uppercase tracking-[0.1em] opacity-80">Comparison confidence</span>
+          <span className="mt-1 block truncate text-[22px] font-black leading-tight text-[#2f2135]">{label}</span>
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-black">{checkQuality.label}</span>
-          <span className="mt-0.5 block text-[12px] font-bold leading-snug opacity-80">{checkQuality.detail}</span>
-        </span>
+        <span className="rounded-full bg-white px-3 py-1 text-[13px] font-black shadow-sm">{confidence}%</span>
       </div>
+      <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/85">
+        <div className="h-full rounded-full bg-current" style={{ width: `${confidence}%` }} />
+      </div>
+      <p className="mt-3 text-[12px] font-bold leading-snug opacity-85">{checkQuality.detail}</p>
       {checkQuality.factors.length > 0 ? (
         <div className="mt-3 flex max-w-full flex-wrap gap-2">
-          {checkQuality.factors.map((factor) => (
+          {checkQuality.factors.slice(0, 4).map((factor) => (
             <span key={factor} className="max-w-full rounded-full bg-white px-2.5 py-1 text-[11px] font-black shadow-sm">
               {factor}
             </span>
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function InsightSnapshotCard({
+  report,
+  domainTrends,
+  checkQuality,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  domainTrends: ReportDomainTrends;
+  checkQuality: ReportCheckQuality;
+  contextInsight: ReportContextInsight;
+}) {
+  const items = insightSnapshotItems(report, domainTrends, checkQuality, contextInsight);
+
+  return (
+    <div id="insight-snapshot" className="min-w-0 max-w-full overflow-hidden rounded-[26px] border border-[#DDD6FE] bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] md:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Insight snapshot</p>
+          <h2 className="mt-1 text-[24px] font-black leading-tight text-[#2f2135]">What to notice</h2>
+        </div>
+        <span className="flex-shrink-0 rounded-full bg-[#F5F3FF] px-3 py-1.5 text-xs font-black text-[#5B21B6]">Raw tracking</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(230px,0.8fr)]">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+          {items.map((item) => (
+            <div key={item.id} className={`min-w-0 rounded-[18px] border px-3 py-3 ${item.tone}`}>
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] bg-white/85 shadow-sm">
+                  {item.icon}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-black uppercase tracking-[0.1em] opacity-75">{item.label}</span>
+                  <span className="mt-1 block truncate text-[15px] font-black leading-tight text-[#2f2135]">{item.value}</span>
+                  <span className="mt-1 block truncate text-[12px] font-bold opacity-80">{item.detail}</span>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <ComparisonConfidenceMeter checkQuality={checkQuality} report={report} />
+      </div>
     </div>
   );
 }
@@ -801,6 +996,19 @@ function contextInsightTone(contextInsight: ReportContextInsight) {
   return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]";
 }
 
+function domainTrendPlainCopy(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.direction === "none") return "This domain has not been saved yet.";
+  if (trend.direction === "new") return "This is the first saved signal for this domain.";
+  if (trend.direction === "flat") return "This domain looks steady compared with the last check.";
+  if (trend.direction === "up") return "This raw signal is higher than the previous check.";
+  if (trend.direction === "down") return "This raw signal is lower than the previous check.";
+  return "This signal changed since the previous check.";
+}
+
+function rawValueLabel(value: number | null) {
+  return value === null ? "None yet" : String(value);
+}
+
 function ContextOverlay({
   taskSignals,
   contextInsight,
@@ -836,11 +1044,35 @@ function ContextOverlay({
 
 function DomainMiniHistory({
   series,
+  trend,
 }: {
   series: ReportDomainTrendSeries[number] | null;
+  trend: CognitiveAssessmentDomainTrend;
 }) {
+  const trendDetails = (
+    <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="rounded-[14px] bg-white px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#8A7C73]">Latest</p>
+        <p className="mt-1 text-[13px] font-black text-[#2f2135]">{trend.valueLabel}</p>
+      </div>
+      <div className="rounded-[14px] bg-white px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#8A7C73]">Previous</p>
+        <p className="mt-1 text-[13px] font-black text-[#2f2135]">{rawValueLabel(trend.previousRawValue)}</p>
+      </div>
+      <div className="rounded-[14px] bg-white px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#8A7C73]">Change</p>
+        <p className="mt-1 text-[13px] font-black text-[#2f2135]">{domainTrendLabel(trend)}</p>
+      </div>
+    </div>
+  );
+
   if (!series || series.points.length === 0) {
-    return <p className="mt-3 text-[12px] font-bold text-[#766b63]">Mini history will appear after repeated checks.</p>;
+    return (
+      <div>
+        {trendDetails}
+        <p className="mt-3 text-[12px] font-bold text-[#766b63]">{domainTrendPlainCopy(trend)}</p>
+      </div>
+    );
   }
   const coordinates = miniTrendCoordinates(series.points);
   const numericCoordinates = coordinates.filter((point) => point.rawValue !== null);
@@ -850,6 +1082,7 @@ function DomainMiniHistory({
 
   return (
     <div className="mt-3 rounded-[16px] bg-white p-3">
+      <p className="mb-3 text-[12px] font-bold text-[#62564f]">{domainTrendPlainCopy(trend)}</p>
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#8A7C73]">Mini history</p>
         <p className="text-[12px] font-black text-[#2f2135]">{last?.valueLabel ?? "Not checked"}</p>
@@ -892,6 +1125,7 @@ function DomainMiniHistory({
           {shortDate(last?.completedAt)}
         </text>
       </svg>
+      {trendDetails}
     </div>
   );
 }
@@ -961,7 +1195,7 @@ function DomainTrendChart({
                 </div>
                 <span className="mt-2 block text-[12px] font-black text-[#766b63]">{trend.valueLabel}</span>
               </summary>
-              <DomainMiniHistory series={seriesByDomain.get(trend.domainId) ?? null} />
+              <DomainMiniHistory series={seriesByDomain.get(trend.domainId) ?? null} trend={trend} />
             </details>
           );
         })}
@@ -1149,16 +1383,22 @@ function ReportView({
                 <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#62564f]">{snapshotCopy}</p>
               </div>
             </div>
-            <CheckQualityPanel checkQuality={checkQuality} />
+          </div>
+
+          <InsightSnapshotCard
+            report={report}
+            domainTrends={domainTrends}
+            checkQuality={checkQuality}
+            contextInsight={contextInsight}
+          />
+
+          <div id="domain-trends">
+            <DomainTrendChart domainTrends={domainTrends} domainTrendSeries={domainTrendSeries} />
           </div>
 
           <WhatChangedStrip domainTrends={domainTrends} />
 
           <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
-
-          <div id="domain-trends">
-            <DomainTrendChart domainTrends={domainTrends} domainTrendSeries={domainTrendSeries} />
-          </div>
 
           <PersonalBaselineCard baselineBands={baselineBands} />
         </div>
