@@ -4,6 +4,7 @@ import {
   Activity,
   AlertCircle,
   BookOpenCheck,
+  Brain,
   CheckCircle,
   ChevronDown,
   HeartPulse,
@@ -767,7 +768,7 @@ export default function TriageChat({
         ref={scrollRef}
         className="px-4 py-4"
       >
-        <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
+        <div className="mx-auto flex w-full max-w-[620px] flex-col gap-5">
           {showProgressCard ? (
             <HealthWizardCard
               tone="soft"
@@ -905,16 +906,19 @@ export default function TriageChat({
           )}
 
           {showQuestion && (
-            <HealthWizardCard className="px-5 py-5">
+            <HealthWizardCard className="overflow-hidden border-[#D8C7FF] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBFAFF_54%,#FFF8EA_100%)] px-5 py-5 shadow-[0_18px_44px_rgba(107,33,168,0.12)]">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <p data-testid="triage-question-progress" className="font-body text-[14px] font-black text-vyva-text-2">
-                    {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
-                  </p>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black text-vyva-purple shadow-sm">
+                    <Brain className="h-4 w-4" />
+                    <span data-testid="triage-question-progress">
+                      {t("health.symptomCheck.chat.questionCount", "Question {{count}}", { count: questionNumber })}
+                    </span>
+                  </span>
                   {guidancePlan ? (
                     <span
                       data-testid="triage-guidance-confidence"
-                      className="rounded-full border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-1 font-body text-[12px] font-black leading-none text-[#047857]"
+                      className="rounded-full border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-1.5 font-body text-[12px] font-black leading-none text-[#047857]"
                     >
                       {guidancePlan.confidence.label} - {guidancePlan.confidence.score}/5
                     </span>
@@ -925,10 +929,10 @@ export default function TriageChat({
                   language={activeLanguage}
                   label={t("health.symptomCheck.chat.playQuestion", "Play question")}
                   stopLabel={t("health.symptomCheck.chat.stopQuestion", "Stop")}
-                  className="min-h-[40px] px-3 text-[13px]"
+                  className="min-h-[42px] px-3 text-[13px]"
                 />
               </div>
-              <h2 className={`font-body text-[26px] font-black leading-[1.16] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
+              <h2 className={`font-body text-[30px] font-black leading-[1.12] sm:text-[36px] ${safetyAlert ? "motion-safe:animate-pulse text-[#B91C1C]" : "text-vyva-text-1"}`}>
                 {latestQuestion}
                 {latestAssistantEntry && animatingIdx === latestAssistantEntry.index && (
                   <span
@@ -938,7 +942,7 @@ export default function TriageChat({
                 )}
               </h2>
               {guidancePlan ? (
-                <p data-testid="triage-guidance-focus" className="mt-3 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                <p data-testid="triage-guidance-focus" className="mt-4 rounded-[18px] border border-[#E8DED4] bg-white/78 px-4 py-3 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
                   <span className="font-black text-vyva-purple">{guidancePlan.priorityLabel}:</span>{" "}
                   {guidancePlan.protocolLabel}
                 </p>
@@ -1044,8 +1048,8 @@ export default function TriageChat({
           )}
 
           {canAnswer && (
-            <div className="grid gap-3" data-testid="triage-quick-answers">
-              <div className="flex items-center gap-2 px-1 font-body text-[15px] font-black text-vyva-text-2">
+            <div className="grid gap-3 rounded-[28px] border border-[#E8DED4] bg-white/88 p-3 shadow-[0_12px_30px_rgba(63,45,35,0.06)]" data-testid="triage-quick-answers">
+              <div className="flex items-center gap-2 px-2 font-body text-[15px] font-black text-vyva-text-2">
                 <CheckCircle className="h-4 w-4 text-teal-700" />
                 {t("health.symptomCheck.chat.chooseClosest", "Choose the closest answer")}
               </div>
@@ -1057,6 +1061,7 @@ export default function TriageChat({
                     onClick={() => void sendText(value, quickAnswer)}
                     icon={<Icon size={24} />}
                     title={label}
+                    className="min-h-[76px] rounded-[22px] hover:border-vyva-purple hover:shadow-[0_12px_24px_rgba(107,33,168,0.10)]"
                   />
                 );
               })}
@@ -1080,6 +1085,7 @@ export default function TriageChat({
                           onClick={() => void sendText(value, quickAnswer)}
                           icon={<Icon size={24} />}
                           title={label}
+                          className="min-h-[76px] rounded-[22px] hover:border-vyva-purple hover:shadow-[0_12px_24px_rgba(107,33,168,0.10)]"
                         />
                       );
                     })}

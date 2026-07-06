@@ -912,35 +912,26 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
   const emergencyCallLabel = emergencyContact?.telHref
     ? t("health.symptomCheck.intro.emergencyCallNumber", "Call {{number}} now", { number: emergencyContact.label })
     : t("health.symptomCheck.intro.emergencyCall", "Call emergency services");
-  const insightItems = profileContextItems.length
-    ? profileContextItems.slice(0, 4)
-    : [
-        t("health.symptomCheck.intro.insightProfile", "Your health profile"),
-        t("health.symptomCheck.intro.insightMedicines", "Medicines and allergies"),
-        t("health.symptomCheck.intro.insightVitals", "Recent vitals"),
-        t("health.symptomCheck.intro.insightCare", "Care contacts"),
-      ];
-  const supportActions = [
+  const guidancePromises = [
     {
-      key: "vitals",
-      label: t("health.symptomCheck.intro.supportVitals", "Record vitals"),
-      body: t("health.symptomCheck.intro.supportVitalsBody", "Add pulse, oxygen, blood pressure, or temperature if you can."),
-      Icon: Gauge,
-      route: "/health/vitals",
+      key: "listen",
+      label: t("health.symptomCheck.intro.promiseListen", "VYVA listens first"),
+      body: t("health.symptomCheck.intro.promiseListenBody", "Use a sentence, a few words, or your voice. You do not need medical terms."),
+      Icon: Mic,
     },
     {
-      key: "meds",
-      label: t("health.symptomCheck.intro.supportMeds", "Check medicines"),
-      body: t("health.symptomCheck.intro.supportMedsBody", "Review recent doses and anything new."),
-      Icon: Pill,
-      route: "/meds",
+      key: "profile",
+      label: t("health.symptomCheck.intro.promiseProfile", "Your profile helps quietly"),
+      body: profileContextItems.length
+        ? t("health.symptomCheck.intro.promiseProfileReady", "Medicines, recent readings, and care context help choose safer questions.")
+        : t("health.symptomCheck.intro.promiseProfileFallback", "When profile details are missing, VYVA still starts with safety questions."),
+      Icon: Brain,
     },
     {
-      key: "care",
-      label: t("health.symptomCheck.intro.supportCare", "Contact support"),
-      body: t("health.symptomCheck.intro.supportCareBody", "Find a caregiver, doctor, or Red Cross contact."),
-      Icon: Users,
-      route: "/health/doctor",
+      key: "handoff",
+      label: t("health.symptomCheck.intro.promiseHandoff", "You get a clear next step"),
+      body: t("health.symptomCheck.intro.promiseHandoffBody", "At the end, VYVA prepares guidance you can follow or share."),
+      Icon: Share2,
     },
   ];
   const assistantSteps = [
@@ -1122,53 +1113,27 @@ export function IntroScreen({ onStart, onNavigate, personalizedSuggestions, prof
           </div>
         </div>
 
-        <aside className="grid gap-3 rounded-[28px] border border-[#E8DED4] bg-[#FFFCF8] p-4 text-left">
-          <div className="rounded-[22px] border border-[#EDE5DB] bg-white p-4">
-            <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-vyva-purple-light text-vyva-purple">
-                <Brain size={22} strokeWidth={2.7} />
-              </span>
-              <div>
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.13em] text-vyva-purple">
-                  {t("health.symptomCheck.intro.usesTitle", "What VYVA will use")}
-                </p>
-                <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
-                  {t("health.symptomCheck.intro.usesBody", "The check becomes more personal when these signals are available.")}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2">
-              {insightItems.map((item, index) => (
-                <div key={`${item}-${index}`} className="flex items-center gap-2 rounded-[16px] border border-[#E8DED4] bg-[#FAF8F5] px-3 py-2">
-                  <CheckCircle size={18} strokeWidth={2.8} className="flex-shrink-0 text-[#047857]" />
-                  <span className="font-body text-[13px] font-black leading-tight text-vyva-text-1">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[22px] border border-[#EDE5DB] bg-white p-4">
-            <p className="font-body text-[12px] font-black uppercase tracking-[0.13em] text-vyva-text-3">
-              {t("health.symptomCheck.intro.supportTitle", "Helpful next actions")}
+        <aside className="grid content-start gap-3 rounded-[28px] border border-[#D8C7FF] bg-[linear-gradient(180deg,#FBFAFF_0%,#FFFFFF_100%)] p-4 text-left shadow-[0_14px_34px_rgba(107,33,168,0.08)]">
+          <div className="rounded-[22px] bg-vyva-purple px-4 py-4 text-white shadow-[0_16px_32px_rgba(107,33,168,0.18)]">
+            <p className="font-body text-[18px] font-black leading-tight">
+              {t("health.symptomCheck.intro.guideTitle", "A careful check, one answer at a time")}
             </p>
-            <div className="mt-3 grid gap-2">
-              {supportActions.map(({ key, label, body, Icon, route }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onNavigate?.(route)}
-                  className="vyva-tap flex min-h-[76px] items-center gap-3 rounded-[18px] border border-[#E8DED4] bg-[#FFFCF8] px-3 py-3 text-left"
-                >
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-vyva-purple shadow-sm">
-                    <Icon size={20} strokeWidth={2.7} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">{label}</span>
-                    <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
+            <p className="mt-2 font-body text-[14px] font-bold leading-relaxed text-white/88">
+              {t("health.symptomCheck.intro.guideBody", "VYVA starts with safety, then adapts each question to what you say.")}
+            </p>
+          </div>
+          <div className="grid gap-2">
+            {guidancePromises.map(({ key, label, body, Icon }) => (
+              <div key={key} className="flex gap-3 rounded-[20px] border border-[#E8DED4] bg-white px-3 py-3">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-vyva-purple-light text-vyva-purple shadow-sm">
+                  <Icon size={20} strokeWidth={2.7} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-body text-[14px] font-black leading-tight text-vyva-text-1">{label}</span>
+                  <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">{body}</span>
+                </span>
+              </div>
+            ))}
           </div>
         </aside>
       </section>
