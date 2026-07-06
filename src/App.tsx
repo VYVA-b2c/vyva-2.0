@@ -105,6 +105,7 @@ const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
 const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
 const SignosScreen = lazy(() => import("./pages/SignosScreen"));
 const InformesScreen = lazy(() => import("./pages/InformesScreen"));
+const BrainCoachReportScreen = lazy(() => import("./pages/BrainCoachReportScreen"));
 const CompanionsScreen = lazy(() => import("./pages/CompanionsScreen"));
 const HistoryScreen = lazy(() => import("./pages/HistoryScreen"));
 const SubscriptionSettings = lazy(() => import("./pages/settings/SubscriptionSettings"));
@@ -677,6 +678,7 @@ const App = () => (
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
                   <Route path="/informes" element={<AppShell><InformesScreen /></AppShell>} />
+                  <Route path="/informes/brain-coach" element={<AppShell><BrainCoachReportScreen /></AppShell>} />
                   <Route path="/informes/:id" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/companions" element={<AppShell><CompanionsScreen /></AppShell>} />
                   <Route path="/caregiver" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
