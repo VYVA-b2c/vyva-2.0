@@ -2838,7 +2838,7 @@ export default function SymptomCheckScreen() {
   const topBarMaxWidth = isWideWorkspace ? "max-w-[1040px]" : "max-w-[760px]";
 
   return (
-    <HealthWizardShell contentClassName={`flex min-h-[calc(100dvh-204px)] ${shellMaxWidth} flex-col overflow-hidden px-0 pb-0 pt-0`}>
+    <HealthWizardShell contentClassName={`flex min-h-[calc(100dvh-204px)] ${shellMaxWidth} flex-col px-0 pb-10 pt-0`}>
       <div className={`mx-auto w-full ${topBarMaxWidth} px-4 pt-3 sm:px-5 lg:px-0`} data-testid="symptom-check-shell">
         <HealthWizardTopBar
           title={stepTitle[step]}
@@ -2858,7 +2858,7 @@ export default function SymptomCheckScreen() {
         />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col">
         {step === "intro" && (
           <IntroScreen
             onStart={(clue) => startChatDirectly(clue, false)}
