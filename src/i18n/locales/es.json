@@ -413,8 +413,13 @@
   "voiceHero": {
     "talkToVyva": "Hablemos",
     "speaking": "VYVA está hablando...",
+    "speakingStatus": "VYVA habla",
+    "speakingFallback": "Un momento",
     "listening": "Escuchando...",
     "connecting": "Conectando...",
+    "micOffShort": "Micro apagado",
+    "micOnShort": "Micro activo",
+    "touchInsteadShort": "Tocar",
     "active": "Activa",
     "live": "En vivo",
     "you": "Tú",
@@ -1271,6 +1276,10 @@
         "sub": "Hablar de sintomas a vigilar",
         "sheetTitle": "Revisar efectos secundarios",
         "prompt": "Tomo los siguientes medicamentos: {{medNames}}. Ayudame a pensar en posibles efectos secundarios, sintomas que debo vigilar y preguntas para mi medico o farmaceutico. Si algo suena urgente, dime que busque ayuda medica."
+      },
+      "refillHelp": {
+        "label": "Ayuda para reposicion",
+        "sub": "Apoyo para pedir"
       }
     },
     "notes": {

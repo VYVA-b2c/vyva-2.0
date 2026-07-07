@@ -334,6 +334,71 @@ describe("admin learning import", () => {
     });
   });
 
+  it("keeps lessons visible when optional image columns are not migrated yet", async () => {
+    const now = new Date("2026-07-05T10:00:00.000Z");
+    const missingImageColumn = Object.assign(new Error('column "learning_lessons"."image_url" does not exist'), {
+      code: "42703",
+    });
+
+    dbMock.db.select.mockReset();
+    dbMock.db.select
+      .mockReturnValueOnce({
+        from: () => ({
+          orderBy: () => ({
+            limit: async () => {
+              throw missingImageColumn;
+            },
+          }),
+        }),
+      })
+      .mockReturnValueOnce({
+        from: () => ({
+          orderBy: () => ({
+            limit: async () => [
+              {
+                id: "lesson-1",
+                externalId: "science-soap-001",
+                categorySlug: "science",
+                language: "en",
+                title: "Why soap helps water do more",
+                hook: "Soap changes how water meets oil.",
+                body: "Soap molecules can connect with oil and water at the same time.",
+                reflectionPrompt: "Where did you see chemistry quietly helping today?",
+                sourceNotes: "General chemistry background.",
+                estimatedMinutes: 3,
+                difficulty: "easy",
+                tags: ["science"],
+                status: "draft",
+                isActive: false,
+                reviewedAt: null,
+                reviewedBy: null,
+                publishedAt: null,
+                publishedBy: null,
+                archivedAt: null,
+                archivedBy: null,
+                createdAt: now,
+                updatedAt: now,
+              },
+            ],
+          }),
+        }),
+      });
+
+    const response = await request(app)
+      .get("/api/admin/learning/lessons")
+      .expect(200);
+
+    expect(response.body.lessons).toEqual([
+      expect.objectContaining({
+        id: "lesson-1",
+        title: "Why soap helps water do more",
+        imageUrl: null,
+        imageAlt: null,
+        imagePrompt: null,
+      }),
+    ]);
+  });
+
   it("bulk publishes draft and review lessons", async () => {
     const now = new Date("2026-06-24T10:00:00.000Z");
     const returning = vi.fn(async () => [

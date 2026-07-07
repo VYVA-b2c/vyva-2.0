@@ -70,6 +70,8 @@ import homePlanRouter from "./routes/homePlan.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
+import breathingRouter from "./routes/breathing.js";
+import symptomsRouter from "./routes/symptoms.js";
 import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
@@ -80,6 +82,7 @@ import caregiverBrainCoachRouter from "./routes/caregiverBrainCoach.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
 import healthPreventionRouter from "./routes/healthPrevention.js";
+import healthInsightsReportRouter, { registerHealthInsightsJobs } from "./routes/healthInsightsReport.js";
 import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
@@ -203,7 +206,9 @@ app.use("/api/profile", authMiddleware, profileRouter);
 app.use("/api/settings/health-devices", authMiddleware, healthDevicesSettingsRouter);
 app.use("/api/home", authMiddleware, homePlanRouter);
 app.use("/api/weather", authMiddleware, weatherRouter);
+app.use("/api/breathing", authMiddleware, requireUser, breathingRouter);
 app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_check"), triageRouter);
+app.use("/api/symptoms", authMiddleware, requireUser, requireEntitlement("symptom_check"), symptomsRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
@@ -217,6 +222,7 @@ app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api/health", authMiddleware, requireUser, healthPreventionRouter);
+app.use("/api", authMiddleware, requireUser, healthInsightsReportRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
@@ -231,6 +237,8 @@ app.get("/api/checkins/shared/:token", sharedCheckinReportHandler);
 app.post("/api/checkins/analyze", authMiddleware, requireUser, analyzeCheckinHandler);
 app.get("/api/checkins/history", authMiddleware, requireUser, checkinHistoryHandler);
 app.use("/api/checkins", authMiddleware, checkinsRouter);
+
+registerHealthInsightsJobs();
 
 app.get("/api/debug-runtime", (_req, res) => {
   res.json({

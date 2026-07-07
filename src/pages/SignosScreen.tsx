@@ -52,6 +52,21 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import {
+  appendPreventionLoopHistory,
+  encodePreventionLearningQuery,
+  learningContextForPreventionRequest,
+  PREVENTION_LOOP_LAST_FEEDBACK_KEY,
+  PREVENTION_LOOP_LAST_VIEW_KEY,
+  preventionDateKey,
+  preventionFeedbackStorageKey,
+  readStoredJson,
+  writeStoredJson,
+} from "@/lib/preventionLoop";
+import type {
+  PreventionLoopLastFeedback,
+  PreventionLoopLastView,
+} from "@/lib/preventionLoop";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { VITALS_DEVICE_CATALOG, type VitalsDeviceCatalogItem, type VitalsDeviceKind } from "@/lib/vitalsDeviceCatalog";
 import {
@@ -199,6 +214,8 @@ type AgeWellScore = {
 };
 
 type AgeWellFeedback = "done" | "too_hard";
+
+type StoredAgeWellFeedback = Record<string, AgeWellFeedback>;
 
 type AgeWellSignalRow = {
   id: string;
@@ -743,6 +760,155 @@ function selectLongevityMoves(actions: PreventionDailyAction[] | undefined): Pre
   }
 
   return selected.slice(0, 3);
+}
+
+function easierAgeWellPrimaryAction(action: PreventionDailyAction): PreventionGuidanceAction {
+  if (action.tone === "food") {
+    return {
+      id: "agewell-easy-food",
+      label: "Easy food help",
+      detail: "Prepared meal or simple grocery support",
+      route: "/concierge/shopping",
+      priority: "primary",
+      shoppingPrefill: action.actionSheet.primaryAction.shoppingPrefill ?? {
+        needText: `Find an easy version of this prevention step: ${action.title}. Keep it simple and do not order without my confirmation.`,
+        category: "groceries",
+        priorities: ["simple", "delivery", "diet"],
+        constraints: ["easy preparation", "confirm before ordering"],
+        packageId: "easy_agewell_food",
+      },
+    };
+  }
+
+  if (action.tone === "movement" || action.tone === "support") {
+    return {
+      id: "agewell-easy-calm",
+      label: "Start easier",
+      detail: "Breathing or seated reset",
+      route: "/activities/relax-breathe",
+      priority: "primary",
+    };
+  }
+
+  return {
+    id: "agewell-easy-vyva",
+    label: "Ask VYVA",
+    detail: "Break this into one safe step",
+    route: "/health/doctor",
+    priority: "primary",
+    mode: "voice",
+  };
+}
+
+function makeAgeWellEasierAction(action: PreventionDailyAction, reason: string): PreventionDailyAction {
+  const primaryAction = easierAgeWellPrimaryAction(action);
+  return {
+    ...action,
+    title: "Easier version",
+    detail: action.tone === "food"
+      ? "Use one simple swap or prepared help."
+      : action.tone === "movement" || action.tone === "support"
+        ? "Start with breathing or seated movement."
+        : "Ask VYVA for one small step.",
+    why: reason,
+    evidenceLabel: "Adjusted",
+    actionSheet: {
+      title: "Easier version",
+      summary: `${reason} Start smaller and keep the original step available.`,
+      primaryAction,
+      secondaryActions: [
+        {
+          id: "agewell-original-action",
+          label: action.actionSheet.primaryAction.label,
+          detail: action.actionSheet.primaryAction.detail,
+          route: action.actionSheet.primaryAction.route,
+          priority: "secondary",
+          mode: action.actionSheet.primaryAction.mode,
+          shoppingPrefill: action.actionSheet.primaryAction.shoppingPrefill,
+        },
+        {
+          id: "agewell-ask-easier",
+          label: "Ask VYVA",
+          detail: `Make ${action.title} easier for me`,
+          route: "/health/doctor",
+          priority: "secondary",
+          mode: "voice",
+        },
+      ],
+      safetyNote: action.actionSheet.safetyNote,
+    },
+  };
+}
+
+function ageWellActionMatchesFeedback(action: PreventionDailyAction, last: PreventionLoopLastFeedback): boolean {
+  return action.id === last.actionId || action.step === last.step || action.tone === last.tone;
+}
+
+function adaptAgeWellMovesForLoop({
+  actions,
+  feedback,
+  lastFeedback,
+  lastView,
+  currentDate,
+}: {
+  actions: PreventionDailyAction[];
+  feedback: StoredAgeWellFeedback;
+  lastFeedback: PreventionLoopLastFeedback | null;
+  lastView: PreventionLoopLastView | null;
+  currentDate: string;
+}): PreventionDailyAction[] {
+  const adapted = actions.map((action) => {
+    if (feedback[action.id] === "too_hard") {
+      return makeAgeWellEasierAction(action, "You said this felt too hard, so VYVA made it smaller.");
+    }
+    if (lastFeedback?.date !== currentDate && lastFeedback?.feedback === "too_hard" && ageWellActionMatchesFeedback(action, lastFeedback)) {
+      return makeAgeWellEasierAction(action, "Yesterday felt hard, so VYVA starts easier today.");
+    }
+    if (!lastFeedback && lastView && lastView.date !== currentDate && action === actions[0]) {
+      return makeAgeWellEasierAction(action, "Yesterday was skipped, so VYVA starts with a smaller step.");
+    }
+    return action;
+  });
+
+  const hasDoneToday = Object.values(feedback).includes("done");
+  if (!hasDoneToday && lastFeedback?.date !== currentDate && lastFeedback?.feedback === "done") {
+    const familyIndex = adapted.findIndex((action) => action.id !== lastFeedback.actionId && (
+      action.step === lastFeedback.step || action.tone === lastFeedback.tone
+    ));
+    if (familyIndex > 0) {
+      const next = [...adapted];
+      const [familyAction] = next.splice(familyIndex, 1);
+      next.unshift(familyAction);
+      return next;
+    }
+  }
+
+  return adapted;
+}
+
+function ageWellLoopInsight({
+  focus,
+  feedback,
+  lastFeedback,
+  lastView,
+  currentDate,
+  hasRecentLearning,
+}: {
+  focus: PreventionFocusResponse;
+  feedback: StoredAgeWellFeedback;
+  lastFeedback: PreventionLoopLastFeedback | null;
+  lastView: PreventionLoopLastView | null;
+  currentDate: string;
+  hasRecentLearning: boolean;
+}): string {
+  const values = Object.values(feedback);
+  if (values.includes("too_hard")) return "VYVA made this easier because you said it was too hard.";
+  if (values.includes("done")) return "VYVA will use what worked today when choosing tomorrow's plan.";
+  if (lastFeedback && lastFeedback.date !== currentDate && lastFeedback.feedback === "too_hard") return "VYVA started easier because a recent step felt hard.";
+  if (lastFeedback && lastFeedback.date !== currentDate && lastFeedback.feedback === "done") return "VYVA kept the same helpful rhythm, with a fresh step.";
+  if (!lastFeedback && lastView && lastView.date !== currentDate) return "VYVA kept today smaller because the last plan was skipped.";
+  if (hasRecentLearning) return "VYVA is using recent feedback to vary today's plan.";
+  return `Tap Done or Too hard so VYVA can tune tomorrow's ${focus.focus.toLowerCase()} plan.`;
 }
 
 function dailyActionToneStyle(tone: PreventionActionTone) {
@@ -1999,26 +2165,51 @@ const SignosScreen = () => {
   const [captureMode, setCaptureMode] = useState<VitalsCaptureMode | null>(null);
   const [captureSignal, setCaptureSignal] = useState<VitalsSignalKey | null>(null);
   const [ageWellFeedback, setAgeWellFeedback] = useState<Record<string, AgeWellFeedback>>({});
+  const [lastLoopFeedback, setLastLoopFeedback] = useState<PreventionLoopLastFeedback | null>(null);
+  const [lastLoopView, setLastLoopView] = useState<PreventionLoopLastView | null>(null);
+  const [requestLearning] = useState(() => learningContextForPreventionRequest());
 
   const { data: vitalsData } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
     retry: false,
   });
   const { data: preventionData, isError: preventionError } = useQuery<PreventionFocusResponse>({
-    queryKey: ["/api/health/prevention"],
+    queryKey: ["/api/health/prevention", requestLearning.clientHour, requestLearning.recentFeedback.length, requestLearning.recentFeedback[0]?.savedAt],
     retry: false,
     staleTime: 60 * 1000,
+    queryFn: async () => {
+      const res = await apiFetch(`/api/health/prevention?learning=${encodePreventionLearningQuery(requestLearning)}`);
+      if (!res.ok) throw new Error("Could not load prevention focus");
+      return res.json();
+    },
   });
 
   const summary = vitalsData?.summary;
   const hasPrevention = Boolean(preventionData?.focus && !preventionError);
   const preventionFocus = hasPrevention ? preventionData : ageWellFallbackFocus;
+  const currentDateKey = preventionDateKey(preventionFocus.generatedAt);
+  const feedbackStorageKey = preventionFeedbackStorageKey(preventionFocus.focus, currentDateKey);
   const ageWellScore = useMemo(() => calculateAgeWellScore({
     summary,
     focus: preventionFocus,
     hasPrevention,
   }), [hasPrevention, preventionFocus, summary]);
-  const longevityMoves = useMemo(() => selectLongevityMoves(preventionFocus.dailyActions), [preventionFocus.dailyActions]);
+  const baseLongevityMoves = useMemo(() => selectLongevityMoves(preventionFocus.dailyActions), [preventionFocus.dailyActions]);
+  const longevityMoves = useMemo(() => adaptAgeWellMovesForLoop({
+    actions: baseLongevityMoves,
+    feedback: ageWellFeedback,
+    lastFeedback: lastLoopFeedback,
+    lastView: lastLoopView,
+    currentDate: currentDateKey,
+  }), [ageWellFeedback, baseLongevityMoves, currentDateKey, lastLoopFeedback, lastLoopView]);
+  const loopInsight = useMemo(() => ageWellLoopInsight({
+    focus: preventionFocus,
+    feedback: ageWellFeedback,
+    lastFeedback: lastLoopFeedback,
+    lastView: lastLoopView,
+    currentDate: currentDateKey,
+    hasRecentLearning: requestLearning.recentFeedback.length > 0,
+  }), [ageWellFeedback, currentDateKey, lastLoopFeedback, lastLoopView, preventionFocus, requestLearning.recentFeedback.length]);
 
   const openCapture = useCallback((mode: VitalsCaptureMode, signal?: VitalsSignalKey) => {
     setShowAddReadingSheet(false);
@@ -2029,6 +2220,72 @@ const SignosScreen = () => {
     setSelectedSuggestedSignal(signal ?? null);
     setShowAddReadingSheet(true);
   }, []);
+
+  useEffect(() => {
+    const stored = readStoredJson<StoredAgeWellFeedback>(feedbackStorageKey);
+    setAgeWellFeedback(stored ?? {});
+
+    const previousFeedback = readStoredJson<PreventionLoopLastFeedback>(PREVENTION_LOOP_LAST_FEEDBACK_KEY);
+    const previousView = readStoredJson<PreventionLoopLastView>(PREVENTION_LOOP_LAST_VIEW_KEY);
+    setLastLoopFeedback(previousFeedback?.focus === preventionFocus.focus ? previousFeedback : null);
+    setLastLoopView(previousView?.focus === preventionFocus.focus ? previousView : null);
+    writeStoredJson(PREVENTION_LOOP_LAST_VIEW_KEY, {
+      focus: preventionFocus.focus,
+      date: currentDateKey,
+      actionIds: baseLongevityMoves.map((item) => item.id),
+      viewedAt: new Date().toISOString(),
+    } satisfies PreventionLoopLastView);
+  }, [baseLongevityMoves, currentDateKey, feedbackStorageKey, preventionFocus.focus]);
+
+  useEffect(() => {
+    if (!baseLongevityMoves.length) return;
+    const viewedKey = `vyva-prevention-loop:viewed:${preventionFocus.focus}:${currentDateKey}:agewell`;
+    const viewedValue = baseLongevityMoves.map((item) => item.id).join("|");
+    if (window.localStorage.getItem(viewedKey) === viewedValue) return;
+    appendPreventionLoopHistory(baseLongevityMoves.map((action) => ({
+      actionId: action.id,
+      title: action.title,
+      step: action.step,
+      tone: action.tone,
+      focus: preventionFocus.focus,
+      feedback: "shown",
+      date: currentDateKey,
+      savedAt: new Date().toISOString(),
+    })));
+    window.localStorage.setItem(viewedKey, viewedValue);
+  }, [baseLongevityMoves, currentDateKey, preventionFocus.focus]);
+
+  const markAgeWellAction = useCallback((action: PreventionDailyAction, feedback: AgeWellFeedback) => {
+    const savedAt = new Date().toISOString();
+    const loopFeedback = {
+      focus: preventionFocus.focus,
+      date: currentDateKey,
+      actionId: action.id,
+      step: action.step,
+      tone: action.tone,
+      feedback,
+      title: action.title,
+      savedAt,
+    } satisfies PreventionLoopLastFeedback;
+
+    setAgeWellFeedback((current) => {
+      const next = { ...current, [action.id]: feedback };
+      writeStoredJson(feedbackStorageKey, next);
+      return next;
+    });
+    writeStoredJson(PREVENTION_LOOP_LAST_FEEDBACK_KEY, loopFeedback);
+    appendPreventionLoopHistory([{
+      actionId: action.id,
+      title: action.title,
+      step: action.step,
+      tone: action.tone,
+      focus: preventionFocus.focus,
+      feedback,
+      date: currentDateKey,
+      savedAt,
+    }]);
+    setLastLoopFeedback(loopFeedback);
+  }, [currentDateKey, feedbackStorageKey, preventionFocus.focus]);
 
   const latestReadingAt = useMemo(() => {
     if (!summary) return null;
@@ -2283,6 +2540,9 @@ const SignosScreen = () => {
             <p className="mt-1 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">
               {t("statusVitals.plan.longevityMovesCopy", "Food, movement, and one protection step chosen from your profile and latest signals.")}
             </p>
+            <p className="mt-2 rounded-full bg-[#F7F3ED] px-3 py-1.5 font-body text-[12px] font-black leading-snug text-vyva-text-2" data-testid="agewell-loop-insight">
+              {loopInsight}
+            </p>
           </div>
           <span className="hidden rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-black text-[#6B21A8] sm:inline-flex">
             {ageWellScore.label}
@@ -2295,7 +2555,7 @@ const SignosScreen = () => {
               action={item}
               feedback={ageWellFeedback[item.id]}
               onOpen={() => openDailyAction(item)}
-              onFeedback={(feedback) => setAgeWellFeedback((current) => ({ ...current, [item.id]: feedback }))}
+              onFeedback={(feedback) => markAgeWellAction(item, feedback)}
             />
           ))}
         </div>

@@ -482,7 +482,13 @@ function TrailCanvas({
   );
 }
 
-export default function NumberTrails({ userId, onExit }) {
+export default function NumberTrails({
+  userId,
+  onExit,
+  assessmentPractice = null,
+  onAssessmentPracticeComplete,
+  onAssessmentPracticeReturn,
+}) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
   const text = useMemo(() => ({
@@ -932,10 +938,15 @@ export default function NumberTrails({ userId, onExit }) {
     await saveSession(result);
     const nextState = await updateUserState(result);
     setSessionResult({ ...result, userState: nextState });
+    onAssessmentPracticeComplete?.({
+      score: result.score,
+      accuracyPct: result.combined_accuracy_pct,
+      practiceTitle: assessmentPractice?.practiceTitle,
+    });
     setScreen("result");
     setSavingResult(false);
     return result;
-  }, [config, currentTargetIndex, nodes.length, saveSession, stopTimer, updateUserState]);
+  }, [assessmentPractice, config, currentTargetIndex, nodes.length, onAssessmentPracticeComplete, saveSession, stopTimer, updateUserState]);
 
   const saveAbandonedSnapshot = useCallback(async () => {
     const latest = latestRef.current;
@@ -1434,9 +1445,16 @@ export default function NumberTrails({ userId, onExit }) {
             continueLabel={continueLabel}
             replayLabel={text.tryThisTrail}
             anotherLabel={text.playAnotherGame}
+            assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+            assessmentReturnHint={
+              assessmentPractice
+                ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+                : undefined
+            }
             onContinue={() => loadGame(resultState)}
             onReplay={replayCurrentTrail}
             onAnother={handleExit}
+            onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
             disabled={savingResult}
           />
         </section>

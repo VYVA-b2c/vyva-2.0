@@ -75,7 +75,7 @@ describe("NumberTrails", () => {
 
     tapCurrentTrail();
 
-    expect(await screen.findByText("Buena orientacion.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Buena orientacion." })).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: "Siguiente sendero" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reintentar este sendero" })).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe("NumberTrails", () => {
     expect(screen.getByText("Siguiente punto: 1")).toBeInTheDocument();
 
     tapCurrentTrail();
-    expect(await screen.findByText("Buena orientacion.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Buena orientacion." })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Siguiente sendero" }));
     expect(await screen.findByRole("heading", { name: /Sendero/ })).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe("NumberTrails", () => {
 
     const firstTrailPosition = nodePosition("1");
     tapCurrentTrail();
-    expect(await screen.findByText("Buena orientacion.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Buena orientacion." })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Reintentar este sendero" }));
     expect(await screen.findByRole("heading", { name: /Sendero/ })).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("NumberTrails", () => {
     expect(nodePosition("1")).toBe(firstTrailPosition);
 
     tapCurrentTrail();
-    expect(await screen.findByText("Buena orientacion.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 2, name: "Buena orientacion." })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Siguiente sendero" }));
     expect(await screen.findByRole("heading", { name: /Sendero/ })).toBeInTheDocument();

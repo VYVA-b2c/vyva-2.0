@@ -130,6 +130,12 @@ const secondDiscoveryCandidate: AdminParticipationEvent = {
   sourceUrl: "https://example.org/art-workshop",
 };
 
+const repeatedDiscoveryCandidate: AdminParticipationEvent = {
+  ...discoveryCandidate,
+  id: "madrid-library-music-copy",
+  eventKey: "madrid-library-music-copy",
+};
+
 const duplicateDiscoveryCandidate: AdminParticipationEvent = {
   ...discoveryCandidate,
   id: "madrid-garden-walk",
@@ -368,6 +374,21 @@ describe("CuratedActivitiesAdminPage", () => {
         needsLiveCheck: true,
       });
     });
+  });
+
+  it("hides repeated AI results from the same discovery run", async () => {
+    renderPage([discoveryCandidate, repeatedDiscoveryCandidate, secondDiscoveryCandidate]);
+
+    expect((await screen.findAllByText("madrid-garden-walk")).length).toBeGreaterThan(0);
+    await openAdminLane("ai");
+    fireEvent.click(screen.getByTestId("admin-discovery-find"));
+
+    expect(await screen.findByText("Library music morning")).toBeInTheDocument();
+    expect(screen.getByText("Art workshop")).toBeInTheDocument();
+    expect(screen.getByText("2 candidates found. 0 selected for draft save.")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-discovery-repeat-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("admin-discovery-repeat-count")).toHaveTextContent("1 repeated result hidden.");
+    expect(screen.queryByTestId("admin-discovery-candidate-madrid-library-music-copy-1")).not.toBeInTheDocument();
   });
 
   it("saves only checked AI candidates as draft review items", async () => {

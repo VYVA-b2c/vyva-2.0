@@ -133,6 +133,30 @@ export type TriageHealthMemory = {
   countryCode?: string;
 };
 
+export type TriageGuidanceConfidence = {
+  score: number;
+  label: string;
+  reasons: string[];
+  missing: string[];
+};
+
+export type TriageGuidanceSignal = {
+  id: string;
+  label: string;
+  status: "available" | "missing" | "not_needed";
+};
+
+export type TriageGuidancePlan = {
+  protocolId: string;
+  protocolLabel: string;
+  stage: WizardStage;
+  priorityLabel: string;
+  nextQuestionFocus: string;
+  confidence: TriageGuidanceConfidence;
+  profileContextUsed: boolean;
+  usefulSignals: TriageGuidanceSignal[];
+};
+
 export type TriageSuggestionReasonCode =
   | "condition_match"
   | "medicine_match"

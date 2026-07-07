@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import CognitiveAssessmentReportPage from "./CognitiveAssessmentReportPage";
 import type {
@@ -8,6 +8,7 @@ import type {
 } from "../../shared/cognitiveAssessmentReport";
 
 const useQueryMock = vi.hoisted(() => vi.fn());
+const assessmentPracticeStorageKey = "cognitiveAssessment:recommendedPractice:v1";
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: useQueryMock,
@@ -47,6 +48,31 @@ const sampleReport: CognitiveAssessmentReport = {
     "Use this together with sleep, mood, medicines, and daily function context rather than as a standalone answer.",
   ],
   disclaimer: "This is a wellness check to help notice changes over time. It does not diagnose a medical condition.",
+};
+
+const completeReport: CognitiveAssessmentReport = {
+  ...sampleReport,
+  sessionId: "session-complete",
+  startedAt: "2026-07-05T09:00:00.000Z",
+  completedAt: "2026-07-05T09:18:00.000Z",
+  tasksCompleted: 12,
+  totalTasks: 12,
+  overview: "12 of 12 assessment steps are saved in the latest Mind & Memory check.",
+  trend: "The full Cognitive Assessment baseline is ready for future comparison.",
+  sections: [
+    { taskId: "orientation", label: "Orientation", domain: "Awareness", status: "completed", detail: "Date and place saved.", scoreLabel: "saved" },
+    { taskId: "story_recall_immediate", label: "Story recall", domain: "Memory", status: "completed", detail: "5 story details recalled.", scoreLabel: "5" },
+    { taskId: "fluency_semantic", label: "Category fluency", domain: "Language", status: "completed", detail: "12 category words saved.", scoreLabel: "12" },
+    { taskId: "fluency_phonemic", label: "Letter fluency", domain: "Language", status: "completed", detail: "9 letter words saved.", scoreLabel: "9" },
+    { taskId: "digit_span", label: "Digit span", domain: "Attention", status: "completed", detail: "Forward and backward span saved.", scoreLabel: "6" },
+    { taskId: "similarities", label: "Similarities", domain: "Reasoning", status: "completed", detail: "6 of 8 answers saved.", scoreLabel: "6/8" },
+    { taskId: "clock_drawing", label: "Clock drawing", domain: "Visual thinking", status: "completed", detail: "Clock drawing signal saved.", scoreLabel: "4/5" },
+    { taskId: "story_recall_delayed", label: "Delayed recall", domain: "Memory", status: "completed", detail: "4 delayed story details recalled.", scoreLabel: "4" },
+    { taskId: "mood_screen", label: "Mood check", domain: "Mood", status: "completed", detail: "Mood context saved.", scoreLabel: "saved" },
+    { taskId: "sleep_energy", label: "Sleep and energy", domain: "Sleep", status: "completed", detail: "Sleep and energy context saved.", scoreLabel: "saved" },
+    { taskId: "function_iadl", label: "Daily function", domain: "Daily function", status: "completed", detail: "Daily function context saved.", scoreLabel: "saved" },
+    { taskId: "subjective_concern", label: "Memory concern", domain: "Self concern", status: "completed", detail: "Concern context saved.", scoreLabel: "saved" },
+  ],
 };
 
 const sampleHistory: CognitiveAssessmentHistoryResponse["history"] = [
@@ -261,6 +287,64 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
   },
 };
 
+const completeHistoryResponse: CognitiveAssessmentHistoryResponse = {
+  ...sampleHistoryResponse,
+  history: [
+    ...sampleHistory,
+    {
+      sessionId: "session-complete",
+      completedAt: "2026-07-05T09:18:00.000Z",
+      language: "en",
+      inputMode: "wizard",
+      tasksCompleted: 12,
+      totalTasks: 12,
+      overview: "12 of 12 assessment steps saved.",
+    },
+  ],
+  trendPoints: [
+    ...sampleHistoryResponse.trendPoints,
+    {
+      sessionId: "session-complete",
+      completedAt: "2026-07-05T09:18:00.000Z",
+      completionPercent: 100,
+      completedSteps: 12,
+      totalSteps: 12,
+      domainCount: 6,
+    },
+  ],
+  domainTrends: sampleHistoryResponse.domainTrends.map((trend) => ({
+    ...trend,
+    direction: trend.latestRawValue === null ? "none" : "flat",
+  })),
+  taskSignals: [
+    { taskId: "story_recall_immediate", label: "Story recall", domain: "Memory", kind: "count", rawValue: 5, valueLabel: "5 words" },
+    { taskId: "fluency_semantic", label: "Category fluency", domain: "Language", kind: "count", rawValue: 12, valueLabel: "12 words" },
+    { taskId: "fluency_phonemic", label: "Letter fluency", domain: "Language", kind: "count", rawValue: 9, valueLabel: "9 words" },
+    { taskId: "digit_span", label: "Digit span", domain: "Attention", kind: "score", rawValue: 6, maxValue: 8, valueLabel: "6/8" },
+    { taskId: "similarities", label: "Similarities", domain: "Reasoning", kind: "score", rawValue: 6, maxValue: 8, valueLabel: "6/8" },
+    { taskId: "clock_drawing", label: "Clock drawing", domain: "Visual thinking", kind: "score", rawValue: 4, maxValue: 5, valueLabel: "4/5" },
+    { taskId: "story_recall_delayed", label: "Delayed recall", domain: "Memory", kind: "count", rawValue: 4, valueLabel: "4 words" },
+    { taskId: "sleep_energy", label: "Sleep and energy", domain: "Mood/Sleep/Daily Context", kind: "score", rawValue: 5, valueLabel: "5" },
+  ],
+  checkQuality: {
+    status: "good",
+    label: "Good comparison",
+    detail: "Enough areas were completed for a clear baseline.",
+    factors: ["12/12 steps", "6 thinking domains", "Similar time of day"],
+  },
+  contextInsight: {
+    tone: "steady",
+    label: "Context steady",
+    detail: "Mood, sleep, and daily function are saved for comparison.",
+    relatedSignals: ["Sleep and energy: 5"],
+  },
+};
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="current-route">{location.pathname}</div>;
+}
+
 function renderReport(
   report: CognitiveAssessmentReport = sampleReport,
   historyResponse: CognitiveAssessmentHistoryResponse = sampleHistoryResponse,
@@ -282,6 +366,7 @@ function renderReport(
     >
       <Routes>
         <Route path="/mind-memory/cognitive-assessment/*" element={<CognitiveAssessmentReportPage />} />
+        <Route path="*" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -290,6 +375,7 @@ function renderReport(
 describe("CognitiveAssessmentReportPage", () => {
   beforeEach(() => {
     useQueryMock.mockReset();
+    window.localStorage.clear();
   });
 
   it("renders a chart-led member report with compact tracking signals", () => {
@@ -301,6 +387,11 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("+9 pts since last check")).toBeInTheDocument();
     expect(screen.getByText("Insight snapshot")).toBeInTheDocument();
     expect(screen.getByText("What to notice")).toBeInTheDocument();
+    expect(screen.getByTestId("assessment-strength-map")).toHaveTextContent("Strength map");
+    expect(screen.getByText("Bright spot")).toBeInTheDocument();
+    expect(screen.getByText("Focus next")).toBeInTheDocument();
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("3 small practices");
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("0/3");
     expect(screen.getByText("Most changed")).toBeInTheDocument();
     expect(screen.getByText("Memory +1")).toBeInTheDocument();
     expect(screen.getByText("Comparison confidence")).toBeInTheDocument();
@@ -323,6 +414,12 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getAllByText("Memory changed").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Context was saved for comparison with thinking signals.")).toBeInTheDocument();
     expect(screen.getAllByText("Sleep and energy: 5").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("A first step is saved")).toBeInTheDocument();
+    expect(screen.getByText("Recommended practice")).toBeInTheDocument();
+    expect(screen.getByText("Why this practice")).toBeInTheDocument();
+    expect(screen.getAllByText("Category Sort").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: /start recommended practice/i })).toBeInTheDocument();
+    expect(screen.getByText("Use this report")).toBeInTheDocument();
     expect(screen.getAllByText("Mini history").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Areas checked")).toBeInTheDocument();
     expect(screen.getByText("Best next action")).toBeInTheDocument();
@@ -332,6 +429,56 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.getByText("Tracking signals are not a diagnosis.")).toBeInTheDocument();
     expect(screen.queryByText("Scientific basis")).not.toBeInTheDocument();
     expect(screen.queryByText("Coverage map")).not.toBeInTheDocument();
+  });
+
+  it("shows completed baseline guidance after all assessment steps are saved", () => {
+    renderReport(completeReport, completeHistoryResponse);
+
+    expect(screen.getByText("Complete baseline")).toBeInTheDocument();
+    expect(screen.getByText("Baseline ready for future comparison")).toBeInTheDocument();
+    expect(screen.getByText("A clear starting map")).toBeInTheDocument();
+    expect(screen.getByText("Ready for one small practice and future comparison.")).toBeInTheDocument();
+    expect(screen.getByText("The report is ready for future comparison after the next check.")).toBeInTheDocument();
+    expect(screen.getAllByText("Repeat later").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/Finish Orientation/i)).not.toBeInTheDocument();
+  });
+
+  it("opens the recommended Brain Coach practice from the result", () => {
+    renderReport();
+
+    fireEvent.click(screen.getByRole("button", { name: /start recommended practice/i }));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/executive-function/category-sort");
+    expect(JSON.parse(window.localStorage.getItem(assessmentPracticeStorageKey) ?? "{}")).toEqual(expect.objectContaining({
+      source: "cognitive_assessment_report",
+      reportSessionId: "session-1",
+      recommendedDomain: "reasoning",
+      practiceTitle: "Category Sort",
+      route: "/executive-function/category-sort",
+      status: "opened",
+    }));
+  });
+
+  it("shows when a recommended practice was completed from the report", () => {
+    window.localStorage.setItem(assessmentPracticeStorageKey, JSON.stringify({
+      source: "cognitive_assessment_report",
+      reportSessionId: "session-complete",
+      recommendedDomain: "reasoning",
+      practiceTitle: "Category Sort",
+      route: "/executive-function/category-sort",
+      returnTo: "/mind-memory/cognitive-assessment",
+      status: "completed",
+      startedAt: "2026-07-05T09:20:00.000Z",
+      completedAt: "2026-07-05T09:25:00.000Z",
+    }));
+
+    renderReport(completeReport, completeHistoryResponse);
+
+    expect(screen.getByTestId("assessment-practice-status")).toHaveTextContent("Practiced today");
+    expect(screen.getByText("Good. You practiced Category Sort after this check.")).toBeInTheDocument();
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("1/3");
+    expect(screen.getByTestId("assessment-weekly-plan")).toHaveTextContent("Done");
+    expect(screen.getByTestId("post-assessment-recommendations")).toHaveTextContent("Remember Later");
   });
 
   it("keeps report routes short when no saved report exists", () => {

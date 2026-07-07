@@ -320,6 +320,50 @@ describe("Participate curated events API", () => {
     ]);
   });
 
+  it("dedupes repeated AI discovery candidates in one response", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    openAiResponsesCreateMock.mockResolvedValue({
+      output_text: JSON.stringify({
+        candidates: [
+          {
+            eventKey: "madrid-library-music",
+            titleEn: "Library music morning",
+            summaryEn: "A calm public music session.",
+            city: "Madrid",
+            locationLabel: "Central library",
+            timeLabelEn: "Time to be checked",
+            sourceUrl: "https://example.org/library-music",
+            evidence: "The source lists a public music event at the library.",
+          },
+          {
+            eventKey: "madrid-library-music-copy",
+            titleEn: "Library music morning",
+            summaryEn: "Same event repeated by the AI response.",
+            city: "Madrid",
+            locationLabel: "Central library",
+            timeLabelEn: "Time to be checked",
+            sourceUrl: "https://example.org/library-music",
+            evidence: "The same source lists the same public music event.",
+          },
+        ],
+      }),
+    });
+
+    const response = await request(trustedAdminApp)
+      .post("/api/admin/social/participate/discover")
+      .send({ city: "Madrid", countryCode: "ES" })
+      .expect(200);
+
+    expect(response.body.candidates).toHaveLength(1);
+    expect(response.body.candidates[0]).toMatchObject({
+      eventKey: "madrid-library-music",
+      sourceUrl: "https://example.org/library-music",
+    });
+    expect(response.body.rejected).toEqual([
+      { title: "Library music morning", reason: "Duplicate AI result" },
+    ]);
+  });
+
   it("forces AI-discovery saves to draft review items", async () => {
     const eventKey = `madrid-forced-ai-save-${Date.now()}`;
 

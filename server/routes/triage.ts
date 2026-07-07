@@ -1,9 +1,9 @@
 import { Router, raw } from "express";
 import type { Request, Response } from "express";
 import OpenAI from "openai";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../db.js";
-import { profiles } from "../../shared/schema.js";
+import { profiles, userHealthConditions } from "../../shared/schema.js";
 import { genderInstruction, inferProfileGender, type GrammaticalGender } from "../lib/userPersonalization.js";
 import { getMediSearchTriageContext, type MediSearchTriageContext } from "../services/medisearch.js";
 import { getDoctorMedicalProfileVariables } from "../lib/doctorMedicalProfile.js";
@@ -15,6 +15,7 @@ import {
   type TriageScanType,
 } from "../../shared/triageScans.js";
 import {
+  buildGuidancePlan,
   buildFallbackTriageReportWithTelemetry,
   buildPersonalizedTriageSuggestions,
   evaluateTriageSafetyFloor,
@@ -26,6 +27,7 @@ import {
   selectedSymptomId,
   trackTriageEvent,
   type ProfileRiskFlags,
+  type TriageGuidancePlan,
   type TriageHealthMemory,
   type TriageOutcomeTelemetry,
   type TriageSummary,
@@ -71,6 +73,26 @@ function transcriptionLanguageFor(value: unknown) {
   if (typeof value !== "string") return undefined;
   const normalized = normalizeAppLanguage(value, "en");
   return normalized || undefined;
+}
+
+function looksLikeUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function activeHealthConditionsFor(userId: string): Promise<string[]> {
+  if (!looksLikeUuid(userId)) return [];
+
+  const rows = await db
+    .select({ condition: userHealthConditions.condition })
+    .from(userHealthConditions)
+    .where(and(
+      eq(userHealthConditions.user_id, userId),
+      eq(userHealthConditions.is_active, true),
+    ));
+
+  return rows
+    .map((row) => row.condition.trim())
+    .filter(Boolean);
 }
 
 export async function transcribeTriageAudioHandler(req: Request, res: Response) {
@@ -142,6 +164,8 @@ type TriageVitalsPrompt = {
   body: string;
   actions: TriageVitalsPromptAction[];
 } | null;
+
+type TriageGuidancePlanResponse = TriageGuidancePlan;
 
 interface TriageRequestBody {
   messages?: ChatMessage[];
@@ -337,6 +361,9 @@ function inferContextFromClue(rawClue: string, locale: string): TriageQuickReply
   const clue = normalizeClue(rawClue);
   if (/\b(anxiety|anxious|panic|panicky|nervous|ansiedad|ansiedade|ansia|anxiete|angst|angstgefuhl|panico|panique|panik|nervios|nervioso|nerviosa|nervoso|nervosa)\b/.test(clue)) {
     return reply(locale, "anxiety_context", "free_text", "Anxiety or panic", "Ansiedad o panico", "This feels like anxiety or panic.", "Esto se siente como ansiedad o panico.", "help", "purple");
+  }
+  if (/\b(medicine|medication|tablet|pill|dose|new med|missed dose|took extra|side effect|medicina|medicacion|pastilla|dosis|efecto)\b/.test(clue)) {
+    return reply(locale, "medication_context", "free_text", "Medicine change", "Cambio de medicina", "This may be related to a medicine or dose.", "Puede estar relacionado con una medicina o dosis.", "help", "purple");
   }
 
   return null;
@@ -735,6 +762,22 @@ function vitalsPromptFor(stage: WizardStage, wizard: TriageWizardContext | undef
   };
 }
 
+function guidancePlanFor(
+  stage: WizardStage,
+  wizard: TriageWizardContext | undefined,
+  locale: string,
+  healthMemory: TriageHealthMemory | undefined,
+  messages: ChatMessage[],
+): TriageGuidancePlanResponse {
+  return buildGuidancePlan({
+    locale,
+    stage,
+    wizard,
+    healthMemory,
+    messages,
+  });
+}
+
 function matrixReplyToQuickReply(locale: string, item: TriageWizardMatrixReply): TriageQuickReply {
   return reply(
     locale,
@@ -1013,6 +1056,7 @@ router.get("/context", async (req: Request, res: Response) => {
       memory.latestSymptomReport ? "Recent symptoms" : "",
     ].filter(Boolean);
     const language = normalizeAppLanguage(req.language ?? req.header("X-VYVA-Language"), "en");
+    const activeConditions = await activeHealthConditionsFor(userId);
 
     return res.json({
       memory,
@@ -1020,6 +1064,7 @@ router.get("/context", async (req: Request, res: Response) => {
       countryCode: memory.countryCode || undefined,
       emergencyContact: emergencyContactForCountry(memory.countryCode),
       personalizedSuggestions: buildPersonalizedTriageSuggestions(memory, language),
+      activeConditions,
     });
   } catch (err) {
     console.error("[triage/context]", err);
@@ -1048,6 +1093,7 @@ router.post("/message", async (req: Request, res: Response) => {
   const safetyAnswer = effectiveWizard?.refineRequested ? null : selectedSafetyAnswer(effectiveWizard);
   if (safetyAnswer) {
     const emergencyContact = emergencyContactForCountry(healthMemory?.countryCode);
+    const guidancePlan = guidancePlanFor("support", effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackSafetyAlertTriage(effectiveWizard, `triage.emergency.${safetyAnswer.id}`);
     return res.json({
       role: "assistant",
@@ -1068,6 +1114,7 @@ router.post("/message", async (req: Request, res: Response) => {
       questionReason: questionReasonFor("support", effectiveWizard, normalizedLocale, healthMemory),
       profileContextUsed: false,
       vitalsPrompt: null,
+      guidancePlan,
       evidenceSources: [],
       medicalFollowups: [],
     });
@@ -1077,7 +1124,8 @@ router.post("/message", async (req: Request, res: Response) => {
   if (stage !== "complete") {
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
     const symptomId = selectedSymptomId(effectiveWizard);
-    const profileContextUsed = profileContextUsedForQuestion(stage, symptomId, healthMemory);
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
+    const profileContextUsed = profileContextUsedForQuestion(stage, symptomId, healthMemory) || guidancePlan.profileContextUsed;
     const vitalsPrompt = vitalsPromptFor(stage, effectiveWizard, normalizedLocale, healthMemory);
     const latestMessage = validMessages[validMessages.length - 1];
     const medisearchContext = latestMessage?.role === "user"
@@ -1099,6 +1147,7 @@ router.post("/message", async (req: Request, res: Response) => {
       questionReason: questionReasonFor(stage, effectiveWizard, normalizedLocale, healthMemory),
       profileContextUsed,
       vitalsPrompt,
+      guidancePlan,
       evidenceSources: [],
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: medisearchContext?.followups ?? [],
@@ -1108,6 +1157,7 @@ router.post("/message", async (req: Request, res: Response) => {
   const apiKey = process.env.OPENAI_API_KEY ?? "";
   if (!apiKey) {
     const fallbackReport = buildFallbackTriageReportWithTelemetry(normalizedLocale, effectiveWizard, validMessages, healthMemory);
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackCompletedTriage(fallbackReport.telemetry);
     return res.json({
       role: "assistant",
@@ -1119,8 +1169,9 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
       questionReason: null,
-      profileContextUsed: false,
+      profileContextUsed: guidancePlan.profileContextUsed,
       vitalsPrompt: null,
+      guidancePlan,
       evidenceSources: [],
       medicalFollowups: [],
     });
@@ -1171,6 +1222,7 @@ router.post("/message", async (req: Request, res: Response) => {
       evidenceSummary: evidenceSummary || undefined,
       evidenceSources: evidenceSources.length ? evidenceSources : undefined,
     };
+    const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackCompletedTriage(safeOutcome?.telemetry ?? fallbackReport.telemetry);
 
     return res.json({
@@ -1183,8 +1235,9 @@ router.post("/message", async (req: Request, res: Response) => {
       wizardStageLabel: wizardStageLabel(stage, normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
       questionReason: null,
-      profileContextUsed: false,
+      profileContextUsed: guidancePlan.profileContextUsed,
       vitalsPrompt: null,
+      guidancePlan,
       evidenceSources,
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: [],
