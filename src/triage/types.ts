@@ -128,6 +128,7 @@ export type TriageHealthMemory = {
   latestVitals?: string;
   vitalsTrend?: string;
   latestSymptomReport?: string;
+  recentSymptomReports?: string;
   medicationAdherence?: string;
   medicationInteraction?: string;
   countryCode?: string;

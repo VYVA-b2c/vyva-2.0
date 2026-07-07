@@ -186,6 +186,45 @@ interface TriageRequestBody {
   medisearchConversationId?: string;
 }
 
+export class TriageStepRequestError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = "TriageStepRequestError";
+    this.statusCode = statusCode;
+  }
+}
+
+export type TriageStepResponse = {
+  role: "assistant";
+  content: string;
+  done?: boolean;
+  urgent?: boolean;
+  safetyAlert?: {
+    id: string;
+    label: string;
+    recommendation: string;
+    emergencyContact?: EmergencyContact;
+  };
+  emergencyContact?: EmergencyContact;
+  summary?: TriageSummary & {
+    evidenceSummary?: string;
+    evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  };
+  quickReplies?: TriageQuickReply[];
+  wizardStage?: WizardStage | "support";
+  wizardStageLabel?: string;
+  wizardSymptomId?: string;
+  questionReason?: string | null;
+  profileContextUsed?: boolean;
+  vitalsPrompt?: TriageVitalsPrompt;
+  guidancePlan?: TriageGuidancePlanResponse;
+  evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  medisearchConversationId?: string;
+  medicalFollowups?: string[];
+};
+
 async function getRequestGender(req: Request): Promise<GrammaticalGender> {
   const userId = req.user?.id;
   if (!userId) return "neutral";
@@ -272,6 +311,7 @@ function healthMemoryText(memory?: TriageHealthMemory): string {
     memory.latestVitals ? `Latest vitals: ${memory.latestVitals}` : "",
     memory.vitalsTrend ? `Vitals trend: ${memory.vitalsTrend}` : "",
     memory.latestSymptomReport ? `Latest symptom report: ${memory.latestSymptomReport}` : "",
+    memory.recentSymptomReports ? `Recent symptom history: ${memory.recentSymptomReports}` : "",
     memory.medicationAdherence ? `Medication adherence: ${memory.medicationAdherence}` : "",
     memory.medicationInteraction ? `Medication interaction context: ${memory.medicationInteraction}` : "",
     riskLabels.length ? `Deterministic profile flags: ${riskLabels.join(", ")}` : "",
@@ -1042,6 +1082,7 @@ router.get("/context", async (req: Request, res: Response) => {
       latestVitals: String(variables.latest_vitals_scan || ""),
       vitalsTrend: String(variables.vitals_trend || ""),
       latestSymptomReport: String(variables.latest_symptom_report || ""),
+      recentSymptomReports: String(variables.recent_symptom_reports || ""),
       medicationAdherence: String(variables.medication_adherence_summary || ""),
       medicationInteraction: String(variables.medication_interaction_context || ""),
       countryCode: String(variables.country_code || ""),
@@ -1053,7 +1094,7 @@ router.get("/context", async (req: Request, res: Response) => {
       memory.medicationAdherence || memory.medicationInteraction ? "Medication context" : "",
       memory.allergies ? "Allergies" : "",
       memory.conditions ? "Conditions" : "",
-      memory.latestSymptomReport ? "Recent symptoms" : "",
+      memory.latestSymptomReport || memory.recentSymptomReports ? "Recent symptoms" : "",
     ].filter(Boolean);
     const language = normalizeAppLanguage(req.language ?? req.header("X-VYVA-Language"), "en");
     const activeConditions = await activeHealthConditionsFor(userId);
@@ -1072,16 +1113,19 @@ router.get("/context", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/message", async (req: Request, res: Response) => {
-  const { messages = [], vitals, locale = "en", wizard, healthMemory, medisearchConversationId } = req.body as TriageRequestBody;
+export async function runTriageStep(
+  body: TriageRequestBody,
+  options: { gender?: GrammaticalGender } = {},
+): Promise<TriageStepResponse> {
+  const { messages = [], vitals, locale = "en", wizard, healthMemory, medisearchConversationId } = body;
 
   if (!Array.isArray(messages)) {
-    return res.status(400).json({ error: "messages must be an array" });
+    throw new TriageStepRequestError("messages must be an array");
   }
 
   const normalizedLocale = normalizeAppLanguage(locale, "en");
   const language = LOCALE_TO_LANGUAGE[normalizedLocale] ?? languageName(normalizedLocale);
-  const gender = await getRequestGender(req).catch(() => "neutral" as const);
+  const gender = options.gender ?? "neutral";
 
   const validMessages: ChatMessage[] = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
@@ -1095,7 +1139,7 @@ router.post("/message", async (req: Request, res: Response) => {
     const emergencyContact = emergencyContactForCountry(healthMemory?.countryCode);
     const guidancePlan = guidancePlanFor("support", effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackSafetyAlertTriage(effectiveWizard, `triage.emergency.${safetyAnswer.id}`);
-    return res.json({
+    return {
       role: "assistant",
       content: safetyMessage(normalizedLocale, safetyAnswer.label, emergencyContact),
       done: false,
@@ -1117,7 +1161,7 @@ router.post("/message", async (req: Request, res: Response) => {
       guidancePlan,
       evidenceSources: [],
       medicalFollowups: [],
-    });
+    };
   }
 
   const stage = nextAdaptiveStage(effectiveWizard, healthMemory);
@@ -1136,7 +1180,7 @@ router.post("/message", async (req: Request, res: Response) => {
           wizard: effectiveWizard,
         })
       : null;
-    return res.json({
+    return {
       role: "assistant",
       content: protocolQuestion,
       done: false,
@@ -1151,7 +1195,7 @@ router.post("/message", async (req: Request, res: Response) => {
       evidenceSources: [],
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: medisearchContext?.followups ?? [],
-    });
+    };
   }
 
   const apiKey = process.env.OPENAI_API_KEY ?? "";
@@ -1159,7 +1203,7 @@ router.post("/message", async (req: Request, res: Response) => {
     const fallbackReport = buildFallbackTriageReportWithTelemetry(normalizedLocale, effectiveWizard, validMessages, healthMemory);
     const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackCompletedTriage(fallbackReport.telemetry);
-    return res.json({
+    return {
       role: "assistant",
       content: fallbackReport.content,
       done: true,
@@ -1174,7 +1218,7 @@ router.post("/message", async (req: Request, res: Response) => {
       guidancePlan,
       evidenceSources: [],
       medicalFollowups: [],
-    });
+    };
   }
 
   try {
@@ -1225,7 +1269,7 @@ router.post("/message", async (req: Request, res: Response) => {
     const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
     trackCompletedTriage(safeOutcome?.telemetry ?? fallbackReport.telemetry);
 
-    return res.json({
+    return {
       role: "assistant",
       content: summaryWithEvidence ? content || fallbackReport.content : fallbackReport.content,
       done: true,
@@ -1241,9 +1285,21 @@ router.post("/message", async (req: Request, res: Response) => {
       evidenceSources,
       medisearchConversationId: medisearchContext?.conversationId,
       medicalFollowups: [],
-    });
+    };
   } catch (err) {
     console.error("[triage] OpenAI error:", err);
+    throw err;
+  }
+}
+
+router.post("/message", async (req: Request, res: Response) => {
+  try {
+    const gender = await getRequestGender(req).catch(() => "neutral" as const);
+    return res.json(await runTriageStep(req.body as TriageRequestBody, { gender }));
+  } catch (err) {
+    if (err instanceof TriageStepRequestError) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
     return res.status(500).json({ error: "Failed to process triage request" });
   }
 });

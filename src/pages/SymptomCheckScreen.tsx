@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity, Brain, Calendar, Car, ChevronLeft, Share2, CheckCircle, AlertTriangle, ArrowRight, Droplets, Eye, ClipboardList, FileText, Gauge, Heart, HeartPulse, Home, Loader2, Mail, Mic, PhoneCall, Pill, Send, ShieldCheck, ShoppingBasket, Square, Stethoscope, Users, Wind, type LucideIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import TriageChat, { type TriageChatDraft } from "@/components/TriageChat";
 import { useProfile } from "@/contexts/ProfileContext";
 import {
@@ -122,6 +122,53 @@ type TriageContextResponse = {
   activeConditions?: string[];
 };
 
+type VoiceTriageChoice = {
+  id: string;
+  spoken_label: string;
+  value?: string;
+  kind?: string;
+};
+
+type VoiceTriageVitalsPrompt = {
+  title: string;
+  body: string;
+  actions: Array<{
+    id: string;
+    label: string;
+    value: string;
+  }>;
+};
+
+type VoiceTriageLatestResponse = {
+  ok?: boolean;
+  status?: "active" | "emergency" | "complete" | "failed";
+  spoken_text?: string;
+  safety_level?: string;
+  vitals_prompt?: VoiceTriageVitalsPrompt | null;
+  question?: {
+    stage?: string;
+    text?: string;
+    reason?: string | null;
+    profile_context_used?: boolean;
+    choices?: VoiceTriageChoice[];
+  };
+  report?: {
+    triage_report_id?: string | null;
+    next_step_level?: string | null;
+    chief_complaint?: string;
+    watch_signs?: string[];
+  };
+  emergencyContact?: EmergencyContact | null;
+};
+
+type VoiceTriageSessionResponse = {
+  conversation_id: string;
+  status: "active" | "emergency" | "complete" | "abandoned" | "failed";
+  latest_response?: VoiceTriageLatestResponse;
+  triage_report_id?: string | null;
+  updated_at?: string;
+};
+
 type ProfileContactsResponse = {
   caregiverName?: string | null;
   caregiverContact?: string | null;
@@ -177,6 +224,7 @@ type ReportAction = {
 const SYMPTOM_CHECK_DRAFT_KEY = "vyva.symptomCheck.draft.v1";
 const SYMPTOM_CHECK_DRAFT_TTL_MS = 2 * 60 * 60 * 1000;
 const SYMPTOM_CHECK_VISITED_KEY = "vyva_symptom_check_visited";
+const VOICE_SESSION_STORAGE_KEY = "vyva.voice.sessionId";
 
 type SymptomCheckDraft = {
   version: 1;
@@ -195,6 +243,24 @@ type SymptomCheckDraft = {
 };
 
 const canUseSessionStorage = () => typeof window !== "undefined" && Boolean(window.sessionStorage);
+
+function readCurrentVoiceSessionId() {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(VOICE_SESSION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearCurrentVoiceSessionId() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(VOICE_SESSION_STORAGE_KEY);
+  } catch {
+    // Ignore private-mode storage errors.
+  }
+}
 
 function readSymptomCheckVisited() {
   if (typeof window === "undefined") return false;
@@ -549,8 +615,217 @@ export function AssessmentConfidenceTracker({
   );
 }
 
+type VoiceTriageAnswerInput = {
+  choiceId?: string | null;
+  utterance: string;
+  vitalsText?: string | null;
+};
+
+function VoiceTriageLivePanel({
+  session,
+  onAnswer,
+  onStartOver,
+  isAnswering = false,
+}: {
+  session: VoiceTriageSessionResponse;
+  onAnswer?: (answer: VoiceTriageAnswerInput) => void;
+  onStartOver?: () => void;
+  isAnswering?: boolean;
+}) {
+  const { t } = useTranslation();
+  const [typedAnswer, setTypedAnswer] = useState("");
+  const latest = session.latest_response;
+  const question = latest?.question;
+  const choices = question?.choices?.slice(0, 3) ?? [];
+  const vitalsPrompt = latest?.vitals_prompt;
+  const isEmergency = session.status === "emergency";
+  const isComplete = session.status === "complete";
+  const isFailed = session.status === "failed";
+  const canTapAnswer = Boolean(onAnswer && !isAnswering && !isEmergency && !isComplete && !isFailed);
+  const emergencyContact = latest?.emergencyContact;
+  const statusLabel = isEmergency
+    ? t("health.symptomCheck.voicePanel.emergency", "Emergency guidance")
+    : isComplete
+      ? t("health.symptomCheck.voicePanel.saved", "Report saved")
+      : isFailed
+        ? t("health.symptomCheck.voicePanel.needsRetry", "Needs retry")
+        : t("health.symptomCheck.voicePanel.live", "Voice and touch check");
+  const headline = isEmergency
+    ? latest?.spoken_text || t("health.symptomCheck.voicePanel.emergencyFallback", "This may need emergency help.")
+    : isComplete
+      ? latest?.report?.chief_complaint || t("health.symptomCheck.voicePanel.completedTitle", "Your check has been saved.")
+      : question?.text || latest?.spoken_text || t("health.symptomCheck.voicePanel.waiting", "VYVA is listening.");
+  const cleanTypedAnswer = typedAnswer.trim();
+  const submitTypedAnswer = () => {
+    if (!cleanTypedAnswer || !canTapAnswer) return;
+    onAnswer?.({ utterance: cleanTypedAnswer });
+    setTypedAnswer("");
+  };
+
+  return (
+    <aside
+      className={`mx-auto mt-4 w-full max-w-[1040px] overflow-hidden rounded-[30px] border bg-white shadow-[0_18px_44px_rgba(63,45,35,0.09)] ${
+        isEmergency ? "border-[#FCA5A5]" : isComplete ? "border-[#BBF7D0]" : isFailed ? "border-[#FCA5A5]" : "border-[#DDD6FE]"
+      }`}
+      data-testid="voice-triage-live-panel"
+      aria-live="polite"
+    >
+      <div className={`p-4 sm:p-5 ${
+        isEmergency ? "bg-[#FFF7F7]" : isComplete ? "bg-[#F0FDF4]" : "bg-gradient-to-br from-[#FBFAFF] via-white to-[#F0FDFF]"
+      }`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] shadow-sm ${
+              isEmergency ? "bg-[#FEE2E2] text-[#B91C1C]" : isComplete ? "bg-[#DCFCE7] text-[#047857]" : "bg-white text-vyva-purple"
+            }`}>
+              {isEmergency ? <AlertTriangle size={24} strokeWidth={2.8} /> : isComplete ? <CheckCircle size={24} strokeWidth={2.8} /> : <Mic size={24} strokeWidth={2.8} />}
+            </span>
+            <div className="min-w-0">
+              <p className={`font-body text-[12px] font-black uppercase tracking-[0.14em] ${
+                isEmergency ? "text-[#B91C1C]" : isComplete ? "text-[#047857]" : "text-vyva-purple"
+              }`}>
+                {statusLabel}
+              </p>
+              <h2 className="mt-1 font-body text-[24px] font-black leading-tight text-vyva-text-1 sm:text-[30px]">
+                {headline}
+              </h2>
+              {!isComplete && !isEmergency ? (
+                <p className="mt-2 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
+                  {t("health.symptomCheck.voicePanel.sayOrTap", "Say your answer out loud, or tap one answer below.")}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {isAnswering ? (
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-vyva-purple shadow-sm">
+              <Loader2 size={16} className="animate-spin" />
+              {t("health.symptomCheck.voicePanel.checking", "Checking")}
+            </span>
+          ) : isComplete && latest?.report?.triage_report_id ? (
+            <span className="rounded-full bg-[#DCFCE7] px-3 py-2 font-body text-[13px] font-black text-[#047857]">
+              {t("health.symptomCheck.voicePanel.reportReady", "Ready in My Reports")}
+            </span>
+          ) : onStartOver ? (
+            <button
+              type="button"
+              onClick={onStartOver}
+              className="vyva-tap rounded-full border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[13px] font-black text-vyva-purple shadow-sm"
+            >
+              {t("health.symptomCheck.voicePanel.startOver", "Start over")}
+            </button>
+          ) : null}
+        </div>
+
+        {choices.length ? (
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            {choices.map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                disabled={!canTapAnswer}
+                onClick={() => onAnswer?.({
+                  choiceId: choice.id,
+                  utterance: choice.value || choice.spoken_label,
+                })}
+                className="vyva-tap flex min-h-[74px] items-center justify-center rounded-[22px] border border-[#DDD6FE] bg-white px-4 py-3 text-center font-body text-[16px] font-black leading-tight text-vyva-text-1 shadow-[0_8px_20px_rgba(63,45,35,0.06)] transition hover:border-vyva-purple hover:text-vyva-purple disabled:cursor-not-allowed disabled:opacity-55 sm:text-[17px]"
+              >
+                {choice.spoken_label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {!isEmergency && !isComplete && !isFailed ? (
+          <div className="mt-4 rounded-[24px] border border-[#E8DED4] bg-white p-2 shadow-sm">
+            <label className="sr-only" htmlFor="voice-triage-typed-answer">
+              {t("health.symptomCheck.voicePanel.typeAnother", "Type another answer")}
+            </label>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <input
+                id="voice-triage-typed-answer"
+                value={typedAnswer}
+                onChange={(event) => setTypedAnswer(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitTypedAnswer();
+                  }
+                }}
+                placeholder={t("health.symptomCheck.voicePanel.typePlaceholder", "Or type your answer...")}
+                className="min-h-[56px] min-w-0 rounded-[18px] border border-transparent bg-[#FBFAFF] px-4 font-body text-[16px] font-bold text-vyva-text-1 outline-none placeholder:text-[#9A8C83] focus:border-vyva-purple"
+              />
+              <button
+                type="button"
+                onClick={submitTypedAnswer}
+                disabled={!canTapAnswer || cleanTypedAnswer.length < 2}
+                className="vyva-tap flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] bg-vyva-purple px-4 font-body text-[15px] font-black text-white disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <Send size={18} strokeWidth={2.7} />
+                {t("health.symptomCheck.voicePanel.sendAnswer", "Send")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!isEmergency && !isComplete && vitalsPrompt?.actions?.length ? (
+          <div className="mt-4 rounded-[24px] border border-[#BFEAF2] bg-white/85 p-3">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-[#E6FAFD] text-[#0E7490]">
+                <Activity size={20} strokeWidth={2.7} />
+              </span>
+              <div className="min-w-0">
+                <p className="font-body text-[15px] font-black text-vyva-text-1">
+                  {vitalsPrompt.title}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                  {vitalsPrompt.body}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {vitalsPrompt.actions.slice(0, 2).map((action) => (
+                <button
+                  key={action.id}
+                  type="button"
+                  disabled={!canTapAnswer}
+                  onClick={() => onAnswer?.({ utterance: action.value, vitalsText: action.value })}
+                  className="vyva-tap min-h-[54px] rounded-[18px] border border-[#BFEAF2] bg-white px-3 font-body text-[14px] font-black text-[#0E7490] disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {question?.reason ? (
+          <details className="mt-4 rounded-[20px] border border-[#E8DED4] bg-white/80 px-4 py-3">
+            <summary className="cursor-pointer list-none font-body text-[13px] font-black text-vyva-text-2">
+              {t("health.symptomCheck.voicePanel.whyAsking", "Why VYVA is asking this")}
+            </summary>
+            <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+              {question.reason}
+            </p>
+          </details>
+        ) : null}
+
+        {isEmergency && emergencyContact?.telHref ? (
+          <a
+            href={emergencyContact.telHref}
+            className="vyva-tap mt-4 flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#B91C1C] px-4 text-center font-body text-[17px] font-black text-white shadow-[0_12px_28px_rgba(185,28,28,0.22)] sm:w-fit"
+          >
+            <PhoneCall size={20} strokeWidth={2.8} />
+            {t("health.symptomCheck.voicePanel.callEmergency", "Call {{number}} now", { number: emergencyContact.label })}
+          </a>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
 type IntroScreenProps = {
   onStart: (clue: string) => void;
+  onTalkToVyva?: () => void;
   onEmergencyUnsure?: () => void;
   onNavigate?: (route: string) => void;
   personalizedSuggestions?: TriagePersonalizedSuggestion[];
@@ -922,6 +1197,7 @@ function stopVoiceStream(stream: MediaStream | null) {
 
 export function IntroScreen({
   onStart,
+  onTalkToVyva,
   onEmergencyUnsure,
   onNavigate,
   personalizedSuggestions,
@@ -1185,7 +1461,9 @@ export function IntroScreen({
     ? t("health.symptomCheck.intro.voiceStop", "Stop voice input")
     : isTranscribingVoice
       ? t("health.symptomCheck.intro.voiceTranscribing", "Turning voice into text")
-      : t("health.symptomCheck.intro.voiceStart", "Use voice input");
+      : onTalkToVyva
+        ? t("health.symptomCheck.intro.talkToVyva", "Talk to VYVA")
+        : t("health.symptomCheck.intro.voiceStart", "Use voice input");
   const voiceStatus = isRecordingVoice
     ? t("health.symptomCheck.intro.voiceRecording", "Listening... tap again to stop. It stops after 30 seconds.")
     : isTranscribingVoice
@@ -1269,8 +1547,8 @@ export function IntroScreen({
           <div className="flex flex-col gap-4 text-left sm:flex-row sm:items-center">
             <button
               type="button"
-              onClick={toggleVoiceCapture}
-              disabled={isTranscribingVoice}
+              onClick={onTalkToVyva ?? toggleVoiceCapture}
+              disabled={!onTalkToVyva && isTranscribingVoice}
               aria-label={voiceButtonLabel}
               title={voiceButtonLabel}
               data-testid="button-symptom-clue-voice"
@@ -1280,9 +1558,9 @@ export function IntroScreen({
                   : "border-[#DDD6FE] bg-[#F5F3FF] text-vyva-purple hover:border-[#C4B5FD]"
               } disabled:cursor-wait disabled:opacity-70`}
             >
-              {isTranscribingVoice ? (
-                <Loader2 size={30} strokeWidth={2.8} className="animate-spin" />
-              ) : isRecordingVoice ? (
+                {!onTalkToVyva && isTranscribingVoice ? (
+                  <Loader2 size={30} strokeWidth={2.8} className="animate-spin" />
+              ) : !onTalkToVyva && isRecordingVoice ? (
                 <Square size={24} strokeWidth={3} fill="currentColor" />
               ) : (
                 <Mic size={36} strokeWidth={2.7} />
@@ -1300,7 +1578,7 @@ export function IntroScreen({
           </div>
 
           <div className="rounded-[26px] border border-[#DDD6FE] bg-[#FBFAFF] p-3 shadow-[0_10px_26px_rgba(63,45,35,0.06)]">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px_190px]">
               <div className="grid gap-2 text-left">
                 <label className="sr-only" htmlFor="symptom-clue">
                   {t("health.symptomCheck.intro.inputLabel", "What feels different?")}
@@ -1317,6 +1595,17 @@ export function IntroScreen({
                   className="min-h-[70px] w-full min-w-0 max-w-full rounded-[22px] border-2 border-transparent bg-white px-5 py-3 font-body text-[18px] font-black text-vyva-text-1 shadow-[0_8px_18px_rgba(63,45,35,0.05)] outline-none placeholder:text-[#9A8C83] focus:border-[#6B21A8] sm:text-[22px]"
                 />
               </div>
+
+              {onTalkToVyva ? (
+                <button
+                  type="button"
+                  onClick={onTalkToVyva}
+                  data-testid="button-symptom-check-talk-to-vyva"
+                  className="vyva-primary-action min-h-[70px] w-full self-end bg-[#17B8D6] text-[17px] shadow-[0_14px_28px_rgba(23,184,214,0.20)] sm:text-[18px]"
+                >
+                  {t("health.symptomCheck.intro.talkToVyva", "Talk to VYVA")}
+                </button>
+              ) : null}
 
               <button
                 type="button"
@@ -2731,6 +3020,7 @@ export function ReportScreen({
 export default function SymptomCheckScreen() {
   const { t } = useTranslation();
   const { language } = useLanguage();
+  const { toast } = useToast();
   const { isLoading: profileLoading } = useProfile();
   const navigate = useNavigate();
   const location = useLocation();
@@ -2773,6 +3063,67 @@ export default function SymptomCheckScreen() {
   const [chatDraft, setChatDraft] = useState<TriageChatDraft | null>(() => restoredDraft?.chatDraft ?? null);
   const [resumePendingRequest] = useState(() => Boolean(restoredDraft?.chatDraft?.pendingRequest));
   const [showFirstVisitGuide, setShowFirstVisitGuide] = useState(() => !readSymptomCheckVisited());
+  const [voiceTriageSessionId, setVoiceTriageSessionId] = useState<string | null>(() => readCurrentVoiceSessionId());
+  const { data: voiceTriageSession } = useQuery<VoiceTriageSessionResponse | null>({
+    queryKey: ["/api/voice-triage/session", voiceTriageSessionId],
+    enabled: Boolean(voiceTriageSessionId),
+    queryFn: async () => {
+      if (!voiceTriageSessionId) return null;
+      const res = await apiFetch(`/api/voice-triage/session/${encodeURIComponent(voiceTriageSessionId)}`);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`${res.status}`);
+      return res.json() as Promise<VoiceTriageSessionResponse>;
+    },
+    retry: false,
+    refetchInterval: voiceTriageSessionId ? 2500 : false,
+  });
+  const voiceTriageAnswerMutation = useMutation({
+    mutationFn: async (answer: VoiceTriageAnswerInput) => {
+      if (!voiceTriageSessionId) throw new Error("No active voice check");
+      const res = await apiFetch(`/api/voice-triage/session/${encodeURIComponent(voiceTriageSessionId)}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locale: language,
+          utterance: answer.utterance,
+          choice_id: answer.choiceId ?? undefined,
+          vitals_text: answer.vitalsText ?? undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      return res.json() as Promise<VoiceTriageLatestResponse>;
+    },
+    onSuccess: (latest) => {
+      if (!voiceTriageSessionId) return;
+      queryClient.setQueryData<VoiceTriageSessionResponse | null>(
+        ["/api/voice-triage/session", voiceTriageSessionId],
+        (current) => current
+          ? {
+              ...current,
+              status: (latest.status as VoiceTriageSessionResponse["status"]) || current.status,
+              latest_response: latest,
+              triage_report_id: latest.report?.triage_report_id ?? current.triage_report_id,
+              updated_at: new Date().toISOString(),
+            }
+          : current,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["/api/voice-triage/session", voiceTriageSessionId] });
+      if (latest.status === "complete") {
+        void queryClient.invalidateQueries({ queryKey: ["/api/reports/triage"] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/symptoms"] });
+      }
+    },
+    onError: () => {
+      toast({
+        title: t("health.symptomCheck.voicePanel.answerFailedTitle", "Could not continue the voice check"),
+        description: t("health.symptomCheck.voicePanel.answerFailedBody", "Please try again, or use emergency services now if this feels urgent."),
+        variant: "destructive",
+      });
+    },
+  });
+  const handleVoiceTriageAnswer = useCallback((answer: VoiceTriageAnswerInput) => {
+    voiceTriageAnswerMutation.mutate(answer);
+  }, [voiceTriageAnswerMutation]);
 
   const stepTitle: Record<Step, string> = {
     intro: t("health.symptomCheck.title"),
@@ -2782,6 +3133,7 @@ export default function SymptomCheckScreen() {
 
   const resetSymptomCheck = useCallback(() => {
     clearSymptomCheckDraft();
+    clearCurrentVoiceSessionId();
     setBpm(null);
     setRespiratoryRate(null);
     setChatStartTime(null);
@@ -2793,8 +3145,10 @@ export default function SymptomCheckScreen() {
     setDurationSeconds(null);
     setRefinementStatus({ state: "idle" });
     setChatDraft(null);
+    setVoiceTriageSessionId(null);
+    voiceTriageAnswerMutation.reset();
     setStep("intro");
-  }, []);
+  }, [voiceTriageAnswerMutation]);
 
   useEffect(() => {
     if (step === "intro") return;
@@ -2846,6 +3200,28 @@ export default function SymptomCheckScreen() {
     startChatDirectly(clue, false);
   }, []);
 
+  const refreshVoiceSessionIdSoon = useCallback(() => {
+    window.setTimeout(() => setVoiceTriageSessionId(readCurrentVoiceSessionId()), 250);
+    window.setTimeout(() => setVoiceTriageSessionId(readCurrentVoiceSessionId()), 1200);
+  }, []);
+
+  const handleTalkToVyva = useCallback(() => {
+    writeSymptomCheckVisited();
+    setShowFirstVisitGuide(false);
+    const contextHint = "The user opened Feel Better and wants a voice-first symptom check. Start by asking what has changed today, then call the VYVA triage tool before giving health guidance.";
+    emitVoiceSpecialistTransfer({
+      domain: "health",
+      reason: "The user tapped Talk to VYVA on Feel Better.",
+      evidence: "Feel Better voice-first entry",
+      contextHint,
+      route: "/health/symptom-check",
+      agentSlug: VOICE_SPECIALIST_AGENT_SLUGS.health,
+      autoStart: true,
+      appEntrypoint: "feel_better_voice",
+    });
+    refreshVoiceSessionIdSoon();
+  }, [refreshVoiceSessionIdSoon]);
+
   const handleEmergencyUnsure = useCallback(() => {
     const contextHint = "The user is unsure if their situation is an emergency. Start by asking one calm question about their most urgent symptom to help them decide whether to call 112.";
     emitVoiceSpecialistTransfer({
@@ -2856,8 +3232,10 @@ export default function SymptomCheckScreen() {
       route: "/health/symptom-check",
       agentSlug: VOICE_SPECIALIST_AGENT_SLUGS.health,
       autoStart: true,
+      appEntrypoint: "feel_better_emergency_unsure",
     });
-  }, []);
+    refreshVoiceSessionIdSoon();
+  }, [refreshVoiceSessionIdSoon]);
 
   const handleChatDraftChange = useCallback((draft: TriageChatDraft) => {
     setChatDraft(draft);
@@ -3092,7 +3470,7 @@ export default function SymptomCheckScreen() {
   return (
     <HealthWizardShell contentClassName={`flex min-h-[calc(100dvh-204px)] ${shellMaxWidth} flex-col px-0 pb-10 pt-0`}>
       <div className={`mx-auto w-full ${topBarMaxWidth} px-4 pt-3 sm:px-5 lg:px-0`} data-testid="symptom-check-shell">
-        {step === "intro" ? (
+        {step === "intro" && !voiceTriageSession ? (
           <button
             type="button"
             onClick={handleBack}
@@ -3103,7 +3481,7 @@ export default function SymptomCheckScreen() {
           </button>
         ) : (
           <HealthWizardTopBar
-            title={stepTitle[step]}
+            title={voiceTriageSession ? t("health.symptomCheck.voicePanel.topBarTitle", "Feel better") : stepTitle[step]}
             kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
             onBack={handleBack}
             backLabel={t("common.back", "Back")}
@@ -3122,9 +3500,10 @@ export default function SymptomCheckScreen() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        {step === "intro" && (
+        {step === "intro" && !voiceTriageSession && (
           <IntroScreen
             onStart={handleIntroStart}
+            onTalkToVyva={handleTalkToVyva}
             onEmergencyUnsure={handleEmergencyUnsure}
             onNavigate={(route) => navigate(route)}
             personalizedSuggestions={triageContext?.personalizedSuggestions}
@@ -3134,6 +3513,15 @@ export default function SymptomCheckScreen() {
             showGuide={showFirstVisitGuide}
           />
         )}
+
+        {voiceTriageSession ? (
+          <VoiceTriageLivePanel
+            session={voiceTriageSession}
+            onAnswer={handleVoiceTriageAnswer}
+            onStartOver={resetSymptomCheck}
+            isAnswering={voiceTriageAnswerMutation.isPending}
+          />
+        ) : null}
 
         {step === "chat" && (
           <TriageChat

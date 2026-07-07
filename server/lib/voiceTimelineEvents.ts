@@ -15,6 +15,11 @@ export const VOICE_TIMELINE_EVENT_KINDS = [
   "action_dismissed",
   "session_ended",
   "session_error",
+  "voice_triage_started",
+  "voice_triage_step",
+  "voice_triage_emergency",
+  "voice_triage_completed",
+  "voice_triage_tool_failed",
   "simulator",
 ] as const;
 

@@ -125,6 +125,8 @@ export const VOICE_AGENT_CONTRACTS: VoiceAgentContract[] = [
       "medications",
       "medication_adherence_summary",
       "medication_interaction_context",
+      "voice_triage_tool_token",
+      "language",
       "next_best_conversation",
       "next_best_conversation_opening_cue",
     ],

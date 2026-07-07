@@ -97,6 +97,61 @@ async function resolveTriageReportId(params: {
   return created?.id ?? null;
 }
 
+export async function logSymptomOutcomeForUser(params: {
+  userId: string;
+  triageReportId?: string | null;
+  symptomDescription: string;
+  severity: "mild" | "moderate" | "severe";
+  checkCompleted?: boolean;
+  recommendation?: string;
+  escalatedToCaregiver?: boolean;
+}) {
+  await ensureInsightOutcomesTable();
+  const reportId = await resolveTriageReportId({
+    reportId: params.triageReportId ?? null,
+    userId: params.userId,
+    symptomDescription: params.symptomDescription,
+    severity: params.severity,
+    recommendation: params.recommendation ?? "",
+  });
+
+  if (params.severity === "severe") {
+    const existingOutcome = reportId
+      ? await db
+        .select({ id: insightOutcomes.id })
+        .from(insightOutcomes)
+        .where(and(
+          eq(insightOutcomes.user_id, params.userId),
+          eq(insightOutcomes.triage_report_id, reportId),
+          eq(insightOutcomes.delivered_surface, "senior_card"),
+        ))
+        .limit(1)
+      : [];
+
+    if (!existingOutcome[0]) {
+      await db.insert(insightOutcomes).values({
+        user_id: params.userId,
+        triage_report_id: reportId,
+        delivered_surface: "senior_card",
+        action_taken: "none",
+        tier_at_generation: 4,
+        outcome_payload: {
+          symptom_description: params.symptomDescription,
+          check_completed: params.checkCompleted ?? true,
+          vyva_recommendation: params.recommendation ?? "",
+          escalated_to_caregiver: params.escalatedToCaregiver ?? false,
+        },
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    triage_report_id: reportId,
+    refreshTargets: ["/api/health/prevention", "/api/reports/summary"],
+  };
+}
+
 router.post("/log", async (req: Request, res: Response) => {
   const currentUserId = req.user?.id;
   if (!currentUserId) return res.status(401).json({ error: "Not authenticated" });
@@ -111,50 +166,17 @@ router.post("/log", async (req: Request, res: Response) => {
   }
 
   try {
-    await ensureInsightOutcomesTable();
-    const reportId = await resolveTriageReportId({
-      reportId: parsed.data.triage_report_id ?? null,
+    const result = await logSymptomOutcomeForUser({
       userId: currentUserId,
+      triageReportId: parsed.data.triage_report_id ?? null,
       symptomDescription: parsed.data.symptom_description,
       severity: parsed.data.severity,
+      checkCompleted: parsed.data.check_completed,
       recommendation: parsed.data.vyva_recommendation,
+      escalatedToCaregiver: parsed.data.escalated_to_caregiver,
     });
 
-    if (parsed.data.severity === "severe") {
-      const existingOutcome = reportId
-        ? await db
-          .select({ id: insightOutcomes.id })
-          .from(insightOutcomes)
-          .where(and(
-            eq(insightOutcomes.user_id, currentUserId),
-            eq(insightOutcomes.triage_report_id, reportId),
-            eq(insightOutcomes.delivered_surface, "senior_card"),
-          ))
-          .limit(1)
-        : [];
-
-      if (!existingOutcome[0]) {
-        await db.insert(insightOutcomes).values({
-          user_id: currentUserId,
-          triage_report_id: reportId,
-          delivered_surface: "senior_card",
-          action_taken: "none",
-          tier_at_generation: 4,
-          outcome_payload: {
-            symptom_description: parsed.data.symptom_description,
-            check_completed: parsed.data.check_completed,
-            vyva_recommendation: parsed.data.vyva_recommendation,
-            escalated_to_caregiver: parsed.data.escalated_to_caregiver,
-          },
-        });
-      }
-    }
-
-    return res.status(201).json({
-      ok: true,
-      triage_report_id: reportId,
-      refreshTargets: ["/api/health/prevention", "/api/reports/summary"],
-    });
+    return res.status(201).json(result);
   } catch (err) {
     console.error("[symptoms/log]", err);
     return res.status(500).json({ error: "Failed to log symptom result" });
