@@ -97,14 +97,21 @@ type LatestVitalCandidate = {
 
 type TriageHealthMemory = {
   healthContext?: string;
+  careContext?: string;
+  checkinContext?: string;
   conditions?: string;
   allergies?: string;
   medications?: string;
+  devices?: string;
   latestVitals?: string;
   vitalsTrend?: string;
   latestSymptomReport?: string;
+  recentSymptomReports?: string;
   medicationAdherence?: string;
   medicationInteraction?: string;
+  recentHealthEvents?: string;
+  latestMedicalVisit?: string;
+  upcomingMedicalAppointment?: string;
   countryCode?: string;
 };
 
@@ -139,6 +146,15 @@ type VoiceTriageVitalsPrompt = {
   }>;
 };
 
+type VoiceTriageActionOption = {
+  id: string;
+  kind: string;
+  label: string;
+  route?: string;
+  tel_href?: string | null;
+  disabled?: boolean;
+};
+
 type VoiceTriageLatestResponse = {
   ok?: boolean;
   status?: "active" | "emergency" | "complete" | "failed";
@@ -159,6 +175,8 @@ type VoiceTriageLatestResponse = {
     watch_signs?: string[];
   };
   emergencyContact?: EmergencyContact | null;
+  staff_review_requested?: boolean;
+  action_options?: VoiceTriageActionOption[];
 };
 
 type VoiceTriageSessionResponse = {
@@ -633,10 +651,12 @@ function VoiceTriageLivePanel({
   isAnswering?: boolean;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [typedAnswer, setTypedAnswer] = useState("");
   const latest = session.latest_response;
   const question = latest?.question;
   const choices = question?.choices?.slice(0, 3) ?? [];
+  const actionOptions = latest?.action_options?.filter((action) => action.kind !== "call_emergency") ?? [];
   const vitalsPrompt = latest?.vitals_prompt;
   const isEmergency = session.status === "emergency";
   const isComplete = session.status === "complete";
@@ -660,6 +680,14 @@ function VoiceTriageLivePanel({
     if (!cleanTypedAnswer || !canTapAnswer) return;
     onAnswer?.({ utterance: cleanTypedAnswer });
     setTypedAnswer("");
+  };
+  const runActionOption = (action: VoiceTriageActionOption) => {
+    if (action.disabled) return;
+    if (action.tel_href) {
+      window.location.href = action.tel_href;
+      return;
+    }
+    if (action.route) navigate(action.route);
   };
 
   return (
@@ -807,6 +835,23 @@ function VoiceTriageLivePanel({
               {question.reason}
             </p>
           </details>
+        ) : null}
+
+        {isComplete && actionOptions.length ? (
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            {actionOptions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                disabled={Boolean(action.disabled)}
+                onClick={() => runActionOption(action)}
+                className="vyva-tap flex min-h-[52px] items-center justify-center gap-2 rounded-[18px] border border-[#BBF7D0] bg-white px-3 text-center font-body text-[14px] font-black text-[#047857] shadow-sm disabled:cursor-default disabled:border-[#E5E7EB] disabled:text-vyva-text-2"
+              >
+                {action.kind === "view_report" ? <FileText size={17} strokeWidth={2.7} /> : <CheckCircle size={17} strokeWidth={2.7} />}
+                <span>{action.label}</span>
+              </button>
+            ))}
+          </div>
         ) : null}
 
         {isEmergency && emergencyContact?.telHref ? (

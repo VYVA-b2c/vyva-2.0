@@ -301,7 +301,23 @@ function confidenceFor(input: {
   const hasSymptom = answers.some((answer) => answer.kind === "symptom");
   const hasSafety = answers.some((answer) => answer.kind === "red_flag");
   const hasDetails = answers.some((answer) => ["duration", "severity", "trend"].includes(answer.kind ?? ""));
-  const hasProfile = Boolean(healthMemory?.healthContext || healthMemory?.conditions || healthMemory?.medications || healthMemory?.latestSymptomReport || healthMemory?.medicationAdherence || healthMemory?.medicationInteraction);
+  const hasProfile = Boolean(
+    healthMemory?.healthContext ||
+    healthMemory?.careContext ||
+    healthMemory?.checkinContext ||
+    healthMemory?.conditions ||
+    healthMemory?.medications ||
+    healthMemory?.devices ||
+    healthMemory?.latestVitals ||
+    healthMemory?.vitalsTrend ||
+    healthMemory?.latestSymptomReport ||
+    healthMemory?.recentSymptomReports ||
+    healthMemory?.medicationAdherence ||
+    healthMemory?.medicationInteraction ||
+    healthMemory?.recentHealthEvents ||
+    healthMemory?.latestMedicalVisit ||
+    healthMemory?.upcomingMedicalAppointment
+  );
   const hasUsefulVital = hasAnyUsefulVital(wizard, protocol);
   const reasons: string[] = [];
   const missing: string[] = [];

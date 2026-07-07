@@ -122,15 +122,21 @@ export type TriageWizardContext = {
 
 export type TriageHealthMemory = {
   healthContext?: string;
+  careContext?: string;
+  checkinContext?: string;
   conditions?: string;
   allergies?: string;
   medications?: string;
+  devices?: string;
   latestVitals?: string;
   vitalsTrend?: string;
   latestSymptomReport?: string;
   recentSymptomReports?: string;
   medicationAdherence?: string;
   medicationInteraction?: string;
+  recentHealthEvents?: string;
+  latestMedicalVisit?: string;
+  upcomingMedicalAppointment?: string;
   countryCode?: string;
 };
 

@@ -207,11 +207,53 @@ function voiceQuestionFor(response: TriageStepResponse) {
     };
 }
 
+function actionOptionsFor(input: {
+  response: TriageStepResponse;
+  status: VoiceTriageStatus;
+  reportId?: string | null;
+  sentTo?: string[];
+  staffReviewRequested?: boolean;
+}) {
+  if (input.status === "emergency") {
+    const emergencyContact = input.response.emergencyContact ?? input.response.safetyAlert?.emergencyContact;
+    return [{
+      id: "call_emergency",
+      kind: "call_emergency",
+      label: emergencyContact?.label ? `Call ${emergencyContact.label} now` : "Call emergency services now",
+      tel_href: emergencyContact?.telHref ?? null,
+    }];
+  }
+
+  if (input.status !== "complete") return [];
+
+  return [
+    input.reportId ? {
+      id: "view_report",
+      kind: "view_report",
+      label: "Open saved report",
+      route: `/informes/${input.reportId}`,
+    } : null,
+    input.staffReviewRequested ? {
+      id: "staff_review",
+      kind: "staff_review",
+      label: "Staff review requested",
+      disabled: true,
+    } : null,
+    input.sentTo?.length ? {
+      id: "care_contacts_notified",
+      kind: "care_contacts_notified",
+      label: `Shared with ${input.sentTo.join(", ")}`,
+      disabled: true,
+    } : null,
+  ].filter(Boolean);
+}
+
 function toolResponseFor(input: {
   response: TriageStepResponse;
   status: VoiceTriageStatus;
   reportId?: string | null;
   sentTo?: string[];
+  staffReviewRequested?: boolean;
 }) {
   const question = voiceQuestionFor(input.response);
   return {
@@ -222,6 +264,8 @@ function toolResponseFor(input: {
     safety_level: input.status === "emergency" ? "emergency" : "continue",
     vitals_prompt: input.response.vitalsPrompt ?? null,
     caregiver_alert_requested: Boolean(input.sentTo?.length),
+    staff_review_requested: Boolean(input.staffReviewRequested),
+    action_options: actionOptionsFor(input),
     ui_state: {
       route: "/health/symptom-check",
       show_live_voice_check: true,
@@ -280,15 +324,21 @@ async function healthMemoryForUser(userId: string): Promise<TriageHealthMemory> 
   const variables = await getDoctorMedicalProfileVariables(userId);
   return {
     healthContext: String(variables.health_profile_summary || variables.health_context || ""),
+    careContext: String(variables.care_context || variables.care_team || ""),
+    checkinContext: String(variables.checkin_context || ""),
     conditions: String(variables.health_conditions || ""),
     allergies: String(variables.allergies || ""),
     medications: String(variables.medications || ""),
+    devices: String(variables.devices || ""),
     latestVitals: String(variables.latest_vitals_scan || ""),
     vitalsTrend: String(variables.vitals_trend || ""),
     latestSymptomReport: String(variables.latest_symptom_report || ""),
     recentSymptomReports: String(variables.recent_symptom_reports || ""),
     medicationAdherence: String(variables.medication_adherence_summary || ""),
     medicationInteraction: String(variables.medication_interaction_context || ""),
+    recentHealthEvents: String(variables.recent_health_events || ""),
+    latestMedicalVisit: String(variables.latest_medical_visit || ""),
+    upcomingMedicalAppointment: String(variables.upcoming_medical_appointment || ""),
     countryCode: String(variables.country_code || ""),
   };
 }
@@ -350,7 +400,7 @@ async function saveCompletedVoiceReport(input: {
   response: TriageStepResponse;
 }) {
   const summary = input.response.summary;
-  if (!summary) return { reportId: null, sentTo: [] as string[] };
+  if (!summary) return { reportId: null, sentTo: [] as string[], staffReviewRequested: false };
 
   const row = await saveTriageReport({
     userId: input.userId,
@@ -380,7 +430,7 @@ async function saveCompletedVoiceReport(input: {
     recommendations: summary.recommendations,
   }).catch((err) => {
     console.error("[voice-triage handoff]", err);
-    return { sentTo: [] as string[], caregiverEscalationTriggered: false };
+    return { sentTo: [] as string[], caregiverEscalationTriggered: false, staffReviewRequested: false };
   });
 
   await logSymptomOutcomeForUser({
@@ -393,7 +443,7 @@ async function saveCompletedVoiceReport(input: {
     escalatedToCaregiver: Boolean(handoff.sentTo.length),
   }).catch((err) => console.error("[voice-triage symptom log]", err));
 
-  return { reportId: row.id, sentTo: handoff.sentTo };
+  return { reportId: row.id, sentTo: handoff.sentTo, staffReviewRequested: handoff.staffReviewRequested };
 }
 
 async function recordEmergencyVoiceHandoff(input: {
@@ -401,8 +451,8 @@ async function recordEmergencyVoiceHandoff(input: {
   conversationId: string;
   response: TriageStepResponse;
   priorStatus: string;
-}) {
-  if (input.priorStatus === "emergency") return [] as string[];
+}): Promise<{ sentTo: string[]; staffReviewRequested: boolean }> {
+  if (input.priorStatus === "emergency") return { sentTo: [], staffReviewRequested: false };
   const sent = await recordTriageReportHandoff({
     userId: input.userId,
     chief_complaint: input.response.safetyAlert?.label || input.response.wizardSymptomId || "Voice symptom check",
@@ -410,9 +460,9 @@ async function recordEmergencyVoiceHandoff(input: {
     recommendations: [input.response.safetyAlert?.recommendation || input.response.content],
   }).catch((err) => {
     console.error("[voice-triage emergency handoff]", err);
-    return { sentTo: [] as string[], caregiverEscalationTriggered: false };
+    return { sentTo: [] as string[], caregiverEscalationTriggered: false, staffReviewRequested: false };
   });
-  return sent.sentTo;
+  return { sentTo: sent.sentTo, staffReviewRequested: sent.staffReviewRequested };
 }
 
 async function runVoiceTriageSessionTurn(input: {
@@ -469,7 +519,7 @@ async function runVoiceTriageSessionTurn(input: {
   const status = statusForResponse(response);
   const completion = status === "complete"
     ? await saveCompletedVoiceReport({ userId: input.userId, response })
-    : { reportId: null, sentTo: [] as string[] };
+    : { reportId: null, sentTo: [] as string[], staffReviewRequested: false };
   const emergencySentTo = status === "emergency"
     ? await recordEmergencyVoiceHandoff({
       userId: input.userId,
@@ -477,13 +527,15 @@ async function runVoiceTriageSessionTurn(input: {
       response,
       priorStatus: session.status,
     })
-    : [];
-  const sentTo = completion.sentTo.length ? completion.sentTo : emergencySentTo;
+    : { sentTo: [] as string[], staffReviewRequested: false };
+  const sentTo = completion.sentTo.length ? completion.sentTo : emergencySentTo.sentTo;
+  const staffReviewRequested = completion.staffReviewRequested || emergencySentTo.staffReviewRequested;
   const toolResponse = toolResponseFor({
     response,
     status,
     reportId: completion.reportId,
     sentTo,
+    staffReviewRequested,
   });
 
   await db
@@ -524,6 +576,8 @@ async function runVoiceTriageSessionTurn(input: {
         profile_context_used: Boolean(response.profileContextUsed),
         report_id: completion.reportId ?? "",
         answer_source: input.timelineSource,
+        staff_review_requested: staffReviewRequested,
+        notified_contacts: sentTo,
       },
     }],
   }).catch((err) => console.warn("[voice-triage timeline]", err));
