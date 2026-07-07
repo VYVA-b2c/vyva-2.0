@@ -561,37 +561,79 @@ type ShareStoryPrompt = {
   connectionGoal: string;
 };
 
+function shareStoryOpenPrompt(language: SocialLanguage): ShareStoryPrompt {
+  if (language === "es") {
+    return {
+      id: "story-open",
+      noteType: "memory",
+      title: "Historia",
+      body: "Di una cosa que quieras compartir.",
+      promptText: "Que te gustaria compartir hoy?",
+      promptKind: "open",
+      connectionGoal: "VYVA encontrara la sala adecuada.",
+    };
+  }
+  if (language === "de") {
+    return {
+      id: "story-open",
+      noteType: "memory",
+      title: "Geschichte",
+      body: "Sag eine Sache, die du teilen moechtest.",
+      promptText: "Was moechtest du heute teilen?",
+      promptKind: "open",
+      connectionGoal: "VYVA findet den passenden Raum.",
+    };
+  }
+  return {
+    id: "story-open",
+    noteType: "memory",
+    title: "Story",
+    body: "Say one thing you would like to share.",
+    promptText: "What would you like to share today?",
+    promptKind: "open",
+    connectionGoal: "VYVA will find the right room.",
+  };
+}
+
 function shareStoryPromptCatalog(language: SocialLanguage): ShareStoryPrompt[] {
   if (language === "es") {
     return [
-      { id: "song-old-favourite", noteType: "song", title: "Una cancion de antes", body: "Cuenta la cancion y el recuerdo que trae.", promptText: "Que cancion te gustaria compartir hoy?", promptKind: "song", connectionGoal: "Encontrar a alguien que recuerde esta cancion." },
-      { id: "memory-small-moment", noteType: "memory", title: "Un pequeno recuerdo", body: "Comparte un momento que todavia te haga sonreir.", promptText: "Que pequeno recuerdo te vino a la mente?", promptKind: "memory", connectionGoal: "Abrir una respuesta amable en Memory Lane." },
-      { id: "recipe-family-table", noteType: "recipe", title: "Mesa familiar", body: "Deja una receta, truco o olor de cocina.", promptText: "Que receta o consejo de cocina quieres guardar?", promptKind: "recipe", connectionGoal: "Invitar recuerdos de cocina y consejos." },
-      { id: "reading-line", noteType: "reading", title: "Linea de lectura", body: "Comparte una idea de un libro, poema o articulo.", promptText: "Que lectura te gustaria comentar?", promptKind: "reading", connectionGoal: "Encontrar lectores con una idea parecida." },
-      { id: "hello-soft-start", noteType: "hello", title: "Un hola amable", body: "Dile a VYVA que tipo de saludo quieres enviar.", promptText: "Que saludo amable quieres probar?", promptKind: "hello", connectionGoal: "Empezar con un saludo protegido." },
+      { id: "memory-small-moment", noteType: "memory", title: "Recuerdo", body: "Un momento que te haga sonreir.", promptText: "Que pequeno recuerdo te vino a la mente?", promptKind: "memory", connectionGoal: "Abrir una respuesta amable en Memory Lane." },
+      { id: "hello-soft-start", noteType: "hello", title: "Hola", body: "Un saludo amable y protegido.", promptText: "Que saludo amable quieres probar?", promptKind: "hello", connectionGoal: "Empezar con un saludo protegido." },
+      { id: "recipe-family-table", noteType: "recipe", title: "Receta", body: "Una receta, truco u olor de cocina.", promptText: "Que receta o consejo de cocina quieres guardar?", promptKind: "recipe", connectionGoal: "Invitar recuerdos de cocina y consejos." },
+      { id: "reading-line", noteType: "reading", title: "Lectura", body: "Una idea de un libro, poema o articulo.", promptText: "Que lectura te gustaria comentar?", promptKind: "reading", connectionGoal: "Encontrar lectores con una idea parecida." },
+      { id: "song-old-favourite", noteType: "song", title: "Cancion", body: "Una cancion y el recuerdo que trae.", promptText: "Que cancion te gustaria compartir hoy?", promptKind: "song", connectionGoal: "Encontrar a alguien que recuerde esta cancion." },
     ];
   }
   if (language === "de") {
     return [
-      { id: "song-old-favourite", noteType: "song", title: "Ein altes Lieblingslied", body: "Nenne das Lied und die Erinnerung dahinter.", promptText: "Welches Lied moechtest du heute teilen?", promptKind: "song", connectionGoal: "Jemanden finden, der sich an dieses Lied erinnert." },
-      { id: "memory-small-moment", noteType: "memory", title: "Eine kleine Erinnerung", body: "Teile einen Moment, der dich noch laecheln laesst.", promptText: "Welche kleine Erinnerung kam dir heute?", promptKind: "memory", connectionGoal: "Eine freundliche Antwort in Memory Lane einladen." },
-      { id: "recipe-family-table", noteType: "recipe", title: "Am Familientisch", body: "Erzaehle von einem Rezept, Tipp oder Kuechenduft.", promptText: "Welches Rezept oder welchen Kuechentipp willst du festhalten?", promptKind: "recipe", connectionGoal: "Kuechenerinnerungen und Tipps einladen." },
-      { id: "reading-line", noteType: "reading", title: "Ein Lesegedanke", body: "Teile eine Idee aus Buch, Gedicht oder Artikel.", promptText: "Ueber welche Lektuere moechtest du sprechen?", promptKind: "reading", connectionGoal: "Leser mit aehnlichen Gedanken finden." },
-      { id: "hello-soft-start", noteType: "hello", title: "Ein freundliches Hallo", body: "Sag VYVA, welche Art Hallo du senden moechtest.", promptText: "Welches freundliche Hallo moechtest du versuchen?", promptKind: "hello", connectionGoal: "Mit einem geschuetzten Hallo beginnen." },
+      { id: "memory-small-moment", noteType: "memory", title: "Erinnerung", body: "Ein Moment, der dich laecheln laesst.", promptText: "Welche kleine Erinnerung kam dir heute?", promptKind: "memory", connectionGoal: "Eine freundliche Antwort in Memory Lane einladen." },
+      { id: "hello-soft-start", noteType: "hello", title: "Hallo", body: "Ein freundlicher geschuetzter Gruss.", promptText: "Welches freundliche Hallo moechtest du versuchen?", promptKind: "hello", connectionGoal: "Mit einem geschuetzten Hallo beginnen." },
+      { id: "recipe-family-table", noteType: "recipe", title: "Rezept", body: "Ein Rezept, Tipp oder Kuechenduft.", promptText: "Welches Rezept oder welchen Kuechentipp willst du festhalten?", promptKind: "recipe", connectionGoal: "Kuechenerinnerungen und Tipps einladen." },
+      { id: "reading-line", noteType: "reading", title: "Lesen", body: "Eine Idee aus Buch, Gedicht oder Artikel.", promptText: "Ueber welche Lektuere moechtest du sprechen?", promptKind: "reading", connectionGoal: "Leser mit aehnlichen Gedanken finden." },
+      { id: "song-old-favourite", noteType: "song", title: "Lied", body: "Ein Lied und die Erinnerung daran.", promptText: "Welches Lied moechtest du heute teilen?", promptKind: "song", connectionGoal: "Jemanden finden, der sich an dieses Lied erinnert." },
     ];
   }
   return [
-    { id: "song-old-favourite", noteType: "song", title: "An old favourite song", body: "Say the song and the memory it brings back.", promptText: "What song would you like to share today?", promptKind: "song", connectionGoal: "Find someone who remembers this song too." },
-    { id: "memory-small-moment", noteType: "memory", title: "A small memory", body: "Share a moment that still makes you smile.", promptText: "What small memory came to mind today?", promptKind: "memory", connectionGoal: "Invite a kind response in Memory Lane." },
-    { id: "recipe-family-table", noteType: "recipe", title: "Family table", body: "Leave a recipe, kitchen trick, or food memory.", promptText: "What recipe or kitchen tip would you like to save?", promptKind: "recipe", connectionGoal: "Invite kitchen memories and tips." },
-    { id: "reading-line", noteType: "reading", title: "A reading thought", body: "Share one idea from a book, poem, or article.", promptText: "What did you read that stayed with you?", promptKind: "reading", connectionGoal: "Find readers with a similar thought." },
-    { id: "hello-soft-start", noteType: "hello", title: "A gentle hello", body: "Tell VYVA what kind of hello you want to send.", promptText: "What kind hello would you like to try?", promptKind: "hello", connectionGoal: "Start with a protected hello." },
+    { id: "memory-small-moment", noteType: "memory", title: "Memory", body: "A moment that still makes you smile.", promptText: "What small memory came to mind today?", promptKind: "memory", connectionGoal: "Invite a kind response in Memory Lane." },
+    { id: "hello-soft-start", noteType: "hello", title: "Hello", body: "A gentle protected greeting.", promptText: "What kind hello would you like to try?", promptKind: "hello", connectionGoal: "Start with a protected hello." },
+    { id: "recipe-family-table", noteType: "recipe", title: "Recipe", body: "A recipe, kitchen trick, or food memory.", promptText: "What recipe or kitchen tip would you like to save?", promptKind: "recipe", connectionGoal: "Invite kitchen memories and tips." },
+    { id: "reading-line", noteType: "reading", title: "Reading", body: "One idea from a book, poem, or article.", promptText: "What did you read that stayed with you?", promptKind: "reading", connectionGoal: "Find readers with a similar thought." },
+    { id: "song-old-favourite", noteType: "song", title: "Song", body: "A song and the memory it brings back.", promptText: "What song would you like to share today?", promptKind: "song", connectionGoal: "Find someone who remembers this song too." },
   ];
 }
 
-function shareStoryDailyPrompt(prompts: ShareStoryPrompt[]) {
-  const day = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
-  return prompts[day % Math.max(1, prompts.length)];
+function inferShareDropboxOpenNoteType(text: string): ShareDropboxNoteType {
+  const normalized = text.toLowerCase();
+  if (/\b(recipe|cook|cooking|kitchen|soup|stew|bake|bread|cake|food|meal|parsley|garlic|onion|dinner|lunch|breakfast)\b/.test(normalized)) return "recipe";
+  if (/\b(book|read|reading|novel|poem|poetry|page|chapter|article|author|library)\b/.test(normalized)) return "reading";
+  if (/\b(hello|hi|greeting|friend|neighbour|neighbor|meet|chat|talk|lonely|company)\b/.test(normalized)) return "hello";
+  if (/\b(song|music|singer|band|album|dance|dancing|melody|tune|choir|radio|piano|guitar)\b/.test(normalized)) return "song";
+  return "memory";
+}
+
+function resolveShareDropboxNoteType(noteType: ShareDropboxNoteType, promptKind: string | null | undefined, text: string): ShareDropboxNoteType {
+  return promptKind === "open" ? inferShareDropboxOpenNoteType(text) : noteType;
 }
 
 function shareStoryStats(notes: ShareDropboxNoteRow[]) {
@@ -2889,7 +2931,7 @@ router.get("/share-stories/home", async (req: Request, res: Response) => {
 
   const profile = await loadProfileSummary(userId);
   const language = normalizeLanguage((req.query.lang as string | undefined) ?? profile.language);
-  const prompts = shareStoryPromptCatalog(language).map((prompt) => {
+  const formatPrompt = (prompt: ShareStoryPrompt) => {
     const suggestedRoomSlug = shareDropboxSuggestedRoomSlug(prompt.noteType);
     return {
       ...prompt,
@@ -2899,12 +2941,14 @@ router.get("/share-stories/home", async (req: Request, res: Response) => {
       connectionLabel: shareDropboxConnectionLabel(prompt.noteType, language),
       nextActionLabel: shareDropboxNextActionLabel(prompt.noteType, language),
     };
-  });
+  };
+  const todayPrompt = formatPrompt(shareStoryOpenPrompt(language));
+  const prompts = shareStoryPromptCatalog(language).map(formatPrompt);
   const notes = await listShareDropboxNotes(userId);
   const formattedNotes = notes.map(({ note, audio }) => formatShareDropboxNote(note, audio, language));
 
   return res.json({
-    todayPrompt: shareStoryDailyPrompt(prompts),
+    todayPrompt,
     prompts,
     recentNotes: formattedNotes,
     stats: shareStoryStats(notes.map(({ note }) => note)),
@@ -2944,15 +2988,16 @@ router.post("/share-dropbox/notes/audio", shareDropboxAudioBody, async (req: Req
   const mimeType = shareDropboxAudioMimeType(req);
   try {
     const transcript = await transcribeShareDropboxAudio(audio, mimeType, parsed.data.noteType);
+    const noteType = resolveShareDropboxNoteType(parsed.data.noteType, parsed.data.promptKind, transcript);
     const created = await createShareDropboxNoteRecord({
       userId,
-      noteType: parsed.data.noteType,
+      noteType,
       source: "voice",
       transcript,
       promptId: parsed.data.promptId,
       promptText: parsed.data.promptText,
       promptKind: parsed.data.promptKind,
-      connectionGoal: parsed.data.connectionGoal,
+      connectionGoal: parsed.data.promptKind === "open" ? undefined : parsed.data.connectionGoal,
       audio: {
         bytes: audio,
         mimeType,
@@ -2983,16 +3028,18 @@ router.post("/share-dropbox/notes", async (req: Request, res: Response) => {
   const parsed = shareDropboxCreateNoteSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
+  const textForInference = parsed.data.editedText?.trim() || parsed.data.transcript;
+  const noteType = resolveShareDropboxNoteType(parsed.data.noteType, parsed.data.promptKind, textForInference);
   const created = await createShareDropboxNoteRecord({
     userId,
-    noteType: parsed.data.noteType,
+    noteType,
     source: parsed.data.source,
     transcript: parsed.data.transcript,
     editedText: parsed.data.editedText,
     promptId: parsed.data.promptId,
     promptText: parsed.data.promptText,
     promptKind: parsed.data.promptKind,
-    connectionGoal: parsed.data.connectionGoal,
+    connectionGoal: parsed.data.promptKind === "open" ? undefined : parsed.data.connectionGoal,
   });
 
   return res.status(201).json({
@@ -3012,8 +3059,11 @@ router.patch("/share-dropbox/notes/:noteId", async (req: Request, res: Response)
   if (!existing || existing.status === "deleted") return res.status(404).json({ error: "Share note not found" });
   if (existing.status === "placed") return res.status(409).json({ error: "Placed notes cannot be edited." });
 
-  const nextNoteType = parsed.data.noteType ?? shareDropboxNoteTypeSchema.catch("memory").parse(existing.note_type);
   const nextEditedText = (parsed.data.editedText ?? existing.edited_text).trim();
+  const promptKind = parsed.data.promptKind ?? existing.prompt_kind;
+  const baseNoteType = parsed.data.noteType ?? shareDropboxNoteTypeSchema.catch("memory").parse(existing.note_type);
+  const nextNoteType = resolveShareDropboxNoteType(baseNoteType, promptKind, nextEditedText);
+  const nextConnectionGoal = promptKind === "open" ? null : parsed.data.connectionGoal;
   const { safetyFlags, blocked } = shareDropboxSafety(nextEditedText);
 
   const updated = await updateShareDropboxNoteRecord(userId, req.params.noteId, () => ({
@@ -3023,7 +3073,7 @@ router.patch("/share-dropbox/notes/:noteId", async (req: Request, res: Response)
     ...(parsed.data.promptId !== undefined ? { prompt_id: parsed.data.promptId } : {}),
     ...(parsed.data.promptText !== undefined ? { prompt_text: parsed.data.promptText } : {}),
     ...(parsed.data.promptKind !== undefined ? { prompt_kind: parsed.data.promptKind } : {}),
-    ...(parsed.data.connectionGoal !== undefined ? { connection_goal: parsed.data.connectionGoal } : {}),
+    ...(parsed.data.connectionGoal !== undefined || promptKind === "open" ? { connection_goal: nextConnectionGoal } : {}),
     placement_kind: shareDropboxPlacementKind(nextNoteType),
     status: blocked ? "blocked" : "ready",
     safety_flags: safetyFlags,

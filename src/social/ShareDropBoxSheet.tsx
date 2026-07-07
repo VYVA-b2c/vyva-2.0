@@ -36,6 +36,7 @@ export type ShareDropBoxCaptureProps = {
   prompt?: SocialShareStoryPrompt;
   initialNoteType?: SocialShareDropBoxNoteType;
   initialTypedMode?: boolean;
+  autoStartVoice?: boolean;
   surface?: "sheet" | "page";
   autoNavigateOnPublish?: boolean;
   onSaved?: (note: SocialShareDropBoxNote) => void;
@@ -56,6 +57,14 @@ const NOTE_TYPES: Array<{
   { id: "reading", label: "Reading", description: "A book or reflection", Icon: BookOpen },
   { id: "hello", label: "Hello", description: "A kind first message", Icon: HeartHandshake },
 ];
+
+const ROOM_LABELS: Record<string, string> = {
+  "memory-lane": "Memory Lane",
+  "music-room": "Music Room",
+  "kitchen-table": "Kitchen Table",
+  "reading-room": "Reading Room",
+  "together-room": "Together Room",
+};
 
 const SHARE_AUDIO_MIME_TYPES = [
   "audio/webm;codecs=opus",
@@ -93,6 +102,10 @@ function suggestedRoomSlug(noteType: SocialShareDropBoxNoteType) {
   return "memory-lane";
 }
 
+function roomLabel(slug: string) {
+  return ROOM_LABELS[slug] ?? slug.replace(/-/g, " ");
+}
+
 function canRecordVoice() {
   return (
     typeof navigator !== "undefined"
@@ -124,6 +137,7 @@ export function ShareDropBoxCapture({
   prompt,
   initialNoteType,
   initialTypedMode = false,
+  autoStartVoice = false,
   surface = "sheet",
   autoNavigateOnPublish = surface !== "page",
   onSaved,
@@ -142,23 +156,26 @@ export function ShareDropBoxCapture({
   const chunksRef = useRef<Blob[]>([]);
   const startedAtRef = useRef(0);
   const stopTimerRef = useRef<number | null>(null);
+  const autoStartedRef = useRef(false);
 
+  const isPageSurface = surface === "page";
   const selectedNoteType = noteType;
   const showReview = Boolean(note) && (state === "review" || state === "blocked");
-  const roomName = note?.suggestedRoomSlug?.replace(/-/g, " ") ?? suggestedRoomSlug(selectedNoteType).replace(/-/g, " ");
+  const showTypePicker = !isPageSurface && (!prompt || showReview);
+  const roomName = roomLabel(note?.suggestedRoomSlug ?? suggestedRoomSlug(selectedNoteType));
   const statusText = state === "recording"
-    ? "Listening... when you are done, tap finish note."
+    ? "Listening. Tap finish when done."
     : state === "transcribing"
-      ? "Turning your voice into private text..."
+      ? "Saving your voice privately..."
       : state === "review"
-        ? "Review the words. Only this edited text can be shared."
+        ? "Check the words before placing."
         : state === "blocked"
-          ? "This note is private. It needs VYVA review before it can be shared."
+          ? "Private for now. Please edit before sharing."
           : typedMode
-            ? "Type the story here. It stays private until you place it."
+            ? "Write one short note."
             : prompt
               ? prompt.promptText
-              : "Tap start and say a memory, a song, a recipe, a reading thought, or a hello.";
+              : "Say one short note.";
 
   useEffect(() => () => {
     if (stopTimerRef.current) window.clearTimeout(stopTimerRef.current);
@@ -260,6 +277,12 @@ export function ShareDropBoxCapture({
       stopStream(streamRef.current);
     }
   };
+
+  useEffect(() => {
+    if (!autoStartVoice || autoStartedRef.current || initialTypedMode || typedMode || note || state !== "idle") return;
+    autoStartedRef.current = true;
+    void startRecording();
+  }, [autoStartVoice, initialTypedMode, note, state, typedMode]);
 
   const stopRecording = () => {
     if (recorderRef.current?.state === "recording") {
@@ -371,24 +394,24 @@ export function ShareDropBoxCapture({
   return (
     <div
       data-testid={surface === "page" ? "share-dropbox-capture" : "share-dropbox-sheet"}
-      className={surface === "page" ? "w-full min-w-0 rounded-[30px] border border-[#E4D5F8] bg-white p-4 shadow-[0_18px_40px_rgba(67,35,103,0.08)] sm:p-5" : "w-full min-w-0"}
+      className={isPageSurface ? "w-full min-w-0 rounded-[28px] border border-[#E4D5F8] bg-white p-4 shadow-[0_14px_30px_rgba(67,35,103,0.06)] sm:p-5" : "w-full min-w-0"}
     >
-      <div className={surface === "page" ? "min-w-0 rounded-[26px] bg-[#F8F4FF] p-5 text-[#24172F]" : "min-w-0 rounded-[28px] bg-[#2D1F42] p-5 text-white shadow-[0_18px_40px_rgba(45,31,66,0.18)]"}>
+      <div className={isPageSurface ? "min-w-0 rounded-[24px] bg-[#F8F4FF] p-4 text-[#24172F]" : "min-w-0 rounded-[28px] bg-[#2D1F42] p-5 text-white shadow-[0_18px_40px_rgba(45,31,66,0.18)]"}>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className={`font-body text-[13px] font-black uppercase tracking-[0.13em] ${surface === "page" ? "text-[#6D28D9]" : "text-white/70"}`}>
-              {prompt ? "Today's story" : "Private until you choose"}
+            <p className={`font-body text-[12px] font-black uppercase tracking-[0.13em] ${isPageSurface ? "text-[#6D28D9]" : "text-white/70"}`}>
+              {showReview ? "Review" : typedMode ? "Type" : state === "recording" ? "Recording" : "Voice note"}
             </p>
-            <h3 className="mt-2 font-display text-[30px] leading-[1.02]">
-              {prompt?.title ?? "Leave something for later"}
+            <h3 className={`${isPageSurface ? "font-body text-[22px] font-black leading-tight" : "mt-2 font-display text-[30px] leading-[1.02]"}`}>
+              {showReview ? "Check the words" : typedMode ? (prompt?.promptText ?? "Write one short note") : (prompt?.promptText ?? "Say one short note")}
             </h3>
           </div>
-          <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${surface === "page" ? "bg-white text-[#6D28D9]" : "bg-white/14"}`}>
+          <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] ${isPageSurface ? "bg-white text-[#6D28D9]" : "bg-white/14"}`}>
             {showReview ? <CheckCircle2 size={28} strokeWidth={2.35} aria-hidden="true" /> : <Mic size={28} strokeWidth={2.35} aria-hidden="true" />}
           </span>
         </div>
 
-        <div className="mt-5 social-voice-line" aria-hidden="true">
+        {!isPageSurface ? <div className="mt-5 social-voice-line" aria-hidden="true">
           <span>
             <b />
             <b />
@@ -396,9 +419,9 @@ export function ShareDropBoxCapture({
             <b />
             <b />
           </span>
-        </div>
+        </div> : null}
 
-        <p className={`mt-4 min-h-[48px] font-body text-[17px] font-semibold leading-snug ${surface === "page" ? "text-[#5B4A68]" : "text-white/86"}`} aria-live="polite">
+        <p className={`mt-3 font-body text-[16px] font-semibold leading-snug ${isPageSurface ? "text-[#5B4A68]" : "text-white/86"}`} aria-live="polite">
           {statusText}
         </p>
       </div>
@@ -415,7 +438,7 @@ export function ShareDropBoxCapture({
         </button>
       ) : null}
 
-      <section className="mt-5">
+      {showTypePicker ? <section className="mt-5">
         <p className="font-body text-[16px] font-black text-[#24172F]">What kind of note is this?</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {NOTE_TYPES.map((item) => {
@@ -443,7 +466,7 @@ export function ShareDropBoxCapture({
             );
           })}
         </div>
-      </section>
+      </section> : null}
 
       {typedMode && !showReview ? (
         <section className="mt-5">
@@ -480,7 +503,7 @@ export function ShareDropBoxCapture({
             <div className="flex items-start gap-3">
               <ShieldCheck size={22} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
               <p className="font-body text-[15px] font-semibold leading-snug text-[#346B5D]">
-                Suggested as {noteTypeLabel(selectedNoteType)} for {roomName}. Audio stays private; only edited text is shared.
+                Suggested for {roomName}. Audio stays private.
               </p>
             </div>
           </div>
@@ -545,7 +568,7 @@ export function ShareDropBoxCapture({
             data-testid="button-share-dropbox-primary"
             className="min-h-[58px] w-full rounded-full bg-[#6D28D9] px-6 font-body text-[18px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)] disabled:bg-[#BDA8E8] disabled:shadow-none"
           >
-            {isPublishing ? "Placing..." : note?.publishLabel ?? "Place with VYVA"}
+            {isPublishing ? "Placing..." : isPageSurface ? "Place story" : note?.publishLabel ?? "Place with VYVA"}
           </button>
         ) : typedMode ? (
           <button
