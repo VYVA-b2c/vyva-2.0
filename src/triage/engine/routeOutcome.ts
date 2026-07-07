@@ -110,14 +110,21 @@ function text(locale: string, english: string, spanish: string) {
 export function profileRiskFlags(memory?: TriageHealthMemory): ProfileRiskFlags {
   const haystack = [
     memory?.healthContext,
+    memory?.careContext,
+    memory?.checkinContext,
     memory?.conditions,
     memory?.allergies,
     memory?.medications,
+    memory?.devices,
     memory?.latestVitals,
     memory?.vitalsTrend,
     memory?.latestSymptomReport,
+    memory?.recentSymptomReports,
     memory?.medicationAdherence,
     memory?.medicationInteraction,
+    memory?.recentHealthEvents,
+    memory?.latestMedicalVisit,
+    memory?.upcomingMedicalAppointment,
   ].filter(Boolean).join(" ").toLowerCase();
 
   return {

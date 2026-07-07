@@ -305,15 +305,21 @@ function healthMemoryText(memory?: TriageHealthMemory): string {
   ].filter(Boolean);
   const lines = [
     memory.healthContext ? `Health profile summary: ${memory.healthContext}` : "",
+    memory.careContext ? `Care and living context: ${memory.careContext}` : "",
+    memory.checkinContext ? `Check-in context: ${memory.checkinContext}` : "",
     memory.conditions ? `Known conditions: ${memory.conditions}` : "",
     memory.allergies ? `Known allergies: ${memory.allergies}` : "",
     memory.medications ? `Current medications: ${memory.medications}` : "",
+    memory.devices ? `Health devices: ${memory.devices}` : "",
     memory.latestVitals ? `Latest vitals: ${memory.latestVitals}` : "",
     memory.vitalsTrend ? `Vitals trend: ${memory.vitalsTrend}` : "",
     memory.latestSymptomReport ? `Latest symptom report: ${memory.latestSymptomReport}` : "",
     memory.recentSymptomReports ? `Recent symptom history: ${memory.recentSymptomReports}` : "",
     memory.medicationAdherence ? `Medication adherence: ${memory.medicationAdherence}` : "",
     memory.medicationInteraction ? `Medication interaction context: ${memory.medicationInteraction}` : "",
+    memory.recentHealthEvents ? `Recent health events: ${memory.recentHealthEvents}` : "",
+    memory.latestMedicalVisit ? `Latest medical visit: ${memory.latestMedicalVisit}` : "",
+    memory.upcomingMedicalAppointment ? `Upcoming medical appointment: ${memory.upcomingMedicalAppointment}` : "",
     riskLabels.length ? `Deterministic profile flags: ${riskLabels.join(", ")}` : "",
   ].filter(Boolean);
 
@@ -690,6 +696,103 @@ function profileContextUsedForQuestion(stage: WizardStage, symptomId: string | u
   return profileRedFlagReplies("en", symptomId, profileRiskFlags(healthMemory)).length > 0;
 }
 
+const SYMPTOM_MEMORY_PATTERNS: Record<string, RegExp> = {
+  breathing: /\b(breath|oxygen|spo2|wheeze|air|respir|falta de aire|oxigeno)\b/,
+  chest: /\b(chest|pressure|tight|heart|pecho|presion)\b/,
+  confusion: /\b(confus|memory|disorient|not like myself|confusion|memoria|desorient)\b/,
+  dizzy: /\b(dizz|faint|lightheaded|vertigo|mareo|desmay)\b/,
+  fall: /\b(fall|fell|injur|hit|unsteady|caida|golpe|lesion)\b/,
+  fever: /\b(fever|temperature|chills|infection|fiebre|temperatura)\b/,
+  pain: /\b(pain|ache|headache|dolor|cabeza)\b/,
+  skin: /\b(skin|wound|rash|swelling|piel|herida|hinch)\b/,
+  stomach: /\b(stomach|bowel|vomit|nausea|diarrhea|belly|estomago|diarrea|vomit|nausea)\b/,
+  tired: /\b(tired|weak|fatigue|sleepy|cansad|debil|fatiga)\b/,
+  urinary: /\b(urine|bladder|pee|uti|orina|vejiga)\b/,
+};
+
+function memoryBlob(memory: TriageHealthMemory | undefined, fields: Array<keyof TriageHealthMemory>) {
+  return normalizeClue(fields.map((field) => memory?.[field] ?? "").join(" "));
+}
+
+function hasRecentSymptomMemory(symptomId: string | undefined, healthMemory?: TriageHealthMemory) {
+  if (!symptomId) return false;
+  const pattern = SYMPTOM_MEMORY_PATTERNS[symptomId];
+  if (!pattern) return false;
+  const recentText = memoryBlob(healthMemory, ["latestSymptomReport", "recentSymptomReports", "recentHealthEvents"]);
+  return pattern.test(recentText);
+}
+
+function hasMedicationMemory(healthMemory?: TriageHealthMemory) {
+  const medicationText = memoryBlob(healthMemory, ["medicationAdherence", "medicationInteraction", "medications"]);
+  return /\b(missed|skipped|late|dose|tablet|pill|medicine|medication|side effect|missed\/skipped|pastilla|dosis|medicina)\b/.test(medicationText);
+}
+
+function hasCareSafetyMemory(healthMemory?: TriageHealthMemory) {
+  const careText = memoryBlob(healthMemory, ["careContext", "checkinContext"]);
+  return /\b(living alone|alone|no care|caregiver|emergency contact|missed check|possible missed|overdue|support mode|vive sol|cuidador)\b/.test(careText);
+}
+
+function hasVitalsOrDeviceMemory(healthMemory?: TriageHealthMemory) {
+  const signalText = memoryBlob(healthMemory, ["devices", "latestVitals", "vitalsTrend", "recentHealthEvents"]);
+  return /\b(oxygen|spo2|pulse|heart rate|blood pressure|temperature|glucose|walker|walking aid|sensor|device|vital|presion|pulso|oxigeno)\b/.test(signalText);
+}
+
+function memoryReasonForQuestion(
+  stage: WizardStage,
+  symptomId: string | undefined,
+  locale: string,
+  healthMemory?: TriageHealthMemory,
+) {
+  if (!healthMemory) return "";
+  if (stage === "red_flag" && hasCareSafetyMemory(healthMemory) && ["dizzy", "fall", "confusion", "breathing", "tired", "other"].includes(symptomId ?? "")) {
+    return text(
+      locale,
+      "I am checking safety first because your support or check-in context may matter if this gets worse.",
+      "Primero compruebo seguridad porque tu apoyo o contexto de check-in puede importar si esto empeora.",
+    );
+  }
+  if (stage === "red_flag" && hasRecentSymptomMemory(symptomId, healthMemory)) {
+    return text(
+      locale,
+      "I am checking urgent warning signs first because a similar symptom was recorded recently.",
+      "Primero compruebo senales urgentes porque se registro un sintoma parecido recientemente.",
+    );
+  }
+  if (["red_flag", "severity", "trend"].includes(stage) && hasMedicationMemory(healthMemory) && ["dizzy", "tired", "confusion", "stomach", "breathing", "other"].includes(symptomId ?? "")) {
+    return text(
+      locale,
+      "I am asking this because medication timing or missed doses can sometimes change how symptoms feel.",
+      "Pregunto esto porque los horarios de medicacion o dosis omitidas a veces pueden cambiar como se sienten los sintomas.",
+    );
+  }
+  if (["severity", "trend"].includes(stage) && hasVitalsOrDeviceMemory(healthMemory)) {
+    return text(
+      locale,
+      "I am asking this because your recent readings or health devices may help decide whether to monitor or get support.",
+      "Pregunto esto porque tus mediciones recientes o dispositivos de salud pueden ayudar a decidir si vigilar o pedir apoyo.",
+    );
+  }
+  if (stage === "duration" && hasRecentSymptomMemory(symptomId, healthMemory)) {
+    return text(
+      locale,
+      "I am checking timing because VYVA has a recent report that may be related.",
+      "Compruebo el tiempo porque VYVA tiene un informe reciente que puede estar relacionado.",
+    );
+  }
+  if (stage === "support" && healthMemory.upcomingMedicalAppointment) {
+    return text(
+      locale,
+      "I am asking about support so this can fit with the care or appointment already recorded.",
+      "Pregunto sobre apoyo para que encaje con la atencion o cita ya registrada.",
+    );
+  }
+  return "";
+}
+
+function memoryContextUsedForQuestion(stage: WizardStage, symptomId: string | undefined, healthMemory?: TriageHealthMemory) {
+  return Boolean(memoryReasonForQuestion(stage, symptomId, "en", healthMemory));
+}
+
 function questionReasonFor(
   stage: WizardStage,
   wizard: TriageWizardContext | undefined,
@@ -705,6 +808,8 @@ function questionReasonFor(
       "Lo estoy comprobando porque tu perfil de salud puede hacer que este sintoma sea mas importante.",
     );
   }
+  const memoryReason = memoryReasonForQuestion(stage, symptomId, locale, healthMemory);
+  if (memoryReason) return memoryReason;
 
   const reasons: Record<WizardStage, { en: string; es: string }> = {
     symptom: {
@@ -1076,25 +1181,35 @@ router.get("/context", async (req: Request, res: Response) => {
     const variables = await getDoctorMedicalProfileVariables(userId);
     const memory: TriageHealthMemory = {
       healthContext: String(variables.health_profile_summary || variables.health_context || ""),
+      careContext: String(variables.care_context || variables.care_team || ""),
+      checkinContext: String(variables.checkin_context || ""),
       conditions: String(variables.health_conditions || ""),
       allergies: String(variables.allergies || ""),
       medications: String(variables.medications || ""),
+      devices: String(variables.devices || ""),
       latestVitals: String(variables.latest_vitals_scan || ""),
       vitalsTrend: String(variables.vitals_trend || ""),
       latestSymptomReport: String(variables.latest_symptom_report || ""),
       recentSymptomReports: String(variables.recent_symptom_reports || ""),
       medicationAdherence: String(variables.medication_adherence_summary || ""),
       medicationInteraction: String(variables.medication_interaction_context || ""),
+      recentHealthEvents: String(variables.recent_health_events || ""),
+      latestMedicalVisit: String(variables.latest_medical_visit || ""),
+      upcomingMedicalAppointment: String(variables.upcoming_medical_appointment || ""),
       countryCode: String(variables.country_code || ""),
     };
     const usedItems = [
       memory.latestVitals ? "Latest vitals" : "",
       memory.vitalsTrend ? "Vitals trend" : "",
       memory.medications ? "Medications" : "",
+      memory.devices ? "Health devices" : "",
+      memory.careContext ? "Care coverage" : "",
+      memory.checkinContext ? "Check-ins" : "",
       memory.medicationAdherence || memory.medicationInteraction ? "Medication context" : "",
       memory.allergies ? "Allergies" : "",
       memory.conditions ? "Conditions" : "",
       memory.latestSymptomReport || memory.recentSymptomReports ? "Recent symptoms" : "",
+      memory.recentHealthEvents ? "Recent health events" : "",
     ].filter(Boolean);
     const language = normalizeAppLanguage(req.language ?? req.header("X-VYVA-Language"), "en");
     const activeConditions = await activeHealthConditionsFor(userId);
@@ -1156,7 +1271,7 @@ export async function runTriageStep(
       wizardStageLabel: wizardStageLabel("support", normalizedLocale),
       wizardSymptomId: selectedSymptomId(effectiveWizard),
       questionReason: questionReasonFor("support", effectiveWizard, normalizedLocale, healthMemory),
-      profileContextUsed: false,
+      profileContextUsed: memoryContextUsedForQuestion("support", selectedSymptomId(effectiveWizard), healthMemory),
       vitalsPrompt: null,
       guidancePlan,
       evidenceSources: [],
@@ -1169,7 +1284,10 @@ export async function runTriageStep(
     const protocolQuestion = wizardQuestionText(stage, effectiveWizard, normalizedLocale);
     const symptomId = selectedSymptomId(effectiveWizard);
     const guidancePlan = guidancePlanFor(stage, effectiveWizard, normalizedLocale, healthMemory, validMessages);
-    const profileContextUsed = profileContextUsedForQuestion(stage, symptomId, healthMemory) || guidancePlan.profileContextUsed;
+    const profileContextUsed =
+      profileContextUsedForQuestion(stage, symptomId, healthMemory) ||
+      memoryContextUsedForQuestion(stage, symptomId, healthMemory) ||
+      guidancePlan.profileContextUsed;
     const vitalsPrompt = vitalsPromptFor(stage, effectiveWizard, normalizedLocale, healthMemory);
     const latestMessage = validMessages[validMessages.length - 1];
     const medisearchContext = latestMessage?.role === "user"

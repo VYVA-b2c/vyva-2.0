@@ -427,6 +427,18 @@ describe("triage route outcome parity", () => {
     });
   });
 
+  it("uses care, device, and check-in memory in deterministic profile flags", () => {
+    const risks = profileRiskFlags({
+      careContext: "Lives alone and uses a walker for balance.",
+      checkinContext: "Possible missed check-in: daily call was overdue this morning.",
+      devices: "Home oxygen concentrator and pulse oximeter.",
+      recentSymptomReports: "recorded yesterday: dizziness and trouble walking safely",
+    });
+
+    expect(risks.copd).toBe(true);
+    expect(risks.fallsFrailty).toBe(true);
+  });
+
   it("preserves adaptive completion and deterministic floor composition", () => {
     const incompleteFall = wizard([
       { id: "fall", label: "Fall or injury", value: "I fell or got injured.", kind: "symptom" },

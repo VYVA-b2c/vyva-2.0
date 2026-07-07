@@ -177,7 +177,7 @@ export async function recordTriageReportHandoff(params: {
   chief_complaint: string;
   urgency: "urgent" | "routine" | "monitor";
   recommendations: string[];
-}): Promise<{ sentTo: string[]; caregiverEscalationTriggered: boolean }> {
+}): Promise<{ sentTo: string[]; caregiverEscalationTriggered: boolean; staffReviewRequested: boolean }> {
   const [profile] = await db
     .select({
       caregiver_name: profiles.caregiver_name,
@@ -194,25 +194,39 @@ export async function recordTriageReportHandoff(params: {
     profile?.gp_name || profile?.gp_phone || profile?.gp_email ? profile.gp_name || "doctor" : "",
     profile?.caregiver_name || profile?.caregiver_contact ? profile.caregiver_name || "caregiver" : "",
   ].filter(Boolean);
+  const staffReviewRequested = params.urgency === "urgent";
 
-  if (sentTo.length === 0) {
-    return { sentTo, caregiverEscalationTriggered: false };
+  if (sentTo.length > 0) {
+    await db.insert(caregiverAlerts).values({
+      user_id: params.userId,
+      alert_type: "triage_report",
+      severity: params.urgency,
+      message: [
+        `Symptom report: ${params.chief_complaint}`,
+        params.recommendations.length ? `Next: ${params.recommendations[0]}` : "",
+      ].filter(Boolean).join("\n"),
+      sent_to: sentTo,
+    });
   }
 
-  await db.insert(caregiverAlerts).values({
-    user_id: params.userId,
-    alert_type: "triage_report",
-    severity: params.urgency,
-    message: [
-      `Symptom report: ${params.chief_complaint}`,
-      params.recommendations.length ? `Next: ${params.recommendations[0]}` : "",
-    ].filter(Boolean).join("\n"),
-    sent_to: sentTo,
-  });
+  if (staffReviewRequested) {
+    await db.insert(caregiverAlerts).values({
+      user_id: params.userId,
+      alert_type: "triage_staff_review",
+      severity: params.urgency,
+      message: [
+        `Staff review requested: ${params.chief_complaint}`,
+        params.recommendations.length ? `Next: ${params.recommendations[0]}` : "",
+        sentTo.length ? `Also shared with: ${sentTo.join(", ")}` : "No doctor or caregiver contact was configured.",
+      ].filter(Boolean).join("\n"),
+      sent_to: ["staff"],
+    });
+  }
 
   return {
     sentTo,
     caregiverEscalationTriggered: Boolean(profile?.caregiver_name || profile?.caregiver_contact),
+    staffReviewRequested,
   };
 }
 
@@ -452,7 +466,7 @@ router.post("/triage", async (req: Request, res: Response) => {
       recommendations,
     }).catch((err) => {
       console.error("[reports/triage handoff]", err);
-      return { sentTo: [], caregiverEscalationTriggered: false };
+      return { sentTo: [], caregiverEscalationTriggered: false, staffReviewRequested: false };
     });
     if (handoff.caregiverEscalationTriggered) {
       trackTriageEvent("caregiver_escalation_triggered", {
@@ -461,7 +475,11 @@ router.post("/triage", async (req: Request, res: Response) => {
         caregiver_escalation_triggered: true,
       });
     }
-    return res.status(201).json({ ...row, sent_to: handoff.sentTo });
+    return res.status(201).json({
+      ...row,
+      sent_to: handoff.sentTo,
+      staff_review_requested: handoff.staffReviewRequested,
+    });
   } catch (err) {
     console.error("[reports/triage POST]", err);
     return res.status(500).json({ error: "Failed to save triage report" });

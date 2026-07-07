@@ -66,5 +66,28 @@ describe("guidance protocol map", () => {
     expect(plan.confidence.label).toBe("Early confidence");
     expect(plan.usefulSignals).toContainEqual(expect.objectContaining({ id: "oxygen", status: "missing" }));
   });
+
+  it("counts care coverage and check-in memory as health context", () => {
+    const wizard: TriageWizardContext = {
+      quickAnswers: [
+        { id: "fall", label: "Fall or injury", value: "I fell.", kind: "symptom" },
+        { id: "no_red_flag", label: "No major warning signs", value: "No major warning signs.", kind: "red_flag" },
+      ],
+    };
+
+    const plan = buildGuidancePlan({
+      locale: "en",
+      stage: "severity",
+      wizard,
+      healthMemory: {
+        careContext: "Lives alone and has caregiver coverage on weekdays.",
+        checkinContext: "Latest check-in was yesterday; today's check-in may be overdue.",
+      },
+    });
+
+    expect(plan.protocolId).toBe("falls");
+    expect(plan.confidence.reasons).toContain("health profile considered");
+    expect(plan.confidence.score).toBeGreaterThanOrEqual(4);
+  });
 });
 
