@@ -264,7 +264,7 @@ const sampleHistoryResponse: CognitiveAssessmentHistoryResponse = {
 function renderReport(
   report: CognitiveAssessmentReport = sampleReport,
   historyResponse: CognitiveAssessmentHistoryResponse = sampleHistoryResponse,
-  initialPath = "/mind-memory/cognitive-assessment",
+  initialPath = "/mind-memory/cognitive-assessment/report",
 ) {
   useQueryMock.mockImplementation(({ queryKey, enabled }: { queryKey: string[]; enabled?: boolean }) => {
     if (enabled === false) return { isLoading: false, isError: false, data: undefined };
@@ -334,11 +334,13 @@ describe("CognitiveAssessmentReportPage", () => {
     expect(screen.queryByText("Coverage map")).not.toBeInTheDocument();
   });
 
-  it("keeps program and evidence explanation in the empty state", () => {
+  it("keeps report routes short when no saved report exists", () => {
     renderReport(null as unknown as CognitiveAssessmentReport);
 
-    expect(screen.getByText("A guided check for memory and thinking")).toBeInTheDocument();
-    expect(screen.getByText("Scientific basis")).toBeInTheDocument();
+    expect(screen.getByText("No report yet")).toBeInTheDocument();
+    expect(screen.getByText("Your report will appear here")).toBeInTheDocument();
+    expect(screen.getByText("Back to program")).toBeInTheDocument();
+    expect(screen.queryByText("Scientific basis")).not.toBeInTheDocument();
   });
 
   it("handles a single-session trend state", () => {
