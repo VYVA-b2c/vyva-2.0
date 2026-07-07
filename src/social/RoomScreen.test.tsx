@@ -325,7 +325,9 @@ describe("RoomScreen Share Stories room handoff", () => {
       },
     });
 
-    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Kitchen Table");
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Recipe ready for the table");
+    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Share at Kitchen Table");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("tip, memory, or gentle question");
     expect(screen.getByTestId("story-room-handoff-text")).toHaveTextContent("My soup tastes best");
     expect(screen.getByDisplayValue("My soup tastes best with parsley at the end.")).toBeInTheDocument();
 
@@ -366,7 +368,9 @@ describe("RoomScreen Share Stories room handoff", () => {
       },
     });
 
-    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Reading Room");
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Add your reflection");
+    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Add reflection");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("reading memories and recommendations");
     expect(await screen.findByTestId("reading-reflection-card")).toBeInTheDocument();
     expect(screen.getByLabelText("Write a book, scene, character or memory...")).toHaveValue(
       "The poem reminded me of my old garden.",
@@ -405,7 +409,9 @@ describe("RoomScreen Share Stories room handoff", () => {
       },
     });
 
-    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Together Room");
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Send a gentle hello");
+    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Send gentle hello");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("answer kindly");
     await waitFor(() => {
       expect(screen.getByTestId("together-proposal-draft")).toHaveValue("Hello, I would enjoy a quiet chat today.");
     });
