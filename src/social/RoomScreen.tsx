@@ -3871,6 +3871,15 @@ const RoomScreen = () => {
     }
   };
 
+  const prepareStoryReplyDraft = (draft: string) => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+
+    setRoomMode("chat");
+    setChatDraft(trimmed);
+    window.requestAnimationFrame(() => chatInputRef.current?.focus({ preventScroll: true }));
+  };
+
   const findReadingCompanion = async () => {
     if (!readingRoomActive || isReadingMatching) return;
 
@@ -4133,6 +4142,8 @@ const RoomScreen = () => {
             roomName={room.name}
             language={language}
             responderName={roomMembers[0]?.name}
+            responderNames={roomMembers.slice(0, 2).map((member) => member.name)}
+            onReply={prepareStoryReplyDraft}
             onShareAnother={() => navigate("/social-rooms/share")}
           />
         ) : null}
