@@ -82,6 +82,7 @@ export type VoiceSpecialistTransferRequest = {
   route?: string;
   agentSlug?: string;
   autoStart?: boolean;
+  appEntrypoint?: string;
 };
 
 export function emitVoiceUserMessage(detail: VoiceUserMessageDetail) {

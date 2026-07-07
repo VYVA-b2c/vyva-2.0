@@ -120,7 +120,7 @@ async function ensureReportsPersistenceTables() {
   return reportsPersistencePromise;
 }
 
-async function saveTriageReport(params: {
+export async function saveTriageReport(params: {
   userId: string;
   chief_complaint: string;
   symptoms: string[];
@@ -172,7 +172,7 @@ function normalizeTriageReportRecommendations<T extends { recommendations?: stri
   };
 }
 
-async function recordTriageReportHandoff(params: {
+export async function recordTriageReportHandoff(params: {
   userId: string;
   chief_complaint: string;
   urgency: "urgent" | "routine" | "monitor";

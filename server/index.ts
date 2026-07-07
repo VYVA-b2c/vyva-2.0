@@ -24,6 +24,11 @@ import {
   retrieveMedicalProfileToolHandler,
   saveCallbackOnboardingSectionToolHandler,
 } from "./routes/elevenlabsTools.js";
+import {
+  elevenLabsTriageStepToolHandler,
+  voiceTriageSessionAnswerHandler,
+  voiceTriageSessionHandler,
+} from "./routes/voiceTriage.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import callbackOnboardingRouter from "./routes/callbackOnboarding.js";
 import billingRouter from "./routes/billing.js";
@@ -163,6 +168,9 @@ app.post("/api/voice-readiness", authMiddleware, requireUser, requireEntitlement
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
+app.post("/api/elevenlabs/tools/triage-step", elevenLabsTriageStepToolHandler);
+app.get("/api/voice-triage/session/:conversation_id", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionHandler);
+app.post("/api/voice-triage/session/:conversation_id/answer", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionAnswerHandler);
 app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);

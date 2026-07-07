@@ -1569,6 +1569,7 @@ export async function buildVoiceContext(
     variables.latest_medical_visit = latestMedicalVisit;
     variables.upcoming_medical_appointment = upcomingMedicalAppointment;
     variables.medical_profile_last_updated = profile?.updated_at ? formatDateTime(profile.updated_at) : "";
+    variables.emergency_contact = emergencyContact;
     variables.health_session_context = healthSessionContext;
     variables.health_context = compactLines([
       healthSessionContext,

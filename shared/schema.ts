@@ -2658,6 +2658,30 @@ export const insertVoiceQaSessionReviewSchema = createInsertSchema(voiceQaSessio
 export type InsertVoiceQaSessionReview = z.infer<typeof insertVoiceQaSessionReviewSchema>;
 export type VoiceQaSessionReviewRow = typeof voiceQaSessionReviews.$inferSelect;
 
+export const voiceTriageSessions = pgTable("voice_triage_sessions", {
+  id:                    uuid("id").primaryKey().defaultRandom(),
+  user_id:               text("user_id").notNull(),
+  conversation_id:       text("conversation_id").notNull().unique(),
+  channel:               text("channel").notNull().default("voice_app"),
+  status:                text("status").notNull().default("active"),
+  locale:                text("locale").notNull().default("en"),
+  messages_json:         jsonb("messages_json").notNull().default(sql`'[]'::jsonb`),
+  wizard_json:           jsonb("wizard_json").notNull().default(sql`'{}'::jsonb`),
+  health_memory_json:    jsonb("health_memory_json").notNull().default(sql`'{}'::jsonb`),
+  latest_response_json:  jsonb("latest_response_json").notNull().default(sql`'{}'::jsonb`),
+  triage_report_id:      uuid("triage_report_id"),
+  started_at:            timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  completed_at:          timestamp("completed_at", { withTimezone: true }),
+}, (t) => [
+  index("voice_triage_sessions_user_updated_idx").on(t.user_id, t.updated_at),
+  index("voice_triage_sessions_status_updated_idx").on(t.status, t.updated_at),
+]);
+
+export const insertVoiceTriageSessionSchema = createInsertSchema(voiceTriageSessions).omit({ id: true, started_at: true, updated_at: true });
+export type InsertVoiceTriageSession = z.infer<typeof insertVoiceTriageSessionSchema>;
+export type VoiceTriageSessionRow = typeof voiceTriageSessions.$inferSelect;
+
 export const homePlanCards = pgTable("home_plan_cards", {
   id:                       uuid("id").primaryKey().defaultRandom(),
   card_id:                  text("card_id").notNull().unique(),
@@ -3079,6 +3103,7 @@ export const schema = {
   utilityReviewRuns,
   conciergeRecommendationFeedback,
   voiceRecommendationFeedback,
+  voiceTriageSessions,
   homePlanCards,
   heroMessages,
   heroMessageEvents,

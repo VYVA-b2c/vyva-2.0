@@ -14,6 +14,11 @@ export type VoiceTimelineEventKind =
   | "action_dismissed"
   | "session_ended"
   | "session_error"
+  | "voice_triage_started"
+  | "voice_triage_step"
+  | "voice_triage_emergency"
+  | "voice_triage_completed"
+  | "voice_triage_tool_failed"
   | "simulator";
 
 export type VoiceTimelineEvent = {
@@ -67,6 +72,11 @@ const KIND_SEVERITY: Record<VoiceTimelineEventKind, VoiceTimelineEvent["severity
   action_dismissed: "warning",
   session_ended: "info",
   session_error: "error",
+  voice_triage_started: "info",
+  voice_triage_step: "info",
+  voice_triage_emergency: "error",
+  voice_triage_completed: "success",
+  voice_triage_tool_failed: "error",
   simulator: "info",
 };
 
