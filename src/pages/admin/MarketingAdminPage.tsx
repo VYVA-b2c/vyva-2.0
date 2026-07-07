@@ -7,13 +7,17 @@ import {
   FileText,
   Lock,
   Megaphone,
+  Pencil,
   Plus,
   RefreshCw,
+  Save,
   Search,
   Send,
   Settings,
+  Trash2,
   UsersRound,
   Waypoints,
+  X,
 } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -22,10 +26,12 @@ import { apiFetch } from "@/lib/queryClient";
 const CHANNELS = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
 const AUDIENCES = ["b2c", "b2b", "both"] as const;
 const TABS = ["dashboard", "journeys", "content", "calendar", "contacts", "settings"] as const;
+const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
 type Tab = typeof TABS[number];
+type JourneyStatus = typeof JOURNEY_STATUSES[number];
 
 type MarketingSummary = {
   totals: {
@@ -154,6 +160,13 @@ type JourneyDraft = {
   objective: string;
 };
 
+type JourneyEditDraft = {
+  name: string;
+  audienceType: Audience;
+  status: JourneyStatus;
+  objective: string;
+};
+
 type ContentDraft = {
   title: string;
   channel: Channel;
@@ -256,6 +269,10 @@ function lower(value: string | null | undefined) {
 
 function splitTags(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeJourneyStatus(value: string): JourneyStatus {
+  return JOURNEY_STATUSES.includes(value as JourneyStatus) ? value as JourneyStatus : "draft";
 }
 
 function contactSearchText(contact: MarketingContact) {
@@ -385,6 +402,8 @@ export default function MarketingAdminPage() {
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>({ name: "", audienceType: "b2c", channel: "email", status: "draft", scheduleStartsAt: "", objective: "" });
   const [journeyDraft, setJourneyDraft] = useState<JourneyDraft>({ name: "", audienceType: "b2c", channel: "email", objective: "" });
+  const [editingJourneyId, setEditingJourneyId] = useState<string | null>(null);
+  const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>({ name: "", audienceType: "b2c", status: "draft", objective: "" });
   const [contentDraft, setContentDraft] = useState<ContentDraft>({ title: "", channel: "email", subject: "", body: "" });
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
     fullName: "",
@@ -480,6 +499,50 @@ export default function MarketingAdminPage() {
     });
     setJourneyDraft({ name: "", audienceType: "b2c", channel: "email", objective: "" });
     setMessage("Journey draft created.");
+    await refreshAll();
+  }
+
+  function startJourneyEdit(journey: Journey) {
+    setEditingJourneyId(journey.id);
+    setJourneyEditDraft({
+      name: journey.name,
+      audienceType: journey.audienceType,
+      status: normalizeJourneyStatus(journey.status),
+      objective: journey.objective,
+    });
+    setMessage("");
+  }
+
+  function cancelJourneyEdit() {
+    setEditingJourneyId(null);
+    setJourneyEditDraft({ name: "", audienceType: "b2c", status: "draft", objective: "" });
+  }
+
+  async function saveJourneyEdit(event: FormEvent, journeyId: string) {
+    event.preventDefault();
+    if (!journeyEditDraft.name.trim()) {
+      setMessage("Journey name is required before saving.");
+      return;
+    }
+    await api(`/api/admin/marketing/journeys/${journeyId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: journeyEditDraft.name,
+        audienceType: journeyEditDraft.audienceType,
+        status: journeyEditDraft.status,
+        objective: journeyEditDraft.objective,
+      }),
+    });
+    cancelJourneyEdit();
+    setMessage("Journey updated.");
+    await refreshAll();
+  }
+
+  async function deleteJourney(journey: Journey) {
+    if (!window.confirm(`Delete journey "${journey.name}"? This removes the local VYVA planning record.`)) return;
+    await api(`/api/admin/marketing/journeys/${journey.id}`, { method: "DELETE" });
+    if (editingJourneyId === journey.id) cancelJourneyEdit();
+    setMessage("Journey deleted.");
     await refreshAll();
   }
 
@@ -738,25 +801,72 @@ export default function MarketingAdminPage() {
               </SectionCard>
               <SectionCard title="Journeys" subtitle={`${journeys.length} journeys in the planning foundation.`}>
                 <div className="grid gap-3">
-                  {journeys.length === 0 ? <EmptyState text="No journeys yet." /> : journeys.map((journey) => (
-                    <article key={journey.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-black">{journey.name}</h3>
-                          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Pill className={statusClass(journey.status)}>{journey.status}</Pill>
-                          <Pill className="bg-purple-50 text-purple-700">{journey.audienceType.toUpperCase()}</Pill>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => (
-                          <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>{step.stepOrder + 1}. {channelLabel[step.channel]} / {step.delayHours}h</span>
-                        ))}
-                      </div>
-                    </article>
-                  ))}
+                  {journeys.length === 0 ? <EmptyState text="No journeys yet." /> : journeys.map((journey) => {
+                    const isEditing = editingJourneyId === journey.id;
+                    return (
+                      <article key={journey.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">
+                        {isEditing ? (
+                          <form
+                            className="grid gap-3"
+                            onSubmit={(event) => saveJourneyEdit(event, journey.id).catch((error) => setMessage(error.message))}
+                            data-testid={`marketing-journey-edit-form-${journey.id}`}
+                          >
+                            <div className="grid gap-3 xl:grid-cols-[1fr_160px_160px]">
+                              <Field label="Journey name">
+                                <input className={inputClass} value={journeyEditDraft.name} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, name: event.target.value }))} data-testid={`input-marketing-edit-journey-name-${journey.id}`} />
+                              </Field>
+                              <Field label="Audience">
+                                <select className={inputClass} value={journeyEditDraft.audienceType} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))} data-testid={`select-marketing-edit-journey-audience-${journey.id}`}>
+                                  {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                                </select>
+                              </Field>
+                              <Field label="Status">
+                                <select className={inputClass} value={journeyEditDraft.status} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, status: event.target.value as JourneyStatus }))} data-testid={`select-marketing-edit-journey-status-${journey.id}`}>
+                                  {JOURNEY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                                </select>
+                              </Field>
+                            </div>
+                            <Field label="Objective">
+                              <textarea className={textareaClass} value={journeyEditDraft.objective} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, objective: event.target.value }))} data-testid={`textarea-marketing-edit-journey-objective-${journey.id}`} />
+                            </Field>
+                            <div className="flex flex-wrap gap-2">
+                              <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white" data-testid={`button-marketing-save-journey-${journey.id}`}>
+                                <Save size={15} /> Save journey
+                              </button>
+                              <button type="button" onClick={cancelJourneyEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135]" data-testid={`button-marketing-cancel-journey-${journey.id}`}>
+                                <X size={15} /> Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <h3 className="font-black">{journey.name}</h3>
+                                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
+                                {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Lovable source can reimport this after sync.</p> : null}
+                              </div>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Pill className={statusClass(journey.status)}>{journey.status}</Pill>
+                                <Pill className="bg-purple-50 text-purple-700">{journey.audienceType.toUpperCase()}</Pill>
+                                <button type="button" onClick={() => startJourneyEdit(journey)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-edit-journey-${journey.id}`}>
+                                  <Pencil size={14} /> Edit
+                                </button>
+                                <button type="button" onClick={() => deleteJourney(journey).catch((error) => setMessage(error.message))} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700" data-testid={`button-marketing-delete-journey-${journey.id}`}>
+                                  <Trash2 size={14} /> Delete
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => (
+                                <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>{step.stepOrder + 1}. {channelLabel[step.channel]} / {step.delayHours}h</span>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
               </SectionCard>
             </div>

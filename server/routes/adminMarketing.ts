@@ -804,6 +804,19 @@ adminMarketingRouter.patch("/journeys/:journeyId", async (req, res) => {
   }
 });
 
+adminMarketingRouter.delete("/journeys/:journeyId", async (req, res) => {
+  try {
+    const [journey] = await db.select().from(marketingJourneys).where(eq(marketingJourneys.id, req.params.journeyId)).limit(1);
+    if (!journey) return res.status(404).json({ error: "Marketing journey not found." });
+    await db.delete(marketingJourneySteps).where(eq(marketingJourneySteps.journey_id, journey.id));
+    await db.delete(marketingJourneys).where(eq(marketingJourneys.id, journey.id));
+    return res.json({ ok: true, deletedJourneyId: journey.id });
+  } catch (error) {
+    console.error("[admin/marketing] journey delete failed", error);
+    return res.status(500).json({ error: "Marketing journey could not be deleted." });
+  }
+});
+
 adminMarketingRouter.get("/contacts", async (req, res) => {
   try {
     const search = String(req.query.search ?? "").trim().toLowerCase();
