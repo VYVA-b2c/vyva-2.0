@@ -81,6 +81,7 @@ import caregiverBrainCoachRouter from "./routes/caregiverBrainCoach.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
 import healthPreventionRouter from "./routes/healthPrevention.js";
+import healthInsightsReportRouter, { registerHealthInsightsJobs } from "./routes/healthInsightsReport.js";
 import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
@@ -219,6 +220,7 @@ app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api/health", authMiddleware, requireUser, healthPreventionRouter);
+app.use("/api", authMiddleware, requireUser, healthInsightsReportRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
@@ -233,6 +235,8 @@ app.get("/api/checkins/shared/:token", sharedCheckinReportHandler);
 app.post("/api/checkins/analyze", authMiddleware, requireUser, analyzeCheckinHandler);
 app.get("/api/checkins/history", authMiddleware, requireUser, checkinHistoryHandler);
 app.use("/api/checkins", authMiddleware, checkinsRouter);
+
+registerHealthInsightsJobs();
 
 app.get("/api/debug-runtime", (_req, res) => {
   res.json({
