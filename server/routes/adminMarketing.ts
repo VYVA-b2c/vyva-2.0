@@ -602,6 +602,7 @@ adminMarketingRouter.post("/campaigns", async (req, res) => {
 adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
   const parsed = campaignPatchSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const bodyRecord = asRecord(req.body);
 
   const patch: Partial<typeof marketingCampaigns.$inferInsert> = {
     updated_at: new Date(),
@@ -624,6 +625,37 @@ adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
       .where(eq(marketingCampaigns.id, req.params.campaignId))
       .returning();
     if (!campaign) return res.status(404).json({ error: "Marketing campaign not found." });
+    const now = new Date();
+    if (Object.prototype.hasOwnProperty.call(bodyRecord, "channels")) {
+      await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
+      if (parsed.data.channels.length) {
+        await db.insert(marketingCampaignChannels).values(parsed.data.channels.map((item) => ({
+          campaign_id: campaign.id,
+          channel: item.channel,
+          content_asset_id: item.contentAssetId ?? null,
+          scheduled_at: dateOrNull(item.scheduledAt),
+          status: item.status,
+          send_capability: "locked",
+          metadata: { ...item.metadata, send_locked: true },
+          updated_at: now,
+        })));
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(bodyRecord, "recipients")) {
+      await db.delete(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id));
+      if (parsed.data.recipients.length) {
+        await db.insert(marketingCampaignRecipients).values(parsed.data.recipients.map((item) => ({
+          campaign_id: campaign.id,
+          contact_id: item.contactId ?? null,
+          profile_id: item.profileId ?? null,
+          channel: item.channel,
+          recipient: item.recipient,
+          status: item.status,
+          scheduled_at: dateOrNull(item.scheduledAt),
+          snapshot: { ...item.snapshot, dispatch_locked: true, source: "marketing_admin_snapshot" },
+        })));
+      }
+    }
     const [channels, recipients] = await Promise.all([
       db.select().from(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id)).orderBy(asc(marketingCampaignChannels.created_at)),
       db.select().from(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id)).orderBy(desc(marketingCampaignRecipients.created_at)),
@@ -632,6 +664,20 @@ adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
   } catch (error) {
     console.error("[admin/marketing] campaign update failed", error);
     return res.status(500).json({ error: "Marketing campaign could not be updated." });
+  }
+});
+
+adminMarketingRouter.delete("/campaigns/:campaignId", async (req, res) => {
+  try {
+    const [campaign] = await db.select().from(marketingCampaigns).where(eq(marketingCampaigns.id, req.params.campaignId)).limit(1);
+    if (!campaign) return res.status(404).json({ error: "Marketing campaign not found." });
+    await db.delete(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id));
+    await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
+    await db.delete(marketingCampaigns).where(eq(marketingCampaigns.id, campaign.id));
+    return res.json({ ok: true, deletedCampaignId: campaign.id });
+  } catch (error) {
+    console.error("[admin/marketing] campaign delete failed", error);
+    return res.status(500).json({ error: "Marketing campaign could not be deleted." });
   }
 });
 

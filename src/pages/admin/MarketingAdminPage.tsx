@@ -26,11 +26,13 @@ import { apiFetch } from "@/lib/queryClient";
 const CHANNELS = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
 const AUDIENCES = ["b2c", "b2b", "both"] as const;
 const TABS = ["dashboard", "journeys", "content", "calendar", "contacts", "settings"] as const;
+const CAMPAIGN_STATUSES = ["draft", "scheduled", "published", "paused", "archived"] as const;
 const JOURNEY_STATUSES = ["draft", "active", "paused", "archived"] as const;
 
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
 type Tab = typeof TABS[number];
+type CampaignStatus = typeof CAMPAIGN_STATUSES[number];
 type JourneyStatus = typeof JOURNEY_STATUSES[number];
 
 type MarketingSummary = {
@@ -153,6 +155,17 @@ type CampaignDraft = {
   objective: string;
 };
 
+type CampaignEditDraft = {
+  name: string;
+  audienceType: Audience;
+  channel: Channel;
+  status: CampaignStatus;
+  scheduleStartsAt: string;
+  objective: string;
+  recipientFilter: string;
+  snapshotRecipients: boolean;
+};
+
 type JourneyDraft = {
   name: string;
   audienceType: Audience;
@@ -271,8 +284,49 @@ function splitTags(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
 }
 
+function normalizeCampaignStatus(value: string): CampaignStatus {
+  return CAMPAIGN_STATUSES.includes(value as CampaignStatus) ? value as CampaignStatus : "draft";
+}
+
 function normalizeJourneyStatus(value: string): JourneyStatus {
   return JOURNEY_STATUSES.includes(value as JourneyStatus) ? value as JourneyStatus : "draft";
+}
+
+function toDateTimeLocal(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocal(value: string) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+function campaignAllowsContact(campaignAudience: Audience, contactAudience: Audience) {
+  return campaignAudience === "both" || contactAudience === "both" || contactAudience === campaignAudience;
+}
+
+function recipientForChannel(contact: MarketingContact, channel: Channel) {
+  if (channel === "email") return contact.email;
+  if (channel === "whatsapp") return contact.whatsappNumber || contact.phoneNumber;
+  return contact.email || contact.whatsappNumber || contact.phoneNumber || contact.id;
+}
+
+function recipientSnapshot(contact: MarketingContact) {
+  return {
+    fullName: contact.fullName,
+    email: contact.email,
+    phoneNumber: contact.phoneNumber,
+    whatsappNumber: contact.whatsappNumber,
+    audienceType: contact.audienceType,
+    companyName: contact.companyName,
+    roleLabel: contact.roleLabel,
+    consentStatus: contact.consentStatus,
+    tags: contact.tags,
+    lists: contact.lists,
+  };
 }
 
 function contactSearchText(contact: MarketingContact) {
@@ -401,6 +455,17 @@ export default function MarketingAdminPage() {
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>({ name: "", audienceType: "b2c", channel: "email", status: "draft", scheduleStartsAt: "", objective: "" });
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+  const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>({
+    name: "",
+    audienceType: "b2c",
+    channel: "email",
+    status: "draft",
+    scheduleStartsAt: "",
+    objective: "",
+    recipientFilter: "",
+    snapshotRecipients: false,
+  });
   const [journeyDraft, setJourneyDraft] = useState<JourneyDraft>({ name: "", audienceType: "b2c", channel: "email", objective: "" });
   const [editingJourneyId, setEditingJourneyId] = useState<string | null>(null);
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>({ name: "", audienceType: "b2c", status: "draft", objective: "" });
@@ -460,6 +525,18 @@ export default function MarketingAdminPage() {
     return matchesSearch && matchesAudience;
   }), [contacts, search, audienceFilter]);
 
+  const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
+
+  const campaignRecipientPreview = useMemo(() => {
+    if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return [];
+    const filter = campaignEditDraft.recipientFilter.trim().toLowerCase();
+    return contacts.filter((contact) => {
+      if (!campaignAllowsContact(campaignEditDraft.audienceType, contact.audienceType)) return false;
+      if (!recipientForChannel(contact, campaignEditDraft.channel)) return false;
+      return !filter || contactSearchText(contact).includes(filter);
+    });
+  }, [campaignEditDraft, contacts, editingCampaignId]);
+
   async function createCampaign(event: FormEvent) {
     event.preventDefault();
     if (!campaignDraft.name.trim()) {
@@ -479,6 +556,83 @@ export default function MarketingAdminPage() {
     });
     setCampaignDraft({ name: "", audienceType: "b2c", channel: "email", status: "draft", scheduleStartsAt: "", objective: "" });
     setMessage("Campaign draft created. Sending remains locked.");
+    await refreshAll();
+  }
+
+  function startCampaignEdit(campaign: Campaign) {
+    const firstChannel = campaign.channels[0];
+    setEditingCampaignId(campaign.id);
+    setCampaignEditDraft({
+      name: campaign.name,
+      audienceType: campaign.audienceType,
+      channel: firstChannel?.channel ?? "email",
+      status: normalizeCampaignStatus(campaign.status),
+      scheduleStartsAt: toDateTimeLocal(campaign.scheduleStartsAt),
+      objective: campaign.objective,
+      recipientFilter: "",
+      snapshotRecipients: false,
+    });
+    setMessage("");
+  }
+
+  function cancelCampaignEdit() {
+    setEditingCampaignId(null);
+    setCampaignEditDraft({
+      name: "",
+      audienceType: "b2c",
+      channel: "email",
+      status: "draft",
+      scheduleStartsAt: "",
+      objective: "",
+      recipientFilter: "",
+      snapshotRecipients: false,
+    });
+  }
+
+  async function saveCampaignEdit(event: FormEvent, campaignId: string) {
+    event.preventDefault();
+    if (!campaignEditDraft.name.trim()) {
+      setMessage("Campaign name is required before saving.");
+      return;
+    }
+    const scheduledAt = fromDateTimeLocal(campaignEditDraft.scheduleStartsAt);
+    const recipients = campaignEditDraft.snapshotRecipients
+      ? campaignRecipientPreview.map((contact) => ({
+        contactId: contact.id,
+        channel: campaignEditDraft.channel,
+        recipient: recipientForChannel(contact, campaignEditDraft.channel) ?? contact.id,
+        status: "planned",
+        scheduledAt,
+        snapshot: recipientSnapshot(contact),
+      }))
+      : undefined;
+    await api(`/api/admin/marketing/campaigns/${campaignId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: campaignEditDraft.name,
+        audienceType: campaignEditDraft.audienceType,
+        status: campaignEditDraft.status,
+        objective: campaignEditDraft.objective,
+        scheduleStartsAt: scheduledAt,
+        channels: [{
+          channel: campaignEditDraft.channel,
+          status: campaignEditDraft.status,
+          scheduledAt,
+        }],
+        ...(recipients ? { recipients } : {}),
+      }),
+    });
+    const recipientMessage = campaignEditDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
+    cancelCampaignEdit();
+    setMessage(`Campaign updated.${recipientMessage}`);
+    await refreshAll();
+  }
+
+  async function deleteCampaign(campaign: Campaign) {
+    if (!window.confirm(`Delete campaign "${campaign.name}"? This removes the local VYVA planning record.`)) return;
+    await api(`/api/admin/marketing/campaigns/${campaign.id}`, { method: "DELETE" });
+    if (editingCampaignId === campaign.id) cancelCampaignEdit();
+    setMessage("Campaign deleted.");
     await refreshAll();
   }
 
@@ -772,8 +926,94 @@ export default function MarketingAdminPage() {
               </SectionCard>
 
               <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns.`}>
-                <CampaignTable campaigns={visibleCampaigns} />
+                <CampaignTable campaigns={visibleCampaigns} onEdit={startCampaignEdit} onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))} />
               </SectionCard>
+
+              {editingCampaign ? (
+                <SectionCard
+                  title="Edit campaign"
+                  subtitle="Update planning metadata and optionally snapshot matching recipients. Sending remains locked."
+                  action={<Pill className="bg-amber-50 text-amber-800">No dispatch</Pill>}
+                >
+                  <form className="grid gap-3" onSubmit={(event) => saveCampaignEdit(event, editingCampaign.id).catch((error) => setMessage(error.message))} data-testid="marketing-campaign-edit-form">
+                    <div className="grid gap-3 xl:grid-cols-[1fr_150px_150px_180px]">
+                      <Field label="Campaign name">
+                        <input className={inputClass} value={campaignEditDraft.name} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, name: event.target.value }))} data-testid="input-marketing-edit-campaign-name" />
+                      </Field>
+                      <Field label="Audience">
+                        <select className={inputClass} value={campaignEditDraft.audienceType} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))} data-testid="select-marketing-edit-campaign-audience">
+                          {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Channel">
+                        <select className={inputClass} value={campaignEditDraft.channel} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, channel: event.target.value as Channel }))} data-testid="select-marketing-edit-campaign-channel">
+                          {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Status">
+                        <select className={inputClass} value={campaignEditDraft.status} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, status: event.target.value as CampaignStatus }))} data-testid="select-marketing-edit-campaign-status">
+                          {CAMPAIGN_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                        </select>
+                      </Field>
+                    </div>
+                    <div className="grid gap-3 xl:grid-cols-[220px_1fr]">
+                      <Field label="Schedule">
+                        <input className={inputClass} type="datetime-local" value={campaignEditDraft.scheduleStartsAt} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value }))} data-testid="input-marketing-edit-campaign-schedule" />
+                      </Field>
+                      <Field label="Objective">
+                        <input className={inputClass} value={campaignEditDraft.objective} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, objective: event.target.value }))} data-testid="input-marketing-edit-campaign-objective" />
+                      </Field>
+                    </div>
+
+                    <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                      <label className="flex flex-wrap items-center gap-3 text-sm font-black">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-purple-700"
+                          checked={campaignEditDraft.snapshotRecipients}
+                          onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: event.target.checked }))}
+                          data-testid="checkbox-marketing-edit-campaign-snapshot"
+                        />
+                        Snapshot matching recipients from Contacts
+                      </label>
+                      <p className="mt-1 text-xs font-bold text-[#8b7a73]">This stores planned recipients only. It does not send email, WhatsApp, or social posts.</p>
+                      {campaignEditDraft.snapshotRecipients ? (
+                        <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_260px]">
+                          <Field label="Recipient filter">
+                            <input className={inputClass} value={campaignEditDraft.recipientFilter} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, recipientFilter: event.target.value }))} placeholder="Filter by name, company, tag, market, list..." data-testid="input-marketing-edit-campaign-recipient-filter" />
+                          </Field>
+                          <div className="rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-recipient-preview">
+                            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Preview</p>
+                            <p className="mt-1 text-2xl font-black text-[#241133]">{campaignRecipientPreview.length}</p>
+                            <p className="text-xs font-bold text-[#8b7a73]">eligible planned recipients</p>
+                          </div>
+                          <div className="xl:col-span-2">
+                            {campaignRecipientPreview.length === 0 ? (
+                              <EmptyState text="No eligible contacts match this audience, channel, and filter." />
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {campaignRecipientPreview.slice(0, 12).map((contact) => (
+                                  <Pill key={contact.id} className="bg-purple-50 text-purple-800">{contact.fullName || contact.email || contact.phoneNumber || contact.id}</Pill>
+                                ))}
+                                {campaignRecipientPreview.length > 12 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{campaignRecipientPreview.length - 12} more</Pill> : null}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white" data-testid="button-marketing-save-campaign">
+                        <Save size={15} /> Save campaign
+                      </button>
+                      <button type="button" onClick={cancelCampaignEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135]" data-testid="button-marketing-cancel-campaign">
+                        <X size={15} /> Cancel
+                      </button>
+                    </div>
+                  </form>
+                </SectionCard>
+              ) : null}
             </div>
           )}
 
@@ -1109,7 +1349,8 @@ function EmptyState({ text }: { text: string }) {
   return <p className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4 text-center text-sm font-bold text-[#8b7a73]">{text}</p>;
 }
 
-function CampaignTable({ campaigns }: { campaigns: Campaign[] }) {
+function CampaignTable({ campaigns, onEdit, onDelete }: { campaigns: Campaign[]; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void }) {
+  const showActions = Boolean(onEdit || onDelete);
   return (
     <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
@@ -1121,11 +1362,12 @@ function CampaignTable({ campaigns }: { campaigns: Campaign[] }) {
             <th className="px-4 py-3">Schedule</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Recipients</th>
+            {showActions ? <th className="px-4 py-3">Actions</th> : null}
           </tr>
         </thead>
         <tbody>
           {campaigns.length === 0 ? (
-            <tr><td colSpan={6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
+            <tr><td colSpan={showActions ? 7 : 6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => (
             <tr key={campaign.id} className="border-t border-[#f0e7df]">
               <td className="px-4 py-3">
@@ -1143,6 +1385,22 @@ function CampaignTable({ campaigns }: { campaigns: Campaign[] }) {
               <td className="px-4 py-3 font-bold text-[#7d6b65]">{formatDate(campaign.scheduleStartsAt)}</td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
               <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
+              {showActions ? (
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    {onEdit ? (
+                      <button type="button" onClick={() => onEdit(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
+                        <Pencil size={14} /> Edit
+                      </button>
+                    ) : null}
+                    {onDelete ? (
+                      <button type="button" onClick={() => onDelete(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700" data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    ) : null}
+                  </div>
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>

@@ -209,6 +209,57 @@ describe("admin marketing router", () => {
     expect(table("communications_log")).toHaveLength(0);
   });
 
+  it("updates campaign planning rows and deletes campaigns without dispatch", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Partner outreach",
+        status: "draft",
+        audienceType: "b2b",
+        channels: [{ channel: "email", status: "draft" }],
+      })
+      .expect(201);
+
+    const campaignId = createResponse.body.campaign.id;
+    await request(app)
+      .patch(`/api/admin/marketing/campaigns/${campaignId}`)
+      .send({
+        name: "Updated outreach",
+        status: "scheduled",
+        audienceType: "both",
+        objective: "Updated objective",
+        scheduleStartsAt: "2026-07-10T09:00:00.000Z",
+        channels: [{ channel: "whatsapp", status: "scheduled", scheduledAt: "2026-07-10T09:00:00.000Z" }],
+        recipients: [{ channel: "whatsapp", recipient: "+34600000001", scheduledAt: "2026-07-10T09:00:00.000Z", snapshot: { fullName: "Karim" } }],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.campaign).toMatchObject({
+          id: campaignId,
+          name: "Updated outreach",
+          status: "scheduled",
+          audienceType: "both",
+          recipientCount: 1,
+        });
+      });
+
+    expect(table("marketing_campaign_channels")).toHaveLength(1);
+    expect(table("marketing_campaign_recipients")).toHaveLength(1);
+    expect(table("communications_log")).toHaveLength(0);
+
+    await request(app)
+      .delete(`/api/admin/marketing/campaigns/${campaignId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedCampaignId: campaignId });
+      });
+
+    expect(table("marketing_campaigns")).toHaveLength(0);
+    expect(table("marketing_campaign_channels")).toHaveLength(0);
+    expect(table("marketing_campaign_recipients")).toHaveLength(0);
+  });
+
   it("updates and deletes journey planning records", async () => {
     const app = buildApp();
     const createResponse = await request(app)
