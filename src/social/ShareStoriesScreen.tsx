@@ -55,6 +55,13 @@ function statusClass(note: SocialShareDropBoxNote) {
   return "bg-white text-[#6E5A8A] border-[#E8DDCF]";
 }
 
+function recentPriority(note: SocialShareDropBoxNote) {
+  if (note.status === "ready") return 0;
+  if (note.status === "blocked") return 1;
+  if (note.status === "placed") return 3;
+  return 2;
+}
+
 function noteTitle(note: SocialShareDropBoxNote) {
   const text = (note.editedText || note.transcript || "").trim();
   if (!text) return "Private story";
@@ -128,7 +135,9 @@ export default function ShareStoriesScreen() {
   const todayPrompt = data?.todayPrompt ?? prompts[0] ?? null;
   const selectedPrompt = activePrompt ?? todayPrompt;
   const recentNotes = data?.recentNotes ?? [];
-  const visibleRecent = recentNotes.slice(0, 3);
+  const visibleRecent = [...recentNotes]
+    .sort((a, b) => recentPriority(a) - recentPriority(b))
+    .slice(0, 3);
   const hasRecent = visibleRecent.length > 0;
 
   const choosePrompt = (prompt: SocialShareStoryPrompt) => {
@@ -183,7 +192,7 @@ export default function ShareStoriesScreen() {
       <header className="mt-5 px-1">
         <h1 className="font-display text-[38px] leading-none text-[#24172F] sm:text-[50px]">Share a story</h1>
         <p className="mt-2 max-w-[520px] font-body text-[17px] font-semibold leading-snug text-[#6E5A8A]">
-          One short note. VYVA keeps your voice private.
+          Speak or type one short note.
         </p>
       </header>
 
@@ -213,7 +222,7 @@ export default function ShareStoriesScreen() {
               {selectedPrompt.promptText || selectedPrompt.title}
             </h2>
             <p className="mt-2 font-body text-[15px] font-semibold leading-snug text-[#6E5A8A] sm:text-[16px]">
-              Only edited words are shared. Audio stays private.
+              Your voice stays private.
             </p>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-2 sm:gap-3">
@@ -260,7 +269,10 @@ export default function ShareStoriesScreen() {
               <h2 className="mt-2 font-body text-[24px] font-black leading-tight text-[#24172F]">
                 {outcome.note.connectionLabel ?? outcome.connection?.label ?? "See the room"}
               </h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <p className="mt-2 font-body text-[16px] font-semibold leading-snug text-[#346B5D]">
+                {outcome.note.connectionGoal ?? "Your story is ready in the right room."}
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={openOutcomeRoom}
@@ -270,14 +282,8 @@ export default function ShareStoriesScreen() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate("/social-rooms/together-room")}
-                  className="vyva-tap min-h-[54px] rounded-full border border-[#BDEBD8] bg-white px-4 font-body text-[16px] font-black text-[#0A7C4E]"
-                >
-                  Kind hello
-                </button>
-                <button
-                  type="button"
                   onClick={() => {
+                    setActivePrompt(null);
                     setOutcome(null);
                     setCaptureOpen(false);
                   }}
