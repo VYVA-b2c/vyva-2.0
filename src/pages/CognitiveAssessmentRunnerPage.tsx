@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Brain, CheckCircle2, ChevronRight, Clock3, Loader2, PlayCircle, Plus, Timer } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "@/lib/queryClient";
 import { useLanguage } from "@/i18n";
 import type {
@@ -1605,10 +1605,13 @@ function NoTasksScreen() {
 
 export default function CognitiveAssessmentRunnerPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { language: appLanguage } = useLanguage();
   const assessmentLanguage = languageFromApp(appLanguage);
+  const urlSessionId = searchParams.get("sessionId");
   const [sessionId, setSessionId] = useState<string | null>(() => {
+    if (urlSessionId) return urlSessionId;
     if (typeof window === "undefined") return null;
     return window.sessionStorage.getItem(SESSION_STORAGE_KEY);
   });
@@ -1637,6 +1640,7 @@ export default function CognitiveAssessmentRunnerPage() {
       setSessionId(data.session.sessionId);
       if (typeof window !== "undefined") window.sessionStorage.setItem(SESSION_STORAGE_KEY, data.session.sessionId);
       queryClient.setQueryData([`/api/cognitive-assessment/sessions/${data.session.sessionId}`], { session: data.session });
+      queryClient.invalidateQueries({ queryKey: ["/api/cognitive-assessment/program"] });
     },
     onError: (mutationError) => {
       setError(mutationError instanceof Error ? mutationError.message : "Assessment could not be started.");
@@ -1645,6 +1649,12 @@ export default function CognitiveAssessmentRunnerPage() {
 
   const session = sessionQuery.data?.session ?? startMutation.data?.session ?? null;
   const task = session?.tasks[currentIndex] ?? null;
+
+  useEffect(() => {
+    if (!urlSessionId || urlSessionId === sessionId) return;
+    setSessionId(urlSessionId);
+    if (typeof window !== "undefined") window.sessionStorage.setItem(SESSION_STORAGE_KEY, urlSessionId);
+  }, [sessionId, urlSessionId]);
 
   useEffect(() => {
     if (stepTransition || !session || session.completedAt || session.tasks.length === 0) return;
@@ -1711,6 +1721,7 @@ export default function CognitiveAssessmentRunnerPage() {
       if (typeof window !== "undefined") window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
       queryClient.invalidateQueries({ queryKey: ["/api/cognitive-assessment/latest-report"] });
       queryClient.invalidateQueries({ queryKey: ["/api/cognitive-assessment/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cognitive-assessment/program"] });
       navigate(data.reportUrl, { replace: true });
     },
   });

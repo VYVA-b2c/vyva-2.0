@@ -67,4 +67,3 @@ describe("guidance protocol map", () => {
     expect(plan.usefulSignals).toContainEqual(expect.objectContaining({ id: "oxygen", status: "missing" }));
   });
 });
-

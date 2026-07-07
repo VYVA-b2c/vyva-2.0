@@ -120,4 +120,3 @@ export function cognitiveAssessmentPracticeStatusForReport(reportSessionId: stri
   if (!intent || intent.reportSessionId !== reportSessionId) return null;
   return intent;
 }
-

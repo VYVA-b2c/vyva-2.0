@@ -52,6 +52,7 @@ export type MasterFastHelpAction = {
   expanded?: boolean;
   controls?: string;
   pinned?: boolean;
+  badge?: string;
 };
 
 export type MasterDashboardHero = {
@@ -313,8 +314,18 @@ export default function MasterDashboardLayout({
                   <Icon size={24} strokeWidth={2.45} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
-                    {action.label}
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="block truncate font-body text-[17px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+                      {action.label}
+                    </span>
+                    {action.badge ? (
+                      <span
+                        className="flex-shrink-0 rounded-full px-2 py-0.5 font-body text-[10px] font-black uppercase leading-none"
+                        style={{ background: action.tone.iconBg, color: action.tone.iconColor }}
+                      >
+                        {action.badge}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
                     {action.detail}
