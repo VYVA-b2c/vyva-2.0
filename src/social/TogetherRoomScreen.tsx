@@ -24,7 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
-import StoryRoomHandoffCard, { type StoryRoomHandoffNote } from "./StoryRoomHandoffCard";
+import StoryRoomHandoffCard, { StoryRoomReplyLoopCard, type StoryRoomHandoffNote } from "./StoryRoomHandoffCard";
 import type {
   SocialLanguage,
   SocialRoomCostRange,
@@ -7161,7 +7161,11 @@ export default function TogetherRoomScreen({
   const [showProposalComposer, setShowProposalComposer] = useState(false);
   const [prefilledShareStoryId, setPrefilledShareStoryId] = useState<string | null>(null);
   const [dismissedShareStoryId, setDismissedShareStoryId] = useState<string | null>(null);
+  const [placedShareStoryHandoff, setPlacedShareStoryHandoff] = useState<StoryRoomHandoffNote | null>(null);
   const activeShareStoryHandoff = shareStoryHandoff && dismissedShareStoryId !== shareStoryHandoff.id ? shareStoryHandoff : null;
+  const replyLoopShareStoryHandoff = placedShareStoryHandoff && dismissedShareStoryId === placedShareStoryHandoff.id
+    ? placedShareStoryHandoff
+    : null;
   const [safetyHelpPanelAnchor, setSafetyHelpPanelAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
   const [lastSafetyHelpChoice, setLastSafetyHelpChoice] = useState<SafetyHelpChoice | null>(null);
   const [lastSafetyHelpReceiptAnchor, setLastSafetyHelpReceiptAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
@@ -7878,6 +7882,7 @@ export default function TogetherRoomScreen({
     if (!text) return;
 
     openViewComposer(text);
+    setPlacedShareStoryHandoff(null);
     setPrefilledShareStoryId(shareStoryHandoff.id);
   }, [prefilledShareStoryId, shareStoryHandoff]);
 
@@ -7900,6 +7905,7 @@ export default function TogetherRoomScreen({
       "discuss",
       "open_room",
     );
+    setPlacedShareStoryHandoff(activeShareStoryHandoff);
     setDismissedShareStoryId(activeShareStoryHandoff.id);
   };
 
@@ -8672,6 +8678,22 @@ export default function TogetherRoomScreen({
             isBusy={isSending}
             onPrimary={() => void sendShareStoryHandoff()}
             onEdit={editShareStoryHandoff}
+            onShareAnother={() => {
+              if (onOpenShareStories) {
+                onOpenShareStories();
+                return;
+              }
+              onBack();
+            }}
+          />
+        ) : null}
+
+        {!activeShareStoryHandoff && replyLoopShareStoryHandoff ? (
+          <StoryRoomReplyLoopCard
+            note={replyLoopShareStoryHandoff}
+            roomName={room.name}
+            language={language}
+            responderName={members[0]?.name}
             onShareAnother={() => {
               if (onOpenShareStories) {
                 onOpenShareStories();
