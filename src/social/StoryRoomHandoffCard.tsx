@@ -18,7 +18,15 @@ type StoryRoomReplyLoopCardProps = {
   roomName: string;
   language: SocialLanguage;
   responderName?: string;
+  responderNames?: string[];
+  onReply?: (draft: string) => void;
   onShareAnother: () => void;
+};
+
+type StoryRoomReplySuggestion = {
+  name: string;
+  body: string;
+  draft: string;
 };
 
 function isStoryNoteType(value: unknown): value is SocialShareDropBoxNoteType {
@@ -259,8 +267,10 @@ function replyLoopCopy(
     };
     return {
       title: "Historia colocada",
+      repliesTitle: "Posibles respuestas amables",
       body: bodyByType[noteType],
       detail: "VYVA mantiene la respuesta amable y dentro de la sala.",
+      replyAction: "Responder amable",
       action: "Compartir otra",
     };
   }
@@ -277,8 +287,10 @@ function replyLoopCopy(
     };
     return {
       title: "Geschichte platziert",
+      repliesTitle: "Moegliche freundliche Antworten",
       body: bodyByType[noteType],
       detail: "VYVA haelt Antworten freundlich und im Raum.",
+      replyAction: "Freundlich antworten",
       action: "Noch eine teilen",
     };
   }
@@ -294,10 +306,116 @@ function replyLoopCopy(
   };
   return {
     title: "Story placed",
+    repliesTitle: "Gentle replies you might get",
     body: bodyByType[noteType],
     detail: "VYVA keeps replies kind and inside the room.",
+    replyAction: "Reply kindly",
     action: "Share another",
   };
+}
+
+function fallbackResponderNames(language: SocialLanguage, roomName: string) {
+  if (language === "es") return [`Alguien en ${roomName}`, "Otra persona"];
+  if (language === "de") return [`Jemand in ${roomName}`, "Eine andere Person"];
+  return [`Someone in ${roomName}`, "Another member"];
+}
+
+function replyTextFor(
+  language: SocialLanguage,
+  noteType: SocialShareDropBoxNoteType,
+  index: number,
+  name: string,
+): Pick<StoryRoomReplySuggestion, "body" | "draft"> {
+  if (language === "es") {
+    const byType: Record<SocialShareDropBoxNoteType, Array<Pick<StoryRoomReplySuggestion, "body" | "draft">>> = {
+      memory: [
+        { body: "Eso me trajo un recuerdo pequeno tambien.", draft: `Gracias, ${name}. Me alegra que te trajera un recuerdo.` },
+        { body: "Me gusta como lo contaste. Se siente cercano.", draft: `Gracias, ${name}. Me gusto compartirlo aqui.` },
+      ],
+      song: [
+        { body: "Conozco esa cancion. Me llevo a otro momento.", draft: `Gracias, ${name}. A mi tambien me llevo a otro momento.` },
+        { body: "Me gustaria saber que parte recuerdas mas.", draft: `Buena pregunta, ${name}. La parte que mas recuerdo es...` },
+      ],
+      recipe: [
+        { body: "Ese consejo suena delicioso. Lo probaria.", draft: `Gracias, ${name}. Es un detalle sencillo, pero ayuda mucho.` },
+        { body: "Me recuerda una comida familiar tranquila.", draft: `Gracias, ${name}. A mi tambien me recuerda una mesa familiar.` },
+      ],
+      reading: [
+        { body: "Esa imagen del jardin se siente tranquila.", draft: `Gracias, ${name}. Esa imagen fue lo que mas se quedo conmigo.` },
+        { body: "Me gustaria saber que poema era.", draft: `Gracias, ${name}. El poema era...` },
+      ],
+      hello: [
+        { body: "Hola. Me alegra verte aqui.", draft: `Gracias, ${name}. Me alegra saludarte tambien.` },
+        { body: "Una charla tranquila suena bien.", draft: `Gracias, ${name}. Una charla tranquila me vendria bien.` },
+      ],
+    };
+    return byType[noteType][index] ?? byType[noteType][0];
+  }
+
+  if (language === "de") {
+    const byType: Record<SocialShareDropBoxNoteType, Array<Pick<StoryRoomReplySuggestion, "body" | "draft">>> = {
+      memory: [
+        { body: "Das bringt mir auch eine kleine Erinnerung zurueck.", draft: `Danke, ${name}. Schoen, dass es eine Erinnerung geweckt hat.` },
+        { body: "Ich mag, wie du das erzaehlt hast. Es fuehlt sich nah an.", draft: `Danke, ${name}. Es tat gut, das hier zu teilen.` },
+      ],
+      song: [
+        { body: "Ich kenne dieses Lied. Es bringt mich in eine andere Zeit.", draft: `Danke, ${name}. Mich bringt es auch in eine andere Zeit.` },
+        { body: "Ich wuerde gern wissen, welcher Teil dir am meisten bleibt.", draft: `Gute Frage, ${name}. Am meisten bleibt mir...` },
+      ],
+      recipe: [
+        { body: "Dieser Tipp klingt lecker. Den wuerde ich probieren.", draft: `Danke, ${name}. Es ist ein kleines Detail, aber es hilft.` },
+        { body: "Das erinnert mich an ein ruhiges Familienessen.", draft: `Danke, ${name}. Mich erinnert es auch an einen Familientisch.` },
+      ],
+      reading: [
+        { body: "Dieses Gartenbild fuehlt sich ruhig an.", draft: `Danke, ${name}. Dieses Bild ist mir am meisten geblieben.` },
+        { body: "Ich wuerde gern wissen, welches Gedicht es war.", draft: `Danke, ${name}. Das Gedicht war...` },
+      ],
+      hello: [
+        { body: "Hallo. Schoen, dich hier zu sehen.", draft: `Danke, ${name}. Ich freue mich auch, dich zu gruessen.` },
+        { body: "Ein ruhiges Gespraech klingt gut.", draft: `Danke, ${name}. Ein ruhiges Gespraech wuerde mir gut tun.` },
+      ],
+    };
+    return byType[noteType][index] ?? byType[noteType][0];
+  }
+
+  const byType: Record<SocialShareDropBoxNoteType, Array<Pick<StoryRoomReplySuggestion, "body" | "draft">>> = {
+    memory: [
+      { body: "That brings back a small memory for me too.", draft: `Thanks, ${name}. I am glad it brought back a memory.` },
+      { body: "I like the way you told it. It feels close and real.", draft: `Thanks, ${name}. It felt good to share it here.` },
+    ],
+    song: [
+      { body: "I know that song. It takes me back as well.", draft: `Thanks, ${name}. It takes me back too.` },
+      { body: "I would love to know which part you remember most.", draft: `Good question, ${name}. The part I remember most is...` },
+    ],
+    recipe: [
+      { body: "That parsley tip sounds lovely. I might try it in my soup.", draft: `Thanks, ${name}. It is a small detail, but it helps.` },
+      { body: "This reminds me of a quiet family meal.", draft: `Thanks, ${name}. It reminds me of a family table too.` },
+    ],
+    reading: [
+      { body: "That garden image sounds peaceful.", draft: `Thanks, ${name}. That image stayed with me the most.` },
+      { body: "I would enjoy knowing which poem it was.", draft: `Thanks, ${name}. The poem was...` },
+    ],
+    hello: [
+      { body: "Hello. I am glad you came in.", draft: `Thanks, ${name}. I am glad to say hello too.` },
+      { body: "A quiet chat sounds nice.", draft: `Thanks, ${name}. A quiet chat would be nice.` },
+    ],
+  };
+  return byType[noteType][index] ?? byType[noteType][0];
+}
+
+function buildReplySuggestions(
+  language: SocialLanguage,
+  noteType: SocialShareDropBoxNoteType,
+  roomName: string,
+  names?: string[],
+): StoryRoomReplySuggestion[] {
+  const fallbackNames = fallbackResponderNames(language, roomName);
+  const cleanNames = (names ?? []).map((name) => name.trim()).filter(Boolean);
+  const replyNames = [...cleanNames, ...fallbackNames].slice(0, 2);
+  return replyNames.map((name, index) => ({
+    name,
+    ...replyTextFor(language, noteType, index, name),
+  }));
 }
 
 export default function StoryRoomHandoffCard({
@@ -391,11 +509,14 @@ export function StoryRoomReplyLoopCard({
   roomName,
   language,
   responderName,
+  responderNames,
+  onReply,
   onShareAnother,
 }: StoryRoomReplyLoopCardProps) {
   const copy = replyLoopCopy(language, note.noteType, roomName, responderName);
   const tone = toneByNoteType[note.noteType];
   const Icon = tone.Icon;
+  const suggestions = buildReplySuggestions(language, note.noteType, roomName, responderNames ?? (responderName ? [responderName] : []));
 
   return (
     <section
@@ -412,6 +533,38 @@ export function StoryRoomReplyLoopCard({
             {copy.body}
           </p>
           <p className="mt-1 font-body text-[14px] font-bold leading-snug text-[#6E6275]">{copy.detail}</p>
+        </div>
+      </div>
+      <div className="mt-4 rounded-[20px] bg-[#FFFDFC] px-3 py-3" data-testid="story-room-replies">
+        <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">{copy.repliesTitle}</p>
+        <div className="mt-3 grid gap-2">
+          {suggestions.map((reply, index) => (
+            <div
+              key={`${reply.name}-${index}`}
+              className="rounded-[18px] border border-[#EFE6DA] bg-white px-3 py-3"
+              data-testid={`story-reply-suggestion-${index}`}
+            >
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F8F5FF] font-body text-[15px] font-black text-[#6D28D9]">
+                  {reply.name.slice(0, 1).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body text-[15px] font-black text-[#2F2135]">{reply.name}</p>
+                  <p className="mt-1 font-body text-[16px] font-bold leading-snug text-[#594C62]">{reply.body}</p>
+                </div>
+              </div>
+              {onReply ? (
+                <button
+                  type="button"
+                  onClick={() => onReply(reply.draft)}
+                  data-testid={`story-reply-action-${index}`}
+                  className={`mt-3 inline-flex min-h-[42px] items-center justify-center rounded-full px-4 font-body text-[14px] font-black text-white ${tone.primary}`}
+                >
+                  {copy.replyAction}
+                </button>
+              ) : null}
+            </div>
+          ))}
         </div>
       </div>
       <button

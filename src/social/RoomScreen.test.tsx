@@ -349,6 +349,16 @@ describe("RoomScreen Share Stories room handoff", () => {
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
     expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
     expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Martha may enjoy this recipe.");
+    expect(screen.getByTestId("story-reply-suggestion-0")).toHaveTextContent(
+      "That parsley tip sounds lovely. I might try it in my soup.",
+    );
+    expect(screen.getByTestId("story-reply-suggestion-1")).toHaveTextContent(
+      "This reminds me of a quiet family meal.",
+    );
+
+    fireEvent.click(screen.getByTestId("story-reply-action-0"));
+
+    expect(screen.getByDisplayValue("Thanks, Martha. It is a small detail, but it helps.")).toBeInTheDocument();
   });
 
   it("puts a reading story into the club reflection composer", async () => {
@@ -392,6 +402,11 @@ describe("RoomScreen Share Stories room handoff", () => {
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
     expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
     expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Maria may connect with this reflection.");
+    expect(screen.getByTestId("story-reply-suggestion-0")).toHaveTextContent("That garden image sounds peaceful.");
+
+    fireEvent.click(screen.getByTestId("story-reply-action-0"));
+
+    expect(screen.getByDisplayValue("Thanks, Maria. That image stayed with me the most.")).toBeInTheDocument();
   });
 
   it("opens a hello story in Together Room as a protected hello", async () => {
@@ -434,6 +449,11 @@ describe("RoomScreen Share Stories room handoff", () => {
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
     expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
     expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Carmen may answer this hello when they are ready.");
+    expect(screen.getByTestId("story-reply-suggestion-0")).toHaveTextContent("Hello. I am glad you came in.");
+
+    fireEvent.click(screen.getByTestId("story-reply-action-0"));
+
+    expect(screen.getByTestId("together-proposal-draft")).toHaveValue("Thanks, Carmen. I am glad to say hello too.");
   });
 });
 
