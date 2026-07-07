@@ -183,6 +183,40 @@ const togetherRoomResponse: SocialRoomResponse = {
   memberChat: [],
 };
 
+const kitchenRoomResponse: SocialRoomResponse = {
+  room: {
+    slug: "kitchen-table",
+    name: "Kitchen Table",
+    category: "social",
+    agentSlug: "marco-rossi",
+    agentFullName: "Marco Rossi",
+    agentColour: "#C45A00",
+    agentCredential: "Kitchen host",
+    ctaLabel: "Enter",
+    topicTags: ["recipe", "food", "memory"],
+    timeSlots: ["afternoon"],
+    featured: true,
+    participantCount: 4,
+    sessionDate: "2026-06-04",
+    topic: "Simple recipes and kitchen memories.",
+    opener: "Welcome to the kitchen table.",
+    quote: "",
+    activityType: "discussion",
+    contentTag: "",
+    contentTitle: "",
+    contentBody: "",
+    options: [],
+    liveBadge: "4 around the table",
+  },
+  transcript: [],
+  promptChips: [],
+  members: [
+    { id: "member-martha", name: "Martha", sharedTopic: "Soup memories" },
+    { id: "member-ali", name: "Ali", sharedTopic: "Easy dinners" },
+  ],
+  memberChat: [],
+};
+
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -206,7 +240,9 @@ function LocationProbe() {
   );
 }
 
-function renderRoom(initialEntry = "/social-rooms/morning-movement") {
+type RoomInitialEntry = string | { pathname: string; state?: unknown };
+
+function renderRoom(initialEntry: RoomInitialEntry = "/social-rooms/morning-movement") {
   render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
@@ -250,6 +286,142 @@ describe("RoomScreen Together Room", () => {
       );
     });
     expect(voiceMock.startVoice).not.toHaveBeenCalled();
+  });
+});
+
+describe("RoomScreen Share Stories room handoff", () => {
+  beforeEach(() => {
+    languageMock.language = "en";
+    localStorage.clear();
+    apiFetchMock.mockReset();
+    queryMock.mockReset();
+    apiFetchMock.mockImplementation((url: string) => {
+      if (url.endsWith("/enter")) {
+        return Promise.resolve(jsonResponse({
+          visitId: "visit-story-handoff",
+          visitState: { isFirstVisit: false, visitCount: 2, previousVisitCount: 1 },
+        }));
+      }
+      return Promise.resolve(jsonResponse({ ok: true, reply: "That is ready for the room." }));
+    });
+  });
+
+  it("prefills a placed recipe story into the destination room composer", async () => {
+    queryMock.mockReturnValue({
+      data: kitchenRoomResponse,
+      isLoading: false,
+      isError: false,
+    });
+
+    renderRoom({
+      pathname: "/social-rooms/kitchen-table",
+      state: {
+        socialShareDropBoxNote: {
+          id: "note-recipe-1",
+          noteType: "recipe",
+          text: "My soup tastes best with parsley at the end.",
+          source: "share-dropbox",
+        },
+      },
+    });
+
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Kitchen Table");
+    expect(screen.getByTestId("story-room-handoff-text")).toHaveTextContent("My soup tastes best");
+    expect(screen.getByDisplayValue("My soup tastes best with parsley at the end.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("story-handoff-primary"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/kitchen-table/message",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            message: "My soup tastes best with parsley at the end.",
+            lang: "en",
+            visitId: "visit-story-handoff",
+          }),
+        }),
+      );
+    });
+    await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+  });
+
+  it("puts a reading story into the club reflection composer", async () => {
+    queryMock.mockReturnValue({
+      data: readingRoomResponse,
+      isLoading: false,
+      isError: false,
+    });
+
+    renderRoom({
+      pathname: "/social-rooms/reading-room",
+      state: {
+        socialShareDropBoxNote: {
+          id: "note-reading-1",
+          noteType: "reading",
+          text: "The poem reminded me of my old garden.",
+          source: "share-dropbox",
+        },
+      },
+    });
+
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Reading Room");
+    expect(await screen.findByTestId("reading-reflection-card")).toBeInTheDocument();
+    expect(screen.getByLabelText("Write a book, scene, character or memory...")).toHaveValue(
+      "The poem reminded me of my old garden.",
+    );
+
+    fireEvent.click(screen.getByTestId("story-handoff-primary"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/reading-room/proposals",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("The poem reminded me of my old garden."),
+        }),
+      );
+    });
+    await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+  });
+
+  it("opens a hello story in Together Room as a protected hello", async () => {
+    queryMock.mockReturnValue({
+      data: togetherRoomResponse,
+      isLoading: false,
+      isError: false,
+    });
+
+    renderRoom({
+      pathname: "/social-rooms/together-room",
+      state: {
+        socialShareDropBoxNote: {
+          id: "note-hello-1",
+          noteType: "hello",
+          text: "Hello, I would enjoy a quiet chat today.",
+          source: "share-dropbox",
+        },
+      },
+    });
+
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Together Room");
+    await waitFor(() => {
+      expect(screen.getByTestId("together-proposal-draft")).toHaveValue("Hello, I would enjoy a quiet chat today.");
+    });
+
+    fireEvent.click(screen.getByTestId("story-handoff-primary"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/social/rooms/together-room/proposals",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining("Hello, I would enjoy a quiet chat today."),
+        }),
+      );
+    });
+    await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
   });
 });
 
