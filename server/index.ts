@@ -70,6 +70,7 @@ import homePlanRouter from "./routes/homePlan.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
+import symptomsRouter from "./routes/symptoms.js";
 import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
@@ -204,6 +205,7 @@ app.use("/api/settings/health-devices", authMiddleware, healthDevicesSettingsRou
 app.use("/api/home", authMiddleware, homePlanRouter);
 app.use("/api/weather", authMiddleware, weatherRouter);
 app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_check"), triageRouter);
+app.use("/api/symptoms", authMiddleware, requireUser, requireEntitlement("symptom_check"), symptomsRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
