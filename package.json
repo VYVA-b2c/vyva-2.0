@@ -14,6 +14,7 @@
     "db:push:manual": "cross-env ALLOW_DRIZZLE_SCHEMA_PUSH=true drizzle-kit push --config scripts/drizzle.manual.config.ts",
     "db:auth": "node scripts/apply-auth-schema.mjs",
     "db:concierge": "node scripts/apply-concierge-schema.mjs",
+    "db:health-insights": "node scripts/apply-health-insights-schema.mjs",
     "db:lifecycle-contact-cleanup": "node scripts/apply-lifecycle-contact-cleanup.mjs",
     "db:migrate": "cross-env DATABASE_URL=file:./dev.db prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260624120000_init_brain_wellbeing/migration.sql && cross-env DATABASE_URL=file:./dev.db prisma generate --schema prisma/schema.prisma",
     "db:seed": "cross-env DATABASE_URL=file:./dev.db prisma db seed --schema prisma/schema.prisma",
