@@ -58,6 +58,14 @@ const NOTE_TYPES: Array<{
   { id: "hello", label: "Hello", description: "A kind first message", Icon: HeartHandshake },
 ];
 
+const ROOM_LABELS: Record<string, string> = {
+  "memory-lane": "Memory Lane",
+  "music-room": "Music Room",
+  "kitchen-table": "Kitchen Table",
+  "reading-room": "Reading Room",
+  "together-room": "Together Room",
+};
+
 const SHARE_AUDIO_MIME_TYPES = [
   "audio/webm;codecs=opus",
   "audio/webm",
@@ -92,6 +100,10 @@ function suggestedRoomSlug(noteType: SocialShareDropBoxNoteType) {
   if (noteType === "reading") return "reading-room";
   if (noteType === "hello") return "together-room";
   return "memory-lane";
+}
+
+function roomLabel(slug: string) {
+  return ROOM_LABELS[slug] ?? slug.replace(/-/g, " ");
 }
 
 function canRecordVoice() {
@@ -149,8 +161,8 @@ export function ShareDropBoxCapture({
   const isPageSurface = surface === "page";
   const selectedNoteType = noteType;
   const showReview = Boolean(note) && (state === "review" || state === "blocked");
-  const showTypePicker = !isPageSurface || !prompt || showReview;
-  const roomName = note?.suggestedRoomSlug?.replace(/-/g, " ") ?? suggestedRoomSlug(selectedNoteType).replace(/-/g, " ");
+  const showTypePicker = !isPageSurface && (!prompt || showReview);
+  const roomName = roomLabel(note?.suggestedRoomSlug ?? suggestedRoomSlug(selectedNoteType));
   const statusText = state === "recording"
     ? "Listening. Tap finish when done."
     : state === "transcribing"
@@ -491,7 +503,7 @@ export function ShareDropBoxCapture({
             <div className="flex items-start gap-3">
               <ShieldCheck size={22} strokeWidth={2.4} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
               <p className="font-body text-[15px] font-semibold leading-snug text-[#346B5D]">
-                Suggested as {noteTypeLabel(selectedNoteType)} for {roomName}. Audio stays private; only edited text is shared.
+                Suggested for {roomName}. Audio stays private.
               </p>
             </div>
           </div>
@@ -556,7 +568,7 @@ export function ShareDropBoxCapture({
             data-testid="button-share-dropbox-primary"
             className="min-h-[58px] w-full rounded-full bg-[#6D28D9] px-6 font-body text-[18px] font-bold text-white shadow-[0_14px_28px_rgba(109,40,217,0.22)] disabled:bg-[#BDA8E8] disabled:shadow-none"
           >
-            {isPublishing ? "Placing..." : note?.publishLabel ?? "Place with VYVA"}
+            {isPublishing ? "Placing..." : isPageSurface ? "Place story" : note?.publishLabel ?? "Place with VYVA"}
           </button>
         ) : typedMode ? (
           <button
