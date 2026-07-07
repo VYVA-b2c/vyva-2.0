@@ -7909,6 +7909,12 @@ export default function TogetherRoomScreen({
     setDismissedShareStoryId(activeShareStoryHandoff.id);
   };
 
+  const prepareShareStoryReplyDraft = (draft: string) => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    openViewComposer(limitProposalDraft(trimmed));
+  };
+
   const startRoomDirectionPlan = () => {
     if (leadingPollOption?.id === "views") {
       openViewComposer();
@@ -8694,6 +8700,8 @@ export default function TogetherRoomScreen({
             roomName={room.name}
             language={language}
             responderName={members[0]?.name}
+            responderNames={members.slice(0, 2).map((member) => member.name)}
+            onReply={prepareShareStoryReplyDraft}
             onShareAnother={() => {
               if (onOpenShareStories) {
                 onOpenShareStories();
