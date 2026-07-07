@@ -13,6 +13,14 @@ type StoryRoomHandoffCardProps = {
   onShareAnother: () => void;
 };
 
+type StoryRoomReplyLoopCardProps = {
+  note: StoryRoomHandoffNote;
+  roomName: string;
+  language: SocialLanguage;
+  responderName?: string;
+  onShareAnother: () => void;
+};
+
 function isStoryNoteType(value: unknown): value is SocialShareDropBoxNoteType {
   return value === "memory" || value === "song" || value === "recipe" || value === "reading" || value === "hello";
 }
@@ -231,6 +239,67 @@ function copyFor(language: SocialLanguage, noteType: SocialShareDropBoxNoteType,
   };
 }
 
+function replyLoopCopy(
+  language: SocialLanguage,
+  noteType: SocialShareDropBoxNoteType,
+  roomName: string,
+  responderName?: string,
+) {
+  const name = responderName?.trim();
+
+  if (language === "es") {
+    const fallback = `Alguien en ${roomName}`;
+    const person = name || fallback;
+    const bodyByType: Record<SocialShareDropBoxNoteType, string> = {
+      memory: `${person} puede responder con un recuerdo propio.`,
+      song: `${person} puede reconocer la cancion o el momento.`,
+      recipe: `${person} puede disfrutar esta receta.`,
+      reading: `${person} puede conectar con esta reflexion.`,
+      hello: `${person} puede responder a este saludo cuando este listo.`,
+    };
+    return {
+      title: "Historia colocada",
+      body: bodyByType[noteType],
+      detail: "VYVA mantiene la respuesta amable y dentro de la sala.",
+      action: "Compartir otra",
+    };
+  }
+
+  if (language === "de") {
+    const fallback = `Jemand in ${roomName}`;
+    const person = name || fallback;
+    const bodyByType: Record<SocialShareDropBoxNoteType, string> = {
+      memory: `${person} kann mit einer eigenen Erinnerung antworten.`,
+      song: `${person} erkennt vielleicht das Lied oder den Moment.`,
+      recipe: `${person} freut sich vielleicht ueber dieses Rezept.`,
+      reading: `${person} kann sich mit dieser Reflexion verbinden.`,
+      hello: `${person} kann auf diesen Gruss antworten, wenn es passt.`,
+    };
+    return {
+      title: "Geschichte platziert",
+      body: bodyByType[noteType],
+      detail: "VYVA haelt Antworten freundlich und im Raum.",
+      action: "Noch eine teilen",
+    };
+  }
+
+  const fallback = `Someone in ${roomName}`;
+  const person = name || fallback;
+  const bodyByType: Record<SocialShareDropBoxNoteType, string> = {
+    memory: `${person} may reply with a memory of their own.`,
+    song: `${person} may remember this song or moment.`,
+    recipe: `${person} may enjoy this recipe.`,
+    reading: `${person} may connect with this reflection.`,
+    hello: `${person} may answer this hello when they are ready.`,
+  };
+  return {
+    title: "Story placed",
+    body: bodyByType[noteType],
+    detail: "VYVA keeps replies kind and inside the room.",
+    action: "Share another",
+  };
+}
+
 export default function StoryRoomHandoffCard({
   note,
   roomName,
@@ -313,6 +382,47 @@ export default function StoryRoomHandoffCard({
           {copy.shareAnother}
         </button>
       </div>
+    </section>
+  );
+}
+
+export function StoryRoomReplyLoopCard({
+  note,
+  roomName,
+  language,
+  responderName,
+  onShareAnother,
+}: StoryRoomReplyLoopCardProps) {
+  const copy = replyLoopCopy(language, note.noteType, roomName, responderName);
+  const tone = toneByNoteType[note.noteType];
+  const Icon = tone.Icon;
+
+  return (
+    <section
+      className={`rounded-[24px] border bg-white px-4 py-4 shadow-[0_12px_24px_rgba(47,33,53,0.06)] ${tone.quote}`}
+      data-testid="story-reply-loop"
+    >
+      <div className="flex items-start gap-3">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] ${tone.iconBox}`}>
+          <Icon size={22} strokeWidth={2.4} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.13em] text-[#6D28D9]">{copy.title}</p>
+          <p className="mt-1 font-body text-[20px] font-black leading-tight text-[#24172F]" data-testid="story-reply-loop-body">
+            {copy.body}
+          </p>
+          <p className="mt-1 font-body text-[14px] font-bold leading-snug text-[#6E6275]">{copy.detail}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onShareAnother}
+        data-testid="story-reply-loop-share-another"
+        className="mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#E8DDCF] bg-[#FFFDFC] px-4 font-body text-[15px] font-black text-[#6D28D9]"
+      >
+        {copy.action}
+        <ArrowRight size={17} strokeWidth={2.5} aria-hidden="true" />
+      </button>
     </section>
   );
 }

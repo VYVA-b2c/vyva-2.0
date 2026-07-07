@@ -30,7 +30,11 @@ import SocialStyles from "./SocialStyles";
 import GamesRoomScreen from "./GamesRoomScreen";
 import MusicRoomScreen from "./MusicRoomScreen";
 import TogetherRoomScreen from "./TogetherRoomScreen";
-import StoryRoomHandoffCard, { getStoryRoomHandoffNote } from "./StoryRoomHandoffCard";
+import StoryRoomHandoffCard, {
+  StoryRoomReplyLoopCard,
+  getStoryRoomHandoffNote,
+  type StoryRoomHandoffNote,
+} from "./StoryRoomHandoffCard";
 import { getSocialCopy, getSocialGameLanguage, getSocialLanguage } from "./roomUtils";
 import {
   TogetherProximityIcon,
@@ -2487,6 +2491,7 @@ const RoomScreen = () => {
   const [selectedMovementExerciseGroup, setSelectedMovementExerciseGroup] = useState<MovementExerciseGroupId>("mobility");
   const [prefilledStoryHandoffId, setPrefilledStoryHandoffId] = useState<string | null>(null);
   const [dismissedStoryHandoffId, setDismissedStoryHandoffId] = useState<string | null>(null);
+  const [placedStoryHandoff, setPlacedStoryHandoff] = useState<StoryRoomHandoffNote | null>(null);
   const {
     startVoice,
     stopVoice,
@@ -2526,6 +2531,9 @@ const RoomScreen = () => {
   const room = roomResponse?.room;
   const canonicalRoomSlug = room?.slug ?? (isReadingRoomSlug(slug) ? "reading-room" : slug);
   const activeStoryHandoff = storyHandoffNote && dismissedStoryHandoffId !== storyHandoffNote.id ? storyHandoffNote : null;
+  const replyLoopStoryHandoff = placedStoryHandoff && dismissedStoryHandoffId === placedStoryHandoff.id
+    ? placedStoryHandoff
+    : null;
 
   const roomMembers = useMemo(() => {
     if (!room) return [];
@@ -3302,6 +3310,10 @@ const RoomScreen = () => {
   }, [slug]);
 
   useEffect(() => {
+    setPlacedStoryHandoff(null);
+  }, [storyHandoffNote?.id]);
+
+  useEffect(() => {
     if (!storyHandoffNote || !room?.slug || prefilledStoryHandoffId === storyHandoffNote.id) return;
 
     const text = storyHandoffNote.text.trim();
@@ -3845,6 +3857,7 @@ const RoomScreen = () => {
     if (readingRoomActive) {
       if (!readingReflectionDraft.trim()) return;
       await submitReadingReflection();
+      setPlacedStoryHandoff(activeStoryHandoff);
       setDismissedStoryHandoffId(activeStoryHandoff.id);
       return;
     }
@@ -3853,6 +3866,7 @@ const RoomScreen = () => {
     if (!chatDraft.trim()) return;
     const sent = await submitChatMessage();
     if (sent !== false) {
+      setPlacedStoryHandoff(activeStoryHandoff);
       setDismissedStoryHandoffId(activeStoryHandoff.id);
     }
   };
@@ -4109,6 +4123,16 @@ const RoomScreen = () => {
             isBusy={isChatSending}
             onPrimary={() => void shareStoryHandoffInRoom()}
             onEdit={editStoryHandoffInRoom}
+            onShareAnother={() => navigate("/social-rooms/share")}
+          />
+        ) : null}
+
+        {!activeStoryHandoff && replyLoopStoryHandoff ? (
+          <StoryRoomReplyLoopCard
+            note={replyLoopStoryHandoff}
+            roomName={room.name}
+            language={language}
+            responderName={roomMembers[0]?.name}
             onShareAnother={() => navigate("/social-rooms/share")}
           />
         ) : null}

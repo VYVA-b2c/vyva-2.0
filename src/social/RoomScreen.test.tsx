@@ -347,6 +347,8 @@ describe("RoomScreen Share Stories room handoff", () => {
       );
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+    expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Martha may enjoy this recipe.");
   });
 
   it("puts a reading story into the club reflection composer", async () => {
@@ -388,6 +390,8 @@ describe("RoomScreen Share Stories room handoff", () => {
       );
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+    expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Maria may connect with this reflection.");
   });
 
   it("opens a hello story in Together Room as a protected hello", async () => {
@@ -428,6 +432,8 @@ describe("RoomScreen Share Stories room handoff", () => {
       );
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+    expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Carmen may answer this hello when they are ready.");
   });
 });
 
