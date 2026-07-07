@@ -209,6 +209,47 @@ describe("admin marketing router", () => {
     expect(table("communications_log")).toHaveLength(0);
   });
 
+  it("updates and deletes journey planning records", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/journeys")
+      .send({
+        name: "Partner nurture",
+        audienceType: "b2b",
+        objective: "Warm partner leads",
+        steps: [{ stepOrder: 0, channel: "email", delayHours: 0, status: "draft" }],
+      })
+      .expect(201);
+
+    const journeyId = createResponse.body.journey.id;
+    expect(table("marketing_journeys")).toHaveLength(1);
+    expect(table("marketing_journey_steps")).toHaveLength(1);
+
+    await request(app)
+      .patch(`/api/admin/marketing/journeys/${journeyId}`)
+      .send({ name: "Updated nurture", status: "paused", audienceType: "both", objective: "Updated objective" })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.journey).toMatchObject({
+          id: journeyId,
+          name: "Updated nurture",
+          status: "paused",
+          audienceType: "both",
+          objective: "Updated objective",
+        });
+      });
+
+    await request(app)
+      .delete(`/api/admin/marketing/journeys/${journeyId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedJourneyId: journeyId });
+      });
+
+    expect(table("marketing_journeys")).toHaveLength(0);
+    expect(table("marketing_journey_steps")).toHaveLength(0);
+  });
+
   it("imports Lovable data one-way and upserts by external id", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");

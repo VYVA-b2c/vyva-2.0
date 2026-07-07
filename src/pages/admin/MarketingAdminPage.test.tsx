@@ -191,6 +191,9 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeys[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeys[0] });
+    if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
   });
@@ -313,6 +316,41 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Marketing contact created.");
     });
+  });
+
+  it("edits and deletes journey metadata", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
+
+    expect(screen.getByTestId("marketing-journey-edit-form-journey-1")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name-journey-1"), { target: { value: "Updated nurture" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective-journey-1"), { target: { value: "Updated objective" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience-journey-1"), { target: { value: "both" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-journey-status-journey-1"), { target: { value: "paused" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey-journey-1"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys/journey-1", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys/journey-1" && init?.method === "PATCH");
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      name: "Updated nurture",
+      objective: "Updated objective",
+      audienceType: "both",
+      status: "paused",
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys/journey-1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete journey"));
+    confirmSpy.mockRestore();
   });
 
   it("creates campaign metadata without exposing a send action", async () => {
