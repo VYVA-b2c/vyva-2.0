@@ -226,6 +226,7 @@ type SavedTriageReport = {
   duration_seconds?: number | null;
   created_at?: string;
   sent_to?: string[];
+  staff_review_requested?: boolean;
 };
 
 type ConciergePrefillKind = "ride" | "appointment" | "home_care_quote";
@@ -1918,6 +1919,8 @@ export function ReportScreen({
   respiratoryRate,
   durationSeconds,
   reportId,
+  reportSaveState,
+  savedReport,
   profileContacts,
   careTeamMembers,
   emergencyContact,
@@ -1931,6 +1934,8 @@ export function ReportScreen({
   respiratoryRate: number | null;
   durationSeconds: number | null;
   reportId: string | null;
+  reportSaveState: ReportSaveState;
+  savedReport: SavedTriageReport | null;
   profileContacts?: ProfileContactsResponse;
   careTeamMembers: CareTeamMember[];
   emergencyContact?: EmergencyContact | null;
@@ -2000,21 +2005,6 @@ export function ReportScreen({
     : null;
   const doctorContactName = profileContacts?.gpName?.trim() || (profileContacts?.gpPhone?.trim() ? t("health.symptomCheck.report.doctorContact", "your doctor") : "");
   const caregiverContactName = profileContacts?.caregiverName?.trim() || (profileContacts?.caregiverContact?.trim() ? t("health.symptomCheck.report.caregiverContact", "your caregiver") : "");
-  const notifiedContacts = [
-    doctorContactName ? { id: "doctor", label: doctorContactName } : null,
-    caregiverContactName ? { id: "caregiver", label: caregiverContactName } : null,
-  ].filter(Boolean) as Array<{ id: string; label: string }>;
-  const notifiedText = notifiedContacts.length === 2
-    ? t("health.symptomCheck.report.sentToBoth", "A copy of this report has been sent to {{first}} and {{second}}.", {
-        first: notifiedContacts[0].label,
-        second: notifiedContacts[1].label,
-      })
-    : notifiedContacts.length === 1
-      ? t("health.symptomCheck.report.sentToOne", "A copy of this report has been sent to {{contact}}.", {
-          contact: notifiedContacts[0].label,
-        })
-      : "";
-  const contactStatusText = notifiedText || t("health.symptomCheck.report.noContactsConfigured", "No doctor or caregiver contact is set yet.");
   const actionText = reportText(summary);
   const vitalActions: RefinementVitalConfig[] = [
     /\b(glucose|sugar|diabetes|diabetic|insulin|cgm)\b/.test(actionText)
@@ -2357,6 +2347,54 @@ export function ReportScreen({
           className: "bg-[#6B21A8] text-white shadow-[0_12px_26px_rgba(107,33,168,0.20)]",
           testId: telHref ? "button-report-call-gp" : mailtoHref ? "button-report-email-gp" : "button-report-doctor",
         };
+  const savedRecipientLabels = uniqueLines(savedReport?.sent_to ?? []);
+  const staffReviewRequested = Boolean(savedReport?.staff_review_requested);
+  const reportStatusText = reportSaveState === "saving"
+    ? t("health.symptomCheck.report.savingReport", "Saving this report to My Reports...")
+    : reportSaveState === "error"
+      ? t("health.symptomCheck.report.reportSaveFailed", "This report could not be saved automatically. You can still share it now.")
+      : reportId
+        ? t("health.symptomCheck.report.reportSaved", "Saved in My Reports")
+        : t("health.symptomCheck.report.reportNotSavedYet", "Not saved yet");
+  const handoffTitle = staffReviewRequested
+    ? t("health.symptomCheck.report.staffReviewTitle", "Staff review requested")
+    : savedRecipientLabels.length
+      ? t("health.symptomCheck.report.handoffSentTitle", "Care handoff started")
+      : t("health.symptomCheck.report.handoffReadyTitle", "Ready to share");
+  const handoffBody = staffReviewRequested
+    ? savedRecipientLabels.length
+      ? t("health.symptomCheck.report.staffReviewWithContacts", "The team has this report for review. It was also shared with {{contacts}}.", {
+          contacts: savedRecipientLabels.join(", "),
+        })
+      : t("health.symptomCheck.report.staffReviewNoContacts", "The team has this report for review. Add a doctor or caregiver contact to share future reports automatically.")
+    : savedRecipientLabels.length
+      ? t("health.symptomCheck.report.handoffSentBody", "This report was shared with {{contacts}} so they can help with the next step.", {
+          contacts: savedRecipientLabels.join(", "),
+        })
+      : t("health.symptomCheck.report.handoffReadyBody", "No caregiver or doctor was notified automatically. You can share this report with someone you trust.");
+  const handoffIsActive = staffReviewRequested || savedRecipientLabels.length > 0 || Boolean(reportId);
+  const simpleReportRows = [
+    {
+      label: t("health.symptomCheck.report.simpleWhatChanged", "What changed"),
+      value: summary.chiefComplaint || summary.symptoms[0] || t("health.symptomCheck.report.notRecorded", "Not recorded"),
+    },
+    {
+      label: t("health.symptomCheck.report.simpleNextStep", "Next step"),
+      value: nextStepDisplayText,
+    },
+    {
+      label: t("health.symptomCheck.report.simpleWatchFor", "Watch for"),
+      value: visibleWatchSigns.length
+        ? visibleWatchSigns.join(" ")
+        : t("health.symptomCheck.report.noWatchSigns", "No additional watch signs were listed."),
+    },
+    {
+      label: t("health.symptomCheck.report.simpleShareWith", "Share with"),
+      value: savedRecipientLabels.length
+        ? savedRecipientLabels.join(", ")
+        : caregiverContactName || doctorContactName || t("health.symptomCheck.report.someoneTrusted", "a caregiver, doctor, or someone you trust"),
+    },
+  ];
 
   const handleRefineVital = async (config: RefinementVitalConfig, rawValue: string) => {
     const parsed = config.parse(rawValue);
@@ -2519,11 +2557,34 @@ export function ReportScreen({
       </section>
 
       <div className="mx-auto flex w-full max-w-[760px] flex-col gap-4 px-4 pb-[172px] sm:px-5 sm:pb-[190px] lg:px-0">
-        {primaryRecommendations.length ? (
-          <section className="rounded-[22px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-do-now">
+        <section className="overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white shadow-[0_14px_34px_rgba(63,45,35,0.08)]" data-testid="card-report-do-now">
+          <div className="border-b border-[#EFE5DA] bg-[#FFFCF8] p-4">
             <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
-              {t("health.symptomCheck.report.doNow", "Do now")}
+              {t("health.symptomCheck.report.whatToDoNow", "What to do now")}
             </p>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="font-body text-[24px] font-black leading-tight text-vyva-text-1">
+                  {nextStepDisplayText}
+                </p>
+                <p className="mt-2 font-body text-[15px] font-bold leading-relaxed text-vyva-text-2">
+                  {recommendationExplanation}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={primaryAction.onClick}
+                disabled={isEmergency && !emergencyContact?.telHref}
+                className={`vyva-tap inline-flex min-h-[54px] flex-shrink-0 items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[16px] font-black leading-tight ${primaryAction.className}`}
+              >
+                <PrimaryActionIcon size={19} className="flex-shrink-0" />
+                <span>{primaryAction.label}</span>
+              </button>
+            </div>
+          </div>
+          <div className="p-4">
+            {primaryRecommendations.length ? (
+              <>
             <ol className="mt-3 grid gap-3">
               {primaryRecommendations.map((recommendation, index) => renderRecommendationItem(recommendation, index))}
             </ol>
@@ -2540,8 +2601,70 @@ export function ReportScreen({
                 </ol>
               </details>
             ) : null}
-          </section>
-        ) : null}
+              </>
+            ) : (
+              <p className="rounded-[20px] border border-[#F1E8DE] bg-[#FFFCF8] p-4 font-body text-[16px] font-bold leading-snug text-vyva-text-1">
+                {recommendationExplanation}
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-[#D9F0E3] bg-[#F0FDF4] p-4 text-[#064E3B] shadow-[0_10px_26px_rgba(4,120,87,0.08)]" data-testid="card-report-handoff">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#047857] shadow-sm">
+              {staffReviewRequested ? <ShieldCheck size={20} /> : savedRecipientLabels.length ? <Send size={20} /> : <Users size={20} />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-[#047857]">
+                {t("health.symptomCheck.report.handoffLabel", "Care handoff")}
+              </p>
+              <p className="mt-1 font-body text-[18px] font-black leading-tight text-[#052E25]">
+                {handoffTitle}
+              </p>
+              <p className="mt-2 font-body text-[15px] font-bold leading-relaxed text-[#065F46]">
+                {handoffBody}
+              </p>
+              <p className="mt-3 inline-flex rounded-full border border-[#BBF7D0] bg-white px-3 py-1.5 font-body text-[13px] font-black text-[#047857]">
+                {reportStatusText}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_8px_22px_rgba(63,45,35,0.05)]" data-testid="card-report-simple-summary">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
+                {t("health.symptomCheck.report.simpleReport", "Simple report")}
+              </p>
+              <p className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                {t("health.symptomCheck.report.simpleReportTitle", "For you and your caregiver")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleShare}
+              data-testid="button-report-share-simple"
+              className="vyva-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-[#F5F3FF] px-4 text-center font-body text-[15px] font-black text-vyva-purple"
+            >
+              <Share2 size={17} />
+              {t("health.symptomCheck.report.shareReportAria", "Share report")}
+            </button>
+          </div>
+          <dl className="mt-4 grid gap-3">
+            {simpleReportRows.map((row) => (
+              <div key={row.label} className="rounded-[18px] border border-[#F1E8DE] bg-[#FFFCF8] p-3">
+                <dt className="font-body text-[11px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
+                  {row.label}
+                </dt>
+                <dd className="mt-1 font-body text-[16px] font-black leading-snug text-vyva-text-1">
+                  {row.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
         {isEmergency && visibleWatchSigns.length ? (
           <section className="overflow-hidden rounded-[28px] border-2 border-[#FDBA74] bg-[#FFF7ED] text-[#9A3412] shadow-[0_18px_42px_rgba(154,52,18,0.12)]" data-testid="card-report-watch">
@@ -3013,13 +3136,16 @@ export function ReportScreen({
               </div>
             ) : null}
 
-            <div className={`flex items-start gap-3 border-t border-[#EADFD5] pt-4 ${notifiedText ? "text-[#047857]" : "text-vyva-text-2"}`}>
-              <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${notifiedText ? "bg-[#DCFCE7]" : "bg-[#F5F3FF]"}`}>
-                {notifiedText ? <CheckCircle size={18} /> : <ClipboardList size={18} />}
+            <div className={`flex items-start gap-3 border-t border-[#EADFD5] pt-4 ${handoffIsActive ? "text-[#047857]" : "text-vyva-text-2"}`}>
+              <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${handoffIsActive ? "bg-[#DCFCE7]" : "bg-[#F5F3FF]"}`}>
+                {handoffIsActive ? <CheckCircle size={18} /> : <ClipboardList size={18} />}
               </span>
               <div>
                 <p className="font-body text-[15px] font-extrabold leading-snug">
-                  {contactStatusText}
+                  {handoffBody}
+                </p>
+                <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-3">
+                  {reportStatusText}
                 </p>
                 {durationText ? (
                   <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-3">
@@ -3103,6 +3229,7 @@ export default function SymptomCheckScreen() {
   const [summary, setSummary] = useState<TriageSummary | null>(() => restoredDraft?.summary ?? null);
   const [reportSaveState, setReportSaveState] = useState<ReportSaveState>(() => restoredDraft?.reportSaveState ?? "idle");
   const [reportId, setReportId] = useState<string | null>(() => restoredDraft?.reportId ?? null);
+  const [savedReport, setSavedReport] = useState<SavedTriageReport | null>(null);
   const [durationSeconds, setDurationSeconds] = useState<number | null>(() => restoredDraft?.durationSeconds ?? null);
   const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>(() => restoredDraft?.refinementStatus ?? { state: "idle" });
   const [chatDraft, setChatDraft] = useState<TriageChatDraft | null>(() => restoredDraft?.chatDraft ?? null);
@@ -3187,6 +3314,7 @@ export default function SymptomCheckScreen() {
     setSummary(null);
     setReportSaveState("idle");
     setReportId(null);
+    setSavedReport(null);
     setDurationSeconds(null);
     setRefinementStatus({ state: "idle" });
     setChatDraft(null);
@@ -3230,6 +3358,7 @@ export default function SymptomCheckScreen() {
     setChatDraft(null);
     setSummary(null);
     setReportId(null);
+    setSavedReport(null);
     setDurationSeconds(null);
     setReportSaveState("idle");
     setRefinementStatus({ state: "idle" });
@@ -3348,6 +3477,7 @@ export default function SymptomCheckScreen() {
 
   const applySavedReport = (saved: SavedTriageReport | null) => {
     setReportId(saved?.id ?? null);
+    setSavedReport(saved);
     setReportSaveState("saved");
     queryClient.invalidateQueries({ queryKey: ["/api/reports/summary"] });
     queryClient.invalidateQueries({ queryKey: ["/api/reports/vitals/history"] });
@@ -3369,6 +3499,7 @@ export default function SymptomCheckScreen() {
     setDurationSeconds(durationSeconds);
     setSummary(triageSummary);
     setReportId(null);
+    setSavedReport(null);
     setRefinementStatus({ state: "idle" });
     setReportSaveState("saving");
     setStep("report");
@@ -3597,6 +3728,8 @@ export default function SymptomCheckScreen() {
             respiratoryRate={respiratoryRate}
             durationSeconds={durationSeconds}
             reportId={reportId}
+            reportSaveState={reportSaveState}
+            savedReport={savedReport}
             profileContacts={profileContacts}
             careTeamMembers={careTeamData?.members ?? []}
             emergencyContact={triageContext?.emergencyContact ?? null}
