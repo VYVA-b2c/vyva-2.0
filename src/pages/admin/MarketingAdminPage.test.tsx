@@ -191,6 +191,8 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
+    if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeys[0] }, { status: 201 });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeys[0] });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
@@ -364,5 +366,52 @@ describe("MarketingAdminPage", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
     });
     expect(screen.getByTestId("button-marketing-send-locked")).toBeDisabled();
+  });
+
+  it("edits, snapshots recipients for, and deletes campaigns without send controls", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("button-marketing-edit-campaign-campaign-1"));
+
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-channel"), { target: { value: "email" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-status"), { target: { value: "scheduled" } });
+    fireEvent.click(screen.getByTestId("checkbox-marketing-edit-campaign-snapshot"));
+    fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-recipient-filter"), { target: { value: "Karim" } });
+
+    expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1");
+    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-1" && init?.method === "PATCH");
+    const patchBody = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchBody).toMatchObject({
+      name: "Updated campaign",
+      objective: "Updated objective",
+      status: "scheduled",
+      channels: [{ channel: "email", status: "scheduled" }],
+    });
+    expect(patchBody.recipients).toHaveLength(1);
+    expect(patchBody.recipients[0]).toMatchObject({
+      contactId: "contact-1",
+      channel: "email",
+      recipient: "karim@example.com",
+      status: "planned",
+      snapshot: { fullName: "Karim Assad" },
+    });
+    expect(screen.getByTestId("button-marketing-send-locked")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete campaign"));
+    confirmSpy.mockRestore();
   });
 });
