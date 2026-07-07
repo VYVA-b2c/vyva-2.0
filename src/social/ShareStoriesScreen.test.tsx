@@ -158,11 +158,11 @@ describe("ShareStoriesScreen", () => {
     vi.clearAllMocks();
   });
 
-  it("renders daily prompts, story cards, actions, and recent share statuses", async () => {
+  it("renders the simple story prompt, actions, theme chips, and recent share statuses", async () => {
     renderShareStories();
 
-    expect(await screen.findByText("Share Stories")).toBeInTheDocument();
-    expect(screen.getByTestId("share-stories-today")).toHaveTextContent("An old favourite song");
+    expect(await screen.findByText("Share a story")).toBeInTheDocument();
+    expect(screen.getByTestId("share-stories-today")).toHaveTextContent("What song would you like to share today?");
     expect(screen.getByTestId("button-share-stories-start-voice")).toBeInTheDocument();
     expect(screen.getByTestId("button-share-stories-type")).toBeInTheDocument();
 
@@ -173,7 +173,7 @@ describe("ShareStoriesScreen", () => {
     const recent = screen.getByTestId("share-stories-recent");
     expect(recent).toHaveTextContent("Ready");
     expect(recent).toHaveTextContent("Placed");
-    expect(recent).toHaveTextContent("Needs review");
+    expect(recent).toHaveTextContent("Review");
   });
 
   it("sends prompt metadata for typed stories and shows the placement outcome", async () => {
@@ -220,9 +220,10 @@ describe("ShareStoriesScreen", () => {
     });
 
     renderShareStories();
-    await screen.findByText("Share Stories");
+    await screen.findByText("Share a story");
 
-    fireEvent.click(within(screen.getByTestId("share-story-prompt-recipe-family-table")).getByText("Type"));
+    fireEvent.click(screen.getByTestId("share-story-prompt-recipe-family-table"));
+    fireEvent.click(screen.getByTestId("button-share-stories-type"));
     fireEvent.change(screen.getByTestId("share-dropbox-typed-input"), {
       target: { value: "My soup needs parsley at the end" },
     });
