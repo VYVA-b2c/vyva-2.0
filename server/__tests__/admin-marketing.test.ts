@@ -214,7 +214,22 @@ describe("admin marketing router", () => {
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       content: [{ id: "content-1", title: "Welcome email", channel: "email", subject: "Welcome", body: "Hello" }],
-      contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com", audienceType: "b2b" }],
+      contacts: [{
+        id: "contact-1",
+        name: "Hassan",
+        email: "hassan@example.com",
+        phoneNumber: "+34 600 000 001",
+        whatsappNumber: "+34 600 000 002",
+        audienceType: "b2b",
+        roleLabel: "Partner",
+        companyName: "Moka",
+        language: "en",
+        category: "lead",
+        vertical: "healthcare",
+        market: "Spain",
+        lists: ["Partners"],
+        tags: ["partner"],
+      }],
       campaigns: [{ id: "campaign-1", name: "Welcome campaign", status: "scheduled", channels: [{ channel: "email", contentExternalId: "content-1" }] }],
       journeys: [{ id: "journey-1", name: "Nurture", steps: [{ channel: "email", contentExternalId: "content-1" }] }],
       cursor: "cursor-1",
@@ -237,5 +252,25 @@ describe("admin marketing router", () => {
     expect(table("marketing_campaign_channels")).toHaveLength(1);
     expect(table("marketing_journey_steps")).toHaveLength(1);
     expect(table("marketing_sync_runs")).toHaveLength(2);
+
+    await request(app)
+      .get("/api/admin/marketing/contacts")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.contacts[0]).toMatchObject({
+          fullName: "Hassan",
+          email: "hassan@example.com",
+          phoneNumber: "+34 600 000 001",
+          whatsappNumber: "+34 600 000 002",
+          roleLabel: "Partner",
+          companyName: "Moka",
+          language: "en",
+          category: "lead",
+          vertical: "healthcare",
+          market: "Spain",
+          lists: ["Partners"],
+          tags: ["partner"],
+        });
+      });
   });
 });

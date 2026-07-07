@@ -190,6 +190,21 @@ function textFrom(row: Record<string, unknown>, keys: string[], fallback = "") {
   return fallback;
 }
 
+function textArrayFrom(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    if (typeof item === "string") return item.trim();
+    const row = asRecord(item);
+    return textFrom(row, ["name", "title", "label", "id"]);
+  }).filter(Boolean);
+}
+
+function nestedText(primary: Record<string, unknown>, secondary: Record<string, unknown>, tertiary: Record<string, unknown>, keys: string[]) {
+  return emptyToNull(textFrom(primary, keys))
+    ?? emptyToNull(textFrom(secondary, keys))
+    ?? emptyToNull(textFrom(tertiary, keys));
+}
+
 function dateTextFrom(row: Record<string, unknown>, keys: string[]) {
   const value = textFrom(row, keys);
   if (!value) return null;
@@ -354,6 +369,16 @@ function serializeJourney(row: MarketingJourneyRow, steps: MarketingJourneyStepR
 }
 
 function serializeContact(row: MarketingContactRow) {
+  const metadata = asRecord(row.metadata);
+  const lovable = asRecord(metadata.lovable);
+  const segmentation = asRecord(metadata.segmentation);
+  const lists = [
+    ...textArrayFrom(lovable.lists),
+    ...textArrayFrom(lovable.listNames),
+    ...textArrayFrom(lovable.audiences),
+    ...textArrayFrom(lovable.memberships),
+    ...textArrayFrom(metadata.lists),
+  ];
   return {
     id: row.id,
     audienceType: row.audience_type,
@@ -369,6 +394,11 @@ function serializeContact(row: MarketingContactRow) {
     source: row.source,
     channelAvailability: row.channel_availability,
     tags: row.tags ?? [],
+    language: nestedText(segmentation, lovable, metadata, ["language", "lang", "locale"]),
+    category: nestedText(segmentation, lovable, metadata, ["category", "contactCategory", "contact_category"]),
+    vertical: nestedText(segmentation, lovable, metadata, ["vertical", "industry", "sector"]),
+    market: nestedText(segmentation, lovable, metadata, ["market", "country", "region"]),
+    lists: Array.from(new Set(lists)),
     lovableExternalId: row.lovable_external_id,
     lastSyncedAt: iso(row.last_synced_at),
     metadata: row.metadata,
@@ -781,7 +811,25 @@ adminMarketingRouter.get("/contacts", async (req, res) => {
     const rows = await db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(2000);
     const contacts = rows
       .filter((row) => audience === "all" || row.audience_type === audience)
-      .filter((row) => !search || textMatches(row.full_name, search) || textMatches(row.email, search) || textMatches(row.company_name, search))
+      .filter((row) => {
+        if (!search) return true;
+        const serialized = serializeContact(row);
+        return [
+          serialized.fullName,
+          serialized.email,
+          serialized.phoneNumber,
+          serialized.whatsappNumber,
+          serialized.companyName,
+          serialized.roleLabel,
+          serialized.language,
+          serialized.category,
+          serialized.vertical,
+          serialized.market,
+          serialized.source,
+          ...serialized.tags,
+          ...serialized.lists,
+        ].some((value) => textMatches(value, search));
+      })
       .map(serializeContact);
     return res.json({ contacts });
   } catch (error) {
