@@ -183,6 +183,9 @@ describe("SymptomCheck report service actions", () => {
     expect(screen.getByTestId("card-report-do-now")).toHaveTextContent("Call a doctor if symptoms worsen");
     expect(screen.getByTestId("card-report-context-confidence")).toHaveTextContent("Strong confidence");
     expect(screen.getByTestId("card-report-context-confidence")).toHaveTextContent("blood pressure");
+    expect(screen.getByTestId("button-report-missing-signal-bloodPressure")).toHaveTextContent("Check blood pressure now");
+    fireEvent.click(screen.getByTestId("button-report-missing-signal-bloodPressure"));
+    expect(screen.getByPlaceholderText("120/80")).toBeVisible();
     expect(screen.getByText("Why this answer")).toBeVisible();
     expect(screen.getByText("What to watch for")).toBeVisible();
     expect(screen.getByText("Readings used")).toBeVisible();

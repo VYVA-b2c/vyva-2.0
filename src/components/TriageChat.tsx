@@ -983,7 +983,11 @@ export default function TriageChat({
               </h2>
               {guidancePlan ? (
                 <p data-testid="triage-guidance-focus" className="mt-4 rounded-[18px] border border-[#E8DED4] bg-white/78 px-4 py-3 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
-                  <span className="font-black text-vyva-purple">{guidancePlan.priorityLabel}:</span>{" "}
+                  {guidancePlan.priorityLabel ? (
+                    <>
+                      <span className="font-black text-vyva-purple">{guidancePlan.priorityLabel}:</span>{" "}
+                    </>
+                  ) : null}
                   {guidancePlan.protocolLabel}
                 </p>
               ) : null}
