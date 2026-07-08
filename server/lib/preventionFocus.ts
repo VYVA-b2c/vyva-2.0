@@ -80,7 +80,7 @@ export type PreventionGuidanceItem = {
   actionSheet?: PreventionActionSheet;
 };
 
-export type PreventionActionStep = "Eat" | "Move" | "Calm" | "Check" | "Protect" | "Home" | "Medicine" | "Review" | "Plan" | "Sleep";
+export type PreventionActionStep = "Eat" | "Move" | "Calm" | "Check" | "Protect" | "Home" | "Medicine" | "Review" | "Plan" | "Sleep" | "NEXT STEP" | "WATCH FOR" | "RIGHT NOW" | "IF NEEDED";
 
 export type PreventionActionTone = "food" | "movement" | "check" | "support" | "medicine";
 
@@ -131,6 +131,7 @@ export type PreventionDailyAction = {
   step: PreventionActionStep;
   title: string;
   detail: string;
+  chips?: string[];
   why: string;
   evidenceLabel: string;
   tone: PreventionActionTone;
@@ -446,6 +447,163 @@ function symptomAgeDays(input: PreventionFocusInput): number | null {
 function symptomReportRoute(input: PreventionFocusInput): string {
   const id = input.latestSymptomReport?.id;
   return id ? `/informes/${id}` : "/informes";
+}
+
+function symptomReportSubject(input: PreventionFocusInput): string {
+  return compactText(input.latestSymptomReport?.chiefComplaint) || "your latest symptoms";
+}
+
+function titleCaseWords(value: string): string {
+  return compactText(value)
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.length <= 2 ? word.toLowerCase() : `${word.charAt(0).toUpperCase()}${word.slice(1).toLowerCase()}`)
+    .join(" ");
+}
+
+function conditionContextLabel(input: PreventionFocusInput): string {
+  const conditions = input.conditions ?? [];
+  if (includesAny(conditions, ["hypertension", "high blood pressure", "blood pressure"])) return "blood pressure";
+  if (includesAny(conditions, ["diabetes", "glucose", "blood sugar"])) return "diabetes";
+  if (includesAny(conditions, ["heart", "cardiac", "afib", "atrial fibrillation"])) return "heart context";
+  if (includesAny(conditions, ["kidney", "renal"])) return "kidney context";
+  if (bloodPressureLabel(input)) return "blood pressure";
+  if (glucoseLabel(input)) return "blood sugar";
+  const condition = compactText(input.conditions?.[0]);
+  if (condition) return titleCaseWords(condition).replace(/^Type 2 Diabetes$/i, "diabetes");
+  if (input.activeMedications?.length) return "medicines";
+  if (latestReadingLabel(input)) return "recent readings";
+  if (compactText(input.mobilityLevel)) return "mobility";
+  return "your profile";
+}
+
+function conditionDetailLabel(input: PreventionFocusInput, fallbackLabel: string): string {
+  const condition = compactText(input.conditions?.[0]);
+  const normalized = normalize(condition);
+  if (normalized.includes("hypertension") || normalized.includes("blood pressure")) return "hypertension";
+  if (normalized.includes("type 2 diabetes")) return "type 2 diabetes";
+  if (normalized.includes("diabetes")) return "diabetes";
+  if (condition) return titleCaseWords(condition);
+  return fallbackLabel === "your profile" ? "" : fallbackLabel;
+}
+
+function followUpTopic(input: PreventionFocusInput): string {
+  const subject = symptomReportSubject(input);
+  const normalized = normalize(subject);
+  if (includesAny([normalized], ["urinating", "urination", "urine", "uti", "bladder", "burning"])) return "urinary pain";
+  if (includesAny([normalized], ["chest"])) return "chest symptoms";
+  if (includesAny([normalized], ["breath", "shortness of breath", "wheezing"])) return "breathing symptoms";
+  if (includesAny([normalized], ["dizz", "lightheaded", "faint"])) return "dizziness";
+  if (includesAny([normalized], ["weakness"])) return "weakness";
+  if (includesAny([normalized], ["fall", "balance"])) return "balance concern";
+  if (includesAny([normalized], ["stomach", "nausea", "vomit", "diarrhea", "bowel"])) return "stomach symptoms";
+  if (includesAny([normalized], ["back pain", "side pain"])) return "back or side pain";
+  const cleaned = compactText(subject)
+    .replace(/^pain when\s+/i, "")
+    .replace(/^possible\s+/i, "")
+    .split(" ")
+    .slice(0, 4)
+    .join(" ");
+  return normalize(cleaned) === "your latest symptoms" ? "today's symptoms" : (cleaned || "today's symptoms");
+}
+
+function followUpProfileDetail(input: PreventionFocusInput): string {
+  const contextLabel = conditionContextLabel(input);
+  const conditionLabel = conditionDetailLabel(input, contextLabel);
+  const medication = compactText(input.activeMedications?.[0]?.medicationName);
+  const hasMoreMeds = (input.activeMedications?.length ?? 0) > 1;
+  const reading = latestReadingLabel(input);
+  const parts = unique([
+    conditionLabel,
+    medication ? (hasMoreMeds ? `${medication} and other medicines` : medication) : (input.activeMedications?.length ? "medicines" : ""),
+    reading ?? "",
+    compactText(input.mobilityLevel) ? "mobility" : "",
+  ].filter(Boolean));
+  if (!parts.length) return "your saved profile";
+  if (parts.length === 1) return `${parts[0]} and your saved profile`;
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+}
+
+function followUpWatchSigns(input: PreventionFocusInput): string[] {
+  const savedSigns = unique((input.latestSymptomReport?.watchSigns ?? []).map(compactText).filter(Boolean)).slice(0, 3);
+  if (savedSigns.length) return savedSigns;
+  const topic = followUpTopic(input);
+  const normalized = normalize(topic);
+  if (normalized.includes("urinary")) return ["Fever or chills", "Worsening back pain", "Blood in urine"];
+  if (normalized.includes("dizziness")) return ["Fainting", "New weakness", "Confusion"];
+  if (normalized.includes("breathing")) return ["Breathing gets harder", "Chest tightness", "Blue lips"];
+  if (normalized.includes("chest")) return ["Chest pain", "Shortness of breath", "New weakness"];
+  if (normalized.includes("stomach")) return ["Blood in stool", "Repeated vomiting", "Severe belly pain"];
+  if (normalized.includes("balance")) return ["New fall", "Head injury", "Sudden weakness"];
+  return ["Sudden change", "New weakness", "Feeling much worse"];
+}
+
+function shortWatchSignLabel(sign: string): string {
+  const normalized = normalize(sign);
+  if (normalized.includes("fever") || normalized.includes("chills")) return "fever";
+  if (normalized.includes("worsening back") || normalized.includes("worse back")) return "back pain worse";
+  if (normalized.includes("back pain") || normalized.includes("side pain")) return "back pain";
+  if (normalized.includes("blood in urine")) return "blood";
+  if (normalized.includes("faint")) return "fainting";
+  if (normalized.includes("worse") && normalized.includes("dizz")) return "dizziness worse";
+  if (normalized.includes("dizz")) return "dizziness";
+  if (normalized.includes("shortness of breath")) return "shortness of breath";
+  if (normalized.includes("breathing")) return "breathing changes";
+  if (normalized.includes("weakness")) return "new weakness";
+  return compactText(sign).replace(/\.$/, "").toLowerCase();
+}
+
+function followUpWatchTitle(signs: string[]): string {
+  const normalized = unique(signs.map(shortWatchSignLabel).filter(Boolean)).map((sign) => sign.toLowerCase());
+  if (!normalized.length) return "Watch what changes";
+  if (normalized.length === 1) return `Watch ${normalized[0]}`;
+  if (normalized.length === 2) return `Watch ${normalized[0]} or ${normalized[1]}`;
+  return `Watch ${normalized[0]}, ${normalized[1]}, or ${normalized[2]}`;
+}
+
+function shortWatchChipLabel(sign: string): string {
+  const normalized = normalize(sign);
+  if (normalized.includes("fever") || normalized.includes("chills")) return "Fever";
+  if (normalized.includes("worsening back") || normalized.includes("worse back")) return "Back pain worse";
+  if (normalized.includes("back pain") || normalized.includes("side pain")) return "Back pain";
+  if (normalized.includes("blood in urine")) return "Blood";
+  if (normalized.includes("faint")) return "Fainting";
+  if (normalized.includes("worse") && normalized.includes("dizz")) return "Dizziness worse";
+  if (normalized.includes("dizz")) return "Dizziness";
+  if (normalized.includes("confusion")) return "Confusion";
+  if (normalized.includes("weakness")) return "New weakness";
+  if (normalized.includes("breath")) return "Breathing";
+  if (normalized.includes("chest")) return "Chest";
+  return titleCaseWords(sign);
+}
+
+function followUpPatternChips(input: PreventionFocusInput): string[] {
+  const topic = titleCaseWords(followUpTopic(input));
+  const contextLabel = conditionDetailLabel(input, conditionContextLabel(input));
+  const medication = compactText(input.activeMedications?.[0]?.medicationName);
+  const reading = latestReadingLabel(input);
+  return unique([topic, contextLabel, medication, reading ?? ""].filter(Boolean)).slice(0, 4);
+}
+
+function followUpWatchChips(signs: string[]): string[] {
+  return unique(signs.map(shortWatchChipLabel).filter(Boolean)).slice(0, 3);
+}
+
+function followUpMemoryChips(input: PreventionFocusInput): string[] {
+  const medication = compactText(input.activeMedications?.[0]?.medicationName);
+  const reading = latestReadingLabel(input);
+  return unique(["Timing", reading ? reading.replace(/\s+\d.*$/, "") || "Reading" : "Symptoms", medication].filter(Boolean)).slice(0, 3);
+}
+
+function followUpSummaryTitle(input: PreventionFocusInput): string {
+  const medication = compactText(input.activeMedications?.[0]?.medicationName);
+  if (medication && (input.activeMedications?.length ?? 0) === 1) return `${medication} note`;
+  const hasMedicineContext = Boolean(input.activeMedications?.length);
+  const hasReadingContext = Boolean(latestReadingLabel(input));
+  if (hasMedicineContext) return "Medicine note";
+  if (hasReadingContext) return "Reading note";
+  return `${titleCaseWords(followUpTopic(input))} note`;
 }
 
 function confidenceFor(score: number, focus: PreventionFocus): PreventionConfidence {
@@ -994,9 +1152,9 @@ function sheetForGuidance(
       return {
         title: item.headline,
         summary: "Turn symptoms into a clear next step.",
-        primaryAction: guidanceAction("open-report", "Open report", "Review latest advice", symptomReportRoute(input), "primary"),
+        primaryAction: guidanceAction("symptom-check", "Check symptoms", "Continue with this context", "/health/symptom-check", "primary"),
         secondaryActions: [
-          guidanceAction("symptom-check", "Check symptoms", "Update what changed", "/health/symptom-check"),
+          guidanceAction("doctor-support", "Doctor support", "Appointment or note help", "/concierge"),
           guidanceAction("doctor-note", "Doctor note", "Prepare a short update", "/health/doctor", "secondary", "voice"),
         ],
       };
@@ -1046,7 +1204,7 @@ function sheetForGuidance(
         ? guidanceAction("concierge-help", "Get help", "Ask Concierge for heavy tasks", "/concierge")
         : guidanceAction("breathing-reset", "Breathing reset", "Calm the pace", "/activities/relax-breathe"),
     ],
-    safetyNote: "Get urgent help for severe chest pain, trouble breathing, fainting, or sudden weakness.",
+    safetyNote: "Call emergency help for severe chest pain, trouble breathing, fainting, or sudden weakness.",
   };
 }
 
@@ -1077,12 +1235,14 @@ function dailyAction(
   evidenceLabel: string,
   tone: PreventionDailyAction["tone"],
   actionSheet: PreventionActionSheet,
+  chips?: string[],
 ): PreventionDailyAction {
   return {
     id,
     step,
     title,
     detail,
+    ...(chips?.length ? { chips: chips.slice(0, 4) } : {}),
     why,
     evidenceLabel,
     tone,
@@ -1482,12 +1642,91 @@ function dailyActionsFromContent(
   ));
 }
 
+function followUpDailyActions(input: PreventionFocusInput, selected: FocusCandidate): PreventionDailyAction[] {
+  const subject = symptomReportSubject(input);
+  const topic = followUpTopic(input);
+  const profileDetail = followUpProfileDetail(input);
+  const signs = selected.helpSigns.length ? selected.helpSigns.slice(0, 3) : followUpWatchSigns(input);
+  const contextTitle = "Check the pattern";
+  const watchTitle = normalize(topic).includes("urinary") ? "Watch urinary changes" : followUpWatchTitle(signs);
+  const summaryTitle = "Save a summary";
+  const readingDetail = latestReadingLabel(input);
+  const contextDetail = readingDetail
+    ? `Symptoms, medicine, and ${readingDetail} together.`
+    : input.activeMedications?.length
+      ? "Symptoms and medicine together."
+      : "Symptoms and timing together.";
+  const summaryDetail = input.activeMedications?.length || latestReadingLabel(input)
+    ? `Keep symptoms, ${latestReadingLabel(input) ? "readings" : "changes"}, and ${input.activeMedications?.length ? "medicine" : "context"} together.`
+    : "Keep symptoms and timing together.";
+  const symptomContext = `Symptom follow-up: ${subject}. Use saved context: ${profileDetail}. Signs to watch: ${signs.join(", ")}.`;
+
+  return [
+    dailyAction(
+      "follow-up-context",
+      "RIGHT NOW",
+      contextTitle,
+      contextDetail,
+      "VYVA can connect today's symptom with the health context already saved.",
+      "",
+      "support",
+      simpleActionSheet(
+        contextTitle,
+        symptomContext,
+        guidanceAction("talk-context", "Ask VYVA", "Explain what matters from my context", "/health/doctor", "primary", "voice"),
+        [
+          guidanceAction("symptom-check", "Check symptoms", "Update what changed", "/health/symptom-check"),
+        ],
+      ),
+      followUpPatternChips(input),
+    ),
+    dailyAction(
+      "follow-up-watch-signs",
+      "WATCH FOR",
+      watchTitle,
+      `For this ${topic} follow-up.`,
+      "These signs can help you decide whether to check again or get help sooner.",
+      "",
+      "check",
+      simpleActionSheet(
+        watchTitle,
+        `Continue the symptom check with this context: ${symptomContext}`,
+        guidanceAction("symptom-check", "Check symptoms", "Continue with this context", "/health/symptom-check", "primary"),
+        [
+          guidanceAction("talk-about-signs", "Ask VYVA", "Talk through what changed", "/health/doctor", "secondary", "voice"),
+        ],
+      ),
+      followUpWatchChips(signs),
+    ),
+    dailyAction(
+      "follow-up-summary",
+      "IF NEEDED",
+      summaryTitle,
+      summaryDetail,
+      "A simple summary makes it easier to explain what changed.",
+      "",
+      "support",
+      simpleActionSheet(
+        summaryTitle,
+        symptomContext,
+        guidanceAction("prepare-summary", "Make summary", "Create a short note from my context", "/health/doctor", "primary", "voice"),
+        [
+          guidanceAction("symptom-check-summary", "Check symptoms", "Update what changed", "/health/symptom-check"),
+        ],
+      ),
+      followUpMemoryChips(input),
+    ),
+  ];
+}
+
 function dailyActionsFor(
   input: PreventionFocusInput,
   focus: PreventionFocus,
   enrichedGuidance: PreventionGuidanceItem[],
   selected: FocusCandidate,
 ): PreventionDailyAction[] {
+  if (focus === "Follow-up") return followUpDailyActions(input, selected);
+
   const libraryActions = dailyActionsFromContent(input, focus, selected);
   if (libraryActions.length === 3) return libraryActions;
 
@@ -1545,7 +1784,7 @@ function dailyActionsFor(
           [
             guidanceAction("doctor-question", "Doctor question", "Prepare what to ask", "/health/doctor", "secondary", "voice"),
           ],
-          "Seek urgent help for chest pain, shortness of breath, fainting, or sudden weakness.",
+          "Call emergency help for chest pain, shortness of breath, fainting, or sudden weakness.",
         ),
       ),
     ];
@@ -1673,55 +1912,13 @@ function dailyActionsFor(
     ];
   }
 
-  if (focus === "Follow-up") {
-    return [
-      dailyAction(
-        "follow-up-open-report",
-        "Review",
-        "Open report",
-        "Review the latest symptom advice.",
-        "A recent symptom report is the strongest signal today.",
-        "Follow-up",
-        "check",
-        doSheet,
-      ),
-      dailyAction(
-        "follow-up-doctor-note",
-        "Plan",
-        "Doctor note",
-        "Prepare one clear update for a clinician.",
-        "A short timeline makes follow-up easier.",
-        "Care summary",
-        "support",
-        simpleActionSheet(
-          "Doctor note",
-          "Ask VYVA to turn symptoms, readings, and medicines into a short update.",
-          guidanceAction("prepare-doctor-note", "Prepare note", "Ask VYVA for a concise note", "/health/doctor", "primary", "voice"),
-          [
-            guidanceAction("symptom-check", "Check symptoms", "Update what changed", "/health/symptom-check"),
-          ],
-        ),
-      ),
-      dailyAction(
-        "follow-up-easy-meal",
-        "Eat",
-        "Easy meal",
-        "Keep food simple while watching symptoms.",
-        "Low-effort food helps keep the day steady during follow-up.",
-        "Simple food",
-        "food",
-        eatSheet,
-      ),
-    ];
-  }
-
   return [
     dailyAction(
       "plan-steady-meal",
       "Eat",
       "Steady meal",
       "Pick one simple meal or grocery helper.",
-      "Food, water, and routine are useful even without a strong warning signal.",
+      "Food, water, and routine are useful even without a strong signal.",
       "Daily basics",
       "food",
       eatSheet,
@@ -2041,7 +2238,7 @@ function preventionLearningFor(focus: PreventionFocus): PreventionLearning {
   if (focus === "Follow-up") {
     return {
       title: "New options to ask about",
-      detail: "A short doctor update and symptom changes that need urgent help.",
+      detail: "A short doctor update and symptom changes to watch.",
       askPrompt: "Help me prepare a follow-up note for my doctor.",
     };
   }
@@ -2365,6 +2562,10 @@ export function buildPreventionFocus(input: PreventionFocusInput): PreventionFoc
 
   if (hasRecentSymptom) {
     const report = input.latestSymptomReport;
+    const subject = symptomReportSubject(input);
+    const signs = followUpWatchSigns(input);
+    const topic = followUpTopic(input);
+    const contextLabel = conditionContextLabel(input);
     const reasons = firstReasons([
       report?.chiefComplaint ? `Latest symptom report: ${report.chiefComplaint}.` : "A symptom report was saved recently.",
       symptomNeedsFollowUp ? "The report suggested follow-up." : "",
@@ -2373,21 +2574,21 @@ export function buildPreventionFocus(input: PreventionFocusInput): PreventionFoc
       focus: "Follow-up",
       score: 45 + (symptomNeedsFollowUp ? 45 : 0) + (symptomUrgency.includes("urgent") ? 35 : 0),
       priority: 1,
-      headline: "Follow-up today.",
+      headline: "Symptom follow-up today.",
       why: reasons,
-      todayAction: "Open the latest report and ask VYVA what to watch.",
-      helpSigns: (report?.watchSigns?.length ? report.watchSigns : ["Symptoms get worse", "New chest pain", "Trouble breathing"]).slice(0, 3),
-      primaryRoute: symptomReportRoute(input),
+      todayAction: `Ask VYVA to connect ${topic} with ${contextLabel}.`,
+      helpSigns: signs,
+      primaryRoute: "/health/doctor",
       secondaryRoute: "/health/doctor",
       insights: [
-        insight("follow-up-report", "Latest report", report?.chiefComplaint ?? "Symptom check", symptomNeedsFollowUp ? "The report suggested follow-up." : "Recent report is available.", symptomNeedsFollowUp ? "alert" : "caution", symptomReportRoute(input)),
+        insight("follow-up-report", "Symptom", report?.chiefComplaint ?? "Symptom check", symptomNeedsFollowUp ? "VYVA can connect this with your saved context." : "Recent symptom context is available.", symptomNeedsFollowUp ? "caution" : "steady", symptomReportRoute(input)),
         ...(latestReadingLabel(input) ? [insight("follow-up-vitals", "Vitals", latestReadingLabel(input) as string, "Recent readings can help VYVA explain the report.", "steady", "/health/vitals")] : []),
         profileInsight(input, "Follow-up"),
       ],
       actions: [
-        action("follow-up-plan", "Recovery plan", "What to do today", "/health/doctor", "primary", "voice"),
-        action("follow-up-watch", "What to watch", "Red flags and next steps", "/health/doctor", "secondary", "voice"),
-        action("follow-up-open-report", "Open report", "Review the latest advice", symptomReportRoute(input)),
+        action("follow-up-context", "Ask VYVA", `Connect ${topic} with ${contextLabel}`, "/health/doctor", "primary", "voice"),
+        action("follow-up-symptom-check", "Check symptoms", signs.slice(0, 2).join(", "), "/health/symptom-check"),
+        action("follow-up-summary", "Make summary", followUpSummaryTitle(input), "/health/doctor", "secondary", "voice"),
       ],
       doctorNote: compactDoctorNote([
         report?.chiefComplaint ? `Latest symptom report: ${report.chiefComplaint}.` : "",
@@ -2405,13 +2606,13 @@ export function buildPreventionFocus(input: PreventionFocusInput): PreventionFoc
     score: 0,
     priority: 0,
     headline: "Prevention ready.",
-    why: ["No strong warning pattern stands out right now."],
+    why: ["No strong pattern stands out right now."],
     todayAction: "Do one quick check-in.",
     helpSigns: ["Sudden chest pain", "Trouble breathing", "New confusion"],
     primaryRoute: "/health/check-in",
     secondaryRoute: "/health/doctor",
     insights: [
-      insight("plan-status", "Today", "No strong alert", "No warning pattern stands out from available data.", "steady"),
+      insight("plan-status", "Today", "No strong alert", "No strong pattern stands out from available data.", "steady"),
       ...(latestReadingLabel(input) ? [insight("plan-reading", "Latest signal", latestReadingLabel(input) as string, "Recent readings are available if you want to review them.", "steady", "/health/vitals")] : []),
       profileInsight(input, "Plan"),
     ],
@@ -2420,7 +2621,7 @@ export function buildPreventionFocus(input: PreventionFocusInput): PreventionFoc
       action("plan-move", "Movement idea", "Gentle routine for today", "/health/doctor", "secondary", "voice"),
       action("plan-check-in", "Check in", "Update what changed", "/health/check-in"),
     ],
-    doctorNote: "No strong warning pattern stands out from the available data today.",
+    doctorNote: "No strong pattern stands out from the available data today.",
     signals: conditions.length
       ? [signal("plan-profile", "Profile context is available", "profile", "low")]
       : [],

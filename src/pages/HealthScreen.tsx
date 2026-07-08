@@ -2819,7 +2819,7 @@ const HealthScreen = () => {
     {
       id: "stay-well",
       icon: ShieldCheck,
-      title: t("health.master.cards.stayWell", "Stay Well"),
+      title: t("health.master.cards.stayWell", "Age Well"),
       detail: preventionCardDetail,
       accent: preventionCardAccent,
       tone: {

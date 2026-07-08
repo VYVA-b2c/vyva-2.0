@@ -467,6 +467,206 @@ describe("PreventionScreen", () => {
     }));
   });
 
+  it("turns a symptom follow-up into direct next steps", async () => {
+    mocks.apiFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      focus: "Follow-up",
+      headline: "Symptom follow-up today.",
+      why: ["Latest symptom report: Pain when urinating with back or side pain.", "The report suggested follow-up."],
+      todayAction: "Ask VYVA to connect pain when urinating with back or side pain with your health context.",
+      helpSigns: ["Fever or chills", "Worsening back pain", "Blood in urine"],
+      primaryRoute: "/health/doctor",
+      secondaryRoute: "/health/doctor",
+      confidence: "moderate",
+      insights: [
+        {
+          id: "follow-up-report",
+          label: "Symptom",
+          value: "Pain when urinating with back or side pain",
+          detail: "VYVA can connect this with your saved context.",
+          tone: "alert",
+          route: "/informes/triage-uti",
+        },
+      ],
+      actions: [
+        {
+          id: "follow-up-context",
+          label: "Ask VYVA",
+          detail: "Use symptoms, medicines, and profile",
+          route: "/health/doctor",
+          priority: "primary",
+          mode: "voice",
+        },
+        {
+          id: "follow-up-symptoms",
+          label: "Check symptoms",
+          detail: "Review signs to watch",
+          route: "/health/symptom-check",
+          priority: "secondary",
+        },
+        {
+          id: "follow-up-summary",
+          label: "Make summary",
+          detail: "Prepare a clear note",
+          route: "/health/doctor",
+          priority: "secondary",
+          mode: "voice",
+        },
+      ],
+      dailyActions: [
+        {
+          id: "follow-up-context",
+          step: "RIGHT NOW",
+          title: "Check the pattern",
+          detail: "Symptoms, medicine, and BP 168/96 together.",
+          chips: ["Urinary pain", "Hypertension", "Lisinopril", "BP 168/96"],
+          why: "VYVA can connect today's symptom with the health context already saved.",
+          evidenceLabel: "",
+          tone: "support",
+          actionSheet: {
+            title: "Check the pattern",
+            summary: "Symptom follow-up: Pain when urinating with back or side pain. Use saved context: hypertension, medicine routine, and recent readings.",
+            primaryAction: {
+              id: "talk-context",
+              label: "Ask VYVA",
+              detail: "Explain what matters from my context",
+              route: "/health/doctor",
+              priority: "primary",
+              mode: "voice",
+            },
+            secondaryActions: [],
+          },
+          feedbackOptions: dailyFeedbackOptions,
+        },
+        {
+          id: "follow-up-watch-signs",
+          step: "WATCH FOR",
+          title: "Watch urinary changes",
+          detail: "For this urinary pain follow-up.",
+          chips: ["Fever", "Back pain worse", "Blood"],
+          why: "These signs can help you decide whether to check again or get help sooner.",
+          evidenceLabel: "Get help if",
+          tone: "check",
+          actionSheet: {
+            title: "Watch urinary changes",
+            summary: "Review what to watch.",
+            primaryAction: {
+              id: "check-symptoms",
+              label: "Check symptoms",
+              detail: "Open symptom check",
+              route: "/health/symptom-check",
+              priority: "primary",
+            },
+            secondaryActions: [],
+          },
+          feedbackOptions: dailyFeedbackOptions,
+        },
+        {
+          id: "follow-up-summary",
+          step: "IF NEEDED",
+          title: "Save a summary",
+          detail: "Keep symptoms, readings, and medicine together.",
+          chips: ["Timing", "BP", "Lisinopril"],
+          why: "A simple summary makes it easier to explain what changed.",
+          evidenceLabel: "",
+          tone: "support",
+          actionSheet: {
+            title: "Save a summary",
+            summary: "Symptom follow-up: Pain when urinating with back or side pain.",
+            primaryAction: {
+              id: "prepare-summary",
+              label: "Make summary",
+              detail: "Create a short note from my context",
+              route: "/health/doctor",
+              priority: "primary",
+              mode: "voice",
+            },
+            secondaryActions: [],
+          },
+          feedbackOptions: dailyFeedbackOptions,
+        },
+      ],
+      personalizationSummary: ["Follow-up context", "Hypertension"],
+      weeklySummary: {
+        headline: "VYVA is rotating your plan.",
+        detail: "Recently seen moves are rotated.",
+        bullets: [],
+        doctorSummary: "Follow-up focus.",
+        caregiverSummary: "Follow-up focus.",
+      },
+      learning: {
+        title: "New options to ask about",
+        detail: "Generic prevention content",
+        askPrompt: "Build a prevention plan.",
+      },
+      doctorNote: "Latest symptom report: Pain when urinating with back or side pain.",
+      generatedAt: "2026-07-02T10:00:00.000Z",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    renderPrevention();
+
+    await waitFor(() => expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Urinary pain + BP 168/96 today."));
+    expect(screen.getByTestId("prevention-hero")).toHaveTextContent("Follow-up");
+    expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Age Well Today");
+    expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Let's make sense");
+    expect(screen.queryByTestId("prevention-followup-context")).not.toBeInTheDocument();
+    expect(screen.getByTestId("prevention-hero")).not.toHaveTextContent("Pain when urinating with back or side pain");
+    expect(screen.getByTestId("prevention-guidance-panel")).toHaveTextContent("VYVA can help");
+    expect(screen.getByTestId("prevention-daily-actions")).not.toHaveTextContent("RIGHT NOW");
+    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Check the pattern");
+    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Symptoms + medicine + BP 168/96");
+    expect(screen.queryByTestId("prevention-daily-chips-follow-up-context")).not.toBeInTheDocument();
+    expect(screen.getByTestId("prevention-daily-actions")).not.toHaveTextContent("WATCH FOR");
+    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Watch urinary changes");
+    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Fever, Back pain worse, Blood");
+    expect(screen.queryByTestId("prevention-daily-chips-follow-up-watch-signs")).not.toBeInTheDocument();
+    expect(screen.getByTestId("prevention-daily-actions")).not.toHaveTextContent("IF NEEDED");
+    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Save a summary");
+    expect(screen.getByTestId("prevention-daily-actions")).toHaveTextContent("Timing + readings + medicine");
+    expect(screen.queryByTestId("prevention-daily-chips-follow-up-summary")).not.toBeInTheDocument();
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Put the picture together");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Signs to watch");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Prepare a clear summary");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("PLAN");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("REVIEW");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("PROTECT");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("NEXT STEP");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Mention this to your doctor");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Worth checking");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("your doctor");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Get advice");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Open report");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("captured");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("serious");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("urgent");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("warning");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("risk");
+    expect(screen.queryByTestId("prevention-help-signs")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("prevention-loop-summary")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("prevention-weekly-memory")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("prevention-learning")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("prevention-actions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("prevention-personalization")).not.toBeInTheDocument();
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Easy food");
+    expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("VYVA learned");
+
+    fireEvent.click(screen.getByTestId("button-prevention-daily-follow-up-context"));
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
+      state: expect.objectContaining({ autoStartVoice: true }),
+    }));
+
+    fireEvent.click(screen.getByTestId("button-prevention-daily-follow-up-watch-signs"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/health/symptom-check", expect.objectContaining({
+      state: expect.objectContaining({
+        initialClue: expect.stringContaining("Pain when urinating with back or side pain"),
+      }),
+    }));
+
+    fireEvent.click(screen.getByTestId("button-prevention-daily-follow-up-summary"));
+    expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
+      state: expect.objectContaining({ autoStartVoice: true }),
+    }));
+  });
+
   it("sends local prevention learning context to the endpoint", async () => {
     window.localStorage.setItem("vyva-prevention-loop:history", JSON.stringify([
       {

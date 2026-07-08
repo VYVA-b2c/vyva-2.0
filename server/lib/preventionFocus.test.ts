@@ -122,6 +122,15 @@ describe("prevention focus engine", () => {
   it("prioritizes Follow-up for a recent symptom report", () => {
     const result = buildPreventionFocus({
       now,
+      conditions: ["Vertigo"],
+      activeMedications: [{ medicationName: "Amlodipine" }],
+      latestVitals: {
+        signalType: "pulse",
+        metricType: "heart_rate",
+        value: "72",
+        unit: "bpm",
+        recordedAt: "2026-07-01T08:00:00.000Z",
+      },
       latestSymptomReport: {
         id: "triage-1",
         chiefComplaint: "Mild dizziness",
@@ -133,17 +142,35 @@ describe("prevention focus engine", () => {
     });
 
     expect(result.focus).toBe("Follow-up");
-    expect(result.primaryRoute).toBe("/informes/triage-1");
+    expect(result.headline).toBe("Symptom follow-up today.");
+    expect(result.todayAction).toBe("Ask VYVA to connect dizziness with Vertigo.");
+    expect(result.primaryRoute).toBe("/health/doctor");
     expect(result.helpSigns).toEqual(["Worse dizziness", "Fainting"]);
-    expect(result.guidance.find((item) => item.id === "do")?.actionSheet?.primaryAction.route).toBe("/informes/triage-1");
     expect(result.dailyActions.map((item) => item.id)).toEqual([
-      "symptom_simple_rest_005",
-      "symptom_rest_note_009",
-      "symptom_what_changed_001",
+      "follow-up-context",
+      "follow-up-watch-signs",
+      "follow-up-summary",
     ]);
-    expect(result.dailyActions.find((item) => item.id === "symptom_simple_rest_005")?.step).toBe("Eat");
-    expect(result.dailyActions.find((item) => item.id === "symptom_what_changed_001")?.actionSheet.primaryAction.route).toBe("/health/symptom-check");
-    expect(result.dailyActions.find((item) => item.id === "symptom_rest_note_009")?.step).toBe("Calm");
+    expect(result.dailyActions.find((item) => item.id === "follow-up-context")).toMatchObject({
+      step: "RIGHT NOW",
+      title: "Check the pattern",
+      detail: "Symptoms, medicine, and Pulse 72 together.",
+      chips: ["Dizziness", "Vertigo", "Amlodipine", "Pulse 72"],
+    });
+    expect(result.dailyActions.find((item) => item.id === "follow-up-watch-signs")).toMatchObject({
+      step: "WATCH FOR",
+      title: "Watch dizziness worse or fainting",
+      detail: "For this dizziness follow-up.",
+      chips: ["Dizziness worse", "Fainting"],
+    });
+    expect(result.dailyActions.find((item) => item.id === "follow-up-summary")).toMatchObject({
+      step: "IF NEEDED",
+      title: "Save a summary",
+      detail: "Keep symptoms, readings, and medicine together.",
+      chips: ["Timing", "Pulse", "Amlodipine"],
+    });
+    expect(result.dailyActions.find((item) => item.id === "follow-up-context")?.actionSheet.primaryAction.route).toBe("/health/doctor");
+    expect(result.dailyActions.find((item) => item.id === "follow-up-watch-signs")?.actionSheet.primaryAction.route).toBe("/health/symptom-check");
   });
 
   it("returns Plan when no strong signal is available", () => {
@@ -222,17 +249,6 @@ describe("prevention focus engine", () => {
         now,
         activeMedications: [{ medicationName: "Metformin", scheduledTimes: ["08:00"] }],
         adherence: { scheduledToday: 1, takenToday: 0, missedOrLate30: 2 },
-      }),
-      buildPreventionFocus({
-        now,
-        latestSymptomReport: {
-          id: "triage-1",
-          chiefComplaint: "Mild dizziness",
-          urgency: "routine",
-          nextStepLevel: "doctor_today",
-          watchSigns: ["Worse dizziness"],
-          createdAt: "2026-07-01T09:00:00.000Z",
-        },
       }),
       buildPreventionFocus({ now }),
     ];
