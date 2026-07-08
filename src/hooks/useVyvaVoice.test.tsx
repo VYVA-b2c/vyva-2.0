@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { useVyvaVoice, VyvaVoiceProvider } from "./useVyvaVoice";
+import {
+  VYVA_VOICE_SESSION_STORAGE_KEY,
+  VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
+} from "@/lib/voiceSessionBridge";
 
 const voiceMocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
@@ -91,6 +95,7 @@ function VoiceHarness({ onController }: { onController: (controller: VoiceContro
 describe("useVyvaVoice", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
     createdConversations.length = 0;
     voiceMocks.apiFetch.mockReset();
     voiceMocks.getToken.mockReset();
@@ -143,6 +148,7 @@ describe("useVyvaVoice", () => {
   afterEach(() => {
     cleanup();
     sessionStorage.clear();
+    localStorage.clear();
   });
 
   it("starts a new ElevenLabs session after the user stops the previous one", async () => {
@@ -219,6 +225,73 @@ describe("useVyvaVoice", () => {
     expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(
       "Use the health voice context without overriding the ElevenLabs prompt.",
     );
+  });
+
+  it("shares the ElevenLabs conversation id with the symptom check page", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("health questions", undefined, {
+        agentSlug: "health",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionId = sessionStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY);
+    expect(sessionId).toBeTruthy();
+    expect(localStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY)).toBe(sessionId);
+  });
+
+  it("syncs tapped symptom-check answers into the active ElevenLabs session", async () => {
+    let controller: VoiceController | null = null;
+
+    render(
+      <VyvaVoiceProvider>
+        <VoiceHarness onController={(nextController) => {
+          controller = nextController;
+        }} />
+      </VyvaVoiceProvider>,
+    );
+
+    await waitFor(() => expect(controller).not.toBeNull());
+
+    await act(async () => {
+      await controller?.startVoice("health questions", undefined, {
+        agentSlug: "health",
+        autoStartListening: true,
+        skipMicrophone: true,
+      });
+    });
+
+    const sessionId = sessionStorage.getItem(VYVA_VOICE_SESSION_STORAGE_KEY);
+    expect(sessionId).toBeTruthy();
+    createdConversations[0].sendContextualUpdate.mockClear();
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, {
+        detail: {
+          conversationId: sessionId,
+          utterance: "No, I can stand safely.",
+          choiceId: "no_red_flags",
+          nextQuestion: "How long has this been happening?",
+          status: "active",
+        },
+      }));
+    });
+
+    expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(expect.stringContaining("No, I can stand safely."));
+    expect(createdConversations[0].sendContextualUpdate).toHaveBeenCalledWith(expect.stringContaining("How long has this been happening?"));
   });
 
   it("adds final ElevenLabs agent messages to the visible VYVA transcript", async () => {

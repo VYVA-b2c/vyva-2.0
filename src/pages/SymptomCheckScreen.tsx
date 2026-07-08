@@ -17,6 +17,12 @@ import { apiFetch, queryClient } from "@/lib/queryClient";
 import { compactReportRecommendations, uniqueReportLines } from "@/lib/reportRecommendations";
 import { getSymptomRecommendationActionKinds, type SymptomRecommendationActionKind } from "@/lib/symptomReportActions";
 import { emitVoiceSpecialistTransfer, VOICE_SPECIALIST_AGENT_SLUGS } from "@/lib/voiceNavigation";
+import {
+  clearVoiceSessionId,
+  emitVoiceTriageTouchAnswer,
+  readVoiceSessionId,
+  VYVA_VOICE_SESSION_CHANGED_EVENT,
+} from "@/lib/voiceSessionBridge";
 import type { TriagePersonalizedSuggestion } from "@/triage";
 import type { ShoppingSupportPackageId } from "../../shared/shopping";
 import type { TriageScanResult } from "../../shared/triageScans";
@@ -261,7 +267,6 @@ type ReportAction = {
 const SYMPTOM_CHECK_DRAFT_KEY = "vyva.symptomCheck.draft.v1";
 const SYMPTOM_CHECK_DRAFT_TTL_MS = 2 * 60 * 60 * 1000;
 const SYMPTOM_CHECK_VISITED_KEY = "vyva_symptom_check_visited";
-const VOICE_SESSION_STORAGE_KEY = "vyva.voice.sessionId";
 
 type SymptomCheckDraft = {
   version: 1;
@@ -280,24 +285,6 @@ type SymptomCheckDraft = {
 };
 
 const canUseSessionStorage = () => typeof window !== "undefined" && Boolean(window.sessionStorage);
-
-function readCurrentVoiceSessionId() {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(VOICE_SESSION_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function clearCurrentVoiceSessionId() {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(VOICE_SESSION_STORAGE_KEY);
-  } catch {
-    // Ignore private-mode storage errors.
-  }
-}
 
 function readSymptomCheckVisited() {
   if (typeof window === "undefined") return false;
@@ -3444,7 +3431,7 @@ export default function SymptomCheckScreen() {
   const [chatDraft, setChatDraft] = useState<TriageChatDraft | null>(() => restoredDraft?.chatDraft ?? null);
   const [resumePendingRequest] = useState(() => Boolean(restoredDraft?.chatDraft?.pendingRequest));
   const [showFirstVisitGuide, setShowFirstVisitGuide] = useState(() => !readSymptomCheckVisited());
-  const [voiceTriageSessionId, setVoiceTriageSessionId] = useState<string | null>(() => readCurrentVoiceSessionId());
+  const [voiceTriageSessionId, setVoiceTriageSessionId] = useState<string | null>(() => readVoiceSessionId());
   const [voiceStartPending, setVoiceStartPending] = useState(false);
   const voiceStartResetTimerRef = useRef<number | null>(null);
   const { data: voiceTriageSession } = useQuery<VoiceTriageSessionResponse | null>({
@@ -3458,7 +3445,7 @@ export default function SymptomCheckScreen() {
       return res.json() as Promise<VoiceTriageSessionResponse>;
     },
     retry: false,
-    refetchInterval: voiceTriageSessionId ? 2500 : false,
+    refetchInterval: voiceTriageSessionId ? 1000 : false,
   });
   const voiceTriageAnswerMutation = useMutation({
     mutationFn: async (answer: VoiceTriageAnswerInput) => {
@@ -3476,8 +3463,16 @@ export default function SymptomCheckScreen() {
       if (!res.ok) throw new Error(`${res.status}`);
       return res.json() as Promise<VoiceTriageLatestResponse>;
     },
-    onSuccess: (latest) => {
+    onSuccess: (latest, answer) => {
       if (!voiceTriageSessionId) return;
+      emitVoiceTriageTouchAnswer({
+        conversationId: voiceTriageSessionId,
+        utterance: answer.utterance,
+        choiceId: answer.choiceId ?? null,
+        vitalsText: answer.vitalsText ?? null,
+        nextQuestion: latest.question?.text || latest.spoken_text || null,
+        status: latest.status ?? "active",
+      });
       queryClient.setQueryData<VoiceTriageSessionResponse | null>(
         ["/api/voice-triage/session", voiceTriageSessionId],
         (current) => current
@@ -3520,7 +3515,7 @@ export default function SymptomCheckScreen() {
       voiceStartResetTimerRef.current = null;
     }
     clearSymptomCheckDraft();
-    clearCurrentVoiceSessionId();
+    clearVoiceSessionId();
     setBpm(null);
     setRespiratoryRate(null);
     setChatStartTime(null);
@@ -3591,8 +3586,9 @@ export default function SymptomCheckScreen() {
   }, []);
 
   const refreshVoiceSessionIdSoon = useCallback(() => {
-    window.setTimeout(() => setVoiceTriageSessionId(readCurrentVoiceSessionId()), 250);
-    window.setTimeout(() => setVoiceTriageSessionId(readCurrentVoiceSessionId()), 1200);
+    setVoiceTriageSessionId(readVoiceSessionId());
+    window.setTimeout(() => setVoiceTriageSessionId(readVoiceSessionId()), 250);
+    window.setTimeout(() => setVoiceTriageSessionId(readVoiceSessionId()), 1200);
   }, []);
 
   const scheduleVoiceStartReset = useCallback(() => {
@@ -3608,6 +3604,17 @@ export default function SymptomCheckScreen() {
   useEffect(() => {
     if (voiceTriageSessionId) setVoiceStartPending(false);
   }, [voiceTriageSessionId]);
+
+  useEffect(() => {
+    const syncVoiceSessionId = () => setVoiceTriageSessionId(readVoiceSessionId());
+    syncVoiceSessionId();
+    window.addEventListener(VYVA_VOICE_SESSION_CHANGED_EVENT, syncVoiceSessionId);
+    window.addEventListener("storage", syncVoiceSessionId);
+    return () => {
+      window.removeEventListener(VYVA_VOICE_SESSION_CHANGED_EVENT, syncVoiceSessionId);
+      window.removeEventListener("storage", syncVoiceSessionId);
+    };
+  }, []);
 
   useEffect(() => () => {
     if (voiceStartResetTimerRef.current !== null) {
@@ -3887,11 +3894,32 @@ export default function SymptomCheckScreen() {
   const isWideWorkspace = step === "intro";
   const shellMaxWidth = isWideWorkspace ? "max-w-[1120px]" : "max-w-[920px]";
   const topBarMaxWidth = isWideWorkspace ? "max-w-[1040px]" : "max-w-[760px]";
+  const provisionalVoiceTriageSession: VoiceTriageSessionResponse | null =
+    voiceStartPending && voiceTriageSessionId && !voiceTriageSession
+      ? {
+          conversation_id: voiceTriageSessionId,
+          status: "active",
+          latest_response: {
+            ok: true,
+            status: "active",
+            spoken_text: t("health.symptomCheck.voicePanel.connectingPrompt", "Connecting to VYVA. Tell VYVA what has changed today."),
+            question: {
+              stage: "start",
+              text: t("health.symptomCheck.voicePanel.connectingQuestion", "Tell VYVA what has changed today."),
+              reason: t("health.symptomCheck.voicePanel.connectingReason", "VYVA is starting the same safety-first check for voice and touch."),
+              profile_context_used: true,
+              choices: [],
+            },
+          },
+        }
+      : null;
+  const activeVoiceTriageSession = voiceTriageSession ?? provisionalVoiceTriageSession;
+  const canAnswerVoiceTriageSession = Boolean(voiceTriageSession);
 
   return (
     <HealthWizardShell contentClassName={`flex min-h-[calc(100dvh-204px)] ${shellMaxWidth} flex-col px-0 pb-10 pt-0`}>
       <div className={`mx-auto w-full ${topBarMaxWidth} px-4 pt-3 sm:px-5 lg:px-0`} data-testid="symptom-check-shell">
-        {step === "intro" && !voiceTriageSession ? (
+        {step === "intro" && !activeVoiceTriageSession ? (
           <button
             type="button"
             onClick={handleBack}
@@ -3902,7 +3930,7 @@ export default function SymptomCheckScreen() {
           </button>
         ) : (
           <HealthWizardTopBar
-            title={voiceTriageSession ? t("health.symptomCheck.voicePanel.topBarTitle", "Symptoms Check") : stepTitle[step]}
+            title={activeVoiceTriageSession ? t("health.symptomCheck.voicePanel.topBarTitle", "Symptoms Check") : stepTitle[step]}
             kicker={t("health.symptomCheck.intro.stepLabel", "Symptom check")}
             onBack={handleBack}
             backLabel={t("common.back", "Back")}
@@ -3921,7 +3949,7 @@ export default function SymptomCheckScreen() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        {step === "intro" && !voiceTriageSession && (
+        {step === "intro" && !activeVoiceTriageSession && (
           <IntroScreen
             onStart={handleIntroStart}
             onTalkToVyva={handleTalkToVyva}
@@ -3936,12 +3964,12 @@ export default function SymptomCheckScreen() {
           />
         )}
 
-        {voiceTriageSession ? (
+        {activeVoiceTriageSession ? (
           <VoiceTriageLivePanel
-            session={voiceTriageSession}
-            onAnswer={handleVoiceTriageAnswer}
+            session={activeVoiceTriageSession}
+            onAnswer={canAnswerVoiceTriageSession ? handleVoiceTriageAnswer : undefined}
             onStartOver={resetSymptomCheck}
-            isAnswering={voiceTriageAnswerMutation.isPending}
+            isAnswering={voiceTriageAnswerMutation.isPending || !canAnswerVoiceTriageSession}
           />
         ) : null}
 

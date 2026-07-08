@@ -13,6 +13,12 @@ import {
   isVoiceAppActionDomain,
   specialistTransferFromToolCall,
 } from "@/lib/voiceNavigation";
+import {
+  ensureVoiceSessionId,
+  readVoiceSessionId,
+  VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT,
+  type VoiceTriageTouchAnswerDetail,
+} from "@/lib/voiceSessionBridge";
 import { deriveVoiceSessionPhase, type VoiceSessionPhase } from "@/lib/voiceSessionState";
 import { recordVoiceTimelineEvent } from "@/lib/voiceTimeline";
 
@@ -176,7 +182,6 @@ type ActiveVoiceRecommendation = {
 
 const VYVA_AGENT_ID = import.meta.env.VITE_ELEVENLABS_AGENT_ID ?? "agent_0401knfndsypfmqa31ssw82h364m";
 const FALLBACK_USER_ID = "vyva-local-user";
-const VOICE_SESSION_STORAGE_KEY = "vyva.voice.sessionId";
 const VOICE_FORCE_STOP_EVENT = "vyva:voice-force-stop";
 const ALLOW_PUBLIC_AGENT_FALLBACK =
   import.meta.env.DEV && import.meta.env.VITE_ELEVENLABS_ALLOW_PUBLIC_FALLBACK === "true";
@@ -464,18 +469,30 @@ function userIdFromToken() {
 }
 
 function getVoiceSessionId() {
-  try {
-    const existing = sessionStorage.getItem(VOICE_SESSION_STORAGE_KEY);
-    if (existing) return existing;
-    const next =
-      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    sessionStorage.setItem(VOICE_SESSION_STORAGE_KEY, next);
-    return next;
-  } catch {
-    return `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return ensureVoiceSessionId();
+}
+
+function voiceTriageTouchContext(detail: VoiceTriageTouchAnswerDetail) {
+  const answer = detail.utterance.trim() || detail.choiceId?.trim() || "a tapped answer";
+  const nextQuestion = detail.nextQuestion?.trim();
+  const status = detail.status?.trim();
+
+  if (status === "complete") {
+    return `The user tapped this answer in the app: "${answer}". The shared VYVA triage session has completed and saved the result. Do not ask the same question again.`;
   }
+
+  if (status === "emergency") {
+    return `The user tapped this answer in the app: "${answer}". The shared VYVA triage session is now in emergency guidance. Speak only the emergency guidance from the triage tool and do not downgrade urgency.`;
+  }
+
+  return [
+    `The user tapped this answer in the app: "${answer}".`,
+    "The shared VYVA triage session has already processed this answer.",
+    nextQuestion
+      ? `Continue from this current triage question: "${nextQuestion}".`
+      : "Continue from the current triage question shown in the app.",
+    "Do not call the triage tool again for the tapped answer.",
+  ].join(" ");
 }
 
 function createVoiceInstanceId() {
@@ -860,6 +877,26 @@ function useVyvaVoiceController() {
         console.warn("[VYVA] Failed to send app context update:", error);
       }
     });
+  }, []);
+
+  useEffect(() => {
+    const handleTouchAnswer = (event: Event) => {
+      const detail = event instanceof CustomEvent
+        ? event.detail as VoiceTriageTouchAnswerDetail | undefined
+        : undefined;
+      if (!detail?.conversationId) return;
+      if (detail.conversationId !== readVoiceSessionId()) return;
+      if (statusRef.current !== "connected" || !conversationRef.current) return;
+
+      try {
+        conversationRef.current.sendContextualUpdate(voiceTriageTouchContext(detail));
+      } catch (error) {
+        console.warn("[VYVA] Failed to sync touch answer into voice session:", error);
+      }
+    };
+
+    window.addEventListener(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, handleTouchAnswer);
+    return () => window.removeEventListener(VYVA_VOICE_TRIAGE_TOUCH_ANSWER_EVENT, handleTouchAnswer);
   }, []);
 
   const fetchSessionOptions = useCallback(
