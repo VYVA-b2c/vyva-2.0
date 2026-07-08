@@ -5,6 +5,8 @@ import {
   COGNITIVE_ASSESSMENT_LANGUAGES,
   COGNITIVE_ASSESSMENT_STATIC_TASK_IDS,
   type CognitiveAssessmentLanguageReadiness,
+  type CognitiveAssessmentOperationsReadiness,
+  type CognitiveAssessmentReminderCommunicationStatus,
   type CognitiveAssessmentReadinessRequirement,
   type CognitiveAssessmentReadinessResponse,
 } from "../../shared/cognitiveAssessmentReadiness.js";
@@ -28,6 +30,20 @@ export type CognitiveReadinessRotationCountRow = {
   active_count: number | string;
 };
 
+type CognitiveReadinessCountRow = {
+  count: number | string;
+};
+
+type CognitiveReadinessCommunicationRow = {
+  id: string;
+  channel: string;
+  status: string;
+  recipient: string;
+  created_at: Date | string | null;
+  sent_at: Date | string | null;
+  metadata: unknown;
+};
+
 export type CognitiveReadinessInput = {
   taskDefinitions: CognitiveReadinessTaskDefinitionRow[];
   itemCounts: CognitiveReadinessItemCountRow[];
@@ -42,6 +58,31 @@ function countValue(value: number | string | null | undefined) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function envValue(key: string) {
+  return process.env[key]?.trim() ?? "";
+}
+
+function firstEnvValue(keys: string[]) {
+  return keys.map(envValue).find(Boolean) ?? "";
+}
+
+function numberEnv(key: string, fallback: number) {
+  const value = Number(envValue(key) || fallback);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function iso(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function metadataString(metadata: unknown, key: string) {
+  if (!isRecord(metadata)) return null;
+  const value = metadata[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function hasStaticLanguage(contentStatic: unknown, language: CognitiveAssessmentLanguage) {
@@ -171,6 +212,128 @@ export function evaluateCognitiveAssessmentReadiness(
   };
 }
 
+function communicationStatusFromRow(
+  row: CognitiveReadinessCommunicationRow | null | undefined,
+): CognitiveAssessmentReminderCommunicationStatus | null {
+  if (!row) return null;
+  return {
+    id: row.id,
+    channel: row.channel,
+    status: row.status,
+    recipient: row.recipient,
+    createdAt: iso(row.created_at),
+    sentAt: iso(row.sent_at),
+    scheduledFor: metadataString(row.metadata, "scheduled_for"),
+    error: metadataString(row.metadata, "dispatch_error"),
+  };
+}
+
+export async function loadCognitiveAssessmentOperationsReadiness(
+  database: Pick<Pool, "query"> = pool,
+): Promise<CognitiveAssessmentOperationsReadiness> {
+  const intervalMs = numberEnv("COMMUNICATION_DISPATCH_INTERVAL_MS", 0);
+  const dispatcherEnabled = intervalMs > 0;
+  const batchSize = numberEnv("COMMUNICATION_DISPATCH_BATCH_SIZE", 25);
+  const twilioCredentialsConfigured = Boolean(envValue("TWILIO_ACCOUNT_SID") && envValue("TWILIO_AUTH_TOKEN"));
+  const whatsappSender = firstEnvValue([
+    "TWILIO_WHATSAPP_MESSAGING_SERVICE_SID",
+    "TWILIO_WHATSAPP_FROM",
+    "TWILIO_WHATSAPP_FROM_NUMBER",
+  ]);
+  const whatsappProvider = envValue("TWILIO_WHATSAPP_MESSAGING_SERVICE_SID")
+    ? "Twilio WhatsApp service"
+    : whatsappSender
+      ? "Twilio WhatsApp sender"
+      : "Twilio WhatsApp";
+
+  const [
+    activeEnrollmentResult,
+    dueNowResult,
+    queuedPendingResult,
+    lastQueuedResult,
+    lastErrorResult,
+  ] = await Promise.all([
+    database.query<CognitiveReadinessCountRow>(`
+      select count(*)::int as count
+      from public.cc_program_enrollments
+      where status = 'active'
+    `),
+    database.query<CognitiveReadinessCountRow>(`
+      select count(*)::int as count
+      from public.cc_program_enrollments e
+      join public.scheduled_interactions si on si.id = e.scheduled_interaction_id
+      where e.status = 'active'
+        and si.interaction_type = 'BRAIN_COACH'
+        and si.source_ref_id = 'cognitive_assessment'
+        and si.status = 'ACTIVE'
+        and si.is_paused = false
+        and si.next_run_at is not null
+        and si.next_run_at <= now()
+    `),
+    database.query<CognitiveReadinessCountRow>(`
+      select count(*)::int as count
+      from public.communications_log
+      where purpose = 'cognitive_assessment_reminder'
+        and status in ('queued', 'sending')
+    `),
+    database.query<CognitiveReadinessCommunicationRow>(`
+      select
+        id::text,
+        channel,
+        status,
+        recipient,
+        created_at,
+        sent_at,
+        metadata
+      from public.communications_log
+      where purpose = 'cognitive_assessment_reminder'
+      order by created_at desc
+      limit 1
+    `),
+    database.query<CognitiveReadinessCommunicationRow>(`
+      select
+        id::text,
+        channel,
+        status,
+        recipient,
+        created_at,
+        sent_at,
+        metadata
+      from public.communications_log
+      where purpose = 'cognitive_assessment_reminder'
+        and status = 'failed'
+      order by created_at desc
+      limit 1
+    `),
+  ]);
+
+  return {
+    dispatcher: {
+      enabled: dispatcherEnabled,
+      intervalMs: dispatcherEnabled ? intervalMs : null,
+      batchSize,
+      missingConfig: dispatcherEnabled ? [] : ["COMMUNICATION_DISPATCH_INTERVAL_MS"],
+    },
+    whatsapp: {
+      configured: twilioCredentialsConfigured && Boolean(whatsappSender),
+      credentialsConfigured: twilioCredentialsConfigured,
+      senderConfigured: Boolean(whatsappSender),
+      provider: whatsappProvider,
+      missingConfig: [
+        ...(!twilioCredentialsConfigured ? ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"] : []),
+        ...(!whatsappSender ? ["TWILIO_WHATSAPP_FROM or TWILIO_WHATSAPP_MESSAGING_SERVICE_SID"] : []),
+      ],
+    },
+    reminders: {
+      activeEnrollments: countValue(activeEnrollmentResult.rows[0]?.count),
+      dueNow: countValue(dueNowResult.rows[0]?.count),
+      queuedPending: countValue(queuedPendingResult.rows[0]?.count),
+      lastQueued: communicationStatusFromRow(lastQueuedResult.rows[0]),
+      lastError: communicationStatusFromRow(lastErrorResult.rows[0]),
+    },
+  };
+}
+
 export async function loadCognitiveAssessmentReadiness(
   database: Pick<Pool, "query"> = pool,
 ) {
@@ -178,7 +341,7 @@ export async function loadCognitiveAssessmentReadiness(
     "taskDefinitionId" in requirementDefinition ? [requirementDefinition.taskDefinitionId] : []
   ));
 
-  const [taskDefinitionResult, itemCountResult, rotationCountResult] = await Promise.all([
+  const [taskDefinitionResult, itemCountResult, rotationCountResult, operations] = await Promise.all([
     database.query<CognitiveReadinessTaskDefinitionRow>(`
       select id, content_source, content_static
       from public.cc_task_definitions
@@ -206,13 +369,18 @@ export async function loadCognitiveAssessmentReadiness(
         and language = any($1::text[])
       group by language
     `, [[...COGNITIVE_ASSESSMENT_LANGUAGES]]),
+    loadCognitiveAssessmentOperationsReadiness(database),
   ]);
 
-  return evaluateCognitiveAssessmentReadiness({
+  const readiness = evaluateCognitiveAssessmentReadiness({
     taskDefinitions: taskDefinitionResult.rows,
     itemCounts: itemCountResult.rows,
     rotationCounts: rotationCountResult.rows,
   });
+  return {
+    ...readiness,
+    operations,
+  };
 }
 
 export function cognitiveReadinessBlockersForLanguage(

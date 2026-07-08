@@ -30,6 +30,37 @@ const readinessResponse: CognitiveAssessmentReadinessResponse = {
     missingIds: [],
     unexpectedIds: [],
   },
+  operations: {
+    dispatcher: {
+      enabled: true,
+      intervalMs: 60000,
+      batchSize: 25,
+      missingConfig: [],
+    },
+    whatsapp: {
+      configured: true,
+      credentialsConfigured: true,
+      senderConfigured: true,
+      provider: "Twilio WhatsApp sender",
+      missingConfig: [],
+    },
+    reminders: {
+      activeEnrollments: 7,
+      dueNow: 1,
+      queuedPending: 2,
+      lastQueued: {
+        id: "communication-1",
+        channel: "whatsapp",
+        status: "sent",
+        recipient: "+15551234567",
+        createdAt: "2026-07-05T11:30:00.000Z",
+        sentAt: "2026-07-05T11:31:00.000Z",
+        scheduledFor: "2026-07-05T11:30:00.000Z",
+        error: null,
+      },
+      lastError: null,
+    },
+  },
   blockers: [],
   languages: ["es", "de", "en", "fr", "pt"].map((language) => ({
     language: language as CognitiveAssessmentReadinessResponse["languages"][number]["language"],
@@ -79,6 +110,15 @@ describe("CognitiveAssessmentAdminPage", () => {
     await waitFor(() => expect(screen.getByText("12/12")).toBeInTheDocument());
 
     expect(screen.getByText("5-language readiness")).toBeInTheDocument();
+    expect(screen.getByText("Operations monitor")).toBeInTheDocument();
+    expect(screen.getByText("Reminder health")).toBeInTheDocument();
+    expect(screen.getByText("Reminders")).toBeInTheDocument();
+    expect(screen.getByText("Every 1 min - 7 active - 2 pending")).toBeInTheDocument();
+    expect(screen.getByText("WhatsApp")).toBeInTheDocument();
+    expect(screen.getByText("Twilio WhatsApp sender")).toBeInTheDocument();
+    expect(screen.getByText("Last queued")).toBeInTheDocument();
+    expect(screen.getByText("Last error")).toBeInTheDocument();
+    expect(screen.getByText("No failed Cognitive reminder sends.")).toBeInTheDocument();
     expect(screen.getByText("Member start status")).toBeInTheDocument();
     expect(screen.getByText("Task registry")).toBeInTheDocument();
     expect(screen.getByText("12/12")).toBeInTheDocument();

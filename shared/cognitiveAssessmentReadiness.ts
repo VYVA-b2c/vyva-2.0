@@ -87,12 +87,47 @@ export type CognitiveAssessmentTaskDefinitionReadiness = {
   unexpectedIds: string[];
 };
 
+export type CognitiveAssessmentReminderCommunicationStatus = {
+  id: string;
+  channel: string;
+  status: string;
+  recipient: string;
+  createdAt: string | null;
+  sentAt: string | null;
+  scheduledFor: string | null;
+  error: string | null;
+};
+
+export type CognitiveAssessmentOperationsReadiness = {
+  dispatcher: {
+    enabled: boolean;
+    intervalMs: number | null;
+    batchSize: number;
+    missingConfig: string[];
+  };
+  whatsapp: {
+    configured: boolean;
+    credentialsConfigured: boolean;
+    senderConfigured: boolean;
+    provider: string;
+    missingConfig: string[];
+  };
+  reminders: {
+    activeEnrollments: number;
+    dueNow: number;
+    queuedPending: number;
+    lastQueued: CognitiveAssessmentReminderCommunicationStatus | null;
+    lastError: CognitiveAssessmentReminderCommunicationStatus | null;
+  };
+};
+
 export type CognitiveAssessmentReadinessResponse = {
   ready: boolean;
   generatedAt: string;
   taskDefinitions: CognitiveAssessmentTaskDefinitionReadiness;
   languages: CognitiveAssessmentLanguageReadiness[];
   blockers: string[];
+  operations?: CognitiveAssessmentOperationsReadiness;
 };
 
 export function cognitiveAssessmentLanguageLabel(language: CognitiveAssessmentLanguage) {

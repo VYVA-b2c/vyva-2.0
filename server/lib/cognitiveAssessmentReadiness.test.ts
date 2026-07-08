@@ -7,6 +7,7 @@ import {
 import {
   cognitiveReadinessBlockersForLanguage,
   evaluateCognitiveAssessmentReadiness,
+  loadCognitiveAssessmentOperationsReadiness,
   type CognitiveReadinessInput,
 } from "./cognitiveAssessmentReadiness.js";
 
@@ -86,5 +87,87 @@ describe("cognitive assessment readiness", () => {
     expect(french?.ready).toBe(false);
     expect(french?.blockers).toContain("Similarities: 0/4");
     expect(english?.ready).toBe(true);
+  });
+
+  it("summarizes reminder operations from config and send logs", async () => {
+    const previousEnv = {
+      COMMUNICATION_DISPATCH_INTERVAL_MS: process.env.COMMUNICATION_DISPATCH_INTERVAL_MS,
+      COMMUNICATION_DISPATCH_BATCH_SIZE: process.env.COMMUNICATION_DISPATCH_BATCH_SIZE,
+      TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+      TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+      TWILIO_WHATSAPP_FROM: process.env.TWILIO_WHATSAPP_FROM,
+      TWILIO_WHATSAPP_MESSAGING_SERVICE_SID: process.env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID,
+    };
+    process.env.COMMUNICATION_DISPATCH_INTERVAL_MS = "60000";
+    process.env.COMMUNICATION_DISPATCH_BATCH_SIZE = "10";
+    process.env.TWILIO_ACCOUNT_SID = "AC_test";
+    process.env.TWILIO_AUTH_TOKEN = "secret";
+    process.env.TWILIO_WHATSAPP_FROM = "whatsapp:+15550000000";
+    delete process.env.TWILIO_WHATSAPP_MESSAGING_SERVICE_SID;
+
+    const database = {
+      query: async (sql: string) => {
+        if (sql.includes("from public.cc_program_enrollments") && sql.includes("where status = 'active'")) {
+          return { rows: [{ count: 7 }] };
+        }
+        if (sql.includes("join public.scheduled_interactions")) {
+          return { rows: [{ count: 1 }] };
+        }
+        if (sql.includes("status in ('queued', 'sending')")) {
+          return { rows: [{ count: 2 }] };
+        }
+        if (sql.includes("and status = 'failed'")) {
+          return {
+            rows: [{
+              id: "communication-error",
+              channel: "whatsapp",
+              status: "failed",
+              recipient: "+15550000001",
+              created_at: "2026-07-05T11:35:00.000Z",
+              sent_at: null,
+              metadata: {
+                scheduled_for: "2026-07-05T11:30:00.000Z",
+                dispatch_error: "WhatsApp sender is not configured",
+              },
+            }],
+          };
+        }
+        if (sql.includes("purpose = 'cognitive_assessment_reminder'")) {
+          return {
+            rows: [{
+              id: "communication-queued",
+              channel: "whatsapp",
+              status: "sent",
+              recipient: "+15550000001",
+              created_at: "2026-07-05T11:30:00.000Z",
+              sent_at: "2026-07-05T11:31:00.000Z",
+              metadata: {
+                scheduled_for: "2026-07-05T11:30:00.000Z",
+              },
+            }],
+          };
+        }
+        return { rows: [] };
+      },
+    };
+
+    try {
+      const operations = await loadCognitiveAssessmentOperationsReadiness(database);
+
+      expect(operations.dispatcher).toMatchObject({ enabled: true, intervalMs: 60000, batchSize: 10 });
+      expect(operations.whatsapp).toMatchObject({ configured: true, provider: "Twilio WhatsApp sender" });
+      expect(operations.reminders).toMatchObject({
+        activeEnrollments: 7,
+        dueNow: 1,
+        queuedPending: 2,
+      });
+      expect(operations.reminders.lastQueued?.id).toBe("communication-queued");
+      expect(operations.reminders.lastError?.error).toBe("WhatsApp sender is not configured");
+    } finally {
+      Object.entries(previousEnv).forEach(([key, value]) => {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      });
+    }
   });
 });
