@@ -109,6 +109,7 @@ export type PreventionLoopFeedbackEvent = {
 export type PreventionLoopContext = {
   clientHour?: number;
   recentFeedback?: PreventionLoopFeedbackEvent[];
+  dismissedFollowUpIds?: string[];
 };
 
 export type PreventionTimeOfDay = "morning" | "afternoon" | "evening" | "night";
@@ -237,6 +238,12 @@ export type PreventionFocusResult = {
   weeklySummary: PreventionWeeklySummary;
   ranking: PreventionRankingMeta;
   doctorNote: string;
+  followUp?: {
+    reportId?: string | null;
+    reportedAt?: string | null;
+    subject: string;
+    topic: string;
+  };
   generatedAt: string;
 };
 
@@ -442,6 +449,12 @@ function symptomAgeDays(input: PreventionFocusInput): number | null {
   if (Number.isNaN(created.getTime())) return null;
   const now = input.now ?? new Date();
   return Math.max(0, Math.floor((now.getTime() - created.getTime()) / 86_400_000));
+}
+
+function isoDateOrNull(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function symptomReportRoute(input: PreventionFocusInput): string {
@@ -2639,6 +2652,14 @@ export function buildPreventionFocus(input: PreventionFocusInput): PreventionFoc
     selected.doctorNote,
     weeklySummary.doctorSummary,
   ]);
+  const followUp = selected.focus === "Follow-up" && input.latestSymptomReport
+    ? {
+      reportId: input.latestSymptomReport.id ?? null,
+      reportedAt: isoDateOrNull(input.latestSymptomReport.createdAt),
+      subject: symptomReportSubject(input),
+      topic: followUpTopic(input),
+    }
+    : undefined;
 
   return {
     focus: selected.focus,
@@ -2660,6 +2681,7 @@ export function buildPreventionFocus(input: PreventionFocusInput): PreventionFoc
     weeklySummary,
     ranking,
     doctorNote,
+    ...(followUp ? { followUp } : {}),
     generatedAt: (input.now ?? new Date()).toISOString(),
   };
 }

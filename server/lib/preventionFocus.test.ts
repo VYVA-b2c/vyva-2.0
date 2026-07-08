@@ -143,6 +143,12 @@ describe("prevention focus engine", () => {
 
     expect(result.focus).toBe("Follow-up");
     expect(result.headline).toBe("Symptom follow-up today.");
+    expect(result.followUp).toEqual({
+      reportId: "triage-1",
+      reportedAt: "2026-07-01T09:00:00.000Z",
+      subject: "Mild dizziness",
+      topic: "dizziness",
+    });
     expect(result.todayAction).toBe("Ask VYVA to connect dizziness with Vertigo.");
     expect(result.primaryRoute).toBe("/health/doctor");
     expect(result.helpSigns).toEqual(["Worse dizziness", "Fainting"]);

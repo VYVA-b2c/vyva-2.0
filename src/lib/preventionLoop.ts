@@ -55,10 +55,18 @@ export type PreventionLoopLastView = {
   viewedAt: string;
 };
 
+export type PreventionLoopRequestContext = {
+  clientHour: number;
+  recentFeedback: PreventionLoopHistoryEvent[];
+  dismissedFollowUpIds: string[];
+};
+
 export const PREVENTION_LOOP_LAST_FEEDBACK_KEY = "vyva-prevention-loop:last-feedback";
 export const PREVENTION_LOOP_LAST_VIEW_KEY = "vyva-prevention-loop:last-view";
 export const PREVENTION_LOOP_HISTORY_KEY = "vyva-prevention-loop:history";
+export const PREVENTION_DISMISSED_FOLLOWUPS_KEY = "vyva-prevention-loop:dismissed-followups";
 export const PREVENTION_LOOP_MAX_HISTORY = 30;
+export const PREVENTION_LOOP_MAX_DISMISSED_FOLLOWUPS = 20;
 
 export function preventionDateKey(value: string | undefined): string {
   const raw = String(value ?? "").slice(0, 10);
@@ -113,11 +121,31 @@ export function appendPreventionLoopHistory(events: PreventionLoopHistoryEvent[]
   writeStoredJson(PREVENTION_LOOP_HISTORY_KEY, next);
 }
 
-export function learningContextForPreventionRequest() {
+export function readDismissedFollowUpIds(): string[] {
+  const dismissed = readStoredJson<unknown>(PREVENTION_DISMISSED_FOLLOWUPS_KEY);
+  if (!Array.isArray(dismissed)) return [];
+  return dismissed
+    .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    .map((item) => item.trim())
+    .slice(0, PREVENTION_LOOP_MAX_DISMISSED_FOLLOWUPS);
+}
+
+export function dismissPreventionFollowUp(id: string) {
+  const cleanId = id.trim();
+  if (!cleanId) return;
+  const next = [
+    cleanId,
+    ...readDismissedFollowUpIds().filter((item) => item !== cleanId),
+  ].slice(0, PREVENTION_LOOP_MAX_DISMISSED_FOLLOWUPS);
+  writeStoredJson(PREVENTION_DISMISSED_FOLLOWUPS_KEY, next);
+}
+
+export function learningContextForPreventionRequest(): PreventionLoopRequestContext {
   const now = new Date();
   return {
     clientHour: now.getHours(),
     recentFeedback: readPreventionLoopHistory(),
+    dismissedFollowUpIds: readDismissedFollowUpIds(),
   };
 }
 
@@ -125,5 +153,6 @@ export function encodePreventionLearningQuery(value: ReturnType<typeof learningC
   return encodeURIComponent(JSON.stringify({
     clientHour: value.clientHour,
     recentFeedback: value.recentFeedback.slice(0, PREVENTION_LOOP_MAX_HISTORY),
+    dismissedFollowUpIds: value.dismissedFollowUpIds.slice(0, PREVENTION_LOOP_MAX_DISMISSED_FOLLOWUPS),
   }));
 }
