@@ -90,17 +90,17 @@ describe("CognitiveAssessmentHubPage", () => {
   it("renders program setup for members who have not joined", async () => {
     renderHub();
 
-    expect(await screen.findByText("Set up a regular memory and thinking check")).toBeInTheDocument();
-    expect(screen.getByText("10-15 min")).toBeInTheDocument();
-    expect(screen.getByText("Monthly check")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /join program/i })).toBeInTheDocument();
+    expect(await screen.findByText("Check in")).toBeInTheDocument();
+    expect(screen.getByText("Plan")).toBeInTheDocument();
+    expect(screen.getByText(/Recommended/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^join$/i })).toBeInTheDocument();
   });
 
   it("renders active program actions for joined members", async () => {
     renderHub(joinedProgram);
 
-    expect(await screen.findByText("Active")).toBeInTheDocument();
-    expect(screen.getByText("Next reminder")).toBeInTheDocument();
+    expect(await screen.findByText("Joined")).toBeInTheDocument();
+    expect(screen.getByText("Next check")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /continue check/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /view report/i })).toBeEnabled();
@@ -150,12 +150,19 @@ describe("CognitiveAssessmentHubPage", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: /join program/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /2 weeks/i }));
+    fireEvent.click(screen.getByRole("button", { name: /afternoon/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^join$/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/cognitive-assessment/program/join",
       expect.objectContaining({ method: "POST" }),
     ));
-    expect(await screen.findByText("Active")).toBeInTheDocument();
+    const joinCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/program/join"));
+    expect(JSON.parse(String(joinCall?.[1]?.body))).toMatchObject({
+      frequency: "every_2_weeks",
+      reminderTime: "14:00",
+    });
+    expect(await screen.findByText("Joined")).toBeInTheDocument();
   });
 });
