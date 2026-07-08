@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Archive, CheckCircle2, ChevronLeft, ChevronRight, Download, FilePlus2, ImagePlus, Loader2, Save, Search, Upload } from "lucide-react";
+import { Archive, CheckCircle2, ChevronLeft, ChevronRight, Download, FilePlus2, ImagePlus, Loader2, Save, Search, Sparkles, Upload } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 import { apiFetch } from "@/lib/queryClient";
@@ -16,6 +16,7 @@ type Category = {
 
 type LessonStatus = "draft" | "review" | "published" | "archived";
 type LessonDifficulty = "easy" | "medium" | "deep";
+type ImageFilter = "all" | "missing" | "with_image";
 
 type Lesson = {
   id: string;
@@ -362,12 +363,14 @@ export default function LearningLibraryAdminPage() {
   const [statusFilter, setStatusFilter] = useState<LessonStatus | "all">("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [languageFilter, setLanguageFilter] = useState("all");
+  const [imageFilter, setImageFilter] = useState<ImageFilter>("all");
   const [search, setSearch] = useState("");
   const [lessonPage, setLessonPage] = useState(1);
   const [lessonPageSize, setLessonPageSize] = useState(25);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [bulkGeneratingImages, setBulkGeneratingImages] = useState(false);
   const [importing, setImporting] = useState(false);
   const [bulkPublishing, setBulkPublishing] = useState(false);
   const [message, setMessage] = useState("");
@@ -439,15 +442,34 @@ export default function LearningLibraryAdminPage() {
       { total: 0, published: 0, pending: 0 },
     );
   }, [coverageLessons]);
+  const imageCoverageSummary = useMemo(() => {
+    return coverageLessons.reduce(
+      (summary, lesson) => {
+        if (lesson.status !== "published" || !lesson.isActive) return summary;
+        summary.total += 1;
+        if (lesson.imageUrl?.trim()) {
+          summary.ready += 1;
+        } else {
+          summary.missing += 1;
+        }
+        return summary;
+      },
+      { total: 0, ready: 0, missing: 0 },
+    );
+  }, [coverageLessons]);
+  const imageCoveragePercent = imageCoverageSummary.total > 0
+    ? Math.round((imageCoverageSummary.ready / imageCoverageSummary.total) * 100)
+    : 0;
 
   const lessonQuery = useMemo(() => {
     const params = new URLSearchParams();
     params.set("status", statusFilter);
     params.set("category", categoryFilter);
     params.set("language", languageFilter);
+    params.set("image", imageFilter);
     if (search.trim()) params.set("search", search.trim());
     return `/api/admin/learning/lessons?${params.toString()}`;
-  }, [categoryFilter, languageFilter, search, statusFilter]);
+  }, [categoryFilter, imageFilter, languageFilter, search, statusFilter]);
 
   async function loadData(options: { clearMessage?: boolean } = {}) {
     setLoading(true);
@@ -605,6 +627,41 @@ export default function LearningLibraryAdminPage() {
     }
   }
 
+  async function generateMissingImages() {
+    setBulkGeneratingImages(true);
+    setMessage("");
+    setEditorMessage("");
+    try {
+      const response = await apiFetch("/api/admin/learning/lessons/generate-missing-images", {
+        method: "POST",
+        body: JSON.stringify({
+          limit: 5,
+          status: "published",
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(responseErrorMessage(payload, "Missing lesson images could not be generated."));
+      await loadData({ clearMessage: false });
+      const summary = payload.summary ?? {};
+      const generated = Number(summary.lessonsGenerated ?? 0);
+      const failed = Number(summary.lessonsFailed ?? 0);
+      const missingAfter = Number(summary.missingPublishedAfter ?? Math.max(0, imageCoverageSummary.missing - generated));
+      const nextMessage = generated === 0 && failed === 0
+        ? "All published lessons already have custom images."
+        : failed > 0
+          ? `Generated ${generated} image${generated === 1 ? "" : "s"}; ${failed} failed. ${missingAfter} published lesson${missingAfter === 1 ? "" : "s"} still need images.`
+          : `Generated ${generated} image${generated === 1 ? "" : "s"}. ${missingAfter} published lesson${missingAfter === 1 ? "" : "s"} still need images.`;
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : "Missing lesson images could not be generated.";
+      setMessage(nextMessage);
+      setEditorMessage(nextMessage);
+    } finally {
+      setBulkGeneratingImages(false);
+    }
+  }
+
   async function quickAction(action: "publish" | "archive") {
     if (!draft.id) {
       await saveLesson(action === "publish" ? "published" : "archived");
@@ -645,6 +702,7 @@ export default function LearningLibraryAdminPage() {
   function focusCoverageCell(category: Category, language: CoverageLanguage, counts: CoverageCounts) {
     setCategoryFilter(category.slug);
     setLanguageFilter(language);
+    setImageFilter("all");
     setSearch("");
     setLessonPage(1);
     if (counts.published > 0) {
@@ -895,9 +953,64 @@ export default function LearningLibraryAdminPage() {
           </div>
         </section>
 
+        <section
+          className="mt-5 rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm"
+          aria-labelledby="learning-image-coverage-title"
+          data-testid="admin-learning-image-coverage"
+        >
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-purple-700">Visual coverage</p>
+              <h2 id="learning-image-coverage-title" className="mt-1 text-lg font-black text-[#2f2135]">Custom lesson images</h2>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-[#7d6b65]">
+                Published lessons should have a lesson-specific image before they reach learners. Generate a small batch, review, then continue.
+              </p>
+              <div className="mt-3 h-3 overflow-hidden rounded-full bg-[#E9E0D8]" aria-label={`${imageCoveragePercent}% of published lessons have custom images`}>
+                <div
+                  className="h-full rounded-full bg-[#6D28D9] transition-all"
+                  style={{ width: `${imageCoveragePercent}%` }}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 lg:min-w-[360px]">
+              <div className="flex flex-wrap gap-2 text-xs font-black text-[#7d6b65]">
+                <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{imageCoverageSummary.ready} ready</span>
+                <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{imageCoverageSummary.missing} missing</span>
+                <span className="rounded-full bg-[#FBF8F5] px-3 py-1">{imageCoveragePercent}% covered</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter("published");
+                    setImageFilter("missing");
+                    setSearch("");
+                    setLessonPage(1);
+                  }}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-[#FFFCF8] px-3 text-sm font-black text-[#5b4a46] transition hover:border-purple-200 hover:text-purple-700"
+                  data-testid="button-admin-learning-show-missing-images"
+                >
+                  <ImagePlus size={16} />
+                  Show missing visuals
+                </button>
+                <button
+                  type="button"
+                  disabled={bulkGeneratingImages || imageCoverageSummary.missing === 0}
+                  onClick={() => void generateMissingImages()}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#6D28D9] px-3 text-sm font-black text-white transition hover:bg-[#5B21B6] disabled:opacity-60"
+                  data-testid="button-admin-learning-generate-missing-images"
+                >
+                  {bulkGeneratingImages ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                  {bulkGeneratingImages ? "Generating" : "Generate next 5"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_440px]">
           <div className="rounded-2xl border border-[#eadfd5] bg-white p-4 shadow-sm">
-            <div className="grid gap-3 lg:grid-cols-[1fr_160px_160px_160px]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_150px_150px_150px_150px]">
               <label className="relative block">
                 <Search className="absolute left-3 top-3 text-[#8b7a73]" size={16} />
                 <input
@@ -922,6 +1035,11 @@ export default function LearningLibraryAdminPage() {
               <select value={languageFilter} onChange={(event) => setLanguageFilter(event.target.value)} className={inputClass}>
                 <option value="all">All languages</option>
                 {["en", "es", "fr", "de", "it", "pt"].map((language) => <option key={language} value={language}>{language.toUpperCase()}</option>)}
+              </select>
+              <select value={imageFilter} onChange={(event) => setImageFilter(event.target.value as ImageFilter)} className={inputClass} data-testid="select-admin-learning-image-filter">
+                <option value="all">All visuals</option>
+                <option value="missing">Missing visual</option>
+                <option value="with_image">Has visual</option>
               </select>
             </div>
             <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1059,7 +1177,14 @@ export default function LearningLibraryAdminPage() {
                       </label>
                       <span className="min-w-0">
                         <span className="block truncate text-[15px] font-black text-[#2f2135]">{lesson.title}</span>
-                        <span className="mt-1 block truncate text-xs font-semibold text-[#7d6b65]">{lesson.hook}</span>
+                        <span className="mt-1 flex min-w-0 items-center gap-2 text-xs font-semibold text-[#7d6b65]">
+                          <span className="truncate">{lesson.hook}</span>
+                          {lesson.imageUrl?.trim() ? null : (
+                            <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-black text-amber-800">
+                              Missing visual
+                            </span>
+                          )}
+                        </span>
                       </span>
                       <span className="truncate text-sm font-bold text-[#5b4a46]">{category?.label ?? lesson.categorySlug}</span>
                       <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-black ${statusClass(lesson.status)}`}>{lesson.status}</span>

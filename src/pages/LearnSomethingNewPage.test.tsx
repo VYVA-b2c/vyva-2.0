@@ -227,6 +227,34 @@ describe("LearnSomethingNewPage", () => {
     expect(screen.queryByText("Curious Minds")).not.toBeInTheDocument();
   });
 
+  it("lets the learner move to the next lesson without navigating to a game", async () => {
+    mocks.apiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ program, todayItem: program.items[1] }),
+    });
+
+    renderLearningPage({
+      onboardingRequired: false,
+      categories,
+      program,
+      todayItem: program.items[0],
+    });
+
+    expect(await screen.findByTestId("learn-today-lesson")).toHaveTextContent("Why soap helps water clean");
+    fireEvent.click(screen.getByTestId("button-learn-next"));
+
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith("/api/learning/events", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        programId: "program-1",
+        programItemId: "item-1",
+        eventType: "skipped",
+        source: "learn_hub",
+      }),
+    })));
+    expect(screen.queryByText("Curious Minds")).not.toBeInTheDocument();
+  });
+
   it("makes voice consumption primary when the user chose voice", async () => {
     window.localStorage.setItem("vyva.learning.mode", "voice");
 
