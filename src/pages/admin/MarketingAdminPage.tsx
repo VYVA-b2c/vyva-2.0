@@ -40,6 +40,7 @@ type MarketingSummary = {
     journeys: number;
     content: number;
     contacts: number;
+    audiences: number;
     thisWeek: number;
     scheduled: number;
     published: number;
@@ -165,6 +166,20 @@ type MarketingContact = {
   lovableExternalId: string | null;
 };
 
+type MarketingAudience = {
+  id: string;
+  name: string;
+  description: string | null;
+  listType: string;
+  rules: Record<string, unknown>;
+  source: string;
+  lovableExternalId: string | null;
+  memberCount: number;
+  mappedMemberCount: number;
+  unmappedContactExternalIds: string[];
+  lastSyncedAt: string | null;
+};
+
 type SyncRun = {
   id: string;
   provider: string;
@@ -253,6 +268,7 @@ const emptySummary: MarketingSummary = {
     journeys: 0,
     content: 0,
     contacts: 0,
+    audiences: 0,
     thisWeek: 0,
     scheduled: 0,
     published: 0,
@@ -421,6 +437,42 @@ function contactSegments(contact: MarketingContact) {
   ].filter(Boolean);
 }
 
+const syncCountLabels = {
+  campaigns: "Campaigns",
+  contacts: "Contacts",
+  content: "Content",
+  journeys: "Journeys",
+  audiences: "Audiences",
+  audienceMembers: "Audience members",
+  mappedAudienceMembers: "Mapped members",
+} as const;
+
+type SyncCountKey = keyof typeof syncCountLabels;
+
+function recordValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function syncCountItems(summary: Record<string, unknown>, group: "exported" | "imported" | "skipped") {
+  const source = recordValue(summary[group]);
+  return (Object.keys(syncCountLabels) as SyncCountKey[])
+    .map((key) => ({ key, label: syncCountLabels[key], value: numberValue(source[key]) }))
+    .filter((item) => item.value > 0);
+}
+
+function syncUnmappedCount(summary: Record<string, unknown>) {
+  return numberValue(recordValue(summary.unmapped).audienceContactExternalIdCount);
+}
+
+function syncUnmappedSample(summary: Record<string, unknown>) {
+  const ids = recordValue(summary.unmapped).audienceContactExternalIds;
+  return Array.isArray(ids) ? ids.map((id) => String(id)).filter(Boolean).slice(0, 5) : [];
+}
+
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(url, options);
   const body = await response.json().catch(() => null) as T | { error?: string } | null;
@@ -489,6 +541,45 @@ function SectionCard({ title, subtitle, children, action }: { title: string; sub
   );
 }
 
+function SyncRunDiagnostics({ run }: { run: SyncRun }) {
+  const exported = syncCountItems(run.summary, "exported");
+  const imported = syncCountItems(run.summary, "imported");
+  const skipped = syncCountItems(run.summary, "skipped");
+  const unmappedCount = syncUnmappedCount(run.summary);
+  const unmappedSample = syncUnmappedSample(run.summary);
+  if (!exported.length && !imported.length && !skipped.length && !unmappedCount) return null;
+  return (
+    <div className="mt-3 grid gap-2 rounded-xl bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
+      {exported.length ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Exported by Lovable</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {exported.map((item) => <Pill key={`exported-${item.key}`} className="bg-blue-50 text-blue-800">{item.label}: {item.value}</Pill>)}
+          </div>
+        </div>
+      ) : null}
+      {imported.length ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Imported into VYVA</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {imported.map((item) => <Pill key={`imported-${item.key}`} className="bg-emerald-50 text-emerald-800">{item.label}: {item.value}</Pill>)}
+          </div>
+        </div>
+      ) : null}
+      {skipped.length || unmappedCount ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Needs review</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {skipped.map((item) => <Pill key={`skipped-${item.key}`} className="bg-amber-50 text-amber-800">Skipped {item.label}: {item.value}</Pill>)}
+            {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
+          </div>
+          {unmappedSample.length ? <p className="mt-2 font-semibold">Examples: {unmappedSample.join(", ")}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 
@@ -499,6 +590,7 @@ export default function MarketingAdminPage() {
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [content, setContent] = useState<ContentAsset[]>([]);
   const [contacts, setContacts] = useState<MarketingContact[]>([]);
+  const [audiences, setAudiences] = useState<MarketingAudience[]>([]);
   const [syncState, setSyncState] = useState<SyncState>(emptySync);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
@@ -545,12 +637,13 @@ export default function MarketingAdminPage() {
   });
 
   async function refreshAll() {
-    const [summaryBody, campaignBody, journeyBody, contentBody, contactBody, syncBody] = await Promise.all([
+    const [summaryBody, campaignBody, journeyBody, contentBody, contactBody, audienceBody, syncBody] = await Promise.all([
       api<MarketingSummary>("/api/admin/marketing/summary"),
       api<{ campaigns: Campaign[] }>("/api/admin/marketing/campaigns"),
       api<{ journeys: Journey[] }>("/api/admin/marketing/journeys"),
       api<{ content: ContentAsset[] }>("/api/admin/marketing/content"),
       api<{ contacts: MarketingContact[] }>("/api/admin/marketing/contacts"),
+      api<{ audiences: MarketingAudience[] }>("/api/admin/marketing/audiences"),
       api<SyncState>("/api/admin/marketing/sync/lovable"),
     ]);
     setSummary(summaryBody);
@@ -558,6 +651,7 @@ export default function MarketingAdminPage() {
     setJourneys(journeyBody.journeys);
     setContent(contentBody.content);
     setContacts(contactBody.contacts);
+    setAudiences(audienceBody.audiences);
     setSyncState(syncBody);
   }
 
@@ -583,6 +677,18 @@ export default function MarketingAdminPage() {
     const matchesAudience = audienceFilter === "all" || contact.audienceType === audienceFilter;
     return matchesSearch && matchesAudience;
   }), [contacts, search, audienceFilter]);
+
+  const visibleAudiences = useMemo(() => audiences.filter((audience) => {
+    const haystack = [
+      audience.name,
+      audience.description,
+      audience.listType,
+      audience.source,
+      audience.lovableExternalId,
+      ...(audience.unmappedContactExternalIds ?? []),
+    ].map((value) => lower(value)).join(" ");
+    return !search || haystack.includes(search.toLowerCase());
+  }), [audiences, search]);
 
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
@@ -1012,8 +1118,9 @@ export default function MarketingAdminPage() {
 
           {activeTab === "dashboard" && (
             <div className="grid gap-4" data-testid="marketing-dashboard-tab">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <MetricCard label="Total campaigns" value={summary.totals.campaigns} icon={Megaphone} />
+                <MetricCard label="Audiences" value={summary.totals.audiences} icon={UsersRound} />
                 <MetricCard label="This week" value={summary.totals.thisWeek} icon={CalendarDays} />
                 <MetricCard label="Scheduled" value={summary.totals.scheduled} icon={Clock} />
                 <MetricCard label="Published" value={summary.totals.published} icon={CheckCircle2} />
@@ -1491,6 +1598,34 @@ export default function MarketingAdminPage() {
                   ) : null}
                 </form>
               </SectionCard>
+              <SectionCard title="Audiences / lists" subtitle={`${visibleAudiences.length} visible of ${audiences.length} imported lists.`}>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-audiences-list">
+                  {visibleAudiences.length === 0 ? (
+                    <EmptyState text="No imported lists match the filters." />
+                  ) : visibleAudiences.map((audience) => {
+                    const unmappedCount = audience.unmappedContactExternalIds.length;
+                    return (
+                      <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-black">{audience.name}</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">{audience.description || `${audience.listType} list`}</p>
+                          </div>
+                          <Pill className="bg-purple-50 text-purple-800">{audience.source}</Pill>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          <Pill className="bg-blue-50 text-blue-800">{audience.memberCount} members</Pill>
+                          <Pill className="bg-emerald-50 text-emerald-800">{audience.mappedMemberCount} mapped</Pill>
+                          {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">{unmappedCount} unmapped</Pill> : null}
+                        </div>
+                        {unmappedCount ? (
+                          <p className="mt-2 text-xs font-semibold text-[#8b5d13]">Unmapped examples: {audience.unmappedContactExternalIds.slice(0, 3).join(", ")}</p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
               <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
                 <div className="overflow-hidden rounded-xl border border-[#eadfd5]">
                   <table className="w-full border-collapse text-left text-sm">
@@ -1585,6 +1720,7 @@ export default function MarketingAdminPage() {
                           <span className="text-xs font-bold text-[#7d6b65]">{formatDate(run.createdAt)}</span>
                         </div>
                         {run.error ? <p className="mt-2 text-sm font-bold text-red-700">{run.error}</p> : null}
+                        <SyncRunDiagnostics run={run} />
                       </div>
                     ))}
                   </div>

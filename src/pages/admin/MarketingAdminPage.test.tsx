@@ -23,6 +23,7 @@ const summary = {
     journeys: 1,
     content: 2,
     contacts: 2,
+    audiences: 1,
     thisWeek: 1,
     scheduled: 1,
     published: 0,
@@ -173,6 +174,22 @@ const contacts = [
   },
 ];
 
+const audiences = [
+  {
+    id: "audience-1",
+    name: "Partners",
+    description: "Imported partner list",
+    listType: "static",
+    rules: { market: "Spain" },
+    source: "lovable",
+    lovableExternalId: "lovable-audience-1",
+    memberCount: 2,
+    mappedMemberCount: 1,
+    unmappedContactExternalIds: ["missing-contact"],
+    lastSyncedAt: "2026-07-05T09:00:00.000Z",
+  },
+];
+
 const sync = {
   provider: "lovable",
   configured: false,
@@ -182,7 +199,22 @@ const sync = {
   mode: "one_way_into_vyva",
   realSendingLocked: false,
   lockedSendCapabilities: summary.lockedSendCapabilities,
-  runs: [],
+  runs: [{
+    id: "sync-1",
+    provider: "lovable",
+    status: "succeeded",
+    startedAt: "2026-07-05T09:00:00.000Z",
+    completedAt: "2026-07-05T09:01:00.000Z",
+    summary: {
+      exported: { campaigns: 2, contacts: 2, content: 2, journeys: 1, audiences: 1 },
+      imported: { campaigns: 2, contacts: 2, content: 2, journeys: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1 },
+      skipped: {},
+      unmapped: { audienceContactExternalIdCount: 1, audienceContactExternalIds: ["missing-contact"] },
+    },
+    error: null,
+    createdBy: "karim.assad@mokadigital.net",
+    createdAt: "2026-07-05T09:00:00.000Z",
+  }],
 };
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -203,6 +235,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/journeys" && method === "GET") return jsonResponse({ journeys });
     if (path === "/api/admin/marketing/content" && method === "GET") return jsonResponse({ content });
     if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts });
+    if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
@@ -236,6 +269,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByRole("link", { name: /Marketing.*Campaigns, contacts and sync/i })).toBeInTheDocument();
     expect(screen.getByTestId("marketing-send-readiness-panel")).toHaveTextContent("Email campaign sending is enabled");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Total campaigns");
+    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Audiences");
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
@@ -255,11 +289,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Vertical: healthcare");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("List: Partners");
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Email is enabled through VYVA");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Exported by Lovable");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Audiences: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
   });

@@ -5,6 +5,8 @@ import { db } from "../db.js";
 import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
 import {
   communicationsLog,
+  marketingAudienceMembers,
+  marketingAudiences,
   marketingCampaignChannels,
   marketingCampaignRecipients,
   marketingCampaigns,
@@ -13,6 +15,8 @@ import {
   marketingJourneySteps,
   marketingJourneys,
   marketingSyncRuns,
+  type MarketingAudienceMemberRow,
+  type MarketingAudienceRow,
   type MarketingCampaignChannelRow,
   type MarketingCampaignRecipientRow,
   type MarketingCampaignRow,
@@ -201,6 +205,24 @@ function textArrayFrom(value: unknown) {
   }).filter(Boolean);
 }
 
+function uniqueTextArray(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
+}
+
+function audienceContactExternalIds(row: Record<string, unknown>) {
+  const memberIds = arrayFrom(row.members).map((item) => {
+    const member = asRecord(item);
+    return textFrom(member, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"]);
+  });
+  return uniqueTextArray([
+    ...textArrayFrom(row.contactExternalIds),
+    ...textArrayFrom(row.contact_external_ids),
+    ...textArrayFrom(row.contactIds),
+    ...textArrayFrom(row.contact_ids),
+    ...memberIds,
+  ]);
+}
+
 function nestedText(primary: Record<string, unknown>, secondary: Record<string, unknown>, tertiary: Record<string, unknown>, keys: string[]) {
   return emptyToNull(textFrom(primary, keys))
     ?? emptyToNull(textFrom(secondary, keys))
@@ -370,11 +392,12 @@ function serializeJourney(row: MarketingJourneyRow, steps: MarketingJourneyStepR
   };
 }
 
-function serializeContact(row: MarketingContactRow) {
+function serializeContact(row: MarketingContactRow, audienceListNames: string[] = []) {
   const metadata = asRecord(row.metadata);
   const lovable = asRecord(metadata.lovable);
   const segmentation = asRecord(metadata.segmentation);
   const lists = [
+    ...audienceListNames,
     ...textArrayFrom(lovable.lists),
     ...textArrayFrom(lovable.listNames),
     ...textArrayFrom(lovable.audiences),
@@ -404,6 +427,27 @@ function serializeContact(row: MarketingContactRow) {
     lovableExternalId: row.lovable_external_id,
     lastSyncedAt: iso(row.last_synced_at),
     metadata: row.metadata,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+function serializeAudience(row: MarketingAudienceRow, members: MarketingAudienceMemberRow[] = []) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    listType: row.list_type,
+    rules: row.rules,
+    source: row.source,
+    lovableExternalId: row.lovable_external_id,
+    memberCount: members.length,
+    mappedMemberCount: members.filter((member) => Boolean(member.contact_id)).length,
+    unmappedContactExternalIds: members.filter((member) => !member.contact_id).map((member) => member.contact_external_id),
+    lastSyncedAt: iso(row.last_synced_at),
+    metadata: row.metadata,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
@@ -490,9 +534,10 @@ function textMatches(value: unknown, search: string) {
 
 adminMarketingRouter.get("/summary", async (_req, res) => {
   try {
-    const [contentRows, contactRows, journeyRows, latestRuns, bundle] = await Promise.all([
+    const [contentRows, contactRows, audienceRows, journeyRows, latestRuns, bundle] = await Promise.all([
       db.select().from(marketingContentAssets).orderBy(desc(marketingContentAssets.updated_at)).limit(1000),
       db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(2000),
+      db.select().from(marketingAudiences).orderBy(desc(marketingAudiences.updated_at)).limit(1000),
       db.select().from(marketingJourneys).orderBy(desc(marketingJourneys.updated_at)).limit(500),
       db.select().from(marketingSyncRuns).orderBy(desc(marketingSyncRuns.created_at)).limit(5),
       loadCampaignsBundle(),
@@ -515,6 +560,7 @@ adminMarketingRouter.get("/summary", async (_req, res) => {
         journeys: journeyRows.length,
         content: contentRows.length,
         contacts: contactRows.length,
+        audiences: audienceRows.length,
         thisWeek: bundle.campaignRows.filter((row) => row.schedule_starts_at && row.schedule_starts_at >= weekStart && row.schedule_starts_at < weekEnd).length,
         scheduled: bundle.campaignRows.filter((row) => row.status === "scheduled").length,
         published: bundle.campaignRows.filter((row) => row.status === "published").length,
@@ -1092,16 +1138,55 @@ adminMarketingRouter.delete("/journeys/:journeyId", async (req, res) => {
   }
 });
 
+adminMarketingRouter.get("/audiences", async (req, res) => {
+  try {
+    const search = String(req.query.search ?? "").trim().toLowerCase();
+    const [audienceRows, memberRows] = await Promise.all([
+      db.select().from(marketingAudiences).orderBy(desc(marketingAudiences.updated_at)).limit(1000),
+      db.select().from(marketingAudienceMembers).orderBy(asc(marketingAudienceMembers.created_at)).limit(100000),
+    ]);
+    const membersByAudience = groupBy(memberRows, (row) => row.audience_id);
+    const audiences = audienceRows
+      .map((row) => serializeAudience(row, membersByAudience.get(row.id)))
+      .filter((audience) => !search || [
+        audience.name,
+        audience.description,
+        audience.listType,
+        audience.source,
+        audience.lovableExternalId,
+        ...audience.unmappedContactExternalIds,
+      ].some((value) => textMatches(value, search)));
+    return res.json({ audiences });
+  } catch (error) {
+    console.error("[admin/marketing] audiences load failed", error);
+    return res.status(500).json({ error: "Marketing audiences could not be loaded." });
+  }
+});
+
 adminMarketingRouter.get("/contacts", async (req, res) => {
   try {
     const search = String(req.query.search ?? "").trim().toLowerCase();
     const audience = String(req.query.audience ?? "all");
-    const rows = await db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(2000);
+    const [rows, audienceRows, memberRows] = await Promise.all([
+      db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(2000),
+      db.select().from(marketingAudiences).orderBy(desc(marketingAudiences.updated_at)).limit(1000),
+      db.select().from(marketingAudienceMembers).orderBy(asc(marketingAudienceMembers.created_at)).limit(100000),
+    ]);
+    const audienceNameById = new Map(audienceRows.map((row) => [row.id, row.name]));
+    const audienceNamesByContactId = new Map<string, string[]>();
+    for (const member of memberRows) {
+      if (!member.contact_id) continue;
+      const name = audienceNameById.get(member.audience_id);
+      if (!name) continue;
+      const names = audienceNamesByContactId.get(member.contact_id) ?? [];
+      names.push(name);
+      audienceNamesByContactId.set(member.contact_id, names);
+    }
     const contacts = rows
       .filter((row) => audience === "all" || row.audience_type === audience)
       .filter((row) => {
         if (!search) return true;
-        const serialized = serializeContact(row);
+        const serialized = serializeContact(row, audienceNamesByContactId.get(row.id) ?? []);
         return [
           serialized.fullName,
           serialized.email,
@@ -1118,7 +1203,7 @@ adminMarketingRouter.get("/contacts", async (req, res) => {
           ...serialized.lists,
         ].some((value) => textMatches(value, search));
       })
-      .map(serializeContact);
+      .map((row) => serializeContact(row, audienceNamesByContactId.get(row.id) ?? []));
     return res.json({ contacts });
   } catch (error) {
     console.error("[admin/marketing] contacts load failed", error);
@@ -1257,6 +1342,56 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   return contact;
 }
 
+async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string, contactByExternalId: Map<string, string>) {
+  const row = asRecord(raw);
+  const externalId = normalizeLovableId(row);
+  if (!externalId) return null;
+  const contactExternalIds = audienceContactExternalIds(row);
+  const unmappedContactExternalIds = contactExternalIds.filter((contactExternalId) => !contactByExternalId.has(contactExternalId));
+  const payload = {
+    name: textFrom(row, ["name", "title"], "Untitled audience"),
+    description: emptyToNull(textFrom(row, ["description"])),
+    list_type: textFrom(row, ["listType", "list_type", "type"], "static"),
+    rules: asRecord(row.rules ?? row.ruleConfig ?? row.rule_config ?? row.filters),
+    source: "lovable",
+    lovable_external_id: externalId,
+    metadata: {
+      lovable: row,
+      contact_external_ids: contactExternalIds,
+      unmapped_contact_external_ids: unmappedContactExternalIds,
+    },
+    updated_by: actorLabel,
+    last_synced_at: now,
+    updated_at: now,
+  };
+  const [audience] = await db.insert(marketingAudiences)
+    .values({ ...payload, created_by: actorLabel })
+    .onConflictDoUpdate({ target: marketingAudiences.lovable_external_id, set: payload })
+    .returning();
+
+  await db.delete(marketingAudienceMembers).where(eq(marketingAudienceMembers.audience_id, audience.id));
+  if (contactExternalIds.length) {
+    await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => ({
+      audience_id: audience.id,
+      contact_id: contactByExternalId.get(contactExternalId) ?? null,
+      contact_external_id: contactExternalId,
+      source: "lovable",
+      metadata: {
+        lovable_audience_external_id: externalId,
+        mapped: contactByExternalId.has(contactExternalId),
+      },
+      updated_at: now,
+    })));
+  }
+
+  return {
+    audience,
+    memberCount: contactExternalIds.length,
+    mappedMemberCount: contactExternalIds.length - unmappedContactExternalIds.length,
+    unmappedContactExternalIds,
+  };
+}
+
 async function upsertLovableCampaign(raw: unknown, now: Date, actorLabel: string, contentByExternalId: Map<string, string>) {
   const row = asRecord(raw);
   const externalId = normalizeLovableId(row);
@@ -1369,8 +1504,13 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Lovable sync failed with ${response.status}`));
 
     const actorLabel = actor(req);
+    const contentPayload = arrayFrom(payload.content ?? payload.contentAssets ?? payload.assets);
+    const contactPayload = arrayFrom(payload.contacts);
+    const campaignPayload = arrayFrom(payload.campaigns);
+    const journeyPayload = arrayFrom(payload.journeys);
+    const audiencePayload = arrayFrom(payload.audiences ?? payload.lists ?? payload.contactLists);
     const contentRows = [];
-    for (const item of arrayFrom(payload.content ?? payload.contentAssets ?? payload.assets)) {
+    for (const item of contentPayload) {
       const content = await upsertLovableContent(item, now, actorLabel);
       if (content) contentRows.push(content);
     }
@@ -1385,26 +1525,77 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       }
     }
 
-    let contactCount = 0;
-    for (const item of arrayFrom(payload.contacts)) {
-      if (await upsertLovableContact(item, now)) contactCount += 1;
+    const contactRows = [];
+    for (const item of contactPayload) {
+      const contact = await upsertLovableContact(item, now);
+      if (contact) contactRows.push(contact);
+    }
+    const contactByExternalId = new Map(contactRows.map((item) => [item.lovable_external_id ?? "", item.id]).filter(([externalId]) => externalId));
+    if (contactByExternalId.size < contactRows.length) {
+      const ids = contactRows.map((item) => item.lovable_external_id).filter((value): value is string => Boolean(value));
+      if (ids.length) {
+        const rows = await db.select().from(marketingContacts).where(inArray(marketingContacts.lovable_external_id, ids));
+        for (const item of rows) {
+          if (item.lovable_external_id) contactByExternalId.set(item.lovable_external_id, item.id);
+        }
+      }
+    }
+
+    let audienceCount = 0;
+    let audienceMemberCount = 0;
+    let mappedAudienceMemberCount = 0;
+    const unmappedAudienceContactExternalIds: string[] = [];
+    for (const item of audiencePayload) {
+      const result = await upsertLovableAudience(item, now, actorLabel, contactByExternalId);
+      if (!result) continue;
+      audienceCount += 1;
+      audienceMemberCount += result.memberCount;
+      mappedAudienceMemberCount += result.mappedMemberCount;
+      unmappedAudienceContactExternalIds.push(...result.unmappedContactExternalIds);
     }
 
     let campaignCount = 0;
-    for (const item of arrayFrom(payload.campaigns)) {
+    for (const item of campaignPayload) {
       if (await upsertLovableCampaign(item, now, actorLabel, contentByExternalId)) campaignCount += 1;
     }
 
     let journeyCount = 0;
-    for (const item of arrayFrom(payload.journeys)) {
+    for (const item of journeyPayload) {
       if (await upsertLovableJourney(item, now, actorLabel, contentByExternalId)) journeyCount += 1;
     }
 
-    const summary = {
+    const exported = {
+      campaigns: campaignPayload.length,
+      contacts: contactPayload.length,
+      content: contentPayload.length,
+      journeys: journeyPayload.length,
+      audiences: audiencePayload.length,
+    };
+    const imported = {
       campaigns: campaignCount,
-      contacts: contactCount,
+      contacts: contactRows.length,
       content: contentRows.length,
       journeys: journeyCount,
+      audiences: audienceCount,
+      audienceMembers: audienceMemberCount,
+      mappedAudienceMembers: mappedAudienceMemberCount,
+    };
+    const uniqueUnmappedAudienceContactExternalIds = Array.from(new Set(unmappedAudienceContactExternalIds));
+    const summary = {
+      ...imported,
+      exported,
+      imported,
+      skipped: {
+        campaigns: exported.campaigns - imported.campaigns,
+        contacts: exported.contacts - imported.contacts,
+        content: exported.content - imported.content,
+        journeys: exported.journeys - imported.journeys,
+        audiences: exported.audiences - imported.audiences,
+      },
+      unmapped: {
+        audienceContactExternalIdCount: uniqueUnmappedAudienceContactExternalIds.length,
+        audienceContactExternalIds: uniqueUnmappedAudienceContactExternalIds.slice(0, 50),
+      },
       mode: "one_way_into_vyva",
       dispatch_locked: true,
     };

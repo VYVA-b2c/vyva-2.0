@@ -468,7 +468,7 @@ describe("admin marketing router", () => {
   it("imports Lovable data one-way and upserts by external id", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+    const lovablePayload = {
       content: [{ id: "content-1", title: "Welcome email", channel: "email", subject: "Welcome", body: "Hello" }],
       contacts: [{
         id: "contact-1",
@@ -483,13 +483,23 @@ describe("admin marketing router", () => {
         category: "lead",
         vertical: "healthcare",
         market: "Spain",
-        lists: ["Partners"],
         tags: ["partner"],
+      }],
+      audiences: [{
+        id: "audience-1",
+        name: "Partners",
+        description: "Partner mailing list",
+        listType: "static",
+        rules: { market: "Spain" },
+        contactExternalIds: ["contact-1", "missing-contact"],
       }],
       campaigns: [{ id: "campaign-1", name: "Welcome campaign", status: "scheduled", channels: [{ channel: "email", contentExternalId: "content-1" }] }],
       journeys: [{ id: "journey-1", name: "Nurture", steps: [{ channel: "email", contentExternalId: "content-1" }] }],
       cursor: "cursor-1",
-    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify(lovablePayload), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
 
     const app = buildApp("karim.assad@mokadigital.net");
     await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
@@ -503,6 +513,9 @@ describe("admin marketing router", () => {
     }));
     expect(table("marketing_content_assets")).toHaveLength(1);
     expect(table("marketing_contacts")).toHaveLength(1);
+    expect(table("marketing_audiences")).toHaveLength(1);
+    expect(table("marketing_audience_members")).toHaveLength(2);
+    expect(table("marketing_audience_members").filter((row) => row.contact_id)).toHaveLength(1);
     expect(table("marketing_campaigns")).toHaveLength(1);
     expect(table("marketing_journeys")).toHaveLength(1);
     expect(table("marketing_campaign_channels")).toHaveLength(1);
@@ -528,5 +541,35 @@ describe("admin marketing router", () => {
           tags: ["partner"],
         });
       });
+
+    await request(app)
+      .get("/api/admin/marketing/audiences")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.audiences[0]).toMatchObject({
+          name: "Partners",
+          description: "Partner mailing list",
+          memberCount: 2,
+          mappedMemberCount: 1,
+          unmappedContactExternalIds: ["missing-contact"],
+        });
+      });
+
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      exported: { content: 1, contacts: 1, audiences: 1, campaigns: 1, journeys: 1 },
+      imported: {
+        content: 1,
+        contacts: 1,
+        audiences: 1,
+        audienceMembers: 2,
+        mappedAudienceMembers: 1,
+        campaigns: 1,
+        journeys: 1,
+      },
+      unmapped: {
+        audienceContactExternalIdCount: 1,
+        audienceContactExternalIds: ["missing-contact"],
+      },
+    });
   });
 });
