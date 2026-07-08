@@ -62,7 +62,7 @@ const campaigns = [
     timezone: "Europe/Madrid",
     source: "vyva",
     lovableExternalId: null,
-    channels: [{ id: "channel-1", channel: "email", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "locked" }],
+    channels: [{ id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "locked" }],
     recipientCount: 0,
   },
   {
@@ -75,7 +75,7 @@ const campaigns = [
     timezone: "Europe/Madrid",
     source: "lovable",
     lovableExternalId: "lovable-campaign-2",
-    channels: [{ id: "channel-2", channel: "linkedin", scheduledAt: null, status: "draft", sendCapability: "locked" }],
+    channels: [{ id: "channel-2", channel: "linkedin", contentAssetId: null, scheduledAt: null, status: "draft", sendCapability: "locked" }],
     recipientCount: 4,
   },
 ];
@@ -193,6 +193,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
+    if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
     if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeys[0] }, { status: 201 });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeys[0] });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
@@ -395,7 +396,7 @@ describe("MarketingAdminPage", () => {
       name: "Updated campaign",
       objective: "Updated objective",
       status: "scheduled",
-      channels: [{ channel: "email", status: "scheduled" }],
+      channels: [{ channel: "email", contentAssetId: "content-1", status: "scheduled" }],
     });
     expect(patchBody.recipients).toHaveLength(1);
     expect(patchBody.recipients[0]).toMatchObject({
@@ -406,6 +407,18 @@ describe("MarketingAdminPage", () => {
       snapshot: { fullName: "Karim Assad" },
     });
     expect(screen.getByTestId("button-marketing-send-locked")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("button-marketing-edit-campaign-campaign-1"));
+    expect(screen.getByTestId("select-marketing-edit-campaign-content")).toHaveValue("content-1");
+    expect(screen.getByTestId("button-marketing-send-test-email")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("button-marketing-send-test-email"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/test-email", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-test-email-feedback")).toHaveTextContent("Test email sent to karim.assad@mokadigital.net.");
+    });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
     await waitFor(() => {

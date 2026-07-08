@@ -15,7 +15,7 @@ const dbMock = vi.hoisted(() => {
 
   function rowDefaults(value: Record<string, unknown>) {
     return {
-      id: `mock-${idCounter++}`,
+      id: `00000000-0000-4000-8000-${String(idCounter++).padStart(12, "0")}`,
       created_at: new Date("2026-07-05T10:00:00.000Z"),
       updated_at: new Date("2026-07-05T10:00:00.000Z"),
       ...value,
@@ -111,6 +111,20 @@ const dbMock = vi.hoisted(() => {
 
 vi.mock("../db.js", () => dbMock);
 
+const dispatchMock = vi.hoisted(() => ({
+  dispatchCommunicationsByIds: vi.fn(async (ids: string[]) => ({
+    processed: ids.length,
+    results: ids.map((id) => ({
+      id,
+      channel: "email",
+      recipient: "karim.assad@mokadigital.net",
+      status: "sent",
+    })),
+  })),
+}));
+
+vi.mock("../services/communicationDispatcher.js", () => dispatchMock);
+
 import { adminMarketingRouter } from "../routes/adminMarketing.js";
 
 function buildApp(email = "admin@example.com") {
@@ -131,6 +145,7 @@ describe("admin marketing router", () => {
   beforeEach(() => {
     dbMock.reset();
     dbMock.setTableName(getTableName);
+    dispatchMock.dispatchCommunicationsByIds.mockClear();
     vi.unstubAllEnvs();
     vi.stubEnv("SUPER_ADMIN_EMAIL", "karim.assad@mokadigital.net");
   });
@@ -156,6 +171,16 @@ describe("admin marketing router", () => {
       .expect((response) => {
         expect(response.body.error).toContain("Only the super admin");
       });
+  });
+
+  it("keeps marketing test emails super-admin only", async () => {
+    await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/campaigns/00000000-0000-4000-8000-000000000001/test-email")
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.error).toBe("Only the super admin can send marketing test emails.");
+      });
+    expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
   });
 
   it("reports whether the current admin can run Lovable sync", async () => {
@@ -207,6 +232,64 @@ describe("admin marketing router", () => {
     expect(table("marketing_campaign_channels")).toHaveLength(1);
     expect(table("marketing_campaign_recipients")).toHaveLength(1);
     expect(table("communications_log")).toHaveLength(0);
+  });
+
+  it("sends only a super-admin test email through the existing dispatcher", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Welcome email",
+        channel: "email",
+        subject: "Welcome to VYVA",
+        body: "This is the imported email body.",
+      })
+      .expect(201);
+
+    const campaignResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Welcome campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+        }],
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/admin/marketing/campaigns/${campaignResponse.body.campaign.id}/test-email`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          communication: {
+            recipient: "karim.assad@mokadigital.net",
+            status: "sent",
+          },
+        });
+      });
+
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      channel: "email",
+      recipient: "karim.assad@mokadigital.net",
+      purpose: "marketing_campaign_test",
+      status: "queued",
+      body: "This is the imported email body.",
+      metadata: expect.objectContaining({
+        subject: "[TEST] Welcome to VYVA",
+        campaign_id: campaignResponse.body.campaign.id,
+        content_asset_id: contentResponse.body.content.id,
+        marketing_test_send: true,
+      }),
+    });
+    expect(table("marketing_campaign_recipients")).toHaveLength(0);
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
   });
 
   it("updates campaign planning rows and deletes campaigns without dispatch", async () => {

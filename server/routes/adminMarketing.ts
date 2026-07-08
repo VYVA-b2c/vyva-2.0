@@ -2,7 +2,9 @@ import { Router, type Request, type Response } from "express";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db.js";
+import { dispatchCommunicationsByIds } from "../services/communicationDispatcher.js";
 import {
+  communicationsLog,
   marketingCampaignChannels,
   marketingCampaignRecipients,
   marketingCampaigns,
@@ -152,9 +154,9 @@ function isSuperAdmin(req: Request) {
   return typeof req.user?.email === "string" && req.user.email.trim().toLowerCase() === SUPER_ADMIN_EMAIL;
 }
 
-function requireSuperAdmin(req: Request, res: Response) {
+function requireSuperAdmin(req: Request, res: Response, action = "run Lovable marketing sync") {
   if (isSuperAdmin(req)) return true;
-  res.status(403).json({ error: "Only the super admin can run Lovable marketing sync." });
+  res.status(403).json({ error: `Only the super admin can ${action}.` });
   return false;
 }
 
@@ -678,6 +680,70 @@ adminMarketingRouter.delete("/campaigns/:campaignId", async (req, res) => {
   } catch (error) {
     console.error("[admin/marketing] campaign delete failed", error);
     return res.status(500).json({ error: "Marketing campaign could not be deleted." });
+  }
+});
+
+adminMarketingRouter.post("/campaigns/:campaignId/test-email", async (req, res) => {
+  if (!requireSuperAdmin(req, res, "send marketing test emails")) return;
+  const recipient = req.user?.email?.trim();
+  if (!recipient) return res.status(400).json({ error: "Your admin account needs an email address for a test send." });
+
+  try {
+    const [campaign] = await db.select().from(marketingCampaigns).where(eq(marketingCampaigns.id, req.params.campaignId)).limit(1);
+    if (!campaign) return res.status(404).json({ error: "Marketing campaign not found." });
+
+    const channelRows = await db.select()
+      .from(marketingCampaignChannels)
+      .where(eq(marketingCampaignChannels.campaign_id, campaign.id))
+      .orderBy(asc(marketingCampaignChannels.created_at));
+    const emailChannel = channelRows.find((row) => row.channel === "email");
+    if (!emailChannel) return res.status(400).json({ error: "Add an Email channel before sending a test email." });
+    if (!emailChannel.content_asset_id) return res.status(400).json({ error: "Attach an email content asset before sending a test email." });
+
+    const [content] = await db.select()
+      .from(marketingContentAssets)
+      .where(eq(marketingContentAssets.id, emailChannel.content_asset_id))
+      .limit(1);
+    if (!content) return res.status(400).json({ error: "The selected email content asset could not be found." });
+    if (content.channel !== "email") return res.status(400).json({ error: "The selected content asset is not an email asset." });
+
+    const subject = `[TEST] ${content.subject || content.title}`;
+    const [communication] = await db.insert(communicationsLog).values({
+      user_id: String(req.user?.id ?? req.user?.email ?? ""),
+      channel: "email",
+      recipient,
+      purpose: "marketing_campaign_test",
+      status: "queued",
+      body: content.body || campaign.objective || content.title,
+      metadata: {
+        subject,
+        campaign_id: campaign.id,
+        campaign_name: campaign.name,
+        content_asset_id: content.id,
+        content_title: content.title,
+        initiated_by: actor(req),
+        marketing_test_send: true,
+      },
+    }).returning();
+
+    const dispatchResult = await dispatchCommunicationsByIds([communication.id]);
+    const delivery = dispatchResult.results[0] ?? null;
+    if (!delivery || delivery.status === "failed") {
+      return res.status(502).json({
+        error: delivery?.error || "Test email could not be sent.",
+        communication: { id: communication.id, recipient, status: "failed" },
+        delivery,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      communication: { id: communication.id, recipient, status: delivery.status },
+      delivery,
+    });
+  } catch (error) {
+    console.error("[admin/marketing] campaign test email failed", error);
+    return res.status(500).json({ error: "Marketing test email could not be sent." });
   }
 });
 

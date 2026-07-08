@@ -61,6 +61,7 @@ type SendCapability = {
 type CampaignChannel = {
   id: string;
   channel: Channel;
+  contentAssetId: string | null;
   scheduledAt: string | null;
   status: string;
   sendCapability: string;
@@ -100,6 +101,21 @@ type ContentAsset = {
   body: string;
   source: string;
   lovableExternalId: string | null;
+};
+
+type TestEmailResponse = {
+  ok?: boolean;
+  communication?: {
+    id: string;
+    recipient: string;
+    status: string;
+  };
+  delivery?: {
+    id: string;
+    status: string;
+    recipient: string;
+    error?: string;
+  } | null;
 };
 
 type MarketingContact = {
@@ -159,6 +175,7 @@ type CampaignEditDraft = {
   name: string;
   audienceType: Audience;
   channel: Channel;
+  contentAssetId: string;
   status: CampaignStatus;
   scheduleStartsAt: string;
   objective: string;
@@ -450,6 +467,8 @@ export default function MarketingAdminPage() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
   const [contactFeedback, setContactFeedback] = useState("");
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailFeedback, setTestEmailFeedback] = useState("");
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
@@ -460,6 +479,7 @@ export default function MarketingAdminPage() {
     name: "",
     audienceType: "b2c",
     channel: "email",
+    contentAssetId: "",
     status: "draft",
     scheduleStartsAt: "",
     objective: "",
@@ -526,6 +546,11 @@ export default function MarketingAdminPage() {
   }), [contacts, search, audienceFilter]);
 
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
+  const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
+  const selectedEmailContent = useMemo(
+    () => emailContentAssets.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null,
+    [campaignEditDraft.contentAssetId, emailContentAssets],
+  );
 
   const campaignRecipientPreview = useMemo(() => {
     if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return [];
@@ -566,6 +591,7 @@ export default function MarketingAdminPage() {
       name: campaign.name,
       audienceType: campaign.audienceType,
       channel: firstChannel?.channel ?? "email",
+      contentAssetId: firstChannel?.contentAssetId ?? "",
       status: normalizeCampaignStatus(campaign.status),
       scheduleStartsAt: toDateTimeLocal(campaign.scheduleStartsAt),
       objective: campaign.objective,
@@ -573,14 +599,17 @@ export default function MarketingAdminPage() {
       snapshotRecipients: false,
     });
     setMessage("");
+    setTestEmailFeedback("");
   }
 
   function cancelCampaignEdit() {
     setEditingCampaignId(null);
+    setTestEmailFeedback("");
     setCampaignEditDraft({
       name: "",
       audienceType: "b2c",
       channel: "email",
+      contentAssetId: "",
       status: "draft",
       scheduleStartsAt: "",
       objective: "",
@@ -616,6 +645,7 @@ export default function MarketingAdminPage() {
         scheduleStartsAt: scheduledAt,
         channels: [{
           channel: campaignEditDraft.channel,
+          contentAssetId: campaignEditDraft.channel === "email" ? campaignEditDraft.contentAssetId || null : null,
           status: campaignEditDraft.status,
           scheduledAt,
         }],
@@ -626,6 +656,24 @@ export default function MarketingAdminPage() {
     cancelCampaignEdit();
     setMessage(`Campaign updated.${recipientMessage}`);
     await refreshAll();
+  }
+
+  async function sendTestCampaignEmail(campaignId: string) {
+    setTestEmailSending(true);
+    setTestEmailFeedback("Sending test email...");
+    try {
+      const result = await api<TestEmailResponse>(`/api/admin/marketing/campaigns/${campaignId}/test-email`, { method: "POST" });
+      const recipient = result.communication?.recipient || result.delivery?.recipient || "your admin email";
+      setTestEmailFeedback(`Test email sent to ${recipient}.`);
+      setMessage("Marketing test email sent.");
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Test email could not be sent.";
+      setTestEmailFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setTestEmailSending(false);
+    }
   }
 
   async function deleteCampaign(campaign: Campaign) {
@@ -798,6 +846,14 @@ export default function MarketingAdminPage() {
   const syncButtonDisabled = Boolean(syncBlockedReason) || syncRunning;
   const syncFeedbackText = syncFeedback || syncBlockedReason;
   const syncFeedbackIsError = Boolean(syncBlockedReason) || /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(syncFeedback);
+  const testEmailDisabled = !editingCampaign || testEmailSending || campaignEditDraft.channel !== "email" || !campaignEditDraft.contentAssetId;
+  const testEmailBlockedReason = campaignEditDraft.channel !== "email"
+    ? "Test sending is email-only in this first unlock."
+    : !campaignEditDraft.contentAssetId
+      ? "Attach an email content asset before sending a test."
+      : "";
+  const testEmailFeedbackIsError = Boolean(testEmailFeedback && /fail|error|could not|attach|only/i.test(testEmailFeedback));
+  const testEmailPromptIsBlocked = Boolean(!testEmailFeedback && testEmailBlockedReason);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -946,7 +1002,7 @@ export default function MarketingAdminPage() {
                         </select>
                       </Field>
                       <Field label="Channel">
-                        <select className={inputClass} value={campaignEditDraft.channel} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, channel: event.target.value as Channel }))} data-testid="select-marketing-edit-campaign-channel">
+                        <select className={inputClass} value={campaignEditDraft.channel} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, channel: event.target.value as Channel, contentAssetId: event.target.value === "email" ? draft.contentAssetId : "" }))} data-testid="select-marketing-edit-campaign-channel">
                           {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
                         </select>
                       </Field>
@@ -956,12 +1012,24 @@ export default function MarketingAdminPage() {
                         </select>
                       </Field>
                     </div>
-                    <div className="grid gap-3 xl:grid-cols-[220px_1fr]">
+                    <div className="grid gap-3 xl:grid-cols-[220px_1fr_1fr]">
                       <Field label="Schedule">
                         <input className={inputClass} type="datetime-local" value={campaignEditDraft.scheduleStartsAt} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value }))} data-testid="input-marketing-edit-campaign-schedule" />
                       </Field>
                       <Field label="Objective">
                         <input className={inputClass} value={campaignEditDraft.objective} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, objective: event.target.value }))} data-testid="input-marketing-edit-campaign-objective" />
+                      </Field>
+                      <Field label="Email content">
+                        <select
+                          className={inputClass}
+                          value={campaignEditDraft.contentAssetId}
+                          disabled={campaignEditDraft.channel !== "email"}
+                          onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, contentAssetId: event.target.value }))}
+                          data-testid="select-marketing-edit-campaign-content"
+                        >
+                          <option value="">{campaignEditDraft.channel === "email" ? "Select email content" : "Email only"}</option>
+                          {emailContentAssets.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                        </select>
                       </Field>
                     </div>
 
@@ -1007,10 +1075,27 @@ export default function MarketingAdminPage() {
                       <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white" data-testid="button-marketing-save-campaign">
                         <Save size={15} /> Save campaign
                       </button>
+                      <button
+                        type="button"
+                        disabled={testEmailDisabled}
+                        onClick={() => editingCampaign ? void sendTestCampaignEmail(editingCampaign.id) : undefined}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        data-testid="button-marketing-send-test-email"
+                      >
+                        <Send size={15} /> {testEmailSending ? "Sending test..." : "Send test email to me"}
+                      </button>
                       <button type="button" onClick={cancelCampaignEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135]" data-testid="button-marketing-cancel-campaign">
                         <X size={15} /> Cancel
                       </button>
                     </div>
+                    {testEmailFeedback || testEmailBlockedReason || selectedEmailContent ? (
+                      <p
+                        className={`rounded-xl px-4 py-3 text-sm font-bold ${testEmailFeedbackIsError ? "bg-red-50 text-red-800" : testEmailPromptIsBlocked ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}
+                        data-testid="marketing-test-email-feedback"
+                      >
+                        {testEmailFeedback || testEmailBlockedReason || `Ready to send a test using "${selectedEmailContent?.title}".`}
+                      </p>
+                    ) : null}
                   </form>
                 </SectionCard>
               ) : null}
