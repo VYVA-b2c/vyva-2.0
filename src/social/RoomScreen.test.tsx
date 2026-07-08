@@ -327,7 +327,7 @@ describe("RoomScreen Share Stories room handoff", () => {
 
     expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Recipe ready for the table");
     expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Share at Kitchen Table");
-    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("tip, memory, or gentle question");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("cooking tip, memory, or question");
     expect(screen.getByTestId("story-room-handoff-text")).toHaveTextContent("My soup tastes best");
     expect(screen.getByDisplayValue("My soup tastes best with parsley at the end.")).toBeInTheDocument();
 
@@ -348,12 +348,14 @@ describe("RoomScreen Share Stories room handoff", () => {
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
     expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
-    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Martha may enjoy this recipe.");
-    expect(screen.getByTestId("story-reply-suggestion-0")).toHaveTextContent(
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent(
       "That parsley tip sounds lovely. I might try it in my soup.",
     );
+    expect(screen.getByTestId("story-room-replies")).toHaveTextContent("From Martha");
+    expect(screen.getByTestId("story-reply-action-0")).toHaveTextContent("Draft reply");
+    expect(screen.getByTestId("story-reply-context-frame")).toHaveTextContent("Martha wants to try your recipe.");
     expect(screen.getByTestId("story-reply-suggestion-1")).toHaveTextContent(
-      "This reminds me of a quiet family meal.",
+      "Ali also joined the conversation.",
     );
 
     fireEvent.click(screen.getByTestId("story-reply-action-0"));
@@ -401,8 +403,8 @@ describe("RoomScreen Share Stories room handoff", () => {
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
     expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
-    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Maria may connect with this reflection.");
-    expect(screen.getByTestId("story-reply-suggestion-0")).toHaveTextContent("That garden image sounds peaceful.");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("That garden image sounds peaceful.");
+    expect(screen.getByTestId("story-reply-context-frame")).toHaveTextContent("Maria has a thought on your reflection.");
 
     fireEvent.click(screen.getByTestId("story-reply-action-0"));
 
@@ -428,9 +430,9 @@ describe("RoomScreen Share Stories room handoff", () => {
       },
     });
 
-    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Send a gentle hello");
-    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Send gentle hello");
-    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("answer kindly");
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Send a hello");
+    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Send hello");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("respond when they are ready");
     await waitFor(() => {
       expect(screen.getByTestId("together-proposal-draft")).toHaveValue("Hello, I would enjoy a quiet chat today.");
     });
@@ -448,8 +450,8 @@ describe("RoomScreen Share Stories room handoff", () => {
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
     expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
-    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Carmen may answer this hello when they are ready.");
-    expect(screen.getByTestId("story-reply-suggestion-0")).toHaveTextContent("Hello. I am glad you came in.");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Hello. I am glad you came in.");
+    expect(screen.getByTestId("story-reply-context-frame")).toHaveTextContent("Carmen can start the conversation.");
 
     fireEvent.click(screen.getByTestId("story-reply-action-0"));
 

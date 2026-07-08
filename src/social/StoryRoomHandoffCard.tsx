@@ -120,14 +120,14 @@ function copyFor(language: SocialLanguage, noteType: SocialShareDropBoxNoteType,
         eyebrow: roomName,
         title: "Comparte este recuerdo musical",
         body: "Tu nota musical ya esta preparada para la sala.",
-        outcome: "Puede abrir una respuesta sobre una cancion o un cantante.",
+        outcome: "Puede iniciar una conversacion sobre una cancion o un cantante.",
         primary: "Compartir cancion",
       },
       recipe: {
         eyebrow: "Kitchen Table",
         title: "Receta lista para la mesa",
         body: "Tus palabras ya estan en la caja de Kitchen Table.",
-        outcome: "La sala puede responder con un consejo, recuerdo o pregunta.",
+        outcome: "Otros pueden responder con un consejo, recuerdo o pregunta.",
         primary: "Compartir en Kitchen Table",
       },
       reading: {
@@ -139,9 +139,9 @@ function copyFor(language: SocialLanguage, noteType: SocialShareDropBoxNoteType,
       },
       hello: {
         eyebrow: "Together Room",
-        title: "Enviar un saludo amable",
+        title: "Enviar un saludo",
         body: "Tu saludo esta preparado como mensaje protegido.",
-        outcome: "Alguien puede responder con calma cuando este listo.",
+        outcome: "Alguien puede responder cuando este listo.",
         primary: "Enviar saludo",
       },
     };
@@ -167,14 +167,14 @@ function copyFor(language: SocialLanguage, noteType: SocialShareDropBoxNoteType,
         eyebrow: roomName,
         title: "Diese Musik-Erinnerung teilen",
         body: "Deine Musiknotiz ist fuer den Raum vorbereitet.",
-        outcome: "Sie kann eine Antwort zu einem Lied oder Saenger oeffnen.",
+        outcome: "Sie kann ein Gespraech ueber ein Lied oder einen Saenger starten.",
         primary: "Lied teilen",
       },
       recipe: {
         eyebrow: "Kitchen Table",
         title: "Rezept bereit fuer den Tisch",
         body: "Deine Worte stehen schon im Kitchen Table Feld.",
-        outcome: "Der Raum kann mit einem Tipp, einer Erinnerung oder Frage antworten.",
+        outcome: "Andere koennen mit einem Tipp, einer Erinnerung oder Frage antworten.",
         primary: "Bei Kitchen Table teilen",
       },
       reading: {
@@ -186,7 +186,7 @@ function copyFor(language: SocialLanguage, noteType: SocialShareDropBoxNoteType,
       },
       hello: {
         eyebrow: "Together Room",
-        title: "Einen freundlichen Gruss senden",
+        title: "Einen Gruss senden",
         body: "Dein Gruss ist als geschuetzte Nachricht vorbereitet.",
         outcome: "Jemand kann ruhig antworten, wenn es passt.",
         primary: "Gruss senden",
@@ -213,14 +213,14 @@ function copyFor(language: SocialLanguage, noteType: SocialShareDropBoxNoteType,
       eyebrow: roomName,
       title: "Share this song memory",
       body: "Your music note is ready for the room.",
-      outcome: "It can start a gentle reply about a song, singer, or moment.",
+      outcome: "It can start a conversation about a song, singer, or moment.",
       primary: "Share song",
     },
     recipe: {
       eyebrow: "Kitchen Table",
       title: "Recipe ready for the table",
       body: "Your words are already in the Kitchen Table box.",
-      outcome: "The room can reply with a tip, memory, or gentle question.",
+      outcome: "People can respond with a cooking tip, memory, or question.",
       primary: "Share at Kitchen Table",
     },
     reading: {
@@ -232,10 +232,10 @@ function copyFor(language: SocialLanguage, noteType: SocialShareDropBoxNoteType,
     },
     hello: {
       eyebrow: "Together Room",
-      title: "Send a gentle hello",
+      title: "Send a hello",
       body: "Your hello is prepared as a protected room message.",
-      outcome: "Someone can answer kindly when they are ready.",
-      primary: "Send gentle hello",
+      outcome: "Someone can respond when they are ready.",
+      primary: "Send hello",
     },
   };
 
@@ -259,18 +259,19 @@ function replyLoopCopy(
     const fallback = `Alguien en ${roomName}`;
     const person = name || fallback;
     const bodyByType: Record<SocialShareDropBoxNoteType, string> = {
-      memory: `${person} puede responder con un recuerdo propio.`,
-      song: `${person} puede reconocer la cancion o el momento.`,
-      recipe: `${person} puede disfrutar esta receta.`,
-      reading: `${person} puede conectar con esta reflexion.`,
-      hello: `${person} puede responder a este saludo cuando este listo.`,
+      memory: `${person} vio algo conocido en tu recuerdo.`,
+      song: `${person} reconocio la cancion o el momento.`,
+      recipe: `${person} quiere probar esta receta.`,
+      reading: `${person} tiene una idea sobre tu reflexion.`,
+      hello: `${person} puede empezar la conversacion.`,
     };
     return {
       title: "Historia colocada",
-      repliesTitle: "Posibles respuestas amables",
+      headline: "Un mensaje llego de la sala.",
+      responseLabel: `De ${person}`,
       body: bodyByType[noteType],
-      detail: "VYVA mantiene la respuesta amable y dentro de la sala.",
-      replyAction: "Responder amable",
+      detail: "Nada se envia a menos que tu lo elijas.",
+      replyAction: "Preparar respuesta",
       action: "Compartir otra",
     };
   }
@@ -279,18 +280,19 @@ function replyLoopCopy(
     const fallback = `Jemand in ${roomName}`;
     const person = name || fallback;
     const bodyByType: Record<SocialShareDropBoxNoteType, string> = {
-      memory: `${person} kann mit einer eigenen Erinnerung antworten.`,
-      song: `${person} erkennt vielleicht das Lied oder den Moment.`,
-      recipe: `${person} freut sich vielleicht ueber dieses Rezept.`,
-      reading: `${person} kann sich mit dieser Reflexion verbinden.`,
-      hello: `${person} kann auf diesen Gruss antworten, wenn es passt.`,
+      memory: `${person} hat etwas Vertrautes in deiner Erinnerung gesehen.`,
+      song: `${person} hat das Lied oder den Moment erkannt.`,
+      recipe: `${person} moechte dieses Rezept probieren.`,
+      reading: `${person} hat einen Gedanken zu deiner Reflexion.`,
+      hello: `${person} kann das Gespraech beginnen.`,
     };
     return {
       title: "Geschichte platziert",
-      repliesTitle: "Moegliche freundliche Antworten",
+      headline: "Eine Antwort kam aus dem Raum.",
+      responseLabel: `Von ${person}`,
       body: bodyByType[noteType],
-      detail: "VYVA haelt Antworten freundlich und im Raum.",
-      replyAction: "Freundlich antworten",
+      detail: "Nichts wird gesendet, bis du es entscheidest.",
+      replyAction: "Antwort entwerfen",
       action: "Noch eine teilen",
     };
   }
@@ -298,20 +300,39 @@ function replyLoopCopy(
   const fallback = `Someone in ${roomName}`;
   const person = name || fallback;
   const bodyByType: Record<SocialShareDropBoxNoteType, string> = {
-    memory: `${person} may reply with a memory of their own.`,
-    song: `${person} may remember this song or moment.`,
-    recipe: `${person} may enjoy this recipe.`,
-    reading: `${person} may connect with this reflection.`,
-    hello: `${person} may answer this hello when they are ready.`,
+    memory: `${person} recognised something in your memory.`,
+    song: `${person} recognised the song or the moment.`,
+    recipe: `${person} wants to try your recipe.`,
+    reading: `${person} has a thought on your reflection.`,
+    hello: `${person} can start the conversation.`,
   };
   return {
     title: "Story placed",
-    repliesTitle: "Gentle replies you might get",
+    headline: "A message came back.",
+    responseLabel: `From ${person}`,
     body: bodyByType[noteType],
-    detail: "VYVA keeps replies kind and inside the room.",
-    replyAction: "Reply kindly",
+    detail: "Nothing is sent unless you choose.",
+    replyAction: "Draft reply",
     action: "Share another",
   };
+}
+
+function alsoRespondedCopy(language: SocialLanguage, name: string, roomName: string) {
+  if (language === "es") return `${name} tambien esta en la conversacion.`;
+  if (language === "de") return `${name} ist auch im Gespraech.`;
+  return `${name} also joined the conversation.`;
+}
+
+function storyPlacedCopy(language: SocialLanguage, roomName: string) {
+  if (language === "es") return `Colocada en ${roomName}`;
+  if (language === "de") return `In ${roomName} platziert`;
+  return `Placed in ${roomName}`;
+}
+
+function connectionLabelCopy(language: SocialLanguage) {
+  if (language === "es") return "Conexion";
+  if (language === "de") return "Verbindung";
+  return "Connection";
 }
 
 function fallbackResponderNames(language: SocialLanguage, roomName: string) {
@@ -517,65 +538,77 @@ export function StoryRoomReplyLoopCard({
   const tone = toneByNoteType[note.noteType];
   const Icon = tone.Icon;
   const suggestions = buildReplySuggestions(language, note.noteType, roomName, responderNames ?? (responderName ? [responderName] : []));
+  const featuredReply = suggestions[0];
+  const supportingReply = suggestions[1];
 
   return (
     <section
-      className={`rounded-[24px] border bg-white px-4 py-4 shadow-[0_12px_24px_rgba(47,33,53,0.06)] ${tone.quote}`}
+      className={`overflow-hidden rounded-[32px] border bg-[linear-gradient(145deg,#FFF8EC_0%,#FFFFFF_46%,#F8F5FF_100%)] px-4 py-5 shadow-[0_18px_42px_rgba(47,33,53,0.10)] sm:px-6 sm:py-6 ${tone.quote}`}
       data-testid="story-reply-loop"
     >
-      <div className="flex items-start gap-3">
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] ${tone.iconBox}`}>
-          <Icon size={22} strokeWidth={2.4} aria-hidden="true" />
+      <div className="flex items-center gap-3">
+        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] ${tone.iconBox}`}>
+          <Icon size={27} strokeWidth={2.4} aria-hidden="true" />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <p className="font-body text-[12px] font-black uppercase tracking-[0.13em] text-[#6D28D9]">{copy.title}</p>
-          <p className="mt-1 font-body text-[20px] font-black leading-tight text-[#24172F]" data-testid="story-reply-loop-body">
+          <p className="mt-0.5 font-body text-[16px] font-black leading-snug text-[#594C62]">{storyPlacedCopy(language, roomName)}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[30px] border border-[#EFE0CF] bg-white px-4 py-5 shadow-[0_14px_30px_rgba(47,33,53,0.07)]" data-testid="story-room-replies">
+        <p className="font-body text-[12px] font-black uppercase tracking-[0.13em] text-[#B45309]">{copy.responseLabel}</p>
+        <h2 className="mt-3 font-body text-[28px] font-black leading-[1.08] text-[#24172F] sm:text-[34px]" data-testid="story-reply-loop-body">
+          {featuredReply.body}
+        </h2>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-[20px] bg-white/80 px-4 py-3 shadow-[0_8px_18px_rgba(47,33,53,0.04)]" data-testid="story-reply-connection-frame">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">{language === "de" ? "Raum" : language === "es" ? "Sala" : "Room"}</p>
+          <p className="mt-1 font-body text-[15px] font-black leading-snug text-[#24172F]">
+            {storyPlacedCopy(language, roomName)}
+          </p>
+        </div>
+        <div className="rounded-[20px] bg-white/80 px-4 py-3 shadow-[0_8px_18px_rgba(47,33,53,0.04)]" data-testid="story-reply-context-frame">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#B45309]">{connectionLabelCopy(language)}</p>
+          <p className="mt-1 font-body text-[15px] font-black leading-snug text-[#24172F]">
             {copy.body}
           </p>
-          <p className="mt-1 font-body text-[14px] font-bold leading-snug text-[#6E6275]">{copy.detail}</p>
+        </div>
+        <div className="rounded-[20px] bg-white/80 px-4 py-3 shadow-[0_8px_18px_rgba(47,33,53,0.04)]" data-testid="story-reply-suggestion-1">
+          <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">{language === "de" ? "Auch dabei" : language === "es" ? "Tambien aqui" : "Also here"}</p>
+        {supportingReply ? (
+          <p className="mt-1 font-body text-[15px] font-black leading-snug text-[#24172F]">
+            {alsoRespondedCopy(language, supportingReply.name, roomName)}
+          </p>
+        ) : null}
         </div>
       </div>
-      <div className="mt-4 rounded-[20px] bg-[#FFFDFC] px-3 py-3" data-testid="story-room-replies">
-        <p className="font-body text-[13px] font-black uppercase tracking-[0.12em] text-[#6D28D9]">{copy.repliesTitle}</p>
-        <div className="mt-3 grid gap-2">
-          {suggestions.map((reply, index) => (
-            <div
-              key={`${reply.name}-${index}`}
-              className="rounded-[18px] border border-[#EFE6DA] bg-white px-3 py-3"
-              data-testid={`story-reply-suggestion-${index}`}
-            >
-              <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F8F5FF] font-body text-[15px] font-black text-[#6D28D9]">
-                  {reply.name.slice(0, 1).toUpperCase()}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-body text-[15px] font-black text-[#2F2135]">{reply.name}</p>
-                  <p className="mt-1 font-body text-[16px] font-bold leading-snug text-[#594C62]">{reply.body}</p>
-                </div>
-              </div>
-              {onReply ? (
-                <button
-                  type="button"
-                  onClick={() => onReply(reply.draft)}
-                  data-testid={`story-reply-action-${index}`}
-                  className={`mt-3 inline-flex min-h-[42px] items-center justify-center rounded-full px-4 font-body text-[14px] font-black text-white ${tone.primary}`}
-                >
-                  {copy.replyAction}
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
+
+      <p className="mt-4 font-body text-[14px] font-black text-[#6E6275]">{copy.detail}</p>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+        {onReply ? (
+          <button
+            type="button"
+            onClick={() => onReply(featuredReply.draft)}
+            data-testid="story-reply-action-0"
+            className={`inline-flex min-h-[54px] items-center justify-center rounded-full px-5 font-body text-[16px] font-black text-white ${tone.primary}`}
+          >
+            {copy.replyAction}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onShareAnother}
+          data-testid="story-reply-loop-share-another"
+          className="inline-flex min-h-[54px] items-center justify-center gap-2 rounded-full border border-[#E8DDCF] bg-white px-5 font-body text-[16px] font-black text-[#6D28D9]"
+        >
+          {copy.action}
+          <ArrowRight size={17} strokeWidth={2.5} aria-hidden="true" />
+        </button>
       </div>
-      <button
-        type="button"
-        onClick={onShareAnother}
-        data-testid="story-reply-loop-share-another"
-        className="mt-3 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full border border-[#E8DDCF] bg-[#FFFDFC] px-4 font-body text-[15px] font-black text-[#6D28D9]"
-      >
-        {copy.action}
-        <ArrowRight size={17} strokeWidth={2.5} aria-hidden="true" />
-      </button>
     </section>
   );
 }
