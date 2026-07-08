@@ -526,6 +526,16 @@ const fr = {
       },
     },
     findSpecialist: {
+      experts: {
+        title: "Choisir un expert",
+        elena: { label: "Elena Ruiz", detail: "Jardinière urbaine" },
+        viktor: { label: "Viktor Sanz", detail: "Compagnon de jeux" },
+        lola: { label: "Lola Martínez", detail: "Cheffe méditerranéenne" },
+        amara: { label: "Amara Osei", detail: "Guide de mouvement" },
+        marco: { label: "Marco Reyes", detail: "Guide de calme" },
+        diego: { label: "Diego Salinas", detail: "Musicologue" },
+        isabel: { label: "Isabel Fuentes", detail: "Hôte littéraire" },
+      },
       bookRide: "Trouver transport",
     },
     symptomCheck: {

@@ -971,6 +971,37 @@
       "locationPlaceholder": "Stadt oder Gebiet",
       "searching": "Facharzt-Suche...",
       "searchButton": "Fachaerzte suchen",
+      "experts": {
+        "title": "Experten waehlen",
+        "elena": {
+          "label": "Elena Ruiz",
+          "detail": "Stadtgärtnerin"
+        },
+        "viktor": {
+          "label": "Viktor Sanz",
+          "detail": "Spielbegleiter"
+        },
+        "lola": {
+          "label": "Lola Martínez",
+          "detail": "Mediterrane Köchin"
+        },
+        "amara": {
+          "label": "Amara Osei",
+          "detail": "Bewegungsbegleiterin"
+        },
+        "marco": {
+          "label": "Marco Reyes",
+          "detail": "Ruhebegleiter"
+        },
+        "diego": {
+          "label": "Diego Salinas",
+          "detail": "Musikwissenschaftler"
+        },
+        "isabel": {
+          "label": "Isabel Fuentes",
+          "detail": "Literarische Gastgeberin"
+        }
+      },
       "recommendedSpecialties": "Empfohlene Fachrichtungen",
       "disclaimer": "Dies ist keine Diagnose. Bei schweren oder ploetzlichen Symptomen rufen Sie den Notdienst oder Ihren Arzt an.",
       "noProvidersTitle": "Ich konnte derzeit keine verifizierten Anbieter mit genug Daten finden.",
@@ -1074,7 +1105,13 @@
       "interactionsMobileSub": "Mix prufen",
       "adherence": "Adhaerenz",
       "adherenceSub": "Fortschritt und verpasste Dosen ansehen.",
-      "adherenceMobileSub": "Verpasste Dosen"
+      "adherenceMobileSub": "Verpasste Dosen",
+      "myMedicines": "Meine Medikamente",
+      "myMedicinesSub": "Gespeicherte Liste",
+      "myMedicinesCount": "{{count}} gespeichert",
+      "checkInteractions": "Sicherheitscheck",
+      "checkInteractionsSub": "Medikamentenmix",
+      "adherenceToday": "{{value}}% heute"
     },
     "canHelpWith": "Ich kann Ihnen helfen mit",
     "fastHelpKicker": "Schnelle Hilfe",
@@ -1253,6 +1290,22 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
+    },
+    "voiceSaveError": "Ich konnte dieses Medikament nicht speichern. Bitte versuchen Sie es erneut.",
+    "checkInteractions": {
+      "kicker": "Medikamentensicherheit",
+      "title": "Sicherheitscheck",
+      "loadingSub": "VYVA prueft Ihre gespeicherte Liste.",
+      "loading": "Liste wird geprueft...",
+      "error": "Ich konnte das gerade nicht pruefen. Bitte versuchen Sie es erneut.",
+      "clearTitle": "Heute sieht es sicher aus",
+      "clearSub": "Keine Sicherheitsfragen aus den Regeln, die VYVA geprueft hat.",
+      "flagKicker": "Sicherheitsfrage",
+      "ruleShort": "Vor gemeinsamer Einnahme pruefen.",
+      "duplicateShort": "Aehnliche Medikamente. Pruefen Sie, ob beide noetig sind.",
+      "asked": "Ich habe gefragt",
+      "later": "Spaeter",
+      "footer": "{{count}} Medikamente geprueft. VYVA aendert niemals Dosierungen."
     }
   },
   "brain": {

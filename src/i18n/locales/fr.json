@@ -971,6 +971,37 @@
       "locationPlaceholder": "Ville ou quartier",
       "searching": "Recherche de specialistes...",
       "searchButton": "Rechercher specialistes",
+      "experts": {
+        "title": "Choisir un expert",
+        "elena": {
+          "label": "Elena Ruiz",
+          "detail": "Jardinière urbaine"
+        },
+        "viktor": {
+          "label": "Viktor Sanz",
+          "detail": "Compagnon de jeux"
+        },
+        "lola": {
+          "label": "Lola Martínez",
+          "detail": "Cheffe méditerranéenne"
+        },
+        "amara": {
+          "label": "Amara Osei",
+          "detail": "Guide de mouvement"
+        },
+        "marco": {
+          "label": "Marco Reyes",
+          "detail": "Guide de calme"
+        },
+        "diego": {
+          "label": "Diego Salinas",
+          "detail": "Musicologue"
+        },
+        "isabel": {
+          "label": "Isabel Fuentes",
+          "detail": "Hôte littéraire"
+        }
+      },
       "recommendedSpecialties": "Specialites recommandees",
       "disclaimer": "Ceci n'est pas un diagnostic. Si les symptomes sont graves ou soudains, appelez les urgences ou votre medecin.",
       "noProvidersTitle": "Je n'ai pas trouve de prestataires verifies avec assez de donnees pour le moment.",
@@ -1074,7 +1105,13 @@
       "interactionsMobileSub": "Verifier le melange",
       "adherence": "Observance",
       "adherenceSub": "Voir progres et prises manquees.",
-      "adherenceMobileSub": "Prises manquees"
+      "adherenceMobileSub": "Prises manquees",
+      "myMedicines": "Mes medicaments",
+      "myMedicinesSub": "Liste enregistree",
+      "myMedicinesCount": "{{count}} enregistres",
+      "checkInteractions": "Verifier la securite",
+      "checkInteractionsSub": "Melange de medicaments",
+      "adherenceToday": "{{value}}% aujourd'hui"
     },
     "canHelpWith": "Je peux vous aider avec",
     "fastHelpKicker": "Aide rapide",
@@ -1253,6 +1290,22 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
+    },
+    "voiceSaveError": "Je n'ai pas pu enregistrer ce medicament. Reessayez.",
+    "checkInteractions": {
+      "kicker": "Securite des medicaments",
+      "title": "Verifier la securite",
+      "loadingSub": "VYVA verifie votre liste enregistree.",
+      "loading": "Verification de votre liste...",
+      "error": "Je ne peux pas verifier cela maintenant. Reessayez.",
+      "clearTitle": "Tout semble sur aujourd'hui",
+      "clearSub": "Aucune question de securite dans les regles verifiees par VYVA.",
+      "flagKicker": "Question de securite",
+      "ruleShort": "Verifiez avant de les prendre ensemble.",
+      "duplicateShort": "Medicaments similaires. Verifiez si les deux sont necessaires.",
+      "asked": "J'ai demande",
+      "later": "Plus tard",
+      "footer": "{{count}} medicaments verifies. VYVA ne change jamais les doses."
     }
   },
   "brain": {

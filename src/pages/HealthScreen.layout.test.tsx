@@ -337,12 +337,23 @@ describe("HealthScreen home-style layout", () => {
 
     fireEvent.click(screen.getByTestId("button-health-fast-find-specialist"));
     expect(screen.getByTestId("section-health-specialist")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^button-ask-expert-/)).toHaveLength(7);
   });
 
   it("opens the specialist provider finder from the specialist URL flag", () => {
     renderHealthScreen(["/health?specialist=1"]);
 
     expect(screen.getByTestId("section-health-specialist")).toBeInTheDocument();
+    expect(screen.getByTestId("button-ask-expert-elena-ruiz")).toHaveTextContent("Elena Ruiz");
+    expect(screen.getByTestId("button-ask-expert-viktor-sanz")).toHaveTextContent("Viktor Sanz");
+    expect(screen.getByTestId("button-ask-expert-lola-martinez")).toHaveTextContent("Lola Martínez");
+    expect(screen.getByTestId("button-ask-expert-amara-osei")).toHaveTextContent("Amara Osei");
+    expect(screen.getByTestId("button-ask-expert-marco-reyes")).toHaveTextContent("Marco Reyes");
+    expect(screen.getByTestId("button-ask-expert-diego-salinas")).toHaveTextContent("Diego Salinas");
+    expect(screen.getByTestId("button-ask-expert-isabel-fuentes")).toHaveTextContent("Isabel Fuentes");
+
+    fireEvent.click(screen.getByTestId("button-ask-expert-elena-ruiz"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/social-rooms/garden-corner");
   });
 
   it("shows useful empty states and starts symptom check when no latest report exists", async () => {

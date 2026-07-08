@@ -1091,6 +1091,37 @@
       "locationPlaceholder": "Citta o zona",
       "searching": "Ricerca specialisti...",
       "searchButton": "Cerca specialisti",
+      "experts": {
+        "title": "Scegli un esperto",
+        "elena": {
+          "label": "Elena Ruiz",
+          "detail": "Giardiniera urbana"
+        },
+        "viktor": {
+          "label": "Viktor Sanz",
+          "detail": "Compagno di giochi"
+        },
+        "lola": {
+          "label": "Lola Martínez",
+          "detail": "Chef mediterranea"
+        },
+        "amara": {
+          "label": "Amara Osei",
+          "detail": "Guida al movimento"
+        },
+        "marco": {
+          "label": "Marco Reyes",
+          "detail": "Guida alla calma"
+        },
+        "diego": {
+          "label": "Diego Salinas",
+          "detail": "Musicologo"
+        },
+        "isabel": {
+          "label": "Isabel Fuentes",
+          "detail": "Ospite letteraria"
+        }
+      },
       "recommendedSpecialties": "Specialita consigliate",
       "disclaimer": "Questo non e una diagnosi. Se i sintomi sono gravi o improvvisi, chiama emergenze o medico.",
       "noProvidersTitle": "Non ho trovato fornitori verificati con dati sufficienti al momento.",
@@ -1194,7 +1225,13 @@
       "interactionsMobileSub": "Controlla il mix",
       "adherence": "Aderenza",
       "adherenceSub": "Vedi progressi e dosi saltate.",
-      "adherenceMobileSub": "Dosi saltate"
+      "adherenceMobileSub": "Dosi saltate",
+      "myMedicines": "I miei farmaci",
+      "myMedicinesSub": "Lista salvata",
+      "myMedicinesCount": "{{count}} salvati",
+      "checkInteractions": "Controllo sicurezza",
+      "checkInteractionsSub": "Mix di farmaci",
+      "adherenceToday": "{{value}}% oggi"
     },
     "canHelpWith": "Posso aiutarti con",
     "fastHelpKicker": "Aiuto rapido",
@@ -1373,6 +1410,22 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
+    },
+    "voiceSaveError": "Non ho potuto salvare quel farmaco. Riprova.",
+    "checkInteractions": {
+      "kicker": "Sicurezza dei farmaci",
+      "title": "Controllo sicurezza",
+      "loadingSub": "VYVA sta controllando la tua lista salvata.",
+      "loading": "Controllo la lista...",
+      "error": "Non posso controllarlo ora. Riprova.",
+      "clearTitle": "Sembra sicuro oggi",
+      "clearSub": "Nessuna domanda di sicurezza dalle regole controllate da VYVA.",
+      "flagKicker": "Domanda di sicurezza",
+      "ruleShort": "Controlla prima di prenderli insieme.",
+      "duplicateShort": "Farmaci simili. Controlla se servono entrambi.",
+      "asked": "Ho chiesto",
+      "later": "Piu tardi",
+      "footer": "{{count}} farmaci controllati. VYVA non cambia mai le dosi."
     }
   },
   "brain": {
