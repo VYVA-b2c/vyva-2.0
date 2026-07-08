@@ -1929,6 +1929,19 @@ function latestCandidateForAction(action: RefinementVitalConfig, readings: Lates
   };
 }
 
+function refinementKeyForMissingSignal(label: string): RefinementVitalKey | null {
+  const normalized = label.toLowerCase();
+  if (/\b(blood pressure|bp|hypertension|pressure)\b/.test(normalized)) return "bloodPressure";
+  if (/\b(pulse|heart rate|heartbeat|afib|irregular)\b/.test(normalized)) return "pulse";
+  if (/\b(oxygen|spo2|short of breath|breathing|breathless)\b/.test(normalized)) return "oxygen";
+  if (/\b(respiratory rate|breathing rate|breaths per minute|fast breathing)\b/.test(normalized)) return "respiratoryRate";
+  if (/\b(fever|temperature|chills)\b/.test(normalized)) return "temperature";
+  if (/\b(glucose|sugar|diabetes|diabetic|insulin|cgm)\b/.test(normalized)) return "glucose";
+  if (/\b(pain|ache|headache|injury)\b/.test(normalized)) return "pain";
+  if (/\b(energy|fatigue|tired|weak|exhausted|dizzy)\b/.test(normalized)) return "energy";
+  return null;
+}
+
 function reportText(summary: TriageSummary) {
   return [
     summary.chiefComplaint,
@@ -2032,7 +2045,13 @@ export function ReportScreen({
     : null;
   const doctorContactName = profileContacts?.gpName?.trim() || (profileContacts?.gpPhone?.trim() ? t("health.symptomCheck.report.doctorContact", "your doctor") : "");
   const caregiverContactName = profileContacts?.caregiverName?.trim() || (profileContacts?.caregiverContact?.trim() ? t("health.symptomCheck.report.caregiverContact", "your caregiver") : "");
-  const actionText = reportText(summary);
+  const reportMissingSignals = uniqueLines([
+    ...(summary.contextConfidence?.missing ?? []),
+    ...(summary.contextSignals ?? [])
+      .filter((signal) => signal.status === "missing")
+      .map((signal) => signal.label),
+  ]).slice(0, 3);
+  const actionText = [reportText(summary), ...reportMissingSignals].join(" ").toLowerCase();
   const vitalActions: RefinementVitalConfig[] = [
     /\b(glucose|sugar|diabetes|diabetic|insulin|cgm)\b/.test(actionText)
       ? {
@@ -2153,6 +2172,28 @@ export function ReportScreen({
     const entries = vitalActions.map((action) => [action.key, latestCandidateForAction(action, latestVitalReadings)] as const);
     return Object.fromEntries(entries) as Partial<Record<RefinementVitalKey, LatestVitalCandidate | null>>;
   }, [latestVitalReadings, vitalActions]);
+  const missingSignalActions = Array.from(
+    reportMissingSignals
+      .reduce((actions, label) => {
+        const key = refinementKeyForMissingSignal(label);
+        const action = key ? vitalActions.find((candidate) => candidate.key === key) : undefined;
+        if (action && !actions.has(action.key)) {
+          actions.set(action.key, { label, action });
+        }
+        return actions;
+      }, new Map<RefinementVitalKey, { label: string; action: RefinementVitalConfig }>())
+      .values(),
+  );
+  const passiveMissingSignals = reportMissingSignals.filter((label) => !refinementKeyForMissingSignal(label));
+  const openMissingSignalAction = (action: RefinementVitalConfig) => {
+    setOpenVitalKey(action.key);
+    setVitalInputError(null);
+    window.setTimeout(() => {
+      document
+        .querySelector<HTMLElement>(`[data-testid="card-report-vital-action-${action.key}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+  };
   const latestSourceLabel = (source?: string | null) => {
     if (source === "connected_device") return t("health.symptomCheck.report.latestSourceDevice", "device reading");
     if (source === "clinical") return t("health.symptomCheck.report.latestSourceClinical", "clinical reading");
@@ -2342,12 +2383,6 @@ export function ReportScreen({
     ...(reportContextConfidence?.reasons ?? []),
     ...(summary.contextBrief ? [summary.contextBrief] : []),
     ...(contextNotes.length ? [t("health.symptomCheck.report.contextProfileUsed", "profile and recent context considered")] : []),
-  ]).slice(0, 3);
-  const reportMissingSignals = uniqueLines([
-    ...(reportContextConfidence?.missing ?? []),
-    ...(summary.contextSignals ?? [])
-      .filter((signal) => signal.status === "missing")
-      .map((signal) => signal.label),
   ]).slice(0, 3);
   const vitalsSummaryItems = uniqueLines([
     bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${bpm} bpm` : "",
@@ -2723,11 +2758,34 @@ export function ReportScreen({
               {reportMissingSignals.length ? (
                 <div className="mt-3 rounded-[18px] border border-[#BFDBFE] bg-white px-3 py-3">
                   <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
-                    {t("health.symptomCheck.report.missingSignals", "Would make this stronger")}
+                    {t("health.symptomCheck.report.missingSignals", "Add what is missing")}
                   </p>
                   <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
                     {reportMissingSignals.join(", ")}
                   </p>
+                  {missingSignalActions.length ? (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2" data-testid="report-missing-signal-actions">
+                      {missingSignalActions.map(({ action }) => (
+                        <button
+                          key={action.key}
+                          type="button"
+                          onClick={() => openMissingSignalAction(action)}
+                          data-testid={`button-report-missing-signal-${action.key}`}
+                          className="vyva-tap flex min-h-[54px] items-center justify-between gap-3 rounded-[18px] bg-[#1D4ED8] px-3 text-left font-body text-[14px] font-black leading-tight text-white shadow-[0_10px_20px_rgba(29,78,216,0.18)]"
+                        >
+                          <span className="min-w-0">{action.title}</span>
+                          <ArrowRight className="h-4 w-4 flex-shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {passiveMissingSignals.length ? (
+                    <p className="mt-2 font-body text-[13px] font-bold leading-snug text-vyva-text-3">
+                      {t("health.symptomCheck.report.passiveMissingSignals", "Also useful for care review: {{items}}", {
+                        items: passiveMissingSignals.join(", "),
+                      })}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
