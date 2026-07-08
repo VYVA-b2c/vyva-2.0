@@ -110,6 +110,17 @@ describe("cognitive assessment readiness", () => {
         if (sql.includes("from public.cc_program_enrollments") && sql.includes("where status = 'active'")) {
           return { rows: [{ count: 7 }] };
         }
+        if (sql.includes("coalesce(nullif(p.preferred_name")) {
+          return {
+            rows: [{
+              user_id: "00000000-0000-4000-8000-000000000101",
+              label: "Ada Reminder",
+              recipient: "+15550000001",
+              language: "en",
+              next_run_at: "2026-07-08T10:00:00.000Z",
+            }],
+          };
+        }
         if (sql.includes("join public.scheduled_interactions")) {
           return { rows: [{ count: 1 }] };
         }
@@ -163,6 +174,11 @@ describe("cognitive assessment readiness", () => {
       });
       expect(operations.reminders.lastQueued?.id).toBe("communication-queued");
       expect(operations.reminders.lastError?.error).toBe("WhatsApp sender is not configured");
+      expect(operations.reminders.testCandidates[0]).toMatchObject({
+        userId: "00000000-0000-4000-8000-000000000101",
+        label: "Ada Reminder",
+        recipient: "+15550000001",
+      });
     } finally {
       Object.entries(previousEnv).forEach(([key, value]) => {
         if (value === undefined) delete process.env[key];

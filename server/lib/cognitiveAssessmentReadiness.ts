@@ -7,6 +7,7 @@ import {
   type CognitiveAssessmentLanguageReadiness,
   type CognitiveAssessmentOperationsReadiness,
   type CognitiveAssessmentReminderCommunicationStatus,
+  type CognitiveAssessmentReminderTestCandidate,
   type CognitiveAssessmentReadinessRequirement,
   type CognitiveAssessmentReadinessResponse,
 } from "../../shared/cognitiveAssessmentReadiness.js";
@@ -42,6 +43,14 @@ type CognitiveReadinessCommunicationRow = {
   created_at: Date | string | null;
   sent_at: Date | string | null;
   metadata: unknown;
+};
+
+type CognitiveReadinessTestCandidateRow = {
+  user_id: string;
+  label: string | null;
+  recipient: string | null;
+  language: string | null;
+  next_run_at: Date | string | null;
 };
 
 export type CognitiveReadinessInput = {
@@ -228,6 +237,18 @@ function communicationStatusFromRow(
   };
 }
 
+function testCandidateFromRow(row: CognitiveReadinessTestCandidateRow): CognitiveAssessmentReminderTestCandidate | null {
+  const recipient = typeof row.recipient === "string" && row.recipient.trim() ? row.recipient.trim() : null;
+  if (!recipient) return null;
+  return {
+    userId: row.user_id,
+    label: typeof row.label === "string" && row.label.trim() ? row.label.trim() : "Member",
+    recipient,
+    language: typeof row.language === "string" && row.language.trim() ? row.language.trim() : "en",
+    nextRunAt: iso(row.next_run_at),
+  };
+}
+
 export async function loadCognitiveAssessmentOperationsReadiness(
   database: Pick<Pool, "query"> = pool,
 ): Promise<CognitiveAssessmentOperationsReadiness> {
@@ -252,6 +273,7 @@ export async function loadCognitiveAssessmentOperationsReadiness(
     queuedPendingResult,
     lastQueuedResult,
     lastErrorResult,
+    testCandidateResult,
   ] = await Promise.all([
     database.query<CognitiveReadinessCountRow>(`
       select count(*)::int as count
@@ -305,6 +327,24 @@ export async function loadCognitiveAssessmentOperationsReadiness(
       order by created_at desc
       limit 1
     `),
+    database.query<CognitiveReadinessTestCandidateRow>(`
+      select
+        e.user_id::text,
+        coalesce(nullif(p.preferred_name, ''), nullif(p.full_name, ''), nullif(p.email, ''), nullif(p.phone_number, ''), 'Member') as label,
+        coalesce(nullif(p.whatsapp_number, ''), nullif(p.phone_number, '')) as recipient,
+        coalesce(nullif(si.preferred_language, ''), 'en') as language,
+        si.next_run_at
+      from public.cc_program_enrollments e
+      join public.scheduled_interactions si on si.id = e.scheduled_interaction_id
+      left join public.profiles p on p.id::text = e.user_id::text
+      where e.status = 'active'
+        and si.interaction_type = 'BRAIN_COACH'
+        and si.source_ref_id = 'cognitive_assessment'
+        and si.status = 'ACTIVE'
+        and coalesce(nullif(p.whatsapp_number, ''), nullif(p.phone_number, '')) is not null
+      order by si.next_run_at asc nulls last, e.updated_at desc
+      limit 25
+    `),
   ]);
 
   return {
@@ -330,6 +370,10 @@ export async function loadCognitiveAssessmentOperationsReadiness(
       queuedPending: countValue(queuedPendingResult.rows[0]?.count),
       lastQueued: communicationStatusFromRow(lastQueuedResult.rows[0]),
       lastError: communicationStatusFromRow(lastErrorResult.rows[0]),
+      testCandidates: testCandidateResult.rows.flatMap((row) => {
+        const candidate = testCandidateFromRow(row);
+        return candidate ? [candidate] : [];
+      }),
     },
   };
 }

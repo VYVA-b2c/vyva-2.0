@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CognitiveAssessmentReadinessResponse } from "../../../shared/cognitiveAssessmentReadiness";
@@ -59,6 +59,13 @@ const readinessResponse: CognitiveAssessmentReadinessResponse = {
         error: null,
       },
       lastError: null,
+      testCandidates: [{
+        userId: "00000000-0000-4000-8000-000000000101",
+        label: "Ada Reminder",
+        recipient: "+15551234567",
+        language: "en",
+        nextRunAt: "2026-07-08T10:00:00.000Z",
+      }],
     },
   },
   blockers: [],
@@ -94,10 +101,24 @@ function renderPage() {
 
 describe("CognitiveAssessmentAdminPage", () => {
   beforeEach(() => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(readinessResponse), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }));
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === "/api/admin/cognitive-assessment/test-reminder" && init?.method === "POST") {
+        return new Response(JSON.stringify({
+          status: "sent",
+          channel: "whatsapp",
+          recipient: "+15551234567",
+          error: null,
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify(readinessResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
   });
 
   afterEach(() => {
@@ -119,6 +140,9 @@ describe("CognitiveAssessmentAdminPage", () => {
     expect(screen.getByText("Last queued")).toBeInTheDocument();
     expect(screen.getByText("Last error")).toBeInTheDocument();
     expect(screen.getByText("No failed Cognitive reminder sends.")).toBeInTheDocument();
+    expect(screen.getByText("Test member")).toBeInTheDocument();
+    expect(screen.getByText("Ada Reminder - +15551234567")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /send test/i })).toBeInTheDocument();
     expect(screen.getByText("Member start status")).toBeInTheDocument();
     expect(screen.getByText("Task registry")).toBeInTheDocument();
     expect(screen.getByText("12/12")).toBeInTheDocument();
@@ -131,5 +155,21 @@ describe("CognitiveAssessmentAdminPage", () => {
     expect(screen.getAllByText("Story Recall").length).toBeGreaterThanOrEqual(5);
     expect(screen.getAllByText("120/1")).toHaveLength(5);
     expect(screen.getByText("Cognitive Bulk Upload")).toBeInTheDocument();
+  });
+
+  it("sends a test reminder through the admin monitor", async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /send test/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /send test/i }));
+
+    await waitFor(() => expect(screen.getByText("Test sent via WhatsApp.")).toBeInTheDocument());
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/admin/cognitive-assessment/test-reminder",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ userId: "00000000-0000-4000-8000-000000000101" }),
+      }),
+    );
   });
 });

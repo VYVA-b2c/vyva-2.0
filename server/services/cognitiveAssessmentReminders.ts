@@ -39,6 +39,8 @@ type CompletionScheduleRow = {
   timezone: string | null;
 };
 
+type TestReminderRow = DueReminderRow;
+
 type DeliveryTarget = {
   channel: "whatsapp" | "sms" | "voice" | "email";
   recipient: string;
@@ -114,6 +116,11 @@ function deliveryTargetFor(row: DueReminderRow): DeliveryTarget | null {
   return null;
 }
 
+function whatsappTargetFor(row: DueReminderRow): DeliveryTarget | null {
+  const recipient = cleanString(row.whatsapp_number) ?? cleanString(row.phone_number);
+  return recipient ? { channel: "whatsapp", recipient } : null;
+}
+
 function reminderBody(row: DueReminderRow, url: string) {
   const language = normalizeAppLanguage(row.preferred_language, "en");
   const name = cleanString(row.preferred_name) ?? cleanString(row.full_name);
@@ -134,6 +141,19 @@ function reminderBody(row: DueReminderRow, url: string) {
     de: `${greeting} Es ist Zeit fuer Ihre kognitive Bewertung. Oeffnen Sie Ihren Check: ${url}`,
     pt: `${greeting} Esta na hora da sua Avaliacao Cognitiva. Abra o seu check: ${url}`,
   });
+}
+
+function testReminderBody(row: DueReminderRow, url: string) {
+  const language = normalizeAppLanguage(row.preferred_language, "en");
+  const body = reminderBody(row, url);
+  const prefix = languageText(language, {
+    en: "VYVA test reminder.",
+    es: "Recordatorio de prueba de VYVA.",
+    fr: "Rappel de test VYVA.",
+    de: "VYVA Test-Erinnerung.",
+    pt: "Lembrete de teste da VYVA.",
+  });
+  return `${prefix} ${body}`;
 }
 
 function nextRunFromSchedule(
@@ -347,6 +367,94 @@ export async function queueDueCognitiveAssessmentReminders(options: {
     queued,
     skipped,
     alreadyQueued,
+  };
+}
+
+export async function queueCognitiveAssessmentTestReminder(options: {
+  userId: string;
+  requestedBy: string;
+  database?: Queryable;
+}) {
+  const database = options.database ?? pool;
+  const now = new Date();
+  const scheduledFor = now.toISOString();
+  const { rows } = await database.query<TestReminderRow>(`
+    select
+      si.id::text,
+      si.user_id::text,
+      si.next_run_at,
+      e.start_date,
+      e.frequency,
+      e.reminder_time::text,
+      e.timezone,
+      si.preferred_language,
+      p.preferred_name,
+      p.full_name,
+      p.phone_number,
+      p.whatsapp_number,
+      p.email,
+      p.channel_notifications,
+      ucp.preferred_reminder_channel::text
+    from public.cc_program_enrollments e
+    join public.scheduled_interactions si on si.id = e.scheduled_interaction_id
+    left join public.profiles p on p.id::text = e.user_id::text
+    left join public.user_channel_preferences ucp on ucp.user_id = e.user_id::text
+    where e.user_id = $1::uuid
+      and e.status = 'active'
+      and si.interaction_type = 'BRAIN_COACH'
+      and si.source_ref_id = 'cognitive_assessment'
+      and si.status = 'ACTIVE'
+    order by si.updated_at desc
+    limit 1
+  `, [options.userId]);
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error("No active Cognitive Assessment enrollment found for this member.");
+  }
+
+  const delivery = whatsappTargetFor(row);
+  if (!delivery) {
+    throw new Error("This member does not have a WhatsApp or phone number for the test reminder.");
+  }
+
+  const url = appUrl(REMINDER_ROUTE);
+  const communication = await database.query<{ id: string }>(`
+    insert into public.communications_log (
+      user_id, channel, recipient, purpose, status, body, metadata
+    ) values ($1, $2, $3, $4, 'queued', $5, $6::jsonb)
+    returning id::text
+  `, [
+    row.user_id,
+    delivery.channel,
+    delivery.recipient,
+    REMINDER_PURPOSE,
+    testReminderBody(row, url),
+    JSON.stringify({
+      source: "cognitive_assessment",
+      route: REMINDER_ROUTE,
+      url,
+      schedule_id: row.id,
+      scheduled_for: scheduledFor,
+      test: true,
+      requested_by: options.requestedBy,
+      queued_by_admin_at: scheduledFor,
+    }),
+  ]);
+
+  await recordReminderLog({
+    database,
+    row,
+    scheduledFor,
+    outcome: "TEST_REMINDER_QUEUED",
+    summary: "Cognitive Assessment test reminder queued via WhatsApp.",
+    riskFlags: ["cognitive_assessment_test_reminder"],
+  });
+
+  return {
+    communicationId: communication.rows[0]?.id ?? null,
+    channel: delivery.channel,
+    recipient: delivery.recipient,
   };
 }
 

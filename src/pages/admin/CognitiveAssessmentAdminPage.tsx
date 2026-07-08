@@ -26,6 +26,13 @@ type BulkUploadResponse = {
   error?: string;
 };
 
+type TestReminderResponse = {
+  status?: string;
+  channel?: string;
+  recipient?: string;
+  error?: string | null;
+};
+
 const READINESS_QUERY_KEY = ["/api/admin/cognitive-assessment/readiness"] as const;
 
 function previewSummary(preview: BulkUploadPreview) {
@@ -131,11 +138,17 @@ function CognitiveOperationsMonitor({
   readyLanguages: number;
   languageTotal: number;
 }) {
+  const queryClient = useQueryClient();
+  const [selectedTestUserId, setSelectedTestUserId] = useState("");
+  const [testReminderStatus, setTestReminderStatus] = useState<{ tone: "good" | "bad" | "neutral"; message: string } | null>(null);
+  const [sendingTest, setSendingTest] = useState(false);
   const operations = readiness.operations;
   if (!operations) return null;
 
   const lastQueued = operations.reminders.lastQueued;
   const lastError = operations.reminders.lastError;
+  const testCandidates = operations.reminders.testCandidates;
+  const selectedCandidateId = selectedTestUserId || testCandidates[0]?.userId || "";
   const dispatcherDetail = operations.dispatcher.enabled
     ? `Every ${formatInterval(operations.dispatcher.intervalMs)} - ${operations.reminders.activeEnrollments} active - ${operations.reminders.queuedPending} pending`
     : `Missing ${operations.dispatcher.missingConfig.join(", ")}`;
@@ -148,6 +161,39 @@ function CognitiveOperationsMonitor({
   const lastErrorDetail = lastError
     ? lastError.error ?? `${lastError.channel} failed ${formatAdminDateTime(lastError.createdAt)}`
     : "No failed Cognitive reminder sends.";
+  const canSendTest = Boolean(selectedCandidateId) && !sendingTest;
+
+  const handleSendTestReminder = async () => {
+    if (!selectedCandidateId) return;
+    setSendingTest(true);
+    setTestReminderStatus(null);
+    try {
+      const response = await apiFetch("/api/admin/cognitive-assessment/test-reminder", {
+        method: "POST",
+        body: JSON.stringify({ userId: selectedCandidateId }),
+      });
+      const body = await response.json().catch(() => ({})) as TestReminderResponse;
+      if (!response.ok) {
+        setTestReminderStatus({ tone: "bad", message: body.error ?? "Test reminder failed." });
+        return;
+      }
+      if (body.status === "sent") {
+        setTestReminderStatus({ tone: "good", message: "Test sent via WhatsApp." });
+      } else if (body.status === "failed") {
+        setTestReminderStatus({ tone: "bad", message: body.error ? `Failed: ${body.error}` : "WhatsApp send failed." });
+      } else {
+        setTestReminderStatus({ tone: "neutral", message: `Queued with status: ${body.status ?? "queued"}.` });
+      }
+      void queryClient.invalidateQueries({ queryKey: READINESS_QUERY_KEY });
+    } catch (error) {
+      setTestReminderStatus({
+        tone: "bad",
+        message: error instanceof Error ? error.message : "Test reminder failed.",
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
 
   return (
     <div className="mt-5">
@@ -194,6 +240,47 @@ function CognitiveOperationsMonitor({
           detail={readiness.ready ? "All languages ready" : "Content blockers active"}
           tone={readiness.ready ? "good" : "warn"}
         />
+      </div>
+      <div className="mt-3 rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <label className="block flex-1">
+            <span className="mb-1 block text-xs font-black uppercase tracking-[0.08em] text-[#7d6b65]">Test member</span>
+            <select
+              value={selectedCandidateId}
+              onChange={(event) => {
+                setSelectedTestUserId(event.target.value);
+                setTestReminderStatus(null);
+              }}
+              disabled={!testCandidates.length}
+              className="min-h-[48px] w-full rounded-2xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] outline-none focus:border-purple-400 focus:ring-4 focus:ring-purple-100 disabled:opacity-60"
+            >
+              {testCandidates.length ? testCandidates.map((candidate) => (
+                <option key={candidate.userId} value={candidate.userId}>
+                  {candidate.label} - {candidate.recipient}
+                </option>
+              )) : (
+                <option value="">No enrolled member with WhatsApp</option>
+              )}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => void handleSendTestReminder()}
+            disabled={!canSendTest}
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-purple-700 px-5 text-sm font-black text-white disabled:opacity-50"
+          >
+            <Send size={17} />
+            {sendingTest ? "Sending..." : "Send test"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs font-bold text-[#7d6b65]">
+          Sends one real WhatsApp reminder through the same dispatcher path.
+        </p>
+        {testReminderStatus ? (
+          <p className={`mt-3 rounded-xl border px-3 py-2 text-sm font-black ${monitorTone(testReminderStatus.tone)}`}>
+            {testReminderStatus.message}
+          </p>
+        ) : null}
       </div>
     </div>
   );

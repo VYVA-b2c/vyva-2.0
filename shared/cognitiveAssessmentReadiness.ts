@@ -98,6 +98,14 @@ export type CognitiveAssessmentReminderCommunicationStatus = {
   error: string | null;
 };
 
+export type CognitiveAssessmentReminderTestCandidate = {
+  userId: string;
+  label: string;
+  recipient: string;
+  language: string;
+  nextRunAt: string | null;
+};
+
 export type CognitiveAssessmentOperationsReadiness = {
   dispatcher: {
     enabled: boolean;
@@ -118,6 +126,7 @@ export type CognitiveAssessmentOperationsReadiness = {
     queuedPending: number;
     lastQueued: CognitiveAssessmentReminderCommunicationStatus | null;
     lastError: CognitiveAssessmentReminderCommunicationStatus | null;
+    testCandidates: CognitiveAssessmentReminderTestCandidate[];
   };
 };
 

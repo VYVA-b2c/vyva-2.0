@@ -2,6 +2,7 @@ import "dotenv/config";
 import { describe, expect, it } from "vitest";
 import {
   markCognitiveAssessmentReminderCompleted,
+  queueCognitiveAssessmentTestReminder,
   queueDueCognitiveAssessmentReminders,
 } from "../services/cognitiveAssessmentReminders.js";
 
@@ -10,12 +11,16 @@ type QueryResult<T = unknown> = { rows: T[]; rowCount?: number | null };
 class FakeDatabase {
   dueRows: unknown[] = [];
   completionRows: unknown[] = [];
+  testReminderRows: unknown[] = [];
   existingCommunicationRows: unknown[] = [];
   communications: unknown[][] = [];
   logs: unknown[][] = [];
   updates: unknown[][] = [];
 
   async query<T = unknown>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
+    if (sql.includes("where e.user_id = $1::uuid") && sql.includes("left join public.profiles")) {
+      return { rows: this.testReminderRows as T[] };
+    }
     if (sql.includes("left join public.profiles")) {
       return { rows: this.dueRows as T[] };
     }
@@ -134,5 +139,68 @@ describe("Cognitive Assessment reminders", () => {
     expect(database.updates[0][0]).toBe("COMPLETED");
     expect((database.updates[0][1] as Date).toISOString()).toBe("2026-07-22T04:00:00.000Z");
     expect((database.updates[0][2] as Date).toISOString()).toBe("2026-07-08T04:30:00.000Z");
+  });
+
+  it("queues an admin test reminder without advancing the real schedule", async () => {
+    const database = new FakeDatabase();
+    database.testReminderRows.push({
+      id: scheduleId,
+      user_id: userId,
+      next_run_at: new Date("2026-07-08T04:00:00.000Z"),
+      start_date: "2026-07-08",
+      frequency: "monthly",
+      reminder_time: "04:00",
+      timezone: "UTC",
+      preferred_language: "en",
+      preferred_name: "Lola",
+      full_name: "Lola Martin",
+      phone_number: "+34600000001",
+      whatsapp_number: "+34600000001",
+      email: "lola@example.com",
+      channel_notifications: "whatsapp",
+      preferred_reminder_channel: "whatsapp_outbound",
+    });
+
+    const previousPublicUrl = process.env.PUBLIC_APP_URL;
+    process.env.PUBLIC_APP_URL = "https://app.example";
+    try {
+      const result = await queueCognitiveAssessmentTestReminder({
+        userId,
+        requestedBy: "ops@example.com",
+        database,
+      });
+
+      expect(result).toMatchObject({
+        communicationId: "communication-1",
+        channel: "whatsapp",
+        recipient: "+34600000001",
+      });
+      expect(database.communications).toHaveLength(1);
+      expect(database.communications[0].slice(0, 4)).toEqual([
+        userId,
+        "whatsapp",
+        "+34600000001",
+        "cognitive_assessment_reminder",
+      ]);
+      expect(String(database.communications[0][4])).toContain("VYVA test reminder.");
+      expect(String(database.communications[0][4])).toContain("https://app.example/mind-memory/cognitive-assessment");
+      expect(JSON.parse(String(database.communications[0][5]))).toMatchObject({
+        source: "cognitive_assessment",
+        route: "/mind-memory/cognitive-assessment",
+        schedule_id: scheduleId,
+        test: true,
+        requested_by: "ops@example.com",
+      });
+      expect(database.logs[0].slice(0, 4)).toEqual([
+        userId,
+        scheduleId,
+        expect.any(String),
+        "TEST_REMINDER_QUEUED",
+      ]);
+      expect(database.updates).toHaveLength(0);
+    } finally {
+      if (previousPublicUrl === undefined) delete process.env.PUBLIC_APP_URL;
+      else process.env.PUBLIC_APP_URL = previousPublicUrl;
+    }
   });
 });
