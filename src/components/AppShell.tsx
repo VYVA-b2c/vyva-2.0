@@ -745,7 +745,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !isVitalsRoute && !isSymptomCheckRoute && <VoiceActionSimulator />}
+        {!isFullScreen && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
         {showDockVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}

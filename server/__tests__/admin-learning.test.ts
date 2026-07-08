@@ -634,4 +634,116 @@ describe("admin learning import", () => {
       },
     });
   });
+
+  it("generates missing published lesson images in a small batch", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    const now = new Date("2026-06-24T10:00:00.000Z");
+    const missingPublishedLesson = {
+      id: "11111111-1111-4111-8111-111111111111",
+      externalId: "science-soap-001",
+      categorySlug: "science",
+      language: "en",
+      title: "Why soap helps water do more",
+      hook: "Soap changes how water meets oil.",
+      body: "Soap molecules can connect with oil and water at the same time.",
+      reflectionPrompt: "Where did you see chemistry quietly helping today?",
+      sourceNotes: "General chemistry background.",
+      imageUrl: null,
+      imageAlt: null,
+      imagePrompt: null,
+      estimatedMinutes: 3,
+      difficulty: "easy",
+      tags: ["science"],
+      status: "published",
+      isActive: true,
+      reviewedAt: now,
+      reviewedBy: "admin",
+      publishedAt: now,
+      publishedBy: "admin",
+      archivedAt: null,
+      archivedBy: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const readyPublishedLesson = {
+      ...missingPublishedLesson,
+      id: "33333333-3333-4333-8333-333333333333",
+      externalId: "science-sky-002",
+      title: "Why the sky looks blue",
+      imageUrl: "/api/learning/images/existing-image",
+    };
+    const draftLesson = {
+      ...missingPublishedLesson,
+      id: "44444444-4444-4444-8444-444444444444",
+      externalId: "science-draft-003",
+      title: "A draft lesson",
+      status: "draft",
+      isActive: false,
+      publishedAt: null,
+      publishedBy: null,
+    };
+    const imageBytes = Buffer.from("generated image bytes");
+    openAiMock.generate.mockResolvedValue({
+      data: [{ b64_json: imageBytes.toString("base64") }],
+    });
+    dbMock.db.select.mockReset();
+    dbMock.db.select.mockReturnValueOnce({
+      from: () => ({
+        orderBy: () => ({
+          limit: async () => [missingPublishedLesson, readyPublishedLesson, draftLesson],
+        }),
+      }),
+    });
+    dbMock.db.insert.mockReturnValue({
+      values: vi.fn(() => ({
+        returning: vi.fn(async () => [{
+          id: "22222222-2222-4222-8222-222222222222",
+          lessonId: missingPublishedLesson.id,
+          mimeType: "image/jpeg",
+          imageBytes,
+          prompt: "stored prompt",
+          model: "gpt-image-2",
+          createdBy: "admin",
+          createdAt: now,
+        }]),
+      })),
+    });
+    const updatedLesson = {
+      ...missingPublishedLesson,
+      imageUrl: "/api/learning/images/22222222-2222-4222-8222-222222222222",
+      imageAlt: "Illustration for Why soap helps water do more",
+      imagePrompt: "generated prompt",
+      updatedAt: now,
+    };
+    dbMock.db.update.mockReturnValue({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn(async () => [updatedLesson]),
+        })),
+      })),
+    });
+
+    const response = await request(app)
+      .post("/api/admin/learning/lessons/generate-missing-images")
+      .send({ limit: 5, status: "published" })
+      .expect(200);
+
+    expect(openAiMock.generate).toHaveBeenCalledTimes(1);
+    expect(response.body).toMatchObject({
+      summary: {
+        lessonsRequested: 1,
+        lessonsGenerated: 1,
+        lessonsFailed: 0,
+        missingPublishedBefore: 1,
+        missingPublishedAfter: 0,
+      },
+      lessons: [
+        expect.objectContaining({
+          id: missingPublishedLesson.id,
+          imageUrl: "/api/learning/images/22222222-2222-4222-8222-222222222222",
+        }),
+      ],
+      failures: [],
+    });
+  });
 });
