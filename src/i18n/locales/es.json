@@ -1096,6 +1096,37 @@
       "locationPlaceholder": "Ciudad o zona",
       "searching": "Buscando especialistas...",
       "searchButton": "Buscar especialistas",
+      "experts": {
+        "title": "Elige un experto",
+        "elena": {
+          "label": "Elena Ruiz",
+          "detail": "Jardinera urbana"
+        },
+        "viktor": {
+          "label": "Viktor Sanz",
+          "detail": "Compañero de juegos"
+        },
+        "lola": {
+          "label": "Lola Martínez",
+          "detail": "Chef mediterránea"
+        },
+        "amara": {
+          "label": "Amara Osei",
+          "detail": "Guía de movimiento"
+        },
+        "marco": {
+          "label": "Marco Reyes",
+          "detail": "Guía de calma"
+        },
+        "diego": {
+          "label": "Diego Salinas",
+          "detail": "Musicólogo"
+        },
+        "isabel": {
+          "label": "Isabel Fuentes",
+          "detail": "Anfitriona literaria"
+        }
+      },
       "recommendedSpecialties": "Especialidades recomendadas",
       "disclaimer": "Esto no es un diagnóstico. Si los síntomas son graves o repentinos, llama a emergencias o a tu médico.",
       "noProvidersTitle": "No he encontrado proveedores verificados con datos suficientes ahora mismo.",
