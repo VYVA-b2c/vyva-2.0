@@ -124,16 +124,16 @@ const defaultPrevention = {
   ],
   dailyActions: [
     {
-      id: "low-salt-lunch",
+      id: "heart_low_salt_meal_001",
       step: "Eat",
-      title: "Lower-salt lunch",
-      detail: "Choose a simple lower-salt meal.",
-      why: "This fits your heart focus and blood pressure context.",
-      evidenceLabel: "Heart",
+      title: "Low-salt meal",
+      detail: "Recipe, groceries, or meal help.",
+      why: "Supports blood pressure wellness.",
+      evidenceLabel: "DASH-style food",
       tone: "food",
       actionSheet: {
-        title: "Lower-salt lunch",
-        summary: "Choose a lower-salt meal.",
+        title: "Low-salt meal",
+        summary: "Recipe, groceries, or meal help.",
         primaryAction: {
           id: "food-help",
           label: "Food ideas",
@@ -149,21 +149,21 @@ const defaultPrevention = {
       ],
     },
     {
-      id: "calm-walk",
-      step: "Move",
-      title: "Gentle walk",
-      detail: "Keep an easy talk pace.",
-      why: "A calm pace supports heart health without pushing hard.",
-      evidenceLabel: "Mobility",
+      id: "heart_calm_breath_007",
+      step: "Calm",
+      title: "Calm breathing",
+      detail: "Open a calm routine.",
+      why: "Supports calm pacing.",
+      evidenceLabel: "Calm routine",
       tone: "movement",
       actionSheet: {
-        title: "Gentle walk",
-        summary: "Move gently.",
+        title: "Calm breathing",
+        summary: "Open a calm routine.",
         primaryAction: {
-          id: "walk-help",
-          label: "Start easy",
-          detail: "Open gentle movement",
-          route: "/social-rooms/morning-movement/exercises/chair-yoga",
+          id: "start-breathing",
+          label: "Start breathing",
+          detail: "Open the calm breathing guide",
+          route: "/activities/relax-breathe",
           priority: "primary",
         },
         secondaryActions: [],
@@ -174,21 +174,21 @@ const defaultPrevention = {
       ],
     },
     {
-      id: "check-bp",
-      step: "Check",
-      title: "Add blood pressure",
-      detail: "One reading completes the picture.",
-      why: "BP is the biggest missing signal in today's plan.",
-      evidenceLabel: "Missing BP",
-      tone: "check",
+      id: "heart_skip_salty_foods_010",
+      step: "Protect",
+      title: "Lower-salt swap",
+      detail: "Swap one salty food.",
+      why: "Supports lower-sodium eating.",
+      evidenceLabel: "Sodium swap",
+      tone: "support",
       actionSheet: {
-        title: "Add blood pressure",
-        summary: "Add one reading.",
+        title: "Lower-salt swap",
+        summary: "Swap one salty food.",
         primaryAction: {
-          id: "add-bp",
-          label: "Add reading",
-          detail: "Open vitals",
-          route: "/health/vitals",
+          id: "show-groceries",
+          label: "Show groceries",
+          detail: "Open lower-salt groceries",
+          route: "/concierge/shopping",
           priority: "primary",
         },
         secondaryActions: [],
@@ -264,7 +264,7 @@ function renderScreen(options: {
 }
 
 async function openAddReadingSheet() {
-  fireEvent.click(await screen.findByTestId("button-open-add-reading-sheet"));
+  fireEvent.click(await screen.findByTestId("agewell-signal-vitals"));
   return screen.findByTestId("add-reading-sheet");
 }
 
@@ -282,18 +282,21 @@ describe("Vitals Hub", () => {
     renderScreen();
 
     expect(await screen.findByText("My Health Plan")).toBeInTheDocument();
-    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("AgeWell Score");
-    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Your biggest opportunity today: complete your heart picture.");
-    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Add blood pressure");
-    expect(screen.getByTestId("agewell-score-value")).toHaveTextContent("90");
-    expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Add blood pressure");
-    expect(screen.getByTestId("button-agewell-ask-vyva")).toHaveTextContent("Ask VYVA");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Heart");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Likely");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Low-salt meal");
+    expect(screen.getByTestId("vitals-guided-hub")).not.toHaveTextContent("Missing BP");
+    expect(screen.getByTestId("vitals-guided-hub")).not.toHaveTextContent("Add blood pressure");
+    expect(screen.getByTestId("button-agewell-primary-action")).toHaveTextContent("Food ideas");
+    expect(screen.getByRole("button", { name: "Ask VYVA" })).toBeInTheDocument();
     expect(screen.queryByText("Good afternoon.")).not.toBeInTheDocument();
     expect(screen.queryByText("Your plan gets clearer with every health signal.")).not.toBeInTheDocument();
     expect(screen.queryByText("Today's Health Plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Plan confidence")).not.toBeInTheDocument();
+    expect(screen.queryByText("Today's AgeWell Focus")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plan clarity")).not.toBeInTheDocument();
     expect(screen.queryByText("5 of 8 signals ready")).not.toBeInTheDocument();
-    expect(screen.getByTestId("agewell-signals-section")).toHaveTextContent("What VYVA is using");
+    expect(screen.getByTestId("agewell-signals-section")).toHaveTextContent("Signals checked");
     expect(screen.getByTestId("agewell-signal-vitals")).toHaveTextContent("Pulse 72");
     expect(screen.getByTestId("agewell-signal-vitals")).toHaveTextContent("Breathing 16");
     expect(screen.getByTestId("agewell-signal-vitals")).toHaveTextContent("Missing: BP");
@@ -301,13 +304,18 @@ describe("Vitals Hub", () => {
     expect(screen.getByTestId("agewell-signal-symptoms")).toHaveTextContent("No active symptom flag");
     expect(screen.getByTestId("agewell-signal-prevention")).toHaveTextContent("Heart");
     expect(screen.getByTestId("agewell-signal-prevention")).toHaveTextContent("High blood pressure");
-    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Today's 3 longevity moves");
-    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Lower-salt lunch");
-    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Gentle walk");
-    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Add blood pressure");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Next 3 moves");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("1. Nourish");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("2. Move or calm");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("3. Protect");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Low-salt meal");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Calm breathing");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Lower-salt swap");
+    expect(screen.getByTestId("agewell-longevity-moves")).not.toHaveTextContent("Add blood pressure");
     expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Done");
-    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Too hard");
-    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("Tap Done or Too hard");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Hard");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Skip");
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("Your choice tunes tomorrow's heart plan.");
     expect(screen.queryByText("Overall status")).not.toBeInTheDocument();
     expect(screen.queryByText("Weekly rhythm")).not.toBeInTheDocument();
     expect(screen.queryByText("Key metrics")).not.toBeInTheDocument();
@@ -327,26 +335,30 @@ describe("Vitals Hub", () => {
   it("updates feedback controls on longevity moves", async () => {
     renderScreen();
 
-    expect(await screen.findByTestId("agewell-longevity-moves")).toHaveTextContent("Lower-salt lunch");
-    fireEvent.click(screen.getByTestId("button-agewell-feedback-low-salt-lunch-done"));
-    expect(screen.getByTestId("agewell-feedback-low-salt-lunch")).toHaveTextContent("Done");
-    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("what worked today");
+    expect(await screen.findByTestId("agewell-longevity-moves")).toHaveTextContent("1. Nourish");
+    fireEvent.click(screen.getByTestId("button-agewell-feedback-heart_low_salt_meal_001-done"));
+    expect(screen.getByTestId("agewell-feedback-heart_low_salt_meal_001")).toHaveTextContent("Done");
+    expect(screen.getByTestId("agewell-complete-state")).toHaveTextContent("AgeWell done for today");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Done today");
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("build on what worked");
     expect(JSON.parse(window.localStorage.getItem("vyva-prevention-feedback:Heart:2026-07-05") || "{}")).toMatchObject({
-      "low-salt-lunch": "done",
+      "heart_low_salt_meal_001": "done",
     });
 
-    fireEvent.click(screen.getByTestId("button-agewell-feedback-calm-walk-too_hard"));
-    expect(screen.getByTestId("agewell-feedback-calm-walk")).toHaveTextContent("Too hard");
-    expect(screen.getByTestId("agewell-move-calm-walk")).toHaveTextContent("Easier version");
-    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("made this easier");
+    fireEvent.click(screen.getByTestId("button-agewell-feedback-heart_calm_breath_007-too_hard"));
+    expect(screen.getByTestId("agewell-feedback-heart_calm_breath_007")).toHaveTextContent("Too hard");
+    expect(screen.getByTestId("agewell-step-steady")).toHaveTextContent("Easier version");
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("Made easier");
+    fireEvent.click(screen.getByTestId("button-agewell-feedback-heart_skip_salty_foods_010-not_today"));
+    expect(screen.getByTestId("agewell-feedback-heart_skip_salty_foods_010")).toHaveTextContent("Not today");
   });
 
   it("passes recent feedback to the prevention engine", async () => {
     window.localStorage.setItem("vyva-prevention-loop:history", JSON.stringify([
       {
-        actionId: "calm-walk",
-        title: "Gentle walk",
-        step: "Move",
+        actionId: "heart_calm_breath_007",
+        title: "Calm breathing",
+        step: "Calm",
         tone: "movement",
         focus: "Heart",
         feedback: "too_hard",
@@ -360,7 +372,7 @@ describe("Vitals Hub", () => {
 
     const preventionCall = apiFetchMock.mock.calls.find(([url]) => String(url).startsWith("/api/health/prevention?learning="));
     expect(preventionCall).toBeTruthy();
-    expect(decodeURIComponent(String(preventionCall?.[0]))).toContain("calm-walk");
+    expect(decodeURIComponent(String(preventionCall?.[0]))).toContain("heart_calm_breath_007");
     expect(decodeURIComponent(String(preventionCall?.[0]))).toContain("too_hard");
   });
 
@@ -368,18 +380,18 @@ describe("Vitals Hub", () => {
     window.localStorage.setItem("vyva-prevention-loop:last-feedback", JSON.stringify({
       focus: "Heart",
       date: "2026-07-04",
-      actionId: "calm-walk",
-      step: "Move",
+      actionId: "heart_calm_breath_007",
+      step: "Calm",
       tone: "movement",
       feedback: "too_hard",
-      title: "Gentle walk",
+      title: "Calm breathing",
       savedAt: "2026-07-04T12:00:00.000Z",
     }));
 
     renderScreen();
 
-    await waitFor(() => expect(screen.getByTestId("agewell-move-calm-walk")).toHaveTextContent("Easier version"));
-    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("started easier");
+    await waitFor(() => expect(screen.getByTestId("agewell-step-steady")).toHaveTextContent("Easier version"));
+    expect(screen.getByTestId("agewell-loop-insight")).toHaveTextContent("Started easier");
   });
 
   it("opens the first prevention action from a completed vitals hero", async () => {
@@ -398,9 +410,10 @@ describe("Vitals Hub", () => {
       },
     });
 
-    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Complete your heart picture.");
-    expect(screen.getByTestId("button-open-add-reading-sheet")).toHaveTextContent("Food ideas");
-    fireEvent.click(screen.getByTestId("button-open-add-reading-sheet"));
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Low-salt meal");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Heart");
+    expect(screen.getByTestId("button-agewell-primary-action")).toHaveTextContent("Food ideas");
+    fireEvent.click(screen.getByTestId("button-agewell-primary-action"));
     expect(await screen.findByTestId("shopping-route")).toBeInTheDocument();
   });
 
@@ -408,15 +421,17 @@ describe("Vitals Hub", () => {
     renderScreen({ preventionError: true });
 
     expect(await screen.findByTestId("agewell-score-ring")).toHaveTextContent("Building");
-    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Your biggest opportunity today: complete your heart picture.");
+    expect(screen.getByTestId("vitals-guided-hub")).toHaveTextContent("Steady meal");
     expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Steady meal");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Gentle movement");
+    expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Wind-down tonight");
     expect(screen.getByTestId("agewell-longevity-moves")).toHaveTextContent("Using a simple AgeWell plan");
   });
 
-  it("opens the add-reading sheet from the primary blood pressure action", async () => {
+  it("opens the add-reading sheet from the vitals signal row", async () => {
     renderScreen();
 
-    fireEvent.click(await screen.findByTestId("button-open-add-reading-sheet"));
+    fireEvent.click(await screen.findByTestId("agewell-signal-vitals"));
     expect(await screen.findByTestId("add-reading-sheet")).toBeInTheDocument();
   });
 
@@ -558,7 +573,7 @@ describe("Vitals Hub", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("complete your heart picture");
+    expect(await screen.findByTestId("vitals-guided-hub")).toHaveTextContent("Low-salt meal");
     await openAddReadingSheet();
     expect(screen.getByTestId("button-vitals-say-reading")).toBeInTheDocument();
     expect(screen.getByTestId("button-vitals-snap-reading")).toBeInTheDocument();

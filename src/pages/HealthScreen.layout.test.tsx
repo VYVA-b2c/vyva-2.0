@@ -293,10 +293,10 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Feel Better");
     expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start");
     expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Start check");
-    expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Stay Well");
+    expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Follow-up");
     expect(screen.getByTestId("button-health-tool-stay-well")).not.toHaveTextContent("Follow-up today.");
-    expect(screen.getByTestId("button-health-tool-stay-well")).toHaveAccessibleName("Stay Well. Follow-up today.");
+    expect(screen.getByTestId("button-health-tool-stay-well")).toHaveAccessibleName("Age Well. Follow-up today.");
 
     expect(screen.queryByTestId("health-plan-lead")).not.toBeInTheDocument();
     expect(screen.queryByTestId("health-tool-section")).not.toBeInTheDocument();
@@ -408,7 +408,7 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start");
     expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Plan");
     expect(screen.getByTestId("button-health-tool-stay-well")).not.toHaveTextContent("Prevention ready.");
-    expect(screen.getByTestId("button-health-tool-stay-well")).toHaveAccessibleName("Stay Well. Prevention ready.");
+    expect(screen.getByTestId("button-health-tool-stay-well")).toHaveAccessibleName("Age Well. Prevention ready.");
     expect(screen.queryByTestId("button-health-signal-checkin")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-health-signal-symptoms")).not.toBeInTheDocument();
     expect(screen.queryByTestId("button-health-signal-medication")).not.toBeInTheDocument();

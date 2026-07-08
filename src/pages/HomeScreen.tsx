@@ -630,7 +630,7 @@ const HomeScreen = () => {
     {
       id: "stay-well",
       icon: ShieldCheck,
-      label: t("home.master.fastHelp.stayWell", "Stay Well"),
+      label: t("home.master.fastHelp.stayWell", "Age Well"),
       detail: t("home.master.fastHelp.stayWellDetail", "Prevention tips"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
       onClick: () => handleNavigate("/health/prevention"),
