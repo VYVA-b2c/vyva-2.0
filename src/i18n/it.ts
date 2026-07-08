@@ -1350,6 +1350,14 @@ const it = {
       ridePrefill: "Aiutami a trovare opzioni di trasporto sicuro in base ai miei parametri VYVA. Chiedimi conferma prima di prenotare.",
     },
   },
+  community: {
+    master: {
+      cards: {
+        experts: "Chiedi a un esperto",
+        expertsDetail: "Parla con uno specialista VYVA",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Accesso rapido ai servizi",
     actions: {

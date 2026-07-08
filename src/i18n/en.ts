@@ -1896,8 +1896,8 @@
       cards: {
         match: "Make Friends",
         matchDetail: "Find people like me",
-        rooms: "Join In",
-        roomsDetail: "Join a live table",
+        experts: "Ask an Expert",
+        expertsDetail: "Talk with a VYVA specialist",
         activities: "What's On",
         activitiesDetail: "Movement and clubs",
         share: "Share Stories",

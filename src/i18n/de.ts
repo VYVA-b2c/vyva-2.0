@@ -1440,6 +1440,14 @@ const de = {
       ridePrefill: "Bitte helfen Sie mir, sichere Transportoptionen fur diese VYVA-Vitalwerte zu finden. Vor jeder Buchung bitte bestatigen lassen.",
     },
   },
+  community: {
+    master: {
+      cards: {
+        experts: "Experten fragen",
+        expertsDetail: "Mit einem VYVA Spezialisten sprechen",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Schneller Servicezugang",
     actions: {
