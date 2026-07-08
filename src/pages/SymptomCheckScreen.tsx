@@ -45,6 +45,18 @@ interface TriageSummary {
   scanNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  contextConfidence?: {
+    score: number;
+    label: string;
+    reasons: string[];
+    missing: string[];
+  };
+  contextSignals?: Array<{
+    id: string;
+    label: string;
+    status: "available" | "missing" | "not_needed";
+  }>;
+  contextBrief?: string;
   refinementContext?: {
     messages: Array<{ role: "user" | "assistant"; content: string }>;
     quickAnswers: Array<{ id: string; label: string; value: string; kind: string }>;
@@ -177,6 +189,12 @@ type VoiceTriageLatestResponse = {
   emergencyContact?: EmergencyContact | null;
   staff_review_requested?: boolean;
   action_options?: VoiceTriageActionOption[];
+  guidancePlan?: {
+    confidence?: TriageSummary["contextConfidence"];
+    usefulSignals?: TriageSummary["contextSignals"];
+    protocolLabel?: string;
+    nextQuestionFocus?: string;
+  } | null;
 };
 
 type VoiceTriageSessionResponse = {
@@ -663,6 +681,7 @@ function VoiceTriageLivePanel({
   const isComplete = session.status === "complete";
   const isFailed = session.status === "failed";
   const canTapAnswer = Boolean(onAnswer && !isAnswering && !isEmergency && !isComplete && !isFailed);
+  const voiceGuidancePlan = latest?.guidancePlan;
   const emergencyContact = latest?.emergencyContact;
   const statusLabel = isEmergency
     ? t("health.symptomCheck.voicePanel.emergency", "Emergency guidance")
@@ -721,6 +740,14 @@ function VoiceTriageLivePanel({
               {!isComplete && !isEmergency ? (
                 <p className="mt-2 font-body text-[15px] font-bold leading-snug text-vyva-text-2">
                   {t("health.symptomCheck.voicePanel.sayOrTap", "Say your answer out loud, or tap one answer below.")}
+                </p>
+              ) : null}
+              {voiceGuidancePlan?.confidence ? (
+                <p className="mt-2 inline-flex rounded-full border border-[#BFDBFE] bg-white px-3 py-1.5 font-body text-[12px] font-black text-[#1D4ED8]" data-testid="voice-triage-context-confidence">
+                  {t("health.symptomCheck.voicePanel.contextConfidence", "{{label}} - {{score}}/5 signals", {
+                    label: voiceGuidancePlan.confidence.label,
+                    score: voiceGuidancePlan.confidence.score,
+                  })}
                 </p>
               ) : null}
             </div>
@@ -2298,6 +2325,30 @@ export function ReportScreen({
   const remainingRecommendations = visibleRecommendations.slice(2);
   const visibleWatchSigns = uniqueLines(summary.watchSigns ?? []).slice(0, 2);
   const contextNotes = uniqueLines([...(summary.profileConsiderations ?? []), ...(summary.vitalsNotes ?? []), ...(summary.scanNotes ?? [])]);
+  const reportContextConfidence = summary.contextConfidence;
+  const reportConfidenceScore = typeof reportContextConfidence?.score === "number"
+    ? Math.min(5, Math.max(1, reportContextConfidence.score))
+    : Math.min(5, Math.max(2, 2 + (contextNotes.length ? 1 : 0) + (bpm != null || respiratoryRate != null ? 1 : 0)));
+  const reportConfidenceLabel = reportContextConfidence?.label ?? (
+    reportConfidenceScore >= 5
+      ? t("health.symptomCheck.report.contextConfidenceHigh", "High confidence")
+      : reportConfidenceScore >= 4
+        ? t("health.symptomCheck.report.contextConfidenceStrong", "Strong confidence")
+        : reportConfidenceScore >= 3
+          ? t("health.symptomCheck.report.contextConfidenceBuilding", "Building confidence")
+          : t("health.symptomCheck.report.contextConfidenceEarly", "Early confidence")
+  );
+  const reportConfidenceReasons = uniqueLines([
+    ...(reportContextConfidence?.reasons ?? []),
+    ...(summary.contextBrief ? [summary.contextBrief] : []),
+    ...(contextNotes.length ? [t("health.symptomCheck.report.contextProfileUsed", "profile and recent context considered")] : []),
+  ]).slice(0, 3);
+  const reportMissingSignals = uniqueLines([
+    ...(reportContextConfidence?.missing ?? []),
+    ...(summary.contextSignals ?? [])
+      .filter((signal) => signal.status === "missing")
+      .map((signal) => signal.label),
+  ]).slice(0, 3);
   const vitalsSummaryItems = uniqueLines([
     bpm != null ? `${t("health.symptomCheck.scan.heartRate", "Heart Rate")}: ${bpm} bpm` : "",
     respiratoryRate != null ? `${t("health.symptomCheck.scan.respiratoryRate", "Breathing rate")}: ${respiratoryRate} breaths/min` : "",
@@ -2586,6 +2637,7 @@ export function ReportScreen({
                 type="button"
                 onClick={primaryAction.onClick}
                 disabled={isEmergency && !emergencyContact?.telHref}
+                data-testid={primaryAction.testId}
                 className={`vyva-tap inline-flex min-h-[54px] flex-shrink-0 items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[16px] font-black leading-tight ${primaryAction.className}`}
               >
                 <PrimaryActionIcon size={19} className="flex-shrink-0" />
@@ -2617,14 +2669,14 @@ export function ReportScreen({
                     const className = "vyva-tap inline-flex min-h-[48px] min-w-0 items-center justify-center gap-2 rounded-[16px] border border-[#E7DCF8] bg-white px-3 py-3 text-center font-body text-[14px] font-black leading-tight text-vyva-purple shadow-sm";
                     if (action.href) {
                       return (
-                        <a key={action.kind} href={action.href} aria-label={action.ariaLabel} className={className}>
+                        <a key={action.kind} href={action.href} aria-label={action.ariaLabel} data-testid={`button-report-support-${action.kind}`} className={className}>
                           <Icon size={18} className="flex-shrink-0" />
                           <span className="min-w-0 break-words">{action.label}</span>
                         </a>
                       );
                     }
                     return (
-                      <button key={action.kind} type="button" onClick={action.onClick} aria-label={action.ariaLabel} className={className}>
+                      <button key={action.kind} type="button" onClick={action.onClick} aria-label={action.ariaLabel} data-testid={`button-report-support-${action.kind}`} className={className}>
                         <Icon size={18} className="flex-shrink-0" />
                         <span className="min-w-0 break-words">{action.label}</span>
                       </button>
@@ -2633,6 +2685,52 @@ export function ReportScreen({
                 </div>
               </div>
             ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-[24px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-blue-950 shadow-[0_10px_26px_rgba(29,78,216,0.07)]" data-testid="card-report-context-confidence">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div
+              role="meter"
+              aria-label={t("health.symptomCheck.report.contextConfidence", "Context confidence")}
+              aria-valuemin={1}
+              aria-valuemax={5}
+              aria-valuenow={reportConfidenceScore}
+              className="relative mx-auto grid h-[92px] w-[92px] flex-shrink-0 place-items-center rounded-full p-2 shadow-[0_14px_28px_rgba(29,78,216,0.14)] sm:mx-0"
+              style={{ background: `conic-gradient(#2563EB 0 ${reportConfidenceScore * 20}%, #DBEAFE ${reportConfidenceScore * 20}% 100%)` }}
+            >
+              <span className="grid h-full w-full place-items-center rounded-full bg-white text-center">
+                <span className="font-body text-[23px] font-black leading-none text-[#1D4ED8]">
+                  {reportConfidenceScore}/5
+                </span>
+                <span className="font-body text-[9px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                  {t("health.symptomCheck.report.contextSignalShort", "Signals")}
+                </span>
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-[#1D4ED8]">
+                {t("health.symptomCheck.report.contextConfidence", "Context confidence")}
+              </p>
+              <p className="mt-1 font-body text-[21px] font-black leading-tight text-vyva-text-1">
+                {reportConfidenceLabel}
+              </p>
+              <p className="mt-2 font-body text-[15px] font-bold leading-relaxed text-blue-900">
+                {reportConfidenceReasons.length
+                  ? t("health.symptomCheck.report.contextConfidenceReason", "This check used {{items}}.", { items: reportConfidenceReasons.join(", ") })
+                  : t("health.symptomCheck.report.contextConfidenceGeneric", "This check used the answers from this session and any available profile context.")}
+              </p>
+              {reportMissingSignals.length ? (
+                <div className="mt-3 rounded-[18px] border border-[#BFDBFE] bg-white px-3 py-3">
+                  <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-text-3">
+                    {t("health.symptomCheck.report.missingSignals", "Would make this stronger")}
+                  </p>
+                  <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {reportMissingSignals.join(", ")}
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
         </section>
 
@@ -3202,7 +3300,7 @@ export function ReportScreen({
             type="button"
             onClick={primaryAction.onClick}
             disabled={isEmergency && !emergencyContact?.telHref}
-            data-testid={primaryAction.testId}
+            data-testid={`${primaryAction.testId}-sticky`}
             className={`vyva-tap flex min-h-[58px] w-full min-w-0 items-center justify-center gap-2 rounded-[18px] px-4 text-center font-body text-[17px] font-black leading-tight sm:min-h-[62px] sm:text-[19px] ${primaryAction.className}`}
           >
             <PrimaryActionIcon size={20} className="flex-shrink-0" />
@@ -3626,6 +3724,11 @@ export default function SymptomCheckScreen() {
         ...refinedPayload.summary,
         aiSummary: refinedPayload.content,
         evidenceSources: refinedPayload.summary.evidenceSources ?? refinedPayload.evidenceSources,
+        contextConfidence: refinedPayload.guidancePlan?.confidence ?? summary.contextConfidence,
+        contextSignals: refinedPayload.guidancePlan?.usefulSignals ?? summary.contextSignals,
+        contextBrief: refinedPayload.guidancePlan
+          ? `${refinedPayload.guidancePlan.protocolLabel}: ${refinedPayload.guidancePlan.nextQuestionFocus}`
+          : summary.contextBrief,
         refinementContext: context,
       } as TriageSummary;
 

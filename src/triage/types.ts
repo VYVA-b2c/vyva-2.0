@@ -90,6 +90,18 @@ export type TriageSummary = {
   scanNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  contextConfidence?: {
+    score: number;
+    label: string;
+    reasons: string[];
+    missing: string[];
+  };
+  contextSignals?: Array<{
+    id: string;
+    label: string;
+    status: "available" | "missing" | "not_needed";
+  }>;
+  contextBrief?: string;
 };
 
 export type TriageWizardAnswer = {
