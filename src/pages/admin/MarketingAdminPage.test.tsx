@@ -41,7 +41,7 @@ const summary = {
     { audienceType: "both", campaigns: 0, contacts: 0 },
   ],
   lockedSendCapabilities: [
-    { channel: "email", sendCapability: "future_send_capable", locked: true, note: "Provider dispatch is locked." },
+    { channel: "email", sendCapability: "enabled", locked: false, note: "Email campaign dispatch uses Resend." },
     { channel: "whatsapp", sendCapability: "future_send_capable", locked: true, note: "Provider dispatch is locked." },
     { channel: "facebook", sendCapability: "planning_only", locked: true, note: "Planning only." },
     { channel: "instagram", sendCapability: "planning_only", locked: true, note: "Planning only." },
@@ -62,8 +62,8 @@ const campaigns = [
     timezone: "Europe/Madrid",
     source: "vyva",
     lovableExternalId: null,
-    channels: [{ id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "locked" }],
-    recipientCount: 0,
+    channels: [{ id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "enabled" }],
+    recipientCount: 1,
   },
   {
     id: "campaign-2",
@@ -165,7 +165,7 @@ const sync = {
   requiredRunnerEmail: "karim.assad@mokadigital.net",
   apiUrl: null,
   mode: "one_way_into_vyva",
-  realSendingLocked: true,
+  realSendingLocked: false,
   lockedSendCapabilities: summary.lockedSendCapabilities,
   runs: [],
 };
@@ -194,6 +194,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
+    if (path === "/api/admin/marketing/campaigns/campaign-1/send-email" && method === "POST") return jsonResponse({ ok: true, sentCount: 1, failedCount: 0, skippedCount: 0, campaign: { ...campaigns[0], status: "published" }, delivery: [{ id: "comm-2", recipient: "karim@example.com", status: "sent" }] });
     if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeys[0] }, { status: 201 });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeys[0] });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
@@ -213,13 +214,12 @@ afterEach(() => {
 });
 
 describe("MarketingAdminPage", () => {
-  it("shows the marketing admin nav, tabs, filters, and locked send state", async () => {
+  it("shows the marketing admin nav, tabs, filters, and email send readiness", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Marketing" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Marketing.*Campaigns, contacts and sync/i })).toBeInTheDocument();
-    expect(screen.getByTestId("marketing-send-locked-panel")).toHaveTextContent("Campaign sending is locked");
-    expect(screen.getByTestId("button-marketing-send-locked")).toBeDisabled();
+    expect(screen.getByTestId("marketing-send-readiness-panel")).toHaveTextContent("Email campaign sending is enabled");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Total campaigns");
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
 
@@ -243,6 +243,8 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Email is enabled through VYVA");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
   });
@@ -356,7 +358,7 @@ describe("MarketingAdminPage", () => {
     confirmSpy.mockRestore();
   });
 
-  it("creates campaign metadata without exposing a send action", async () => {
+  it("creates campaign metadata without auto-dispatching", async () => {
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -366,10 +368,10 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
     });
-    expect(screen.getByTestId("button-marketing-send-locked")).toBeDisabled();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
   });
 
-  it("edits, snapshots recipients for, and deletes campaigns without send controls", async () => {
+  it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
@@ -406,7 +408,7 @@ describe("MarketingAdminPage", () => {
       status: "planned",
       snapshot: { fullName: "Karim Assad" },
     });
-    expect(screen.getByTestId("button-marketing-send-locked")).toBeDisabled();
+    expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-campaign-campaign-1"));
     expect(screen.getByTestId("select-marketing-edit-campaign-content")).toHaveValue("content-1");
@@ -418,6 +420,16 @@ describe("MarketingAdminPage", () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-test-email-feedback")).toHaveTextContent("Test email sent to karim.assad@mokadigital.net.");
+    });
+
+    expect(screen.getByTestId("button-marketing-send-campaign-email")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("button-marketing-send-campaign-email"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-email-feedback")).toHaveTextContent("Campaign email sent to 1 recipient.");
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));

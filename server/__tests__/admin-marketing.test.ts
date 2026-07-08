@@ -183,6 +183,16 @@ describe("admin marketing router", () => {
     expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
   });
 
+  it("keeps marketing campaign email sends super-admin only", async () => {
+    await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/campaigns/00000000-0000-4000-8000-000000000001/send-email")
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.error).toBe("Only the super admin can send marketing campaign emails.");
+      });
+    expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
+  });
+
   it("reports whether the current admin can run Lovable sync", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
@@ -194,8 +204,14 @@ describe("admin marketing router", () => {
         expect(response.body).toMatchObject({
           configured: true,
           canRunSync: false,
+          realSendingLocked: false,
           requiredRunnerEmail: "karim.assad@mokadigital.net",
         });
+        expect(response.body.lockedSendCapabilities).toContainEqual(expect.objectContaining({
+          channel: "email",
+          locked: false,
+          sendCapability: "enabled",
+        }));
       });
 
     await request(buildApp("karim.assad@mokadigital.net"))
@@ -230,6 +246,7 @@ describe("admin marketing router", () => {
     });
     expect(table("marketing_campaigns")).toHaveLength(1);
     expect(table("marketing_campaign_channels")).toHaveLength(1);
+    expect(table("marketing_campaign_channels")[0]).toMatchObject({ send_capability: "enabled" });
     expect(table("marketing_campaign_recipients")).toHaveLength(1);
     expect(table("communications_log")).toHaveLength(0);
   });
@@ -288,6 +305,70 @@ describe("admin marketing router", () => {
       }),
     });
     expect(table("marketing_campaign_recipients")).toHaveLength(0);
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
+  });
+
+  it("sends saved email campaign recipients through the existing dispatcher", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Newsletter",
+        channel: "email",
+        subject: "July update",
+        body: "This is the July update.",
+      })
+      .expect(201);
+
+    const campaignResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "July campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+        }],
+        recipients: [
+          { channel: "email", recipient: "caregiver@example.com", status: "planned", snapshot: { fullName: "Caregiver", consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/admin/marketing/campaigns/${campaignResponse.body.campaign.id}/send-email`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          sentCount: 1,
+          failedCount: 0,
+          skippedCount: 0,
+        });
+      });
+
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      channel: "email",
+      recipient: "caregiver@example.com",
+      purpose: "marketing_campaign_email",
+      status: "queued",
+      body: "This is the July update.",
+      metadata: expect.objectContaining({
+        subject: "July update",
+        campaign_id: campaignResponse.body.campaign.id,
+        content_asset_id: contentResponse.body.content.id,
+        marketing_campaign_send: true,
+      }),
+    });
+    expect(table("marketing_campaign_recipients")[0]).toMatchObject({
+      status: "sent",
+      communication_log_id: table("communications_log")[0].id,
+    });
+    expect(table("marketing_campaigns")[0]).toMatchObject({ status: "published" });
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
   });
