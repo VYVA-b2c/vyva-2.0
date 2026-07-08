@@ -64,6 +64,20 @@ const campaigns = [
     lovableExternalId: null,
     channels: [{ id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "enabled" }],
     recipientCount: 1,
+    recipients: [{
+      id: "recipient-1",
+      campaignId: "campaign-1",
+      contactId: "contact-1",
+      profileId: null,
+      channel: "email",
+      recipient: "karim@example.com",
+      status: "planned",
+      scheduledAt: "2026-07-06T09:00:00.000Z",
+      snapshot: { fullName: "Karim Assad", email: "karim@example.com" },
+      communicationLogId: null,
+      createdAt: "2026-07-05T09:00:00.000Z",
+      updatedAt: "2026-07-05T09:00:00.000Z",
+    }],
   },
   {
     id: "campaign-2",
@@ -77,6 +91,7 @@ const campaigns = [
     lovableExternalId: "lovable-campaign-2",
     channels: [{ id: "channel-2", channel: "linkedin", contentAssetId: null, scheduledAt: null, status: "draft", sendCapability: "locked" }],
     recipientCount: 4,
+    recipients: [],
   },
 ];
 
@@ -376,11 +391,15 @@ describe("MarketingAdminPage", () => {
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
-    fireEvent.click(screen.getByTestId("button-marketing-edit-campaign-campaign-1"));
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
 
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
+    expect(screen.getByText("Karim Assad")).toBeInTheDocument();
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-timezone"), { target: { value: "Europe/London" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-channel"), { target: { value: "email" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-status"), { target: { value: "scheduled" } });
     fireEvent.click(screen.getByTestId("checkbox-marketing-edit-campaign-snapshot"));
@@ -398,6 +417,7 @@ describe("MarketingAdminPage", () => {
       name: "Updated campaign",
       objective: "Updated objective",
       status: "scheduled",
+      timezone: "Europe/London",
       channels: [{ channel: "email", contentAssetId: "content-1", status: "scheduled" }],
     });
     expect(patchBody.recipients).toHaveLength(1);
