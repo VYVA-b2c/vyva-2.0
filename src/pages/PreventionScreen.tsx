@@ -8,6 +8,7 @@ import { useServiceGate } from "@/hooks/useServiceGate";
 import { apiFetch } from "@/lib/queryClient";
 import {
   appendPreventionLoopHistory as appendLoopHistory,
+  dismissPreventionFollowUp,
   encodePreventionLearningQuery as encodeLearningQuery,
   learningContextForPreventionRequest as learningContextForRequest,
   PREVENTION_LOOP_LAST_FEEDBACK_KEY as loopLastFeedbackKey,
@@ -46,6 +47,12 @@ type PreventionFocusResponse = {
   personalizationSummary?: string[];
   profileSignals?: string[];
   doctorNote?: string;
+  followUp?: {
+    reportId?: string | null;
+    reportedAt?: string | null;
+    subject: string;
+    topic: string;
+  };
   generatedAt: string;
 };
 
@@ -583,22 +590,44 @@ function sentenceCase(value: string): string {
   return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
 }
 
+const shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function shortDateLabel(date: Date): string {
+  return `${date.getDate()} ${shortMonths[date.getMonth()]}`;
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+function followUpEyebrowFor(focus: PreventionFocusResponse): string {
+  const raw = focus.followUp?.reportedAt;
+  if (!raw) return "Follow-up";
+  const reportedAt = new Date(raw);
+  if (Number.isNaN(reportedAt.getTime())) return "Follow-up";
+  return sameLocalDay(reportedAt, new Date())
+    ? "Follow-up today"
+    : `Follow-up from ${shortDateLabel(reportedAt)}`;
+}
+
 function followUpHeadlineFor(focus: PreventionFocusResponse, subject: string): string {
+  const topic = focus.followUp?.topic?.trim();
+  if (topic) return `${sentenceCase(topic.toLowerCase())} follow-up`;
+
   const patternChips = focus.dailyActions?.find((item) => item.id === "follow-up-context")?.chips ?? [];
   const cleanChips = patternChips.map((chip) => chip.trim()).filter(Boolean);
-  if (cleanChips.length >= 2) {
+  if (cleanChips.length) {
     const trackedSubject = cleanChips[0].toLowerCase();
-    const readingChip = cleanChips.slice(1).find(isReadingChip);
-    if (readingChip) {
-      return `${sentenceCase(trackedSubject)} + ${readingChip} today.`;
-    }
-    return `${sentenceCase(trackedSubject)} today.`;
+    return `${sentenceCase(trackedSubject)} follow-up`;
   }
+
   const shortSubject = subject.trim();
   if (shortSubject && shortSubject !== "your latest symptoms") {
-    return `${sentenceCase(shortSubject.toLowerCase())} today.`;
+    return `${sentenceCase(shortSubject.toLowerCase())} follow-up`;
   }
-  return "Symptom follow-up today.";
+  return "Symptom follow-up";
 }
 
 function followUpDetailFor(item: PreventionDailyAction): string {
@@ -966,9 +995,14 @@ export default function PreventionScreen() {
   const [actionBarriers, setActionBarriers] = useState<Record<string, PreventionBarrier>>({});
   const [lastLoopFeedback, setLastLoopFeedback] = useState<PreventionLoopLastFeedback | null>(null);
   const [lastLoopView, setLastLoopView] = useState<PreventionLoopLastView | null>(null);
-  const [requestLearning] = useState(() => learningContextForRequest());
+  const [requestLearning, setRequestLearning] = useState(() => learningContextForRequest());
   const { data, isLoading, isError } = useQuery<PreventionFocusResponse>({
-    queryKey: ["/api/health/prevention", requestLearning.clientHour, requestLearning.recentFeedback.length],
+    queryKey: [
+      "/api/health/prevention",
+      requestLearning.clientHour,
+      requestLearning.recentFeedback.length,
+      requestLearning.dismissedFollowUpIds.join("|"),
+    ],
     retry: false,
     staleTime: 60 * 1000,
     queryFn: async () => {
@@ -981,6 +1015,7 @@ export default function PreventionScreen() {
   const isFollowUp = focus.focus === "Follow-up";
   const followUpSubject = isFollowUp ? followUpSubjectFor(focus) : "";
   const heroHeadline = isFollowUp ? followUpHeadlineFor(focus, followUpSubject) : focus.headline;
+  const followUpEyebrow = isFollowUp ? followUpEyebrowFor(focus) : "";
   const tone = toneByFocus[focus.focus] ?? toneByFocus.Plan;
   const FocusIcon = tone.icon;
   const primaryRoute = focus.primaryRoute || fallbackFocus.primaryRoute;
@@ -990,13 +1025,16 @@ export default function PreventionScreen() {
     const guidanceItems = focus.guidance?.length ? focus.guidance : fallbackFocus.guidance ?? [];
     return guidanceItems.slice(0, 3).map((item) => guidanceToDailyAction(item, focus.focus));
   }, [focus.dailyActions, focus.focus, focus.guidance]);
-  const dailyActions = useMemo(() => adaptDailyActionsForLoop(
-    baseDailyActions,
-    actionFeedback,
-    lastLoopFeedback,
-    lastLoopView,
-    currentDateKey,
-  ), [actionFeedback, baseDailyActions, currentDateKey, lastLoopFeedback, lastLoopView]);
+  const dailyActions = useMemo(() => {
+    if (isFollowUp) return baseDailyActions;
+    return adaptDailyActionsForLoop(
+      baseDailyActions,
+      actionFeedback,
+      lastLoopFeedback,
+      lastLoopView,
+      currentDateKey,
+    );
+  }, [actionFeedback, baseDailyActions, currentDateKey, isFollowUp, lastLoopFeedback, lastLoopView]);
   const learning = focus.learning ?? fallbackFocus.learning;
   const secondaryLabel = (() => {
     if (primaryRoute.startsWith("/informes")) return t("health.prevention.routes.report", "Open report");
@@ -1095,6 +1133,13 @@ export default function PreventionScreen() {
         latestSymptomReport: context,
       },
     });
+  };
+
+  const resolveFollowUp = () => {
+    const reportId = focus.followUp?.reportId?.trim();
+    if (!reportId) return;
+    dismissPreventionFollowUp(reportId);
+    setRequestLearning(learningContextForRequest());
   };
 
   const markAction = (action: PreventionDailyAction, feedback: PreventionFeedback) => {
@@ -1286,7 +1331,7 @@ export default function PreventionScreen() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-body text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: tone.iconColor }}>
-              {isFollowUp ? t("health.prevention.followUpEyebrow", "Follow-up") : `${t("health.prevention.eyebrow", "Prevention")} ${focus.focus}`}
+              {isFollowUp ? followUpEyebrow : `${t("health.prevention.eyebrow", "Prevention")} ${focus.focus}`}
             </p>
             <h1 className={isFollowUp
               ? "mt-1 font-body text-[21px] font-black leading-[1.08] text-vyva-text-1 sm:text-[26px]"
@@ -1294,6 +1339,16 @@ export default function PreventionScreen() {
             >
               {heroHeadline}
             </h1>
+            {isFollowUp && focus.followUp?.reportId ? (
+              <button
+                type="button"
+                onClick={resolveFollowUp}
+                data-testid="button-prevention-resolve-follow-up"
+                className="vyva-tap mt-2 inline-flex min-h-[34px] items-center justify-center rounded-full border border-[#FAD7AA] bg-white px-3 font-body text-[12px] font-black text-[#B45309]"
+              >
+                {t("health.prevention.followUpHandled", "Handled")}
+              </button>
+            ) : null}
           </div>
           {isFollowUp ? (
             <button
