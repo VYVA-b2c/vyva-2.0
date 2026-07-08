@@ -163,7 +163,7 @@ describe("MindMemoryScreen", () => {
       },
     });
 
-    expect(await screen.findByText("Active")).toBeInTheDocument();
+    expect(await screen.findByText("Joined")).toBeInTheDocument();
     expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Monthly check");
   });
 
