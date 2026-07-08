@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -937,7 +937,15 @@ export default function SpatialNavigator({ userId, onExit }) {
           </div>
           <p className="spatial-hint">{text.progressNext} {nextTier}</p>
 
-          <BrainGameResultActions
+          <BrainGameCompletionDialog
+            title={resultAccuracy >= 60 ? text.resultGreat : text.resultTry}
+            summary={`${text.accuracy}: ${resultAccuracy}% | ${text.score}: ${sessionResult?.score ?? 0}`}
+            metrics={[
+              { label: text.accuracy, value: `${resultAccuracy}%` },
+              { label: text.streak, value: `${userState?.streak_days ?? 1} ${text.days}` },
+              { label: text.score, value: sessionResult?.score ?? 0 },
+              { label: text.level, value: `${text.level} ${resultTier}` },
+            ]}
             continueLabel={continueLabel}
             replayLabel={text.playAgain}
             anotherLabel={text.playAnotherGame}

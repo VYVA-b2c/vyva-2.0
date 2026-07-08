@@ -1,23 +1,33 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Activity,
+  ArrowRight,
   ArrowLeft,
   BarChart3,
+  BookOpen,
   Brain,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
   FileText,
+  Gamepad2,
   History,
+  Leaf,
+  Lightbulb,
   Loader2,
-  Microscope,
   PlayCircle,
   ShieldCheck,
+  Sparkles,
   Target,
+  type LucideIcon,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  cognitiveAssessmentPracticeStatusForReport,
+  startCognitiveAssessmentPractice,
+} from "@/lib/cognitiveAssessmentPracticeBridge";
 import type {
   CognitiveAssessmentDomainTrend,
   CognitiveAssessmentHistoryResponse,
@@ -261,6 +271,345 @@ function chartCoordinates(points: ProgressPoint[]) {
   });
 }
 
+type PracticeKey = "memory" | "language" | "attention" | "reasoning" | "visual" | "context";
+
+type PracticeRecommendation = {
+  key: PracticeKey;
+  title: string;
+  detail: string;
+  why: string;
+  route: string;
+  domainLabel: string;
+  minutes: string;
+  Icon: LucideIcon;
+  tone: {
+    border: string;
+    bg: string;
+    accent: string;
+    soft: string;
+  };
+};
+
+const PRACTICE_RECOMMENDATIONS: Record<PracticeKey, PracticeRecommendation> = {
+  memory: {
+    key: "memory",
+    title: "Remember Later",
+    detail: "Practice remembering an intention after a short delay.",
+    why: "This gives memory a short, practical workout without turning the result into a test score.",
+    route: "/memory-games/remember-later",
+    domainLabel: "Memory",
+    minutes: "5 min",
+    Icon: Brain,
+    tone: { border: "#DDD6FE", bg: "#F5F3FF", accent: "#6B21A8", soft: "#FFFFFF" },
+  },
+  language: {
+    key: "language",
+    title: "Curious Minds",
+    detail: "Warm up word finding with gentle idea prompts.",
+    why: "This keeps word finding active with short prompts that feel more like conversation than testing.",
+    route: "/memory-games/curious-minds",
+    domainLabel: "Language",
+    minutes: "5 min",
+    Icon: BookOpen,
+    tone: { border: "#BFDBFE", bg: "#EFF6FF", accent: "#1D4ED8", soft: "#FFFFFF" },
+  },
+  attention: {
+    key: "attention",
+    title: "Number Trails",
+    detail: "Follow a calm route and train focus step by step.",
+    why: "This supports steady attention with a clear path and simple next target.",
+    route: "/executive-function/number-trails",
+    domainLabel: "Attention",
+    minutes: "5 min",
+    Icon: Target,
+    tone: { border: "#BBF7D0", bg: "#ECFDF5", accent: "#047857", soft: "#FFFFFF" },
+  },
+  reasoning: {
+    key: "reasoning",
+    title: "Category Sort",
+    detail: "Sort everyday ideas and practice flexible thinking.",
+    why: "This matches reasoning practice to everyday choices, grouping, and flexible thinking.",
+    route: "/executive-function/category-sort",
+    domainLabel: "Reasoning",
+    minutes: "5 min",
+    Icon: Lightbulb,
+    tone: { border: "#FED7AA", bg: "#FFF7ED", accent: "#C2410C", soft: "#FFFFFF" },
+  },
+  visual: {
+    key: "visual",
+    title: "Memory Match",
+    detail: "Use visual pairs to strengthen recognition and recall.",
+    why: "This gives visual thinking a simple recognition pattern to work with.",
+    route: "/memory-games/memory_match",
+    domainLabel: "Visual thinking",
+    minutes: "4 min",
+    Icon: Gamepad2,
+    tone: { border: "#FBCFE8", bg: "#FDF2F8", accent: "#BE185D", soft: "#FFFFFF" },
+  },
+  context: {
+    key: "context",
+    title: "Breath Garden",
+    detail: "Settle attention before another memory or thinking task.",
+    why: "This is useful when mood, sleep, or energy may be affecting the check.",
+    route: "/senses/breath-garden",
+    domainLabel: "Mood and energy",
+    minutes: "4 min",
+    Icon: Leaf,
+    tone: { border: "#99F6E4", bg: "#F0FDFA", accent: "#0F766E", soft: "#FFFFFF" },
+  },
+};
+
+function practiceKeyForTask(taskId: string): PracticeKey | null {
+  if (taskId.includes("story_recall")) return "memory";
+  if (taskId.includes("fluency")) return "language";
+  if (taskId.includes("digit_span")) return "attention";
+  if (taskId.includes("similarities")) return "reasoning";
+  if (taskId.includes("clock")) return "visual";
+  if (CONTEXT_REPORT_TASK_IDS.has(taskId)) return "context";
+  return null;
+}
+
+function practiceKeyForDomain(domain: string | null | undefined): PracticeKey {
+  const normalized = (domain ?? "").toLowerCase();
+  if (normalized.includes("language")) return "language";
+  if (normalized.includes("attention")) return "attention";
+  if (normalized.includes("reason")) return "reasoning";
+  if (normalized.includes("visual") || normalized.includes("clock")) return "visual";
+  if (normalized.includes("mood") || normalized.includes("sleep") || normalized.includes("daily") || normalized.includes("concern")) return "context";
+  return "memory";
+}
+
+function signalStrength(signal: ReportTaskSignals[number]) {
+  if (signal.rawValue === null) return 1;
+  if (typeof signal.maxValue === "number" && signal.maxValue > 0) {
+    return signal.rawValue / signal.maxValue;
+  }
+  return 0.72;
+}
+
+function primaryPracticeKey({
+  report,
+  taskSignals,
+  domainTrends,
+  baselineBands,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  taskSignals: ReportTaskSignals;
+  domainTrends: ReportDomainTrends;
+  baselineBands: ReportBaselineBands;
+  contextInsight: ReportContextInsight;
+}): PracticeKey {
+  const belowBaseline = baselineBands.find((band) => band.status === "below");
+  if (belowBaseline) return practiceKeyForDomain(belowBaseline.label);
+
+  const downwardTrend = domainTrends.find((trend) => trend.direction === "down" && trend.latestRawValue !== null);
+  if (downwardTrend) return practiceKeyForDomain(downwardTrend.label);
+
+  const scoredSignals = taskSignals
+    .filter((signal) => !isContextSignal(signal) && signal.rawValue !== null)
+    .sort((left, right) => signalStrength(left) - signalStrength(right));
+
+  const lowestSignal = scoredSignals[0];
+  if (lowestSignal) return practiceKeyForTask(lowestSignal.taskId) ?? practiceKeyForDomain(lowestSignal.domain);
+
+  const firstThinkingSection = report.sections.find((section) => !isContextSection(section));
+  if (firstThinkingSection) return practiceKeyForTask(firstThinkingSection.taskId) ?? practiceKeyForDomain(firstThinkingSection.domain);
+
+  if (contextInsight.tone === "changed") return "context";
+
+  const firstSection = report.sections[0];
+  if (firstSection) return practiceKeyForTask(firstSection.taskId) ?? practiceKeyForDomain(firstSection.domain);
+
+  return "attention";
+}
+
+function practiceSequence(primary: PracticeKey): PracticeRecommendation[] {
+  const ordered: PracticeKey[] = [primary, "memory", "attention", "context", "language", "reasoning", "visual"];
+  return Array.from(new Set(ordered)).slice(0, 3).map((key) => PRACTICE_RECOMMENDATIONS[key]);
+}
+
+function outcomeCopy(report: CognitiveAssessmentReport, checkQuality: ReportCheckQuality) {
+  const percent = completionPercent(report);
+  if (report.tasksCompleted >= report.totalTasks && checkQuality.status === "good") {
+    return {
+      label: "Result",
+      title: "A clear starting map",
+      detail: "Ready for one small practice and future comparison.",
+    };
+  }
+  if (percent >= 70) {
+    return {
+      label: "Result",
+      title: "A useful snapshot",
+      detail: "Choose one practice now. Repeat later for a stronger trend.",
+    };
+  }
+  if (percent >= 35) {
+    return {
+      label: "Result",
+      title: "A snapshot is building",
+      detail: "Practice can begin now. Fill the gaps next time.",
+    };
+  }
+  return {
+    label: "Result",
+    title: "A first step is saved",
+    detail: "Not a score. A starting point for support and practice.",
+  };
+}
+
+function outcomeHighlights({
+  report,
+  taskSignals,
+  domainTrends,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  taskSignals: ReportTaskSignals;
+  domainTrends: ReportDomainTrends;
+  contextInsight: ReportContextInsight;
+}) {
+  const highlights: Array<{ title: string; detail: string }> = [];
+  const thinking = thinkingDomains(report);
+  if (thinking.length > 0) {
+    highlights.push({
+      title: "What went well",
+      detail: `${shortList(thinking, "Thinking areas", 3)} captured.`,
+    });
+  }
+
+  const positiveTrend = domainTrends.find((trend) => trend.direction === "up" || trend.direction === "flat");
+  if (positiveTrend) {
+    highlights.push({
+      title: "Good signal",
+      detail: `${positiveTrend.label} is ${domainTrendLabel(positiveTrend)}.`,
+    });
+  }
+
+  const contextCount = taskSignals.filter(isContextSignal).length;
+  if (contextCount > 0 || contextInsight.tone !== "building") {
+    highlights.push({
+      title: "Context helps",
+      detail: contextInsight.tone === "changed" ? "Sleep, mood, or daily life may explain changes." : "Daily context can make future comparisons clearer.",
+    });
+  }
+
+  if (highlights.length === 0) {
+    highlights.push({
+      title: "Ready to practice",
+      detail: "Start with one short Brain Coach activity today.",
+    });
+  }
+
+  return highlights.slice(0, 3);
+}
+
+function bestThinkingSignal(taskSignals: ReportTaskSignals) {
+  return taskSignals
+    .filter((signal) => !isContextSignal(signal) && signal.rawValue !== null)
+    .sort((left, right) => signalStrength(right) - signalStrength(left))[0] ?? null;
+}
+
+function strengthMapItems({
+  report,
+  taskSignals,
+  domainTrends,
+  baselineBands,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  taskSignals: ReportTaskSignals;
+  domainTrends: ReportDomainTrends;
+  baselineBands: ReportBaselineBands;
+  contextInsight: ReportContextInsight;
+}) {
+  const bestSignal = bestThinkingSignal(taskSignals);
+  const practiceKey = primaryPracticeKey({ report, taskSignals, domainTrends, baselineBands, contextInsight });
+  const practice = PRACTICE_RECOMMENDATIONS[practiceKey];
+  const trend = domainTrends.find((item) => item.latestRawValue !== null && item.direction !== "none");
+  const contextPercent = contextInsight.tone === "building" ? 42 : contextInsight.tone === "changed" ? 74 : 68;
+
+  return [
+    {
+      label: "Bright spot",
+      value: bestSignal?.domain ?? trend?.label ?? "First signal",
+      detail: bestSignal?.valueLabel ?? trend?.valueLabel ?? "Saved",
+      percent: bestSignal ? Math.max(34, Math.min(100, Math.round(signalStrength(bestSignal) * 100))) : completionPercent(report),
+      tone: "bg-[#ECFDF5] text-[#047857] border-[#BBF7D0]",
+      bar: "#047857",
+    },
+    {
+      label: "Focus next",
+      value: practice.domainLabel,
+      detail: practice.title,
+      percent: 68,
+      tone: "bg-[#F5F3FF] text-[#6B21A8] border-[#DDD6FE]",
+      bar: practice.tone.accent,
+    },
+    {
+      label: "Life context",
+      value: contextInsight.label,
+      detail: contextInsight.tone === "changed" ? "May explain changes" : "Helps comparisons",
+      percent: contextPercent,
+      tone: "bg-[#FFF7ED] text-[#C2410C] border-[#FED7AA]",
+      bar: "#C2410C",
+    },
+  ];
+}
+
+function StrengthMapCard({
+  report,
+  taskSignals,
+  domainTrends,
+  baselineBands,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  taskSignals: ReportTaskSignals;
+  domainTrends: ReportDomainTrends;
+  baselineBands: ReportBaselineBands;
+  contextInsight: ReportContextInsight;
+}) {
+  const items = strengthMapItems({ report, taskSignals, domainTrends, baselineBands, contextInsight });
+
+  return (
+    <section
+      className="min-w-0 max-w-full overflow-hidden rounded-[28px] border border-[#E8DED4] bg-white p-4 shadow-[0_12px_28px_rgba(63,45,35,0.06)]"
+      data-testid="assessment-strength-map"
+      aria-labelledby="assessment-strength-map-title"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Strength map</p>
+          <h2 id="assessment-strength-map-title" className="mt-1 text-[24px] font-black leading-tight text-[#2f2135]">
+            What to use next
+          </h2>
+        </div>
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
+          <Sparkles size={22} />
+        </span>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        {items.map((item) => (
+          <div key={item.label} className={`min-w-0 rounded-[20px] border px-3 py-3 ${item.tone}`}>
+            <span className="block text-[11px] font-black uppercase tracking-[0.1em] opacity-80">{item.label}</span>
+            <span className="mt-1 block truncate text-[18px] font-black leading-tight text-[#2f2135]">{item.value}</span>
+            <span className="mt-1 block truncate text-[12px] font-bold opacity-85">{item.detail}</span>
+            <span className="mt-3 block h-2 overflow-hidden rounded-full bg-white/80">
+              <span
+                className="block h-full rounded-full"
+                style={{ width: `${Math.max(18, Math.min(100, item.percent))}%`, backgroundColor: item.bar }}
+              />
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ReportHeader({
   title,
   subtitle,
@@ -295,120 +644,29 @@ function ReportHeader({
   );
 }
 
-function EmptyState() {
+function NoReportState() {
   const navigate = useNavigate();
-  const programSteps = [
-    "Memory, attention, language, reasoning, and everyday function are checked in one guided flow.",
-    "The report appears immediately after completion and is saved for later review.",
-    "Repeating the check over time helps show whether things are stable, improving, or changing.",
-  ];
-  const evidencePoints = [
-    "Built from established cognitive-screening domains, including story recall, verbal fluency, digit span, similarities, and clock drawing.",
-    "Language content is localized across English, Spanish, German, French, and Portuguese so members can answer naturally.",
-    "The result is a wellness report for tracking and conversation, not a medical diagnosis.",
-  ];
-
   return (
     <main className="min-h-screen bg-[#F7F2EB] pb-10">
-      <header className="mx-auto w-full max-w-[1100px] px-5 pt-5 md:px-7 lg:px-8">
-        <button
-          type="button"
-          onClick={() => navigate("/mind-memory")}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-white px-4 text-sm font-black text-[#2f2135] shadow-[0_8px_20px_rgba(63,45,35,0.07)]"
-        >
-          <ArrowLeft size={18} />
-          Mind & Memory
-        </button>
-      </header>
-
-      <section className="mx-auto w-full max-w-[1100px] px-5 pt-4 md:px-7 lg:px-8">
-        <div id="latest-snapshot" className="rounded-[30px] border border-[#DDD6FE] bg-white p-5 shadow-[0_18px_40px_rgba(63,45,35,0.08)]">
-          <span className="inline-flex min-h-[36px] items-center gap-2 rounded-full bg-[#F5F3FF] px-3 text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">
-            <Brain size={16} />
-            Cognitive Assessment
-          </span>
-          <h1 className="mt-4 text-[34px] font-black leading-[1.02] text-[#2f2135]">
-            A guided check for memory and thinking
-          </h1>
-          <p className="mt-3 text-[17px] font-bold leading-relaxed text-[#62564f]">
-            VYVA walks the member through a short, structured assessment and turns the answers into a clear report that can be reviewed today and compared over time.
+      <ReportHeader
+        title="No report yet"
+        subtitle="Finish one Cognitive Assessment check to unlock the report."
+      />
+      <section className="mx-auto grid w-full max-w-[760px] gap-3 px-5 pt-5 md:px-7">
+        <div className="rounded-[26px] border border-[#E8DED4] bg-white p-5 text-center shadow-[0_12px_28px_rgba(63,45,35,0.06)]">
+          <FileText size={30} className="mx-auto text-[#6B21A8]" />
+          <h2 className="mt-3 text-[26px] font-black leading-tight text-[#2f2135]">Your report will appear here</h2>
+          <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#62564f]">
+            The program hub can start or continue the guided check.
           </p>
           <button
             type="button"
-            onClick={() => navigate("/mind-memory/cognitive-assessment/start")}
-            className="mt-5 inline-flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#2f2135] px-5 text-[17px] font-black text-white shadow-[0_12px_28px_rgba(47,33,53,0.18)]"
+            onClick={() => navigate("/mind-memory/cognitive-assessment")}
+            className="mt-5 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[20px] bg-[#2f2135] px-5 text-[16px] font-black text-white"
           >
-            <PlayCircle size={20} />
-            Start guided check
+            <Brain size={20} />
+            Back to program
           </button>
-          <p className="mt-3 text-center text-[12px] font-bold leading-relaxed text-[#766b63]">
-            Takes about 10 to 15 minutes. No report exists yet.
-          </p>
-        </div>
-      </section>
-
-      <section className="mx-auto grid w-full max-w-[1100px] gap-3 px-5 pt-5 md:grid-cols-2 md:px-7 lg:grid-cols-4 lg:px-8">
-        <div className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#EFF6FF] text-[#2563EB]">
-              <ClipboardList size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight text-[#2f2135]">What the program checks</h2>
-              <div className="mt-3 grid gap-2">
-                {programSteps.map((item) => (
-                  <p key={item} className="flex gap-2 text-[14px] font-bold leading-relaxed text-[#62564f]">
-                    <CheckCircle2 className="mt-0.5 flex-shrink-0 text-[#059669]" size={18} />
-                    <span>{item}</span>
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-[#1E3A8A] shadow-[0_10px_24px_rgba(37,99,235,0.07)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#2563EB]">
-              <FileText size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight">The report</h2>
-              <p className="mt-2 text-[14px] font-bold leading-relaxed">
-                After the check, VYVA summarizes completed areas, saved answers, score-style signals where available, and practical next steps. Later visits show the latest report first, with history kept underneath.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-[#D9ECE4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#ECFDF5] text-[#047857]">
-              <Microscope size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight text-[#2f2135]">Scientific basis</h2>
-              <div className="mt-3 grid gap-2">
-                {evidencePoints.map((item) => (
-                  <p key={item} className="text-[14px] font-bold leading-relaxed text-[#62564f]">{item}</p>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-[#FED7AA] bg-[#FFF7ED] p-4 text-[#7C2D12] shadow-[0_10px_24px_rgba(194,65,12,0.055)]">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#C2410C]">
-              <ShieldCheck size={23} />
-            </span>
-            <div>
-              <h2 className="text-[21px] font-black leading-tight">How to use it</h2>
-              <p className="mt-2 text-[14px] font-bold leading-relaxed">
-                Use the report to notice patterns and prepare better conversations with caregivers or clinicians, especially when sleep, mood, medicines, or daily function may be affecting memory.
-              </p>
-            </div>
-          </div>
         </div>
       </section>
     </main>
@@ -696,27 +954,169 @@ function checkQualityTone(checkQuality: ReportCheckQuality) {
   return "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]";
 }
 
-function CheckQualityPanel({ checkQuality }: { checkQuality: ReportCheckQuality }) {
+function comparisonConfidencePercent(checkQuality: ReportCheckQuality, report: CognitiveAssessmentReport) {
+  const statusBase = checkQuality.status === "good" ? 88 : checkQuality.status === "partial" ? 68 : 42;
+  const coverage = completionPercent(report);
+  return Math.min(100, Math.max(24, Math.round((statusBase * 0.65) + (coverage * 0.35))));
+}
+
+function comparisonConfidenceLabel(checkQuality: ReportCheckQuality) {
+  if (checkQuality.status === "good") return "High";
+  if (checkQuality.status === "partial") return "Useful";
+  return "Building";
+}
+
+function primaryInsightTrend(domainTrends: ReportDomainTrends) {
+  const active = domainTrends.filter((trend) => trend.latestRawValue !== null && trend.direction !== "none");
+  const changed = active
+    .filter((trend) => trend.direction !== "flat")
+    .sort((left, right) => trendDeltaMagnitude(right) - trendDeltaMagnitude(left));
+
+  return changed[0] ?? active[0] ?? null;
+}
+
+function primaryTrendHeadline(trend: CognitiveAssessmentDomainTrend | null) {
+  if (!trend) return "No signal yet";
+  if (trend.direction === "new") return `${trend.label} saved`;
+  if (trend.direction === "flat") return `${trend.label} steady`;
+  if (trend.latestRawValue !== null && trend.previousRawValue !== null) {
+    const delta = trend.latestRawValue - trend.previousRawValue;
+    return `${trend.label} ${delta > 0 ? `+${delta}` : delta}`;
+  }
+  return trend.label;
+}
+
+function compactContextDetail(contextInsight: ReportContextInsight) {
+  if (contextInsight.relatedSignals.length > 0) return contextInsight.relatedSignals[0];
+  if (contextInsight.tone === "building") return "Add mood, sleep, and daily function";
+  return "Saved for comparison";
+}
+
+function insightSnapshotItems(
+  report: CognitiveAssessmentReport,
+  domainTrends: ReportDomainTrends,
+  checkQuality: ReportCheckQuality,
+  contextInsight: ReportContextInsight,
+) {
+  const trend = primaryInsightTrend(domainTrends);
+  const remaining = remainingAreas(report);
+  const action = bestNextAction(remaining, checkQuality, contextInsight);
+
+  return [
+    {
+      id: "change",
+      label: trend?.direction === "new" ? "New signal" : "Most changed",
+      value: primaryTrendHeadline(trend),
+      detail: trend ? domainTrendPlainCopy(trend) : "Finish a step to start tracking.",
+      icon: <Activity size={19} />,
+      tone: "border-[#BBF7D0] bg-[#F4FFFB] text-[#047857]",
+    },
+    {
+      id: "coverage",
+      label: "Coverage",
+      value: `${report.tasksCompleted}/${report.totalTasks} steps`,
+      detail: coverageMeaning(report),
+      icon: <ClipboardList size={19} />,
+      tone: "border-[#DDD6FE] bg-[#F7F3FF] text-[#5B21B6]",
+    },
+    {
+      id: "context",
+      label: "Context",
+      value: contextInsight.label,
+      detail: compactContextDetail(contextInsight),
+      icon: <ShieldCheck size={19} />,
+      tone: contextInsightTone(contextInsight),
+    },
+    {
+      id: "next",
+      label: "Next",
+      value: action.title,
+      detail: remaining.length ? `${remaining.length} step${remaining.length === 1 ? "" : "s"} remaining` : "Ready to compare later",
+      icon: <Target size={19} />,
+      tone: "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]",
+    },
+  ];
+}
+
+function ComparisonConfidenceMeter({
+  checkQuality,
+  report,
+}: {
+  checkQuality: ReportCheckQuality;
+  report: CognitiveAssessmentReport;
+}) {
+  const confidence = comparisonConfidencePercent(checkQuality, report);
+  const label = comparisonConfidenceLabel(checkQuality);
+
   return (
-    <div className={`mt-4 min-w-0 max-w-full overflow-hidden rounded-[18px] border p-3 ${checkQualityTone(checkQuality)}`}>
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-white/80">
-          <ShieldCheck size={22} />
+    <div className={`min-w-0 rounded-[20px] border p-4 ${checkQualityTone(checkQuality)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-[11px] font-black uppercase tracking-[0.1em] opacity-80">Comparison confidence</span>
+          <span className="mt-1 block truncate text-[22px] font-black leading-tight text-[#2f2135]">{label}</span>
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-black">{checkQuality.label}</span>
-          <span className="mt-0.5 block text-[12px] font-bold leading-snug opacity-80">{checkQuality.detail}</span>
-        </span>
+        <span className="rounded-full bg-white px-3 py-1 text-[13px] font-black shadow-sm">{confidence}%</span>
       </div>
+      <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/85">
+        <div className="h-full rounded-full bg-current" style={{ width: `${confidence}%` }} />
+      </div>
+      <p className="mt-3 text-[12px] font-bold leading-snug opacity-85">{checkQuality.detail}</p>
       {checkQuality.factors.length > 0 ? (
         <div className="mt-3 flex max-w-full flex-wrap gap-2">
-          {checkQuality.factors.map((factor) => (
+          {checkQuality.factors.slice(0, 4).map((factor) => (
             <span key={factor} className="max-w-full rounded-full bg-white px-2.5 py-1 text-[11px] font-black shadow-sm">
               {factor}
             </span>
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function InsightSnapshotCard({
+  report,
+  domainTrends,
+  checkQuality,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  domainTrends: ReportDomainTrends;
+  checkQuality: ReportCheckQuality;
+  contextInsight: ReportContextInsight;
+}) {
+  const items = insightSnapshotItems(report, domainTrends, checkQuality, contextInsight);
+
+  return (
+    <div id="insight-snapshot" className="min-w-0 max-w-full overflow-hidden rounded-[26px] border border-[#DDD6FE] bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] md:p-5">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Insight snapshot</p>
+          <h2 className="mt-1 text-[24px] font-black leading-tight text-[#2f2135]">What to notice</h2>
+        </div>
+        <span className="flex-shrink-0 rounded-full bg-[#F5F3FF] px-3 py-1.5 text-xs font-black text-[#5B21B6]">Raw tracking</span>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(230px,0.8fr)]">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+          {items.map((item) => (
+            <div key={item.id} className={`min-w-0 rounded-[18px] border px-3 py-3 ${item.tone}`}>
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[13px] bg-white/85 shadow-sm">
+                  {item.icon}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-black uppercase tracking-[0.1em] opacity-75">{item.label}</span>
+                  <span className="mt-1 block truncate text-[15px] font-black leading-tight text-[#2f2135]">{item.value}</span>
+                  <span className="mt-1 block truncate text-[12px] font-bold opacity-80">{item.detail}</span>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <ComparisonConfidenceMeter checkQuality={checkQuality} report={report} />
+      </div>
     </div>
   );
 }
@@ -801,6 +1201,19 @@ function contextInsightTone(contextInsight: ReportContextInsight) {
   return "border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]";
 }
 
+function domainTrendPlainCopy(trend: CognitiveAssessmentDomainTrend) {
+  if (trend.direction === "none") return "This domain has not been saved yet.";
+  if (trend.direction === "new") return "This is the first saved signal for this domain.";
+  if (trend.direction === "flat") return "This domain looks steady compared with the last check.";
+  if (trend.direction === "up") return "This raw signal is higher than the previous check.";
+  if (trend.direction === "down") return "This raw signal is lower than the previous check.";
+  return "This signal changed since the previous check.";
+}
+
+function rawValueLabel(value: number | null) {
+  return value === null ? "None yet" : String(value);
+}
+
 function ContextOverlay({
   taskSignals,
   contextInsight,
@@ -836,11 +1249,35 @@ function ContextOverlay({
 
 function DomainMiniHistory({
   series,
+  trend,
 }: {
   series: ReportDomainTrendSeries[number] | null;
+  trend: CognitiveAssessmentDomainTrend;
 }) {
+  const trendDetails = (
+    <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="rounded-[14px] bg-white px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#8A7C73]">Latest</p>
+        <p className="mt-1 text-[13px] font-black text-[#2f2135]">{trend.valueLabel}</p>
+      </div>
+      <div className="rounded-[14px] bg-white px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#8A7C73]">Previous</p>
+        <p className="mt-1 text-[13px] font-black text-[#2f2135]">{rawValueLabel(trend.previousRawValue)}</p>
+      </div>
+      <div className="rounded-[14px] bg-white px-3 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#8A7C73]">Change</p>
+        <p className="mt-1 text-[13px] font-black text-[#2f2135]">{domainTrendLabel(trend)}</p>
+      </div>
+    </div>
+  );
+
   if (!series || series.points.length === 0) {
-    return <p className="mt-3 text-[12px] font-bold text-[#766b63]">Mini history will appear after repeated checks.</p>;
+    return (
+      <div>
+        {trendDetails}
+        <p className="mt-3 text-[12px] font-bold text-[#766b63]">{domainTrendPlainCopy(trend)}</p>
+      </div>
+    );
   }
   const coordinates = miniTrendCoordinates(series.points);
   const numericCoordinates = coordinates.filter((point) => point.rawValue !== null);
@@ -850,6 +1287,7 @@ function DomainMiniHistory({
 
   return (
     <div className="mt-3 rounded-[16px] bg-white p-3">
+      <p className="mb-3 text-[12px] font-bold text-[#62564f]">{domainTrendPlainCopy(trend)}</p>
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#8A7C73]">Mini history</p>
         <p className="text-[12px] font-black text-[#2f2135]">{last?.valueLabel ?? "Not checked"}</p>
@@ -892,6 +1330,7 @@ function DomainMiniHistory({
           {shortDate(last?.completedAt)}
         </text>
       </svg>
+      {trendDetails}
     </div>
   );
 }
@@ -961,7 +1400,7 @@ function DomainTrendChart({
                 </div>
                 <span className="mt-2 block text-[12px] font-black text-[#766b63]">{trend.valueLabel}</span>
               </summary>
-              <DomainMiniHistory series={seriesByDomain.get(trend.domainId) ?? null} />
+              <DomainMiniHistory series={seriesByDomain.get(trend.domainId) ?? null} trend={trend} />
             </details>
           );
         })}
@@ -1055,6 +1494,278 @@ function bestNextAction(
   };
 }
 
+type WeeklyPracticeState = "done" | "today" | "later";
+
+function practiceByTitle(title: string) {
+  return Object.values(PRACTICE_RECOMMENDATIONS).find((practice) => practice.title === title) ?? null;
+}
+
+function weeklyPracticeItems(
+  practices: PracticeRecommendation[],
+  practiceStatus: ReturnType<typeof cognitiveAssessmentPracticeStatusForReport>,
+) {
+  const completedTitle = practiceStatus?.status === "completed" ? practiceStatus.practiceTitle : "";
+  const completedPractice = completedTitle ? practiceByTitle(completedTitle) : null;
+  const planPractices = completedPractice && !practices.some((practice) => practice.key === completedPractice.key)
+    ? [completedPractice, ...practices.filter((practice) => practice.key !== completedPractice.key)].slice(0, 3)
+    : practices;
+  const activeIndex = planPractices.findIndex((practice) => practice.title !== completedTitle);
+  const nextIndex = activeIndex === -1 ? 0 : activeIndex;
+
+  return planPractices.map((practice, index) => {
+    const state: WeeklyPracticeState = practice.title === completedTitle ? "done" : index === nextIndex ? "today" : "later";
+    return { practice, state };
+  });
+}
+
+function activeWeeklyPractice(items: ReturnType<typeof weeklyPracticeItems>) {
+  return items.find((item) => item.state !== "done")?.practice ?? items[0]?.practice ?? PRACTICE_RECOMMENDATIONS.memory;
+}
+
+function WeeklyPracticePlan({
+  items,
+  onOpenPractice,
+}: {
+  items: ReturnType<typeof weeklyPracticeItems>;
+  onOpenPractice: (practice: PracticeRecommendation) => void;
+}) {
+  const completed = items.filter((item) => item.state === "done").length;
+  const progress = Math.round((completed / Math.max(1, items.length)) * 100);
+
+  return (
+    <section
+      className="mt-4 rounded-[24px] border border-[#E8DED4] bg-[#FBF8F4] p-4"
+      data-testid="assessment-weekly-plan"
+      aria-labelledby="assessment-weekly-plan-title"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">This week</p>
+          <h3 id="assessment-weekly-plan-title" className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">
+            3 small practices
+          </h3>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1.5 text-[12px] font-black text-[#6B21A8] shadow-sm">
+          {completed}/{items.length}
+        </span>
+      </div>
+      <span className="mt-3 block h-2 overflow-hidden rounded-full bg-white">
+        <span className="block h-full rounded-full bg-[#7C3AED]" style={{ width: `${progress}%` }} />
+      </span>
+
+      <div className="mt-4 grid gap-2">
+        {items.map(({ practice, state }, index) => {
+          const Icon = practice.Icon;
+          const label = state === "done" ? "Done" : state === "today" ? "Start" : "Later";
+          const buttonLabel = state === "done" ? "Do again" : state === "today" ? "Start practice" : "Open";
+          return (
+            <button
+              key={practice.key}
+              type="button"
+              onClick={() => onOpenPractice(practice)}
+              className="group flex min-h-[74px] w-full items-center justify-between gap-3 rounded-[18px] border bg-white px-3 py-3 text-left shadow-sm transition-transform hover:-translate-y-0.5"
+              style={{ borderColor: practice.tone.border }}
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+                  style={{ backgroundColor: practice.tone.bg, color: practice.tone.accent }}
+                >
+                  {state === "done" ? <CheckCircle2 size={22} /> : <Icon size={22} />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-black uppercase tracking-[0.1em] text-[#766b63]">
+                    {index + 1}. {label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-[16px] font-black text-[#2f2135]">{practice.title}</span>
+                  <span className="mt-0.5 block truncate text-[12px] font-bold text-[#766b63]">
+                    {practice.domainLabel} - {practice.minutes}
+                  </span>
+                </span>
+              </span>
+              <span
+                className="flex-shrink-0 rounded-full px-3 py-2 text-[12px] font-black"
+                style={{ backgroundColor: practice.tone.bg, color: practice.tone.accent }}
+              >
+                {buttonLabel}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function PostAssessmentRecommendationPanel({
+  report,
+  taskSignals,
+  domainTrends,
+  baselineBands,
+  checkQuality,
+  contextInsight,
+}: {
+  report: CognitiveAssessmentReport;
+  taskSignals: ReportTaskSignals;
+  domainTrends: ReportDomainTrends;
+  baselineBands: ReportBaselineBands;
+  checkQuality: ReportCheckQuality;
+  contextInsight: ReportContextInsight;
+}) {
+  const navigate = useNavigate();
+  const outcome = outcomeCopy(report, checkQuality);
+  const highlights = outcomeHighlights({ report, taskSignals, domainTrends, contextInsight });
+  const practiceKey = primaryPracticeKey({ report, taskSignals, domainTrends, baselineBands, contextInsight });
+  const practices = practiceSequence(practiceKey);
+  const [practiceIntent, setPracticeIntent] = useState(() => cognitiveAssessmentPracticeStatusForReport(report.sessionId));
+
+  useEffect(() => {
+    setPracticeIntent(cognitiveAssessmentPracticeStatusForReport(report.sessionId));
+  }, [report.sessionId]);
+
+  const openPractice = (practice: PracticeRecommendation) => {
+    const intent = startCognitiveAssessmentPractice({
+      reportSessionId: report.sessionId,
+      recommendedDomain: practice.key,
+      practiceTitle: practice.title,
+      route: practice.route,
+    });
+    setPracticeIntent(intent);
+    navigate(practice.route, {
+      state: intent,
+    });
+  };
+
+  const practiceStatus = practiceIntent?.reportSessionId === report.sessionId ? practiceIntent : null;
+  const weeklyItems = weeklyPracticeItems(practices, practiceStatus);
+  const primary = activeWeeklyPractice(weeklyItems);
+  const PrimaryIcon = primary.Icon;
+
+  return (
+    <div
+      id="recommended-practice"
+      className="min-w-0 max-w-full overflow-hidden rounded-[28px] border border-[#DDD6FE] bg-white p-5 shadow-[0_14px_32px_rgba(63,45,35,0.07)]"
+      data-testid="post-assessment-recommendations"
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-[#F5F3FF] text-[#6B21A8]">
+          <Sparkles size={24} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">{outcome.label}</p>
+          <h2 className="mt-1 text-[26px] font-black leading-tight text-[#2f2135]">{outcome.title}</h2>
+          <p className="mt-2 text-[14px] font-bold leading-relaxed text-[#62564f]">{outcome.detail}</p>
+        </div>
+      </div>
+
+      {practiceStatus ? (
+        <div
+          className="mt-4 flex items-start gap-3 rounded-[20px] border border-[#A7F3D0] bg-[#ECFDF5] px-4 py-3 text-[#0F766E]"
+          data-testid="assessment-practice-status"
+        >
+          <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white">
+            <CheckCircle2 size={18} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-black uppercase tracking-[0.1em]">
+              {practiceStatus.status === "completed" ? "Practiced today" : "Practice started"}
+            </span>
+            <span className="mt-1 block text-[14px] font-black leading-snug text-[#2f2135]">
+              {practiceStatus.status === "completed"
+                ? `Good. You practiced ${practiceStatus.practiceTitle} after this check.`
+                : `${practiceStatus.practiceTitle} is ready. Come back here after the activity to keep going.`}
+            </span>
+          </span>
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,0.82fr)]">
+        <div className="grid gap-2">
+          {highlights.map((item) => (
+            <div key={`${item.title}-${item.detail}`} className="flex min-h-[58px] items-start gap-3 rounded-[18px] bg-[#FBF8F4] px-3 py-3">
+              <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#047857]">
+                <CheckCircle2 size={18} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-black text-[#2f2135]">{item.title}</span>
+                <span className="mt-0.5 block text-[12px] font-bold leading-snug text-[#766b63]">{item.detail}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="rounded-[22px] border p-4"
+          style={{ borderColor: primary.tone.border, backgroundColor: primary.tone.bg, color: primary.tone.accent }}
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-white">
+              <PrimaryIcon size={23} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.1em]">Recommended practice</p>
+              <h3 className="mt-1 text-[22px] font-black leading-tight text-[#2f2135]">{primary.title}</h3>
+              <p className="mt-1 text-[13px] font-bold leading-snug opacity-85">{primary.detail}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black shadow-sm">{primary.domainLabel}</span>
+            <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black shadow-sm">{primary.minutes}</span>
+          </div>
+          <p className="mt-3 rounded-[16px] bg-white px-3 py-2 text-[12px] font-black leading-relaxed text-[#2f2135] shadow-sm">
+            <span className="block text-[10px] uppercase tracking-[0.12em] opacity-65">Why this practice</span>
+            {primary.why}
+          </p>
+          <button
+            type="button"
+            onClick={() => openPractice(primary)}
+            className="mt-4 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-[18px] bg-[#2f2135] px-4 text-center text-[15px] font-black text-white shadow-[0_10px_24px_rgba(63,45,35,0.12)]"
+            data-testid="button-start-recommended-practice"
+          >
+            Start recommended practice
+            <ArrowRight size={19} />
+          </button>
+        </div>
+      </div>
+
+      <WeeklyPracticePlan items={weeklyItems} onOpenPractice={openPractice} />
+    </div>
+  );
+}
+
+function ReportGuidanceCard({ report }: { report: CognitiveAssessmentReport }) {
+  if (report.recommendations.length === 0 && !report.disclaimer) return null;
+
+  return (
+    <details className="group rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_10px_24px_rgba(63,45,35,0.055)]">
+      <summary className="cursor-pointer list-none">
+        <div className="flex items-center justify-between gap-3">
+          <span>
+            <span className="block text-xs font-black uppercase tracking-[0.12em] text-[#6B21A8]">Use this report</span>
+            <span className="mt-1 block text-[22px] font-black leading-tight text-[#2f2135]">Helpful next steps</span>
+          </span>
+          <span className="rounded-full bg-[#F5F3FF] px-3 py-1.5 text-xs font-black text-[#5B21B6]">
+            Open
+          </span>
+        </div>
+      </summary>
+      <div className="mt-3 grid gap-2">
+        {report.recommendations.slice(0, 3).map((item) => (
+          <p key={item} className="flex gap-2 text-[13px] font-bold leading-relaxed text-[#62564f]">
+            <CheckCircle2 className="mt-0.5 flex-shrink-0 text-[#047857]" size={17} />
+            <span>{item}</span>
+          </p>
+        ))}
+        {report.disclaimer ? (
+          <p className="mt-1 rounded-[16px] bg-[#FBF8F4] px-3 py-2 text-[12px] font-bold leading-relaxed text-[#766b63]">
+            {report.disclaimer}
+          </p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 function BestNextActionCard({
   remaining,
   checkQuality,
@@ -1132,7 +1843,7 @@ function ReportView({
       <section className="mx-auto grid w-full max-w-[1100px] min-w-0 gap-4 overflow-x-hidden px-5 pt-5 md:px-7 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)] lg:items-start lg:px-8">
         <div className="grid min-w-0 gap-4">
           <div id="latest-snapshot" className="min-w-0 max-w-full overflow-hidden rounded-[30px] border border-[#DDD6FE] bg-white p-5 shadow-[0_18px_40px_rgba(63,45,35,0.08)] md:p-6">
-            <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+            <div className="flex min-w-0 flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
               <div
                 className="flex h-[112px] w-[112px] flex-shrink-0 items-center justify-center rounded-full sm:h-[124px] sm:w-[124px]"
                 style={{ background: `conic-gradient(#7C3AED ${percent}%, #EFE7DE ${percent}% 100%)` }}
@@ -1149,16 +1860,39 @@ function ReportView({
                 <p className="mt-2 text-[15px] font-bold leading-relaxed text-[#62564f]">{snapshotCopy}</p>
               </div>
             </div>
-            <CheckQualityPanel checkQuality={checkQuality} />
           </div>
 
-          <WhatChangedStrip domainTrends={domainTrends} />
+          <InsightSnapshotCard
+            report={report}
+            domainTrends={domainTrends}
+            checkQuality={checkQuality}
+            contextInsight={contextInsight}
+          />
 
-          <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
+          <StrengthMapCard
+            report={report}
+            taskSignals={taskSignals}
+            domainTrends={domainTrends}
+            baselineBands={baselineBands}
+            contextInsight={contextInsight}
+          />
 
           <div id="domain-trends">
             <DomainTrendChart domainTrends={domainTrends} domainTrendSeries={domainTrendSeries} />
           </div>
+
+          <PostAssessmentRecommendationPanel
+            report={report}
+            taskSignals={taskSignals}
+            domainTrends={domainTrends}
+            baselineBands={baselineBands}
+            checkQuality={checkQuality}
+            contextInsight={contextInsight}
+          />
+
+          <WhatChangedStrip domainTrends={domainTrends} />
+
+          <ProgressionChart report={report} history={history} trendPoints={trendPoints} />
 
           <PersonalBaselineCard baselineBands={baselineBands} />
         </div>
@@ -1222,6 +1956,8 @@ function ReportView({
               contextInsight={contextInsight}
               onStart={() => navigate("/mind-memory/cognitive-assessment/start")}
             />
+
+            <ReportGuidanceCard report={report} />
 
             <button
               type="button"
@@ -1336,7 +2072,7 @@ export default function CognitiveAssessmentReportPage() {
   }
 
   const report = reportQuery.data?.report ?? null;
-  if (!report || location.pathname.endsWith("/start")) return <EmptyState />;
+  if (!report || location.pathname.endsWith("/start")) return <NoReportState />;
   const historyData = historyQuery.data;
   return (
     <ReportView

@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.category_sort_sequences (
 
 CREATE TABLE IF NOT EXISTS public.category_sort_sessions (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id               UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id               UUID NOT NULL,
   played_at             TIMESTAMPTZ DEFAULT NOW(),
   sequence_id           UUID REFERENCES public.category_sort_sequences(id),
   difficulty_tier       INTEGER NOT NULL,
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS public.category_sort_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS public.category_sort_user_state (
-  user_id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id               UUID PRIMARY KEY,
   current_tier          INTEGER NOT NULL DEFAULT 1 CHECK (current_tier BETWEEN 1 AND 10),
   sessions_at_tier      INTEGER NOT NULL DEFAULT 0,
   consecutive_wins      INTEGER NOT NULL DEFAULT 0,
@@ -76,21 +76,21 @@ ALTER TABLE public.category_sort_cards ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "user_own_cs_sessions" ON public.category_sort_sessions;
 CREATE POLICY "user_own_cs_sessions" ON public.category_sort_sessions
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "user_own_cs_state" ON public.category_sort_user_state;
 CREATE POLICY "user_own_cs_state" ON public.category_sort_user_state
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "cs_sequences_read" ON public.category_sort_sequences;
 CREATE POLICY "cs_sequences_read" ON public.category_sort_sequences
-  FOR SELECT USING (auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "cs_cards_read" ON public.category_sort_cards;
 CREATE POLICY "cs_cards_read" ON public.category_sort_cards
-  FOR SELECT USING (auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_cs_cards_visual_unique
   ON public.category_sort_cards (color, shape, size);

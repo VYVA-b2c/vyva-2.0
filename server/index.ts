@@ -24,6 +24,11 @@ import {
   retrieveMedicalProfileToolHandler,
   saveCallbackOnboardingSectionToolHandler,
 } from "./routes/elevenlabsTools.js";
+import {
+  elevenLabsTriageStepToolHandler,
+  voiceTriageSessionAnswerHandler,
+  voiceTriageSessionHandler,
+} from "./routes/voiceTriage.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import callbackOnboardingRouter from "./routes/callbackOnboarding.js";
 import billingRouter from "./routes/billing.js";
@@ -34,6 +39,7 @@ import adminCuriousMindsRouter from "./routes/adminCuriousMinds.js";
 import adminCognitiveAssessmentRouter from "./routes/adminCognitiveAssessment.js";
 import adminLearningRouter from "./routes/adminLearning.js";
 import { adminLifecycleRouter } from "./routes/adminLifecycle.js";
+import { adminMarketingRouter } from "./routes/adminMarketing.js";
 import intakeRouter from "./routes/intake.js";
 import twilioWebhooksRouter from "./routes/twilioWebhooks.js";
 import sendgridWebhooksRouter from "./routes/sendgridWebhooks.js";
@@ -69,9 +75,12 @@ import homePlanRouter from "./routes/homePlan.js";
 import heroMessagesRouter from "./routes/heroMessages.js";
 import weatherRouter from "./routes/weather.js";
 import triageRouter from "./routes/triage.js";
+import breathingRouter from "./routes/breathing.js";
+import symptomsRouter from "./routes/symptoms.js";
 import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
+import advisorsRouter from "./routes/advisors.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import scheduledSupportRouter from "./routes/scheduledSupport.js";
 import caregiverDashboardRouter from "./routes/caregiverDashboard.js";
@@ -79,6 +88,7 @@ import caregiverBrainCoachRouter from "./routes/caregiverBrainCoach.js";
 import { scanHistoryHandler } from "./routes/history.js";
 import reportsRouter from "./routes/reports.js";
 import healthPreventionRouter from "./routes/healthPrevention.js";
+import healthInsightsReportRouter, { registerHealthInsightsJobs } from "./routes/healthInsightsReport.js";
 import vitalsRouter from "./routes/vitals.js";
 import vitalsEngineRouter from "./routes/vitalsEngine.js";
 import specialistsRouter from "./routes/specialists.js";
@@ -161,6 +171,9 @@ app.post("/api/voice-readiness", authMiddleware, requireUser, requireEntitlement
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
+app.post("/api/elevenlabs/tools/triage-step", elevenLabsTriageStepToolHandler);
+app.get("/api/voice-triage/session/:conversation_id", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionHandler);
+app.post("/api/voice-triage/session/:conversation_id/answer", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionAnswerHandler);
 app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
@@ -190,6 +203,7 @@ app.use("/api/admin/concierge/shopping", authMiddleware, requireAdminUser, admin
 app.use("/api/admin/curious-minds", authMiddleware, requireAdminUser, adminCuriousMindsRouter);
 app.use("/api/admin/cognitive-assessment", authMiddleware, requireAdminUser, adminCognitiveAssessmentRouter);
 app.use("/api/admin/learning", authMiddleware, requireAdminUser, adminLearningRouter);
+app.use("/api/admin/marketing", authMiddleware, requireAdminUser, adminMarketingRouter);
 app.get("/api/admin/voice/timeline-events", authMiddleware, requireAdminUser, listAdminVoiceTimelineEventsHandler);
 app.get("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, listVoiceQaSessionReviewsHandler);
 app.post("/api/admin/voice/qa-reviews", authMiddleware, requireAdminUser, saveVoiceQaSessionReviewHandler);
@@ -201,9 +215,12 @@ app.use("/api/profile", authMiddleware, profileRouter);
 app.use("/api/settings/health-devices", authMiddleware, healthDevicesSettingsRouter);
 app.use("/api/home", authMiddleware, homePlanRouter);
 app.use("/api/weather", authMiddleware, weatherRouter);
+app.use("/api/breathing", authMiddleware, requireUser, breathingRouter);
 app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_check"), triageRouter);
+app.use("/api/symptoms", authMiddleware, requireUser, requireEntitlement("symptom_check"), symptomsRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
+app.use("/api/advisors", authMiddleware, requireUser, advisorsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.use("/api", authMiddleware, scheduledSupportRouter);
 app.use("/api/caregiver/dashboard", authMiddleware, requireUser, caregiverDashboardRouter);
@@ -215,6 +232,7 @@ app.use("/api/meds", authMiddleware, requireUser, requireEntitlement("medication
 app.get("/api/history/scans", authMiddleware, requireUser, scanHistoryHandler);
 app.use("/api/reports", authMiddleware, reportsRouter);
 app.use("/api/health", authMiddleware, requireUser, healthPreventionRouter);
+app.use("/api", authMiddleware, requireUser, healthInsightsReportRouter);
 app.use("/api/vitals", authMiddleware, vitalsRouter);
 app.use("/api/vitals-engine", authMiddleware, requireUser, vitalsEngineRouter);
 app.use("/api/specialists", authMiddleware, requireUser, requireEntitlement("symptom_check"), specialistsRouter);
@@ -229,6 +247,8 @@ app.get("/api/checkins/shared/:token", sharedCheckinReportHandler);
 app.post("/api/checkins/analyze", authMiddleware, requireUser, analyzeCheckinHandler);
 app.get("/api/checkins/history", authMiddleware, requireUser, checkinHistoryHandler);
 app.use("/api/checkins", authMiddleware, checkinsRouter);
+
+registerHealthInsightsJobs();
 
 app.get("/api/debug-runtime", (_req, res) => {
   res.json({

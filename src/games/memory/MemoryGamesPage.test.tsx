@@ -66,7 +66,7 @@ describe("MemoryGamesPage", () => {
 
     renderPage();
 
-    expect(screen.queryByText("Choose another exercise")).not.toBeInTheDocument();
+    expect(screen.queryByText("More exercises")).not.toBeInTheDocument();
 
     resolveRecommendation({
       gameType: "memory_match",
@@ -75,7 +75,7 @@ describe("MemoryGamesPage", () => {
       reason: "recommended",
     });
 
-    const heading = await screen.findByText("Choose another exercise");
+    const heading = await screen.findByText("More exercises");
     const choices = heading.closest("section");
     expect(choices).not.toBeNull();
 
@@ -114,7 +114,7 @@ describe("MemoryGamesPage", () => {
     renderPage();
 
     expect(await screen.findByText(/Remember Later -/)).toBeInTheDocument();
-    expect(await screen.findByText("Choose another exercise")).toBeInTheDocument();
+    expect(await screen.findByText("More exercises")).toBeInTheDocument();
   });
 
   it("returns to Mind & Memory from the back button", async () => {

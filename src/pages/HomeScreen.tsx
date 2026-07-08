@@ -621,7 +621,7 @@ const HomeScreen = () => {
     {
       id: "feel-better",
       icon: HeartPulse,
-      label: t("home.master.fastHelp.feelBetter", "Feel Better"),
+      label: t("home.master.fastHelp.feelBetter", "Symptoms Check"),
       detail: t("home.master.fastHelp.feelBetterDetail", "Symptoms or worries"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
       onClick: () => handleNavigate("/health/symptom-check"),
@@ -630,7 +630,7 @@ const HomeScreen = () => {
     {
       id: "stay-well",
       icon: ShieldCheck,
-      label: t("home.master.fastHelp.stayWell", "Stay Well"),
+      label: t("home.master.fastHelp.stayWell", "Age Well"),
       detail: t("home.master.fastHelp.stayWellDetail", "Prevention tips"),
       tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
       onClick: () => handleNavigate("/health/prevention"),

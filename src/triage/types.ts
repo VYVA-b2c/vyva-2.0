@@ -90,6 +90,18 @@ export type TriageSummary = {
   scanNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: Array<{ title?: string; url?: string; year?: string; journal?: string }>;
+  contextConfidence?: {
+    score: number;
+    label: string;
+    reasons: string[];
+    missing: string[];
+  };
+  contextSignals?: Array<{
+    id: string;
+    label: string;
+    status: "available" | "missing" | "not_needed";
+  }>;
+  contextBrief?: string;
 };
 
 export type TriageWizardAnswer = {
@@ -122,15 +134,46 @@ export type TriageWizardContext = {
 
 export type TriageHealthMemory = {
   healthContext?: string;
+  careContext?: string;
+  checkinContext?: string;
   conditions?: string;
   allergies?: string;
   medications?: string;
+  devices?: string;
   latestVitals?: string;
   vitalsTrend?: string;
   latestSymptomReport?: string;
+  recentSymptomReports?: string;
   medicationAdherence?: string;
   medicationInteraction?: string;
+  recentHealthEvents?: string;
+  latestMedicalVisit?: string;
+  upcomingMedicalAppointment?: string;
   countryCode?: string;
+};
+
+export type TriageGuidanceConfidence = {
+  score: number;
+  label: string;
+  reasons: string[];
+  missing: string[];
+};
+
+export type TriageGuidanceSignal = {
+  id: string;
+  label: string;
+  status: "available" | "missing" | "not_needed";
+};
+
+export type TriageGuidancePlan = {
+  protocolId: string;
+  protocolLabel: string;
+  stage: WizardStage;
+  priorityLabel: string;
+  nextQuestionFocus: string;
+  confidence: TriageGuidanceConfidence;
+  profileContextUsed: boolean;
+  usefulSignals: TriageGuidanceSignal[];
 };
 
 export type TriageSuggestionReasonCode =

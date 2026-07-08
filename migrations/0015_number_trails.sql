@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.number_trails_configs (
 
 CREATE TABLE IF NOT EXISTS public.number_trails_sessions (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id               UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id               UUID NOT NULL,
   played_at             TIMESTAMPTZ DEFAULT NOW(),
   config_id             UUID REFERENCES public.number_trails_configs(id),
   difficulty_tier       INTEGER NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.number_trails_sessions (
 );
 
 CREATE TABLE IF NOT EXISTS public.number_trails_user_state (
-  user_id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id               UUID PRIMARY KEY,
   current_tier          INTEGER NOT NULL DEFAULT 1 CHECK (current_tier BETWEEN 1 AND 10),
   sessions_at_tier      INTEGER NOT NULL DEFAULT 0,
   consecutive_wins      INTEGER NOT NULL DEFAULT 0,
@@ -55,17 +55,17 @@ ALTER TABLE public.number_trails_configs ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "user_own_nt_sessions" ON public.number_trails_sessions;
 CREATE POLICY "user_own_nt_sessions" ON public.number_trails_sessions
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "user_own_nt_state" ON public.number_trails_user_state;
 CREATE POLICY "user_own_nt_state" ON public.number_trails_user_state
-  FOR ALL USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  FOR ALL USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS "nt_configs_read" ON public.number_trails_configs;
 CREATE POLICY "nt_configs_read" ON public.number_trails_configs
-  FOR SELECT USING (auth.role() = 'authenticated');
+  FOR SELECT USING (true);
 
 CREATE INDEX IF NOT EXISTS idx_nts_user_played
   ON public.number_trails_sessions (user_id, played_at DESC);

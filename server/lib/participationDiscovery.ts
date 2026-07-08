@@ -382,6 +382,45 @@ function normalizeCandidate(
   return { event };
 }
 
+function comparableText(value?: string | null) {
+  return cleanText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function comparableUrl(value?: string | null) {
+  const raw = cleanText(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    return `${url.hostname.replace(/^www\./, "").toLowerCase()}${url.pathname.replace(/\/+$/, "").toLowerCase()}`;
+  } catch {
+    return comparableText(raw);
+  }
+}
+
+function dateKey(value?: string | null) {
+  const trimmed = cleanText(value);
+  return trimmed.length >= 10 ? trimmed.slice(0, 10) : "";
+}
+
+function candidateDuplicateKeys(candidate: AdminParticipationEvent) {
+  const title = comparableText(candidate.titleEn || candidate.titleEs || candidate.titleDe);
+  const sourceUrl = comparableUrl(candidate.sourceUrl);
+  const city = comparableText(candidate.city);
+  const location = comparableText(candidate.locationLabel);
+  const start = dateKey(candidate.startsAt) || comparableText(candidate.timeLabelEn);
+  return [
+    candidate.eventKey ? `event:${candidate.eventKey}` : "",
+    sourceUrl && title ? `source-title:${sourceUrl}:${title}` : "",
+    title && city && location ? `title-city-location:${title}:${city}:${location}` : "",
+    title && location && start ? `title-location-time:${title}:${location}:${start}` : "",
+  ].filter(Boolean);
+}
+
 function buildPrompt(query: ReturnType<typeof normalizeQuery>) {
   const today = new Date().toISOString().slice(0, 10);
   const localFocus = [
@@ -454,9 +493,18 @@ export async function discoverParticipationEvents(input: DiscoverParticipationIn
   const parsed = parseAiResponse(response);
   const candidates: AdminParticipationEvent[] = [];
   const rejected: DiscoveryRejectedCandidate[] = [];
+  const seenCandidateKeys = new Set<string>();
   for (const [index, candidate] of (parsed.candidates ?? []).entries()) {
     const normalized = normalizeCandidate(candidate, index, query, generatedAt, model);
-    if (normalized.event) candidates.push(normalized.event);
+    if (normalized.event) {
+      const keys = candidateDuplicateKeys(normalized.event);
+      if (keys.some((key) => seenCandidateKeys.has(key))) {
+        rejected.push({ title: normalized.event.titleEn, reason: "Duplicate AI result" });
+      } else {
+        keys.forEach((key) => seenCandidateKeys.add(key));
+        candidates.push(normalized.event);
+      }
+    }
     if (normalized.rejected) rejected.push(normalized.rejected);
   }
 

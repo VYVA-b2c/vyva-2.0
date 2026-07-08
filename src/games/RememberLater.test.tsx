@@ -75,6 +75,11 @@ const componentRound = {
   ...testRound,
   difficulty_tier: 4,
   round_duration_seconds: 1,
+  filler_stream: [
+    { type: "shape", value: "square", matches_rule: false },
+    { type: "icon", value: "cue", icon: "cue", matches_rule: false, cue: true },
+    { type: "shape", value: "circle", matches_rule: true },
+  ],
   filler_item_interval_ms: 80,
 };
 
@@ -251,13 +256,12 @@ describe("RememberLater component", () => {
     expect(await screen.findByRole("button", { name: "Tap when you see a circle" })).toBeInTheDocument();
     expect(screen.getByText(/No circle\? Wait/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Tap when you see a circle" }));
     await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 90));
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
     });
     fireEvent.click(screen.getByRole("button", { name: "Gold star" }));
     await act(async () => {
-      await new Promise((resolve) => window.setTimeout(resolve, 90));
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
     });
     fireEvent.click(screen.getByRole("button", { name: "Tap when you see a circle" }));
     await act(async () => {

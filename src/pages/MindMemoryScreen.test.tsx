@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import MindMemoryScreen from "./MindMemoryScreen";
+import type { CognitiveAssessmentProgramStatusResponse } from "../../shared/cognitiveAssessmentProgram";
 
 const guardPathMock = vi.hoisted(() => vi.fn());
 
@@ -30,14 +32,46 @@ function LocationProbe() {
   return <div data-testid="current-route">{location.pathname}</div>;
 }
 
-function renderMindMemory() {
+const unjoinedProgram: CognitiveAssessmentProgramStatusResponse = {
+  joined: false,
+  enrollment: null,
+  latestUnfinishedSession: null,
+  latestReport: null,
+  completedReportCount: 0,
+  totalTasks: 12,
+};
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        queryFn: async ({ queryKey }: { queryKey: readonly unknown[] }) => {
+          const response = await fetch(String(queryKey[0]));
+          if (!response.ok) throw new Error(response.statusText);
+          return response.json();
+        },
+      },
+    },
+  });
+}
+
+function renderMindMemory(program: CognitiveAssessmentProgramStatusResponse = unjoinedProgram) {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(program), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  }));
+  const queryClient = createTestQueryClient();
+
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
-      <Routes>
-        <Route path="/mind-memory" element={<MindMemoryScreen />} />
-        <Route path="*" element={<LocationProbe />} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/mind-memory"]}>
+        <Routes>
+          <Route path="/mind-memory" element={<MindMemoryScreen />} />
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -47,6 +81,7 @@ describe("MindMemoryScreen", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -109,6 +144,27 @@ describe("MindMemoryScreen", () => {
     fireEvent.click(screen.getByTestId("button-mind-memory-fast-cognitive-assessment"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/mind-memory/cognitive-assessment");
+  });
+
+  it("shows the active cognitive assessment badge after joining", async () => {
+    renderMindMemory({
+      ...unjoinedProgram,
+      joined: true,
+      enrollment: {
+        status: "active",
+        startDate: "2026-07-07",
+        frequency: "monthly",
+        reminderTime: "10:00",
+        timezone: "Europe/Madrid",
+        joinedAt: "2026-07-07T08:00:00.000Z",
+        updatedAt: "2026-07-07T08:00:00.000Z",
+        nextRunAt: "2026-08-07T08:00:00.000Z",
+        scheduledInteractionId: "00000000-0000-4000-8000-000000000001",
+      },
+    });
+
+    expect(await screen.findByText("Joined")).toBeInTheDocument();
+    expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Monthly check");
   });
 
   it("rotates through the full final Fast help set", () => {

@@ -27,7 +27,7 @@ create table if not exists public.remember_later_rounds (
 
 create table if not exists public.remember_later_sessions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid not null,
   played_at timestamptz not null default now(),
   round_id uuid references public.remember_later_rounds(id),
   difficulty_tier integer not null check (difficulty_tier between 1 and 10),
@@ -49,7 +49,7 @@ create table if not exists public.remember_later_sessions (
 );
 
 create table if not exists public.remember_later_user_state (
-  user_id uuid primary key references auth.users(id) on delete cascade,
+  user_id uuid primary key,
   current_tier integer not null default 1 check (current_tier between 1 and 10),
   sessions_at_tier integer not null default 0,
   consecutive_wins integer not null default 0,
@@ -72,17 +72,17 @@ alter table public.remember_later_user_state enable row level security;
 
 drop policy if exists remember_later_rounds_read on public.remember_later_rounds;
 create policy remember_later_rounds_read on public.remember_later_rounds
-  for select using (auth.role() = 'authenticated');
+  for select using (true);
 
 drop policy if exists remember_later_sessions_user_all on public.remember_later_sessions;
 create policy remember_later_sessions_user_all on public.remember_later_sessions
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);
 
 drop policy if exists remember_later_state_user_all on public.remember_later_user_state;
 create policy remember_later_state_user_all on public.remember_later_user_state
-  for all using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  for all using (true)
+  with check (true);
 
 create index if not exists remember_later_sessions_user_played_idx
   on public.remember_later_sessions (user_id, played_at desc);

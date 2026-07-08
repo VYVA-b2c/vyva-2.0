@@ -1,14 +1,28 @@
 import { Activity, BookOpen, Brain, BrainCircuit, Gamepad2, Headphones, MessageCircle, Puzzle, Zap } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
+import {
+  cognitiveAssessmentFrequencyLabel,
+  type CognitiveAssessmentProgramStatusResponse,
+} from "../../shared/cognitiveAssessmentProgram";
 
 export default function MindMemoryScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const programQuery = useQuery<CognitiveAssessmentProgramStatusResponse>({
+    queryKey: ["/api/cognitive-assessment/program"],
+    staleTime: 60_000,
+  });
+  const cognitiveProgram = programQuery.data;
+  const cognitiveAssessmentJoined = Boolean(cognitiveProgram?.joined);
+  const cognitiveAssessmentDetail = cognitiveAssessmentJoined
+    ? cognitiveAssessmentFrequencyLabel(cognitiveProgram?.enrollment?.frequency ?? "monthly")
+    : t("mindMemory.fastHelp.cognitiveAssessmentDetail", "Memory and thinking");
 
   const cards: MasterDashboardCard[] = [
     {
@@ -72,10 +86,11 @@ export default function MindMemoryScreen() {
       id: "cognitive-assessment",
       icon: Brain,
       label: t("mindMemory.fastHelp.cognitiveAssessment", "Cognitive Assessment"),
-      detail: t("mindMemory.fastHelp.cognitiveAssessmentDetail", "Memory and thinking"),
+      detail: cognitiveAssessmentDetail,
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
       onClick: () => navigate("/mind-memory/cognitive-assessment"),
       testId: "button-mind-memory-fast-cognitive-assessment",
+      badge: cognitiveAssessmentJoined ? t("mindMemory.fastHelp.cognitiveAssessmentJoined", "Joined") : undefined,
     },
     {
       id: "play-game",

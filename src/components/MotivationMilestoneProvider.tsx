@@ -119,7 +119,7 @@ export default function MotivationMilestoneProvider({
           subtitle={body}
           titleId="motivation-milestone-title"
           onClose={handleContinue}
-          closeLabel={buttonLabel}
+          closeLabel={t("common.close", "Close")}
           modalTestId="motivation-milestone-popup"
           size="narrow"
         >

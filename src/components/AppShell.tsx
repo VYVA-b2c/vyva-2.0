@@ -464,6 +464,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
   const isVitalsRoute = appShellLayout === "vitals";
   const isWideRoute = appShellLayout === "wide";
   const isCognitiveAssessmentRoute = location.pathname.startsWith("/mind-memory/cognitive-assessment");
+  const isSymptomCheckRoute = location.pathname.startsWith("/health/symptom");
   const routeState = location.state as Record<string, unknown> | null;
   const chatModeParam = new URLSearchParams(location.search).get("mode");
   const isChatVoiceMode =
@@ -500,7 +501,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
     isVoiceOverlayFocused ||
     location.pathname === "/learn" ||
     location.pathname === "/sos" ||
-    location.pathname.startsWith("/health/symptom") ||
+    isSymptomCheckRoute ||
     location.pathname.startsWith("/triage");
   const toastSurfaceRef = useToastSurface<HTMLDivElement>(isFullScreen ? 24 : 128);
   const { data: onboardingState, isLoading: sosContactLoading } = useQuery<OnboardingStateResponse>({
@@ -650,7 +651,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             agentSlug: request.agentSlug,
             autoStartListening: true,
             dynamicVariables: {
-              app_entrypoint: "voice_specialist_transfer",
+              app_entrypoint: request.appEntrypoint || "voice_specialist_transfer",
               transfer_domain: request.domain,
               transfer_reason: request.reason,
             },
@@ -744,7 +745,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             contactLoading={sosContactLoading}
           />
         )}
-        {!isFullScreen && !isVitalsRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
+        {!isFullScreen && !isVitalsRoute && !isSymptomCheckRoute && location.pathname !== "/learn" && <VoiceActionSimulator />}
         {showDockVoiceOverlay && (
           <VoiceCallOverlay
             isSpeaking={isSpeaking}

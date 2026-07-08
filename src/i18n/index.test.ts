@@ -144,7 +144,7 @@ describe("language persistence", () => {
 
   it("keeps the home-style Health page labels localized", () => {
     const expected = {
-      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "My Health Plan", "Fast help", "My Reports", "Visual Health Scan", "Find a Specialist"],
+      en: ["or explore a topic", "My Symptoms", "My Medication", "My Vitals", "My Health Plan", "Fast help", "My Reports", "Visual Health Scan", "Ask Expert"],
       es: ["o explora un tema", "Mis sintomas", "Mi medicacion", "Mis signos vitales", "Mi plan de salud", "Ayuda rapida", "Mis informes", "Escaneo visual de salud", "Encontrar especialista"],
       fr: ["ou explorez un sujet", "Mes symptomes", "Mes medicaments", "Mes constantes", "Mon plan de sante", "Aide rapide", "Mes rapports", "Scan visuel de sante", "Trouver un specialiste"],
       de: ["oder ein Thema erkunden", "Meine Symptome", "Meine Medikamente", "Meine Vitalwerte", "Mein Gesundheitsplan", "Schnelle Hilfe", "Meine Berichte", "Visueller Gesundheitscheck", "Spezialisten finden"],
@@ -169,7 +169,7 @@ describe("language persistence", () => {
 
   it("keeps compact Health mobile labels localized", () => {
     const expected = {
-      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent summaries", "Image review", "Right expert"],
+      en: ["Talk to doctor", "Symptoms", "Medication", "Vitals", "Health Plan", "Need help now?", "Recent summaries", "Image review", "VYVA experts"],
       es: ["Hablar con medico", "Sintomas", "Medicacion", "Signos", "Plan salud", "Necesitas ayuda?", "Resumenes recientes", "Revision de imagen", "Experto adecuado"],
       fr: ["Parler au medecin", "Symptomes", "Medicaments", "Constantes", "Plan sante", "Besoin d'aide?", "Resumes recents", "Revue image", "Bon expert"],
       de: ["Arzt sprechen", "Symptome", "Medikamente", "Vitalwerte", "Plan", "Jetzt Hilfe?", "Aktuelle Berichte", "Bild prufen", "Passender Experte"],
@@ -386,7 +386,7 @@ describe("language persistence", () => {
 
   it("keeps specialist service actions localized for supported account languages", () => {
     const expected = {
-      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search specialists"],
+      en: ["Call", "Appointment", "Find transport", "Map", "Share", "Search local specialists"],
       es: ["Llamar", "Cita", "Buscar transporte", "Mapa", "Compartir", "Buscar especialistas"],
       fr: ["Appeler", "Rendez-vous", "Trouver transport", "Carte", "Partager", "Rechercher specialistes"],
       de: ["Anrufen", "Termin", "Transport finden", "Karte", "Teilen", "Fachaerzte suchen"],

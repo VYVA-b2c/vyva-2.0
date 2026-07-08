@@ -13,6 +13,10 @@ import { ProfileProvider } from "@/contexts/ProfileContext";
 import { VoiceActionProvider } from "@/contexts/VoiceActionContext";
 import { VyvaVoiceProvider } from "@/hooks/useVyvaVoice";
 import { recordAgentButtonClick, recordAgentPageChange } from "@/lib/agentAppContext";
+import {
+  cognitiveAssessmentPracticeStateFromRoute,
+  completeCognitiveAssessmentPractice,
+} from "@/lib/cognitiveAssessmentPracticeBridge";
 import { CAREGIVER_DASHBOARD_ROUTE, isCaregiverAccessibleAppPath, isCaregiverRoutingUser } from "@/lib/onboardingRoute";
 import { shouldShowPwaInstallPromptForRoute } from "@/lib/pwaInstallRoutes";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
@@ -43,6 +47,7 @@ const PreventionScreen = lazy(() => import("./pages/PreventionScreen"));
 const MedsScreen = lazy(() => import("./pages/MedsScreen"));
 const AdherenceReportScreen = lazy(() => import("./pages/AdherenceReportScreen"));
 const MindMemoryScreen = lazy(() => import("./pages/MindMemoryScreen"));
+const CognitiveAssessmentHubPage = lazy(() => import("./pages/CognitiveAssessmentHubPage"));
 const CognitiveAssessmentReportPage = lazy(() => import("./pages/CognitiveAssessmentReportPage"));
 const CognitiveAssessmentRunnerPage = lazy(() => import("./pages/CognitiveAssessmentRunnerPage"));
 const ActivityScreen = lazy(() => import("./pages/ActivityScreen"));
@@ -101,6 +106,7 @@ const CheckinHistoryScreen = lazy(() => import("./pages/CheckinHistoryScreen"));
 const SharedCheckinReport = lazy(() => import("./pages/SharedCheckinReport"));
 const SignosScreen = lazy(() => import("./pages/SignosScreen"));
 const InformesScreen = lazy(() => import("./pages/InformesScreen"));
+const BrainCoachReportScreen = lazy(() => import("./pages/BrainCoachReportScreen"));
 const CompanionsScreen = lazy(() => import("./pages/CompanionsScreen"));
 const HistoryScreen = lazy(() => import("./pages/HistoryScreen"));
 const SubscriptionSettings = lazy(() => import("./pages/settings/SubscriptionSettings"));
@@ -113,6 +119,9 @@ const CaregiverDashboardPage = lazy(() => import("./pages/CaregiverDashboardPage
 const SocialHub = lazy(() => import("./social/SocialHub"));
 const SocialRoomsOnlyScreen = lazy(() => import("./social/SocialRoomsOnlyScreen"));
 const CommunityActivitiesScreen = lazy(() => import("./social/CommunityActivitiesScreen"));
+const ShareStoriesScreen = lazy(() => import("./social/ShareStoriesScreen"));
+const AdvisorHub = lazy(() => import("./social/AdvisorHub"));
+const AdvisorChat = lazy(() => import("./social/AdvisorChat"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
@@ -122,6 +131,7 @@ const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage"));
 const PhoneOnboardingPage = lazy(() => import("./pages/admin/PhoneOnboardingPage"));
 const HomeCardsAdminPage = lazy(() => import("./pages/admin/HomeCardsAdminPage"));
 const HeroMessagesAdminPage = lazy(() => import("./pages/admin/HeroMessagesAdminPage"));
+const MarketingAdminPage = lazy(() => import("./pages/admin/MarketingAdminPage"));
 const VoiceReadinessAdminPage = lazy(() => import("./pages/admin/VoiceReadinessAdminPage"));
 const ConciergeSuppliesAdminPage = lazy(() => import("./pages/admin/ConciergeSuppliesAdminPage"));
 const CuriousMindsReviewPage = lazy(() => import("./pages/admin/CuriousMindsReviewPage"));
@@ -203,13 +213,16 @@ function FaceNameMatchRoute() {
 }
 
 function RememberLaterRoute() {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/memory-games");
 
   return (
     <RememberLater
       userId={user?.id ?? ""}
-      onExit={() => navigate("/memory-games")}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
     />
   );
 }
@@ -226,13 +239,16 @@ function RememberLaterPreviewRoute() {
 }
 
 function CuriousMindsRoute() {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/memory-games");
 
   return (
     <CuriousMinds
       userId={user?.id ?? ""}
-      onExit={() => navigate("/memory-games")}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
     />
   );
 }
@@ -273,13 +289,16 @@ function ListenCloselyRoute() {
 }
 
 function BreathGardenRoute() {
-  const navigate = useNavigate();
   const { user } = useAuth();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/senses");
 
   return (
     <BreathGarden
       userId={user?.id ?? ""}
-      onExit={() => navigate("/senses")}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
     />
   );
 }
@@ -426,18 +445,66 @@ function DualTaskWalkRoute() {
   return <DualTaskWalk userId={user?.id ?? ""} onExit={() => navigate("/attention-boosters")} />;
 }
 
+function useCognitiveAssessmentPracticeHandoff(defaultExitPath: string) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const practiceState = cognitiveAssessmentPracticeStateFromRoute(location.state);
+
+  const exit = React.useCallback(() => {
+    navigate(defaultExitPath);
+  }, [defaultExitPath, navigate]);
+
+  const completePractice = React.useCallback(() => {
+    if (!practiceState) return null;
+    return completeCognitiveAssessmentPractice(practiceState);
+  }, [practiceState]);
+
+  const returnToAssessment = React.useCallback(() => {
+    if (!practiceState) {
+      navigate(defaultExitPath);
+      return;
+    }
+
+    const completed = completeCognitiveAssessmentPractice(practiceState);
+    navigate(completed?.returnTo ?? practiceState.returnTo, {
+      state: {
+        assessmentPracticeCompleted: true,
+        recommendedDomain: completed?.recommendedDomain ?? practiceState.recommendedDomain,
+      },
+    });
+  }, [defaultExitPath, navigate, practiceState]);
+
+  return { practiceState, completePractice, returnToAssessment, exit };
+}
+
 function CategorySortRoute() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/executive-function");
 
-  return <CategorySort userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+  return (
+    <CategorySort
+      userId={user?.id ?? ""}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
+    />
+  );
 }
 
 function NumberTrailsRoute() {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const handoff = useCognitiveAssessmentPracticeHandoff("/executive-function");
 
-  return <NumberTrails userId={user?.id ?? ""} onExit={() => navigate("/executive-function")} />;
+  return (
+    <NumberTrails
+      userId={user?.id ?? ""}
+      onExit={handoff.exit}
+      assessmentPractice={handoff.practiceState}
+      onAssessmentPracticeComplete={handoff.completePractice}
+      onAssessmentPracticeReturn={handoff.returnToAssessment}
+    />
+  );
 }
 
 function RootRoute() {
@@ -573,6 +640,7 @@ const App = () => (
                 <Route path="/admin/phone-onboarding" element={<AdminRoute><PhoneOnboardingPage /></AdminRoute>} />
                 <Route path="/admin/home-cards" element={<AdminRoute><HomeCardsAdminPage /></AdminRoute>} />
                 <Route path="/admin/hero-messages" element={<AdminRoute><HeroMessagesAdminPage /></AdminRoute>} />
+                <Route path="/admin/marketing" element={<AdminRoute><MarketingAdminPage /></AdminRoute>} />
                 <Route path="/admin/voice-readiness" element={<AdminRoute><VoiceReadinessAdminPage /></AdminRoute>} />
                 <Route path="/admin/concierge-supplies" element={<AdminRoute><ConciergeSuppliesAdminPage /></AdminRoute>} />
                 <Route path="/admin/content-review" element={<AdminRoute><CuriousMindsReviewPage /></AdminRoute>} />
@@ -613,6 +681,7 @@ const App = () => (
                   <Route path="/health/symptom-check" element={<AppShell><ServiceGateRoute service="symptomCheck"><SymptomCheckScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/health/vitals" element={<AppShell><SignosScreen /></AppShell>} />
                   <Route path="/informes" element={<AppShell><InformesScreen /></AppShell>} />
+                  <Route path="/informes/brain-coach" element={<AppShell><BrainCoachReportScreen /></AppShell>} />
                   <Route path="/informes/:id" element={<AppShell><InformesScreen /></AppShell>} />
                   <Route path="/companions" element={<AppShell><CompanionsScreen /></AppShell>} />
                   <Route path="/caregiver" element={<ServiceGateRoute service="caregiverDashboard"><CaregiverDashboardPage /></ServiceGateRoute>} />
@@ -620,13 +689,18 @@ const App = () => (
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
                   <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
-                  <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/activities" replace />} />
+                  <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/experts" replace />} />
+                  <Route path="/social-rooms/experts" element={<AppShell><AdvisorHub /></AppShell>} />
+                  <Route path="/social-rooms/experts/:agentSlug" element={<AppShell><AdvisorChat /></AppShell>} />
                   <Route path="/social-rooms/activities" element={<AppShell><CommunityActivitiesScreen /></AppShell>} />
+                  <Route path="/social-rooms/share" element={<AppShell><ShareStoriesScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/my-medicines" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/interactions" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
-                  <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
+                  <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentHubPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/start" element={<AppShell><CognitiveAssessmentRunnerPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/report" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment/report/:sessionId" element={<AppShell><CognitiveAssessmentReportPage /></AppShell>} />

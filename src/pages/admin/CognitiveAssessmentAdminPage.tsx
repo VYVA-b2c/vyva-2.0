@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, type ChangeEvent } from "react";
-import { AlertTriangle, CheckCircle2, Database, FileJson, Upload, XCircle } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, CheckCircle2, Database, FileJson, RefreshCw, Upload, XCircle } from "lucide-react";
 import { apiFetch } from "@/lib/queryClient";
 import {
   CONTENT_UPLOAD_LANGUAGES,
@@ -10,6 +11,12 @@ import {
   type BulkUploadLanguage,
   type BulkUploadPreview,
 } from "../../../shared/contentBulkUpload";
+import {
+  cognitiveAssessmentLanguageLabel,
+  type CognitiveAssessmentLanguageReadiness,
+  type CognitiveAssessmentReadinessResponse,
+  type CognitiveAssessmentReadinessRequirement,
+} from "../../../shared/cognitiveAssessmentReadiness";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
 
@@ -19,6 +26,8 @@ type BulkUploadResponse = {
   error?: string;
 };
 
+const READINESS_QUERY_KEY = ["/api/admin/cognitive-assessment/readiness"] as const;
+
 function previewSummary(preview: BulkUploadPreview) {
   if (preview.totalItems === 0) return "No items detected.";
   if (preview.invalidItems.length === 0) {
@@ -27,7 +36,219 @@ function previewSummary(preview: BulkUploadPreview) {
   return `${preview.totalItems} items detected, ${preview.validItems.length} pass validation and ${preview.invalidItems.length} will be skipped.`;
 }
 
+function readinessPill(ready: boolean) {
+  return ready
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+    : "border-amber-200 bg-amber-50 text-amber-800";
+}
+
+function requirementTone(requirement: CognitiveAssessmentReadinessRequirement) {
+  return requirement.ready
+    ? "bg-white text-[#2f2135]"
+    : "bg-amber-100 text-amber-900";
+}
+
+function ReadinessMetric({
+  label,
+  value,
+  ready,
+}: {
+  label: string;
+  value: string;
+  ready: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${readinessPill(ready)}`}>
+      <p className="text-xs font-black uppercase tracking-[0.08em]">{label}</p>
+      <p className="mt-1 text-2xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function LanguageReadinessCard({ languageStatus }: { languageStatus: CognitiveAssessmentLanguageReadiness }) {
+  return (
+    <div className={`rounded-2xl border p-4 ${readinessPill(languageStatus.ready)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.08em]">{languageStatus.language}</p>
+          <h3 className="mt-1 text-lg font-black text-[#2f2135]">
+            {cognitiveAssessmentLanguageLabel(languageStatus.language)}
+          </h3>
+        </div>
+        {languageStatus.ready ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+      </div>
+      <div className="mt-3 grid gap-1.5">
+        {languageStatus.requirements.map((requirement) => (
+          <div
+            key={requirement.key}
+            className={`flex items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-black ${requirementTone(requirement)}`}
+          >
+            <span className="truncate">{requirement.label}</span>
+            <span className="flex-shrink-0">{requirement.activeCount}/{requirement.expectedCount}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function readinessRequirementTotals(readiness: CognitiveAssessmentReadinessResponse) {
+  const requirementMap = new Map<string, {
+    label: string;
+    activeCount: number;
+    expectedCount: number;
+    readyLanguages: number;
+  }>();
+
+  readiness.languages.forEach((languageStatus) => {
+    languageStatus.requirements.forEach((requirement) => {
+      const current = requirementMap.get(requirement.key) ?? {
+        label: requirement.label,
+        activeCount: 0,
+        expectedCount: 0,
+        readyLanguages: 0,
+      };
+      current.activeCount += requirement.activeCount;
+      current.expectedCount += requirement.expectedCount;
+      current.readyLanguages += requirement.ready ? 1 : 0;
+      requirementMap.set(requirement.key, current);
+    });
+  });
+
+  return Array.from(requirementMap.entries()).map(([key, value]) => ({ key, ...value }));
+}
+
+function CognitiveReadinessPanel() {
+  const readinessQuery = useQuery<CognitiveAssessmentReadinessResponse>({
+    queryKey: READINESS_QUERY_KEY,
+  });
+  const readiness = readinessQuery.data;
+  const readyLanguages = readiness?.languages.filter((item) => item.ready).length ?? 0;
+  const languageTotal = readiness?.languages.length ?? 0;
+  const requirementTotals = readiness ? readinessRequirementTotals(readiness) : [];
+  const errorMessage = readinessQuery.error instanceof Error
+    ? readinessQuery.error.message
+    : "Readiness could not be checked.";
+
+  return (
+    <section className="mt-5 rounded-3xl border border-[#eadfd5] bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Readiness</p>
+          <h1 className="font-serif text-3xl">5-language readiness</h1>
+          <p className="mt-1 text-sm font-bold text-[#7d6b65]">
+            Confirms every member language can start the full 12-step assessment.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void readinessQuery.refetch()}
+          className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] px-4 text-sm font-black text-[#2f2135]"
+        >
+          <RefreshCw size={17} className={readinessQuery.isFetching ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
+
+      {readinessQuery.isLoading ? (
+        <div className="mt-5 rounded-2xl border border-[#eadfd5] bg-[#FFFCF8] px-4 py-3 text-sm font-bold text-[#7d6b65]">
+          Checking readiness...
+        </div>
+      ) : null}
+
+      {readinessQuery.isError ? (
+        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      {readiness ? (
+        <>
+          <div className={`mt-5 rounded-2xl border px-4 py-3 ${readinessPill(readiness.ready)}`}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.12em]">Member start status</p>
+                <p className="mt-1 text-2xl font-black">{readyLanguages}/{languageTotal} languages ready</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {readiness.languages.map((languageStatus) => (
+                  <span
+                    key={languageStatus.language}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${
+                      languageStatus.ready
+                        ? "border-emerald-200 bg-white text-emerald-800"
+                        : "border-amber-200 bg-white text-amber-900"
+                    }`}
+                  >
+                    {languageStatus.ready ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                    {languageStatus.language}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <ReadinessMetric
+              label="Overall"
+              value={readiness.ready ? "Ready" : "Needs attention"}
+              ready={readiness.ready}
+            />
+            <ReadinessMetric
+              label="Task registry"
+              value={`${readiness.taskDefinitions.activeCount}/${readiness.taskDefinitions.expectedCount}`}
+              ready={readiness.taskDefinitions.ready}
+            />
+            <ReadinessMetric
+              label="Languages"
+              value={`${readyLanguages}/${languageTotal}`}
+              ready={readyLanguages === languageTotal}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+            {requirementTotals.map((requirement) => (
+              <div
+                key={requirement.key}
+                className={`rounded-2xl border px-3 py-3 ${readinessPill(requirement.readyLanguages === languageTotal)}`}
+              >
+                <p className="truncate text-xs font-black uppercase tracking-[0.08em]">{requirement.label}</p>
+                <p className="mt-1 text-lg font-black">{requirement.readyLanguages}/{languageTotal}</p>
+                <p className="mt-1 text-[11px] font-bold">{requirement.activeCount}/{requirement.expectedCount} active</p>
+              </div>
+            ))}
+          </div>
+
+          {readiness.blockers.length ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="flex items-center gap-2 text-sm font-black text-amber-900">
+                <AlertTriangle size={18} />
+                Start-session guard is active. Members are blocked for languages with missing content.
+              </p>
+              <div className="mt-2 grid gap-1">
+                {readiness.blockers.slice(0, 6).map((blocker) => (
+                  <p key={blocker} className="text-xs font-bold text-amber-900">{blocker}</p>
+                ))}
+                {readiness.blockers.length > 6 ? (
+                  <p className="text-xs font-bold text-amber-900">{readiness.blockers.length - 6} more readiness blockers hidden.</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {readiness.languages.map((languageStatus) => (
+              <LanguageReadinessCard key={languageStatus.language} languageStatus={languageStatus} />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function CognitiveBulkUploadPanel() {
+  const queryClient = useQueryClient();
   const [contentType, setContentType] = useState<BulkUploadContentType>("cc_story_recall");
   const [language, setLanguage] = useState<BulkUploadLanguage>("es");
   const [jsonText, setJsonText] = useState("");
@@ -102,12 +323,13 @@ function CognitiveBulkUploadPanel() {
         return;
       }
       setUploadStatus(`${body.insertedCount ?? 0} items loaded. ${body.skippedCount ?? 0} skipped.`);
+      void queryClient.invalidateQueries({ queryKey: READINESS_QUERY_KEY });
     } catch (error) {
       setPreviewError(error instanceof Error ? error.message : "Bulk upload failed.");
     } finally {
       setUploading(false);
     }
-  }, [contentType, jsonText, language, preview, skipAdminReview]);
+  }, [contentType, jsonText, language, preview, queryClient, skipAdminReview]);
 
   const canLoad = Boolean(preview && preview.validItems.length > 0 && !uploadStatus);
   const invalidItems = preview?.invalidItems.slice(0, 20) ?? [];
@@ -273,9 +495,10 @@ export default function CognitiveAssessmentAdminPage() {
       <div className="mx-auto w-full max-w-6xl">
         <AdminPageHeader
           title="Cognitive assessment"
-          subtitle="Upload Cognitive Compass content batches into the development database."
+          subtitle="Upload Cognitive Compass content batches and monitor readiness."
         />
         <AdminMenu />
+        <CognitiveReadinessPanel />
         <CognitiveBulkUploadPanel />
       </div>
     </main>

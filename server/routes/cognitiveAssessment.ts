@@ -9,10 +9,26 @@ import type {
   CognitiveAssessmentReport,
   CognitiveAssessmentTaskSummary,
 } from "../../shared/cognitiveAssessmentReport.js";
+import type {
+  CognitiveAssessmentProgramEnrollment,
+  CognitiveAssessmentProgramFrequency,
+  CognitiveAssessmentProgramJoinResponse,
+  CognitiveAssessmentProgramSessionSummary,
+  CognitiveAssessmentProgramStatusResponse,
+} from "../../shared/cognitiveAssessmentProgram.js";
 import {
   buildCognitiveAssessmentTrendPayload,
   type CognitiveTrendResponseRow,
 } from "../lib/cognitiveAssessmentTrends.js";
+import {
+  computeNextAssessmentRunAt,
+  scheduledInteractionDaysOfWeek,
+  scheduledInteractionFrequencyType,
+} from "../lib/cognitiveAssessmentProgram.js";
+import {
+  cognitiveReadinessBlockersForLanguage,
+  loadCognitiveAssessmentReadiness,
+} from "../lib/cognitiveAssessmentReadiness.js";
 import {
   COGNITIVE_ASSESSMENT_LANGUAGES,
   type CognitiveAssessmentCompleteSessionResponse,
@@ -68,6 +84,28 @@ type RotationFormRow = {
 
 type SessionWithResponseCountRow = SessionRow & { response_count: string };
 type HistoryResponseRow = ResponseRow & { session_id: string };
+type ProgramEnrollmentRow = {
+  user_id: string;
+  status: "active" | "paused" | "cancelled";
+  start_date: Date | string;
+  frequency: string;
+  reminder_time: string;
+  timezone: string;
+  scheduled_interaction_id: string | null;
+  joined_at: Date | string | null;
+  updated_at: Date | string | null;
+  next_run_at: Date | string | null;
+};
+type ProgramSessionRow = {
+  id: string;
+  started_at: Date | string | null;
+  completed_at: Date | string | null;
+  response_count: number | string;
+};
+type CountRow = { count: number | string };
+type Queryable = {
+  query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
+};
 
 const router = Router();
 
@@ -76,6 +114,13 @@ const languageSchema = z.enum(COGNITIVE_ASSESSMENT_LANGUAGES);
 const startSessionSchema = z.object({
   language: languageSchema.optional(),
   inputMode: z.literal("wizard").optional(),
+});
+const programFrequencySchema = z.enum(["weekly", "every_2_weeks", "monthly"]);
+const joinProgramSchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  frequency: programFrequencySchema.optional().default("monthly"),
+  reminderTime: z.string().regex(/^\d{2}:\d{2}$/),
+  timezone: z.string().trim().min(1).max(100),
 });
 const saveResponseSchema = z.object({
   taskDefinitionId: z.string().min(1),
@@ -135,6 +180,25 @@ function requireUuidUser(req: Request, res: Response) {
 function iso(value: Date | string | null | undefined) {
   if (!value) return null;
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function dateOnly(value: Date | string | null | undefined) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
+function timeOnly(value: string | null | undefined) {
+  return String(value ?? "10:00").slice(0, 5);
+}
+
+function countNumber(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function normalizeProgramFrequency(value: string): CognitiveAssessmentProgramFrequency {
+  return value === "weekly" || value === "every_2_weeks" ? value : "monthly";
 }
 
 function objectData(value: unknown): Record<string, unknown> {
@@ -674,6 +738,213 @@ async function loadResponsesForSessions(sessionIds: string[]) {
   }, new Map<string, CognitiveTrendResponseRow[]>());
 }
 
+function programEnrollmentFromRow(row: ProgramEnrollmentRow | null): CognitiveAssessmentProgramEnrollment | null {
+  if (!row || row.status !== "active") return null;
+  return {
+    status: row.status,
+    startDate: dateOnly(row.start_date),
+    frequency: normalizeProgramFrequency(row.frequency),
+    reminderTime: timeOnly(row.reminder_time),
+    timezone: row.timezone || "Europe/Madrid",
+    joinedAt: iso(row.joined_at),
+    updatedAt: iso(row.updated_at),
+    nextRunAt: iso(row.next_run_at),
+    scheduledInteractionId: row.scheduled_interaction_id,
+  };
+}
+
+function programSessionSummary(
+  row: ProgramSessionRow | null,
+  includeStartedAt: boolean,
+): CognitiveAssessmentProgramSessionSummary | null {
+  if (!row) return null;
+  return {
+    sessionId: row.id,
+    startedAt: includeStartedAt ? iso(row.started_at) : undefined,
+    completedAt: includeStartedAt ? undefined : iso(row.completed_at),
+    tasksCompleted: countNumber(row.response_count),
+    totalTasks: ASSESSMENT_TASK_TOTAL,
+  };
+}
+
+async function loadProgramStatus(
+  userId: string,
+  database: Queryable = pool,
+): Promise<CognitiveAssessmentProgramStatusResponse> {
+  const [enrollmentResult, unfinishedResult, latestReportResult, countResult] = await Promise.all([
+    database.query<ProgramEnrollmentRow>(`
+      select
+        e.user_id::text,
+        e.status,
+        e.start_date,
+        e.frequency,
+        e.reminder_time::text,
+        e.timezone,
+        e.scheduled_interaction_id::text,
+        e.joined_at,
+        e.updated_at,
+        si.next_run_at
+      from public.cc_program_enrollments e
+      left join public.scheduled_interactions si on si.id = e.scheduled_interaction_id
+      where e.user_id = $1::uuid
+      limit 1
+    `, [userId]),
+    database.query<ProgramSessionRow>(`
+      select
+        s.id::text,
+        s.started_at,
+        s.completed_at,
+        count(r.id)::int as response_count
+      from public.cc_sessions s
+      left join public.cc_task_responses r on r.session_id = s.id
+      where s.user_id = $1::uuid
+        and s.completed_at is null
+        and s.abandoned = false
+      group by s.id, s.started_at, s.completed_at
+      order by s.started_at desc
+      limit 1
+    `, [userId]),
+    database.query<ProgramSessionRow>(`
+      select
+        s.id::text,
+        s.started_at,
+        s.completed_at,
+        count(r.id)::int as response_count
+      from public.cc_sessions s
+      left join public.cc_task_responses r on r.session_id = s.id
+      where s.user_id = $1::uuid
+        and s.completed_at is not null
+        and s.abandoned = false
+      group by s.id, s.started_at, s.completed_at
+      order by s.completed_at desc
+      limit 1
+    `, [userId]),
+    database.query<CountRow>(`
+      select count(*)::int as count
+      from public.cc_sessions
+      where user_id = $1::uuid
+        and completed_at is not null
+        and abandoned = false
+    `, [userId]),
+  ]);
+
+  const enrollment = programEnrollmentFromRow(enrollmentResult.rows[0] ?? null);
+  return {
+    joined: Boolean(enrollment),
+    enrollment,
+    latestUnfinishedSession: programSessionSummary(unfinishedResult.rows[0] ?? null, true),
+    latestReport: programSessionSummary(latestReportResult.rows[0] ?? null, false),
+    completedReportCount: countNumber(countResult.rows[0]?.count),
+    totalTasks: ASSESSMENT_TASK_TOTAL,
+  };
+}
+
+async function upsertProgramReminder(input: {
+  userId: string;
+  actorUserId: string;
+  startDate: string;
+  frequency: CognitiveAssessmentProgramFrequency;
+  reminderTime: string;
+  timezone: string;
+  preferredLanguage: CognitiveAssessmentLanguage;
+  existingScheduleId?: string | null;
+  database: Queryable;
+}) {
+  const nextRunAt = computeNextAssessmentRunAt({
+    startDate: input.startDate,
+    reminderTime: input.reminderTime,
+    timezone: input.timezone,
+    frequency: input.frequency,
+  });
+  const frequencyType = scheduledInteractionFrequencyType(input.frequency);
+  const daysOfWeek = scheduledInteractionDaysOfWeek(input.startDate);
+  const frequencyValue = {
+    source: "cognitive_assessment",
+    cadence: input.frequency,
+    start_date: input.startDate,
+    reminder_time: input.reminderTime,
+  };
+
+  const existingResult = input.existingScheduleId
+    ? await input.database.query<{ id: string }>(`
+        select id::text
+        from public.scheduled_interactions
+        where id = $1::uuid
+          and user_id = $2
+        limit 1
+      `, [input.existingScheduleId, input.userId])
+    : await input.database.query<{ id: string }>(`
+        select id::text
+        from public.scheduled_interactions
+        where user_id = $1
+          and interaction_type = 'BRAIN_COACH'
+          and source_ref_id = 'cognitive_assessment'
+          and status <> 'CANCELLED'
+        order by updated_at desc
+        limit 1
+      `, [input.userId]);
+
+  const existingId = existingResult.rows[0]?.id ?? null;
+  if (existingId) {
+    const { rows } = await input.database.query<{ id: string }>(`
+      update public.scheduled_interactions
+      set
+        friendly_label = 'Cognitive Assessment',
+        user_description = 'A gentle reminder to complete your Cognitive Assessment.',
+        status = 'ACTIVE',
+        frequency_type = $1,
+        frequency_value = $2::jsonb,
+        days_of_week = $3::text[],
+        times_of_day = $4::text[],
+        timezone = $5,
+        preferred_language = $6,
+        next_run_at = $7::timestamptz,
+        is_paused = false,
+        pause_until = null,
+        pause_reason = null,
+        updated_by = $8,
+        updated_at = now()
+      where id = $9::uuid
+      returning id::text
+    `, [
+      frequencyType,
+      JSON.stringify(frequencyValue),
+      daysOfWeek,
+      [input.reminderTime],
+      input.timezone,
+      input.preferredLanguage,
+      nextRunAt,
+      input.actorUserId,
+      existingId,
+    ]);
+    return rows[0]?.id ?? existingId;
+  }
+
+  const { rows } = await input.database.query<{ id: string }>(`
+    insert into public.scheduled_interactions
+      (user_id, interaction_type, friendly_label, user_description, source_ref_id,
+       status, frequency_type, frequency_value, days_of_week, times_of_day, timezone,
+       preferred_language, next_run_at, consent_required, consent_status,
+       admin_edit_allowed, created_by, updated_by)
+    values
+      ($1, 'BRAIN_COACH', 'Cognitive Assessment', 'A gentle reminder to complete your Cognitive Assessment.',
+       'cognitive_assessment', 'ACTIVE', $2, $3::jsonb, $4::text[], $5::text[], $6,
+       $7, $8::timestamptz, false, 'not_required', false, $9, $9)
+    returning id::text
+  `, [
+    input.userId,
+    frequencyType,
+    JSON.stringify(frequencyValue),
+    daysOfWeek,
+    [input.reminderTime],
+    input.timezone,
+    input.preferredLanguage,
+    nextRunAt,
+    input.actorUserId,
+  ]);
+  return rows[0]?.id ?? null;
+}
+
 function schemaMissingResponse(error: unknown, res: Response) {
   const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
   if (code === "42P01") {
@@ -683,6 +954,88 @@ function schemaMissingResponse(error: unknown, res: Response) {
   }
   return null;
 }
+
+router.get("/program", async (req: Request, res: Response) => {
+  const userId = requireUuidUser(req, res);
+  if (!userId) return;
+
+  try {
+    return res.json(await loadProgramStatus(userId));
+  } catch (error) {
+    const handled = schemaMissingResponse(error, res);
+    if (handled) return handled;
+    console.error("[cognitive-assessment] Program status failed:", error);
+    return res.status(500).json({ error: "Cognitive Assessment program could not be loaded." });
+  }
+});
+
+router.post("/program/join", async (req: Request, res: Response) => {
+  const userId = requireUuidUser(req, res);
+  if (!userId) return;
+
+  const parsed = joinProgramSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid Cognitive Assessment program setup.", details: parsed.error.flatten() });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const existing = await client.query<{ scheduled_interaction_id: string | null }>(`
+      select scheduled_interaction_id::text
+      from public.cc_program_enrollments
+      where user_id = $1::uuid
+      limit 1
+    `, [userId]);
+    const scheduledInteractionId = await upsertProgramReminder({
+      userId,
+      actorUserId: userId,
+      startDate: parsed.data.startDate,
+      frequency: parsed.data.frequency,
+      reminderTime: parsed.data.reminderTime,
+      timezone: parsed.data.timezone,
+      preferredLanguage: normalizeAssessmentLanguage(req.headers["x-vyva-language"]),
+      existingScheduleId: existing.rows[0]?.scheduled_interaction_id ?? null,
+      database: client,
+    });
+
+    await client.query(`
+      insert into public.cc_program_enrollments
+        (user_id, status, start_date, frequency, reminder_time, timezone, scheduled_interaction_id, joined_at, updated_at)
+      values
+        ($1::uuid, 'active', $2::date, $3, $4::time, $5, $6::uuid, now(), now())
+      on conflict (user_id) do update set
+        status = 'active',
+        start_date = excluded.start_date,
+        frequency = excluded.frequency,
+        reminder_time = excluded.reminder_time,
+        timezone = excluded.timezone,
+        scheduled_interaction_id = excluded.scheduled_interaction_id,
+        updated_at = now()
+    `, [
+      userId,
+      parsed.data.startDate,
+      parsed.data.frequency,
+      parsed.data.reminderTime,
+      parsed.data.timezone,
+      scheduledInteractionId,
+    ]);
+
+    await client.query("commit");
+    const response: CognitiveAssessmentProgramJoinResponse = {
+      program: await loadProgramStatus(userId),
+    };
+    return res.status(201).json(response);
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    const handled = schemaMissingResponse(error, res);
+    if (handled) return handled;
+    console.error("[cognitive-assessment] Program join failed:", error);
+    return res.status(500).json({ error: "Cognitive Assessment program could not be joined." });
+  } finally {
+    client.release();
+  }
+});
 
 router.post("/sessions", async (req: Request, res: Response) => {
   const userId = requireUuidUser(req, res);
@@ -697,6 +1050,17 @@ router.post("/sessions", async (req: Request, res: Response) => {
   const { week, year } = currentWeekAndYear();
 
   try {
+    const readiness = await loadCognitiveAssessmentReadiness();
+    const languageStatus = readiness.languages.find((item) => item.language === language);
+    if (!readiness.taskDefinitions.ready || !languageStatus?.ready) {
+      return res.status(409).json({
+        error: "Cognitive Assessment is not ready for this language yet.",
+        code: "COGNITIVE_ASSESSMENT_NOT_READY",
+        language,
+        blockers: cognitiveReadinessBlockersForLanguage(readiness, language),
+      });
+    }
+
     const { rows } = await pool.query<SessionRow>(`
       insert into public.cc_sessions
         (user_id, input_mode, language, week_of_year, year)

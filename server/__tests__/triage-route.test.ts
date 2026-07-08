@@ -68,10 +68,14 @@ const routeResponseShapeKeys = [
   "content",
   "done",
   "evidenceSources",
+  "guidancePlan",
   "medicalFollowups",
+  "profileContextUsed",
+  "questionReason",
   "quickReplies",
   "role",
   "summary",
+  "vitalsPrompt",
   "wizardStage",
   "wizardStageLabel",
   "wizardSymptomId",
@@ -764,6 +768,100 @@ describe("triage route wizard questions", () => {
         process.env.OPENAI_API_KEY = previousApiKey;
       }
     }
+  });
+
+  it("asks the dizziness safety question first and keeps signal metadata quiet", async () => {
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "I feel dizzy" }],
+        wizard: { mode: "without_vitals", quickAnswers: [] },
+      })
+      .expect(200);
+
+    expect(res.body.done).toBe(false);
+    expect(res.body.wizardStage).toBe("red_flag");
+    expect(res.body.content).toBe("Did you faint, nearly faint, or feel unsafe walking?");
+    expect(res.body.questionReason).toBe("I am checking urgent warning signs first, before asking about smaller details.");
+    expect(res.body.profileContextUsed).toBe(false);
+    expect(res.body.vitalsPrompt).toBeNull();
+    expect(res.body.guidancePlan).toMatchObject({
+      protocolId: "dizziness",
+      protocolLabel: "Dizziness and faintness",
+      priorityLabel: "Safety first",
+      confidence: { score: 2, label: "Early confidence" },
+    });
+  });
+
+  it("marks profile-aware red-flag questions and adds contextual vitals only after safety", async () => {
+    const profileAware = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "I feel dizzy" }],
+        healthMemory: { conditions: "Hypertension and high blood pressure." },
+        wizard: { mode: "without_vitals", quickAnswers: [] },
+      })
+      .expect(200);
+
+    expect(profileAware.body.wizardStage).toBe("red_flag");
+    expect(profileAware.body.profileContextUsed).toBe(true);
+    expect(profileAware.body.questionReason).toContain("health profile");
+    expect(profileAware.body.quickReplies.map((reply: { label: string }) => reply.label)).toContain("Very high blood pressure");
+    expect(profileAware.body.vitalsPrompt).toBeNull();
+    expect(profileAware.body.guidancePlan.profileContextUsed).toBe(true);
+    expect(profileAware.body.guidancePlan.confidence.label).toBe("Building confidence");
+
+    const afterSafety = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "I feel dizzy" }],
+        healthMemory: { conditions: "Hypertension and high blood pressure." },
+        wizard: {
+          mode: "without_vitals",
+          quickAnswers: [
+            { id: "dizzy", label: "Dizzy", value: "I feel dizzy.", kind: "symptom" },
+            { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", kind: "red_flag" },
+          ],
+        },
+      })
+      .expect(200);
+
+    expect(afterSafety.body.wizardStage).toBe("severity");
+    expect(afterSafety.body.guidancePlan).toMatchObject({
+      protocolId: "dizziness",
+      priorityLabel: "Profile-aware",
+      confidence: { score: 4, label: "Strong confidence" },
+    });
+    expect(afterSafety.body.vitalsPrompt).toMatchObject({
+      title: "If you can, one reading may help",
+      actions: expect.arrayContaining([
+        expect.objectContaining({ id: "pulse", label: "Pulse" }),
+        expect.objectContaining({ id: "blood_pressure", label: "Blood pressure" }),
+      ]),
+    });
+  });
+
+  it("uses the medication guidance protocol when the first clue points to a medicine change", async () => {
+    const res = await request(app())
+      .post("/api/triage/message")
+      .send({
+        locale: "en",
+        messages: [{ role: "user", content: "I feel strange after a new medication." }],
+        wizard: { mode: "without_vitals", quickAnswers: [] },
+      })
+      .expect(200);
+
+    expect(res.body.wizardStage).toBe("red_flag");
+    expect(res.body.content).toBe("Could this medicine change be causing any urgent warning signs?");
+    expect(res.body.guidancePlan).toMatchObject({
+      protocolId: "medication",
+      protocolLabel: "Medication-related change",
+      priorityLabel: "Safety first",
+    });
+    expect(res.body.guidancePlan.nextQuestionFocus).toContain("medicine changes");
   });
 
   it("refines a report even when the original wizard context has no structured safety answer", async () => {

@@ -19,6 +19,25 @@ const quickReplies = [
   { id: "no_red_flag", label: "No warning signs", value: "No warning signs.", icon: "help", tone: "green", kind: "red_flag" },
 ];
 
+const dizzinessGuidancePlan = {
+  protocolId: "dizziness",
+  protocolLabel: "Dizziness and faintness",
+  stage: "severity",
+  priorityLabel: "Profile-aware",
+  nextQuestionFocus: "Checking whether dizziness is strong enough to make standing or walking unsafe.",
+  confidence: {
+    score: 4,
+    label: "Strong confidence",
+    reasons: ["symptom described", "safety question answered", "health profile considered"],
+    missing: ["optional useful reading"],
+  },
+  profileContextUsed: true,
+  usefulSignals: [
+    { id: "pulse", label: "Pulse", status: "missing" },
+    { id: "blood_pressure", label: "Blood pressure", status: "missing" },
+  ],
+};
+
 const manyQuickReplies = [
   { id: "answer-1", label: "First answer", value: "First answer.", icon: "help", tone: "green", kind: "choice" },
   { id: "answer-2", label: "Second answer", value: "Second answer.", icon: "help", tone: "green", kind: "choice" },
@@ -179,14 +198,87 @@ describe("TriageChat MediSearch follow-ups", () => {
 
     await screen.findByText("How are you feeling now?", {}, { timeout: 5000 });
     expect(screen.queryByTestId("triage-confidence-tracker")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("triage-session-panel")).not.toBeInTheDocument();
     expect(screen.getByTestId("triage-question-progress")).toHaveTextContent("Question 1");
     expect(screen.queryByText("Answer this question")).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByRole("meter", { name: "Confidence level" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("Using vitals already here");
-    expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("72 bpm");
-    expect(screen.getByTestId("triage-existing-vitals")).toHaveTextContent("18 breaths/min");
+    expect(screen.queryByTestId("triage-existing-vitals")).not.toBeInTheDocument();
+    expect(screen.queryByText("72 bpm")).not.toBeInTheDocument();
+    expect(screen.queryByText("18 breaths/min")).not.toBeInTheDocument();
     expect(screen.getByText("Choose the closest answer")).toBeInTheDocument();
+  });
+
+  it("shows a quiet question reason and contextual vitals prompt without a signal dashboard", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "How strong is the dizziness right now?",
+        done: false,
+        quickReplies,
+        wizardStage: "severity",
+        wizardStageLabel: "More details",
+        questionReason: "How strong it feels helps choose the safest next step.",
+        profileContextUsed: true,
+        guidancePlan: dizzinessGuidancePlan,
+        vitalsPrompt: {
+          title: "If you can, one reading may help",
+          body: "Only do this if it is easy and safe. You can keep answering without it.",
+          actions: [
+            { id: "pulse", label: "Pulse", value: "I can check my pulse if that would help.", icon: "heart", tone: "purple" },
+            { id: "blood_pressure", label: "Blood pressure", value: "I can check my blood pressure if that would help.", icon: "activity", tone: "blue" },
+          ],
+        },
+        evidenceSources: [],
+      }))
+      .mockResolvedValueOnce(triageResponse({
+        role: "assistant",
+        content: "Thanks. If you have the number, type it here.",
+        done: false,
+        quickReplies,
+        wizardStage: "severity",
+        wizardStageLabel: "More details",
+        questionReason: "How strong it feels helps choose the safest next step.",
+        profileContextUsed: true,
+        guidancePlan: {
+          ...dizzinessGuidancePlan,
+          confidence: { ...dizzinessGuidancePlan.confidence, score: 5, label: "High confidence", missing: [] },
+          usefulSignals: [
+            { id: "pulse", label: "Pulse", status: "available" },
+            { id: "blood_pressure", label: "Blood pressure", status: "missing" },
+          ],
+        },
+        vitalsPrompt: null,
+        evidenceSources: [],
+      }));
+
+    renderTriageChat({ initialClue: "I feel dizzy" });
+
+    await screen.findByText("How strong is the dizziness right now?", {}, { timeout: 5000 });
+    expect(screen.queryByTestId("triage-session-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("triage-guidance-confidence")).toHaveTextContent("Strong confidence - 4/5");
+    expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Profile-aware");
+    expect(screen.getByTestId("triage-guidance-focus")).toHaveTextContent("Dizziness and faintness");
+    expect(screen.getByTestId("triage-question-reason")).toHaveTextContent("Why VYVA is asking this");
+
+    fireEvent.click(screen.getByText("Why VYVA is asking this"));
+
+    expect(screen.getByText("How strong it feels helps choose the safest next step.")).toBeVisible();
+    expect(screen.getByText("VYVA quietly used your health profile to choose this question.")).toBeVisible();
+    expect(screen.getByTestId("triage-guidance-plan")).toHaveTextContent("Checking whether dizziness is strong enough");
+    expect(screen.getByTestId("triage-guidance-plan")).toHaveTextContent("Confidence improves with: optional useful reading");
+    expect(screen.getByTestId("triage-contextual-vitals-prompt")).toHaveTextContent("If you can, one reading may help");
+    expect(screen.getByRole("button", { name: "Pulse" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Blood pressure" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pulse" }));
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledTimes(2));
+    const secondBody = JSON.parse((apiFetchMock.mock.calls[1]?.[1] as RequestInit).body as string);
+    expect(secondBody.messages.at(-1)).toEqual({
+      role: "user",
+      content: "I can check my pulse if that would help.",
+    });
   });
 
   it("shows only four answer buttons until More choices is opened", async () => {

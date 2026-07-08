@@ -1,18 +1,131 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Eye, Headphones, Loader2, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, Headphones, Loader2, Mic, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "@/i18n";
 import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { adjustBreathingIntentForControl, parseBreathingVoiceText, type BreathingVoiceControl } from "@/lib/breathingVoice";
+import { apiFetch } from "@/lib/queryClient";
 
-type RelaxBreatheStage = {
-  key: "settle" | "breathe" | "return";
+type BreathingIntent = {
+  mood?: string;
+  purpose?: string;
+  difficulty?: number | "easy" | "medium" | "harder";
+  durationMinutes?: number;
+  mode?: "voice" | "visual";
+  safetyFlags?: string[];
+  freeText?: string;
+};
+
+type BreathingPhase = {
+  key: string;
   title: string;
   instruction: string;
   cue: string;
+  seconds: number;
 };
 
-const RELAX_BREATHE_STAGE_KEYS = ["settle", "breathe", "return"] as const;
-type RelaxBreatheGuideMode = "visual" | "voice";
+type BreathingPlan = {
+  exerciseSlug: string;
+  title: string;
+  description: string;
+  purpose: string;
+  difficulty: number;
+  durationMinutes: number;
+  pattern: Record<string, unknown>;
+  phases: BreathingPhase[];
+  safetyNotes: string[];
+  voiceStyle: string;
+  voicePrompt: string;
+};
+
+type BreathingRecommendationOption = {
+  exerciseSlug: string;
+  name: string;
+  description: string;
+  difficulty: number;
+  durationMinutes: number;
+  why: string;
+  plan: BreathingPlan;
+};
+
+type BreathingRecommendationResponse = {
+  recommended: BreathingRecommendationOption | null;
+  options: BreathingRecommendationOption[];
+  safetyBlock: boolean;
+  safetyMessage?: string;
+};
+
+type BreathingSessionResponse = {
+  session?: {
+    id: string;
+    status: string;
+  };
+  plan?: BreathingPlan;
+};
+
+type RelaxBreatheGuideMode = "voice" | "visual";
+type SessionState = "choosing" | "planning" | "confirming" | "running" | "paused" | "completed" | "stopped";
+
+const INTENT_PRESETS: Array<{ id: string; label: string; body: string; intent: BreathingIntent }> = [
+  {
+    id: "calm",
+    label: "Calm",
+    body: "Ease stress",
+    intent: { purpose: "calm", mood: "tense", difficulty: "easy", durationMinutes: 3, mode: "voice" },
+  },
+  {
+    id: "sleep",
+    label: "Sleep",
+    body: "Wind down",
+    intent: { purpose: "sleep", mood: "restless", difficulty: "easy", durationMinutes: 5, mode: "voice" },
+  },
+  {
+    id: "focus",
+    label: "Focus",
+    body: "Reset gently",
+    intent: { purpose: "focus", mood: "scattered", difficulty: "medium", durationMinutes: 3, mode: "voice" },
+  },
+  {
+    id: "easy",
+    label: "Easy",
+    body: "Start soft",
+    intent: { purpose: "settle", mood: "unsure", difficulty: "easy", durationMinutes: 2, mode: "voice" },
+  },
+];
+
+function fallbackPlan(): BreathingPlan {
+  return {
+    exerciseSlug: "gentle-calm-breath",
+    title: "Gentle Calm Breath",
+    description: "A simple calming session with a longer exhale.",
+    purpose: "calm",
+    difficulty: 1,
+    durationMinutes: 3,
+    pattern: { inhale: 4, exhale: 6 },
+    safetyNotes: ["Stop if breathing feels painful, difficult, dizzy, or unusual."],
+    voiceStyle: "gentle",
+    voicePrompt: [
+      "Ask what the user needs, then guide a gentle calm breathing session.",
+      "Use simple language and keep listening so the user can interrupt, slow down, or stop.",
+      "Stop if the user reports dizziness, pain, chest discomfort, or unusual breathing.",
+    ].join(" "),
+    phases: [
+      { key: "arrive", title: "Arrive", instruction: "Sit comfortably and feel the chair supporting you.", cue: "Settle in.", seconds: 30 },
+      { key: "breathe", title: "Breathe slowly", instruction: "Breathe in gently. Breathe out a little longer.", cue: "In 4, out 6.", seconds: 120 },
+      { key: "return", title: "Return", instruction: "Notice the room and take one normal breath.", cue: "Come back gently.", seconds: 30 },
+    ],
+  };
+}
+
+function buildMarcoPrompt(plan: BreathingPlan, phase: BreathingPhase, phaseIndex: number) {
+  return [
+    plan.voicePrompt,
+    `Current phase ${phaseIndex + 1} of ${plan.phases.length}: ${phase.title}.`,
+    `Visible instruction: ${phase.instruction}`,
+    `Visual cue: ${phase.cue}`,
+    "Keep listening for the user. They can say slower, pause, stop, easier, or what is happening.",
+  ].join(" ");
+}
 
 function usePrefersReducedMotion() {
   const readPreference = () => (
@@ -41,34 +154,36 @@ function usePrefersReducedMotion() {
   return prefersReducedMotion;
 }
 
-function buildMarcoPrompt(
-  title: string,
-  stage: RelaxBreatheStage,
-  stageIndex: number,
-  stageCount: number,
-  safetyLine: string,
-) {
-  return [
-    `Guide the user through ${title}.`,
-    `Current stage ${stageIndex + 1} of ${stageCount}: ${stage.title}.`,
-    `Visible instruction: ${stage.instruction}`,
-    `Visual breathing cue: ${stage.cue}.`,
-    "Speak warmly, slowly, and plainly.",
-    "Keep the guidance short, then pause and wait for the app to send the next stage.",
-    `Safety reminder: ${safetyLine}`,
-  ].join(" ");
+async function readJson<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    let message = response.statusText;
+    try {
+      const body = await response.json() as { error?: unknown };
+      if (typeof body.error === "string") message = body.error;
+    } catch {
+      // Keep the status text.
+    }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
 }
 
 export default function RelaxBreatheScreen() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const prefersReducedMotion = usePrefersReducedMotion();
-  const [stageIndex, setStageIndex] = useState(0);
-  const [isCompleted, setCompleted] = useState(false);
-  const [isGuideStarted, setGuideStarted] = useState(false);
-  const [isAudioStarting, setAudioStarting] = useState(false);
-  const [guideMode, setGuideMode] = useState<RelaxBreatheGuideMode>("visual");
-  const [voiceStartFailed, setVoiceStartFailed] = useState(false);
+  const stageTimerRef = useRef<number | null>(null);
+  const handledTranscriptAtRef = useRef<number>(0);
+  const [guideMode, setGuideMode] = useState<RelaxBreatheGuideMode>("voice");
+  const [sessionState, setSessionState] = useState<SessionState>("choosing");
+  const [plan, setPlan] = useState<BreathingPlan | null>(null);
+  const [proposedPlan, setProposedPlan] = useState<BreathingPlan | null>(null);
+  const [options, setOptions] = useState<BreathingRecommendationOption[]>([]);
+  const [phaseIndex, setPhaseIndex] = useState(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [lastIntent, setLastIntent] = useState<BreathingIntent>({});
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const {
     startVoice,
     stopVoice,
@@ -76,74 +191,419 @@ export default function RelaxBreatheScreen() {
     sendContextUpdate,
     status: voiceStatus,
     isConnecting,
+    isMicMuted,
     lastError: voiceError,
+    transcript,
   } = useVyvaVoice();
 
   const copy = useMemo(() => ({
     title: t("activities.relaxBreathe.title", "Relax & Breathe"),
-    intro: t("activities.relaxBreathe.intro", "A quiet pause for your body and mind."),
-    backToMindMemory: t("activities.relaxBreathe.backToMindMemory", "Back to Mind & Memory"),
-    duration: t("activities.relaxBreathe.duration", "3 gentle steps"),
-    modeLabel: t("activities.relaxBreathe.modeLabel", "Guide mode"),
-    visualMode: t("activities.relaxBreathe.visualMode", "Visual"),
+    intro: t("activities.relaxBreathe.intro", "A guided breathing session made for right now."),
+    backToActivities: t("activities.relaxBreathe.backToActivities", "Back to activities"),
+    safety: t("activities.relaxBreathe.safety", "If breathing feels difficult, painful, dizzy, or unusual, stop and seek help."),
+    chooseTitle: t("activities.relaxBreathe.chooseTitle", "What would help now?"),
+    chooseBody: t("activities.relaxBreathe.chooseBody", "Choose once. VYVA will shape the session and guide you."),
+    talkToMarco: t("activities.relaxBreathe.talkToMarco", "Talk with Marco"),
+    planning: t("activities.relaxBreathe.planning", "Choosing a gentle plan..."),
+    listening: t("activities.relaxBreathe.listening", "Listening"),
+    muted: t("activities.relaxBreathe.muted", "Muted"),
     voiceMode: t("activities.relaxBreathe.voiceMode", "Voice"),
-    visualModeTitle: t("activities.relaxBreathe.visualModeTitle", "Visual mode"),
-    visualModeBody: t("activities.relaxBreathe.visualModeBody", "Follow the breathing circle quietly at your own pace."),
-    voiceModeTitle: t("activities.relaxBreathe.voiceModeTitle", "Voice mode"),
-    voiceModeBody: t("activities.relaxBreathe.voiceModeBody", "Marco can talk you through each step."),
-    stepLabel: t("activities.relaxBreathe.stepLabel", "Step"),
-    ofLabel: t("activities.relaxBreathe.ofLabel", "of"),
-    breatheIn: t("activities.relaxBreathe.breatheIn", "Breathe in"),
-    breatheOut: t("activities.relaxBreathe.breatheOut", "Breathe out"),
-    safety: t("activities.relaxBreathe.safety", "If breathing feels difficult, painful, or unusual, stop and seek help."),
-    startGuide: t("activities.relaxBreathe.startGuide", "Start Marco guide"),
-    guideStarting: t("activities.relaxBreathe.guideStarting", "Starting..."),
-    guideLive: t("activities.relaxBreathe.guideLive", "Marco guide is live"),
-    voiceRetry: t("activities.relaxBreathe.voiceRetry", "Tap Voice again to retry."),
-    replay: t("activities.relaxBreathe.replay", "Replay"),
-    back: t("activities.relaxBreathe.back", "Back"),
-    next: t("activities.relaxBreathe.next", "Next"),
+    visualMode: t("activities.relaxBreathe.visualMode", "Visual"),
+    pause: t("activities.relaxBreathe.pause", "Pause"),
+    resume: t("activities.relaxBreathe.resume", "Resume"),
+    stop: t("activities.relaxBreathe.stop", "Stop"),
     finish: t("activities.relaxBreathe.finish", "Finish"),
-    completeTitle: t("activities.relaxBreathe.completeTitle", "A calm pause is complete."),
-    completeBody: t("activities.relaxBreathe.completeBody", "You can come back to this whenever you want a quieter moment."),
     tryAgain: t("activities.relaxBreathe.tryAgain", "Try again"),
-    audioUnavailable: t("activities.relaxBreathe.audioUnavailable", "The visual guide still works without audio."),
-    stages: RELAX_BREATHE_STAGE_KEYS.map((key) => ({
-      key,
-      title: t(`activities.relaxBreathe.stages.${key}.title`),
-      instruction: t(`activities.relaxBreathe.stages.${key}.instruction`),
-      cue: t(`activities.relaxBreathe.stages.${key}.cue`),
-    })),
+    completeTitle: t("activities.relaxBreathe.completeTitle", "A calm pause is complete."),
+    completeBody: t("activities.relaxBreathe.completeBody", "VYVA will remember what helped."),
+    saferNext: t("activities.relaxBreathe.saferNext", "This may not be the right moment for breathing practice. Stop and seek help if symptoms feel unusual."),
+    fallbackNotice: t("activities.relaxBreathe.fallbackNotice", "Using a simple calm session for now."),
+    proposedTitle: t("activities.relaxBreathe.proposedTitle", "Marco suggests"),
+    confirmStart: t("activities.relaxBreathe.confirmStart", "Start this"),
+    askForChange: t("activities.relaxBreathe.askForChange", "Change it"),
+    voiceIntentHint: t("activities.relaxBreathe.voiceIntentHint", "Say calm, sleep, focus, easier, shorter, or stop."),
+    awaitingConfirm: t("activities.relaxBreathe.awaitingConfirm", "Waiting for your yes."),
+    slower: t("activities.relaxBreathe.slower", "Slower"),
   }), [t]);
 
-  const currentStage = copy.stages[stageIndex] ?? copy.stages[0];
-  const stageCount = copy.stages.length;
-  const audioIsLive = isGuideStarted || voiceStatus === "connected";
+  const currentPhase = plan?.phases[phaseIndex] ?? null;
+  const audioIsLive = voiceStatus === "connected";
 
-  const voiceVariables = useCallback((nextStageIndex: number) => {
-    const stage = copy.stages[nextStageIndex] ?? copy.stages[0];
-    return {
+  const clearStageTimer = useCallback(() => {
+    if (stageTimerRef.current !== null) {
+      window.clearTimeout(stageTimerRef.current);
+      stageTimerRef.current = null;
+    }
+  }, []);
+
+  const sendPhasePrompt = useCallback((nextPlan: BreathingPlan, nextPhaseIndex: number) => {
+    const phase = nextPlan.phases[nextPhaseIndex];
+    if (!phase) return;
+    sendContextUpdate(`Breathing session context: ${JSON.stringify({
       app_entrypoint: "relax_breathe_session",
-      session_title: copy.title,
-      stage_key: stage.key,
-      stage_title: stage.title,
-      stage_instruction: stage.instruction,
-      breathing_cue: stage.cue,
-      current_stage_number: nextStageIndex + 1,
-      stage_count: stageCount,
+      exercise_slug: nextPlan.exerciseSlug,
+      session_title: nextPlan.title,
+      purpose: nextPlan.purpose,
+      difficulty: nextPlan.difficulty,
+      duration_minutes: nextPlan.durationMinutes,
+      current_phase_number: nextPhaseIndex + 1,
+      phase_count: nextPlan.phases.length,
+      phase_key: phase.key,
+      phase_title: phase.title,
+      phase_instruction: phase.instruction,
+      breathing_cue: phase.cue,
       safety_line: copy.safety,
+    })}`);
+    sendText(buildMarcoPrompt(nextPlan, phase, nextPhaseIndex), { invisibleInTranscript: true });
+  }, [copy.safety, sendContextUpdate, sendText]);
+
+  const patchSession = useCallback(async (status: SessionState, extra: Record<string, unknown> = {}) => {
+    if (!sessionId) return;
+    const apiStatus = status === "running" ? "active" : status;
+    try {
+      await apiFetch(`/api/breathing/sessions/${sessionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: apiStatus,
+          ...extra,
+        }),
+      });
+    } catch (error) {
+      console.warn("[RelaxBreathe] Could not update breathing session", error);
+    }
+  }, [sessionId]);
+
+  const startVoiceForPlan = useCallback(async (nextPlan: BreathingPlan) => {
+    if (guideMode !== "voice" || audioIsLive || isConnecting) return;
+    await startVoice(nextPlan.voicePrompt, undefined, {
+      agentSlug: "marco-reyes",
+      roomSlug: "evening-wind-down",
+      autoStartListening: true,
+      dynamicVariables: {
+        app_entrypoint: "relax_breathe_session",
+        exercise_slug: nextPlan.exerciseSlug,
+        session_title: nextPlan.title,
+        purpose: nextPlan.purpose,
+        difficulty: nextPlan.difficulty,
+        duration_minutes: nextPlan.durationMinutes,
+        safety_line: copy.safety,
+      },
+    });
+  }, [audioIsLive, copy.safety, guideMode, isConnecting, startVoice]);
+
+  const beginPlan = useCallback(async (
+    nextPlan: BreathingPlan,
+    intent: BreathingIntent,
+    source: "app" | "voice" = "app",
+  ) => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setLastIntent(intent);
+    setPlan(nextPlan);
+    setProposedPlan(null);
+    setPhaseIndex(0);
+    setSessionState("running");
+
+    try {
+      const response = await apiFetch("/api/breathing/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          exerciseSlug: nextPlan.exerciseSlug,
+          intent,
+          plan: nextPlan,
+          source,
+          status: "active",
+        }),
+      });
+      const body = await readJson<BreathingSessionResponse>(response);
+      setSessionId(body.session?.id ?? null);
+    } catch (error) {
+      console.warn("[RelaxBreathe] Breathing session was not saved", error);
+      setStatusMessage(copy.fallbackNotice);
+    }
+
+    if (guideMode === "voice") {
+      try {
+        await startVoiceForPlan(nextPlan);
+        sendPhasePrompt(nextPlan, 0);
+      } catch (error) {
+        console.warn("[RelaxBreathe] Voice guide could not start", error);
+        setStatusMessage(copy.fallbackNotice);
+      }
+    }
+  }, [copy.fallbackNotice, guideMode, sendPhasePrompt, startVoiceForPlan]);
+
+  const requestPlan = useCallback(async (
+    intent: BreathingIntent,
+    source: "app" | "voice" = "app",
+    options: { waitForConfirmation?: boolean } = {},
+  ) => {
+    clearStageTimer();
+    setSessionState("planning");
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setLastIntent(intent);
+    setProposedPlan(null);
+
+    try {
+      const response = await apiFetch("/api/breathing/recommend", {
+        method: "POST",
+        body: JSON.stringify({ intent, limit: 3 }),
+      });
+      const recommendation = await readJson<BreathingRecommendationResponse>(response);
+      if (recommendation.safetyBlock) {
+        setSessionState("choosing");
+        setErrorMessage(recommendation.safetyMessage ?? copy.saferNext);
+        setOptions([]);
+        return;
+      }
+
+      const nextOptions = recommendation.options ?? [];
+      setOptions(nextOptions);
+      const selected = recommendation.recommended?.plan ?? nextOptions[0]?.plan;
+      if (selected) {
+        if (options.waitForConfirmation) {
+          setProposedPlan(selected);
+          setSessionState("confirming");
+          setStatusMessage(copy.awaitingConfirm);
+          sendContextUpdate(`Breathing recommendation ready: ${JSON.stringify({
+            title: selected.title,
+            duration_minutes: selected.durationMinutes,
+            difficulty: selected.difficulty,
+            purpose: selected.purpose,
+            safety_notes: selected.safetyNotes,
+            next_step: "Ask the user to confirm before starting. They can say yes, easier, shorter, different, or stop.",
+          })}`);
+          sendText(
+            `I suggest ${selected.title} for ${selected.durationMinutes} minutes. It is level ${selected.difficulty}. Ask the user if they want to start, or if they want it easier, shorter, or different.`,
+            { invisibleInTranscript: true },
+          );
+          return;
+        }
+        await beginPlan(selected, intent, source);
+        return;
+      }
+      throw new Error("No breathing plan returned");
+    } catch (error) {
+      console.warn("[RelaxBreathe] Breathing recommendation failed", error);
+      const fallback = fallbackPlan();
+      if (options.waitForConfirmation) {
+        setProposedPlan(fallback);
+        setSessionState("confirming");
+        setStatusMessage(copy.fallbackNotice);
+        return;
+      }
+      await beginPlan(fallback, intent, source);
+    }
+  }, [beginPlan, clearStageTimer, copy.awaitingConfirm, copy.fallbackNotice, copy.saferNext, sendContextUpdate, sendText]);
+
+  const startVoiceIntent = useCallback(async () => {
+    setGuideMode("voice");
+    setErrorMessage(null);
+    setProposedPlan(null);
+    setStatusMessage(copy.listening);
+    try {
+      await startVoice([
+        "You are Marco, VYVA's breathing coach.",
+        "Start by asking what the user needs from breathing today: calm, sleep, focus, energy, or something else.",
+        "Ask about difficulty and time only if useful.",
+        "Do not begin intense breathwork. Keep it senior-friendly, gentle, and safety-first.",
+        "If the user reports dizziness, chest pain, painful breathing, or unusual shortness of breath, stop and advise seeking help.",
+      ].join(" "), undefined, {
+        agentSlug: "marco-reyes",
+        roomSlug: "evening-wind-down",
+        autoStartListening: true,
+        dynamicVariables: {
+          app_entrypoint: "relax_breathe_intent",
+          safety_line: copy.safety,
+        },
+      });
+    } catch (error) {
+      console.warn("[RelaxBreathe] Voice intent chat could not start", error);
+      setErrorMessage(copy.fallbackNotice);
+    }
+  }, [copy.fallbackNotice, copy.listening, copy.safety, startVoice]);
+
+  const pauseSession = useCallback(() => {
+    clearStageTimer();
+    setSessionState("paused");
+    void patchSession("paused", { eventType: "session_paused" });
+    sendText("Pause the breathing guidance. Stay quiet and wait for the user to resume.", { invisibleInTranscript: true });
+  }, [clearStageTimer, patchSession, sendText]);
+
+  const resumeSession = useCallback(() => {
+    if (!plan) return;
+    setSessionState("running");
+    void patchSession("running", { eventType: "session_resumed" });
+    sendPhasePrompt(plan, phaseIndex);
+  }, [patchSession, phaseIndex, plan, sendPhasePrompt]);
+
+  const slowCurrentSession = useCallback(() => {
+    if (!plan) return;
+    const slowerPlan = {
+      ...plan,
+      phases: plan.phases.map((phase, index) => ({
+        ...phase,
+        seconds: index >= phaseIndex ? Math.round(phase.seconds * 1.35) : phase.seconds,
+      })),
     };
-  }, [copy.safety, copy.stages, copy.title, stageCount]);
+    setPlan(slowerPlan);
+    setStatusMessage("Slowing down.");
+    void patchSession("running", {
+      eventType: "pace_slowed",
+      eventPayload: { from_phase: phaseIndex + 1 },
+    });
+    sendContextUpdate("The user asked to slow down. Speak more slowly, lengthen pauses, and keep the breathing pace gentle.");
+  }, [patchSession, phaseIndex, plan, sendContextUpdate]);
 
-  const promptForStage = useCallback((nextStageIndex: number) => {
-    const stage = copy.stages[nextStageIndex] ?? copy.stages[0];
-    return buildMarcoPrompt(copy.title, stage, nextStageIndex, stageCount, copy.safety);
-  }, [copy.safety, copy.stages, copy.title, stageCount]);
+  const makeCurrentSessionEasier = useCallback(() => {
+    setStatusMessage("Making it easier.");
+    void patchSession("running", { eventType: "made_easier" });
+    sendContextUpdate("The user asked for an easier session. Drop any holds, reduce effort, and use the gentlest possible pacing.");
+  }, [patchSession, sendContextUpdate]);
 
-  const sendStagePrompt = useCallback((nextStageIndex: number) => {
-    sendContextUpdate(`Relax and Breathe session context: ${JSON.stringify(voiceVariables(nextStageIndex))}`);
-    sendText(promptForStage(nextStageIndex), { invisibleInTranscript: true });
-  }, [promptForStage, sendContextUpdate, sendText, voiceVariables]);
+  const shortenCurrentSession = useCallback(() => {
+    if (!plan) return;
+    const shortenedPlan = {
+      ...plan,
+      durationMinutes: Math.max(1, Math.min(plan.durationMinutes, Math.ceil((phaseIndex + 1) / 2))),
+      phases: plan.phases.slice(0, Math.max(phaseIndex + 1, 1)),
+    };
+    setPlan(shortenedPlan);
+    setStatusMessage("Shortening this session.");
+    void patchSession("running", { eventType: "session_shortened" });
+    sendContextUpdate("The user asked for a shorter session. Finish calmly after the current phase.");
+  }, [patchSession, phaseIndex, plan, sendContextUpdate]);
+
+  const stopSession = useCallback(() => {
+    clearStageTimer();
+    stopVoice();
+    setSessionState("stopped");
+    void patchSession("stopped", {
+      stoppedReason: "user_stopped",
+      eventType: "session_stopped",
+    });
+  }, [clearStageTimer, patchSession, stopVoice]);
+
+  const finishSession = useCallback(() => {
+    clearStageTimer();
+    stopVoice();
+    setSessionState("completed");
+    void patchSession("completed", {
+      moodAfter: "calmer",
+      comfortRating: 4,
+      eventType: "session_completed",
+    });
+  }, [clearStageTimer, patchSession, stopVoice]);
+
+  const restartSession = useCallback(() => {
+    clearStageTimer();
+    stopVoice();
+    setPlan(null);
+    setOptions([]);
+    setSessionId(null);
+    setPhaseIndex(0);
+    setSessionState("choosing");
+    setStatusMessage(null);
+    setErrorMessage(null);
+    setProposedPlan(null);
+  }, [clearStageTimer, stopVoice]);
+
+  const handleVoiceControl = useCallback((control: BreathingVoiceControl) => {
+    if (control === "confirm") {
+      if (sessionState === "confirming" && proposedPlan) {
+        void beginPlan(proposedPlan, lastIntent, "voice");
+        return;
+      }
+      if (sessionState === "paused") {
+        resumeSession();
+        return;
+      }
+    }
+
+    if (control === "pause" && sessionState === "running") {
+      pauseSession();
+      return;
+    }
+
+    if (control === "resume" && sessionState === "paused") {
+      resumeSession();
+      return;
+    }
+
+    if (control === "stop") {
+      if (sessionState === "confirming" || sessionState === "planning") {
+        setSessionState("choosing");
+        setProposedPlan(null);
+        setStatusMessage(null);
+        sendContextUpdate("The user stopped the breathing plan before it started.");
+        return;
+      }
+      stopSession();
+      return;
+    }
+
+    if (control === "finish" && (sessionState === "running" || sessionState === "paused")) {
+      finishSession();
+      return;
+    }
+
+    if (control === "slower" && sessionState === "running") {
+      slowCurrentSession();
+      return;
+    }
+
+    if (control === "easier" && sessionState === "running") {
+      makeCurrentSessionEasier();
+      return;
+    }
+
+    if (control === "shorter" && sessionState === "running") {
+      shortenCurrentSession();
+      return;
+    }
+
+    if (["easier", "shorter", "harder", "longer", "change"].includes(control)) {
+      const nextIntent = control === "change"
+        ? { ...lastIntent, freeText: "User asked for a different breathing option" }
+        : adjustBreathingIntentForControl(lastIntent, control);
+      void requestPlan(nextIntent, "voice", { waitForConfirmation: true });
+      return;
+    }
+
+    if (control === "status") {
+      const message = proposedPlan
+        ? `A ${proposedPlan.durationMinutes} minute ${proposedPlan.title} is ready. Say yes to start, or say easier, shorter, or different.`
+        : plan
+          ? `You are in ${plan.title}, phase ${phaseIndex + 1} of ${plan.phases.length}: ${currentPhase?.title ?? "breathing"}.`
+          : "We are choosing a breathing plan. Say calm, sleep, focus, easy, or stop.";
+      sendText(message, { invisibleInTranscript: true });
+    }
+  }, [
+    beginPlan,
+    currentPhase?.title,
+    finishSession,
+    lastIntent,
+    makeCurrentSessionEasier,
+    pauseSession,
+    phaseIndex,
+    plan,
+    proposedPlan,
+    requestPlan,
+    resumeSession,
+    sendContextUpdate,
+    sendText,
+    sessionState,
+    shortenCurrentSession,
+    slowCurrentSession,
+    stopSession,
+  ]);
+
+  const goBackToActivities = useCallback(() => {
+    clearStageTimer();
+    stopVoice();
+    navigate("/activities");
+  }, [clearStageTimer, navigate, stopVoice]);
 
   useEffect(() => {
     try {
@@ -153,86 +613,133 @@ export default function RelaxBreatheScreen() {
       // Some test environments do not implement scrollTo.
     }
 
-    return () => stopVoice();
-  }, [stopVoice]);
+    return () => {
+      clearStageTimer();
+      stopVoice();
+    };
+  }, [clearStageTimer, stopVoice]);
 
-  const goBackToMindMemory = useCallback(() => {
-    stopVoice();
-    navigate("/mind-memory");
-  }, [navigate, stopVoice]);
+  useEffect(() => {
+    clearStageTimer();
+    if (!plan || sessionState !== "running") return undefined;
 
-  const goToStage = useCallback((nextStageIndex: number) => {
-    const boundedStageIndex = Math.max(0, Math.min(nextStageIndex, stageCount - 1));
-    setStageIndex(boundedStageIndex);
-    if (audioIsLive) {
-      sendStagePrompt(boundedStageIndex);
-    }
-  }, [audioIsLive, sendStagePrompt, stageCount]);
+    const phase = plan.phases[phaseIndex];
+    if (!phase) return undefined;
 
-  const startMarcoGuide = useCallback(async () => {
-    if (audioIsLive || isAudioStarting || isConnecting) return;
-    setGuideMode("voice");
-    setVoiceStartFailed(false);
-    setAudioStarting(true);
-    try {
-      await startVoice(promptForStage(stageIndex), undefined, {
-        agentSlug: "marco-reyes",
-        roomSlug: "evening-wind-down",
-        autoStartListening: false,
-        dynamicVariables: voiceVariables(stageIndex),
-      });
-      setGuideStarted(true);
-      sendStagePrompt(stageIndex);
-    } catch {
-      setVoiceStartFailed(true);
-      setGuideStarted(false);
-    } finally {
-      setAudioStarting(false);
-    }
-  }, [audioIsLive, isAudioStarting, isConnecting, promptForStage, sendStagePrompt, stageIndex, startVoice, voiceVariables]);
+    stageTimerRef.current = window.setTimeout(() => {
+      const nextPhaseIndex = phaseIndex + 1;
+      if (nextPhaseIndex >= plan.phases.length) {
+        finishSession();
+        return;
+      }
+      setPhaseIndex(nextPhaseIndex);
+      sendPhasePrompt(plan, nextPhaseIndex);
+    }, Math.max(15, phase.seconds) * 1000);
 
-  const switchGuideMode = useCallback((nextMode: RelaxBreatheGuideMode) => {
-    if (nextMode === "voice") {
-      setGuideMode("voice");
-      void startMarcoGuide();
+    return clearStageTimer;
+  }, [clearStageTimer, finishSession, phaseIndex, plan, sendPhasePrompt, sessionState]);
+
+  useEffect(() => {
+    const latestUserEntry = [...transcript].reverse().find((entry) => entry.from === "user");
+    if (!latestUserEntry || latestUserEntry.timestamp <= handledTranscriptAtRef.current) return;
+    handledTranscriptAtRef.current = latestUserEntry.timestamp;
+
+    const parsed = parseBreathingVoiceText(latestUserEntry.text);
+    if (parsed.safetyBlock) {
+      clearStageTimer();
+      if (sessionState === "running" || sessionState === "paused") {
+        void patchSession("stopped", {
+          stoppedReason: "safety_signal",
+          eventType: "safety_stop",
+          eventPayload: {
+            user_message: latestUserEntry.text.slice(0, 240),
+            safety_flags: parsed.intent?.safetyFlags ?? [],
+          },
+        });
+      }
+      stopVoice();
+      setSessionState("choosing");
+      setProposedPlan(null);
+      setErrorMessage(copy.saferNext);
       return;
     }
 
-    setGuideMode("visual");
-    setVoiceStartFailed(false);
-    if (audioIsLive) {
-      stopVoice();
-      setGuideStarted(false);
+    if (parsed.control) {
+      handleVoiceControl(parsed.control);
+      return;
     }
-  }, [audioIsLive, startMarcoGuide, stopVoice]);
 
-  const replayStage = useCallback(() => {
-    if (audioIsLive) {
-      sendStagePrompt(stageIndex);
+    if (parsed.intent && (sessionState === "choosing" || sessionState === "confirming" || sessionState === "planning")) {
+      void requestPlan(parsed.intent, "voice", { waitForConfirmation: true });
+      return;
     }
-  }, [audioIsLive, sendStagePrompt, stageIndex]);
 
-  const finishSession = useCallback(() => {
-    stopVoice();
-    setGuideStarted(false);
-    setVoiceStartFailed(false);
-    setCompleted(true);
-  }, [stopVoice]);
+    if (parsed.intent && (sessionState === "running" || sessionState === "paused")) {
+      const nextIntent = {
+        ...lastIntent,
+        ...parsed.intent,
+      };
+      clearStageTimer();
+      setSessionState("planning");
+      void requestPlan(nextIntent, "voice", { waitForConfirmation: true });
+    }
+  }, [
+    clearStageTimer,
+    copy.saferNext,
+    handleVoiceControl,
+    lastIntent,
+    patchSession,
+    requestPlan,
+    sessionState,
+    stopVoice,
+    transcript,
+  ]);
 
-  const restartSession = useCallback(() => {
-    setCompleted(false);
-    setStageIndex(0);
-    setGuideMode("visual");
-    setVoiceStartFailed(false);
-  }, []);
+  const voiceStatusLabel = isConnecting
+    ? copy.planning
+    : guideMode === "voice"
+      ? isMicMuted
+        ? copy.muted
+        : copy.listening
+      : copy.visualMode;
 
-  const voiceStatusLabel = isAudioStarting || isConnecting
-    ? copy.guideStarting
-    : audioIsLive
-      ? copy.guideLive
-      : voiceStartFailed || voiceError
-        ? copy.voiceRetry
-        : copy.guideStarting;
+  if (sessionState === "completed") {
+    return (
+      <section className="min-h-screen bg-[radial-gradient(circle_at_top,#F2FFFB_0%,#F8F4EF_46%,#F2ECE5_100%)] px-4 py-4 text-[#263238] sm:px-6 sm:py-6" data-testid="relax-breathe-screen">
+        <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-3xl items-center justify-center">
+          <div className="w-full rounded-[2rem] border border-[#B7EFE6] bg-white/90 p-6 text-center shadow-[0_24px_70px_rgba(32,88,74,0.12)] sm:p-8" data-testid="relax-breathe-complete">
+            <CheckCircle2 className="mx-auto h-14 w-14 text-[#0F8274]" aria-hidden="true" />
+            <h1 className="mt-5 font-serif text-4xl text-[#173F38] sm:text-5xl">{copy.completeTitle}</h1>
+            <p className="mx-auto mt-3 max-w-md text-lg font-semibold text-[#6F625B]">{copy.completeBody}</p>
+            {plan && (
+              <p className="mt-4 text-sm font-bold uppercase tracking-[0.12em] text-[#0F8274]">
+                {plan.title} · {plan.durationMinutes} min
+              </p>
+            )}
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0F8274] px-6 py-4 text-lg font-bold text-white shadow-[0_14px_28px_rgba(15,130,116,0.18)]"
+                onClick={restartSession}
+                data-testid="button-relax-breathe-try-again"
+              >
+                <RotateCcw className="h-5 w-5" aria-hidden="true" />
+                {copy.tryAgain}
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D8CEC4] bg-white px-6 py-4 text-lg font-bold text-[#4B3F39]"
+                onClick={goBackToActivities}
+              >
+                <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+                {copy.backToActivities}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
@@ -249,297 +756,285 @@ export default function RelaxBreatheScreen() {
             0%, 100% { transform: scale(0.92); opacity: 0.5; }
             50% { transform: scale(1.08); opacity: 0.9; }
           }
-          @keyframes relax-breathe-float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
-          }
           @media (prefers-reduced-motion: reduce) {
             .relax-breathe-orb,
-            .relax-breathe-halo,
-            .relax-breathe-float {
+            .relax-breathe-halo {
               animation: none !important;
             }
           }
         `}
       </style>
 
-      <div className="mx-auto flex min-h-[calc(100vh-32px)] w-full max-w-[920px] flex-col">
-        <button
-          type="button"
-          onClick={goBackToMindMemory}
-          className="inline-flex min-h-[48px] w-fit items-center gap-2 rounded-full border border-[#CDEBE5] bg-white px-4 font-body text-[15px] font-black text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)]"
-          data-testid="button-relax-breathe-back-mind-memory"
-        >
-          <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
-          {copy.backToMindMemory}
-        </button>
+      <div className="mx-auto grid w-full max-w-6xl gap-5 pb-24 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <main className="rounded-[2rem] border border-[#B7EFE6] bg-[#ECFFF9] p-5 shadow-[0_24px_70px_rgba(32,88,74,0.12)] sm:p-7">
+          <button
+            type="button"
+            className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#CFE8E3] bg-white text-[#1F5B52]"
+            onClick={goBackToActivities}
+            aria-label={copy.backToActivities}
+          >
+            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+          </button>
 
-        <main className="mt-4 flex-1 overflow-hidden rounded-[34px] border border-[#BEE9E1] bg-white/94 shadow-[0_22px_50px_rgba(15,118,110,0.14)]">
-          {isCompleted ? (
-            <div className="flex min-h-[620px] flex-col items-center justify-center px-5 py-10 text-center" data-testid="relax-breathe-complete">
-              <div className="relax-breathe-float flex h-24 w-24 items-center justify-center rounded-[28px] bg-[#DCFCE7] text-[#047857] shadow-[0_18px_34px_rgba(4,120,87,0.14)]">
-                <CheckCircle2 size={46} strokeWidth={2.5} aria-hidden="true" />
-              </div>
-              <h1 className="mt-6 max-w-[640px] font-display text-[40px] leading-[1.02] text-[#173B35] sm:text-[58px]">
-                {copy.completeTitle}
-              </h1>
-              <p className="mt-4 max-w-[520px] font-body text-[19px] font-bold leading-snug text-[#5F706C]">
-                {copy.completeBody}
-              </p>
-              <div className="mt-8 grid w-full max-w-[520px] gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={restartSession}
-                  className="min-h-[60px] rounded-[22px] border border-[#BEE9E1] bg-white px-5 font-body text-[17px] font-black text-[#0F766E]"
-                  data-testid="button-relax-breathe-try-again"
-                >
-                  {copy.tryAgain}
-                </button>
-                <button
-                  type="button"
-                  onClick={goBackToMindMemory}
-                  className="min-h-[60px] rounded-[22px] bg-[#0F766E] px-5 font-body text-[17px] font-black text-white shadow-[0_16px_28px_rgba(15,118,110,0.22)]"
-                >
-                  {copy.backToMindMemory}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid min-h-[650px] lg:grid-cols-[minmax(0,1fr)_320px]">
-              <section className="relative flex min-w-0 flex-col justify-between overflow-hidden bg-[linear-gradient(145deg,#F5FFFB_0%,#E7FFF7_54%,#F9FBF8_100%)] p-5 sm:p-7">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 font-body text-[13px] font-black uppercase tracking-[0.06em] text-[#0F766E] shadow-[0_8px_18px_rgba(15,118,110,0.08)]">
-                        <Headphones size={16} strokeWidth={2.5} aria-hidden="true" />
-                        {copy.duration}
-                      </span>
-                      <span className="rounded-full bg-[#0F766E] px-3 py-1.5 font-body text-[13px] font-black text-white shadow-[0_8px_18px_rgba(15,118,110,0.14)]">
-                        {copy.stepLabel} {stageIndex + 1} {copy.ofLabel} {stageCount}
-                      </span>
-                    </div>
-                    <h1 className="mt-4 font-display text-[42px] leading-[0.98] text-[#173B35] sm:text-[58px]">
-                      {copy.title}
-                    </h1>
-                    <p className="mt-3 max-w-[520px] font-body text-[18px] font-bold leading-snug text-[#5F706C] sm:text-[21px]">
-                      {copy.intro}
-                    </p>
-                    <div
-                      className="mt-5 inline-grid grid-cols-2 rounded-[22px] border border-[#CDEBE5] bg-white/80 p-1 shadow-[0_10px_24px_rgba(15,118,110,0.08)]"
-                      role="group"
-                      aria-label={copy.modeLabel}
-                      data-testid="relax-breathe-mode-switch"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => switchGuideMode("visual")}
-                        aria-pressed={guideMode === "visual"}
-                        className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[14px] font-black transition ${
-                          guideMode === "visual"
-                            ? "bg-[#0F766E] text-white shadow-[0_10px_18px_rgba(15,118,110,0.18)]"
-                            : "text-[#0F766E] hover:bg-[#ECFDF5]"
-                        }`}
-                        data-testid="button-relax-breathe-mode-visual"
-                      >
-                        <Eye size={17} strokeWidth={2.6} aria-hidden="true" />
-                        {copy.visualMode}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => switchGuideMode("voice")}
-                        aria-pressed={guideMode === "voice"}
-                        className={`inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[18px] px-4 font-body text-[14px] font-black transition ${
-                          guideMode === "voice"
-                            ? "bg-[#0F766E] text-white shadow-[0_10px_18px_rgba(15,118,110,0.18)]"
-                            : "text-[#0F766E] hover:bg-[#ECFDF5]"
-                        }`}
-                        data-testid="button-relax-breathe-mode-voice"
-                      >
-                        <Headphones size={17} strokeWidth={2.6} aria-hidden="true" />
-                        {copy.voiceMode}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-extrabold uppercase tracking-[0.08em] text-[#0F8274]">
+              <Headphones className="h-4 w-4" aria-hidden="true" />
+              {plan ? `${plan.durationMinutes} min` : "Personal guide"}
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#0F8274] px-4 py-2 text-sm font-extrabold text-white shadow-[0_12px_28px_rgba(15,130,116,0.18)]" data-testid="relax-breathe-voice-status">
+              <Mic className="h-4 w-4" aria-hidden="true" />
+              {voiceStatusLabel}
+            </span>
+          </div>
 
+          <div className="mt-5">
+            <h1 className="font-serif text-5xl leading-none text-[#173F38] sm:text-6xl lg:text-7xl">{copy.title}</h1>
+            <p className="mt-4 max-w-2xl text-xl font-semibold text-[#6F625B]">{copy.intro}</p>
+          </div>
+
+          {sessionState === "choosing" || sessionState === "planning" || sessionState === "confirming" ? (
+            <div className="mt-8 grid gap-4" data-testid="relax-breathe-intent-panel">
+              <div>
+                <h2 className="text-3xl font-extrabold text-[#1F2528]">{copy.chooseTitle}</h2>
+                <p className="mt-1 text-base font-semibold text-[#6F625B]">
+                  {sessionState === "confirming" ? copy.voiceIntentHint : copy.chooseBody}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {INTENT_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="min-h-[112px] rounded-[1.5rem] border border-[#D9EFEA] bg-white p-4 text-left shadow-[0_14px_36px_rgba(54,44,36,0.08)] transition hover:-translate-y-0.5 hover:border-[#0F8274] focus:outline-none focus:ring-4 focus:ring-[#B7EFE6]"
+                    onClick={() => void requestPlan(preset.intent)}
+                    disabled={sessionState === "planning"}
+                    data-testid={`button-relax-breathe-intent-${preset.id}`}
+                  >
+                    <span className="block text-2xl font-extrabold text-[#1F2528]">{preset.label}</span>
+                    <span className="mt-2 block text-sm font-bold text-[#6F625B]">{preset.body}</span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className="inline-flex min-h-[64px] items-center justify-center gap-3 rounded-full bg-[#0F8274] px-6 py-4 text-lg font-extrabold text-white shadow-[0_18px_38px_rgba(15,130,116,0.2)] disabled:opacity-70"
+                onClick={startVoiceIntent}
+                disabled={isConnecting}
+                data-testid="button-relax-breathe-talk"
+              >
+                {isConnecting || sessionState === "planning" ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Mic className="h-5 w-5" aria-hidden="true" />}
+                {sessionState === "planning" ? copy.planning : copy.talkToMarco}
+              </button>
+
+              {proposedPlan && (
                 <div
-                  className="relative mx-auto mt-8 flex aspect-square w-full max-w-[400px] items-center justify-center"
-                  data-testid="relax-breathe-visual"
+                  className="rounded-[1.75rem] border border-[#B7EFE6] bg-white p-5 shadow-[0_18px_44px_rgba(32,88,74,0.08)]"
+                  data-testid="relax-breathe-proposed-plan"
                 >
-                  <div className={`relax-breathe-halo absolute h-[92%] w-[92%] rounded-[34%_66%_45%_55%] border border-[#A8EFE1] bg-white/45 ${prefersReducedMotion ? "" : "animate-[relax-breathe-halo_5.8s_ease-in-out_infinite]"}`} aria-hidden="true" />
-                  <div className={`relax-breathe-halo absolute h-[72%] w-[72%] rounded-[60%_40%_58%_42%] border border-white bg-[#D8FFF6]/80 ${prefersReducedMotion ? "" : "animate-[relax-breathe-halo_5.8s_ease-in-out_infinite_0.3s]"}`} aria-hidden="true" />
-                  <div
-                    className={`relax-breathe-orb relative z-10 flex h-[58%] w-[58%] max-w-[280px] items-center justify-center rounded-full bg-[#0F766E] text-center text-white shadow-[0_28px_70px_rgba(15,118,110,0.28)] ${prefersReducedMotion ? "" : "animate-[relax-breathe-pulse_5.8s_ease-in-out_infinite]"}`}
-                    data-testid="relax-breathe-orb"
-                    data-motion={prefersReducedMotion ? "static" : "animated"}
-                    aria-label={`${copy.breatheIn}. ${copy.breatheOut}.`}
-                  >
-                    <div className="px-4">
-                      <p className="font-display text-[31px] leading-none sm:text-[40px]">{copy.breatheIn}</p>
-                      <p className="mt-3 font-body text-[14px] font-black uppercase tracking-[0.14em] text-[#BFF7EA] sm:text-[16px]">
-                        {copy.breatheOut}
-                      </p>
-                    </div>
+                  <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#0F8274]">{copy.proposedTitle}</p>
+                  <h3 className="mt-2 text-3xl font-extrabold text-[#1F2528]">{proposedPlan.title}</h3>
+                  <p className="mt-2 text-base font-bold text-[#6F625B]">{proposedPlan.description}</p>
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-extrabold text-[#0F8274]">
+                    <span className="rounded-2xl bg-[#ECFFF9] p-3">{proposedPlan.durationMinutes} min</span>
+                    <span className="rounded-2xl bg-[#ECFFF9] p-3">Level {proposedPlan.difficulty}</span>
                   </div>
-                </div>
-
-                <div className="mt-6 grid gap-3 md:grid-cols-3" data-testid="relax-breathe-stage-list">
-                  {copy.stages.map((stage, index) => {
-                    const isCurrent = index === stageIndex;
-                    const isDone = index < stageIndex;
-                    return (
-                      <button
-                        key={stage.key}
-                        type="button"
-                        onClick={() => goToStage(index)}
-                        className={`min-h-[82px] rounded-[22px] border px-4 py-3 text-left transition ${
-                          isCurrent
-                            ? "border-[#0F766E] bg-white shadow-[0_12px_24px_rgba(15,118,110,0.16)]"
-                            : "border-[#CDEBE5] bg-white/72 hover:bg-white"
-                        }`}
-                        data-testid={`relax-breathe-stage-${stage.key}`}
-                      >
-                        <span className="flex min-w-0 items-center gap-2 font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                          <span className={`flex h-8 w-8 items-center justify-center rounded-full ${isCurrent || isDone ? "bg-[#0F766E] text-white" : "bg-[#E6FFF8] text-[#0F766E]"}`}>
-                            {isDone ? <CheckCircle2 size={18} strokeWidth={2.5} aria-hidden="true" /> : index + 1}
-                          </span>
-                          <span className="min-w-0 break-words">{stage.title}</span>
-                        </span>
-                        <span className="mt-2 block break-words font-body text-[14px] font-bold leading-snug text-[#5F706C]">
-                          {stage.cue}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-
-              <section className="flex min-w-0 flex-col justify-between overflow-hidden border-t border-[#D8F2EC] bg-white p-5 sm:p-7 lg:border-l lg:border-t-0">
-                <article className="rounded-[28px] border border-[#CDEBE5] bg-[#F8FFFC] p-5 shadow-[0_12px_26px_rgba(15,118,110,0.09)]">
-                  <p className="font-body text-[13px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-                    {copy.stepLabel} {stageIndex + 1} {copy.ofLabel} {stageCount}
-                  </p>
-                  <h2 className="mt-3 break-words font-display text-[36px] leading-[1.02] text-[#173B35]">
-                    {currentStage.title}
-                  </h2>
-                  <p className="mt-3 break-words rounded-[18px] bg-white px-4 py-3 font-body text-[17px] font-black leading-snug text-[#0F766E]">
-                    {currentStage.cue}
-                  </p>
-                  <p className="mt-5 break-words font-body text-[22px] font-black leading-snug text-[#203B37]" data-testid="relax-breathe-stage-instruction">
-                    {currentStage.instruction}
-                  </p>
-                  <p className="mt-5 break-words rounded-[18px] bg-white px-4 py-3 font-body text-[14px] font-bold leading-snug text-[#60716D]" data-testid="relax-breathe-safety">
-                    {copy.safety}
-                  </p>
-                </article>
-
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => goToStage(stageIndex - 1)}
-                    disabled={stageIndex === 0}
-                    className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#CDEBE5] bg-white px-4 font-body text-[16px] font-black text-[#0F766E] disabled:opacity-45"
-                    data-testid="button-relax-breathe-stage-back"
-                  >
-                    <ArrowLeft size={19} strokeWidth={2.6} aria-hidden="true" />
-                    {copy.back}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => goToStage(stageIndex + 1)}
-                    disabled={stageIndex === stageCount - 1}
-                    className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] bg-[#0F766E] px-4 font-body text-[16px] font-black text-white shadow-[0_12px_20px_rgba(15,118,110,0.18)] disabled:opacity-45"
-                    data-testid="button-relax-breathe-stage-next"
-                  >
-                    {copy.next}
-                    <ArrowRight size={19} strokeWidth={2.6} aria-hidden="true" />
-                  </button>
-                </div>
-
-                {guideMode === "voice" ? (
-                  <div className="mt-5 rounded-[26px] border border-[#9BE7DB] bg-[#ECFDF5] p-4 shadow-[0_14px_28px_rgba(15,118,110,0.12)]" data-testid="relax-breathe-voice-mode-panel">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[17px] bg-[#0F766E] text-white">
-                        <Headphones size={22} strokeWidth={2.6} aria-hidden="true" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                          {audioIsLive ? copy.guideLive : copy.voiceModeTitle}
-                        </p>
-                        <p className="mt-1 font-body text-[15px] font-bold leading-snug text-[#41645F]">
-                          {copy.voiceModeBody}
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className="mt-4 inline-flex min-h-[58px] w-full items-center justify-center gap-2 rounded-[22px] bg-[#0F766E] px-5 font-body text-[16px] font-black leading-tight text-white shadow-[0_16px_30px_rgba(15,118,110,0.24)]"
-                      data-testid="relax-breathe-voice-status"
-                    >
-                      {isAudioStarting || isConnecting ? (
-                        <Loader2 size={20} className="animate-spin" aria-hidden="true" />
-                      ) : (
-                        <Headphones size={20} strokeWidth={2.6} aria-hidden="true" />
-                      )}
-                      <span className="whitespace-nowrap">{voiceStatusLabel}</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={replayStage}
-                        disabled={!audioIsLive}
-                        className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#BEE9E1] bg-white px-4 font-body text-[16px] font-black text-[#0F766E] disabled:opacity-55"
-                        data-testid="button-relax-breathe-replay"
-                      >
-                        <RotateCcw size={19} strokeWidth={2.6} aria-hidden="true" />
-                        {copy.replay}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={finishSession}
-                        className="inline-flex min-h-[56px] items-center justify-center gap-2 rounded-[18px] border border-[#BEE9E1] bg-white px-4 font-body text-[16px] font-black text-[#0F766E]"
-                        data-testid="button-relax-breathe-finish"
-                      >
-                        <CheckCircle2 size={19} strokeWidth={2.6} aria-hidden="true" />
-                        {copy.finish}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-5 rounded-[26px] border border-[#CDEBE5] bg-[#F8FFFC] p-4 shadow-[0_10px_22px_rgba(15,118,110,0.08)]" data-testid="relax-breathe-visual-mode-panel">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[17px] bg-[#D8FFF6] text-[#0F766E]">
-                        <Eye size={22} strokeWidth={2.6} aria-hidden="true" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-body text-[13px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                          {copy.visualModeTitle}
-                        </p>
-                        <p className="mt-1 font-body text-[15px] font-bold leading-snug text-[#41645F]">
-                          {copy.visualModeBody}
-                        </p>
-                      </div>
-                    </div>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
                     <button
                       type="button"
-                      onClick={finishSession}
-                      className="mt-4 inline-flex min-h-[56px] w-full items-center justify-center gap-2 rounded-[18px] border border-[#BEE9E1] bg-white px-4 font-body text-[16px] font-black text-[#0F766E]"
-                      data-testid="button-relax-breathe-finish"
+                      className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-full bg-[#0F8274] px-5 py-4 text-lg font-extrabold text-white shadow-[0_18px_38px_rgba(15,130,116,0.2)]"
+                      onClick={() => void beginPlan(proposedPlan, lastIntent, "voice")}
+                      data-testid="button-relax-breathe-confirm-plan"
                     >
-                      <CheckCircle2 size={19} strokeWidth={2.6} aria-hidden="true" />
-                      {copy.finish}
+                      <Play className="h-5 w-5" aria-hidden="true" />
+                      {copy.confirmStart}
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-[58px] items-center justify-center gap-2 rounded-full border border-[#B7EFE6] bg-white px-5 py-4 text-lg font-extrabold text-[#0F8274]"
+                      onClick={() => void requestPlan({ ...lastIntent, freeText: "User asked for a different breathing option" }, "voice", { waitForConfirmation: true })}
+                      data-testid="button-relax-breathe-change-plan"
+                    >
+                      <RotateCcw className="h-5 w-5" aria-hidden="true" />
+                      {copy.askForChange}
                     </button>
                   </div>
-                )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]" data-testid="relax-breathe-session-panel">
+              <div
+                className="flex aspect-square min-h-[300px] items-center justify-center rounded-[2rem] bg-white/40"
+                data-testid="relax-breathe-visual"
+              >
+                <div className="relative flex h-72 w-72 items-center justify-center sm:h-96 sm:w-96">
+                  <div
+                    className="relax-breathe-halo absolute inset-0 rounded-full border border-[#B7EFE6] bg-white/20"
+                    style={{ animation: prefersReducedMotion ? undefined : "relax-breathe-halo 8s ease-in-out infinite" }}
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="relax-breathe-halo absolute h-[78%] w-[78%] rounded-full bg-[#CFF7EF]"
+                    style={{ animation: prefersReducedMotion ? undefined : "relax-breathe-pulse 8s ease-in-out infinite" }}
+                    aria-hidden="true"
+                  />
+                  <div
+                    className="relax-breathe-orb relative flex h-[58%] w-[58%] flex-col items-center justify-center rounded-full bg-[#0F8274] p-6 text-center text-white shadow-[0_24px_60px_rgba(15,130,116,0.25)]"
+                    data-testid="relax-breathe-orb"
+                    data-motion={prefersReducedMotion ? "static" : "animated"}
+                    style={{ animation: prefersReducedMotion ? undefined : "relax-breathe-pulse 8s ease-in-out infinite" }}
+                  >
+                    <span className="font-serif text-4xl leading-none sm:text-5xl">{currentPhase?.cue ?? "Breathe"}</span>
+                    <span className="mt-4 text-sm font-extrabold uppercase tracking-[0.16em] opacity-80">
+                      {sessionState === "paused" ? copy.pause : currentPhase?.title ?? plan?.title}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-                {guideMode === "voice" && voiceError && (
-                  <p className="mt-4 rounded-[18px] border border-[#FDE68A] bg-[#FFFBEB] px-4 py-3 font-body text-[15px] font-bold text-[#92400E]" data-testid="relax-breathe-audio-unavailable">
-                    {copy.audioUnavailable}
-                  </p>
-                )}
-              </section>
+              <aside className="rounded-[1.5rem] border border-[#B7EFE6] bg-white/80 p-5 shadow-[0_18px_44px_rgba(32,88,74,0.08)]">
+                <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#0F8274]">
+                  {plan?.title}
+                </p>
+                <h2 className="mt-3 font-serif text-4xl text-[#173F38]">{currentPhase?.title}</h2>
+                <p className="mt-4 text-xl font-extrabold leading-snug text-[#1F2528]" data-testid="relax-breathe-stage-instruction">
+                  {currentPhase?.instruction}
+                </p>
+                <p className="mt-4 rounded-2xl bg-white p-4 text-sm font-bold text-[#6F625B]" data-testid="relax-breathe-safety">
+                  {plan?.safetyNotes[0] ?? copy.safety}
+                </p>
+                <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#DDF5F0]" aria-hidden="true">
+                  <div
+                    className="h-full rounded-full bg-[#0F8274] transition-all"
+                    style={{ width: plan ? `${Math.round(((phaseIndex + 1) / plan.phases.length) * 100)}%` : "0%" }}
+                  />
+                </div>
+                <p className="mt-2 text-sm font-bold text-[#0F8274]">
+                  {plan ? `${phaseIndex + 1} of ${plan.phases.length}` : ""}
+                </p>
+              </aside>
             </div>
           )}
+
+          {statusMessage && (
+            <p className="mt-5 rounded-2xl bg-white/80 p-4 text-sm font-bold text-[#0F8274]" data-testid="relax-breathe-status-message">
+              {statusMessage}
+            </p>
+          )}
+
+          {(errorMessage || voiceError) && (
+            <p className="mt-5 rounded-2xl bg-[#FDECEC] p-4 text-base font-bold text-[#B4232A]" role="alert" data-testid="relax-breathe-error">
+              {errorMessage ?? voiceError}
+            </p>
+          )}
         </main>
+
+        <aside className="grid content-start gap-4">
+          <div className="rounded-[1.75rem] border border-[#E7DCD1] bg-white/88 p-5 shadow-[0_18px_44px_rgba(54,44,36,0.08)]">
+            <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#0F8274]">Guide</p>
+            <div className="mt-4 grid grid-cols-2 gap-2" data-testid="relax-breathe-mode-switch">
+              <button
+                type="button"
+                className={`rounded-full px-4 py-3 text-base font-extrabold ${guideMode === "voice" ? "bg-[#0F8274] text-white" : "bg-[#F4F0EA] text-[#4B3F39]"}`}
+                aria-pressed={guideMode === "voice"}
+                onClick={() => setGuideMode("voice")}
+                data-testid="button-relax-breathe-mode-voice"
+              >
+                {copy.voiceMode}
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-4 py-3 text-base font-extrabold ${guideMode === "visual" ? "bg-[#0F8274] text-white" : "bg-[#F4F0EA] text-[#4B3F39]"}`}
+                aria-pressed={guideMode === "visual"}
+                onClick={() => {
+                  setGuideMode("visual");
+                  if (audioIsLive) stopVoice();
+                }}
+                data-testid="button-relax-breathe-mode-visual"
+              >
+                {copy.visualMode}
+              </button>
+            </div>
+          </div>
+
+          {plan && (
+            <div className="rounded-[1.75rem] border border-[#B7EFE6] bg-white/88 p-5 shadow-[0_18px_44px_rgba(32,88,74,0.08)]" data-testid="relax-breathe-plan-summary">
+              <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#0F8274]">Plan</p>
+              <h2 className="mt-3 text-2xl font-extrabold text-[#1F2528]">{plan.title}</h2>
+              <p className="mt-2 text-sm font-bold text-[#6F625B]">{plan.description}</p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-extrabold text-[#0F8274]">
+                <span className="rounded-2xl bg-[#ECFFF9] p-3">{plan.durationMinutes} min</span>
+                <span className="rounded-2xl bg-[#ECFFF9] p-3">Level {plan.difficulty}</span>
+              </div>
+            </div>
+          )}
+
+          {options.length > 1 && sessionState !== "planning" && (
+            <div className="rounded-[1.75rem] border border-[#E7DCD1] bg-white/88 p-5 shadow-[0_18px_44px_rgba(54,44,36,0.08)]" data-testid="relax-breathe-options">
+              <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-[#0F8274]">Try Instead</p>
+              <div className="mt-3 grid gap-2">
+                {options.filter((option) => option.exerciseSlug !== plan?.exerciseSlug).map((option) => (
+                  <button
+                    key={option.exerciseSlug}
+                    type="button"
+                    className="rounded-2xl border border-[#E7DCD1] bg-white p-3 text-left text-sm font-bold text-[#1F2528]"
+                    onClick={() => void beginPlan(option.plan, lastIntent)}
+                    data-testid={`button-relax-breathe-option-${option.exerciseSlug}`}
+                  >
+                    {option.name}
+                    <span className="block text-xs text-[#6F625B]">{option.why}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {plan && (
+            <div className="grid gap-3">
+              {sessionState === "running" ? (
+                <button
+                  type="button"
+                  className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-full border border-[#B7EFE6] bg-white px-5 py-4 text-lg font-extrabold text-[#0F8274]"
+                  onClick={pauseSession}
+                  data-testid="button-relax-breathe-pause"
+                >
+                  <Pause className="h-5 w-5" aria-hidden="true" />
+                  {copy.pause}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-full bg-[#0F8274] px-5 py-4 text-lg font-extrabold text-white shadow-[0_18px_38px_rgba(15,130,116,0.2)]"
+                  onClick={resumeSession}
+                  data-testid="button-relax-breathe-resume"
+                >
+                  <Play className="h-5 w-5" aria-hidden="true" />
+                  {copy.resume}
+                </button>
+              )}
+              <button
+                type="button"
+                className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-full bg-[#0F8274] px-5 py-4 text-lg font-extrabold text-white shadow-[0_18px_38px_rgba(15,130,116,0.2)]"
+                onClick={finishSession}
+                data-testid="button-relax-breathe-finish"
+              >
+                <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                {copy.finish}
+              </button>
+              <button
+                type="button"
+                className="inline-flex min-h-[58px] items-center justify-center gap-3 rounded-full border border-[#E7DCD1] bg-white px-5 py-4 text-lg font-extrabold text-[#7A2E2E]"
+                onClick={stopSession}
+                data-testid="button-relax-breathe-stop"
+              >
+                <Square className="h-5 w-5" aria-hidden="true" />
+                {copy.stop}
+              </button>
+            </div>
+          )}
+        </aside>
       </div>
     </section>
   );

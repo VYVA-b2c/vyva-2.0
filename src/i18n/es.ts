@@ -599,6 +599,16 @@ const es = {
       },
     },
     findSpecialist: {
+      experts: {
+        title: "Elige un experto",
+        elena: { label: "Elena Ruiz", detail: "Jardinera urbana" },
+        viktor: { label: "Viktor Sanz", detail: "Compañero de juegos" },
+        lola: { label: "Lola Martínez", detail: "Chef mediterránea" },
+        amara: { label: "Amara Osei", detail: "Guía de movimiento" },
+        marco: { label: "Marco Reyes", detail: "Guía de calma" },
+        diego: { label: "Diego Salinas", detail: "Musicólogo" },
+        isabel: { label: "Isabel Fuentes", detail: "Anfitriona literaria" },
+      },
       bookRide: "Buscar transporte",
     },
     symptomCheck: {
@@ -606,7 +616,7 @@ const es = {
         clueSub: "Di o escribe unas palabras.",
         simpleTitle: "Cuenta a VYVA que notas",
         simpleBody: "Habla, escribe o toca un ejemplo.",
-        simplePlaceholder: "Escribe que notas...",
+        simplePlaceholder: "Escribe que cambio...",
         startBtn: "Empezar chequeo",
         examplesLabel: "Ejemplos",
         moreIdeas: "Mas ideas",
@@ -814,8 +824,8 @@ const es = {
     title: "Juego de memoria",
     subtitle: "Ejercicios breves para entrenar memoria, atencion y concentracion.",
     recommendedToday: "Recomendado para hoy",
-    chooseAnother: "Elige otro ejercicio",
-    chooseAnotherExercise: "Elegir otro ejercicio",
+    chooseAnother: "Mas ejercicios",
+    chooseAnotherExercise: "Mas ejercicios",
     lastSession: "Ultima sesion",
     currentLevel: "Nivel actual",
     nextLevel: "Siguiente nivel",
@@ -839,10 +849,12 @@ const es = {
     recommendationLoading: "Estamos preparando el siguiente ejercicio ideal para hoy.",
     matchInstruction: "Pulsa dos cartas para encontrar la pareja.",
     sequenceWatch: "Observa la secuencia.",
+    sequenceWatchShort: "Ver orden",
     sequenceYourTurn: "Ahora te toca a ti.",
     sequenceStart: "Empezar",
     sequenceStartHint: "Cuando quieras, pulsa para repetir la secuencia.",
     sequenceRepeat: "Repite la secuencia.",
+    sequenceRepeatShort: "Tu turno",
     sequenceWatchAgain: "Ver la secuencia otra vez.",
     sequenceReverse: "Repite la secuencia en orden inverso.",
     sequenceCountdown: "Empezamos en",
@@ -855,6 +867,7 @@ const es = {
     sequenceTutorialUnderstand: "Lo entiendo",
     sequenceReady: "Las fichas se iluminaran una por una.",
     sequenceTapHint: "Pulsa las fichas en el orden correcto. No hay prisa.",
+    sequenceTapHintShort: "Pulsa el orden. Sin prisa.",
     sequenceWaitTurn: "Espera a que termine la secuencia.",
     sequenceWaitTurnHint: "Primero observa toda la secuencia. Despues te tocara repetirla.",
     sequenceWrong: "No era esa secuencia.",
@@ -867,6 +880,7 @@ const es = {
   },
   wordRecall: {
     memorizeInstruction: "Lee estas palabras con calma y memorizalas.",
+    memorizeLabel: "Memoriza palabras",
     readyButton: "Estoy listo",
     recallInstruction: "Recuerda todas las palabras que puedas.",
     selectRememberedWords: "Puedes tocar las palabras, escribirlas o decirlas en voz alta.",
@@ -1273,9 +1287,14 @@ const es = {
     resultActions: {
       continue: "Continuar",
       continueToLevel: "Continuar al Nivel {level}",
+      nextLevel: "Siguiente nivel",
       nextRecommended: "Siguiente recomendado",
       playAgain: "Volver a jugar",
       playAnotherGame: "Jugar otro juego",
+      moreGames: "Mas juegos",
+      assessmentPractice: "Practica de la evaluacion",
+      assessmentPracticeComplete: "Bien. Practicaste el area que VYVA noto.",
+      backToResults: "Volver a mis resultados",
     },
       attentionBoosters: {
         title: "Enfoque y atencion",
@@ -1559,6 +1578,14 @@ const es = {
     actions: {
       ride: "Buscar transporte",
       ridePrefill: "Ayudame a encontrar opciones de transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar.",
+    },
+  },
+  community: {
+    master: {
+      cards: {
+        experts: "Pregunta a un experto",
+        expertsDetail: "Habla con un especialista de VYVA",
+      },
     },
   },
   informes: {

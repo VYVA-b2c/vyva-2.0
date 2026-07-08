@@ -3,7 +3,7 @@ import { ArrowLeft, Check, Loader2, Users } from "lucide-react";
 import { gameData } from "./shared/gameDataApi";
 import { useLanguage } from "../i18n";
 import FaceAvatar from "./FaceAvatar";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import {
   clampFaceNameTier,
@@ -1086,8 +1086,15 @@ export default function FaceNameMatch({ userId, onExit }) {
           </button>
         </main>
 
-        <BrainGameResultActions
-          className="pb-1"
+        <BrainGameCompletionDialog
+          title={resultToneGreat ? text.resultGreat : text.resultTry}
+          summary={`${text.score}: ${result.score}`}
+          metrics={[
+            { label: text.n2f, value: pct(result.n2fAccuracyPct) },
+            hasFaceToName ? { label: text.f2n, value: pct(result.f2nAccuracyPct) } : null,
+            { label: text.score, value: result.score },
+            { label: text.streak, value: `${result.streakDays ?? userState?.streak_days ?? 1} ${text.days}` },
+          ]}
           continueLabel={continueLabel}
           continueHint={text.nextRecommended}
           replayLabel={text.playAgain}

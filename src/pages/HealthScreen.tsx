@@ -18,8 +18,12 @@ import {
   Activity,
   Calendar,
   Car,
+  ChefHat,
   ClipboardList,
+  Flower2,
+  Gamepad2,
   HeartPulse,
+  Music,
   Trash2,
   Copy,
   History,
@@ -29,7 +33,6 @@ import {
   Star,
   Mic,
   Square,
-  RefreshCw,
   ChevronUp,
   AlertTriangle,
   CheckCircle2,
@@ -1614,7 +1617,6 @@ const HealthScreen = () => {
   const [specialistCondition, setSpecialistCondition] = useState("");
   const [specialistLocation, setSpecialistLocation] = useState("");
   const [specialistLocationEdited, setSpecialistLocationEdited] = useState(false);
-  const [specialistExamplePage, setSpecialistExamplePage] = useState(0);
   const [specialistResult, setSpecialistResult] = useState<SpecialistRecommendation | null>(null);
   const [specialistVoiceListening, setSpecialistVoiceListening] = useState(false);
   const [historialOpen,    setHistorialOpen]    = useState(false);
@@ -1648,13 +1650,6 @@ const HealthScreen = () => {
     staleTime: 10 * 60 * 1000,
     retry: false,
   });
-
-  const specialistExamples = useMemo(() => {
-    const allExamples = deriveSpecialistExamples(personalisationData?.conditions, specialistLanguage);
-    const pageSize = 4;
-    const start = (specialistExamplePage * pageSize) % allExamples.length;
-    return [...allExamples.slice(start), ...allExamples.slice(0, start)].slice(0, pageSize);
-  }, [personalisationData?.conditions, specialistLanguage, specialistExamplePage]);
 
   useEffect(() => {
     if (!specialistLocationEdited && profileLocation && !specialistLocation.trim()) {
@@ -1989,6 +1984,80 @@ const HealthScreen = () => {
     setSpecialistResult(null);
     specialistMutation.mutate({ condition: trimmedCondition, location: specialistLocation.trim() || profileLocation || "Tarifa, Cadiz" });
   };
+
+  const askExpertCards: Array<{
+    id: string;
+    label: string;
+    detail: string;
+    Icon: LucideIcon;
+    iconBg: string;
+    iconColor: string;
+    onClick: () => void;
+  }> = [
+    {
+      id: "elena-ruiz",
+      label: t("health.findSpecialist.experts.elena.label", "Elena Ruiz"),
+      detail: t("health.findSpecialist.experts.elena.detail", "Urban gardener"),
+      Icon: Flower2,
+      iconBg: "#ECFDF5",
+      iconColor: "#16A34A",
+      onClick: () => navigate("/social-rooms/garden-corner"),
+    },
+    {
+      id: "viktor-sanz",
+      label: t("health.findSpecialist.experts.viktor.label", "Viktor Sanz"),
+      detail: t("health.findSpecialist.experts.viktor.detail", "Games companion"),
+      Icon: Gamepad2,
+      iconBg: "#FFF7ED",
+      iconColor: "#F59E0B",
+      onClick: () => navigate("/social-rooms/games-room"),
+    },
+    {
+      id: "lola-martinez",
+      label: t("health.findSpecialist.experts.lola.label", "Lola Martínez"),
+      detail: t("health.findSpecialist.experts.lola.detail", "Mediterranean chef"),
+      Icon: ChefHat,
+      iconBg: "#FFF7ED",
+      iconColor: "#C2410C",
+      onClick: () => navigate("/social-rooms/kitchen-table"),
+    },
+    {
+      id: "amara-osei",
+      label: t("health.findSpecialist.experts.amara.label", "Amara Osei"),
+      detail: t("health.findSpecialist.experts.amara.detail", "Movement guide"),
+      Icon: Activity,
+      iconBg: "#EFF6FF",
+      iconColor: "#0284C7",
+      onClick: () => navigate("/social-rooms/morning-movement"),
+    },
+    {
+      id: "marco-reyes",
+      label: t("health.findSpecialist.experts.marco.label", "Marco Reyes"),
+      detail: t("health.findSpecialist.experts.marco.detail", "Calm guide"),
+      Icon: HeartPulse,
+      iconBg: "#EEF2FF",
+      iconColor: "#4F46E5",
+      onClick: () => navigate("/social-rooms/evening-wind-down"),
+    },
+    {
+      id: "diego-salinas",
+      label: t("health.findSpecialist.experts.diego.label", "Diego Salinas"),
+      detail: t("health.findSpecialist.experts.diego.detail", "Musicologist"),
+      Icon: Music,
+      iconBg: "#F5F3FF",
+      iconColor: "#7E22CE",
+      onClick: () => navigate("/social-rooms/music-room"),
+    },
+    {
+      id: "isabel-fuentes",
+      label: t("health.findSpecialist.experts.isabel.label", "Isabel Fuentes"),
+      detail: t("health.findSpecialist.experts.isabel.detail", "Literary host"),
+      Icon: BookOpen,
+      iconBg: "#FFF7ED",
+      iconColor: "#7C2D12",
+      onClick: () => navigate("/social-rooms/reading-room"),
+    },
+  ];
 
   const stopSpecialistVoice = () => {
     specialistRecognitionRef.current?.stop();
@@ -2765,7 +2834,7 @@ const HealthScreen = () => {
     {
       id: "feel-better",
       icon: HeartPulse,
-      title: t("health.master.cards.feelBetter", "Feel Better"),
+      title: t("health.master.cards.feelBetter", "Symptoms Check"),
       detail: t("health.homeTools.symptoms.detail", "Start check"),
       accent: t("health.master.cards.symptomsStart", "Start"),
       tone: {
@@ -2819,7 +2888,7 @@ const HealthScreen = () => {
     {
       id: "stay-well",
       icon: ShieldCheck,
-      title: t("health.master.cards.stayWell", "Stay Well"),
+      title: t("health.master.cards.stayWell", "Age Well"),
       detail: preventionCardDetail,
       accent: preventionCardAccent,
       tone: {
@@ -3452,34 +3521,38 @@ const HealthScreen = () => {
             </div>
 
             <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
-                  {t("health.findSpecialist.suggestions", "Suggestions for you")}
-                </p>
-                <button
-                  data-testid="button-refresh-specialist-examples"
-                  type="button"
-                  onClick={() => setSpecialistExamplePage((page) => page + 1)}
-                  className="vyva-tap inline-flex min-h-[40px] items-center gap-1 rounded-full px-4 font-body text-[13px] font-black"
-                  style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                >
-                  <RefreshCw size={14} strokeWidth={2.5} />
-                  {t("health.findSpecialist.more", "More")}
-                </button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {specialistExamples.map((example) => (
-                  <button
-                    key={example}
-                    data-testid={`chip-specialist-example-${example}`}
-                    onClick={() => setSpecialistCondition(example)}
-                    className="vyva-tap rounded-full px-[14px] py-[9px] font-body text-[14px] font-bold transition-colors"
-                    style={{ background: "#EDE9FE", color: "#6D28D9" }}
-                  >
-                    {example}
-                  </button>
-                ))}
+              <p className="mb-3 font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
+                {t("health.findSpecialist.experts.title", "Choose an expert")}
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {askExpertCards.map((expert) => {
+                  const Icon = expert.Icon;
+                  return (
+                    <button
+                      key={expert.id}
+                      type="button"
+                      data-testid={`button-ask-expert-${expert.id}`}
+                      onClick={expert.onClick}
+                      className="vyva-tap flex min-h-[74px] w-full items-center gap-3 rounded-[18px] border border-[#EEE6FA] bg-[#FFFCFF] p-3 text-left transition-transform hover:-translate-y-0.5"
+                    >
+                      <span
+                        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+                        style={{ background: expert.iconBg, color: expert.iconColor }}
+                      >
+                        <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                          {expert.label}
+                        </span>
+                        <span className="mt-1 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                          {expert.detail}
+                        </span>
+                      </span>
+                      <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -3921,33 +3994,38 @@ const HealthScreen = () => {
                   </div>
 
                   <div className="mt-4 rounded-[22px] border border-[#E9D5FF] bg-white p-3">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <p className="font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
-                        {t("health.findSpecialist.suggestions", "Suggestions for you")}
-                      </p>
-                      <button
-                        data-testid="button-refresh-specialist-examples"
-                        type="button"
-                        onClick={() => setSpecialistExamplePage((page) => page + 1)}
-                        className="vyva-tap inline-flex min-h-[40px] items-center gap-1 rounded-full px-4 font-body text-[13px] font-black"
-                        style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE" }}
-                      >
-                        <RefreshCw size={14} strokeWidth={2.5} />
-                        {t("health.findSpecialist.more", "More")}
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {specialistExamples.map((example) => (
-                        <button
-                          key={example}
-                          data-testid={`chip-specialist-example-${example}`}
-                          onClick={() => setSpecialistCondition(example)}
-                          className="vyva-tap rounded-full px-[14px] py-[9px] font-body text-[14px] font-bold transition-colors"
-                          style={{ background: "#EDE9FE", color: "#6D28D9" }}
-                        >
-                          {example}
-                        </button>
-                      ))}
+                    <p className="mb-3 font-body text-[12px] font-black uppercase tracking-[0.1em]" style={{ color: "#7C3AED" }}>
+                      {t("health.findSpecialist.experts.title", "Choose an expert")}
+                    </p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                      {askExpertCards.map((expert) => {
+                        const Icon = expert.Icon;
+                        return (
+                          <button
+                            key={expert.id}
+                            type="button"
+                            data-testid={`button-ask-expert-${expert.id}`}
+                            onClick={expert.onClick}
+                            className="vyva-tap flex min-h-[74px] w-full items-center gap-3 rounded-[18px] border border-[#EEE6FA] bg-[#FFFCFF] p-3 text-left transition-transform hover:-translate-y-0.5"
+                          >
+                            <span
+                              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]"
+                              style={{ background: expert.iconBg, color: expert.iconColor }}
+                            >
+                              <Icon size={21} strokeWidth={2.4} aria-hidden="true" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                                {expert.label}
+                              </span>
+                              <span className="mt-1 block font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                                {expert.detail}
+                              </span>
+                            </span>
+                            <ChevronRight size={17} strokeWidth={2.6} className="flex-shrink-0 text-[#7C3AED]" aria-hidden="true" />
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 

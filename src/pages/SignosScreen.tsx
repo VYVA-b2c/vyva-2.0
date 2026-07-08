@@ -9,10 +9,12 @@ import {
   Brain,
   Camera,
   Check,
+  CheckCircle2,
   Car,
   ChevronLeft,
   ClipboardList,
   Droplets,
+  Dumbbell,
   Footprints,
   Heart,
   Keyboard,
@@ -33,6 +35,7 @@ import {
   Target,
   Thermometer,
   Trophy,
+  Utensils,
   Users,
   Video,
   Wind,
@@ -49,6 +52,21 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/i18n";
 import { apiFetch } from "@/lib/queryClient";
+import {
+  appendPreventionLoopHistory,
+  encodePreventionLearningQuery,
+  learningContextForPreventionRequest,
+  PREVENTION_LOOP_LAST_FEEDBACK_KEY,
+  PREVENTION_LOOP_LAST_VIEW_KEY,
+  preventionDateKey,
+  preventionFeedbackStorageKey,
+  readStoredJson,
+  writeStoredJson,
+} from "@/lib/preventionLoop";
+import type {
+  PreventionLoopLastFeedback,
+  PreventionLoopLastView,
+} from "@/lib/preventionLoop";
 import { sanitizePhoneHref } from "@/lib/emergencyContacts";
 import { VITALS_DEVICE_CATALOG, type VitalsDeviceCatalogItem, type VitalsDeviceKind } from "@/lib/vitalsDeviceCatalog";
 import {
@@ -86,6 +104,143 @@ interface VitalsResponse {
   summary: Record<string, VitalsSummaryEntry>;
   compliance_days: boolean[];
 }
+
+type PreventionFocus = "Heart" | "Falls" | "Diabetes" | "Medicine" | "Follow-up" | "Plan";
+type PreventionConfidence = "strong" | "moderate" | "limited";
+type PreventionActionStep = "Eat" | "Move" | "Calm" | "Avoid" | "Check" | "Protect" | "Home" | "Medicine" | "Follow-up" | "Review" | "Plan" | "Sleep";
+type PreventionActionTone = "food" | "movement" | "check" | "support" | "medicine";
+
+type PreventionSignal = {
+  id: string;
+  label: string;
+  detail?: string;
+  category: "profile" | "vitals" | "medicine" | "symptom" | "safety";
+  strength: "high" | "medium" | "low";
+  route?: string;
+};
+
+type PreventionInsight = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone: "alert" | "caution" | "steady";
+  route?: string;
+};
+
+type PreventionAction = {
+  id: string;
+  label: string;
+  detail: string;
+  route: string;
+  priority: "primary" | "secondary";
+  mode?: "navigate" | "voice";
+};
+
+type PreventionShoppingPrefill = {
+  needText: string;
+  category: string;
+  priorities: string[];
+  constraints?: string[];
+  packageId?: string;
+  sourceRecommendation?: string;
+};
+
+type PreventionGuidanceAction = {
+  id: string;
+  label: string;
+  detail: string;
+  route: string;
+  priority: "primary" | "secondary";
+  mode?: "navigate" | "voice";
+  shoppingPrefill?: PreventionShoppingPrefill;
+};
+
+type PreventionActionSheet = {
+  title: string;
+  summary: string;
+  primaryAction: PreventionGuidanceAction;
+  secondaryActions: PreventionGuidanceAction[];
+  safetyNote?: string;
+};
+
+type PreventionDailyAction = {
+  id: string;
+  step: PreventionActionStep;
+  title: string;
+  detail: string;
+  why: string;
+  evidenceLabel: string;
+  tone: PreventionActionTone;
+  actionSheet: PreventionActionSheet;
+  feedbackOptions: Array<{
+    id: "done" | "too_hard" | "remind" | "ask_vyva";
+    label: string;
+  }>;
+};
+
+type PreventionWeeklySummary = {
+  headline: string;
+  detail: string;
+  bullets: string[];
+  doctorSummary: string;
+  caregiverSummary: string;
+};
+
+type PreventionFocusResponse = {
+  focus: PreventionFocus;
+  headline: string;
+  why: string[];
+  todayAction: string;
+  helpSigns: string[];
+  primaryRoute: string;
+  secondaryRoute?: string;
+  confidence: PreventionConfidence;
+  signals?: PreventionSignal[];
+  insights?: PreventionInsight[];
+  actions?: PreventionAction[];
+  dailyActions?: PreventionDailyAction[];
+  personalizationSummary?: string[];
+  profileSignals?: string[];
+  weeklySummary?: PreventionWeeklySummary;
+  generatedAt?: string;
+};
+
+type AgeWellConfidenceLabel = "Clear" | "Likely" | "Building";
+
+type AgeWellScore = {
+  value: number;
+  label: AgeWellConfidenceLabel;
+};
+
+type AgeWellFeedback = "done" | "too_hard" | "not_today";
+
+type StoredAgeWellFeedback = Record<string, AgeWellFeedback>;
+
+type AgeWellMissionKind = "first" | "steady" | "support";
+
+type AgeWellMissionStep = {
+  id: AgeWellMissionKind;
+  number: number;
+  label: string;
+  detail: string;
+  action: PreventionDailyAction;
+  Icon: LucideIcon;
+  accent: string;
+  soft: string;
+  onOpen?: () => void;
+};
+
+type AgeWellSignalRow = {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  Icon: LucideIcon;
+  accent: string;
+  soft: string;
+  onClick?: () => void;
+};
 
 type VitalsCaptureMode = "text" | "voice" | "photo";
 
@@ -142,71 +297,381 @@ const ENGINE_SIGNAL_BY_METRIC: Record<MetricType, string> = {
   bp: "bp_systolic",
 };
 
-type HealthAttribute = {
-  label: string;
-  value: string;
-  score?: number;
-  copy: string;
-  Icon: LucideIcon;
-};
-
-const healthAttributes: HealthAttribute[] = [
-  { label: "Energy", value: "Okay", score: 62, copy: "Slightly lower than usual", Icon: Sparkles },
-  { label: "Heart & Vitals", value: "Needs one signal", copy: "Blood pressure is missing", Icon: Heart },
-  { label: "Routine", value: "Strong", copy: "Medication routine is consistent", Icon: Pill },
-  { label: "Recovery", value: "Needs update", copy: "Sleep check would help", Icon: Moon },
+const ageWellFallbackDailyActions: PreventionDailyAction[] = [
+  {
+    id: "fallback-eat",
+    step: "Eat",
+    title: "Steady meal",
+    detail: "Fruit or veg, protein, and water.",
+    why: "A steady meal supports energy and medication routines.",
+    evidenceLabel: "Daily basics",
+    tone: "food",
+    actionSheet: {
+      title: "Steady meal",
+      summary: "Choose a simple meal that fits your diet and allergies.",
+      primaryAction: {
+        id: "show-groceries",
+        label: "Food ideas",
+        detail: "Open simple groceries or prepared meals",
+        route: "/concierge/shopping",
+        priority: "primary",
+        shoppingPrefill: {
+          needText: "Help me choose simple groceries or prepared meals that fit my diet. Do not order without my confirmation.",
+          category: "groceries",
+          priorities: ["diet", "simplicity", "delivery"],
+          constraints: ["check ingredients for allergies", "confirm before ordering"],
+          packageId: "easy_meals",
+        },
+      },
+      secondaryActions: [],
+      safetyNote: "Check ingredients fit your diet and allergies.",
+    },
+    feedbackOptions: [
+      { id: "done", label: "Done" },
+      { id: "too_hard", label: "Too hard" },
+    ],
+  },
+  {
+    id: "fallback-move",
+    step: "Move",
+    title: "Gentle movement",
+    detail: "Try a short walk, stretch, or calm breathing.",
+    why: "Small movement helps the plan without overdoing it.",
+    evidenceLabel: "Gentle",
+    tone: "movement",
+    actionSheet: {
+      title: "Gentle movement",
+      summary: "Pick a light routine that feels safe today.",
+      primaryAction: {
+        id: "start-breathing",
+        label: "Start calm",
+        detail: "Open a breathing routine",
+        route: "/activities/relax-breathe",
+        priority: "primary",
+      },
+      secondaryActions: [],
+      safetyNote: "Stop and ask for help if you feel chest pain, faint, or very breathless.",
+    },
+    feedbackOptions: [
+      { id: "done", label: "Done" },
+      { id: "too_hard", label: "Too hard" },
+    ],
+  },
+  {
+    id: "fallback-sleep",
+    step: "Sleep",
+    title: "Wind-down tonight",
+    detail: "Keep bedtime calm and simple.",
+    why: "A steady evening routine supports recovery.",
+    evidenceLabel: "Sleep",
+    tone: "support",
+    actionSheet: {
+      title: "Wind-down tonight",
+      summary: "Choose one calm evening step.",
+      primaryAction: {
+        id: "open-evening-plan",
+        label: "Evening plan",
+        detail: "Open gentle prevention ideas",
+        route: "/health/prevention",
+        priority: "primary",
+      },
+      secondaryActions: [],
+    },
+    feedbackOptions: [
+      { id: "done", label: "Done" },
+      { id: "too_hard", label: "Too hard" },
+    ],
+  },
 ];
 
-type TodayStep = {
-  label: string;
-  helper: string;
-  recommended?: boolean;
-  onAddSignal?: VitalsSignalKey;
-  Icon: LucideIcon;
+const ageWellFallbackFocus: PreventionFocusResponse = {
+  focus: "Plan",
+  headline: "Choose one useful step.",
+  why: ["Small food, movement, and recovery choices help VYVA keep the plan practical."],
+  todayAction: "Start with the easiest AgeWell move.",
+  helpSigns: ["Sudden chest pain", "Trouble breathing", "New confusion"],
+  primaryRoute: "/health/check-in",
+  confidence: "limited",
+  dailyActions: ageWellFallbackDailyActions,
+  personalizationSummary: ["Health profile"],
+  profileSignals: ["Plan"],
+  weeklySummary: {
+    headline: "VYVA is still learning.",
+    detail: "Mark what works or feels hard so tomorrow can be more personal.",
+    bullets: ["Start with one small signal"],
+    doctorSummary: "No weekly prevention feedback yet.",
+    caregiverSummary: "No weekly prevention feedback yet.",
+  },
+  generatedAt: new Date(0).toISOString(),
 };
 
-const todaySteps: TodayStep[] = [
-  { label: "Add blood pressure", helper: "Improves heart and energy guidance", recommended: true, onAddSignal: "bp_systolic", Icon: Activity },
-  { label: "Drink a glass of water", helper: "Supports energy", Icon: Droplets },
-  { label: "Quick mood check-in", helper: "Helps VYVA understand your day", Icon: Smile },
-  { label: "Take a short walk or stretch", helper: "Supports movement", Icon: Footprints },
-];
-
-type WatchlistItem = {
+function ageWellLibraryAction({
+  id,
+  step,
+  title,
+  detail,
+  why,
+  evidenceLabel,
+  tone,
+  route,
+  label,
+  shoppingPrefill,
+}: {
+  id: string;
+  step: PreventionActionStep;
   title: string;
-  confidence: "Low" | "Medium" | "High";
-  description: string;
-  cta: string;
-  Icon: LucideIcon;
-  tone: "purple" | "amber" | "green";
-};
+  detail: string;
+  why: string;
+  evidenceLabel: string;
+  tone: PreventionActionTone;
+  route: string;
+  label: string;
+  shoppingPrefill?: PreventionShoppingPrefill;
+}): PreventionDailyAction {
+  return {
+    id,
+    step,
+    title,
+    detail,
+    why,
+    evidenceLabel,
+    tone,
+    actionSheet: {
+      title,
+      summary: detail,
+      primaryAction: {
+        id: `${id}-open`,
+        label,
+        detail,
+        route,
+        priority: "primary",
+        shoppingPrefill,
+      },
+      secondaryActions: [],
+    },
+    feedbackOptions: [
+      { id: "done", label: "Done" },
+      { id: "too_hard", label: "Too hard" },
+    ],
+  };
+}
 
-const watchlist: WatchlistItem[] = [
-  {
-    title: "Low energy pattern",
-    confidence: "Medium",
-    description: "Worth watching. VYVA is checking sleep, hydration, movement, medication timing, and mood.",
-    cta: "Explore causes",
-    Icon: Sparkles,
-    tone: "amber",
-  },
-  {
-    title: "Heart picture incomplete",
-    confidence: "Low",
-    description: "Blood pressure is missing. Adding it will make your heart plan clearer.",
-    cta: "Add reading",
-    Icon: Heart,
-    tone: "purple",
-  },
-  {
-    title: "Medication routine strong",
-    confidence: "High",
-    description: "You are staying consistent this week.",
-    cta: "View routine",
-    Icon: Pill,
-    tone: "green",
-  },
-];
+const ageWellActionLibraryByFocus: Partial<Record<PreventionFocus, PreventionDailyAction[]>> = {
+  Heart: [
+    ageWellLibraryAction({
+      id: "heart-lower-salt-lunch",
+      step: "Eat",
+      title: "Lower-salt lunch",
+      detail: "Choose one simple lower-salt meal.",
+      why: "Less salt is a practical heart step today.",
+      evidenceLabel: "Heart",
+      tone: "food",
+      route: "/concierge/shopping",
+      label: "Food ideas",
+      shoppingPrefill: {
+        needText: "Help me choose a simple lower-salt lunch. Do not order without my confirmation.",
+        category: "prepared_meals",
+        priorities: ["low salt", "simple", "delivery"],
+        constraints: ["confirm ingredients", "confirm before ordering"],
+        packageId: "heart_low_salt_lunch",
+      },
+    }),
+    ageWellLibraryAction({
+      id: "heart-steady-walk",
+      step: "Move",
+      title: "Steady walk",
+      detail: "Keep an easy talk pace.",
+      why: "Gentle movement supports heart, mood, and circulation.",
+      evidenceLabel: "Mobility",
+      tone: "movement",
+      route: "/social-rooms/morning-movement/exercises/chair-yoga",
+      label: "Start easy",
+    }),
+    ageWellLibraryAction({
+      id: "heart-calm-breathing",
+      step: "Calm",
+      title: "Slow breathing",
+      detail: "Take two quiet minutes.",
+      why: "Slow breathing can help the body settle.",
+      evidenceLabel: "Calm",
+      tone: "support",
+      route: "/activities/relax-breathe",
+      label: "Breathe",
+    }),
+    ageWellLibraryAction({
+      id: "heart-avoid-rushing",
+      step: "Avoid",
+      title: "Rise slowly",
+      detail: "Pause before standing up.",
+      why: "Avoiding rushing helps reduce dizziness and strain.",
+      evidenceLabel: "Avoid",
+      tone: "support",
+      route: "/health/prevention",
+      label: "Why it helps",
+    }),
+  ],
+  Diabetes: [
+    ageWellLibraryAction({
+      id: "diabetes-protein-breakfast",
+      step: "Eat",
+      title: "Protein breakfast",
+      detail: "Choose a steady morning meal.",
+      why: "Protein helps keep morning energy steadier.",
+      evidenceLabel: "Sugar",
+      tone: "food",
+      route: "/concierge/shopping",
+      label: "Food ideas",
+      shoppingPrefill: {
+        needText: "Help me choose a simple protein breakfast for steadier blood sugar. Do not order without my confirmation.",
+        category: "groceries",
+        priorities: ["protein", "low sugar", "simple"],
+        constraints: ["confirm ingredients", "confirm before ordering"],
+        packageId: "diabetes_protein_breakfast",
+      },
+    }),
+    ageWellLibraryAction({
+      id: "diabetes-after-meal-walk",
+      step: "Move",
+      title: "After-meal walk",
+      detail: "Walk gently after eating.",
+      why: "A short walk can support glucose patterns.",
+      evidenceLabel: "Glucose",
+      tone: "movement",
+      route: "/social-rooms/morning-movement/exercises/chair-yoga",
+      label: "Start easy",
+    }),
+    ageWellLibraryAction({
+      id: "diabetes-avoid-sugary-drinks",
+      step: "Avoid",
+      title: "Skip sugary drinks",
+      detail: "Choose water or unsweetened tea.",
+      why: "Drinks can raise sugar quickly.",
+      evidenceLabel: "Avoid",
+      tone: "support",
+      route: "/health/prevention",
+      label: "Why it helps",
+    }),
+  ],
+  Falls: [
+    ageWellLibraryAction({
+      id: "falls-chair-mobility",
+      step: "Move",
+      title: "Chair mobility",
+      detail: "Five safe seated minutes.",
+      why: "Seated movement supports balance without rushing.",
+      evidenceLabel: "Mobility",
+      tone: "movement",
+      route: "/social-rooms/morning-movement/exercises/chair-yoga",
+      label: "Start easy",
+    }),
+    ageWellLibraryAction({
+      id: "falls-walking-path",
+      step: "Home",
+      title: "Clear your path",
+      detail: "Check rugs, wires, and hallway.",
+      why: "A clear route lowers fall risk at home.",
+      evidenceLabel: "Home",
+      tone: "support",
+      route: "/safe-home",
+      label: "Safe home",
+    }),
+    ageWellLibraryAction({
+      id: "falls-rise-slowly",
+      step: "Avoid",
+      title: "Stand up slowly",
+      detail: "Pause before the first step.",
+      why: "Rushing can make dizziness or imbalance worse.",
+      evidenceLabel: "Avoid",
+      tone: "support",
+      route: "/health/prevention",
+      label: "Why it helps",
+    }),
+  ],
+  Medicine: [
+    ageWellLibraryAction({
+      id: "medicine-side-effects",
+      step: "Medicine",
+      title: "Know side effects",
+      detail: "Review what to watch for.",
+      why: "Awareness helps you spot changes early.",
+      evidenceLabel: "Medicine",
+      tone: "medicine",
+      route: "/meds",
+      label: "Review meds",
+    }),
+    ageWellLibraryAction({
+      id: "medicine-same-time",
+      step: "Medicine",
+      title: "Same time today",
+      detail: "Keep the routine steady.",
+      why: "Consistent timing supports the medication routine.",
+      evidenceLabel: "Routine",
+      tone: "medicine",
+      route: "/meds",
+      label: "Open meds",
+    }),
+    ageWellLibraryAction({
+      id: "medicine-calm-check",
+      step: "Calm",
+      title: "Pause and check",
+      detail: "Notice dizziness or stomach upset.",
+      why: "A calm check-in helps separate side effects from noise.",
+      evidenceLabel: "Body",
+      tone: "support",
+      route: "/health/check-in",
+      label: "Check in",
+    }),
+  ],
+  "Follow-up": [
+    ageWellLibraryAction({
+      id: "follow-up-symptom-change",
+      step: "Follow-up",
+      title: "Note any change",
+      detail: "Better, same, or worse?",
+      why: "A simple change note is useful for care decisions.",
+      evidenceLabel: "Symptoms",
+      tone: "support",
+      route: "/health/check-in",
+      label: "Check in",
+    }),
+    ageWellLibraryAction({
+      id: "follow-up-doctor-question",
+      step: "Follow-up",
+      title: "Doctor question",
+      detail: "Write one thing to ask.",
+      why: "One prepared question makes follow-up easier.",
+      evidenceLabel: "Care",
+      tone: "support",
+      route: "/health/doctor",
+      label: "Doctor help",
+    }),
+    ageWellLibraryAction({
+      id: "follow-up-book-care",
+      step: "Follow-up",
+      title: "Book care",
+      detail: "Get help arranging the visit.",
+      why: "VYVA can help coordinate without booking until you confirm.",
+      evidenceLabel: "Concierge",
+      tone: "support",
+      route: "/concierge",
+      label: "Book help",
+    }),
+  ],
+  Plan: [
+    ...ageWellFallbackDailyActions.filter((action) => action.id !== "fallback-sleep"),
+    ageWellLibraryAction({
+      id: "plan-wind-down",
+      step: "Sleep",
+      title: "Wind-down tonight",
+      detail: "Keep bedtime calm and simple.",
+      why: "A steady night routine supports recovery.",
+      evidenceLabel: "Sleep",
+      tone: "support",
+      route: "/health/prevention",
+      label: "Evening plan",
+    }),
+  ],
+};
 
 const DEVICE_ICON_BY_ID: Record<VitalsDeviceKind, LucideIcon> = {
   bp_cuff: Activity,
@@ -498,6 +963,373 @@ function formatRecordedAt(iso: string | null, language: string): string {
   if (diffHours < 48) return language.startsWith("es") ? "Ayer" : "Yesterday";
   return date.toLocaleDateString(language, { day: "numeric", month: "short" });
 }
+
+function metricHasValue(summary: VitalsResponse["summary"] | undefined, key: MetricType) {
+  const entry = summary?.[key];
+  return Boolean(entry?.has_data && entry.latest_value);
+}
+
+function metricDisplay(summary: VitalsResponse["summary"] | undefined, key: MetricType, missingLabel: string) {
+  const entry = summary?.[key];
+  if (!entry?.has_data || !entry.latest_value) return missingLabel;
+  if (key === "hr") return `Pulse ${entry.latest_value}`;
+  if (key === "rr") return `Breathing ${entry.latest_value}`;
+  return `BP ${entry.latest_value}`;
+}
+
+function findSignal(focus: PreventionFocusResponse, category: PreventionSignal["category"]) {
+  return focus.signals?.find((signal) => signal.category === category);
+}
+
+function findInsight(focus: PreventionFocusResponse, matcher: RegExp) {
+  return focus.insights?.find((insight) => matcher.test(`${insight.id} ${insight.label} ${insight.value}`));
+}
+
+function confidenceLabel(confidence: PreventionConfidence | undefined, hasPrevention: boolean): AgeWellConfidenceLabel {
+  if (!hasPrevention) return "Building";
+  if (confidence === "strong") return "Clear";
+  if (confidence === "moderate") return "Likely";
+  return "Building";
+}
+
+function calculateAgeWellScore({
+  summary,
+  focus,
+  hasPrevention,
+}: {
+  summary: VitalsResponse["summary"] | undefined;
+  focus: PreventionFocusResponse;
+  hasPrevention: boolean;
+}): AgeWellScore {
+  let value = 45;
+  if (metricHasValue(summary, "bp")) value += 15;
+  if (metricHasValue(summary, "hr")) value += 8;
+  if (metricHasValue(summary, "rr")) value += 7;
+
+  if (hasPrevention) {
+    value += focus.confidence === "strong" ? 15 : focus.confidence === "moderate" ? 10 : 5;
+    value += Math.min(focus.dailyActions?.length ?? 0, 3) * 5;
+    if (focus.weeklySummary?.headline || focus.weeklySummary?.detail || focus.weeklySummary?.bullets?.length) value += 5;
+  }
+
+  return {
+    value: Math.min(98, value),
+    label: confidenceLabel(focus.confidence, hasPrevention),
+  };
+}
+
+function actionRouteLabel(action: PreventionDailyAction) {
+  return action.actionSheet?.primaryAction?.label || "Open";
+}
+
+function ageWellStepKey(action: PreventionDailyAction) {
+  return action.step.toLowerCase();
+}
+
+function isVitalsCaptureAction(action: PreventionDailyAction) {
+  const route = action.actionSheet.primaryAction.route;
+  const text = `${action.id} ${action.title} ${action.detail} ${action.evidenceLabel}`.toLowerCase();
+  return route === "/health/vitals" || (ageWellStepKey(action) === "check" && /\bbp\b|blood pressure|reading|vital/.test(text));
+}
+
+function seedActionsForFocus(focus: PreventionFocus) {
+  return ageWellActionLibraryByFocus[focus] ?? ageWellActionLibraryByFocus.Plan ?? [];
+}
+
+function selectLongevityMoves(actions: PreventionDailyAction[] | undefined, focus: PreventionFocus): PreventionDailyAction[] {
+  const engineActions = actions?.length ? actions : [];
+  const source = [
+    ...(engineActions.length ? engineActions : seedActionsForFocus(focus)),
+    ...ageWellFallbackDailyActions,
+  ].filter((item, index, list) => list.findIndex((existing) => existing.id === item.id) === index);
+  const usefulSource = source.filter((item) => !isVitalsCaptureAction(item));
+  const buckets: Array<(item: PreventionDailyAction) => boolean> = [
+    (item) => ageWellStepKey(item) === "eat",
+    (item) => ageWellStepKey(item) === "move" || ageWellStepKey(item) === "calm",
+    (item) => ["avoid", "protect", "medicine", "home", "follow-up", "review", "plan", "sleep"].includes(ageWellStepKey(item)),
+  ];
+  const selected: PreventionDailyAction[] = [];
+
+  for (const matcher of buckets) {
+    const match = usefulSource.find((item) => matcher(item) && !selected.some((existing) => existing.id === item.id));
+    if (match) selected.push(match);
+  }
+
+  for (const item of usefulSource) {
+    if (selected.length >= 3) break;
+    if (!selected.some((existing) => existing.id === item.id)) selected.push(item);
+  }
+
+  return selected.slice(0, 3);
+}
+
+function ageWellFocusLabel(focus: PreventionFocus) {
+  if (focus === "Heart") return "Heart";
+  if (focus === "Falls") return "Falls";
+  if (focus === "Diabetes") return "Sugar";
+  if (focus === "Medicine") return "Medicine";
+  if (focus === "Follow-up") return "Follow-up";
+  return "Plan";
+}
+
+function buildAgeWellMission({
+  actions,
+}: {
+  actions: PreventionDailyAction[];
+}): AgeWellMissionStep[] {
+  const eatAction = actions.find((action) => ageWellStepKey(action) === "eat");
+  const moveAction = actions.find((action) => ageWellStepKey(action) === "move" || ageWellStepKey(action) === "calm");
+  const protectAction = actions.find((action) => ["avoid", "protect", "medicine", "home", "follow-up", "review", "plan", "sleep"].includes(ageWellStepKey(action)));
+  const sourceOrder = [eatAction, moveAction, protectAction, ...actions];
+  const uniqueActions = sourceOrder.filter((action): action is PreventionDailyAction => Boolean(action) && !isVitalsCaptureAction(action))
+    .filter((action, index, list) => list.findIndex((item) => item.id === action.id) === index)
+    .slice(0, 3);
+  const fallback = uniqueActions.length ? uniqueActions : ageWellFallbackDailyActions.slice(0, 3);
+  const labels: Array<Omit<AgeWellMissionStep, "action">> = [
+    {
+      id: "first",
+      number: 1,
+      label: "Nourish",
+      detail: "A practical food step for today.",
+      Icon: Utensils,
+      accent: "#B45309",
+      soft: "#FFF7ED",
+    },
+    {
+      id: "steady",
+      number: 2,
+      label: "Move or calm",
+      detail: "Keep the body steady.",
+      Icon: Footprints,
+      accent: "#047857",
+      soft: "#ECFDF5",
+    },
+    {
+      id: "support",
+      number: 3,
+      label: "Protect",
+      detail: "Avoid one thing that can make today harder.",
+      Icon: ShieldCheck,
+      accent: "#6B21A8",
+      soft: "#F5F3FF",
+    },
+  ];
+
+  return fallback.map((action, index) => ({
+    ...labels[index],
+    action,
+    detail: action.detail || labels[index].detail,
+  }));
+}
+
+function easierAgeWellPrimaryAction(action: PreventionDailyAction): PreventionGuidanceAction {
+  if (action.tone === "food") {
+    return {
+      id: "agewell-easy-food",
+      label: "Easy food help",
+      detail: "Prepared meal or simple grocery support",
+      route: "/concierge/shopping",
+      priority: "primary",
+      shoppingPrefill: action.actionSheet.primaryAction.shoppingPrefill ?? {
+        needText: `Find an easy version of this prevention step: ${action.title}. Keep it simple and do not order without my confirmation.`,
+        category: "groceries",
+        priorities: ["simple", "delivery", "diet"],
+        constraints: ["easy preparation", "confirm before ordering"],
+        packageId: "easy_agewell_food",
+      },
+    };
+  }
+
+  if (action.tone === "movement" || action.tone === "support") {
+    return {
+      id: "agewell-easy-calm",
+      label: "Start easier",
+      detail: "Breathing or seated reset",
+      route: "/activities/relax-breathe",
+      priority: "primary",
+    };
+  }
+
+  return {
+    id: "agewell-easy-vyva",
+    label: "Ask VYVA",
+    detail: "Break this into one safe step",
+    route: "/health/doctor",
+    priority: "primary",
+    mode: "voice",
+  };
+}
+
+function makeAgeWellEasierAction(action: PreventionDailyAction, reason: string): PreventionDailyAction {
+  const primaryAction = easierAgeWellPrimaryAction(action);
+  return {
+    ...action,
+    title: "Easier version",
+    detail: action.tone === "food"
+      ? "Use one simple swap or prepared help."
+      : action.tone === "movement" || action.tone === "support"
+        ? "Start with breathing or seated movement."
+        : "Ask VYVA for one small step.",
+    why: reason,
+    evidenceLabel: "Adjusted",
+    actionSheet: {
+      title: "Easier version",
+      summary: `${reason} Start smaller and keep the original step available.`,
+      primaryAction,
+      secondaryActions: [
+        {
+          id: "agewell-original-action",
+          label: action.actionSheet.primaryAction.label,
+          detail: action.actionSheet.primaryAction.detail,
+          route: action.actionSheet.primaryAction.route,
+          priority: "secondary",
+          mode: action.actionSheet.primaryAction.mode,
+          shoppingPrefill: action.actionSheet.primaryAction.shoppingPrefill,
+        },
+        {
+          id: "agewell-ask-easier",
+          label: "Ask VYVA",
+          detail: `Make ${action.title} easier for me`,
+          route: "/health/doctor",
+          priority: "secondary",
+          mode: "voice",
+        },
+      ],
+      safetyNote: action.actionSheet.safetyNote,
+    },
+  };
+}
+
+function ageWellActionMatchesFeedback(action: PreventionDailyAction, last: PreventionLoopLastFeedback): boolean {
+  return action.id === last.actionId || action.step === last.step || action.tone === last.tone;
+}
+
+function adaptAgeWellMovesForLoop({
+  actions,
+  feedback,
+  lastFeedback,
+  lastView,
+  currentDate,
+}: {
+  actions: PreventionDailyAction[];
+  feedback: StoredAgeWellFeedback;
+  lastFeedback: PreventionLoopLastFeedback | null;
+  lastView: PreventionLoopLastView | null;
+  currentDate: string;
+}): PreventionDailyAction[] {
+  const adapted = actions.map((action) => {
+    if (feedback[action.id] === "too_hard") {
+      return makeAgeWellEasierAction(action, "You said this felt too hard, so VYVA made it smaller.");
+    }
+    if (lastFeedback?.date !== currentDate && lastFeedback?.feedback === "too_hard" && ageWellActionMatchesFeedback(action, lastFeedback)) {
+      return makeAgeWellEasierAction(action, "Yesterday felt hard, so VYVA starts easier today.");
+    }
+    if (!lastFeedback && lastView && lastView.date !== currentDate && action === actions[0]) {
+      return makeAgeWellEasierAction(action, "Yesterday was skipped, so VYVA starts with a smaller step.");
+    }
+    return action;
+  });
+
+  const hasDoneToday = Object.values(feedback).includes("done");
+  if (!hasDoneToday && lastFeedback?.date !== currentDate && lastFeedback?.feedback === "done") {
+    const familyIndex = adapted.findIndex((action) => action.id !== lastFeedback.actionId && (
+      action.step === lastFeedback.step || action.tone === lastFeedback.tone
+    ));
+    if (familyIndex > 0) {
+      const next = [...adapted];
+      const [familyAction] = next.splice(familyIndex, 1);
+      next.unshift(familyAction);
+      return next;
+    }
+  }
+
+  return adapted;
+}
+
+function ageWellLoopInsight({
+  focus,
+  feedback,
+  lastFeedback,
+  lastView,
+  currentDate,
+  hasRecentLearning,
+}: {
+  focus: PreventionFocusResponse;
+  feedback: StoredAgeWellFeedback;
+  lastFeedback: PreventionLoopLastFeedback | null;
+  lastView: PreventionLoopLastView | null;
+  currentDate: string;
+  hasRecentLearning: boolean;
+}): string {
+  const values = Object.values(feedback);
+  if (values.includes("too_hard")) return "Made easier for today.";
+  if (values.includes("done")) return "VYVA will build on what worked.";
+  if (values.includes("not_today")) return "Kept lighter for later.";
+  if (lastFeedback && lastFeedback.date !== currentDate && lastFeedback.feedback === "too_hard") return "Started easier today.";
+  if (lastFeedback && lastFeedback.date !== currentDate && lastFeedback.feedback === "done") return "Fresh step, same rhythm.";
+  if (!lastFeedback && lastView && lastView.date !== currentDate) return "Smaller step today.";
+  if (hasRecentLearning) return "Using recent feedback.";
+  return `Your choice tunes tomorrow's ${focus.focus.toLowerCase()} plan.`;
+}
+
+function dailyActionToneStyle(tone: PreventionActionTone) {
+  if (tone === "food") {
+    return {
+      border: "#FAD7AA",
+      bg: "#FFFCF7",
+      iconBg: "#FFF2DC",
+      iconColor: "#B45309",
+      chipBg: "#FFF7ED",
+      chipText: "#9A3412",
+    };
+  }
+  if (tone === "movement") {
+    return {
+      border: "#BDEAD7",
+      bg: "#F8FFFC",
+      iconBg: "#E9FBF3",
+      iconColor: "#047857",
+      chipBg: "#ECFDF5",
+      chipText: "#047857",
+    };
+  }
+  if (tone === "medicine") {
+    return {
+      border: "#E9D5FF",
+      bg: "#FFFBFF",
+      iconBg: "#FDF4FF",
+      iconColor: "#86198F",
+      chipBg: "#F5F3FF",
+      chipText: "#6B21A8",
+    };
+  }
+  if (tone === "support") {
+    return {
+      border: "#FED7AA",
+      bg: "#FFFCF7",
+      iconBg: "#FFFBEB",
+      iconColor: "#B45309",
+      chipBg: "#FFF7ED",
+      chipText: "#9A3412",
+    };
+  }
+  return {
+    border: "#DDD6FE",
+    bg: "#FFFFFF",
+    iconBg: "#F5F3FF",
+    iconColor: "#6B21A8",
+    chipBg: "#F5F3FF",
+    chipText: "#6B21A8",
+  };
+}
+
+const dailyActionIcons: Record<PreventionActionTone, LucideIcon> = {
+  food: Utensils,
+  movement: Dumbbell,
+  check: CheckCircle2,
+  support: ShieldCheck,
+  medicine: Pill,
+};
 
 function LogReadingModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
@@ -1539,46 +2371,41 @@ function ConnectDeviceSheet({
   );
 }
 
-function HealthAttributeRow({ attribute }: { attribute: HealthAttribute }) {
-  const Icon = attribute.Icon;
+function AgeWellScoreRing({ score }: { score: AgeWellScore }) {
+  const degrees = Math.max(0, Math.min(100, score.value)) * 3.6;
 
   return (
-    <div className="rounded-[22px] border border-[#EDE5DB] bg-white p-4 shadow-[0_8px_20px_rgba(63,45,35,0.045)]">
-      <div className="flex items-start gap-3">
-        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
-          <Icon size={19} />
+    <div
+      className="relative flex h-[88px] w-[88px] flex-shrink-0 items-center justify-center rounded-full p-1.5 shadow-[0_16px_34px_rgba(107,33,168,0.12)] sm:h-[148px] sm:w-[148px] sm:p-2"
+      style={{ background: `conic-gradient(#6B21A8 ${degrees}deg, #EFE7FF 0deg)` }}
+      aria-label={`AgeWell Score ${score.value}, ${score.label}`}
+      data-testid="agewell-score-ring"
+    >
+      <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
+        <span className="font-body text-[30px] font-black leading-none text-vyva-text-1 sm:text-[48px]" data-testid="agewell-score-value">
+          {score.value}
         </span>
-        <div className="min-w-0">
-          <p className="font-body text-[14px] font-black leading-tight text-vyva-text-2">{attribute.label}</p>
-          <p className="mt-1 font-body text-[20px] font-black leading-tight text-vyva-text-1">
-            {attribute.value}
-            {attribute.score ? <span className="ml-2 text-[14px] font-bold text-vyva-text-2">{attribute.score}</span> : null}
-          </p>
-          <p className="mt-2 font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{attribute.copy}</p>
-        </div>
+        <span className="mt-1 rounded-full bg-[#F5F3FF] px-2.5 py-0.5 font-body text-[11px] font-black text-[#6B21A8] sm:px-3 sm:py-1 sm:text-[12px]">
+          {score.label}
+        </span>
       </div>
     </div>
   );
 }
 
-type PlanSignalRow = {
-  id: string;
-  label: string;
-  value: string;
-  status: string;
-  actionLabel?: string;
-  onClick?: () => void;
-};
-
-function PlanSignalRowCard({ row }: { row: PlanSignalRow }) {
+function AgeWellSignalRowCard({ row }: { row: AgeWellSignalRow }) {
+  const Icon = row.Icon;
   const content = (
     <>
-      <span className="min-w-0 flex-1 font-body text-[15px] font-black leading-tight text-vyva-text-1">{row.label}</span>
-      {row.value ? <span className="font-body text-[15px] font-bold leading-tight text-vyva-text-2">{row.value}</span> : null}
-      <span className="inline-flex min-w-[72px] items-center justify-center gap-1 rounded-full bg-[#F7F3FF] px-3 py-1 text-center font-body text-[12px] font-black text-[#6B21A8]">
-        {row.actionLabel ?? row.status}
-        {row.onClick ? <ArrowRight size={13} aria-hidden="true" /> : null}
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] sm:h-11 sm:w-11 sm:rounded-[16px]" style={{ background: row.soft, color: row.accent }}>
+        <Icon size={19} strokeWidth={2.5} aria-hidden="true" />
       </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[12px] font-black leading-tight text-vyva-text-2 sm:text-[14px]">{row.label}</span>
+        <span className="mt-0.5 block font-body text-[14px] font-black leading-tight text-vyva-text-1 sm:text-[17px]">{row.value}</span>
+        <span className="mt-1 hidden font-body text-[13px] font-semibold leading-snug text-vyva-text-2 sm:block">{row.detail}</span>
+      </span>
+      {row.onClick ? <ArrowRight size={18} className="flex-shrink-0 text-vyva-text-3" aria-hidden="true" /> : null}
     </>
   );
 
@@ -1587,8 +2414,8 @@ function PlanSignalRowCard({ row }: { row: PlanSignalRow }) {
       <button
         type="button"
         onClick={row.onClick}
-        className="vyva-tap flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#EFE5DC] bg-white px-4 py-3 text-left transition hover:border-[#D8B4FE] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
-        data-testid={`plan-signal-${row.id}`}
+        className="vyva-tap flex min-h-[82px] w-full items-center gap-2 rounded-[18px] border border-[#EFE5DC] bg-white px-2.5 py-2 text-left transition hover:border-[#D8B4FE] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[76px] sm:gap-3 sm:rounded-[20px] sm:px-4 sm:py-3"
+        data-testid={`agewell-signal-${row.id}`}
       >
         {content}
       </button>
@@ -1597,11 +2424,97 @@ function PlanSignalRowCard({ row }: { row: PlanSignalRow }) {
 
   return (
     <div
-      className="flex min-h-[58px] w-full items-center gap-3 rounded-[18px] border border-[#EFE5DC] bg-white px-4 py-3"
-      data-testid={`plan-signal-${row.id}`}
+      className="flex min-h-[82px] w-full items-center gap-2 rounded-[18px] border border-[#EFE5DC] bg-white px-2.5 py-2 sm:min-h-[76px] sm:gap-3 sm:rounded-[20px] sm:px-4 sm:py-3"
+      data-testid={`agewell-signal-${row.id}`}
     >
       {content}
     </div>
+  );
+}
+
+function AgeWellMissionStepCard({
+  step,
+  feedback,
+  onOpen,
+  onFeedback,
+}: {
+  step: AgeWellMissionStep;
+  feedback?: AgeWellFeedback;
+  onOpen: () => void;
+  onFeedback: (feedback: AgeWellFeedback) => void;
+}) {
+  const action = step.action;
+  const style = dailyActionToneStyle(action.tone);
+  const Icon = step.Icon;
+  const feedbackLabel = feedback === "done" ? "Done" : feedback === "too_hard" ? "Too hard" : feedback === "not_today" ? "Not today" : null;
+
+  return (
+    <article className="rounded-[20px] border border-[#EFE5DC] bg-white p-2.5 shadow-[0_10px_22px_rgba(63,45,35,0.05)] sm:p-3" data-testid={`agewell-step-${step.id}`}>
+      <div className="flex items-start gap-2.5">
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px]" style={{ background: step.soft, color: step.accent }}>
+          <Icon size={19} strokeWidth={2.5} aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.04em] sm:text-[11px]" style={{ background: step.soft, color: step.accent }}>
+              {step.number}. {step.label}
+            </span>
+            <span className="rounded-full bg-white px-2 py-0.5 font-body text-[10px] font-black sm:text-[11px]" style={{ color: style.iconColor }}>
+              {action.evidenceLabel}
+            </span>
+            <button
+              type="button"
+              onClick={onOpen}
+              className="vyva-tap inline-flex min-h-[28px] items-center justify-center gap-1 rounded-full bg-[#FBFAF7] px-2.5 font-body text-[11px] font-black shadow-[0_5px_12px_rgba(31,41,55,0.04)]"
+              style={{ color: step.accent }}
+              data-testid={`button-agewell-open-${action.id}`}
+            >
+              {actionRouteLabel(action)}
+              <ArrowRight size={12} aria-hidden="true" />
+            </button>
+            {feedbackLabel ? (
+              <span className="rounded-full bg-white px-2 py-0.5 font-body text-[10px] font-black text-vyva-text-2 sm:text-[11px]" data-testid={`agewell-feedback-${action.id}`}>
+                {feedbackLabel}
+              </span>
+            ) : null}
+          </div>
+          <h3 className="mt-1.5 font-body text-[18px] font-black leading-tight text-vyva-text-1 sm:text-[20px]">
+            {action.title}
+          </h3>
+          <p className="mt-0.5 font-body text-[13px] font-bold leading-snug text-vyva-text-2 sm:text-[14px]">
+            {step.detail}
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <button
+          type="button"
+          onClick={() => onFeedback("done")}
+          className="vyva-tap flex min-h-[36px] items-center justify-center gap-1 rounded-full bg-white px-2 font-body text-[12px] font-black text-[#047857] shadow-[0_5px_12px_rgba(31,41,55,0.05)] sm:text-[13px]"
+          data-testid={`button-agewell-feedback-${action.id}-done`}
+        >
+          <Check size={14} aria-hidden="true" />
+          Done
+        </button>
+        <button
+          type="button"
+          onClick={() => onFeedback("too_hard")}
+          className="vyva-tap flex min-h-[36px] items-center justify-center gap-1 rounded-full bg-white px-2 font-body text-[12px] font-black text-[#6B21A8] shadow-[0_5px_12px_rgba(31,41,55,0.05)] sm:text-[13px]"
+          data-testid={`button-agewell-feedback-${action.id}-too_hard`}
+        >
+          <X size={14} aria-hidden="true" />
+          Hard
+        </button>
+        <button
+          type="button"
+          onClick={() => onFeedback("not_today")}
+          className="vyva-tap flex min-h-[36px] items-center justify-center rounded-full bg-[#F7F3ED] px-2 font-body text-[12px] font-black text-vyva-text-2 shadow-[0_5px_12px_rgba(31,41,55,0.04)] sm:text-[13px]"
+          data-testid={`button-agewell-feedback-${action.id}-not_today`}
+        >
+          Skip
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -1618,13 +2531,52 @@ const SignosScreen = () => {
   const [bluetoothDevice, setBluetoothDevice] = useState<VitalsDeviceCatalogItem | null>(null);
   const [captureMode, setCaptureMode] = useState<VitalsCaptureMode | null>(null);
   const [captureSignal, setCaptureSignal] = useState<VitalsSignalKey | null>(null);
+  const [ageWellFeedback, setAgeWellFeedback] = useState<Record<string, AgeWellFeedback>>({});
+  const [lastLoopFeedback, setLastLoopFeedback] = useState<PreventionLoopLastFeedback | null>(null);
+  const [lastLoopView, setLastLoopView] = useState<PreventionLoopLastView | null>(null);
+  const [requestLearning] = useState(() => learningContextForPreventionRequest());
 
   const { data: vitalsData } = useQuery<VitalsResponse>({
     queryKey: ["/api/vitals"],
     retry: false,
   });
+  const { data: preventionData, isError: preventionError } = useQuery<PreventionFocusResponse>({
+    queryKey: ["/api/health/prevention", requestLearning.clientHour, requestLearning.recentFeedback.length, requestLearning.recentFeedback[0]?.savedAt],
+    retry: false,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const res = await apiFetch(`/api/health/prevention?learning=${encodePreventionLearningQuery(requestLearning)}`);
+      if (!res.ok) throw new Error("Could not load prevention focus");
+      return res.json();
+    },
+  });
 
   const summary = vitalsData?.summary;
+  const hasPrevention = Boolean(preventionData?.focus && !preventionError);
+  const preventionFocus = hasPrevention ? preventionData : ageWellFallbackFocus;
+  const currentDateKey = preventionDateKey(preventionFocus.generatedAt);
+  const feedbackStorageKey = preventionFeedbackStorageKey(preventionFocus.focus, currentDateKey);
+  const ageWellScore = useMemo(() => calculateAgeWellScore({
+    summary,
+    focus: preventionFocus,
+    hasPrevention,
+  }), [hasPrevention, preventionFocus, summary]);
+  const baseLongevityMoves = useMemo(() => selectLongevityMoves(preventionFocus.dailyActions, preventionFocus.focus), [preventionFocus.dailyActions, preventionFocus.focus]);
+  const longevityMoves = useMemo(() => adaptAgeWellMovesForLoop({
+    actions: baseLongevityMoves,
+    feedback: ageWellFeedback,
+    lastFeedback: lastLoopFeedback,
+    lastView: lastLoopView,
+    currentDate: currentDateKey,
+  }), [ageWellFeedback, baseLongevityMoves, currentDateKey, lastLoopFeedback, lastLoopView]);
+  const loopInsight = useMemo(() => ageWellLoopInsight({
+    focus: preventionFocus,
+    feedback: ageWellFeedback,
+    lastFeedback: lastLoopFeedback,
+    lastView: lastLoopView,
+    currentDate: currentDateKey,
+    hasRecentLearning: requestLearning.recentFeedback.length > 0,
+  }), [ageWellFeedback, currentDateKey, lastLoopFeedback, lastLoopView, preventionFocus, requestLearning.recentFeedback.length]);
 
   const openCapture = useCallback((mode: VitalsCaptureMode, signal?: VitalsSignalKey) => {
     setShowAddReadingSheet(false);
@@ -1635,6 +2587,73 @@ const SignosScreen = () => {
     setSelectedSuggestedSignal(signal ?? null);
     setShowAddReadingSheet(true);
   }, []);
+
+  useEffect(() => {
+    const stored = readStoredJson<StoredAgeWellFeedback>(feedbackStorageKey);
+    setAgeWellFeedback(stored ?? {});
+
+    const previousFeedback = readStoredJson<PreventionLoopLastFeedback>(PREVENTION_LOOP_LAST_FEEDBACK_KEY);
+    const previousView = readStoredJson<PreventionLoopLastView>(PREVENTION_LOOP_LAST_VIEW_KEY);
+    setLastLoopFeedback(previousFeedback?.focus === preventionFocus.focus ? previousFeedback : null);
+    setLastLoopView(previousView?.focus === preventionFocus.focus ? previousView : null);
+    writeStoredJson(PREVENTION_LOOP_LAST_VIEW_KEY, {
+      focus: preventionFocus.focus,
+      date: currentDateKey,
+      actionIds: baseLongevityMoves.map((item) => item.id),
+      viewedAt: new Date().toISOString(),
+    } satisfies PreventionLoopLastView);
+  }, [baseLongevityMoves, currentDateKey, feedbackStorageKey, preventionFocus.focus]);
+
+  useEffect(() => {
+    if (!baseLongevityMoves.length) return;
+    const viewedKey = `vyva-prevention-loop:viewed:${preventionFocus.focus}:${currentDateKey}:agewell`;
+    const viewedValue = baseLongevityMoves.map((item) => item.id).join("|");
+    if (window.localStorage.getItem(viewedKey) === viewedValue) return;
+    appendPreventionLoopHistory(baseLongevityMoves.map((action) => ({
+      actionId: action.id,
+      title: action.title,
+      step: action.step,
+      tone: action.tone,
+      focus: preventionFocus.focus,
+      feedback: "shown",
+      date: currentDateKey,
+      savedAt: new Date().toISOString(),
+    })));
+    window.localStorage.setItem(viewedKey, viewedValue);
+  }, [baseLongevityMoves, currentDateKey, preventionFocus.focus]);
+
+  const markAgeWellAction = useCallback((action: PreventionDailyAction, feedback: AgeWellFeedback) => {
+    const savedAt = new Date().toISOString();
+    const loopFeedbackValue = feedback === "not_today" ? "remind" : feedback;
+    const loopFeedback = {
+      focus: preventionFocus.focus,
+      date: currentDateKey,
+      actionId: action.id,
+      step: action.step,
+      tone: action.tone,
+      feedback: loopFeedbackValue,
+      title: action.title,
+      savedAt,
+    } satisfies PreventionLoopLastFeedback;
+
+    setAgeWellFeedback((current) => {
+      const next = { ...current, [action.id]: feedback };
+      writeStoredJson(feedbackStorageKey, next);
+      return next;
+    });
+    writeStoredJson(PREVENTION_LOOP_LAST_FEEDBACK_KEY, loopFeedback);
+    appendPreventionLoopHistory([{
+      actionId: action.id,
+      title: action.title,
+      step: action.step,
+      tone: action.tone,
+      focus: preventionFocus.focus,
+      feedback: loopFeedbackValue,
+      date: currentDateKey,
+      savedAt,
+    }]);
+    setLastLoopFeedback(loopFeedback);
+  }, [currentDateKey, feedbackStorageKey, preventionFocus.focus]);
 
   const latestReadingAt = useMemo(() => {
     if (!summary) return null;
@@ -1654,6 +2673,39 @@ const SignosScreen = () => {
     });
     return `${t("statusVitals.shareTitle", "VYVA Status / Vitals")}\n${lines.join("\n")}\n${t("statusVitals.shareUpdated", "Updated")}: ${latestText}`;
   }, [latestText, summary, t]);
+  const openTalk = useCallback((context = "Please help me understand my AgeWell plan for today.") => {
+    navigate("/health/doctor", {
+      state: {
+        autoStartVoice: true,
+        latestSymptomReport: context,
+        source: "agewell_plan",
+      },
+    });
+  }, [navigate]);
+
+  const openGuidanceAction = useCallback((action: PreventionGuidanceAction, contextTitle?: string) => {
+    if (action.shoppingPrefill) {
+      navigate("/concierge/shopping", {
+        state: {
+          shoppingPrefill: action.shoppingPrefill,
+        },
+      });
+      return;
+    }
+    if (action.mode === "voice" || action.route === "/health/doctor") {
+      openTalk(`${preventionFocus.focus}: ${contextTitle ?? action.label}. ${action.detail}.`);
+      return;
+    }
+    if (action.route === "/health/vitals") {
+      openAddReadingSheet();
+      return;
+    }
+    navigate(action.route || "/health");
+  }, [navigate, openAddReadingSheet, openTalk, preventionFocus.focus]);
+
+  const openDailyAction = useCallback((action: PreventionDailyAction) => {
+    openGuidanceAction(action.actionSheet.primaryAction, action.title);
+  }, [openGuidanceAction]);
 
   const statusServiceActions = useMemo(() => vitalsStatusServiceActionsFor({
     gpName: profile?.gpName,
@@ -1674,60 +2726,104 @@ const SignosScreen = () => {
   }), [profile?.gpEmail, profile?.gpName, profile?.gpPhone, statusSummaryText, t]);
   const doctorHelpAction = statusServiceActions.find((action) => action.kind === "doctor_help");
   const rideAction = statusServiceActions.find((action) => action.kind === "book_ride");
-  const guideQuery = "Please guide me through my personal health plan and help me add the next useful signal.";
+  const guideQuery = `Please guide me through my AgeWell plan. Focus: ${preventionFocus.focus}. ${preventionFocus.why?.[0] ?? preventionFocus.headline}`;
+  const missingBloodPressure = !metricHasValue(summary, "bp");
+  const ageWellMissionSteps = useMemo(() => buildAgeWellMission({
+    actions: longevityMoves,
+  }), [longevityMoves]);
+  const completedAction = ageWellMissionSteps.map((step) => step.action).find((action) => ageWellFeedback[action.id] === "done") ?? null;
+  const isAgeWellComplete = Boolean(completedAction);
+  const primaryAgeWellAction = ageWellMissionSteps[0]?.action ?? longevityMoves[0] ?? ageWellFallbackDailyActions[0];
+  const heroTitle = isAgeWellComplete
+    ? t("statusVitals.plan.doneToday", "Done today")
+    : primaryAgeWellAction.title;
+  const heroScoreSuffix = ageWellScore.label === "Building"
+    ? t("statusVitals.plan.buildingShort", "Building")
+    : t("statusVitals.plan.clarityShort", "clarity");
+  const heroChips = isAgeWellComplete
+    ? [
+      t("statusVitals.plan.complete", "Complete"),
+      t("statusVitals.plan.logged", "Logged"),
+      `${ageWellScore.value} ${heroScoreSuffix}`,
+    ]
+    : [
+      ageWellFocusLabel(preventionFocus.focus),
+      ageWellScore.label,
+      `${ageWellScore.value} ${heroScoreSuffix}`,
+    ];
+  const primaryHeroLabel = isAgeWellComplete
+    ? t("statusVitals.plan.askVyva", "Ask VYVA")
+    : actionRouteLabel(primaryAgeWellAction);
+  const primaryHeroAction = isAgeWellComplete
+    ? () => openTalk(guideQuery)
+    : () => openDailyAction(primaryAgeWellAction);
 
-  const signalPlanRows = useMemo<PlanSignalRow[]>(() => {
-    const metricValue = (key: MetricType) => {
-      const meta = METRIC_META[key];
-      const entry = summary?.[key];
-      return entry?.has_data && entry.latest_value
-        ? `${entry.latest_value} ${meta.unit}`
-        : t("statusVitals.plan.missing", "Missing");
-    };
+  const ageWellSignalRows = useMemo<AgeWellSignalRow[]>(() => {
+    const missingLabel = t("statusVitals.plan.missing", "Missing");
+    const vitalsValues = (["bp", "hr", "rr"] as MetricType[])
+      .filter((key) => metricHasValue(summary, key))
+      .map((key) => metricDisplay(summary, key, missingLabel));
+    const missingVitals = (["bp", "hr", "rr"] as MetricType[])
+      .filter((key) => !metricHasValue(summary, key))
+      .map((key) => key === "bp" ? "BP" : key === "hr" ? "Pulse" : "Breathing");
+    const medicineSignal = findSignal(preventionFocus, "medicine");
+    const medicineInsight = findInsight(preventionFocus, /medic|adherence|routine/i);
+    const symptomSignal = findSignal(preventionFocus, "symptom");
+    const symptomInsight = findInsight(preventionFocus, /symptom|follow/i);
+    const contextSignals = [
+      ...(preventionFocus.personalizationSummary ?? []),
+      ...(preventionFocus.profileSignals ?? []),
+    ].filter(Boolean);
+    const vitalsMissingTemplate = t("statusVitals.plan.vitalsMissingDetail", "Missing: {{items}}");
+    const vitalsReadyTemplate = t("statusVitals.plan.vitalsReadyDetail", "Latest: {{time}}");
 
     return [
       {
-        id: "heart-rate",
-        label: t("statusVitals.metrics.heartRate", "Heart rate"),
-        value: metricValue("hr"),
-        status: summary?.hr?.has_data ? t("statusVitals.plan.fresh", "Fresh") : t("statusVitals.plan.missing", "Missing"),
-        onClick: summary?.hr?.has_data ? undefined : () => openAddReadingSheet("resting_hr_bpm"),
+        id: "vitals",
+        label: t("statusVitals.plan.vitalsSignal", "Vitals"),
+        value: vitalsValues.length ? vitalsValues.join(" · ") : t("statusVitals.plan.noVitalsYet", "No fresh vitals yet"),
+        detail: missingVitals.length
+          ? vitalsMissingTemplate.replace("{{items}}", missingVitals.join(", "))
+          : vitalsReadyTemplate.replace("{{time}}", latestText),
+        Icon: Activity,
+        accent: "#B45309",
+        soft: "#FFF2DC",
+        onClick: missingBloodPressure ? () => openAddReadingSheet("bp_systolic") : () => openAddReadingSheet(),
       },
       {
-        id: "respiration",
-        label: t("statusVitals.metrics.respiration", "Respiration"),
-        value: metricValue("rr"),
-        status: summary?.rr?.has_data ? t("statusVitals.plan.review", "Review") : t("statusVitals.plan.missing", "Missing"),
-        onClick: summary?.rr?.has_data ? undefined : () => openAddReadingSheet("respiratory_rate"),
+        id: "medicine",
+        label: t("statusVitals.plan.medicineSignal", "Medicine"),
+        value: medicineInsight?.value || medicineSignal?.label || t("statusVitals.plan.medicineBuilding", "Routine signal"),
+        detail: medicineSignal?.detail || medicineInsight?.detail || t("statusVitals.plan.medicineSignalDetail", "VYVA checks dose routine, missed doses, and medicine safety when available."),
+        Icon: Pill,
+        accent: "#7E22CE",
+        soft: "#F5F3FF",
+        onClick: () => navigate("/meds"),
       },
       {
-        id: "blood-pressure",
-        label: t("statusVitals.metrics.bloodPressure", "Blood pressure"),
-        value: metricValue("bp"),
-        status: summary?.bp?.has_data ? t("statusVitals.plan.fresh", "Fresh") : t("statusVitals.plan.missing", "Missing"),
-        actionLabel: summary?.bp?.has_data ? undefined : t("statusVitals.plan.addShort", "Add"),
-        onClick: () => openAddReadingSheet("bp_systolic"),
+        id: "symptoms",
+        label: t("statusVitals.plan.symptomsSignal", "Symptoms"),
+        value: symptomInsight?.value || symptomSignal?.label || t("statusVitals.plan.symptomsBuilding", "No follow-up flag"),
+        detail: symptomSignal?.detail || symptomInsight?.detail || t("statusVitals.plan.symptomsSignalDetail", "Latest symptom reports help VYVA know what changed."),
+        Icon: Heart,
+        accent: "#BE123C",
+        soft: "#FFF1F2",
+        onClick: () => navigate("/health/symptom-check"),
       },
       {
-        id: "medication",
-        label: t("statusVitals.plan.medication", "Medication"),
-        value: "",
-        status: t("statusVitals.plan.strong", "Strong"),
-      },
-      {
-        id: "sleep",
-        label: t("statusVitals.plan.sleep", "Sleep"),
-        value: "",
-        status: t("statusVitals.plan.needsUpdate", "Needs update"),
-      },
-      {
-        id: "mood",
-        label: t("statusVitals.plan.mood", "Mood"),
-        value: "",
-        status: t("statusVitals.plan.missing", "Missing"),
+        id: "prevention",
+        label: t("statusVitals.plan.preventionSignal", "Prevention context"),
+        value: preventionFocus.focus,
+        detail: contextSignals.length
+          ? contextSignals.slice(0, 3).join(" · ")
+          : t("statusVitals.plan.preventionSignalDetail", "Using profile, mobility, living context, and recent feedback."),
+        Icon: ShieldCheck,
+        accent: "#047857",
+        soft: "#ECFDF5",
+        onClick: () => navigate("/health/prevention"),
       },
     ];
-  }, [openAddReadingSheet, summary, t]);
+  }, [latestText, missingBloodPressure, navigate, openAddReadingSheet, preventionFocus, summary, t]);
 
   const runStatusAction = (action?: VitalsStatusServiceAction) => {
     if (!action) return;
@@ -1769,222 +2865,124 @@ const SignosScreen = () => {
         kicker={t("statusVitals.hub.pageKicker", "Health")}
         onBack={() => navigate("/health")}
         backLabel={t("common.back", "Back")}
-        className="mb-3"
+        className="mb-2"
+        compact
       />
 
       <section
-        className="rounded-[24px] border border-[#E8DED4] bg-white p-4 shadow-[0_12px_28px_rgba(63,45,35,0.06)] sm:rounded-[28px] sm:p-6"
+        className="overflow-hidden rounded-[24px] border border-[#E6D7F7] bg-[#FFFCF7] p-4 shadow-[0_16px_36px_rgba(63,45,35,0.07)] sm:rounded-[30px] sm:p-5"
         data-testid="vitals-guided-hub"
       >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#6B21A8] sm:text-[12px]">
-              {t("statusVitals.plan.focusToday", "VYVA's focus today")}
-            </p>
-            <div className="mt-2 flex items-start gap-3">
-              <h2 className="min-w-0 flex-1 font-body text-[28px] font-black leading-tight text-vyva-text-1 sm:text-[34px]">
-                {t("statusVitals.plan.addYourBloodPressure", "Add your blood pressure")}
-              </h2>
-              <button
-                type="button"
-                onClick={() => openAddReadingSheet("bp_systolic")}
-                aria-label={t("statusVitals.plan.addBloodPressure", "Add blood pressure")}
-                className="vyva-tap mt-0.5 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#6B21A8] text-white shadow-[0_10px_18px_rgba(107,33,168,0.18)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
-                data-testid="button-hero-add-blood-pressure-icon"
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[19px] bg-[#F5F3FF] text-[#6B21A8] sm:h-14 sm:w-14">
+              <Target size={24} strokeWidth={2.5} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div
+                className="flex flex-wrap items-center gap-1.5"
+                aria-label={`AgeWell Score ${ageWellScore.value}, ${ageWellScore.label}`}
+                data-testid="agewell-score-ring"
               >
-                <Plus size={23} />
-              </button>
+                {heroChips.map((chip, index) => (
+                  <span
+                    key={`${chip}-${index}`}
+                    className="rounded-full border border-[#E9D5FF] bg-white px-2.5 py-1 font-body text-[11px] font-black leading-none text-[#6B21A8]"
+                  >
+                    {index === 2 ? <span data-testid="agewell-score-value">{ageWellScore.value}</span> : null}
+                    {index === 2 ? ` ${heroScoreSuffix}` : chip}
+                  </span>
+                ))}
+              </div>
+              <h2 className="mt-2 max-w-[13ch] font-body text-[31px] font-black leading-[0.98] text-vyva-text-1 sm:max-w-none sm:text-[44px]">
+                {heroTitle}
+              </h2>
             </div>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row lg:flex-shrink-0">
             <button
               type="button"
-              onClick={() => openAddReadingSheet("bp_systolic")}
-              className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-5 font-body text-[15px] font-black text-white shadow-[0_12px_24px_rgba(107,33,168,0.16)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[54px] sm:text-[16px]"
-              data-testid="button-open-add-reading-sheet"
+              onClick={() => openTalk(guideQuery)}
+              className="vyva-tap flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border border-[#DDD6FE] bg-white text-[#6B21A8] shadow-[0_10px_20px_rgba(107,33,168,0.08)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
+              data-testid="button-agewell-ask-vyva"
+              aria-label={t("statusVitals.plan.askVyva", "Ask VYVA")}
             >
-              <Activity size={19} />
-              {t("statusVitals.plan.addBloodPressure", "Add blood pressure")}
+              <Mic size={20} aria-hidden="true" />
             </button>
+          </div>
+          <div>
             <button
               type="button"
-              onClick={() => navigate("/health/doctor", {
-                state: {
-                  autoStartVoice: true,
-                  latestSymptomReport: guideQuery,
-                  source: "vitals_guided_plan",
-                },
-              })}
-              className="vyva-tap flex min-h-[50px] items-center justify-center gap-2 rounded-full border border-[#DDD6FE] bg-white px-5 font-body text-[15px] font-black text-[#6B21A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[54px] sm:text-[16px]"
+              onClick={primaryHeroAction}
+              className="vyva-tap flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#6B21A8] px-5 font-body text-[15px] font-black text-white shadow-[0_12px_24px_rgba(107,33,168,0.18)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8] sm:min-h-[54px] sm:text-[16px]"
+              data-testid="button-agewell-primary-action"
             >
-              <Mic size={19} />
-              {t("statusVitals.plan.talkCta", "Talk to VYVA")}
+              {isAgeWellComplete ? <MessageCircle size={19} aria-hidden="true" /> : <ArrowRight size={19} aria-hidden="true" />}
+              {primaryHeroLabel}
             </button>
           </div>
         </div>
       </section>
 
-      <section className="mt-6" data-testid="health-snapshot-section">
-        <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1">
-          {t("statusVitals.plan.snapshotTitle", "Your health snapshot")}
-        </h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {healthAttributes.map((attribute) => (
-            <HealthAttributeRow key={attribute.label} attribute={attribute} />
+      <HealthWizardCard className="mt-4 p-4 sm:p-5" testId="agewell-longevity-moves">
+        <div className="mb-3">
+          <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1">
+            {t("statusVitals.plan.chooseMoveTitle", "Next 3 moves")}
+          </h2>
+          <p className="sr-only" data-testid="agewell-loop-insight">
+            {loopInsight}
+          </p>
+        </div>
+        {isAgeWellComplete ? (
+          <div className="mb-3 rounded-[20px] border border-[#BDEAD7] bg-[#F8FFFC] p-3" data-testid="agewell-complete-state">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-[16px] bg-[#E9FBF3] text-[#047857]">
+                <CheckCircle2 size={19} aria-hidden="true" />
+              </span>
+              <div>
+                <p className="font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                  {t("statusVitals.plan.ageWellDone", "AgeWell done for today")}
+                </p>
+                <p className="mt-0.5 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                  {t("statusVitals.plan.ageWellDoneCopy", "Tomorrow's plan will use what worked.")}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <div className="grid gap-3 lg:grid-cols-3">
+          {ageWellMissionSteps.map((step) => (
+            <AgeWellMissionStepCard
+              key={step.id}
+              step={step}
+              feedback={ageWellFeedback[step.action.id]}
+              onOpen={() => openDailyAction(step.action)}
+              onFeedback={(feedback) => markAgeWellAction(step.action, feedback)}
+            />
           ))}
         </div>
-      </section>
-
-      <HealthWizardCard className="mt-5 p-4 sm:p-5" testId="gentle-plan-section">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1">
-            {t("statusVitals.plan.nextStepsTitle", "Today's next steps")}
-          </h2>
-        </div>
-        <div className="space-y-3">
-          {todaySteps.slice(0, 3).map((item, index) => {
-            const Icon = item.Icon;
-            const row = (
-              <>
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
-                  <Icon size={19} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block font-body text-[17px] font-black leading-tight text-vyva-text-1">
-                    {index + 1}. {item.label}
-                  </span>
-                  <span className="mt-1 block font-body text-[14px] font-semibold leading-snug text-vyva-text-2">{item.helper}</span>
-                </span>
-                {item.recommended || item.onAddSignal ? (
-                  <span className="flex flex-shrink-0 items-center gap-2">
-                    {item.recommended ? (
-                      <span className="rounded-full bg-[#FDE68A] px-3 py-1 font-body text-[12px] font-black text-[#4A2500]">
-                        {t("statusVitals.plan.recommended", "Recommended")}
-                      </span>
-                    ) : null}
-                    {item.onAddSignal ? (
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#6B21A8] text-white" aria-hidden="true">
-                        <Plus size={18} />
-                      </span>
-                    ) : null}
-                  </span>
-                ) : null}
-              </>
-            );
-
-            if (item.onAddSignal) {
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => openAddReadingSheet(item.onAddSignal)}
-                  className="vyva-tap flex min-h-[72px] w-full items-center gap-3 rounded-[20px] border border-[#D8B4FE] bg-[#FFFCF8] px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
-                  data-testid={`gentle-plan-item-${index + 1}`}
-                >
-                  {row}
-                </button>
-              );
-            }
-
-            return (
-              <div
-                key={item.label}
-                className="flex min-h-[72px] items-center gap-3 rounded-[20px] border border-[#EFE5DC] bg-white px-4 py-3"
-                data-testid={`gentle-plan-item-${index + 1}`}
-              >
-                {row}
-              </div>
-            );
-          })}
-        </div>
-        <details className="mt-3 rounded-[18px] border border-[#EFE5DC] bg-[#FFFCF8] p-3">
-          <summary className="cursor-pointer font-body text-[14px] font-black text-[#6B21A8]">
-            {t("statusVitals.plan.showMoreSteps", "Show more")}
-          </summary>
-          <div className="mt-3 flex min-h-[64px] items-center gap-3 rounded-[18px] bg-white px-4 py-3">
-            <Footprints size={19} className="text-[#6B21A8]" />
-            <div>
-              <p className="font-body text-[16px] font-black text-vyva-text-1">{todaySteps[3].label}</p>
-              <p className="font-body text-[14px] font-semibold text-vyva-text-2">{todaySteps[3].helper}</p>
-            </div>
-          </div>
-        </details>
+        {preventionError ? (
+          <p className="mt-3 rounded-[16px] bg-[#FFFBEB] px-3 py-2 font-body text-[13px] font-bold text-[#92400E]" data-testid="agewell-fallback-note">
+            {t("statusVitals.plan.ageWellFallback", "Using a simple AgeWell plan until your latest prevention signals load.")}
+          </p>
+        ) : null}
       </HealthWizardCard>
 
-      <HealthWizardCard className="mt-5 p-4 sm:p-5" testId="vyva-insight-section">
-        <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] bg-[#F5F3FF] text-[#6B21A8]">
-            <Sparkles size={19} />
-          </span>
-          <div className="min-w-0">
-            <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1">
-              {t("statusVitals.plan.insightTitle", "VYVA insight")}
-            </h2>
-            <p className="mt-3 font-body text-[20px] font-black leading-snug text-vyva-text-1">
-              {t("statusVitals.plan.energyInsight", "Your energy looks a little lower than usual.")}
-            </p>
-            <p className="mt-2 font-body text-[16px] font-semibold leading-relaxed text-vyva-text-2">
-              {t("statusVitals.plan.energyInsightCopy", "VYVA is checking whether this may be linked to sleep, hydration, movement, medication timing, or mood.")}
-            </p>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => navigate("/health/symptom-check", {
-                  state: {
-                    initialClue: t("statusVitals.plan.energyInitialClue", "Lower energy than usual"),
-                    autoStartVoice: true,
-                  },
-                })}
-                className="vyva-tap flex min-h-[50px] items-center justify-center rounded-full bg-[#6B21A8] px-5 font-body text-[15px] font-black text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
-              >
-                {t("statusVitals.plan.explorePossibleCauses", "Explore possible causes")}
-              </button>
-              <button
-                type="button"
-                className="vyva-tap flex min-h-[50px] items-center justify-center rounded-full border border-[#EDE5DB] bg-white px-5 font-body text-[15px] font-black text-vyva-text-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
-              >
-                {t("statusVitals.plan.notNow", "Not now")}
-              </button>
-            </div>
-          </div>
-        </div>
-        <details className="mt-4 rounded-[18px] border border-[#EFE5DC] bg-[#FFFCF8] p-3">
-          <summary className="cursor-pointer font-body text-[14px] font-black text-[#6B21A8]">
-            {t("statusVitals.plan.seeMorePatterns", "See more patterns VYVA is watching")}
-          </summary>
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            {watchlist.map((item) => (
-              <div key={item.title} className="rounded-[18px] border border-[#EFE5DC] bg-white p-3">
-                <p className="font-body text-[15px] font-black text-vyva-text-1">{item.title}</p>
-                <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">{item.description}</p>
-              </div>
-            ))}
-          </div>
-        </details>
-      </HealthWizardCard>
-
-      <HealthWizardCard className="mt-5 p-4 sm:p-5" testId="signals-powering-plan-section">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <HealthWizardCard className="mt-4 p-4 sm:p-5" testId="agewell-signals-section">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-body text-[24px] font-black leading-tight text-vyva-text-1">
-              {t("statusVitals.plan.signalsTitle", "Signals powering your plan")}
+            <h2 className="font-body text-[22px] font-black leading-tight text-vyva-text-1 sm:text-[24px]">
+              {t("statusVitals.plan.signalsCheckedTitle", "Signals checked")}
             </h2>
-            <p className="mt-1 font-body text-[15px] font-semibold leading-relaxed text-vyva-text-2" data-testid="latest-readings-summary">
-              {t("statusVitals.plan.signalsCopy", "Fresh signals help VYVA personalise your plan.")}
+            <p className="mt-1 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+              {t("statusVitals.plan.signalsCheckedCopy", "The ingredients behind today's AgeWell focus.")}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => openAddReadingSheet()}
-            className="vyva-tap flex min-h-[42px] flex-shrink-0 items-center justify-center rounded-full bg-[#F5F3FF] px-4 font-body text-[13px] font-black text-[#6B21A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6B21A8]"
-            data-testid="button-latest-add-reading"
-          >
-            {t("statusVitals.hub.addReadingCta", "Add reading")}
-          </button>
+          <span className="hidden rounded-full bg-[#F5F3FF] px-3 py-1 font-body text-[12px] font-black text-[#6B21A8] sm:inline-flex">
+            {ageWellScore.label}
+          </span>
         </div>
-        <div className="space-y-2">
-          {signalPlanRows.map((row) => (
-            <PlanSignalRowCard key={row.id} row={row} />
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          {ageWellSignalRows.map((row) => (
+            <AgeWellSignalRowCard key={row.id} row={row} />
           ))}
         </div>
       </HealthWizardCard>

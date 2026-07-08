@@ -105,6 +105,8 @@ function renderSocialHub() {
       <Routes>
         <Route path="/social-rooms" element={<><SocialHub /><LocationProbe /></>} />
         <Route path="/social-rooms/join-in" element={<><SocialHub roomsOnly /><LocationProbe /></>} />
+        <Route path="/social-rooms/experts" element={<LocationProbe />} />
+        <Route path="/social-rooms/share" element={<LocationProbe />} />
         <Route path="/social-rooms/activities" element={<LocationProbe />} />
         <Route path="/social-rooms/:slug" element={<LocationProbe />} />
       </Routes>
@@ -139,16 +141,18 @@ describe("SocialHub home-style layout", () => {
 
     const primaryCards = screen.getByTestId("social-primary-cards");
     expect(within(primaryCards).getByText("Make Friends")).toBeInTheDocument();
-    expect(within(primaryCards).getByText("Join In")).toBeInTheDocument();
+    expect(within(primaryCards).getByText("Ask an Expert")).toBeInTheDocument();
     expect(within(primaryCards).getByText("What's On")).toBeInTheDocument();
     expect(within(primaryCards).getByText("Share Stories")).toBeInTheDocument();
     expect(within(primaryCards).getAllByRole("button").map((card) => card.textContent)).toEqual([
       "Make Friends",
-      "Join In",
+      "Ask an Expert",
       "Share Stories",
       "What's On",
     ]);
     expect(primaryCards).not.toHaveTextContent("Participate");
+    expect(primaryCards).not.toHaveTextContent("Join In");
+    expect(screen.getByTestId("card-social-primary-experts")).toHaveAccessibleName("Ask an Expert. Talk with a VYVA specialist");
     expect(primaryCards).not.toHaveTextContent("Movement and clubs");
     expect(screen.getByTestId("card-social-primary-activities")).toHaveAccessibleName("What's On. Movement and clubs");
     expect(primaryCards).not.toHaveTextContent("Challenge");
@@ -158,18 +162,12 @@ describe("SocialHub home-style layout", () => {
     expect(screen.queryByTestId("social-room-list")).not.toBeInTheDocument();
   });
 
-  it("opens Join In as a dedicated room list page", () => {
+  it("opens Ask an Expert as a dedicated expert hub", () => {
     renderSocialHub();
 
-    fireEvent.click(screen.getByTestId("card-social-primary-rooms"));
+    fireEvent.click(screen.getByTestId("card-social-primary-experts"));
 
-    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/join-in");
-    expect(screen.getByTestId("social-rooms-only-screen")).toBeInTheDocument();
-    expect(screen.getByTestId("social-room-list")).toBeInTheDocument();
-    expect(screen.getByTestId("button-social-room-list-kitchen-table")).toBeInTheDocument();
-    expect(screen.getByTestId("button-social-room-list-music-room")).toBeInTheDocument();
-    expect(screen.queryByTestId("social-primary-cards")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("social-fast-help")).not.toBeInTheDocument();
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/experts");
   });
 
   it("opens Activities as the Community activities area", () => {
@@ -178,6 +176,14 @@ describe("SocialHub home-style layout", () => {
     fireEvent.click(screen.getByTestId("card-social-primary-activities"));
 
     expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/activities");
+  });
+
+  it("opens Share Stories as the dedicated story drop box", () => {
+    renderSocialHub();
+
+    fireEvent.click(screen.getByTestId("card-social-primary-share"));
+
+    expect(screen.getByTestId("current-route")).toHaveTextContent("/social-rooms/share");
   });
 
   it("shows three visible Fast help actions", () => {

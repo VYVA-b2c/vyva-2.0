@@ -526,6 +526,16 @@ const fr = {
       },
     },
     findSpecialist: {
+      experts: {
+        title: "Choisir un expert",
+        elena: { label: "Elena Ruiz", detail: "Jardinière urbaine" },
+        viktor: { label: "Viktor Sanz", detail: "Compagnon de jeux" },
+        lola: { label: "Lola Martínez", detail: "Cheffe méditerranéenne" },
+        amara: { label: "Amara Osei", detail: "Guide de mouvement" },
+        marco: { label: "Marco Reyes", detail: "Guide de calme" },
+        diego: { label: "Diego Salinas", detail: "Musicologue" },
+        isabel: { label: "Isabel Fuentes", detail: "Hôte littéraire" },
+      },
       bookRide: "Trouver transport",
     },
     symptomCheck: {
@@ -722,8 +732,8 @@ const fr = {
     title: "Jeu de memoire",
     subtitle: "De courts exercices pour entrainer la memoire, l'attention et la concentration.",
     recommendedToday: "Recommande aujourd'hui",
-    chooseAnother: "Choisir un autre exercice",
-    chooseAnotherExercise: "Choisir un autre exercice",
+    chooseAnother: "Plus d'exercices",
+    chooseAnotherExercise: "Plus d'exercices",
     lastSession: "Derniere session",
     currentLevel: "Niveau actuel",
     nextLevel: "Niveau suivant",
@@ -747,10 +757,12 @@ const fr = {
     recommendationLoading: "Nous preparons le meilleur exercice pour aujourd'hui.",
     matchInstruction: "Touchez deux cartes pour trouver la paire.",
     sequenceWatch: "Observez la sequence.",
+    sequenceWatchShort: "Voir l'ordre",
     sequenceYourTurn: "C'est a vous.",
     sequenceStart: "Commencer",
     sequenceStartHint: "Appuyez quand vous etes pret a repeter la sequence.",
     sequenceRepeat: "Repetez la sequence.",
+    sequenceRepeatShort: "A vous",
     sequenceWatchAgain: "Voir la sequence encore une fois.",
     sequenceReverse: "Repetez la sequence en ordre inverse.",
     sequenceCountdown: "On commence dans",
@@ -763,6 +775,7 @@ const fr = {
     sequenceTutorialUnderstand: "Je comprends",
     sequenceReady: "Les tuiles vont s'allumer l'une apres l'autre.",
     sequenceTapHint: "Touchez les tuiles dans le bon ordre. Prenez votre temps.",
+    sequenceTapHintShort: "Touchez l'ordre. Sans pression.",
     sequenceWaitTurn: "Attendez la fin de la sequence.",
     sequenceWaitTurnHint: "Regardez d'abord toute la sequence. Ensuite, ce sera a vous de la repeter.",
     sequenceWrong: "Ce n'etait pas la bonne sequence.",
@@ -775,6 +788,7 @@ const fr = {
   },
   wordRecall: {
     memorizeInstruction: "Lisez ces mots calmement et memorisez-les.",
+    memorizeLabel: "Memorisez les mots",
     readyButton: "Je suis pret",
     recallInstruction: "Rappelez-vous autant de mots que possible.",
     selectRememberedWords: "Vous pouvez toucher les mots, les ecrire ou les dire a voix haute.",
@@ -1111,9 +1125,14 @@ const fr = {
     resultActions: {
       continue: "Continuer",
       continueToLevel: "Continuer au niveau {level}",
+      nextLevel: "Niveau suivant",
       nextRecommended: "Prochaine recommandation",
       playAgain: "Rejouer",
       playAnotherGame: "Jouer a un autre jeu",
+      moreGames: "Plus de jeux",
+      assessmentPractice: "Exercice lie au bilan",
+      assessmentPracticeComplete: "Bien. Vous avez travaille la zone remarquee par VYVA.",
+      backToResults: "Retour a mes resultats",
     },
       attentionBoosters: {
         title: "Concentration et attention",
@@ -1397,6 +1416,14 @@ const fr = {
     actions: {
       ride: "Trouver transport",
       ridePrefill: "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. Demandez ma confirmation avant toute reservation.",
+    },
+  },
+  community: {
+    master: {
+      cards: {
+        experts: "Demander a un expert",
+        expertsDetail: "Parler avec un specialiste VYVA",
+      },
     },
   },
   informes: {

@@ -3,7 +3,7 @@ import { ArrowLeft, Loader2, MousePointer2, Play, Route, Smile, Sparkles, Square
 import { useLanguage } from "@/i18n";
 import vyvaLogo from "@/assets/vyva-logo.png";
 import { gameData } from "./shared/gameDataApi";
-import BrainGameResultActions from "./shared/BrainGameResultActions";
+import BrainGameCompletionDialog from "./shared/BrainGameCompletionDialog";
 import { recordCognitiveSession } from "./shared/brainCoachSessions";
 import { normalizeGameLanguage } from "./shared/language";
 
@@ -482,7 +482,13 @@ function TrailCanvas({
   );
 }
 
-export default function NumberTrails({ userId, onExit }) {
+export default function NumberTrails({
+  userId,
+  onExit,
+  assessmentPractice = null,
+  onAssessmentPracticeComplete,
+  onAssessmentPracticeReturn,
+}) {
   const { language, t } = useLanguage();
   const gameLanguage = normalizeGameLanguage(language);
   const text = useMemo(() => ({
@@ -932,10 +938,15 @@ export default function NumberTrails({ userId, onExit }) {
     await saveSession(result);
     const nextState = await updateUserState(result);
     setSessionResult({ ...result, userState: nextState });
+    onAssessmentPracticeComplete?.({
+      score: result.score,
+      accuracyPct: result.combined_accuracy_pct,
+      practiceTitle: assessmentPractice?.practiceTitle,
+    });
     setScreen("result");
     setSavingResult(false);
     return result;
-  }, [config, currentTargetIndex, nodes.length, saveSession, stopTimer, updateUserState]);
+  }, [assessmentPractice, config, currentTargetIndex, nodes.length, onAssessmentPracticeComplete, saveSession, stopTimer, updateUserState]);
 
   const saveAbandonedSnapshot = useCallback(async () => {
     const latest = latestRef.current;
@@ -1422,14 +1433,28 @@ export default function NumberTrails({ userId, onExit }) {
             </div>
           )}
 
-          <BrainGameResultActions
-            className="mt-6"
+          <BrainGameCompletionDialog
+            title={resultIsGood ? text.resultGood : text.resultTry}
+            summary={`${formatTemplate(text.completedIn, { n: completionSeconds })} | ${formatTemplate(text.parTime, { n: parSeconds })}`}
+            metrics={[
+              { label: text.accuracy, value: `${Math.round(result?.accuracy_pct ?? 0)}%` },
+              { label: text.speed, value: `${Math.round(result?.speed_pct ?? 0)}%` },
+              { label: text.score, value: score },
+              { label: text.streak, value: `${resultState.streak_days ?? 0} ${text.days}` },
+            ]}
             continueLabel={continueLabel}
             replayLabel={text.tryThisTrail}
             anotherLabel={text.playAnotherGame}
+            assessmentReturnLabel={assessmentPractice ? t("brainGames.resultActions.backToResults", "Back to my results") : undefined}
+            assessmentReturnHint={
+              assessmentPractice
+                ? t("brainGames.resultActions.assessmentPracticeComplete", "Good. You practiced the area VYVA noticed.")
+                : undefined
+            }
             onContinue={() => loadGame(resultState)}
             onReplay={replayCurrentTrail}
             onAnother={handleExit}
+            onAssessmentReturn={assessmentPractice ? onAssessmentPracticeReturn : undefined}
             disabled={savingResult}
           />
         </section>

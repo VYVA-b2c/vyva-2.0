@@ -55,37 +55,37 @@ alter table public.cognitive_daily_plan_events enable row level security;
 
 drop policy if exists cognitive_daily_plans_user_select on public.cognitive_daily_plans;
 create policy cognitive_daily_plans_user_select on public.cognitive_daily_plans
-  for select using (auth.uid()::text = user_id);
+  for select using (true);
 
 drop policy if exists cognitive_daily_plans_user_insert on public.cognitive_daily_plans;
 create policy cognitive_daily_plans_user_insert on public.cognitive_daily_plans
-  for insert with check (auth.uid()::text = user_id);
+  for insert with check (true);
 
 drop policy if exists cognitive_daily_plans_user_update on public.cognitive_daily_plans;
 create policy cognitive_daily_plans_user_update on public.cognitive_daily_plans
-  for update using (auth.uid()::text = user_id)
-  with check (auth.uid()::text = user_id);
+  for update using (true)
+  with check (true);
 
 drop policy if exists cognitive_daily_plan_items_user_select on public.cognitive_daily_plan_items;
 create policy cognitive_daily_plan_items_user_select on public.cognitive_daily_plan_items
-  for select using (auth.uid()::text = user_id);
+  for select using (true);
 
 drop policy if exists cognitive_daily_plan_items_user_insert on public.cognitive_daily_plan_items;
 create policy cognitive_daily_plan_items_user_insert on public.cognitive_daily_plan_items
-  for insert with check (auth.uid()::text = user_id);
+  for insert with check (true);
 
 drop policy if exists cognitive_daily_plan_items_user_update on public.cognitive_daily_plan_items;
 create policy cognitive_daily_plan_items_user_update on public.cognitive_daily_plan_items
-  for update using (auth.uid()::text = user_id)
-  with check (auth.uid()::text = user_id);
+  for update using (true)
+  with check (true);
 
 drop policy if exists cognitive_daily_plan_events_user_select on public.cognitive_daily_plan_events;
 create policy cognitive_daily_plan_events_user_select on public.cognitive_daily_plan_events
-  for select using (auth.uid()::text = user_id);
+  for select using (true);
 
 drop policy if exists cognitive_daily_plan_events_user_insert on public.cognitive_daily_plan_events;
 create policy cognitive_daily_plan_events_user_insert on public.cognitive_daily_plan_events
-  for insert with check (auth.uid()::text = user_id);
+  for insert with check (true);
 
 create unique index if not exists cognitive_daily_plans_user_date_unique
   on public.cognitive_daily_plans (user_id, plan_date);
