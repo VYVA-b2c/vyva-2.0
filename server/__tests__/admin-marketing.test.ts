@@ -15,7 +15,7 @@ const dbMock = vi.hoisted(() => {
 
   function rowDefaults(value: Record<string, unknown>) {
     return {
-      id: `mock-${idCounter++}`,
+      id: `00000000-0000-4000-8000-${String(idCounter++).padStart(12, "0")}`,
       created_at: new Date("2026-07-05T10:00:00.000Z"),
       updated_at: new Date("2026-07-05T10:00:00.000Z"),
       ...value,
@@ -111,6 +111,20 @@ const dbMock = vi.hoisted(() => {
 
 vi.mock("../db.js", () => dbMock);
 
+const dispatchMock = vi.hoisted(() => ({
+  dispatchCommunicationsByIds: vi.fn(async (ids: string[]) => ({
+    processed: ids.length,
+    results: ids.map((id) => ({
+      id,
+      channel: "email",
+      recipient: "karim.assad@mokadigital.net",
+      status: "sent",
+    })),
+  })),
+}));
+
+vi.mock("../services/communicationDispatcher.js", () => dispatchMock);
+
 import { adminMarketingRouter } from "../routes/adminMarketing.js";
 
 function buildApp(email = "admin@example.com") {
@@ -131,6 +145,7 @@ describe("admin marketing router", () => {
   beforeEach(() => {
     dbMock.reset();
     dbMock.setTableName(getTableName);
+    dispatchMock.dispatchCommunicationsByIds.mockClear();
     vi.unstubAllEnvs();
     vi.stubEnv("SUPER_ADMIN_EMAIL", "karim.assad@mokadigital.net");
   });
@@ -158,6 +173,26 @@ describe("admin marketing router", () => {
       });
   });
 
+  it("keeps marketing test emails super-admin only", async () => {
+    await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/campaigns/00000000-0000-4000-8000-000000000001/test-email")
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.error).toBe("Only the super admin can send marketing test emails.");
+      });
+    expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
+  });
+
+  it("keeps marketing campaign email sends super-admin only", async () => {
+    await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/campaigns/00000000-0000-4000-8000-000000000001/send-email")
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.error).toBe("Only the super admin can send marketing campaign emails.");
+      });
+    expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
+  });
+
   it("reports whether the current admin can run Lovable sync", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
@@ -169,8 +204,14 @@ describe("admin marketing router", () => {
         expect(response.body).toMatchObject({
           configured: true,
           canRunSync: false,
+          realSendingLocked: false,
           requiredRunnerEmail: "karim.assad@mokadigital.net",
         });
+        expect(response.body.lockedSendCapabilities).toContainEqual(expect.objectContaining({
+          channel: "email",
+          locked: false,
+          sendCapability: "enabled",
+        }));
       });
 
     await request(buildApp("karim.assad@mokadigital.net"))
@@ -205,8 +246,223 @@ describe("admin marketing router", () => {
     });
     expect(table("marketing_campaigns")).toHaveLength(1);
     expect(table("marketing_campaign_channels")).toHaveLength(1);
+    expect(table("marketing_campaign_channels")[0]).toMatchObject({ send_capability: "enabled" });
     expect(table("marketing_campaign_recipients")).toHaveLength(1);
     expect(table("communications_log")).toHaveLength(0);
+  });
+
+  it("sends only a super-admin test email through the existing dispatcher", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Welcome email",
+        channel: "email",
+        subject: "Welcome to VYVA",
+        body: "This is the imported email body.",
+      })
+      .expect(201);
+
+    const campaignResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Welcome campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+        }],
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/admin/marketing/campaigns/${campaignResponse.body.campaign.id}/test-email`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          communication: {
+            recipient: "karim.assad@mokadigital.net",
+            status: "sent",
+          },
+        });
+      });
+
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      channel: "email",
+      recipient: "karim.assad@mokadigital.net",
+      purpose: "marketing_campaign_test",
+      status: "queued",
+      body: "This is the imported email body.",
+      metadata: expect.objectContaining({
+        subject: "[TEST] Welcome to VYVA",
+        campaign_id: campaignResponse.body.campaign.id,
+        content_asset_id: contentResponse.body.content.id,
+        marketing_test_send: true,
+      }),
+    });
+    expect(table("marketing_campaign_recipients")).toHaveLength(0);
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
+  });
+
+  it("sends saved email campaign recipients through the existing dispatcher", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Newsletter",
+        channel: "email",
+        subject: "July update",
+        body: "This is the July update.",
+      })
+      .expect(201);
+
+    const campaignResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "July campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+        }],
+        recipients: [
+          { channel: "email", recipient: "caregiver@example.com", status: "planned", snapshot: { fullName: "Caregiver", consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/admin/marketing/campaigns/${campaignResponse.body.campaign.id}/send-email`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          sentCount: 1,
+          failedCount: 0,
+          skippedCount: 0,
+        });
+      });
+
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      channel: "email",
+      recipient: "caregiver@example.com",
+      purpose: "marketing_campaign_email",
+      status: "queued",
+      body: "This is the July update.",
+      metadata: expect.objectContaining({
+        subject: "July update",
+        campaign_id: campaignResponse.body.campaign.id,
+        content_asset_id: contentResponse.body.content.id,
+        marketing_campaign_send: true,
+      }),
+    });
+    expect(table("marketing_campaign_recipients")[0]).toMatchObject({
+      status: "sent",
+      communication_log_id: table("communications_log")[0].id,
+    });
+    expect(table("marketing_campaigns")[0]).toMatchObject({ status: "published" });
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
+  });
+
+  it("updates campaign planning rows and deletes campaigns without dispatch", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Partner outreach",
+        status: "draft",
+        audienceType: "b2b",
+        channels: [{ channel: "email", status: "draft" }],
+      })
+      .expect(201);
+
+    const campaignId = createResponse.body.campaign.id;
+    await request(app)
+      .patch(`/api/admin/marketing/campaigns/${campaignId}`)
+      .send({
+        name: "Updated outreach",
+        status: "scheduled",
+        audienceType: "both",
+        objective: "Updated objective",
+        scheduleStartsAt: "2026-07-10T09:00:00.000Z",
+        channels: [{ channel: "whatsapp", status: "scheduled", scheduledAt: "2026-07-10T09:00:00.000Z" }],
+        recipients: [{ channel: "whatsapp", recipient: "+34600000001", scheduledAt: "2026-07-10T09:00:00.000Z", snapshot: { fullName: "Karim" } }],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.campaign).toMatchObject({
+          id: campaignId,
+          name: "Updated outreach",
+          status: "scheduled",
+          audienceType: "both",
+          recipientCount: 1,
+        });
+      });
+
+    expect(table("marketing_campaign_channels")).toHaveLength(1);
+    expect(table("marketing_campaign_recipients")).toHaveLength(1);
+    expect(table("communications_log")).toHaveLength(0);
+
+    await request(app)
+      .delete(`/api/admin/marketing/campaigns/${campaignId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedCampaignId: campaignId });
+      });
+
+    expect(table("marketing_campaigns")).toHaveLength(0);
+    expect(table("marketing_campaign_channels")).toHaveLength(0);
+    expect(table("marketing_campaign_recipients")).toHaveLength(0);
+  });
+
+  it("updates and deletes journey planning records", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/journeys")
+      .send({
+        name: "Partner nurture",
+        audienceType: "b2b",
+        objective: "Warm partner leads",
+        steps: [{ stepOrder: 0, channel: "email", delayHours: 0, status: "draft" }],
+      })
+      .expect(201);
+
+    const journeyId = createResponse.body.journey.id;
+    expect(table("marketing_journeys")).toHaveLength(1);
+    expect(table("marketing_journey_steps")).toHaveLength(1);
+
+    await request(app)
+      .patch(`/api/admin/marketing/journeys/${journeyId}`)
+      .send({ name: "Updated nurture", status: "paused", audienceType: "both", objective: "Updated objective" })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.journey).toMatchObject({
+          id: journeyId,
+          name: "Updated nurture",
+          status: "paused",
+          audienceType: "both",
+          objective: "Updated objective",
+        });
+      });
+
+    await request(app)
+      .delete(`/api/admin/marketing/journeys/${journeyId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedJourneyId: journeyId });
+      });
+
+    expect(table("marketing_journeys")).toHaveLength(0);
+    expect(table("marketing_journey_steps")).toHaveLength(0);
   });
 
   it("imports Lovable data one-way and upserts by external id", async () => {

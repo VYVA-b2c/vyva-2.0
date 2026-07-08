@@ -508,6 +508,86 @@ export const insertUserMedicationSchema = createInsertSchema(userMedications).om
 export type InsertUserMedication = z.infer<typeof insertUserMedicationSchema>;
 export type UserMedication = typeof userMedications.$inferSelect;
 
+export const myMedicines = pgTable("my_medicines", {
+  id:                uuid("id").primaryKey().defaultRandom(),
+  user_id:           text("user_id").notNull(),
+  display_name:      text("display_name").notNull(),
+  common_name:       text("common_name"),
+  dose_text:         text("dose_text"),
+  purpose_text:      text("purpose_text"),
+  item_type:         text("item_type").notNull().default("prescription"),
+  drug_class_tag:    text("drug_class_tag"),
+  photo_url:         text("photo_url"),
+  prescriber_name:   text("prescriber_name"),
+  refill_due_date:   date("refill_due_date"),
+  schedule_times:    text("schedule_times").array(),
+  status:            text("status").notNull().default("active"),
+  status_changed_at: timestamp("status_changed_at", { withTimezone: true }),
+  status_changed_by: text("status_changed_by"),
+  added_via:         text("added_via").notNull().default("voice"),
+  created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:        timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_mm_user_status").on(t.user_id, t.status),
+  index("idx_mm_refill_due").on(t.user_id, t.refill_due_date),
+]);
+
+export const insertMyMedicineSchema = createInsertSchema(myMedicines).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMyMedicine = z.infer<typeof insertMyMedicineSchema>;
+export type MyMedicine = typeof myMedicines.$inferSelect;
+
+export const myMedicinesChangeLog = pgTable("my_medicines_change_log", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  user_id:        text("user_id").notNull(),
+  medicine_id:    uuid("medicine_id").references(() => myMedicines.id, { onDelete: "set null" }),
+  change_type:    text("change_type").notNull(),
+  previous_value: jsonb("previous_value"),
+  new_value:      jsonb("new_value"),
+  source:         text("source").notNull().default("voice_update"),
+  changed_at:     timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_mcl_user_time").on(t.user_id, t.changed_at.desc()),
+]);
+
+export const insertMyMedicineChangeLogSchema = createInsertSchema(myMedicinesChangeLog).omit({ id: true, changed_at: true });
+export type InsertMyMedicineChangeLog = z.infer<typeof insertMyMedicineChangeLogSchema>;
+export type MyMedicineChangeLog = typeof myMedicinesChangeLog.$inferSelect;
+
+export const interactionFlagRules = pgTable("interaction_flag_rules", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  class_a:         text("class_a").notNull(),
+  class_b:         text("class_b").notNull(),
+  flag_message_es: text("flag_message_es").notNull(),
+  flag_message_de: text("flag_message_de").notNull(),
+  flag_message_en: text("flag_message_en").notNull(),
+  severity_tier:   text("severity_tier").notNull().default("worth_asking"),
+  is_active:       boolean("is_active").notNull().default(false),
+  reviewed_by:     text("reviewed_by"),
+  reviewed_at:     timestamp("reviewed_at", { withTimezone: true }),
+  created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("idx_ifr_classes").on(t.class_a, t.class_b),
+]);
+
+export const insertInteractionFlagRuleSchema = createInsertSchema(interactionFlagRules).omit({ id: true, created_at: true });
+export type InsertInteractionFlagRule = z.infer<typeof insertInteractionFlagRuleSchema>;
+export type InteractionFlagRule = typeof interactionFlagRules.$inferSelect;
+
+export const interactionFlagDismissals = pgTable("interaction_flag_dismissals", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  user_id:       text("user_id").notNull(),
+  rule_id:       uuid("rule_id").notNull().references(() => interactionFlagRules.id, { onDelete: "cascade" }),
+  medicine_pair: jsonb("medicine_pair").notNull(),
+  dismissed_at:  timestamp("dismissed_at", { withTimezone: true }).notNull().defaultNow(),
+  reason:        text("reason"),
+}, (t) => [
+  index("interaction_flag_dismissals_user_rule_idx").on(t.user_id, t.rule_id),
+]);
+
+export const insertInteractionFlagDismissalSchema = createInsertSchema(interactionFlagDismissals).omit({ id: true, dismissed_at: true });
+export type InsertInteractionFlagDismissal = z.infer<typeof insertInteractionFlagDismissalSchema>;
+export type InteractionFlagDismissal = typeof interactionFlagDismissals.$inferSelect;
+
 export const medicationSafetySignals = pgTable("medication_safety_signals", {
   id:              uuid("id").primaryKey().defaultRandom(),
   user_id:         text("user_id").notNull(),
@@ -1092,6 +1172,78 @@ export const socialUserInterests = pgTable("social_user_interests", {
 export const insertSocialUserInterestsSchema = createInsertSchema(socialUserInterests).omit({ updated_at: true });
 export type InsertSocialUserInterests = z.infer<typeof insertSocialUserInterestsSchema>;
 export type SocialUserInterests = typeof socialUserInterests.$inferSelect;
+
+export const advisorAgents = pgTable("advisor_agents", {
+  slug:         text("slug").primaryKey(),
+  icon_key:     text("icon_key").notNull(),
+  chip_bg:      text("chip_bg").notNull(),
+  icon_color:   text("icon_color").notNull(),
+  sort_order:   integer("sort_order").notNull().default(0),
+  is_enabled:   boolean("is_enabled").notNull().default(true),
+  agent_config: jsonb("agent_config").$type<Record<string, unknown>>().notNull().default({}),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:   timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("advisor_agents_enabled_order_idx").on(t.is_enabled, t.sort_order),
+]);
+
+export const insertAdvisorAgentSchema = createInsertSchema(advisorAgents).omit({ created_at: true, updated_at: true });
+export type InsertAdvisorAgent = z.infer<typeof insertAdvisorAgentSchema>;
+export type AdvisorAgentRow = typeof advisorAgents.$inferSelect;
+
+export const advisorSessions = pgTable("advisor_sessions", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  agent_slug:      text("agent_slug").notNull().references(() => advisorAgents.slug, { onDelete: "restrict" }),
+  status:          text("status").notNull().default("active"),
+  started_at:      timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  last_message_at: timestamp("last_message_at", { withTimezone: true }),
+  ended_at:        timestamp("ended_at", { withTimezone: true }),
+  message_count:   integer("message_count").notNull().default(0),
+}, (t) => [
+  index("advisor_sessions_user_agent_last_idx").on(t.user_id, t.agent_slug, t.last_message_at.desc()),
+  index("advisor_sessions_user_status_idx").on(t.user_id, t.status),
+]);
+
+export const insertAdvisorSessionSchema = createInsertSchema(advisorSessions).omit({ id: true, started_at: true });
+export type InsertAdvisorSession = z.infer<typeof insertAdvisorSessionSchema>;
+export type AdvisorSessionRow = typeof advisorSessions.$inferSelect;
+
+export const advisorMessages = pgTable("advisor_messages", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  session_id: uuid("session_id").notNull().references(() => advisorSessions.id, { onDelete: "cascade" }),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  agent_slug: text("agent_slug").notNull().references(() => advisorAgents.slug, { onDelete: "restrict" }),
+  role:       text("role").notNull(),
+  source:     text("source").notNull().default("text"),
+  text:       text("text").notNull(),
+  metadata:   jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("advisor_messages_session_created_idx").on(t.session_id, t.created_at),
+  index("advisor_messages_user_agent_created_idx").on(t.user_id, t.agent_slug, t.created_at.desc()),
+]);
+
+export const insertAdvisorMessageSchema = createInsertSchema(advisorMessages).omit({ id: true, created_at: true });
+export type InsertAdvisorMessage = z.infer<typeof insertAdvisorMessageSchema>;
+export type AdvisorMessageRow = typeof advisorMessages.$inferSelect;
+
+export const advisorUserAgentState = pgTable("advisor_user_agent_state", {
+  user_id:          text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  agent_slug:       text("agent_slug").notNull().references(() => advisorAgents.slug, { onDelete: "restrict" }),
+  session_count:    integer("session_count").notNull().default(0),
+  first_started_at: timestamp("first_started_at", { withTimezone: true }),
+  last_session_id:  uuid("last_session_id"),
+  last_message_at:  timestamp("last_message_at", { withTimezone: true }),
+  updated_at:       timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.user_id, t.agent_slug], name: "advisor_user_agent_state_pk" }),
+  index("advisor_user_agent_state_user_last_idx").on(t.user_id, t.last_message_at.desc()),
+]);
+
+export const insertAdvisorUserAgentStateSchema = createInsertSchema(advisorUserAgentState).omit({ updated_at: true });
+export type InsertAdvisorUserAgentState = z.infer<typeof insertAdvisorUserAgentStateSchema>;
+export type AdvisorUserAgentStateRow = typeof advisorUserAgentState.$inferSelect;
 
 export const socialConnections = pgTable("social_connections", {
   id:               uuid("id").primaryKey().defaultRandom(),
@@ -3024,6 +3176,10 @@ export const schema = {
   checkinSessions,
   checkinTrendState,
   userMedications,
+  myMedicines,
+  myMedicinesChangeLog,
+  interactionFlagRules,
+  interactionFlagDismissals,
   medicationSafetySignals,
   medicationSafetyCases,
   medicationSafetyCaseEvents,
@@ -3046,6 +3202,10 @@ export const schema = {
   socialRoomSessions,
   socialRoomVisits,
   socialUserInterests,
+  advisorAgents,
+  advisorSessions,
+  advisorMessages,
+  advisorUserAgentState,
   socialConnections,
   socialRoomMusicThreads,
   socialRoomMusicThreadEntries,

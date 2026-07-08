@@ -18,7 +18,7 @@ The category-level page pattern is:
 Approved category copy:
 
 - My Mind: `Strengthen Memory`, `Train Reflexes`, `Improve Thinking`, `Sharpen Senses`.
-- My Health category: `Feel Better`, `My Medication`, `My Vitals`, `Stay Well`.
+- My Health category: `Feel Better`, `My Medication`, `My Vitals`, `Age Well`.
 - My Community: `Make Friends`, `Join In`, `Share Stories`, `What's On`.
 - My Concierge: `Home Care`, `Personal Care`, `Order In`, `Book Now`.
 - My Medication: `My Reminders`, `My Refills`, `Stay Safe`, `Home Remedies`.

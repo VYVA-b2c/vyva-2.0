@@ -1081,21 +1081,52 @@
       "searchPlaceholder": "Search by name or address..."
     },
     "findSpecialist": {
-      "title": "Find a Specialist",
-      "subtitle": "Connect with the right expert",
+      "title": "Ask an Expert",
+      "subtitle": "Choose the right VYVA expert",
       "bookButton": "Book",
       "optionsButton": "Options",
       "hideButton": "Hide",
-      "intro": "Describe the condition or concern. VYVA will look for the right specialist type and nearby options.",
+      "intro": "Pick a VYVA expert.",
       "reset": "Reset",
-      "suggestions": "Suggestions for you",
+      "suggestions": "Choose an expert",
       "more": "More",
       "voiceSearch": "Search by voice",
       "listening": "Listening...",
-      "conditionPlaceholder": "e.g. knee pain, diabetes, memory...",
+      "conditionPlaceholder": "Need a local clinic? Type a concern...",
       "locationPlaceholder": "City or area",
       "searching": "Searching specialists...",
-      "searchButton": "Search specialists",
+      "searchButton": "Search local specialists",
+      "experts": {
+        "title": "Choose an expert",
+        "elena": {
+          "label": "Elena Ruiz",
+          "detail": "Urban gardener"
+        },
+        "viktor": {
+          "label": "Viktor Sanz",
+          "detail": "Games companion"
+        },
+        "lola": {
+          "label": "Lola Martínez",
+          "detail": "Mediterranean chef"
+        },
+        "amara": {
+          "label": "Amara Osei",
+          "detail": "Movement guide"
+        },
+        "marco": {
+          "label": "Marco Reyes",
+          "detail": "Calm guide"
+        },
+        "diego": {
+          "label": "Diego Salinas",
+          "detail": "Musicologist"
+        },
+        "isabel": {
+          "label": "Isabel Fuentes",
+          "detail": "Literary host"
+        }
+      },
       "recommendedSpecialties": "Recommended specialties",
       "disclaimer": "This is not a diagnosis. If symptoms are serious or sudden, call emergency services or your doctor.",
       "noProvidersTitle": "I could not find verified providers with enough data right now.",
@@ -1204,18 +1235,24 @@
     "noMedsScheduled": "No medications scheduled for today",
     "quickAccess": "Medication",
     "primary": {
-      "reminders": "Reminders",
+      "myMedicines": "My Medicines",
+      "myMedicinesSub": "Saved list",
+      "myMedicinesCount": "{{count}} saved",
+      "reminders": "My Reminders",
       "remindersSub": "Review today's schedule and add medication reminders.",
       "remindersMobileSub": "Today's schedule",
-      "refills": "Refills",
+      "refills": "My Refills",
       "refillsSub": "Prepare repeat prescriptions or delivery.",
       "refillsMobileSub": "Pharmacy refills",
+      "checkInteractions": "Safety Check",
+      "checkInteractionsSub": "Medicine mix",
       "interactions": "Interactions",
       "interactionsSub": "Check medicines and supplements.",
       "interactionsMobileSub": "Check the mix",
-      "adherence": "Adherence",
+      "adherence": "My Adherence",
       "adherenceSub": "See progress and missed doses.",
-      "adherenceMobileSub": "Missed doses"
+      "adherenceMobileSub": "Daily progress",
+      "adherenceToday": "{{value}}% today"
     },
     "canHelpWith": "I can help you with",
     "fastHelpKicker": "Fast help",
@@ -1232,6 +1269,22 @@
     "toastAdded": "Medication added",
     "toastAddedDesc": "{{name}} has been added to your list.",
     "toastAddedDefault": "Your medication has been added.",
+    "voiceSaveError": "I could not save that medicine. Please try again.",
+    "checkInteractions": {
+      "kicker": "Medicine Safety",
+      "title": "Safety Check",
+      "loadingSub": "VYVA is checking your saved list.",
+      "loading": "Checking your list...",
+      "error": "I could not check this right now. Please try again.",
+      "clearTitle": "Looks safe today",
+      "clearSub": "No safety questions from the rules VYVA checked.",
+      "flagKicker": "Safety question",
+      "ruleShort": "Check before taking together.",
+      "duplicateShort": "Similar medicines. Check if both are needed.",
+      "asked": "I asked",
+      "later": "Later",
+      "footer": "{{count}} medicines checked. VYVA never changes doses."
+    },
     "assistant": {
       "interactions": {
         "label": "Check Interactions",

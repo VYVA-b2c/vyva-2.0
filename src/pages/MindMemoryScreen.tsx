@@ -90,7 +90,7 @@ export default function MindMemoryScreen() {
       tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
       onClick: () => navigate("/mind-memory/cognitive-assessment"),
       testId: "button-mind-memory-fast-cognitive-assessment",
-      badge: cognitiveAssessmentJoined ? t("mindMemory.fastHelp.cognitiveAssessmentActive", "Active") : undefined,
+      badge: cognitiveAssessmentJoined ? t("mindMemory.fastHelp.cognitiveAssessmentJoined", "Joined") : undefined,
     },
     {
       id: "play-game",

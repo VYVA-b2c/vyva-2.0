@@ -2,7 +2,7 @@ create table if not exists public.insight_outcomes (
   id                   uuid primary key default gen_random_uuid(),
   report_id             uuid references public.health_insight_reports(id) on delete set null,
   action_id             uuid references public.agewell_action_library(id) on delete set null,
-  user_id               uuid not null references auth.users(id) on delete cascade,
+  user_id               uuid not null,
   tier_at_generation    integer not null check (tier_at_generation between 1 and 5),
   delivered_at          timestamptz not null default now(),
   delivered_surface     text not null check (delivered_surface in ('caregiver_dashboard','senior_card','smart_nudge','agewell_plan')),
@@ -27,5 +27,5 @@ alter table public.insight_outcomes enable row level security;
 drop policy if exists user_own_outcomes on public.insight_outcomes;
 create policy user_own_outcomes on public.insight_outcomes
   for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using (true)
+  with check (true);

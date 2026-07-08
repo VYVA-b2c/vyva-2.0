@@ -526,6 +526,16 @@ const pt = {
       },
     },
     findSpecialist: {
+      experts: {
+        title: "Escolher especialista",
+        elena: { label: "Elena Ruiz", detail: "Jardineira urbana" },
+        viktor: { label: "Viktor Sanz", detail: "Companheiro de jogos" },
+        lola: { label: "Lola Martínez", detail: "Chef mediterrânea" },
+        amara: { label: "Amara Osei", detail: "Guia de movimento" },
+        marco: { label: "Marco Reyes", detail: "Guia de calma" },
+        diego: { label: "Diego Salinas", detail: "Musicólogo" },
+        isabel: { label: "Isabel Fuentes", detail: "Anfitriã literária" },
+      },
       bookRide: "Encontrar transporte",
     },
     symptomCheck: {
@@ -1348,6 +1358,14 @@ const pt = {
     actions: {
       ride: "Encontrar transporte",
       ridePrefill: "Ajude-me a encontrar opcoes de transporte seguro para estes sinais vitais VYVA. Peca a minha confirmacao antes de reservar.",
+    },
+  },
+  community: {
+    master: {
+      cards: {
+        experts: "Perguntar a um especialista",
+        expertsDetail: "Falar com um especialista VYVA",
+      },
     },
   },
   informes: {

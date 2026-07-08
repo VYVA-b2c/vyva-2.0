@@ -526,6 +526,16 @@ const fr = {
       },
     },
     findSpecialist: {
+      experts: {
+        title: "Choisir un expert",
+        elena: { label: "Elena Ruiz", detail: "Jardinière urbaine" },
+        viktor: { label: "Viktor Sanz", detail: "Compagnon de jeux" },
+        lola: { label: "Lola Martínez", detail: "Cheffe méditerranéenne" },
+        amara: { label: "Amara Osei", detail: "Guide de mouvement" },
+        marco: { label: "Marco Reyes", detail: "Guide de calme" },
+        diego: { label: "Diego Salinas", detail: "Musicologue" },
+        isabel: { label: "Isabel Fuentes", detail: "Hôte littéraire" },
+      },
       bookRide: "Trouver transport",
     },
     symptomCheck: {
@@ -1406,6 +1416,14 @@ const fr = {
     actions: {
       ride: "Trouver transport",
       ridePrefill: "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. Demandez ma confirmation avant toute reservation.",
+    },
+  },
+  community: {
+    master: {
+      cards: {
+        experts: "Demander a un expert",
+        expertsDetail: "Parler avec un specialiste VYVA",
+      },
     },
   },
   informes: {

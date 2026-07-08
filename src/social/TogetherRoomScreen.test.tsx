@@ -226,6 +226,8 @@ describe("TogetherRoomScreen", () => {
     render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Together Room" })).toBeInTheDocument();
+    expect(screen.getByText("Today's step")).toBeInTheDocument();
+    expect(screen.getByText("No commitment. Private contact stays inside VYVA.")).toBeInTheDocument();
     expect(screen.getByText("Protected room")).toBeInTheDocument();
     expect(screen.getByTestId("together-safety-quick-help")).toHaveTextContent("Help or safety");
     expect(screen.getByTestId("together-safety-quick-help")).toHaveAttribute("aria-expanded", "false");
@@ -555,6 +557,26 @@ describe("TogetherRoomScreen", () => {
     expect(screen.queryByTestId("together-view-circle")).not.toBeInTheDocument();
     expect(screen.queryByTestId("together-view-starters")).not.toBeInTheDocument();
     expect(screen.getAllByText("Contact is shared only when both people agree.").length).toBeGreaterThan(0);
+  });
+
+  it("keeps deeper room tools tucked behind one clear reveal", () => {
+    render(<TogetherRoomScreen roomResponse={roomResponse} language="en" visitId="visit-1" onBack={vi.fn()} />);
+
+    expect(screen.getByTestId("together-featured-plan-details")).toHaveClass("hidden");
+    expect(screen.getByTestId("together-plan-extra-details")).toHaveClass("hidden");
+    expect(screen.getByTestId("together-room-detail-sections")).toHaveClass("hidden");
+
+    const toggle = screen.getByTestId("together-more-options-toggle");
+    expect(toggle).toHaveTextContent("More room options");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveTextContent("Hide options");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("together-featured-plan-details")).not.toHaveClass("hidden");
+    expect(screen.getByTestId("together-plan-extra-details")).not.toHaveClass("hidden");
+    expect(screen.getByTestId("together-room-detail-sections")).not.toHaveClass("hidden");
   });
 
   it("turns today's room notes into a gentle next action", () => {

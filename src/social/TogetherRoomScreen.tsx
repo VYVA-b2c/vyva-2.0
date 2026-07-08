@@ -24,7 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
-import StoryRoomHandoffCard, { type StoryRoomHandoffNote } from "./StoryRoomHandoffCard";
+import StoryRoomHandoffCard, { StoryRoomReplyLoopCard, type StoryRoomHandoffNote } from "./StoryRoomHandoffCard";
 import type {
   SocialLanguage,
   SocialRoomCostRange,
@@ -3197,6 +3197,45 @@ const copyByLanguage: Record<SocialLanguage, {
     },
   },
 };
+
+const simpleRoomCopy: Record<SocialLanguage, {
+  mainStepLabel: string;
+  moreOptions: string;
+  hideOptions: string;
+  moreOptionsBody: string;
+  planFinePrint: string;
+}> = {
+  es: {
+    mainStepLabel: "Paso de hoy",
+    moreOptions: "Mas opciones de la sala",
+    hideOptions: "Ocultar opciones",
+    moreOptionsBody: "Voto, comodidad, mensajes, notas y mas planes.",
+    planFinePrint: "Sin compromiso. El contacto privado sigue dentro de VYVA.",
+  },
+  de: {
+    mainStepLabel: "Heutiger Schritt",
+    moreOptions: "Mehr Raumoptionen",
+    hideOptions: "Optionen ausblenden",
+    moreOptionsBody: "Abstimmung, Komfort, Nachrichten, Notizen und weitere Plaene.",
+    planFinePrint: "Ohne Verpflichtung. Privater Kontakt bleibt in VYVA.",
+  },
+  en: {
+    mainStepLabel: "Today's step",
+    moreOptions: "More room options",
+    hideOptions: "Hide options",
+    moreOptionsBody: "Vote, comfort, messages, notes and more plans.",
+    planFinePrint: "No commitment. Private contact stays inside VYVA.",
+  },
+};
+
+const compactRoomDetailTargets = new Set([
+  "together-room-choice",
+  "together-comfort-check",
+  "together-support-panels",
+  "together-room-updates",
+  "together-safety-help",
+  "together-participation-path",
+]);
 
 function fallbackPulse(language: SocialLanguage): SocialRoomPulse {
   const titles = {
@@ -7146,6 +7185,7 @@ export default function TogetherRoomScreen({
   shareStoryHandoff,
 }: TogetherRoomScreenProps) {
   const copy = copyByLanguage[language];
+  const simpleCopy = simpleRoomCopy[language];
   const { room } = roomResponse;
   const initialPulse = roomResponse.pulse ?? fallbackPulse(language);
   const [pulse, setPulse] = useState<SocialRoomPulse>(initialPulse);
@@ -7161,7 +7201,11 @@ export default function TogetherRoomScreen({
   const [showProposalComposer, setShowProposalComposer] = useState(false);
   const [prefilledShareStoryId, setPrefilledShareStoryId] = useState<string | null>(null);
   const [dismissedShareStoryId, setDismissedShareStoryId] = useState<string | null>(null);
+  const [placedShareStoryHandoff, setPlacedShareStoryHandoff] = useState<StoryRoomHandoffNote | null>(null);
   const activeShareStoryHandoff = shareStoryHandoff && dismissedShareStoryId !== shareStoryHandoff.id ? shareStoryHandoff : null;
+  const replyLoopShareStoryHandoff = placedShareStoryHandoff && dismissedShareStoryId === placedShareStoryHandoff.id
+    ? placedShareStoryHandoff
+    : null;
   const [safetyHelpPanelAnchor, setSafetyHelpPanelAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
   const [lastSafetyHelpChoice, setLastSafetyHelpChoice] = useState<SafetyHelpChoice | null>(null);
   const [lastSafetyHelpReceiptAnchor, setLastSafetyHelpReceiptAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
@@ -7169,6 +7213,7 @@ export default function TogetherRoomScreen({
   const [isQuietPaused, setIsQuietPaused] = useState(Boolean(initialPulse.safety.myQuietPausedAt));
   const [isReadingComfortOn, setIsReadingComfortOn] = useState(getReadingComfortPreference);
   const [isReadingRoomAloud, setIsReadingRoomAloud] = useState(false);
+  const [showRoomDetails, setShowRoomDetails] = useState(false);
   const [privateRoomNoteDraft, setPrivateRoomNoteDraft] = useState(getPrivateRoomNote);
   const [isSending, setIsSending] = useState(false);
   const [isSendingSafetyReport, setIsSendingSafetyReport] = useState(false);
@@ -7878,6 +7923,7 @@ export default function TogetherRoomScreen({
     if (!text) return;
 
     openViewComposer(text);
+    setPlacedShareStoryHandoff(null);
     setPrefilledShareStoryId(shareStoryHandoff.id);
   }, [prefilledShareStoryId, shareStoryHandoff]);
 
@@ -7900,7 +7946,14 @@ export default function TogetherRoomScreen({
       "discuss",
       "open_room",
     );
+    setPlacedShareStoryHandoff(activeShareStoryHandoff);
     setDismissedShareStoryId(activeShareStoryHandoff.id);
+  };
+
+  const prepareShareStoryReplyDraft = (draft: string) => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    openViewComposer(limitProposalDraft(trimmed));
   };
 
   const startRoomDirectionPlan = () => {
@@ -8131,6 +8184,9 @@ export default function TogetherRoomScreen({
 
   const scrollToRoomSection = (testId: string) => {
     if (typeof document === "undefined") return;
+    if (compactRoomDetailTargets.has(testId)) {
+      setShowRoomDetails(true);
+    }
     const target = document.querySelector(`[data-testid="${testId}"]`);
     if (!(target instanceof HTMLElement)) return;
 
@@ -8527,19 +8583,19 @@ export default function TogetherRoomScreen({
         {copy.back}
       </button>
 
-      <main className="mx-auto mt-4 flex w-full max-w-[760px] flex-col gap-4">
-        <section className="rounded-[28px] border border-[#D8E7E2] bg-white px-5 py-5 shadow-[0_18px_38px_rgba(33,23,41,0.08)]">
+      <main className="mx-auto mt-4 flex w-full max-w-[720px] flex-col gap-4">
+        <section className="rounded-[24px] border border-[#D8E7E2] bg-white px-4 py-4 shadow-[0_18px_38px_rgba(33,23,41,0.08)]">
           <div className="flex items-start gap-4">
             <AgentAvatar
               agentSlug={room.agentSlug}
               fullName={room.agentFullName}
               colour={room.agentColour}
-              size={64}
+              size={52}
               title={room.agentFullName}
             />
             <div className="min-w-0 flex-1">
-              <h1 className="font-display text-[34px] leading-[1.02] text-[#2F2135]">{room.name}</h1>
-              <p className="mt-2 font-body text-[18px] leading-[1.35] text-[#66556E]">{pulse.safety.body}</p>
+              <h1 className="font-display text-[30px] leading-[1.02] text-[#2F2135]">{room.name}</h1>
+              <p className="mt-1 font-body text-[16px] leading-[1.32] text-[#66556E]">{pulse.safety.body}</p>
               {isReadingComfortOn && (
                 <p
                   className="mt-3 rounded-[16px] bg-[#F4FBF8] px-3 py-2 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]"
@@ -8551,8 +8607,8 @@ export default function TogetherRoomScreen({
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-            <div className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-[#EAF8F4] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E] sm:w-auto sm:justify-start">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full bg-[#EAF8F4] px-3 py-1.5 font-body text-[14px] font-bold text-[#0F766E]">
               <ShieldCheck size={16} aria-hidden="true" />
               {copy.safeStatus}
             </div>
@@ -8567,7 +8623,7 @@ export default function TogetherRoomScreen({
               disabled={isSendingSafetyReport}
               data-testid="together-safety-quick-help"
               aria-expanded={safetyHelpPanelAnchor === "intro"}
-              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#A9DCCE] bg-white px-4 font-body text-[15px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60 sm:w-auto sm:justify-start"
+              className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full border border-[#A9DCCE] bg-white px-4 font-body text-[14px] font-bold text-[#0F766E] disabled:cursor-default disabled:opacity-60"
             >
               <LifeBuoy size={15} aria-hidden="true" />
               {isSendingSafetyReport ? copy.helpSending : pulse.safety.helpLabel}
@@ -8578,7 +8634,7 @@ export default function TogetherRoomScreen({
               disabled={isRefreshingPulse}
               data-testid="together-refresh-room"
               aria-busy={isRefreshingPulse}
-              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border border-[#DBE7F6] bg-[#FAFCFF] px-4 font-body text-[15px] font-bold text-[#2563EB] disabled:cursor-default disabled:opacity-70 sm:w-auto sm:justify-start"
+              className={`${showRoomDetails ? "inline-flex" : "hidden"} min-h-[40px] items-center justify-center gap-2 rounded-full border border-[#DBE7F6] bg-[#FAFCFF] px-4 font-body text-[14px] font-bold text-[#2563EB] disabled:cursor-default disabled:opacity-70`}
             >
               <RefreshCw size={15} className={isRefreshingPulse ? "animate-spin" : ""} aria-hidden="true" />
               {isRefreshingPulse ? copy.refreshingRoom : copy.refreshRoom}
@@ -8588,7 +8644,7 @@ export default function TogetherRoomScreen({
               onClick={toggleReadingComfort}
               data-testid="together-reading-comfort"
               aria-pressed={isReadingComfortOn}
-              className={`inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border px-4 font-body text-[15px] font-bold disabled:cursor-default disabled:opacity-70 sm:w-auto sm:justify-start ${
+              className={`inline-flex min-h-[40px] items-center justify-center gap-2 rounded-full border px-4 font-body text-[14px] font-bold disabled:cursor-default disabled:opacity-70 ${
                 isReadingComfortOn
                   ? "border-[#0F766E] bg-[#EAF8F4] text-[#0F766E]"
                   : "border-[#D8E7E2] bg-white text-[#315C55]"
@@ -8602,7 +8658,7 @@ export default function TogetherRoomScreen({
               onClick={toggleRoomReadAloud}
               data-testid="together-read-aloud"
               aria-pressed={isReadingRoomAloud}
-              className={`inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full border px-4 font-body text-[15px] font-bold disabled:cursor-default disabled:opacity-70 sm:w-auto sm:justify-start ${
+              className={`${showRoomDetails || isReadingRoomAloud ? "inline-flex" : "hidden"} min-h-[40px] items-center justify-center gap-2 rounded-full border px-4 font-body text-[14px] font-bold disabled:cursor-default disabled:opacity-70 ${
                 isReadingRoomAloud
                   ? "border-[#6D28D9] bg-[#F8F5FF] text-[#5B21B6]"
                   : "border-[#E7DDF4] bg-white text-[#4B2E6E]"
@@ -8625,12 +8681,17 @@ export default function TogetherRoomScreen({
             <SafetyHelpReceipt copy={copy} choice={lastSafetyHelpChoice} />
           )}
 
-          <div className="mt-5 rounded-[22px] bg-[#F4F8FF] px-4 py-3" data-testid="together-member-strip">
-            <div className="flex items-center gap-2 font-body text-[17px] font-bold text-[#315C55]">
-              <Users size={20} aria-hidden="true" />
-              {copy.present(Math.max(members.length, 1))}
+          <div className="mt-4 rounded-[18px] border border-[#D8E7E2] bg-[#F7FAF7] px-4 py-2.5" data-testid="together-member-strip">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 font-body text-[17px] font-bold text-[#315C55]">
+                <Users size={20} aria-hidden="true" />
+                {copy.present(Math.max(members.length, 1))}
+              </div>
+              <p className="min-w-0 flex-1 font-body text-[15px] font-bold leading-[1.25] text-[#55706B]">
+                {members.map((member) => member.name).join(", ")}
+              </p>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className={showRoomDetails ? "mt-3 grid grid-cols-3 gap-2" : "hidden"}>
               {members.map((member, index) => (
                 <div
                   key={member.id}
@@ -8682,15 +8743,36 @@ export default function TogetherRoomScreen({
           />
         ) : null}
 
-        <section className="rounded-[30px] border border-[#E2D7C4] bg-[#FFFDF8] px-5 py-5 shadow-[0_18px_36px_rgba(151,110,37,0.08)]" data-testid="together-featured-plan">
+        {!activeShareStoryHandoff && replyLoopShareStoryHandoff ? (
+          <StoryRoomReplyLoopCard
+            note={replyLoopShareStoryHandoff}
+            roomName={room.name}
+            language={language}
+            responderName={members[0]?.name}
+            responderNames={members.slice(0, 2).map((member) => member.name)}
+            onReply={prepareShareStoryReplyDraft}
+            onShareAnother={() => {
+              if (onOpenShareStories) {
+                onOpenShareStories();
+                return;
+              }
+              onBack();
+            }}
+          />
+        ) : null}
+
+        <section className="rounded-[24px] border border-[#E2D7C4] bg-[#FFFDF8] px-4 py-4 shadow-[0_18px_36px_rgba(151,110,37,0.08)]" data-testid="together-featured-plan">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-[#F6C453] text-[#2F2135]">
-              <HeartHandshake size={24} aria-hidden="true" />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#F6C453] text-[#2F2135]">
+              <HeartHandshake size={22} aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-display text-[31px] leading-[1.05] text-[#2F2135]">{featuredPlan.title}</h2>
-              <p className="mt-2 font-body text-[19px] leading-[1.34] text-[#62556B]">{featuredPlan.body}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <p className="font-body text-[13px] font-bold uppercase text-[#8A4B16]">
+                {simpleCopy.mainStepLabel}
+              </p>
+              <h2 className="font-display text-[29px] leading-[1.04] text-[#2F2135]">{featuredPlan.title}</h2>
+              <p className="mt-1 font-body text-[17px] leading-[1.32] text-[#62556B]">{featuredPlan.body}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
                 <PlanLocationPill plan={featuredPlan} copy={copy} />
                 <p
                   className="inline-flex items-center gap-2 rounded-full bg-[#F4FBF8] px-3 py-2 font-body text-[16px] font-bold text-[#315C55]"
@@ -8700,27 +8782,29 @@ export default function TogetherRoomScreen({
                   {formatResponseSummary(featuredPlan, copy)}
                 </p>
               </div>
-              <PlanComfortPills plan={featuredPlan} copy={copy} />
-              <PlanExperiencePills plan={featuredPlan} copy={copy} />
-              <PlanComfortConfidenceCue plan={featuredPlan} copy={copy} />
-              <PlanDetailCheckCue
-                copy={copy}
-                plan={featuredPlan}
-                onAsk={() => startPlanDetailCheckQuestion(featuredPlan)}
-                disabled={isSending}
-              />
-              <PlanReviewNotice plan={featuredPlan} copy={copy} />
+              <div className={showRoomDetails ? "" : "hidden"} data-testid="together-featured-plan-details">
+                <PlanComfortPills plan={featuredPlan} copy={copy} />
+                <PlanExperiencePills plan={featuredPlan} copy={copy} />
+                <PlanComfortConfidenceCue plan={featuredPlan} copy={copy} />
+                <PlanDetailCheckCue
+                  copy={copy}
+                  plan={featuredPlan}
+                  onAsk={() => startPlanDetailCheckQuestion(featuredPlan)}
+                  disabled={isSending}
+                />
+                <PlanReviewNotice plan={featuredPlan} copy={copy} />
+              </div>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => void respondToPlan("join")}
               disabled={respondingPlanKeys.has(featuredPlan.key)}
               aria-pressed={hasJoined}
               data-testid="together-join-plan"
-              className={`min-h-[68px] rounded-[22px] px-4 font-body text-[21px] font-bold shadow-[0_12px_22px_rgba(109,40,217,0.16)] disabled:cursor-default disabled:opacity-65 ${
+              className={`min-h-[60px] rounded-[20px] px-4 font-body text-[20px] font-bold shadow-[0_12px_22px_rgba(109,40,217,0.16)] disabled:cursor-default disabled:opacity-65 ${
                 hasJoined ? "bg-[#0F766E] text-white" : "bg-[#6D28D9] text-white"
               }`}
             >
@@ -8735,7 +8819,7 @@ export default function TogetherRoomScreen({
               disabled={respondingPlanKeys.has(featuredPlan.key)}
               aria-pressed={hasMaybe}
               data-testid="together-maybe-plan"
-              className={`min-h-[68px] rounded-[22px] border px-4 font-body text-[20px] font-bold disabled:cursor-default disabled:opacity-65 ${
+              className={`min-h-[60px] rounded-[20px] border px-4 font-body text-[19px] font-bold disabled:cursor-default disabled:opacity-65 ${
                 hasMaybe
                   ? "border-[#0F766E] bg-[#EAF8F4] text-[#0F766E]"
                   : "border-[#D8E7E2] bg-white text-[#315C55]"
@@ -8752,7 +8836,7 @@ export default function TogetherRoomScreen({
               disabled={respondingPlanKeys.has(featuredPlan.key)}
               aria-pressed={hasNotForMe}
               data-testid="together-not-for-me-plan"
-              className={`min-h-[68px] rounded-[22px] border px-4 font-body text-[20px] font-bold disabled:cursor-default disabled:opacity-65 ${
+              className={`min-h-[48px] rounded-[17px] border px-4 font-body text-[16px] font-bold disabled:cursor-default disabled:opacity-65 sm:col-span-2 ${
                 hasNotForMe
                   ? "border-[#8A4B16] bg-[#FFF9F3] text-[#8A4B16]"
                   : "border-[#E2D7C4] bg-[#FFFDF8] text-[#6B4F13]"
@@ -8764,6 +8848,9 @@ export default function TogetherRoomScreen({
               </span>
             </button>
           </div>
+          <p className="mt-2 rounded-[16px] bg-white px-4 py-2.5 font-body text-[15px] font-bold leading-[1.3] text-[#6B4F13]">
+            {simpleCopy.planFinePrint}
+          </p>
           {(hasJoined || hasMaybe || hasNotForMe) && (
             <button
               type="button"
@@ -8777,42 +8864,43 @@ export default function TogetherRoomScreen({
             </button>
           )}
 
-          <div className="mt-3 rounded-[18px] bg-[#F4FBF8] px-4 py-3" data-testid="together-plan-choice-note">
-            <div className="flex items-start gap-2">
-              <HeartHandshake size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planChoiceNoteTitle}</p>
-                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.planChoiceNoteBody}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-4 py-3" data-testid="together-plan-next-step">
-            <div className="flex items-start gap-2">
-              <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planNextStepTitle}</p>
-                <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{planNextStepBody(featuredPlan, copy)}</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {copy.planNextStepChecks.map((item) => (
-                    <span
-                      key={item}
-                      className="inline-flex min-h-[38px] items-center gap-2 rounded-[14px] bg-[#F4FBF8] px-3 font-body text-[14px] font-bold text-[#315C55]"
-                    >
-                      <Check size={16} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
-                      {item}
-                    </span>
-                  ))}
+          <div className={showRoomDetails ? "" : "hidden"} data-testid="together-plan-extra-details">
+            <div className="mt-3 rounded-[18px] bg-[#F4FBF8] px-4 py-3" data-testid="together-plan-choice-note">
+              <div className="flex items-start gap-2">
+                <HeartHandshake size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planChoiceNoteTitle}</p>
+                  <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{copy.planChoiceNoteBody}</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          <p className="mt-4 rounded-[18px] bg-[#EAF8F4] px-4 py-3 font-body text-[17px] font-bold leading-[1.3] text-[#315C55]">
-            {pulse.safety.consentLine}
-          </p>
+            <div className="mt-3 rounded-[18px] border border-[#CFECE3] bg-white px-4 py-3" data-testid="together-plan-next-step">
+              <div className="flex items-start gap-2">
+                <ShieldCheck size={19} className="mt-0.5 shrink-0 text-[#0F766E]" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="font-body text-[16px] font-bold text-[#244D47]">{copy.planNextStepTitle}</p>
+                  <p className="mt-1 font-body text-[15px] font-bold leading-[1.35] text-[#41655F]">{planNextStepBody(featuredPlan, copy)}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {copy.planNextStepChecks.map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex min-h-[38px] items-center gap-2 rounded-[14px] bg-[#F4FBF8] px-3 font-body text-[14px] font-bold text-[#315C55]"
+                      >
+                        <Check size={16} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          <div className="mt-4 rounded-[22px] bg-[#F7FAF7] px-4 py-4" data-testid="together-plan-collaboration">
+            <p className="mt-4 rounded-[18px] bg-[#EAF8F4] px-4 py-3 font-body text-[17px] font-bold leading-[1.3] text-[#315C55]">
+              {pulse.safety.consentLine}
+            </p>
+
+            <div className="mt-4 rounded-[22px] bg-[#F7FAF7] px-4 py-4" data-testid="together-plan-collaboration">
             <div className="flex items-center gap-2">
               <MessageCircle size={18} className="text-[#0F766E]" aria-hidden="true" />
               <h3 className="font-body text-[18px] font-bold text-[#315C55]">{copy.planSupportTitle}</h3>
@@ -8903,8 +8991,31 @@ export default function TogetherRoomScreen({
               })}
             </div>
           </div>
+          </div>
         </section>
 
+        <section
+          className="rounded-[22px] border border-[#D8E7E2] bg-white px-4 py-4 shadow-[0_12px_24px_rgba(33,23,41,0.05)]"
+          data-testid="together-more-options"
+        >
+          <button
+            type="button"
+            onClick={() => setShowRoomDetails((current) => !current)}
+            aria-expanded={showRoomDetails}
+            data-testid="together-more-options-toggle"
+            className="flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[18px] bg-[#F4FBF8] px-4 text-left font-body text-[18px] font-bold text-[#244D47]"
+          >
+            <span className="min-w-0">
+              <span className="block">{showRoomDetails ? simpleCopy.hideOptions : simpleCopy.moreOptions}</span>
+              <span className="mt-1 block text-[14px] font-bold leading-[1.25] text-[#55706B]">
+                {simpleCopy.moreOptionsBody}
+              </span>
+            </span>
+            <Sparkles size={21} className="shrink-0 text-[#0F766E]" aria-hidden="true" />
+          </button>
+        </section>
+
+        <div className={showRoomDetails ? "grid gap-4" : "hidden"} data-testid="together-room-detail-sections">
         <section className="rounded-[28px] border border-[#DBE7F6] bg-white px-5 py-5 shadow-[0_16px_32px_rgba(30,64,175,0.06)]" data-testid="together-room-choice">
           <div className="flex items-center gap-2">
             <Vote size={22} className="text-[#2563EB]" aria-hidden="true" />
@@ -10116,6 +10227,8 @@ export default function TogetherRoomScreen({
             </div>
           </section>
         )}
+
+        </div>
 
         {statusMessage && (
           <div

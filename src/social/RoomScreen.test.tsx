@@ -325,7 +325,9 @@ describe("RoomScreen Share Stories room handoff", () => {
       },
     });
 
-    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Kitchen Table");
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Recipe ready for the table");
+    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Share at Kitchen Table");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("cooking tip, memory, or question");
     expect(screen.getByTestId("story-room-handoff-text")).toHaveTextContent("My soup tastes best");
     expect(screen.getByDisplayValue("My soup tastes best with parsley at the end.")).toBeInTheDocument();
 
@@ -345,6 +347,20 @@ describe("RoomScreen Share Stories room handoff", () => {
       );
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+    expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent(
+      "That parsley tip sounds lovely. I might try it in my soup.",
+    );
+    expect(screen.getByTestId("story-room-replies")).toHaveTextContent("From Martha");
+    expect(screen.getByTestId("story-reply-action-0")).toHaveTextContent("Draft reply");
+    expect(screen.getByTestId("story-reply-context-frame")).toHaveTextContent("Martha wants to try your recipe.");
+    expect(screen.getByTestId("story-reply-suggestion-1")).toHaveTextContent(
+      "Ali also joined the conversation.",
+    );
+
+    fireEvent.click(screen.getByTestId("story-reply-action-0"));
+
+    expect(screen.getByDisplayValue("Thanks, Martha. It is a small detail, but it helps.")).toBeInTheDocument();
   });
 
   it("puts a reading story into the club reflection composer", async () => {
@@ -366,7 +382,9 @@ describe("RoomScreen Share Stories room handoff", () => {
       },
     });
 
-    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Reading Room");
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Add your reflection");
+    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Add reflection");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("reading memories and recommendations");
     expect(await screen.findByTestId("reading-reflection-card")).toBeInTheDocument();
     expect(screen.getByLabelText("Write a book, scene, character or memory...")).toHaveValue(
       "The poem reminded me of my old garden.",
@@ -384,6 +402,13 @@ describe("RoomScreen Share Stories room handoff", () => {
       );
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+    expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("That garden image sounds peaceful.");
+    expect(screen.getByTestId("story-reply-context-frame")).toHaveTextContent("Maria has a thought on your reflection.");
+
+    fireEvent.click(screen.getByTestId("story-reply-action-0"));
+
+    expect(screen.getByDisplayValue("Thanks, Maria. That image stayed with me the most.")).toBeInTheDocument();
   });
 
   it("opens a hello story in Together Room as a protected hello", async () => {
@@ -405,7 +430,9 @@ describe("RoomScreen Share Stories room handoff", () => {
       },
     });
 
-    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Ready for Together Room");
+    expect(await screen.findByTestId("story-room-handoff")).toHaveTextContent("Send a hello");
+    expect(screen.getByTestId("story-handoff-primary")).toHaveTextContent("Send hello");
+    expect(screen.getByTestId("story-handoff-outcome")).toHaveTextContent("respond when they are ready");
     await waitFor(() => {
       expect(screen.getByTestId("together-proposal-draft")).toHaveValue("Hello, I would enjoy a quiet chat today.");
     });
@@ -422,6 +449,13 @@ describe("RoomScreen Share Stories room handoff", () => {
       );
     });
     await waitFor(() => expect(screen.queryByTestId("story-room-handoff")).not.toBeInTheDocument());
+    expect(await screen.findByTestId("story-reply-loop")).toHaveTextContent("Story placed");
+    expect(screen.getByTestId("story-reply-loop-body")).toHaveTextContent("Hello. I am glad you came in.");
+    expect(screen.getByTestId("story-reply-context-frame")).toHaveTextContent("Carmen can start the conversation.");
+
+    fireEvent.click(screen.getByTestId("story-reply-action-0"));
+
+    expect(screen.getByTestId("together-proposal-draft")).toHaveValue("Thanks, Carmen. I am glad to say hello too.");
   });
 });
 
