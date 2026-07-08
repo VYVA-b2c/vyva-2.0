@@ -696,6 +696,8 @@ const App = () => (
                   <Route path="/social-rooms/share" element={<AppShell><ShareStoriesScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />
                   <Route path="/meds" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/my-medicines" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
+                  <Route path="/meds/interactions" element={<AppShell><ServiceGateRoute service="medications"><MedsScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/meds/adherence-report" element={<AppShell><ServiceGateRoute service="adherenceReport"><AdherenceReportScreen /></ServiceGateRoute></AppShell>} />
                   <Route path="/mind-memory" element={<AppShell><MindMemoryScreen /></AppShell>} />
                   <Route path="/mind-memory/cognitive-assessment" element={<AppShell><CognitiveAssessmentHubPage /></AppShell>} />

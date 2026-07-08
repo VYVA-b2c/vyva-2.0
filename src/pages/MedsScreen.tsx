@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Check, Clock, AlertCircle, Link as LinkIcon, Mic, Leaf, ShoppingCart, Sparkles, Pencil, Trash2, Square, Loader2, ShieldCheck, ChevronLeft, ChevronRight, FileText, Download, Phone, Store, Footprints, Pill, Plus, type LucideIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import type { MedicationForForm } from "@/components/VoiceMedsModal";
 import MedsAssistantSheet from "@/components/MedsAssistantSheet";
+import VyvaSessionCta from "@/components/VyvaSessionCta";
 import {
   PurpleModal,
   ResponsiveGrid,
@@ -28,6 +29,8 @@ import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
 } from "@/components/MasterDashboardLayout";
+import MyMedicines from "@/features/medications/MyMedicines";
+import CheckInteractions from "@/features/medications/CheckInteractions";
 
 // ─── Unified medication shape ────────────────────────────────────────────────
 // Normalises both DB rows and static mock entries into one type so the
@@ -243,6 +246,13 @@ function preferredMedicationVoiceMimeType() {
 
 function stopMedicationVoiceStream(stream: MediaStream | null) {
   stream?.getTracks().forEach((track) => track.stop());
+}
+
+function explicitScheduleTimesFromVoice(value: string | undefined) {
+  if (!value) return null;
+  const times = Array.from(value.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g))
+    .map((match) => `${match[1].padStart(2, "0")}:${match[2]}`);
+  return times.length ? Array.from(new Set(times)).slice(0, 8) : null;
 }
 
 const SERIOUSNESS_OPTIONS = [
@@ -534,6 +544,7 @@ const MedsScreen = () => {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -593,7 +604,6 @@ const MedsScreen = () => {
   );
 
   const [confirmedDoseCounts, setConfirmedDoseCounts] = useState<Map<string, number>>(new Map());
-  const [voiceAddedMeds, setVoiceAddedMeds] = useState<MedicationForForm[]>([]);
   const [medicationVoiceState, setMedicationVoiceState] = useState<MedicationVoiceCaptureState>("idle");
   const [medicationVoiceError, setMedicationVoiceError] = useState<string | null>(null);
   const medicationRecorderRef = useRef<MediaRecorder | null>(null);
@@ -602,6 +612,8 @@ const MedsScreen = () => {
   const medicationVoiceStopTimerRef = useRef<number | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [safetyOpen, setSafetyOpen] = useState(false);
+  const [myMedicinesOpen, setMyMedicinesOpen] = useState(false);
+  const [interactionsOpen, setInteractionsOpen] = useState(false);
   const [caseSheetOpen, setCaseSheetOpen] = useState(false);
   const [reviewCase, setReviewCase] = useState<MedicationSafetyCase | null>(null);
   const [caseForm, setCaseForm] = useState<MedicationSafetyCaseForm>(() => emptySafetyCaseForm());
@@ -629,6 +641,8 @@ const MedsScreen = () => {
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/my-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/interactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       setEditMed(null);
@@ -648,6 +662,8 @@ const MedsScreen = () => {
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/my-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/interactions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       setDeleteMed(null);
@@ -958,15 +974,45 @@ const MedsScreen = () => {
     },
   ];
 
+  const saveVoiceMedicineMutation = useMutation({
+    mutationFn: async (med: MedicationForForm) => {
+      const response = await apiFetch("/api/meds/my-medicines", {
+        method: "POST",
+        body: JSON.stringify({
+          display_name: med.name?.trim() || t("meds.newMedication", "New Medication"),
+          common_name: med.name?.trim() || null,
+          dose_text: [med.dosage, med.frequency?.replace("_", " "), med.times].filter(Boolean).join(" "),
+          purpose_text: null,
+          item_type: "prescription",
+          drug_class_tag: "other_uncategorized",
+          prescriber_name: med.prescribed_by?.trim() || null,
+          schedule_times: explicitScheduleTimesFromVoice(med.times),
+          added_via: "voice",
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to save voice medicine");
+      return response.json();
+    },
+    onSuccess: (_data, med) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/my-medicines"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/interactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
+      toast({
+        title: t("meds.toastAdded"),
+        description: med.name
+          ? t("meds.toastAddedDesc", { name: med.name })
+          : t("meds.toastAddedDefault"),
+      });
+    },
+    onError: () => {
+      toast({ title: t("meds.voiceSaveError", "I could not save that medicine. Please try again."), variant: "destructive" });
+    },
+  });
+
   const handleAddMedication = useCallback((med: MedicationForForm) => {
-    setVoiceAddedMeds(prev => [...prev, med]);
-    toast({
-      title: t("meds.toastAdded"),
-      description: med.name
-        ? t("meds.toastAddedDesc", { name: med.name })
-        : t("meds.toastAddedDefault"),
-    });
-  }, [t, toast]);
+    saveVoiceMedicineMutation.mutate(med);
+  }, [saveVoiceMedicineMutation]);
 
   const clearMedicationVoiceStopTimer = useCallback(() => {
     if (medicationVoiceStopTimerRef.current !== null) {
@@ -1159,6 +1205,10 @@ const MedsScreen = () => {
   }
 
   function handleMedicationAssistantAction(action: (typeof ASSISTANT_ACTIONS)[number]) {
+    if (action.id === "interactions") {
+      setInteractionsOpen((open) => !open);
+      return;
+    }
     if (action.id === "refillHelp") {
       openRefillSupport();
       return;
@@ -1226,17 +1276,30 @@ const MedsScreen = () => {
 
   const medicationShortcutCards = [
     {
-      id: "reminders",
+      id: "my-medicines",
+      icon: Pill,
+      label: t("meds.primary.myMedicines", "My Medicines"),
+      sub: displayMeds.length > 0
+        ? t("meds.primary.myMedicinesCount", { count: displayMeds.length, defaultValue: "{{count}} saved" })
+        : t("meds.primary.myMedicinesSub", "Saved list"),
+      color: "#0F766E",
+      bg: "#F0FDFA",
+      border: "#99F6E4",
+      onClick: () => navigate("/meds/my-medicines"),
+      testId: "button-meds-primary-my-medicines",
+    },
+    {
+      id: "adherence",
       icon: Clock,
-      label: t("meds.primary.reminders", "My Reminders"),
-      sub: totalRemainingDoseCount > 0
-        ? t("meds.remainingBadge", { count: totalRemainingDoseCount, defaultValue: "{{count}} due" })
-        : t("meds.allTakenShort", "Done"),
+      label: t("meds.primary.adherence", "My Adherence"),
+      sub: totalScheduledDoseCount > 0
+        ? t("meds.primary.adherenceToday", { value: progressPercentRounded, defaultValue: "{{value}}% today" })
+        : t("meds.primary.adherenceMobileSub", "Daily progress"),
       color: "#6B21A8",
       bg: "#F5F3FF",
       border: "#DDD6FE",
-      onClick: () => setRemindersOpen((open) => !open),
-      testId: "button-meds-primary-reminders",
+      onClick: () => navigate("/meds/adherence-report"),
+      testId: "button-meds-primary-adherence",
     },
     {
       id: "refills",
@@ -1250,29 +1313,15 @@ const MedsScreen = () => {
       testId: "button-meds-primary-refills",
     },
     {
-      id: "safety",
+      id: "interactions",
       icon: ShieldCheck,
-      label: t("meds.primary.safety", "Stay Safe"),
-      sub: safetyBadgeText,
-      color: safetySummaryTone.color,
-      bg: safetySummaryTone.bg,
-      border: safetySummaryTone.border,
-      onClick: () => setSafetyOpen((open) => !open),
-      testId: "button-meds-primary-safety",
-    },
-    {
-      id: "home-remedies",
-      icon: Leaf,
-      label: t("meds.primary.homeRemedies", "Home Remedies"),
-      sub: t("meds.primary.homeRemediesSub", "Ask what is safe"),
-      color: "#0F766E",
-      bg: "#F0FDFA",
-      border: "#99F6E4",
-      onClick: () => {
-        const action = ASSISTANT_ACTIONS.find((item) => item.id === "homeRemedies");
-        if (action) handleMedicationAssistantAction(action);
-      },
-      testId: "button-meds-primary-home-remedies",
+      label: t("meds.primary.checkInteractions", "Safety Check"),
+      sub: t("meds.primary.checkInteractionsSub", "Medicine mix"),
+      color: "#B45309",
+      bg: "#FFF7ED",
+      border: "#FED7AA",
+      onClick: () => navigate("/meds/interactions"),
+      testId: "button-meds-primary-interactions",
     },
   ];
 
@@ -1353,6 +1402,154 @@ const MedsScreen = () => {
             count: totalRemainingDoseCount,
             defaultValue: "{{count}} doses still need attention.",
           });
+
+  const medicationScreenMode = location.pathname.endsWith("/my-medicines")
+    ? "my-medicines"
+    : location.pathname.endsWith("/interactions")
+      ? "interactions"
+      : "home";
+
+  const doseStatusBar = (
+    <section
+      className="fixed inset-x-4 bottom-[calc(92px+env(safe-area-inset-bottom))] z-30 rounded-[24px] bg-[#123F3A] p-4 text-white shadow-[0_18px_38px_rgba(18,63,58,0.24)] sm:static sm:mt-5 sm:rounded-[26px] sm:shadow-[0_14px_32px_rgba(18,63,58,0.16)]"
+      data-testid="section-meds-dashboard"
+      aria-label={dashboardPriorityTitle}
+    >
+      <div className="flex min-w-0 items-center gap-4">
+        <p className="font-body text-[58px] font-black leading-none [letter-spacing:0] sm:text-[72px]" data-testid="metric-meds-due">
+          {dashboardFocusNumber}
+        </p>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-body text-[22px] font-black leading-tight sm:text-[28px]" data-testid="text-meds-priority-title">
+            {dashboardPriorityTitle}
+          </h2>
+          <p className="mt-1 line-clamp-2 font-body text-[15px] font-bold leading-snug text-white/82 sm:text-[17px]" data-testid="text-meds-priority-sub">
+            {dashboardPrioritySub}
+          </p>
+        </div>
+        {nextMedication ? (
+          <button
+            data-testid="button-confirm-next-med"
+            type="button"
+            onClick={() => confirmMutation.mutate(nextMedication)}
+            disabled={confirmMutation.isPending}
+            className="vyva-tap hidden min-h-[56px] flex-shrink-0 items-center justify-center gap-2 rounded-full bg-white px-5 font-body text-[16px] font-black text-[#123F3A] disabled:opacity-60 min-[420px]:inline-flex"
+          >
+            <Check size={18} aria-hidden="true" />
+            {t("meds.dashboard.confirmNext", "Confirm taken")}
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+
+  if (medicationScreenMode === "my-medicines") {
+    return (
+      <div className="vyva-page px-4 pb-28 min-[390px]:px-[22px] sm:pb-10" data-testid="meds-my-medicines-screen">
+        <button
+          type="button"
+          onClick={() => navigate("/meds")}
+          className="vyva-tap mt-4 inline-flex min-h-[56px] items-center gap-2 rounded-full border border-[#D9ECE4] bg-white px-4 font-body text-[18px] font-black text-[#0F766E]"
+          data-testid="button-meds-screen-back"
+        >
+          <ChevronLeft size={23} aria-hidden="true" />
+          {t("common.back", "Back")}
+        </button>
+        <MyMedicines
+          onStartVoice={toggleMedicationVoiceCapture}
+          onOpenReminders={() => navigate("/meds/adherence-report")}
+          onOpenRefills={openRefillSupport}
+        />
+      </div>
+    );
+  }
+
+  if (medicationScreenMode === "interactions") {
+    return (
+      <div className="vyva-page px-4 pb-28 min-[390px]:px-[22px] sm:pb-10" data-testid="meds-interactions-screen">
+        <button
+          type="button"
+          onClick={() => navigate("/meds")}
+          className="vyva-tap mt-4 inline-flex min-h-[56px] items-center gap-2 rounded-full border border-[#F0DEC3] bg-white px-4 font-body text-[18px] font-black text-[#B45309]"
+          data-testid="button-meds-screen-back"
+        >
+          <ChevronLeft size={23} aria-hidden="true" />
+          {t("common.back", "Back")}
+        </button>
+        <CheckInteractions />
+      </div>
+    );
+  }
+
+  return (
+    <div className="vyva-page px-4 pb-[190px] min-[390px]:px-[22px] sm:pb-10" data-testid="meds-master-layout">
+      <section
+        aria-label={t("meds.master.heroTitle", "Medicine on track")}
+        className="mt-4 rounded-[24px] border border-[#99F6E4] bg-white p-4 shadow-[0_14px_32px_rgba(63,45,35,0.07)] min-[390px]:rounded-[28px] min-[390px]:p-5 sm:rounded-[30px] sm:p-6"
+        data-testid="meds-master-hero"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <span className="min-w-0 flex-1">
+            <p className="font-body text-[13px] font-black uppercase leading-none tracking-[0.08em] text-[#0F766E]">
+              {t("meds.master.heroEyebrow", "Medication")}
+            </p>
+            <h1 className="mt-2 font-body text-[32px] font-black leading-[0.98] text-vyva-text-1 min-[390px]:text-[36px] sm:text-[42px]">
+              {t("meds.master.heroTitle", "Medicine on track")}
+            </h1>
+          </span>
+          <VyvaSessionCta
+            label={t("meds.master.heroAction", "Talk to VYVA")}
+            contextHint={t("meds.master.voiceContext", "Medication support. Help with doses, refills, side effects, interactions, and safe questions for a pharmacist or doctor.")}
+            voiceAgentSlug="medication"
+            voiceDynamicVariables={{ app_entrypoint: "medication_master_hero" }}
+            autoStartListening
+            hideWhenSessionActive
+            supportingLabel={t("meds.master.voiceSupport", "Speak anytime")}
+            visual="voiceRail"
+            testId="button-meds-hero-talk"
+            className="vyva-tap relative flex !h-[64px] !min-h-[64px] !w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8DDF3] bg-white text-vyva-purple min-[390px]:!h-[68px] min-[390px]:!min-h-[68px] min-[390px]:!w-[68px]"
+          />
+        </div>
+      </section>
+
+      <section className="mt-4" data-testid="section-meds-primary-actions">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 min-[390px]:gap-3.5 sm:gap-4">
+          {medicationMasterCards.slice(0, 4).map((card) => {
+            const Icon = card.icon;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                onClick={card.onClick}
+                data-testid={card.testId}
+                aria-label={card.detail ? `${card.title}. ${card.detail}` : card.title}
+                className="vyva-tap flex min-h-[126px] flex-col items-start justify-between rounded-[18px] border bg-white p-3 text-left shadow-[0_10px_24px_rgba(63,45,35,0.055)] transition-transform hover:-translate-y-0.5 min-[390px]:min-h-[138px] min-[390px]:rounded-[20px] min-[390px]:p-3.5 sm:min-h-[148px] sm:p-4"
+                style={{ borderColor: card.tone.border }}
+              >
+                <span
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[16px] min-[390px]:h-12 min-[390px]:w-12 min-[390px]:rounded-[17px]"
+                  style={{ background: card.tone.iconBg, color: card.tone.iconColor }}
+                >
+                  <Icon size={24} strokeWidth={2.55} aria-hidden="true" />
+                </span>
+                <span className="mt-5 min-w-0 pr-1">
+                  <span className="block font-body text-[18px] font-black leading-[1.02] text-vyva-text-1 min-[390px]:text-[20px]">
+                    {card.title}
+                  </span>
+                  <span className="mt-1 block font-body text-[14px] font-black leading-tight text-vyva-text-2 min-[390px]:text-[15px]">
+                    {card.detail}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {doseStatusBar}
+    </div>
+  );
+
   return (
     <div className="pb-28">
       <MasterDashboardLayout
@@ -1387,6 +1584,18 @@ const MedsScreen = () => {
       />
 
       <div className="px-[18px] sm:px-[22px]">
+      {myMedicinesOpen ? (
+        <MyMedicines
+          onStartVoice={toggleMedicationVoiceCapture}
+          onOpenReminders={() => setRemindersOpen(true)}
+          onOpenRefills={openRefillSupport}
+        />
+      ) : null}
+
+      {interactionsOpen ? (
+        <CheckInteractions />
+      ) : null}
+
       <section className="mt-4" data-testid="section-meds-dashboard">
         <article className="overflow-hidden rounded-[26px] border border-[#D9ECE4] bg-white shadow-[0_14px_32px_rgba(15,76,69,0.08)] sm:rounded-[30px]">
           <div className="p-4 sm:p-5">
@@ -2003,23 +2212,6 @@ const MedsScreen = () => {
               );
             })
           )}
-
-          {voiceAddedMeds.map((med, i) => (
-            <div key={`voice-${i}`} className="flex min-h-[78px] items-center gap-4 border-b border-vyva-border bg-purple-50 px-4 py-4 last:border-b-0">
-              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px]" style={{ background: "#F3E8FF" }}>
-                <Mic size={20} style={{ color: "#6B21A8" }} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-body text-[16px] font-extrabold leading-tight text-vyva-text-1">{med.name || t("meds.newMedication")}</p>
-                <p className="mt-1 font-body text-[13px] leading-snug text-vyva-text-2">
-                  {[med.dosage, med.frequency?.replace("_", " ")].filter(Boolean).join(" - ")}
-                </p>
-              </div>
-              <span className="rounded-full bg-[#F3E8FF] px-2.5 py-1 font-body text-[12px] font-bold text-vyva-purple">
-                {t("meds.added")}
-              </span>
-            </div>
-          ))}
 
           {displayMeds.length > 0 ? (
             <div className="flex flex-col gap-3 border-t border-vyva-border bg-[#FFFCF8] px-4 py-4">
