@@ -1570,6 +1570,14 @@ const es = {
       ridePrefill: "Ayudame a encontrar opciones de transporte seguro segun mis signos de VYVA. Pideme confirmacion antes de reservar.",
     },
   },
+  community: {
+    master: {
+      cards: {
+        experts: "Pregunta a un experto",
+        expertsDetail: "Habla con un especialista de VYVA",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Acceso rapido a servicios",
     actions: {

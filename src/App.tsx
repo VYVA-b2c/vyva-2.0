@@ -120,6 +120,8 @@ const SocialHub = lazy(() => import("./social/SocialHub"));
 const SocialRoomsOnlyScreen = lazy(() => import("./social/SocialRoomsOnlyScreen"));
 const CommunityActivitiesScreen = lazy(() => import("./social/CommunityActivitiesScreen"));
 const ShareStoriesScreen = lazy(() => import("./social/ShareStoriesScreen"));
+const AdvisorHub = lazy(() => import("./social/AdvisorHub"));
+const AdvisorChat = lazy(() => import("./social/AdvisorChat"));
 const MovementExerciseGuideScreen = lazy(() => import("./social/MovementExerciseGuideScreen"));
 const RoomScreen = lazy(() => import("./social/RoomScreen"));
 const ProxyPendingPage = lazy(() => import("./pages/admin/ProxyPendingPage"));
@@ -687,7 +689,9 @@ const App = () => (
                   <Route path="/social-rooms" element={<AppShell><SocialHub /></AppShell>} />
                   <Route path="/social-rooms/morning-movement/exercises/:exerciseId" element={<AppShell><MovementExerciseGuideScreen /></AppShell>} />
                   <Route path="/social-rooms/join-in" element={<AppShell><SocialRoomsOnlyScreen /></AppShell>} />
-                  <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/activities" replace />} />
+                  <Route path="/social-rooms/participate" element={<Navigate to="/social-rooms/experts" replace />} />
+                  <Route path="/social-rooms/experts" element={<AppShell><AdvisorHub /></AppShell>} />
+                  <Route path="/social-rooms/experts/:agentSlug" element={<AppShell><AdvisorChat /></AppShell>} />
                   <Route path="/social-rooms/activities" element={<AppShell><CommunityActivitiesScreen /></AppShell>} />
                   <Route path="/social-rooms/share" element={<AppShell><ShareStoriesScreen /></AppShell>} />
                   <Route path="/social-rooms/:slug" element={<AppShell><RoomScreen /></AppShell>} />

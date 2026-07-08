@@ -92,7 +92,7 @@ describe("CognitiveAssessmentHubPage", () => {
 
     expect(await screen.findByText("Set up a regular memory and thinking check")).toBeInTheDocument();
     expect(screen.getByText("10-15 min")).toBeInTheDocument();
-    expect(screen.getByText("Monthly check")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Monthly check" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /join program/i })).toBeInTheDocument();
   });
 

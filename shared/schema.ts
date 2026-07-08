@@ -1093,6 +1093,78 @@ export const insertSocialUserInterestsSchema = createInsertSchema(socialUserInte
 export type InsertSocialUserInterests = z.infer<typeof insertSocialUserInterestsSchema>;
 export type SocialUserInterests = typeof socialUserInterests.$inferSelect;
 
+export const advisorAgents = pgTable("advisor_agents", {
+  slug:         text("slug").primaryKey(),
+  icon_key:     text("icon_key").notNull(),
+  chip_bg:      text("chip_bg").notNull(),
+  icon_color:   text("icon_color").notNull(),
+  sort_order:   integer("sort_order").notNull().default(0),
+  is_enabled:   boolean("is_enabled").notNull().default(true),
+  agent_config: jsonb("agent_config").$type<Record<string, unknown>>().notNull().default({}),
+  created_at:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:   timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("advisor_agents_enabled_order_idx").on(t.is_enabled, t.sort_order),
+]);
+
+export const insertAdvisorAgentSchema = createInsertSchema(advisorAgents).omit({ created_at: true, updated_at: true });
+export type InsertAdvisorAgent = z.infer<typeof insertAdvisorAgentSchema>;
+export type AdvisorAgentRow = typeof advisorAgents.$inferSelect;
+
+export const advisorSessions = pgTable("advisor_sessions", {
+  id:              uuid("id").primaryKey().defaultRandom(),
+  user_id:         text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  agent_slug:      text("agent_slug").notNull().references(() => advisorAgents.slug, { onDelete: "restrict" }),
+  status:          text("status").notNull().default("active"),
+  started_at:      timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  last_message_at: timestamp("last_message_at", { withTimezone: true }),
+  ended_at:        timestamp("ended_at", { withTimezone: true }),
+  message_count:   integer("message_count").notNull().default(0),
+}, (t) => [
+  index("advisor_sessions_user_agent_last_idx").on(t.user_id, t.agent_slug, t.last_message_at.desc()),
+  index("advisor_sessions_user_status_idx").on(t.user_id, t.status),
+]);
+
+export const insertAdvisorSessionSchema = createInsertSchema(advisorSessions).omit({ id: true, started_at: true });
+export type InsertAdvisorSession = z.infer<typeof insertAdvisorSessionSchema>;
+export type AdvisorSessionRow = typeof advisorSessions.$inferSelect;
+
+export const advisorMessages = pgTable("advisor_messages", {
+  id:         uuid("id").primaryKey().defaultRandom(),
+  session_id: uuid("session_id").notNull().references(() => advisorSessions.id, { onDelete: "cascade" }),
+  user_id:    text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  agent_slug: text("agent_slug").notNull().references(() => advisorAgents.slug, { onDelete: "restrict" }),
+  role:       text("role").notNull(),
+  source:     text("source").notNull().default("text"),
+  text:       text("text").notNull(),
+  metadata:   jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("advisor_messages_session_created_idx").on(t.session_id, t.created_at),
+  index("advisor_messages_user_agent_created_idx").on(t.user_id, t.agent_slug, t.created_at.desc()),
+]);
+
+export const insertAdvisorMessageSchema = createInsertSchema(advisorMessages).omit({ id: true, created_at: true });
+export type InsertAdvisorMessage = z.infer<typeof insertAdvisorMessageSchema>;
+export type AdvisorMessageRow = typeof advisorMessages.$inferSelect;
+
+export const advisorUserAgentState = pgTable("advisor_user_agent_state", {
+  user_id:          text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  agent_slug:       text("agent_slug").notNull().references(() => advisorAgents.slug, { onDelete: "restrict" }),
+  session_count:    integer("session_count").notNull().default(0),
+  first_started_at: timestamp("first_started_at", { withTimezone: true }),
+  last_session_id:  uuid("last_session_id"),
+  last_message_at:  timestamp("last_message_at", { withTimezone: true }),
+  updated_at:       timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.user_id, t.agent_slug], name: "advisor_user_agent_state_pk" }),
+  index("advisor_user_agent_state_user_last_idx").on(t.user_id, t.last_message_at.desc()),
+]);
+
+export const insertAdvisorUserAgentStateSchema = createInsertSchema(advisorUserAgentState).omit({ updated_at: true });
+export type InsertAdvisorUserAgentState = z.infer<typeof insertAdvisorUserAgentStateSchema>;
+export type AdvisorUserAgentStateRow = typeof advisorUserAgentState.$inferSelect;
+
 export const socialConnections = pgTable("social_connections", {
   id:               uuid("id").primaryKey().defaultRandom(),
   user_id_a:        text("user_id_a").notNull().references(() => profiles.id, { onDelete: "cascade" }),
@@ -3046,6 +3118,10 @@ export const schema = {
   socialRoomSessions,
   socialRoomVisits,
   socialUserInterests,
+  advisorAgents,
+  advisorSessions,
+  advisorMessages,
+  advisorUserAgentState,
   socialConnections,
   socialRoomMusicThreads,
   socialRoomMusicThreadEntries,
