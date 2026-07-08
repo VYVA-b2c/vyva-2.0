@@ -279,6 +279,7 @@ function toolResponseFor(input: {
       },
     } : {}),
     quickReplies: input.response.quickReplies ?? [],
+    guidancePlan: input.response.guidancePlan ?? null,
     wizardStage: input.response.wizardStage ?? null,
     wizardStageLabel: input.response.wizardStageLabel ?? null,
     wizardSymptomId: input.response.wizardSymptomId ?? null,
