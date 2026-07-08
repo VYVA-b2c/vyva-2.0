@@ -6,171 +6,49 @@ import { apiFetch } from "@/lib/queryClient";
 import MedsScreen from "./MedsScreen";
 
 const labels: Record<string, string> = {
-  "meds.addByVoice": "Add by voice",
-  "meds.voiceStop": "Stop voice input",
-  "meds.voiceTranscribing": "Turning voice into text",
-  "meds.voiceRecording": "Listening... tap again to stop.",
-  "meds.noMedsTitle": "No medications added yet",
-  "meds.noMedsSub": "Use the button below to add your medications by voice",
-  "meds.todaySchedule": "Today's Schedule",
-  "meds.quickAccess": "Medication",
-  "meds.primary.reminders": "My Reminders",
-  "meds.primary.remindersSub": "Review today's schedule and add medication reminders.",
+  "common.back": "Back",
+  "common.loading": "Loading...",
+  "meds.primary.myMedicines": "My Medicines",
+  "meds.primary.myMedicinesSub": "Saved list",
+  "meds.primary.myMedicinesCount": "{{count}} saved",
+  "meds.primary.adherence": "My Adherence",
+  "meds.primary.adherenceToday": "{{value}}% today",
+  "meds.primary.adherenceMobileSub": "Daily progress",
   "meds.primary.refills": "My Refills",
-  "meds.primary.refillsSub": "Prepare repeat prescriptions or delivery.",
-  "meds.primary.interactions": "Interactions",
-  "meds.primary.interactionsSub": "Check medicines and supplements.",
-  "meds.primary.adherence": "Adherence",
-  "meds.primary.adherenceSub": "See progress and missed doses.",
-  "meds.primary.safety": "Stay Safe",
-  "meds.primary.safetySub": "Review early signals and draft case packets.",
-  "meds.primary.homeRemedies": "Home Remedies",
-  "meds.primary.homeRemediesSub": "Ask what is safe",
-  "meds.dashboard.title": "Medication dashboard",
-  "meds.dashboard.loadingStatus": "Checking today's medicines",
-  "meds.dashboard.emptyStatus": "Add medicines to start tracking today",
-  "meds.dashboard.doneStatus": "All scheduled doses are done",
-  "meds.dashboard.steadyStatus": "Today is mostly on track",
-  "meds.dashboard.watchStatus": "A few doses still need attention",
-  "meds.dashboard.loadingSummary": "Loading schedule and personal guidance.",
-  "meds.dashboard.emptySummary": "No medicines are tracked here yet.",
-  "meds.dashboard.doneSummary": "{{taken}} doses confirmed today. Nothing else is due.",
-  "meds.dashboard.nextSummary": "{{count}} left today. Next: {{medicine}} at {{time}}.",
-  "meds.dashboard.attentionSummary": "{{count}} doses still need attention today.",
-  "meds.dashboard.priorityLoadingTitle": "Checking medicines",
-  "meds.dashboard.priorityLoadingSub": "Loading today's schedule.",
+  "meds.primary.checkInteractions": "Safety Check",
+  "meds.primary.checkInteractionsSub": "Medicine mix",
   "meds.dashboard.priorityEmptyTitle": "No medicine plan yet",
   "meds.dashboard.priorityEmptySub": "Add medicines to start tracking today.",
-  "meds.dashboard.priorityDoneTitle": "All done today",
-  "meds.dashboard.priorityDoneSub": "{{taken}} doses confirmed. Nothing else is due.",
   "meds.dashboard.priorityNextTitleOne": "1 dose left today",
   "meds.dashboard.priorityNextTitleMany": "{{count}} doses left today",
   "meds.dashboard.priorityNextSub": "Next: {{medicine}} at {{time}}.",
-  "meds.dashboard.priorityAttentionSub": "{{count}} doses still need attention.",
-  "meds.dashboard.focusNow": "Focus now",
-  "meds.dashboard.noPlanLabel": "No plan yet",
-  "meds.dashboard.allClearLabel": "All clear today",
-  "meds.dashboard.dosesLeftLabel": "doses left today",
-  "meds.dashboard.adherenceRingLabel": "Today's adherence is {{value}}",
-  "meds.dashboard.rhythmTitle": "Today rhythm",
-  "meds.dashboard.rhythmSub": "{{taken}} of {{scheduled}} planned doses confirmed",
-  "meds.dashboard.rhythmEmpty": "Add medicines to see your daily rhythm.",
-  "meds.dashboard.reviewSchedule": "Review schedule",
-  "meds.dashboard.hideSchedule": "Hide schedule",
-  "meds.dashboard.takenToday": "Taken today",
-  "meds.dashboard.takenDetail": "confirmed doses",
-  "meds.dashboard.dueNow": "Due now",
-  "meds.dashboard.dueDetail": "still due today",
-  "meds.dashboard.noneDueDetail": "nothing due",
-  "meds.dashboard.adherence": "Adherence",
-  "meds.dashboard.adherenceDetail": "today's schedule",
-  "meds.dashboard.medicines": "Medicines",
-  "meds.dashboard.medicinesDetail": "tracked here",
-  "meds.dashboard.nextMedicine": "Next medicine",
-  "meds.dashboard.checkingSchedule": "Checking schedule...",
-  "meds.dashboard.dailyRoutine": "Daily routine",
-  "meds.dashboard.scheduledTime": "at {{time}}",
   "meds.dashboard.confirmNext": "Confirm taken",
-  "meds.dashboard.doseDue": "{{count}} dose due",
-  "meds.dashboard.allDoneTitle": "All scheduled doses are done",
-  "meds.dashboard.allDoneSub": "Your medicine routine is complete for today.",
-  "meds.dashboard.pharmacy": "Pharmacy",
-  "meds.dashboard.noPharmacyTitle": "No pharmacy saved yet",
-  "meds.dashboard.noPharmacySub": "Add a pharmacy so contact details are ready.",
-  "meds.dashboard.callPharmacy": "Call pharmacy",
-  "meds.dashboard.addPharmacy": "Add pharmacy",
-  "meds.dashboard.orderRefill": "Order refill",
-  "meds.dashboard.personalGuidance": "Guidance",
-  "meds.dashboard.guidanceMainLabel": "Most useful now",
-  "meds.dashboard.guidanceSub": "Chosen from the health profile, medicines, and today's schedule.",
-  "meds.dashboard.healthTipTitle": "Health tip",
-  "meds.dashboard.exerciseTipTitle": "Exercise tip",
-  "meds.dashboard.movementTitle": "Gentle movement",
-  "meds.dashboard.tipContextConditions": "Based on {{conditions}}",
-  "meds.dashboard.tipContextMedicines": "Based on current medicines",
-  "meds.dashboard.tipContextMobility": "Based on mobility level",
-  "meds.dashboard.tipContextHobby": "Based on saved hobbies",
-  "meds.dashboard.tipContextProfile": "Based on your saved profile",
-  "meds.dashboard.tipContextRoutine": "Based on today's medicine routine",
-  "meds.dashboard.healthTipDiabetesBloodPressure": "Diabetes + blood pressure: meals, stand slowly.",
-  "meds.dashboard.healthTipBloodPressure": "Blood pressure: stand up slowly.",
-  "meds.dashboard.healthTipDiabetes": "Diabetes: pair checks with meals.",
-  "meds.dashboard.healthTipBloodThinner": "Blood thinner: watch unusual bruising.",
-  "meds.dashboard.healthTipRespiratory": "Breathing: keep inhaler close.",
-  "meds.dashboard.healthTipStatin": "Cholesterol med: note muscle pain.",
-  "meds.dashboard.healthTipConditionFallback": "{{conditions}}: note how you feel.",
-  "meds.dashboard.healthTipGeneric": "Keep your usual medicine routine.",
-  "meds.dashboard.exerciseTipMobility": "Move: seated ankle circles.",
-  "meds.dashboard.exerciseTipDiabetesBloodPressure": "Move: 5 easy minutes after a meal.",
-  "meds.dashboard.exerciseTipDiabetes": "Move: gentle walk after a meal.",
-  "meds.dashboard.exerciseTipBloodPressure": "Move: steady walk or chair march.",
-  "meds.dashboard.exerciseTipRespiratory": "Move: slow walk with breathing pauses.",
-  "meds.dashboard.exerciseTipGardening": "Move: water plants or garden walk.",
-  "meds.dashboard.exerciseTipGeneric": "Move: gentle walk or seated movement.",
-  "meds.dashboard.actionsTitle": "What can I do next?",
-  "meds.dashboard.addByVoiceSub": "Say a medicine name, dose, and routine.",
-  "meds.safety.title": "Medication safety signals",
-  "meds.safety.subtitle": "Early signal review and audit-ready case packets.",
-  "meds.safety.steadyBadge": "Steady",
-  "meds.safety.steadyTitle": "No medication safety signals found",
-  "meds.safety.steadySub": "Today looks steady from the medication data VYVA can see.",
-  "meds.safety.statSignals": "Signals",
-  "meds.safety.statCases": "Cases",
-  "meds.safety.statReady": "Ready",
-  "meds.safety.emptyTitle": "No case needed right now",
-  "meds.safety.emptySub": "A single missed confirmation stays in reminders. Draft cases appear only for explicit or repeated signals.",
-  "meds.safety.analyse": "Analyse signals",
-  "meds.safety.newCase": "New side-effect note",
-  "meds.safety.newCaseTitle": "New safety case",
-  "meds.safety.reviewCase": "Review safety case",
-  "meds.safety.caseDrawerSub": "Prepare a review packet. This does not submit anything to a regulator.",
-  "meds.safety.caseFallback": "Medication safety case",
-  "meds.safety.readyToExport": "Ready to export",
-  "meds.safety.missingTitle": "Missing for audit-ready export",
-  "meds.safety.status": "Status",
-  "meds.safety.severity": "Severity",
-  "meds.safety.suspectedMedication": "Suspected medication",
-  "meds.safety.reaction": "Symptom or reaction",
-  "meds.safety.reactionStarted": "Reaction start date",
-  "meds.safety.seriousness": "Seriousness assessment",
-  "meds.safety.outcome": "Outcome",
-  "meds.safety.actionTaken": "Action taken",
-  "meds.safety.reporterName": "Reporter name",
-  "meds.safety.reporterContact": "Reporter contact",
-  "meds.safety.narrative": "Narrative",
-  "meds.safety.evidence": "Evidence timeline",
-  "meds.safety.exportPacket": "Export packet",
-  "meds.safety.export": "Export packet",
-  "meds.fastHelpKicker": "Fast help",
-  "meds.canHelpWith": "I can help you with",
-  "meds.assistant.interactions.label": "Check Interactions",
-  "meds.assistant.interactions.sub": "Medicine safety",
-  "meds.assistant.homeRemedies.label": "Home Remedies",
-  "meds.assistant.homeRemedies.sub": "Safe options to ask about",
-  "meds.assistant.order.label": "Order Online",
-  "meds.assistant.order.sub": "Repeat prescriptions and home delivery",
-  "meds.assistant.advances.label": "Medication Research",
-  "meds.assistant.advances.sub": "See recent updates in plain language",
-  "meds.assistant.sideEffects.label": "Side Effects",
-  "meds.assistant.sideEffects.sub": "What to watch",
-  "meds.assistant.refillHelp.label": "Refill Help",
-  "meds.assistant.refillHelp.sub": "Order support",
-  "meds.assistant.addMedicine.label": "Add Medicine",
-  "meds.assistant.addMedicine.sub": "Use voice",
-  "meds.confirmRemaining": "Confirm remaining doses",
-  "meds.allTaken": "All doses taken",
-  "meds.taken": "Taken",
-  "meds.confirm": "Confirm",
-  "meds.toastAdded": "Medication added",
-  "meds.toastAddedDesc": "{{name}} has been added to your list.",
-  "meds.added": "Added",
+  "meds.master.heroEyebrow": "Medication",
+  "meds.master.heroTitle": "Medicine on track",
+  "meds.master.heroAction": "Talk to VYVA",
+  "meds.master.voiceSupport": "Speak anytime",
+  "meds.myMedicines.kicker": "My Medicines",
+  "meds.myMedicines.title": "My Medicines",
+  "meds.myMedicines.addTitle": "Add medicine",
+  "meds.myMedicines.add": "Add",
+  "meds.myMedicines.addChoiceTitle": "Choose method",
+  "meds.myMedicines.list": "List",
+  "meds.myMedicines.voice": "Voice",
+  "meds.myMedicines.photo": "Photo",
+  "meds.myMedicines.manual": "Manual",
+  "meds.myMedicines.reminders": "Go to My Reminders",
+  "meds.myMedicines.refills": "Go to My Refills",
+  "meds.myMedicines.routineMissing": "Routine to add",
+  "meds.myMedicines.purposeMissing": "Purpose to add",
+  "meds.checkInteractions.kicker": "Medicine Safety",
+  "meds.checkInteractions.title": "Safety Check",
+  "meds.checkInteractions.ruleShort": "Check before taking together.",
 };
 
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
   toast: vi.fn(),
   navigate: vi.fn(),
-  voiceHero: vi.fn(),
 }));
 
 vi.mock("@/lib/queryClient", async () => {
@@ -224,13 +102,6 @@ vi.mock("@/hooks/useVoiceActionFulfillment", () => ({
   }),
 }));
 
-vi.mock("@/components/VoiceHero", () => ({
-  default: (props: { voiceAgentSlug?: string }) => {
-    mocks.voiceHero(props);
-    return <div data-testid="voice-hero" />;
-  },
-}));
-
 vi.mock("@/components/VyvaSessionCta", () => ({
   default: ({ label, testId, className }: { label?: string; testId?: string; className?: string }) => (
     <button type="button" data-testid={testId} className={className}>
@@ -249,41 +120,6 @@ vi.mock("@/components/MedsAssistantSheet", () => ({
 
 const apiFetchMock = vi.mocked(apiFetch);
 
-function installMediaRecorderMock() {
-  const getUserMedia = vi.fn().mockResolvedValue({
-    getTracks: () => [{ stop: vi.fn() }],
-  });
-  Object.defineProperty(navigator, "mediaDevices", {
-    configurable: true,
-    value: { getUserMedia },
-  });
-
-  class MockMediaRecorder {
-    static isTypeSupported = vi.fn(() => true);
-    state: "inactive" | "recording" = "inactive";
-    mimeType = "audio/webm";
-    ondataavailable: ((event: { data: Blob }) => void) | null = null;
-    onstop: (() => void) | null = null;
-    onerror: (() => void) | null = null;
-
-    constructor(_stream: MediaStream, options?: { mimeType?: string }) {
-      this.mimeType = options?.mimeType ?? "audio/webm";
-    }
-
-    start() {
-      this.state = "recording";
-    }
-
-    stop() {
-      this.state = "inactive";
-      this.ondataavailable?.({ data: new Blob([new Uint8Array(64)], { type: this.mimeType }) });
-      this.onstop?.();
-    }
-  }
-
-  vi.stubGlobal("MediaRecorder", MockMediaRecorder);
-}
-
 type TestMedication = {
   id: string;
   medication_name: string;
@@ -295,43 +131,37 @@ type TestMedication = {
   scheduledCountToday: number;
 };
 
-type TestProvider = {
-  name?: string;
-  role?: string;
-  phone?: string;
-  address?: string;
-  contact_phone?: string;
+type TestMyMedicine = {
+  id: string;
+  display_name: string;
+  dose_text?: string | null;
+  purpose_text?: string | null;
+  item_type: "prescription" | "otc" | "supplement";
+  drug_class_tag?: string | null;
+  status: "active" | "paused" | "discontinued";
 };
 
-type TestProfile = {
-  conditions?: Array<{ name: string; category?: string }>;
-  medications?: Array<{ name: string; dosage?: string; frequency?: string; times?: string }>;
-  mobility_level?: string;
-  living_situation?: string;
-  data_sharing_consent?: {
-    conditions?: {
-      health_conditions?: string[];
-      mobility_level?: string | null;
-      living_situation?: string | null;
-    };
-    hobbies?: {
-      hobbies?: string[];
-    };
-    diet?: {
-      dietary_preferences?: string[];
-      dietary_notes?: string;
-    };
-  };
+type TestInteractionResponse = {
+  flags: Array<{
+    id: string;
+    kind: "rule" | "duplicate_class";
+    ruleId?: string;
+    medicineIds: string[];
+    medicines: string[];
+    message: string;
+    severityTier: "worth_asking";
+    canDismiss: boolean;
+  }>;
+  hasMore: boolean;
+  reviewedRuleCount: number;
+  activeMedicineCount: number;
+  message: string;
 };
 
 type RenderOptions = {
-  personalisation?: {
-    conditions: string[];
-    hobbies: string[];
-    hasMedications: boolean;
-  };
-  providers?: TestProvider[];
-  profile?: TestProfile;
+  route?: string;
+  myMedicines?: TestMyMedicine[];
+  interactions?: TestInteractionResponse;
 };
 
 function safetyResponse(overrides: Record<string, unknown> = {}) {
@@ -357,6 +187,17 @@ function safetyResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function interactionsResponse(overrides: Partial<TestInteractionResponse> = {}): TestInteractionResponse {
+  return {
+    flags: [],
+    hasMore: false,
+    reviewedRuleCount: 0,
+    activeMedicineCount: 0,
+    message: "Everything looks okay from the reviewed rules available today. Keep adding medicines so VYVA can keep checking.",
+    ...overrides,
+  };
+}
+
 function renderMedsScreen(medications: TestMedication[] = [], safety = safetyResponse(), options: RenderOptions = {}) {
   const client = new QueryClient({
     defaultOptions: {
@@ -369,25 +210,30 @@ function renderMedsScreen(medications: TestMedication[] = [], safety = safetyRes
           if (queryKey[0] === "/api/meds/safety") {
             return safety;
           }
-          if (queryKey[0] === "/api/profile/personalisation") {
-            return options.personalisation ?? {
-              conditions: [],
-              hobbies: [],
-              hasMedications: medications.length > 0,
+          if (queryKey[0] === "/api/meds/my-medicines") {
+            return {
+              medicines: options.myMedicines ?? medications.map((med) => ({
+                id: med.id,
+                display_name: med.medication_name,
+                dose_text: [med.dosage, med.frequency?.replace("_", " ")].filter(Boolean).join(" "),
+                purpose_text: null,
+                item_type: "prescription",
+                drug_class_tag: "other_uncategorized",
+                status: "active",
+              })),
+              classTags: ["blood_pressure_lowering", "nsaid_pain_reliever", "other_uncategorized"],
             };
           }
+          if (queryKey[0] === "/api/meds/interactions") {
+            return options.interactions ?? interactionsResponse({
+              activeMedicineCount: medications.length,
+            });
+          }
+          if (queryKey[0] === "/api/profile/personalisation") {
+            return { conditions: [], hobbies: [], hasMedications: medications.length > 0 };
+          }
           if (queryKey[0] === "/api/onboarding/state") {
-            return {
-              profile: {
-                ...(options.profile ?? {}),
-                data_sharing_consent: {
-                  ...(options.profile?.data_sharing_consent ?? {}),
-                  providers: {
-                    providers: options.providers ?? [],
-                  },
-                },
-              },
-            };
+            return { profile: { data_sharing_consent: { providers: { providers: [] } } } };
           }
           return {};
         },
@@ -397,14 +243,14 @@ function renderMedsScreen(medications: TestMedication[] = [], safety = safetyRes
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[options.route ?? "/meds"]}>
         <MedsScreen />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-describe("MedsScreen schedule actions", () => {
+describe("MedsScreen medication home and detail screens", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiFetchMock.mockResolvedValue(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }));
@@ -414,54 +260,28 @@ describe("MedsScreen schedule actions", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the medication dashboard and keeps the full schedule hidden by default", async () => {
+  it("keeps the medication home compact with hero, four cards, and dose bar only", async () => {
     renderMedsScreen();
 
-    expect(await screen.findByTestId("section-meds-dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Medication dashboard")).toBeInTheDocument();
+    expect(await screen.findByTestId("meds-master-hero")).toHaveTextContent("Medicine on track");
+    expect(screen.getByTestId("section-meds-primary-actions")).toBeInTheDocument();
+    expect(screen.getByTestId("section-meds-dashboard")).toBeInTheDocument();
     expect(screen.getByTestId("text-meds-priority-title")).toHaveTextContent("No medicine plan yet");
     expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Add medicines to start tracking today.");
-    expect(screen.getByTestId("metric-meds-taken")).toHaveTextContent("--");
-    expect(screen.getByTestId("metric-meds-due")).toHaveTextContent("0");
-    expect(screen.getByTestId("metric-meds-adherence")).toHaveTextContent("--");
-    expect(screen.getByTestId("metric-meds-count")).toHaveTextContent("0");
-    expect(screen.getByTestId("section-meds-next")).toHaveTextContent("No medications added yet");
-    expect(screen.getByTestId("panel-meds-pharmacy")).toHaveTextContent("No pharmacy saved yet");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Guidance");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Move:");
-    expect(screen.getByTestId("section-meds-dashboard-tips")).not.toHaveTextContent("Most useful now");
-    expect(
-      screen.getByTestId("section-meds-dashboard-tips").compareDocumentPosition(screen.getByTestId("panel-meds-pharmacy")) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(screen.queryByText("Today's Schedule")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("status-no-medications")).not.toBeInTheDocument();
-    expect(screen.queryByText("Medication")).not.toBeInTheDocument();
 
-    expect(screen.getByTestId("section-meds-primary-actions")).toBeInTheDocument();
-    expect(screen.getByTestId("button-meds-primary-reminders")).toHaveTextContent("My Reminders");
+    expect(screen.getByTestId("button-meds-primary-my-medicines")).toHaveTextContent("My Medicines");
+    expect(screen.getByTestId("button-meds-primary-adherence")).toHaveTextContent("My Adherence");
     expect(screen.getByTestId("button-meds-primary-refills")).toHaveTextContent("My Refills");
-    expect(screen.getByTestId("button-meds-primary-safety")).toHaveTextContent("Stay Safe");
-    expect(screen.getByTestId("button-meds-primary-home-remedies")).toHaveTextContent("Home Remedies");
-    expect(screen.queryByTestId("button-meds-primary-interactions")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-meds-primary-adherence")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-meds-primary-add-by-voice")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-meds-primary-interactions")).toHaveTextContent("Safety Check");
 
-    expect(screen.getByTestId("section-meds-can-help")).toHaveTextContent("Fast help");
-    expect(screen.getAllByTestId("section-meds-can-help")).toHaveLength(1);
-    expect(
-      screen.getByTestId("section-meds-can-help").compareDocumentPosition(screen.getByTestId("panel-meds-pharmacy")) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(screen.getByTestId("button-assistant-interactions")).toHaveTextContent("Check Interactions");
-    expect(screen.getByTestId("button-assistant-sideEffects")).toHaveTextContent("Side Effects");
-    expect(screen.getByTestId("button-assistant-refillHelp")).toHaveTextContent("Refill Help");
-    expect(screen.queryByTestId("button-assistant-homeRemedies")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-assistant-advances")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("button-assistant-order")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-my-medicines")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-check-interactions")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-meds-can-help")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-meds-pharmacy")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-meds-dashboard-tips")).not.toBeInTheDocument();
   });
 
-  it("shows dashboard metrics, next medicine, saved pharmacy, and condition-aware tips", async () => {
+  it("routes primary cards to their dedicated screens and existing refill flow", async () => {
     renderMedsScreen([
       {
         id: "med-1",
@@ -473,123 +293,18 @@ describe("MedsScreen schedule actions", () => {
         takenCountToday: 1,
         scheduledCountToday: 2,
       },
-      {
-        id: "med-2",
-        medication_name: "Aspirin",
-        dosage: "100mg",
-        frequency: "once_daily",
-        scheduled_times: ["09:00"],
-        takenToday: true,
-        takenCountToday: 1,
-        scheduledCountToday: 1,
-      },
-    ], safetyResponse(), {
-      personalisation: {
-        conditions: ["Type 2 diabetes"],
-        hobbies: [],
-        hasMedications: true,
-      },
-      providers: [
-        {
-          name: "Farmacia Central",
-          role: "pharmacy",
-          phone: "+34 600 111 222",
-          address: "High Street 1",
-        },
-      ],
-    });
-
-    expect(await screen.findByTestId("section-meds-dashboard")).toHaveTextContent("1 dose left today");
-    expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Next: Metformin at 08:00.");
-    expect(screen.getByTestId("metric-meds-taken")).toHaveTextContent("2/3");
-    expect(screen.getByTestId("metric-meds-due")).toHaveTextContent("1");
-    expect(screen.getByTestId("metric-meds-adherence")).toHaveTextContent("67%");
-    expect(screen.getByTestId("metric-meds-count")).toHaveTextContent("2");
-    expect(screen.getByTestId("section-meds-next")).toHaveTextContent("Metformin");
-    expect(screen.getByTestId("text-meds-pharmacy-name")).toHaveTextContent("Farmacia Central");
-    expect(screen.getByTestId("link-meds-pharmacy-phone")).toHaveAttribute("href", "tel:+34600111222");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("Diabetes");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("pair checks with meals");
-    expect(screen.getByTestId("card-meds-health-tip")).not.toHaveTextContent("medicine checks");
-    expect(screen.getByTestId("card-meds-health-tip")).not.toHaveTextContent("Based on Type 2 diabetes");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Move: gentle walk after a meal");
-  });
-
-  it("uses richer saved health profile signals for combined conditions and mobility", async () => {
-    renderMedsScreen([
-      {
-        id: "med-1",
-        medication_name: "Lisinopril",
-        dosage: "10mg",
-        frequency: "once_daily",
-        scheduled_times: ["09:00"],
-        takenToday: false,
-        takenCountToday: 0,
-        scheduledCountToday: 1,
-      },
-    ], safetyResponse(), {
-      personalisation: {
-        conditions: ["Type 2 diabetes"],
-        hobbies: ["gardening"],
-        hasMedications: true,
-      },
-      profile: {
-        conditions: [{ name: "High blood pressure" }, { name: "Arthritis" }],
-        mobility_level: "Limited mobility with cane",
-      },
-    });
-
-    expect(await screen.findByTestId("card-meds-health-tip")).toHaveTextContent("Diabetes + blood pressure");
-    expect(screen.getByTestId("card-meds-health-tip")).toHaveTextContent("meals, stand slowly");
-    expect(screen.getByTestId("card-meds-health-tip")).not.toHaveTextContent("stand up slowly");
-    expect(screen.getByTestId("card-meds-exercise-tip")).not.toHaveTextContent("Based on mobility level");
-    expect(screen.getByTestId("card-meds-exercise-tip")).toHaveTextContent("Move: seated ankle circles");
-  });
-
-  it("confirms the next pending medicine from the dashboard", async () => {
-    renderMedsScreen([
-      {
-        id: "med-1",
-        medication_name: "Metformin",
-        dosage: "500mg",
-        frequency: "once_daily",
-        scheduled_times: ["08:00"],
-        takenToday: false,
-        takenCountToday: 0,
-        scheduledCountToday: 1,
-      },
     ]);
 
-    fireEvent.click(await screen.findByTestId("button-confirm-next-med"));
+    fireEvent.click(await screen.findByTestId("button-meds-primary-my-medicines"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/meds/my-medicines");
 
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/meds/adherence-report/confirm",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          medication_name: "Metformin",
-          scheduled_time: "08:00",
-        }),
-      }),
-    ));
-  });
+    fireEvent.click(screen.getByTestId("button-meds-primary-adherence"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/meds/adherence-report");
 
-  it("routes refill ordering through the existing concierge flow", async () => {
-    renderMedsScreen([
-      {
-        id: "med-1",
-        medication_name: "Metformin",
-        dosage: "500mg",
-        frequency: "once_daily",
-        scheduled_times: ["08:00"],
-        takenToday: false,
-        takenCountToday: 0,
-        scheduledCountToday: 1,
-      },
-    ]);
+    fireEvent.click(screen.getByTestId("button-meds-primary-interactions"));
+    expect(mocks.navigate).toHaveBeenCalledWith("/meds/interactions");
 
-    fireEvent.click(await screen.findByTestId("button-meds-pharmacy-order"));
-
+    fireEvent.click(screen.getByTestId("button-meds-primary-refills"));
     expect(mocks.navigate).toHaveBeenCalledWith(
       "/concierge/shopping",
       expect.objectContaining({
@@ -602,51 +317,95 @@ describe("MedsScreen schedule actions", () => {
     );
   });
 
-  it("starts inline voice capture and adds the parsed medication without opening a modal", async () => {
-    installMediaRecorderMock();
-    apiFetchMock.mockImplementation(async (url) => {
-      if (String(url).startsWith("/api/meds-voice-transcribe")) {
-        return new Response(JSON.stringify({ transcript: "I take Metformin 500mg twice daily" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      if (String(url) === "/api/meds-voice-parse") {
-        return new Response(JSON.stringify({
-          name: "Metformin",
-          dosage: "500mg",
-          frequency: "twice_daily",
-        }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
+  it("shows My Medicines as its own screen and keeps add choices separate from the list", async () => {
+    renderMedsScreen([], safetyResponse(), {
+      route: "/meds/my-medicines",
+      myMedicines: [{
+        id: "med-1",
+        display_name: "Metformin",
+        dose_text: "500mg in the morning and evening with food after breakfast and dinner",
+        purpose_text: "For blood sugar support",
+        item_type: "prescription",
+        drug_class_tag: "diabetes_blood_sugar",
+        status: "active",
+      }],
     });
 
-    renderMedsScreen();
+    expect(await screen.findByTestId("meds-my-medicines-screen")).toBeInTheDocument();
+    expect(screen.getByTestId("button-meds-screen-back")).toHaveTextContent("Back");
+    expect(screen.getByTestId("section-my-medicines")).toHaveTextContent("My Medicines");
+    expect(screen.getByTestId("list-my-medicines-active")).toHaveTextContent("Metformin");
+    expect(screen.queryByTestId("meds-master-hero")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("panel-my-medicines-add-choice")).not.toBeInTheDocument();
 
-    const voiceButton = await screen.findByTestId("button-meds-dashboard-add-by-voice-empty");
-    fireEvent.click(voiceButton);
-    expect(await screen.findByTestId("meds-voice-status")).toHaveTextContent("Listening... tap again to stop.");
+    fireEvent.click(screen.getByTestId("button-my-medicines-add"));
 
-    fireEvent.click(voiceButton);
+    expect(screen.getByTestId("section-my-medicines")).toHaveTextContent("Add medicine");
+    expect(screen.getByTestId("panel-my-medicines-add-choice")).toHaveTextContent("Voice");
+    expect(screen.queryByTestId("list-my-medicines-active")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Manual"));
+
+    expect(screen.getByTestId("panel-my-medicines-add")).toBeInTheDocument();
+    expect(screen.queryByTestId("list-my-medicines-active")).not.toBeInTheDocument();
+  });
+
+  it("shows Safety Check as its own screen without review-dismiss buttons", async () => {
+    renderMedsScreen([], safetyResponse(), {
+      route: "/meds/interactions",
+      interactions: interactionsResponse({
+        activeMedicineCount: 2,
+        flags: [{
+          id: "rule-rule-1",
+          kind: "rule",
+          ruleId: "rule-1",
+          medicineIds: ["med-1", "med-2"],
+          medicines: ["Amlodipine", "Ibuprofen"],
+          message: "Worth asking your pharmacist if they go well together.",
+          severityTier: "worth_asking",
+          canDismiss: true,
+        }],
+        message: "Worth asking your pharmacist about these combinations.",
+      }),
+    });
+
+    expect(await screen.findByTestId("meds-interactions-screen")).toBeInTheDocument();
+    expect(screen.getByTestId("section-check-interactions")).toHaveTextContent("Safety Check");
+    expect(screen.getByTestId("card-med-interaction-0")).toHaveTextContent("Amlodipine + Ibuprofen");
+    expect(screen.getByTestId("card-med-interaction-0")).toHaveTextContent("Check before taking together.");
+    expect(screen.queryByTestId("meds-master-hero")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-med-interaction-asked-0")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-med-interaction-later-0")).not.toBeInTheDocument();
+  });
+
+  it("confirms the next pending medicine from the pinned dose bar", async () => {
+    renderMedsScreen([
+      {
+        id: "med-1",
+        medication_name: "Metformin",
+        dosage: "500mg",
+        frequency: "once_daily",
+        scheduled_times: ["08:00"],
+        takenToday: false,
+        takenCountToday: 0,
+        scheduledCountToday: 1,
+      },
+    ]);
+
+    expect(await screen.findByTestId("section-meds-dashboard")).toHaveTextContent("1 dose left today");
+    expect(screen.getByTestId("text-meds-priority-sub")).toHaveTextContent("Next: Metformin at 08:00.");
+
+    fireEvent.click(screen.getByTestId("button-confirm-next-med"));
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/api/meds-voice-transcribe"),
-      expect.objectContaining({ method: "POST" }),
-    ));
-    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/meds-voice-parse",
+      "/api/meds/adherence-report/confirm",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ transcript: "I take Metformin 500mg twice daily" }),
+        body: JSON.stringify({
+          medication_name: "Metformin",
+          scheduled_time: "08:00",
+        }),
       }),
     ));
-    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith({
-      title: "Medication added",
-      description: "Metformin has been added to your list.",
-    }));
-    expect(screen.queryByTestId("modal-voice-meds")).not.toBeInTheDocument();
   });
 });
