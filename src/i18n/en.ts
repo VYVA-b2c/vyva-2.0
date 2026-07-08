@@ -451,7 +451,7 @@
       pauseVyva: "Pause VYVA",
       connectingVyva: "Connecting...",
       cards: {
-        feelBetter: "Feel Better",
+        feelBetter: "Symptoms Check",
         myMedication: "My Medication",
         myVitals: "My Vitals",
         stayWell: "Age Well",
@@ -1844,7 +1844,7 @@
         help: "Help",
       },
       fastHelp: {
-        feelBetter: "Feel Better",
+        feelBetter: "Symptoms Check",
         feelBetterDetail: "Symptoms or worries",
         stayWell: "Age Well",
         stayWellDetail: "Prevention tips",

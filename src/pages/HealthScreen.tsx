@@ -2834,7 +2834,7 @@ const HealthScreen = () => {
     {
       id: "feel-better",
       icon: HeartPulse,
-      title: t("health.master.cards.feelBetter", "Feel Better"),
+      title: t("health.master.cards.feelBetter", "Symptoms Check"),
       detail: t("health.homeTools.symptoms.detail", "Start check"),
       accent: t("health.master.cards.symptomsStart", "Start"),
       tone: {

@@ -82,6 +82,7 @@ describe("SymptomCheck intro chips", () => {
   it("renders one senior-friendly start panel", () => {
     render(<IntroScreen onStart={vi.fn()} />);
 
+    expect(screen.getByTestId("symptom-emergency-modal")).toHaveTextContent("If this feels urgent, do not wait");
     expect(screen.getByTestId("symptom-check-start-panel")).toHaveTextContent("Tell VYVA what has changed");
     expect(screen.getByPlaceholderText("Type what changed...")).toBeVisible();
     expect(screen.getByRole("button", { name: "Start check" })).toBeVisible();
@@ -94,7 +95,23 @@ describe("SymptomCheck intro chips", () => {
     expect(screen.getAllByTestId(/button-symptom-example-/)).toHaveLength(3);
   });
 
-  it("starts a guided check when the emergency banner uncertainty action is used", () => {
+  it("dismisses the emergency modal before the symptom check", () => {
+    render(<IntroScreen onStart={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "I understand, continue to symptom check" }));
+
+    expect(screen.queryByTestId("symptom-emergency-modal")).not.toBeInTheDocument();
+    expect(screen.getByTestId("input-symptom-clue")).toBeVisible();
+  });
+
+  it("uses a single voice entry point when Talk to VYVA is available", () => {
+    render(<IntroScreen onStart={vi.fn()} onTalkToVyva={vi.fn()} />);
+
+    expect(screen.getByTestId("button-symptom-check-talk-to-vyva")).toHaveTextContent("Talk to VYVA");
+    expect(screen.queryByTestId("button-symptom-clue-voice")).not.toBeInTheDocument();
+  });
+
+  it("starts a guided check when the emergency uncertainty action is used", () => {
     const onStart = vi.fn();
     render(<IntroScreen onStart={onStart} />);
 

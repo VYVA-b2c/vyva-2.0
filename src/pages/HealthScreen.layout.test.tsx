@@ -290,9 +290,9 @@ describe("HealthScreen home-style layout", () => {
     expect(screen.getByTestId("button-health-tool-my-vitals")).toHaveAccessibleName("My Vitals. Pulse: 72 bpm");
     expect(screen.getByTestId("button-health-tool-my-medication")).toHaveTextContent("My Medication");
     expect(screen.getByTestId("button-health-tool-my-medication")).toHaveTextContent("1 due");
-    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Feel Better");
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start");
-    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Start check");
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Symptoms Check. Start check");
     expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-health-tool-stay-well")).toHaveTextContent("Follow-up");
     expect(screen.getByTestId("button-health-tool-stay-well")).not.toHaveTextContent("Follow-up today.");
@@ -487,7 +487,7 @@ describe("HealthScreen home-style layout", () => {
 
     await waitFor(() => expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start"));
     expect(screen.getByTestId("button-health-tool-feel-better")).not.toHaveTextContent("Chest tightness");
-    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Start check");
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Symptoms Check. Start check");
     expect(screen.getByTestId("button-health-tool-feel-better")).not.toHaveTextContent("Review");
     expect(screen.getByTestId("button-health-tool-my-vitals")).toHaveTextContent("Pulse 72");
     expect(screen.getByTestId("button-health-tool-my-vitals")).not.toHaveTextContent("Pulse: 72 bpm");
@@ -515,6 +515,6 @@ describe("HealthScreen home-style layout", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("button-health-tool-feel-better")).toHaveTextContent("Start"));
-    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Feel Better. Start check");
+    expect(screen.getByTestId("button-health-tool-feel-better")).toHaveAccessibleName("Symptoms Check. Start check");
   });
 });

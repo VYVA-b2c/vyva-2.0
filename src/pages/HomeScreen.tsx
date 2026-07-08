@@ -621,7 +621,7 @@ const HomeScreen = () => {
     {
       id: "feel-better",
       icon: HeartPulse,
-      label: t("home.master.fastHelp.feelBetter", "Feel Better"),
+      label: t("home.master.fastHelp.feelBetter", "Symptoms Check"),
       detail: t("home.master.fastHelp.feelBetterDetail", "Symptoms or worries"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
       onClick: () => handleNavigate("/health/symptom-check"),
