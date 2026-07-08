@@ -5,7 +5,6 @@ import {
   CheckCircle2,
   Clock,
   FileText,
-  Lock,
   Megaphone,
   Pencil,
   Plus,
@@ -116,6 +115,20 @@ type TestEmailResponse = {
     recipient: string;
     error?: string;
   } | null;
+};
+
+type CampaignEmailSendResponse = {
+  ok?: boolean;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  campaign?: Campaign;
+  delivery?: Array<{
+    id: string;
+    status: string;
+    recipient: string;
+    error?: string;
+  }>;
 };
 
 type MarketingContact = {
@@ -233,9 +246,9 @@ const emptySummary: MarketingSummary = {
   byAudience: AUDIENCES.map((audienceType) => ({ audienceType, campaigns: 0, contacts: 0 })),
   lockedSendCapabilities: CHANNELS.map((channel) => ({
     channel,
-    sendCapability: channel === "email" || channel === "whatsapp" ? "future_send_capable" : "planning_only",
-    locked: true,
-    note: "Marketing sends are locked in this foundation.",
+    sendCapability: channel === "email" ? "enabled" : channel === "whatsapp" ? "future_send_capable" : "planning_only",
+    locked: channel !== "email",
+    note: channel === "email" ? "Email sends use VYVA communications." : "Marketing sends are locked in this foundation.",
   })),
   latestSyncRun: null,
 };
@@ -247,7 +260,7 @@ const emptySync: SyncState = {
   requiredRunnerEmail: null,
   apiUrl: null,
   mode: "one_way_into_vyva",
-  realSendingLocked: true,
+  realSendingLocked: false,
   lockedSendCapabilities: emptySummary.lockedSendCapabilities,
   runs: [],
 };
@@ -419,20 +432,18 @@ function MetricCard({ label, value, icon: Icon }: { label: string; value: number
 
 function LockedSendPanel() {
   return (
-    <div className="rounded-[14px] border border-amber-200 bg-amber-50 p-4 text-amber-900" data-testid="marketing-send-locked-panel">
+    <div className="rounded-[14px] border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" data-testid="marketing-send-readiness-panel">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700">
-            <Lock size={18} aria-hidden="true" />
+          <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-700">
+            <Send size={18} aria-hidden="true" />
           </span>
           <div>
-            <h3 className="font-black">Campaign sending is locked in this foundation.</h3>
-            <p className="mt-1 text-sm font-semibold text-amber-800">Use this area to plan, migrate, preview, and schedule metadata. Provider dispatch will be wired later through the existing communications dispatcher.</p>
+            <h3 className="font-black">Email campaign sending is enabled.</h3>
+            <p className="mt-1 text-sm font-semibold text-emerald-800">Email sends use the existing VYVA communications dispatcher and Resend. WhatsApp and social channels remain planning-only for now.</p>
           </div>
         </div>
-        <button type="button" disabled className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-xl bg-amber-200 px-4 font-black text-amber-800 opacity-80" data-testid="button-marketing-send-locked">
-          <Send size={16} aria-hidden="true" /> Send locked
-        </button>
+        <Pill className="bg-emerald-100 text-emerald-800"><CheckCircle2 size={13} className="mr-1" /> Email enabled</Pill>
       </div>
     </div>
   );
@@ -469,6 +480,8 @@ export default function MarketingAdminPage() {
   const [contactFeedback, setContactFeedback] = useState("");
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testEmailFeedback, setTestEmailFeedback] = useState("");
+  const [campaignEmailSending, setCampaignEmailSending] = useState(false);
+  const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
@@ -600,11 +613,13 @@ export default function MarketingAdminPage() {
     });
     setMessage("");
     setTestEmailFeedback("");
+    setCampaignEmailFeedback("");
   }
 
   function cancelCampaignEdit() {
     setEditingCampaignId(null);
     setTestEmailFeedback("");
+    setCampaignEmailFeedback("");
     setCampaignEditDraft({
       name: "",
       audienceType: "b2c",
@@ -673,6 +688,25 @@ export default function MarketingAdminPage() {
       setMessage(messageText);
     } finally {
       setTestEmailSending(false);
+    }
+  }
+
+  async function sendCampaignEmails(campaign: Campaign) {
+    if (!window.confirm(`Send email campaign "${campaign.name}" to ${campaign.recipientCount} saved recipient${campaign.recipientCount === 1 ? "" : "s"} now?`)) return;
+    setCampaignEmailSending(true);
+    setCampaignEmailFeedback("Sending campaign emails...");
+    try {
+      const result = await api<CampaignEmailSendResponse>(`/api/admin/marketing/campaigns/${campaign.id}/send-email`, { method: "POST" });
+      const summaryText = `Campaign email sent to ${result.sentCount} recipient${result.sentCount === 1 ? "" : "s"}. ${result.failedCount ? `${result.failedCount} failed. ` : ""}${result.skippedCount ? `${result.skippedCount} skipped.` : ""}`.trim();
+      setCampaignEmailFeedback(summaryText);
+      setMessage(summaryText);
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Campaign email could not be sent.";
+      setCampaignEmailFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setCampaignEmailSending(false);
     }
   }
 
@@ -847,20 +881,38 @@ export default function MarketingAdminPage() {
   const syncFeedbackText = syncFeedback || syncBlockedReason;
   const syncFeedbackIsError = Boolean(syncBlockedReason) || /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(syncFeedback);
   const testEmailDisabled = !editingCampaign || testEmailSending || campaignEditDraft.channel !== "email" || !campaignEditDraft.contentAssetId;
+  const savedCampaignChannel = editingCampaign?.channels[0] ?? null;
+  const hasUnsavedCampaignSendChanges = Boolean(editingCampaign && (
+    campaignEditDraft.channel !== (savedCampaignChannel?.channel ?? "email") ||
+    campaignEditDraft.contentAssetId !== (savedCampaignChannel?.contentAssetId ?? "") ||
+    campaignEditDraft.snapshotRecipients
+  ));
+  const campaignEmailDisabled = !editingCampaign || campaignEmailSending || hasUnsavedCampaignSendChanges || campaignEditDraft.channel !== "email" || !campaignEditDraft.contentAssetId || editingCampaign.recipientCount <= 0;
   const testEmailBlockedReason = campaignEditDraft.channel !== "email"
     ? "Test sending is email-only in this first unlock."
     : !campaignEditDraft.contentAssetId
       ? "Attach an email content asset before sending a test."
       : "";
+  const campaignEmailBlockedReason = campaignEditDraft.channel !== "email"
+    ? "Campaign sending is email-only right now."
+    : hasUnsavedCampaignSendChanges
+      ? "Save campaign changes before sending."
+      : !campaignEditDraft.contentAssetId
+      ? "Attach an email content asset before sending."
+      : editingCampaign && editingCampaign.recipientCount <= 0
+        ? "Save a recipient snapshot before sending."
+        : "";
   const testEmailFeedbackIsError = Boolean(testEmailFeedback && /fail|error|could not|attach|only/i.test(testEmailFeedback));
   const testEmailPromptIsBlocked = Boolean(!testEmailFeedback && testEmailBlockedReason);
+  const campaignEmailFeedbackIsError = Boolean(campaignEmailFeedback && /fail|error|could not|attach|only|no eligible/i.test(campaignEmailFeedback));
+  const campaignEmailPromptIsBlocked = Boolean(!campaignEmailFeedback && campaignEmailBlockedReason);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
       <section className="mx-auto max-w-7xl">
         <AdminPageHeader
           title="Marketing"
-          subtitle="Campaign planning, Lovable migration, audiences, content, and schedules. Real provider sending is locked in this foundation."
+          subtitle="Campaign planning, Lovable migration, audiences, content, schedules, and email dispatch through the existing VYVA provider stack."
         >
           <button className="inline-flex items-center gap-2 rounded-xl bg-purple-700 px-4 py-3 font-bold text-white" onClick={() => refreshAll().catch((error) => setMessage(error.message))}>
             <RefreshCw size={16} /> Refresh
@@ -875,10 +927,10 @@ export default function MarketingAdminPage() {
             <div className="flex flex-wrap items-center justify-between gap-4 p-5">
               <div>
                 <p className="text-sm font-black uppercase tracking-[0.18em] text-purple-200">Marketing engine foundation</p>
-                <h2 className="mt-2 text-3xl font-black">Plan campaigns now. Send later, safely.</h2>
-                <p className="mt-2 max-w-3xl text-sm font-semibold text-white/70">This module prepares VYVA to absorb Lovable marketing data while keeping campaign dispatch locked until compliance, consent, and provider controls are explicitly enabled.</p>
+                <h2 className="mt-2 text-3xl font-black">Plan campaigns now. Send email safely.</h2>
+                <p className="mt-2 max-w-3xl text-sm font-semibold text-white/70">This module absorbs Lovable marketing data and sends saved email campaign snapshots through VYVA. WhatsApp and social channels remain planning-only until their provider controls are ready.</p>
               </div>
-              <Pill className="bg-white/10 text-white"><Lock size={13} className="mr-1" /> Sending locked</Pill>
+              <Pill className="bg-white/10 text-white"><CheckCircle2 size={13} className="mr-1" /> Email enabled</Pill>
             </div>
           </div>
 
@@ -988,8 +1040,8 @@ export default function MarketingAdminPage() {
               {editingCampaign ? (
                 <SectionCard
                   title="Edit campaign"
-                  subtitle="Update planning metadata and optionally snapshot matching recipients. Sending remains locked."
-                  action={<Pill className="bg-amber-50 text-amber-800">No dispatch</Pill>}
+                  subtitle="Update planning metadata, snapshot matching recipients, and send email campaigns through VYVA."
+                  action={campaignEditDraft.channel === "email" ? <Pill className="bg-emerald-50 text-emerald-800">Email enabled</Pill> : <Pill className="bg-amber-50 text-amber-800">Planning only</Pill>}
                 >
                   <form className="grid gap-3" onSubmit={(event) => saveCampaignEdit(event, editingCampaign.id).catch((error) => setMessage(error.message))} data-testid="marketing-campaign-edit-form">
                     <div className="grid gap-3 xl:grid-cols-[1fr_150px_150px_180px]">
@@ -1044,7 +1096,8 @@ export default function MarketingAdminPage() {
                         />
                         Snapshot matching recipients from Contacts
                       </label>
-                      <p className="mt-1 text-xs font-bold text-[#8b7a73]">This stores planned recipients only. It does not send email, WhatsApp, or social posts.</p>
+                      <p className="mt-1 text-xs font-bold text-[#8b7a73]">This stores planned recipients only. Sending is a separate explicit action.</p>
+                      <p className="mt-1 text-xs font-bold text-[#8b7a73]">Email recipients can be sent after saving this snapshot. WhatsApp and social channels remain locked.</p>
                       {campaignEditDraft.snapshotRecipients ? (
                         <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_260px]">
                           <Field label="Recipient filter">
@@ -1084,10 +1137,27 @@ export default function MarketingAdminPage() {
                       >
                         <Send size={15} /> {testEmailSending ? "Sending test..." : "Send test email to me"}
                       </button>
+                      <button
+                        type="button"
+                        disabled={campaignEmailDisabled}
+                        onClick={() => editingCampaign ? void sendCampaignEmails(editingCampaign) : undefined}
+                        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        data-testid="button-marketing-send-campaign-email"
+                      >
+                        <Send size={15} /> {campaignEmailSending ? "Sending campaign..." : "Send campaign emails"}
+                      </button>
                       <button type="button" onClick={cancelCampaignEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135]" data-testid="button-marketing-cancel-campaign">
                         <X size={15} /> Cancel
                       </button>
                     </div>
+                    {campaignEmailFeedback || campaignEmailBlockedReason ? (
+                      <p
+                        className={`rounded-xl px-4 py-3 text-sm font-bold ${campaignEmailFeedbackIsError ? "bg-red-50 text-red-800" : campaignEmailPromptIsBlocked ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}
+                        data-testid="marketing-campaign-email-feedback"
+                      >
+                        {campaignEmailFeedback || campaignEmailBlockedReason}
+                      </p>
+                    ) : null}
                     {testEmailFeedback || testEmailBlockedReason || selectedEmailContent ? (
                       <p
                         className={`rounded-xl px-4 py-3 text-sm font-bold ${testEmailFeedbackIsError ? "bg-red-50 text-red-800" : testEmailPromptIsBlocked ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}
@@ -1409,13 +1479,13 @@ export default function MarketingAdminPage() {
                 </div>
               </SectionCard>
 
-              <SectionCard title="Channel send readiness" subtitle="All channels are intentionally locked in v1.">
+              <SectionCard title="Channel send readiness" subtitle="Email is enabled through VYVA. Other channels remain locked for now.">
                 <div className="grid gap-3">
                   {syncState.lockedSendCapabilities.map((item) => (
                     <div key={item.channel} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                       <div className="flex items-center justify-between gap-3">
                         <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                        <Pill className="bg-amber-50 text-amber-800">Locked</Pill>
+                        <Pill className={item.locked ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}>{item.locked ? "Locked" : "Enabled"}</Pill>
                       </div>
                       <p className="mt-2 text-sm font-semibold text-[#7d6b65]">{item.note}</p>
                     </div>

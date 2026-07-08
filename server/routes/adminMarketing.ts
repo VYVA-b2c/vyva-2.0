@@ -57,7 +57,7 @@ const campaignChannelInputSchema = z.object({
   contentAssetId: nullableUuidSchema,
   scheduledAt: nullableDateSchema,
   status: campaignStatusSchema.optional().default("draft"),
-  sendCapability: z.enum(["locked", "future_send_capable", "planning_only"]).optional().default("locked"),
+  sendCapability: z.enum(["enabled", "locked", "future_send_capable", "planning_only"]).optional().default("locked"),
   metadata: metadataSchema,
 });
 
@@ -427,12 +427,24 @@ function serializeSyncRun(row: MarketingSyncRunRow) {
 function channelSendCapabilities() {
   return marketingChannels.map((channel) => ({
     channel,
-    sendCapability: channel === "email" || channel === "whatsapp" ? "future_send_capable" : "planning_only",
-    locked: true,
-    note: channel === "email" || channel === "whatsapp"
-      ? "Provider dispatch is intentionally locked for the marketing foundation."
-      : "Planning/tracking only until social platform integrations are added.",
+    sendCapability: channel === "email" ? "enabled" : channel === "whatsapp" ? "future_send_capable" : "planning_only",
+    locked: channel !== "email",
+    note: channel === "email"
+      ? "Email campaign dispatch uses the existing communications dispatcher and Resend provider."
+      : channel === "whatsapp"
+        ? "WhatsApp marketing dispatch remains locked until consent and template controls are enabled."
+        : "Planning/tracking only until social platform integrations are added.",
   }));
+}
+
+function sendCapabilityForChannel(channel: string) {
+  return channel === "email" ? "enabled" : "locked";
+}
+
+function sendMetadataForChannel(channel: string, metadata: Record<string, unknown>) {
+  return channel === "email"
+    ? { ...metadata, send_locked: false, provider: "communicationDispatcher" }
+    : { ...metadata, send_locked: true };
 }
 
 function startOfWeek(date = new Date()) {
@@ -575,8 +587,8 @@ adminMarketingRouter.post("/campaigns", async (req, res) => {
         content_asset_id: item.contentAssetId ?? null,
         scheduled_at: dateOrNull(item.scheduledAt),
         status: item.status,
-        send_capability: "locked",
-        metadata: { ...item.metadata, send_locked: true },
+        send_capability: sendCapabilityForChannel(item.channel),
+        metadata: sendMetadataForChannel(item.channel, item.metadata),
         updated_at: now,
       }))).returning()
       : [];
@@ -637,8 +649,8 @@ adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
           content_asset_id: item.contentAssetId ?? null,
           scheduled_at: dateOrNull(item.scheduledAt),
           status: item.status,
-          send_capability: "locked",
-          metadata: { ...item.metadata, send_locked: true },
+          send_capability: sendCapabilityForChannel(item.channel),
+          metadata: sendMetadataForChannel(item.channel, item.metadata),
           updated_at: now,
         })));
       }
@@ -744,6 +756,157 @@ adminMarketingRouter.post("/campaigns/:campaignId/test-email", async (req, res) 
   } catch (error) {
     console.error("[admin/marketing] campaign test email failed", error);
     return res.status(500).json({ error: "Marketing test email could not be sent." });
+  }
+});
+
+adminMarketingRouter.post("/campaigns/:campaignId/send-email", async (req, res) => {
+  if (!requireSuperAdmin(req, res, "send marketing campaign emails")) return;
+
+  try {
+    const [campaign] = await db.select().from(marketingCampaigns).where(eq(marketingCampaigns.id, req.params.campaignId)).limit(1);
+    if (!campaign) return res.status(404).json({ error: "Marketing campaign not found." });
+
+    const [channelRows, recipientRows] = await Promise.all([
+      db.select().from(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id)).orderBy(asc(marketingCampaignChannels.created_at)),
+      db.select().from(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id)).orderBy(asc(marketingCampaignRecipients.created_at)),
+    ]);
+    const emailChannel = channelRows.find((row) => row.channel === "email");
+    if (!emailChannel) return res.status(400).json({ error: "Add an Email channel before sending this campaign." });
+    if (!emailChannel.content_asset_id) return res.status(400).json({ error: "Attach an email content asset before sending this campaign." });
+
+    const [content] = await db.select()
+      .from(marketingContentAssets)
+      .where(eq(marketingContentAssets.id, emailChannel.content_asset_id))
+      .limit(1);
+    if (!content) return res.status(400).json({ error: "The selected email content asset could not be found." });
+    if (content.channel !== "email") return res.status(400).json({ error: "The selected content asset is not an email asset." });
+
+    const emailRecipients = recipientRows.filter((row) => row.channel === "email" && row.recipient?.trim());
+    if (!emailRecipients.length) return res.status(400).json({ error: "Snapshot email recipients before sending this campaign." });
+
+    const contactIds = Array.from(new Set(emailRecipients.map((row) => row.contact_id).filter(Boolean))) as string[];
+    const contactRows = contactIds.length
+      ? await db.select().from(marketingContacts).where(inArray(marketingContacts.id, contactIds))
+      : [];
+    const contactsById = new Map(contactRows.map((row) => [row.id, row]));
+    const seenRecipients = new Set<string>();
+    const sendableRecipients: MarketingCampaignRecipientRow[] = [];
+    const skipped: Array<{ id: string; recipient: string; reason: string }> = [];
+
+    for (const recipientRow of emailRecipients) {
+      const normalizedRecipient = recipientRow.recipient.trim().toLowerCase();
+      const contact = recipientRow.contact_id ? contactsById.get(recipientRow.contact_id) : null;
+      const snapshot = asRecord(recipientRow.snapshot);
+      const consentStatus = String(contact?.consent_status ?? snapshot.consentStatus ?? "").toLowerCase();
+      if (recipientRow.status === "sent") {
+        skipped.push({ id: recipientRow.id, recipient: recipientRow.recipient, reason: "already_sent" });
+        continue;
+      }
+      if (recipientRow.status === "blocked" || consentStatus === "opted_out") {
+        skipped.push({ id: recipientRow.id, recipient: recipientRow.recipient, reason: consentStatus === "opted_out" ? "opted_out" : "blocked" });
+        continue;
+      }
+      if (seenRecipients.has(normalizedRecipient)) {
+        skipped.push({ id: recipientRow.id, recipient: recipientRow.recipient, reason: "duplicate_recipient" });
+        continue;
+      }
+      seenRecipients.add(normalizedRecipient);
+      sendableRecipients.push(recipientRow);
+    }
+
+    if (!sendableRecipients.length) {
+      return res.status(400).json({
+        error: "No eligible unsent email recipients are available for this campaign.",
+        skippedCount: skipped.length,
+        skipped,
+      });
+    }
+
+    const now = new Date();
+    const subject = content.subject || content.title;
+    const communicationRows = await db.insert(communicationsLog).values(sendableRecipients.map((recipientRow) => ({
+      user_id: recipientRow.profile_id ?? recipientRow.contact_id ?? campaign.id,
+      channel: "email",
+      recipient: recipientRow.recipient.trim(),
+      purpose: "marketing_campaign_email",
+      status: "queued",
+      body: content.body || campaign.objective || content.title,
+      metadata: {
+        subject,
+        campaign_id: campaign.id,
+        campaign_name: campaign.name,
+        content_asset_id: content.id,
+        content_title: content.title,
+        marketing_campaign_send: true,
+        marketing_recipient_id: recipientRow.id,
+        contact_id: recipientRow.contact_id,
+        profile_id: recipientRow.profile_id,
+        initiated_by: actor(req),
+      },
+    }))).returning();
+
+    const dispatchResult = await dispatchCommunicationsByIds(communicationRows.map((row) => row.id));
+    const deliveryById = new Map(dispatchResult.results.map((delivery) => [delivery.id, delivery]));
+    let sentCount = 0;
+    let failedCount = 0;
+
+    for (let index = 0; index < sendableRecipients.length; index += 1) {
+      const recipientRow = sendableRecipients[index];
+      const communication = communicationRows[index];
+      const delivery = communication ? deliveryById.get(communication.id) : null;
+      const sent = delivery?.status === "sent";
+      if (sent) sentCount += 1;
+      else failedCount += 1;
+      await db.update(marketingCampaignRecipients).set({
+        status: sent ? "sent" : "failed",
+        communication_log_id: communication?.id ?? null,
+        updated_at: now,
+        snapshot: {
+          ...asRecord(recipientRow.snapshot),
+          dispatch_attempted_at: now.toISOString(),
+          dispatch_status: sent ? "sent" : "failed",
+          dispatch_error: delivery?.error ?? null,
+          communication_log_id: communication?.id ?? null,
+        },
+      }).where(eq(marketingCampaignRecipients.id, recipientRow.id)).returning();
+    }
+
+    const sendSummary = {
+      sent: sentCount,
+      failed: failedCount,
+      skipped: skipped.length,
+      attempted: sendableRecipients.length,
+      content_asset_id: content.id,
+      sent_at: now.toISOString(),
+    };
+    const [updatedCampaign] = await db.update(marketingCampaigns).set({
+      status: sentCount > 0 ? "published" : campaign.status,
+      updated_at: now,
+      updated_by: actor(req),
+      metadata: {
+        ...asRecord(campaign.metadata),
+        last_email_send: sendSummary,
+      },
+    }).where(eq(marketingCampaigns.id, campaign.id)).returning();
+
+    const [freshCampaignRows, freshRecipientRows] = await Promise.all([
+      db.select().from(marketingCampaigns).where(eq(marketingCampaigns.id, campaign.id)).limit(1),
+      db.select().from(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id)).orderBy(desc(marketingCampaignRecipients.created_at)),
+    ]);
+    const freshCampaign = freshCampaignRows[0] ?? updatedCampaign ?? campaign;
+
+    return res.json({
+      ok: failedCount === 0,
+      sentCount,
+      failedCount,
+      skippedCount: skipped.length,
+      skipped,
+      delivery: dispatchResult.results,
+      campaign: serializeCampaign(freshCampaign, channelRows, freshRecipientRows),
+    });
+  } catch (error) {
+    console.error("[admin/marketing] campaign email send failed", error);
+    return res.status(500).json({ error: "Marketing campaign email could not be sent." });
   }
 });
 
@@ -1032,7 +1195,7 @@ adminMarketingRouter.get("/sync/lovable", async (req, res) => {
     requiredRunnerEmail: SUPER_ADMIN_EMAIL,
     apiUrl: safeUrlOrigin(process.env.LOVABLE_MARKETING_API_URL),
     mode: "one_way_into_vyva",
-    realSendingLocked: true,
+    realSendingLocked: false,
     lockedSendCapabilities: channelSendCapabilities(),
     runs: runs.map(serializeSyncRun),
   });
