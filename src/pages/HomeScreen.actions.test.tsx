@@ -263,7 +263,7 @@ describe("Home fast service actions", () => {
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(fastHelp).toHaveTextContent("Fast help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
-    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Feel Better");
+    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Stay Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
   });
