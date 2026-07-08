@@ -108,6 +108,7 @@ function activeProgramMessage(program: CognitiveAssessmentProgramStatusResponse)
     const total = program.latestUnfinishedSession.totalTasks;
     return `You have a check in progress with ${completed}/${total} steps saved.`;
   }
+  if (program.reminderStatus?.state === "due") return "Your scheduled check is ready.";
   if (program.latestReport) return "Your last report is ready. Start the next check when you are ready.";
   return "You are joined. Finish one guided check to unlock your first report.";
 }
@@ -178,7 +179,7 @@ function ProgramSetup() {
             Check in
           </h1>
           <div className="mt-4 flex flex-wrap gap-2">
-            {["10-15 min", "Monthly", "Report"].map((label) => (
+            {["10-15 min", "Monthly", "WhatsApp", "Report"].map((label) => (
               <span key={label} className="rounded-full bg-[#FFFCF8] px-3 py-2 text-[13px] font-black text-[#62564f]">
                 {label}
               </span>
@@ -227,7 +228,7 @@ function ProgramSetup() {
                   Easy
                 </span>
                 <span className="inline-flex min-h-[32px] items-center rounded-full bg-[#FFFCF8] px-3 text-xs font-black text-[#766b63]">
-                  Change later
+                  WhatsApp + app
                 </span>
               </div>
             </div>
@@ -328,7 +329,8 @@ function ActiveProgram({ program }: { program: CognitiveAssessmentProgramStatusR
   const enrollment = program.enrollment;
   const latestReport = program.latestReport;
   const unfinished = program.latestUnfinishedSession;
-  const primaryLabel = unfinished ? "Continue check" : "Start next check";
+  const reminderDue = program.reminderStatus?.state === "due";
+  const primaryLabel = unfinished ? "Continue check" : reminderDue ? "Start now" : "Start next";
   const continuePath = unfinished
     ? `/mind-memory/cognitive-assessment/start?sessionId=${encodeURIComponent(unfinished.sessionId)}`
     : "/mind-memory/cognitive-assessment/start";
@@ -342,9 +344,15 @@ function ActiveProgram({ program }: { program: CognitiveAssessmentProgramStatusR
         <div className="rounded-[30px] border border-[#DDD6FE] bg-white p-5 shadow-[0_18px_40px_rgba(63,45,35,0.08)] md:p-6">
           <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
             <div>
-              <span className="inline-flex min-h-[36px] items-center gap-2 rounded-full bg-[#ECFDF5] px-3 text-xs font-black uppercase tracking-[0.12em] text-[#047857]">
+              <span className={`inline-flex min-h-[36px] items-center gap-2 rounded-full px-3 text-xs font-black uppercase tracking-[0.12em] ${
+                unfinished
+                  ? "bg-[#EFF6FF] text-[#1D4ED8]"
+                  : reminderDue
+                    ? "bg-[#FFF7ED] text-[#C2410C]"
+                    : "bg-[#ECFDF5] text-[#047857]"
+              }`}>
                 <CheckCircle2 size={16} />
-                Joined
+                {unfinished ? "Continue" : reminderDue ? "Ready" : "Active"}
               </span>
               <h1 className="mt-4 text-[34px] font-black leading-[1.02] text-[#2f2135] md:text-[44px]">
                 Your Cognitive Assessment
@@ -353,10 +361,14 @@ function ActiveProgram({ program }: { program: CognitiveAssessmentProgramStatusR
                 {activeProgramMessage(program)}
               </p>
             </div>
-            <div className="rounded-[22px] border border-[#D9ECE4] bg-[#ECFDF5] px-4 py-3 text-[#047857] md:min-w-[220px]">
-              <p className="text-xs font-black uppercase tracking-[0.1em]">Next check</p>
-              <p className="mt-1 text-[20px] font-black leading-tight">{formatDateTime(enrollment?.nextRunAt)}</p>
-              <p className="mt-2 text-xs font-bold">{cognitiveAssessmentFrequencyLabel(enrollment?.frequency ?? "monthly")}</p>
+            <div className={`rounded-[22px] border px-4 py-3 md:min-w-[220px] ${
+              reminderDue
+                ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]"
+                : "border-[#D9ECE4] bg-[#ECFDF5] text-[#047857]"
+            }`}>
+              <p className="text-xs font-black uppercase tracking-[0.1em]">{reminderDue ? "Ready now" : "Next check"}</p>
+              <p className="mt-1 text-[20px] font-black leading-tight">{reminderDue ? "Now" : formatDateTime(enrollment?.nextRunAt)}</p>
+              <p className="mt-2 text-xs font-bold">WhatsApp + app</p>
             </div>
           </div>
 
@@ -388,7 +400,7 @@ function ActiveProgram({ program }: { program: CognitiveAssessmentProgramStatusR
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <InfoTile icon={<CalendarDays size={22} />} label="Reminder" value={cognitiveAssessmentFrequencyLabel(enrollment?.frequency ?? "monthly")} detail={`${enrollment?.reminderTime ?? "10:00"} local time`} />
+            <InfoTile icon={<CalendarDays size={22} />} label="Reminder" value="WhatsApp + app" detail={`${cognitiveAssessmentFrequencyLabel(enrollment?.frequency ?? "monthly")} - ${enrollment?.reminderTime ?? "10:00"} local`} />
             <InfoTile icon={<FileText size={22} />} label="Latest report" value={formatDate(latestReport?.completedAt)} detail={latestReport ? `${latestReport.tasksCompleted}/${latestReport.totalTasks} steps saved` : "Complete a check first"} />
             <InfoTile icon={<RotateCw size={22} />} label="Past reports" value={`${program.completedReportCount}`} detail={program.completedReportCount === 1 ? "saved report" : "saved reports"} />
           </div>

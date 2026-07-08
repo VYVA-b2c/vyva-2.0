@@ -20,9 +20,22 @@ export default function MindMemoryScreen() {
   });
   const cognitiveProgram = programQuery.data;
   const cognitiveAssessmentJoined = Boolean(cognitiveProgram?.joined);
-  const cognitiveAssessmentDetail = cognitiveAssessmentJoined
-    ? cognitiveAssessmentFrequencyLabel(cognitiveProgram?.enrollment?.frequency ?? "monthly")
-    : t("mindMemory.fastHelp.cognitiveAssessmentDetail", "Memory and thinking");
+  const cognitiveAssessmentUnfinished = cognitiveProgram?.latestUnfinishedSession;
+  const cognitiveAssessmentReady = cognitiveProgram?.reminderStatus?.state === "due";
+  const cognitiveAssessmentDetail = cognitiveAssessmentUnfinished
+    ? `${cognitiveAssessmentUnfinished.tasksCompleted}/${cognitiveAssessmentUnfinished.totalTasks} saved`
+    : cognitiveAssessmentReady
+      ? t("mindMemory.fastHelp.cognitiveAssessmentReadyDetail", "Check ready now")
+      : cognitiveAssessmentJoined
+        ? cognitiveAssessmentFrequencyLabel(cognitiveProgram?.enrollment?.frequency ?? "monthly")
+        : t("mindMemory.fastHelp.cognitiveAssessmentDetail", "Memory and thinking");
+  const cognitiveAssessmentBadge = cognitiveAssessmentUnfinished
+    ? t("mindMemory.fastHelp.cognitiveAssessmentContinue", "Continue")
+    : cognitiveAssessmentReady
+      ? t("mindMemory.fastHelp.cognitiveAssessmentReady", "Ready")
+      : cognitiveAssessmentJoined
+        ? t("mindMemory.fastHelp.cognitiveAssessmentActive", "Active")
+        : undefined;
 
   const cards: MasterDashboardCard[] = [
     {
@@ -87,10 +100,12 @@ export default function MindMemoryScreen() {
       icon: Brain,
       label: t("mindMemory.fastHelp.cognitiveAssessment", "Cognitive Assessment"),
       detail: cognitiveAssessmentDetail,
-      tone: { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
+      tone: cognitiveAssessmentReady
+        ? { iconBg: "#FFF7ED", iconColor: "#C2410C", border: "#FED7AA" }
+        : { iconBg: "#EFF6FF", iconColor: "#2563EB", border: "#BFDBFE" },
       onClick: () => navigate("/mind-memory/cognitive-assessment"),
       testId: "button-mind-memory-fast-cognitive-assessment",
-      badge: cognitiveAssessmentJoined ? t("mindMemory.fastHelp.cognitiveAssessmentJoined", "Joined") : undefined,
+      badge: cognitiveAssessmentBadge,
     },
     {
       id: "play-game",

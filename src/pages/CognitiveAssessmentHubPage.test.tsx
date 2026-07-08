@@ -8,6 +8,11 @@ import type { CognitiveAssessmentProgramStatusResponse } from "../../shared/cogn
 const unjoinedProgram: CognitiveAssessmentProgramStatusResponse = {
   joined: false,
   enrollment: null,
+  reminderStatus: {
+    state: "not_scheduled",
+    nextRunAt: null,
+    dueSince: null,
+  },
   latestUnfinishedSession: null,
   latestReport: null,
   completedReportCount: 0,
@@ -27,6 +32,11 @@ const joinedProgram: CognitiveAssessmentProgramStatusResponse = {
     nextRunAt: "2026-08-07T08:00:00.000Z",
     scheduledInteractionId: "00000000-0000-4000-8000-000000000001",
   },
+  reminderStatus: {
+    state: "upcoming",
+    nextRunAt: "2026-08-07T08:00:00.000Z",
+    dueSince: null,
+  },
   latestUnfinishedSession: {
     sessionId: "open-session",
     startedAt: "2026-07-07T09:00:00.000Z",
@@ -41,6 +51,16 @@ const joinedProgram: CognitiveAssessmentProgramStatusResponse = {
   },
   completedReportCount: 2,
   totalTasks: 12,
+};
+
+const dueProgram: CognitiveAssessmentProgramStatusResponse = {
+  ...joinedProgram,
+  reminderStatus: {
+    state: "due",
+    nextRunAt: "2026-08-07T08:00:00.000Z",
+    dueSince: "2026-07-07T08:00:00.000Z",
+  },
+  latestUnfinishedSession: null,
 };
 
 function LocationProbe() {
@@ -99,11 +119,20 @@ describe("CognitiveAssessmentHubPage", () => {
   it("renders active program actions for joined members", async () => {
     renderHub(joinedProgram);
 
-    expect(await screen.findByText("Joined")).toBeInTheDocument();
+    expect(await screen.findByText("Continue")).toBeInTheDocument();
     expect(screen.getByText("Next check")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /continue check/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /view report/i })).toBeEnabled();
+  });
+
+  it("surfaces a ready in-app state when the scheduled check is due", async () => {
+    renderHub(dueProgram);
+
+    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    expect(screen.getByText("Ready now")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start now/i })).toBeInTheDocument();
+    expect(screen.getAllByText("WhatsApp + app").length).toBeGreaterThan(0);
   });
 
   it("continues an unfinished session using the URL session id", async () => {
@@ -163,6 +192,6 @@ describe("CognitiveAssessmentHubPage", () => {
       frequency: "every_2_weeks",
       reminderTime: "14:00",
     });
-    expect(await screen.findByText("Joined")).toBeInTheDocument();
+    expect(await screen.findByText("Continue")).toBeInTheDocument();
   });
 });

@@ -35,6 +35,11 @@ function LocationProbe() {
 const unjoinedProgram: CognitiveAssessmentProgramStatusResponse = {
   joined: false,
   enrollment: null,
+  reminderStatus: {
+    state: "not_scheduled",
+    nextRunAt: null,
+    dueSince: null,
+  },
   latestUnfinishedSession: null,
   latestReport: null,
   completedReportCount: 0,
@@ -161,10 +166,41 @@ describe("MindMemoryScreen", () => {
         nextRunAt: "2026-08-07T08:00:00.000Z",
         scheduledInteractionId: "00000000-0000-4000-8000-000000000001",
       },
+      reminderStatus: {
+        state: "upcoming",
+        nextRunAt: "2026-08-07T08:00:00.000Z",
+        dueSince: null,
+      },
     });
 
-    expect(await screen.findByText("Joined")).toBeInTheDocument();
+    expect(await screen.findByText("Active")).toBeInTheDocument();
     expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Monthly check");
+  });
+
+  it("shows a ready badge when the cognitive assessment reminder is due", async () => {
+    renderMindMemory({
+      ...unjoinedProgram,
+      joined: true,
+      enrollment: {
+        status: "active",
+        startDate: "2026-07-07",
+        frequency: "monthly",
+        reminderTime: "10:00",
+        timezone: "Europe/Madrid",
+        joinedAt: "2026-07-07T08:00:00.000Z",
+        updatedAt: "2026-07-07T08:00:00.000Z",
+        nextRunAt: "2026-08-07T08:00:00.000Z",
+        scheduledInteractionId: "00000000-0000-4000-8000-000000000001",
+      },
+      reminderStatus: {
+        state: "due",
+        nextRunAt: "2026-08-07T08:00:00.000Z",
+        dueSince: "2026-07-07T08:00:00.000Z",
+      },
+    });
+
+    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    expect(screen.getByTestId("button-mind-memory-fast-cognitive-assessment")).toHaveTextContent("Check ready now");
   });
 
   it("rotates through the full final Fast help set", () => {
