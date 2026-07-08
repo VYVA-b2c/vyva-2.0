@@ -656,6 +656,7 @@ describe("PreventionScreen", () => {
     expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Easy food");
     expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("VYVA learned");
     expect(screen.getByTestId("prevention-page")).not.toHaveTextContent("Easier version");
+    expect(screen.getByTestId("button-prevention-snooze-follow-up")).toHaveTextContent("Later");
 
     fireEvent.click(screen.getByTestId("button-prevention-daily-follow-up-context"));
     expect(mocks.guardPath).toHaveBeenCalledWith("/health/doctor", expect.objectContaining({
@@ -675,6 +676,13 @@ describe("PreventionScreen", () => {
     }));
 
     fireEvent.click(screen.getByTestId("button-prevention-resolve-follow-up"));
+    await waitFor(() => expect(mocks.apiFetch).toHaveBeenCalledWith(
+      "/api/health/prevention/follow-ups/triage-uti/lifecycle",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ action: "handled" }),
+      }),
+    ));
     expect(JSON.parse(window.localStorage.getItem("vyva-prevention-loop:dismissed-followups") ?? "[]")).toContain("triage-uti");
   });
 

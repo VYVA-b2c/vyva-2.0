@@ -243,6 +243,12 @@ export type PreventionFocusResult = {
     reportedAt?: string | null;
     subject: string;
     topic: string;
+    lifecycle?: {
+      status?: string | null;
+      snoozedUntil?: string | null;
+      expiresAt?: string | null;
+      resolvedAt?: string | null;
+    } | null;
   };
   generatedAt: string;
 };

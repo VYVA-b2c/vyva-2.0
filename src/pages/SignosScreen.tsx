@@ -2541,7 +2541,13 @@ const SignosScreen = () => {
     retry: false,
   });
   const { data: preventionData, isError: preventionError } = useQuery<PreventionFocusResponse>({
-    queryKey: ["/api/health/prevention", requestLearning.clientHour, requestLearning.recentFeedback.length, requestLearning.recentFeedback[0]?.savedAt],
+    queryKey: [
+      "/api/health/prevention",
+      requestLearning.clientHour,
+      requestLearning.recentFeedback.length,
+      requestLearning.recentFeedback[0]?.savedAt,
+      requestLearning.dismissedFollowUpIds.join("|"),
+    ],
     retry: false,
     staleTime: 60 * 1000,
     queryFn: async () => {

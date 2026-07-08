@@ -52,6 +52,12 @@ type PreventionFocusResponse = {
     reportedAt?: string | null;
     subject: string;
     topic: string;
+    lifecycle?: {
+      status?: string | null;
+      snoozedUntil?: string | null;
+      expiresAt?: string | null;
+      resolvedAt?: string | null;
+    } | null;
   };
   generatedAt: string;
 };
@@ -996,7 +1002,8 @@ export default function PreventionScreen() {
   const [lastLoopFeedback, setLastLoopFeedback] = useState<PreventionLoopLastFeedback | null>(null);
   const [lastLoopView, setLastLoopView] = useState<PreventionLoopLastView | null>(null);
   const [requestLearning, setRequestLearning] = useState(() => learningContextForRequest());
-  const { data, isLoading, isError } = useQuery<PreventionFocusResponse>({
+  const [followUpActionPending, setFollowUpActionPending] = useState<"handled" | "snoozed" | null>(null);
+  const { data, isLoading, isError, refetch } = useQuery<PreventionFocusResponse>({
     queryKey: [
       "/api/health/prevention",
       requestLearning.clientHour,
@@ -1135,11 +1142,30 @@ export default function PreventionScreen() {
     });
   };
 
-  const resolveFollowUp = () => {
+  const updateFollowUpLifecycle = async (action: "handled" | "snoozed") => {
     const reportId = focus.followUp?.reportId?.trim();
     if (!reportId) return;
-    dismissPreventionFollowUp(reportId);
-    setRequestLearning(learningContextForRequest());
+    if (action === "handled") {
+      dismissPreventionFollowUp(reportId);
+      setRequestLearning(learningContextForRequest());
+    }
+    setFollowUpActionPending(action);
+    try {
+      const response = await apiFetch(`/api/health/prevention/follow-ups/${encodeURIComponent(reportId)}/lifecycle`, {
+        method: "POST",
+        body: JSON.stringify({
+          action,
+          ...(action === "snoozed" ? { snoozeHours: 48 } : {}),
+        }),
+      });
+      if (!response.ok) throw new Error("Could not update follow-up lifecycle");
+      await refetch();
+      setRequestLearning(learningContextForRequest());
+    } catch (err) {
+      console.warn("[prevention] Follow-up lifecycle update failed", err);
+    } finally {
+      setFollowUpActionPending(null);
+    }
   };
 
   const markAction = (action: PreventionDailyAction, feedback: PreventionFeedback) => {
@@ -1340,14 +1366,30 @@ export default function PreventionScreen() {
               {heroHeadline}
             </h1>
             {isFollowUp && focus.followUp?.reportId ? (
-              <button
-                type="button"
-                onClick={resolveFollowUp}
-                data-testid="button-prevention-resolve-follow-up"
-                className="vyva-tap mt-2 inline-flex min-h-[34px] items-center justify-center rounded-full border border-[#FAD7AA] bg-white px-3 font-body text-[12px] font-black text-[#B45309]"
-              >
-                {t("health.prevention.followUpHandled", "Handled")}
-              </button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void updateFollowUpLifecycle("handled")}
+                  data-testid="button-prevention-resolve-follow-up"
+                  disabled={followUpActionPending != null}
+                  className="vyva-tap inline-flex min-h-[34px] items-center justify-center rounded-full border border-[#FAD7AA] bg-white px-3 font-body text-[12px] font-black text-[#B45309] disabled:opacity-60"
+                >
+                  {followUpActionPending === "handled"
+                    ? t("health.prevention.followUpSaving", "Saving")
+                    : t("health.prevention.followUpHandled", "Handled")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void updateFollowUpLifecycle("snoozed")}
+                  data-testid="button-prevention-snooze-follow-up"
+                  disabled={followUpActionPending != null}
+                  className="vyva-tap inline-flex min-h-[34px] items-center justify-center rounded-full border border-[#E6E0F4] bg-white px-3 font-body text-[12px] font-black text-vyva-purple disabled:opacity-60"
+                >
+                  {followUpActionPending === "snoozed"
+                    ? t("health.prevention.followUpSaving", "Saving")
+                    : t("health.prevention.followUpLater", "Later")}
+                </button>
+              </div>
             ) : null}
           </div>
           {isFollowUp ? (

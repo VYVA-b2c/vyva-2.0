@@ -3,9 +3,18 @@ import type { Request, Response } from "express";
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { db } from "../db.js";
 import { isRelationSchemaUnavailableError } from "../lib/dbCompatibility.js";
+import {
+  followUpExpiresAt,
+  isFollowUpExpired,
+  isFollowUpVisible,
+  normalizeSnoozeHours,
+  snoozedUntilFrom,
+  type HealthFollowUpLifecycleStatus,
+} from "../lib/healthFollowUpLifecycle.js";
 import { requireActiveProfileId } from "../lib/profileAccess.js";
 import { buildPreventionFocus, type PreventionLoopContext, type PreventionVitalReading } from "../lib/preventionFocus.js";
 import {
+  healthFollowUpLifecycle,
   medicationAdherence,
   medicationSafetySignals,
   profiles,
@@ -118,6 +127,84 @@ function parseLearningContext(value: unknown): PreventionLoopContext | undefined
   }
 }
 
+type TriageReportRow = typeof triageReports.$inferSelect;
+type FollowUpLifecycleRow = typeof healthFollowUpLifecycle.$inferSelect;
+
+function isoOrNull(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function serializeFollowUpLifecycle(row: FollowUpLifecycleRow | null | undefined) {
+  if (!row) return null;
+  return {
+    status: row.status,
+    snoozedUntil: isoOrNull(row.snoozed_until),
+    expiresAt: isoOrNull(row.expires_at),
+    resolvedAt: isoOrNull(row.resolved_at),
+  };
+}
+
+async function safeLifecycleRows(profileId: string, reportIds: string[]): Promise<FollowUpLifecycleRow[]> {
+  if (!reportIds.length) return [];
+  return safeRows("health_follow_up_lifecycle", db
+    .select()
+    .from(healthFollowUpLifecycle)
+    .where(and(
+      eq(healthFollowUpLifecycle.user_id, profileId),
+      inArray(healthFollowUpLifecycle.triage_report_id, reportIds),
+    )));
+}
+
+async function upsertFollowUpLifecycleStatus(params: {
+  profileId: string;
+  report: Pick<TriageReportRow, "id" | "created_at">;
+  status: HealthFollowUpLifecycleStatus;
+  now: Date;
+  source?: string;
+  snoozedUntil?: Date | null;
+  metadata?: Record<string, unknown>;
+}): Promise<FollowUpLifecycleRow | null> {
+  const resolvedAt = params.status === "handled" || params.status === "expired" ? params.now : null;
+  const expiresAt = followUpExpiresAt(params.report.created_at);
+  try {
+    const [row] = await db.insert(healthFollowUpLifecycle).values({
+      user_id: params.profileId,
+      triage_report_id: params.report.id,
+      status: params.status,
+      source: params.source ?? "prevention",
+      snoozed_until: params.status === "snoozed" ? params.snoozedUntil ?? snoozedUntilFrom(params.now) : null,
+      expires_at: expiresAt,
+      resolved_at: resolvedAt,
+      metadata: params.metadata ?? {},
+      updated_at: params.now,
+    }).onConflictDoUpdate({
+      target: [healthFollowUpLifecycle.user_id, healthFollowUpLifecycle.triage_report_id],
+      set: {
+        status: params.status,
+        source: params.source ?? "prevention",
+        snoozed_until: params.status === "snoozed" ? params.snoozedUntil ?? snoozedUntilFrom(params.now) : null,
+        expires_at: expiresAt,
+        resolved_at: resolvedAt,
+        metadata: params.metadata ?? {},
+        updated_at: params.now,
+      },
+    }).returning();
+    return row ?? null;
+  } catch (err) {
+    if (isOptionalSchemaError(err, "health_follow_up_lifecycle")) {
+      console.warn("[health-prevention] Follow-up lifecycle table unavailable; continuing without persisted lifecycle.");
+      return null;
+    }
+    throw err;
+  }
+}
+
+function lifecycleMap(rows: FollowUpLifecycleRow[]): Map<string, FollowUpLifecycleRow> {
+  return new Map(rows.map((row) => [row.triage_report_id, row]));
+}
+
 router.get("/prevention", async (req: Request, res: Response) => {
   const accountUserId = req.user?.id;
   if (!accountUserId) return res.status(401).json({ error: "Not authenticated" });
@@ -169,7 +256,7 @@ router.get("/prevention", async (req: Request, res: Response) => {
         .from(triageReports)
         .where(eq(triageReports.user_id, profileId))
         .orderBy(desc(triageReports.created_at))
-        .limit(1)),
+        .limit(10)),
       safeRows("vitals_readings", db
         .select()
         .from(vitalsReadings)
@@ -228,9 +315,52 @@ router.get("/prevention", async (req: Request, res: Response) => {
     const scheduledToday = activeMedicationRows.reduce((total, med) => total + scheduledDoseCount(med.scheduled_times), 0);
     const takenToday = adherenceRows.filter((row) => row.status === "taken" && row.created_at >= todayStart).length;
     const missedOrLate30 = adherenceRows.filter((row) => ["missed", "skipped", "late"].includes(row.status)).length;
-    const latestTriage = latestTriageRows[0] ?? null;
+    const now = new Date();
     const dismissedFollowUpIds = new Set(loopContext?.dismissedFollowUpIds ?? []);
-    const activeLatestTriage = latestTriage?.id && dismissedFollowUpIds.has(latestTriage.id) ? null : latestTriage;
+    const triageReportIds = latestTriageRows.map((row) => row.id).filter(Boolean);
+    const followUpLifecycles = lifecycleMap(await safeLifecycleRows(profileId, triageReportIds));
+    for (const report of latestTriageRows) {
+      if (dismissedFollowUpIds.has(report.id)) {
+        const row = await upsertFollowUpLifecycleStatus({
+          profileId,
+          report,
+          status: "handled",
+          now,
+          source: "local-dismissal-sync",
+          metadata: { reason: "client_dismissed_follow_up" },
+        });
+        if (row) followUpLifecycles.set(report.id, row);
+        continue;
+      }
+      if (isFollowUpExpired(report.created_at, now)) {
+        const existing = followUpLifecycles.get(report.id);
+        if (existing?.status !== "handled" && existing?.status !== "expired") {
+          const row = await upsertFollowUpLifecycleStatus({
+            profileId,
+            report,
+            status: "expired",
+            now,
+            source: "auto-expiry",
+            metadata: { reason: "follow_up_window_elapsed" },
+          });
+          if (row) followUpLifecycles.set(report.id, row);
+        }
+      }
+    }
+    const activeLatestTriage = latestTriageRows.find((report) =>
+      !dismissedFollowUpIds.has(report.id)
+      && isFollowUpVisible(followUpLifecycles.get(report.id), report.created_at, now)
+    ) ?? null;
+    const activeFollowUpLifecycle = activeLatestTriage
+      ? await upsertFollowUpLifecycleStatus({
+        profileId,
+        report: activeLatestTriage,
+        status: "active",
+        now,
+        source: "prevention",
+        metadata: { reason: "selected_prevention_follow_up" },
+      })
+      : null;
     const latestAnalysis = latestAnalysisRows[0] ?? null;
 
     const focus = buildPreventionFocus({
@@ -287,10 +417,83 @@ router.get("/prevention", async (req: Request, res: Response) => {
       loopContext,
     });
 
+    if (focus.followUp && activeFollowUpLifecycle) {
+      focus.followUp = {
+        ...focus.followUp,
+        lifecycle: serializeFollowUpLifecycle(activeFollowUpLifecycle),
+      };
+    }
+
     return res.json(focus);
   } catch (err) {
     console.error("[health-prevention] GET /api/health/prevention failed", err);
     return res.status(500).json({ error: "Failed to build prevention focus" });
+  }
+});
+
+router.post("/prevention/follow-ups/:reportId/lifecycle", async (req: Request, res: Response) => {
+  const accountUserId = req.user?.id;
+  if (!accountUserId) return res.status(401).json({ error: "Not authenticated" });
+
+  const profileId = await requireActiveProfileId(accountUserId, res);
+  if (!profileId) return;
+
+  const reportId = String(req.params.reportId ?? "").trim();
+  const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
+  const action = typeof body.action === "string" ? body.action.trim() : "";
+  if (!reportId) return res.status(400).json({ error: "Missing follow-up report id" });
+  if (action !== "handled" && action !== "snoozed" && action !== "active") {
+    return res.status(400).json({ error: "Invalid follow-up lifecycle action" });
+  }
+
+  try {
+    const [report] = await safeRows("triage_reports", db
+      .select()
+      .from(triageReports)
+      .where(and(eq(triageReports.id, reportId), eq(triageReports.user_id, profileId)))
+      .limit(1));
+
+    if (!report) return res.status(404).json({ error: "Follow-up report not found" });
+
+    const now = new Date();
+    if (isFollowUpExpired(report.created_at, now) && action !== "handled") {
+      const row = await upsertFollowUpLifecycleStatus({
+        profileId,
+        report,
+        status: "expired",
+        now,
+        source: "auto-expiry",
+        metadata: { reason: "follow_up_window_elapsed" },
+      });
+      return res.status(409).json({
+        error: "Follow-up has expired",
+        followUp: serializeFollowUpLifecycle(row),
+      });
+    }
+
+    const status = action === "active" ? "active" : action as HealthFollowUpLifecycleStatus;
+    const snoozeHours = action === "snoozed" ? normalizeSnoozeHours(body.snoozeHours) : undefined;
+    const row = await upsertFollowUpLifecycleStatus({
+      profileId,
+      report,
+      status,
+      now,
+      source: "user-action",
+      snoozedUntil: action === "snoozed" ? snoozedUntilFrom(now, snoozeHours) : null,
+      metadata: {
+        action,
+        ...(snoozeHours ? { snoozeHours } : {}),
+      },
+    });
+
+    if (!row) {
+      return res.status(503).json({ error: "Follow-up lifecycle is not available yet" });
+    }
+
+    return res.json({ followUp: serializeFollowUpLifecycle(row) });
+  } catch (err) {
+    console.error("[health-prevention] POST /api/health/prevention/follow-ups/:reportId/lifecycle failed", err);
+    return res.status(500).json({ error: "Failed to update follow-up" });
   }
 });
 

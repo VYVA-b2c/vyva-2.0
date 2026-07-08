@@ -1483,6 +1483,24 @@ export const insertTriageReportSchema = createInsertSchema(triageReports).omit({
 export type InsertTriageReport = z.infer<typeof insertTriageReportSchema>;
 export type TriageReport = typeof triageReports.$inferSelect;
 
+export const healthFollowUpLifecycle = pgTable("health_follow_up_lifecycle", {
+  id:               uuid("id").primaryKey().defaultRandom(),
+  user_id:          text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  triage_report_id: uuid("triage_report_id").notNull().references(() => triageReports.id, { onDelete: "cascade" }),
+  status:           text("status").notNull().default("active"),
+  source:           text("source").notNull().default("prevention"),
+  snoozed_until:    timestamp("snoozed_until", { withTimezone: true }),
+  expires_at:       timestamp("expires_at", { withTimezone: true }),
+  resolved_at:      timestamp("resolved_at", { withTimezone: true }),
+  metadata:         jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  created_at:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:       timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("health_follow_up_lifecycle_user_report_uidx").on(t.user_id, t.triage_report_id),
+  index("health_follow_up_lifecycle_user_status_idx").on(t.user_id, t.status, t.expires_at),
+  index("health_follow_up_lifecycle_report_idx").on(t.triage_report_id),
+]);
+
 
 // ============================================================
 // NEW TABLE: vitals_readings — persisted heart rate readings per user
@@ -2974,6 +2992,7 @@ export const schema = {
   participationEventChecks,
   participationNotifications,
   triageReports,
+  healthFollowUpLifecycle,
   vitalsReadings,
   vyvaSignalReadings,
   vyvaUserBaselines,

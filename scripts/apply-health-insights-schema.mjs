@@ -27,6 +27,7 @@ const coreSql = readMigration("0057_health_insights_engine_core.sql");
 const actionSeedSql = readMigration("0058_agewell_action_library_seed.sql");
 const outcomesSql = readMigration("0059_health_insight_outcomes.sql");
 const backendCleanupSql = readMigration("0060_health_insights_backend_owned_cleanup.sql");
+const followUpLifecycleSql = readMigration("0061_health_follow_up_lifecycle.sql");
 const actionSeedInserts = extractActionSeedInserts(actionSeedSql);
 
 const agewellActionTableSql = `
@@ -85,6 +86,7 @@ try {
   await client.query(dedupeSql);
   await client.query(outcomesSql);
   await client.query(backendCleanupSql);
+  await client.query(followUpLifecycleSql);
   await client.query("commit");
 
   const counts = await client.query(`
