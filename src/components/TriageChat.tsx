@@ -79,6 +79,9 @@ interface TriageSummary {
   scanNotes?: string[];
   evidenceSummary?: string;
   evidenceSources?: TriageEvidenceSource[];
+  contextConfidence?: TriageGuidancePlan["confidence"];
+  contextSignals?: TriageGuidanceSignal[];
+  contextBrief?: string;
   refinementContext?: {
     messages: ChatMessage[];
     quickAnswers: TriageRefinementAnswer[];
@@ -127,14 +130,21 @@ type WizardEntryMode = "with_vitals" | "without_vitals";
 
 type TriageHealthMemory = {
   healthContext?: string;
+  careContext?: string;
+  checkinContext?: string;
   conditions?: string;
   allergies?: string;
   medications?: string;
+  devices?: string;
   latestVitals?: string;
   vitalsTrend?: string;
   latestSymptomReport?: string;
+  recentSymptomReports?: string;
   medicationAdherence?: string;
   medicationInteraction?: string;
+  recentHealthEvents?: string;
+  latestMedicalVisit?: string;
+  upcomingMedicalAppointment?: string;
   countryCode?: string;
 };
 
@@ -565,6 +575,11 @@ export default function TriageChat({
               ...res.summary,
               aiSummary: res.content,
               evidenceSources: res.summary.evidenceSources ?? res.evidenceSources,
+              contextConfidence: res.guidancePlan?.confidence,
+              contextSignals: res.guidancePlan?.usefulSignals,
+              contextBrief: res.guidancePlan
+                ? `${res.guidancePlan.protocolLabel}: ${res.guidancePlan.nextQuestionFocus}`
+                : undefined,
               refinementContext: {
                 messages: history,
                 quickAnswers: quickAnswerTrail,
@@ -737,6 +752,16 @@ export default function TriageChat({
     { key: "safety", label: t("health.symptomCheck.tracker.check", "Safety check"), Icon: Activity },
     { key: "next", label: t("health.symptomCheck.tracker.nextStep", "Next step"), Icon: CheckCircle },
   ];
+  const smartBriefItems = guidancePlan
+    ? [
+        guidancePlan.protocolLabel,
+        ...guidancePlan.confidence.reasons,
+      ].filter(Boolean).slice(0, 3)
+    : [
+        healthMemory?.conditions ? t("health.symptomCheck.chat.briefProfile", "health profile") : "",
+        healthMemory?.medications ? t("health.symptomCheck.chat.briefMeds", "medications") : "",
+        healthMemory?.latestVitals || healthMemory?.vitalsTrend ? t("health.symptomCheck.chat.briefVitals", "recent vitals") : "",
+      ].filter(Boolean).slice(0, 3);
   const readoutText = [
     latestQuestion,
     visibleQuickAnswers.length
@@ -874,6 +899,21 @@ export default function TriageChat({
                       </div>
                     );
                   })}
+                </div>
+                <div className="mt-3 rounded-[18px] border border-[#E8DED4] bg-white px-3 py-3" data-testid="smart-check-brief">
+                  <p className="font-body text-[12px] font-extrabold uppercase tracking-[0.1em] text-vyva-purple">
+                    {t("health.symptomCheck.chat.smartBriefTitle", "Smart check brief")}
+                  </p>
+                  <p className="mt-1 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                    {smartBriefItems.length
+                      ? t("health.symptomCheck.chat.smartBriefWithContext", "VYVA is using {{items}} to choose safer questions.", { items: smartBriefItems.join(", ") })
+                      : t("health.symptomCheck.chat.smartBriefNoContext", "VYVA will start with your words and add context as you answer.")}
+                  </p>
+                  {guidancePlan?.confidence.missing.length ? (
+                    <p className="mt-2 font-body text-[13px] font-bold leading-snug text-vyva-text-3">
+                      {t("health.symptomCheck.chat.smartBriefMissing", "Helpful later: {{items}}", { items: guidancePlan.confidence.missing.join(", ") })}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </HealthWizardCard>

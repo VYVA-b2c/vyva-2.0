@@ -99,6 +99,97 @@ describe("social Share Drop Box API", () => {
     expect(openAiTranscriptionCreateMock).not.toHaveBeenCalled();
   });
 
+  it("classifies open-prompt notes and keeps concrete theme choices", async () => {
+    const recipeRes = await request(app())
+      .post("/api/social/share-dropbox/notes")
+      .set("x-user-id", "share-open-classify-user")
+      .send({
+        noteType: "memory",
+        transcript: "I cooked lentil soup with garlic today",
+        editedText: "I cooked lentil soup with garlic today",
+        promptId: "story-open",
+        promptText: "What would you like to share today?",
+        promptKind: "open",
+        connectionGoal: "VYVA will find the right room.",
+        lang: "en",
+      })
+      .expect(201);
+
+    expect(recipeRes.body.note).toMatchObject({
+      noteType: "recipe",
+      suggestedRoomSlug: "kitchen-table",
+      connectionLabel: "See Kitchen Table",
+      connectionGoal: "Invite kitchen memories and tips.",
+    });
+
+    const memoryRes = await request(app())
+      .post("/api/social/share-dropbox/notes")
+      .set("x-user-id", "share-open-classify-user")
+      .send({
+        noteType: "memory",
+        transcript: "The afternoon light reminded me of home",
+        editedText: "The afternoon light reminded me of home",
+        promptId: "story-open",
+        promptText: "What would you like to share today?",
+        promptKind: "open",
+        connectionGoal: "VYVA will find the right room.",
+        lang: "en",
+      })
+      .expect(201);
+
+    expect(memoryRes.body.note).toMatchObject({
+      noteType: "memory",
+      suggestedRoomSlug: "memory-lane",
+    });
+
+    const concreteRes = await request(app())
+      .post("/api/social/share-dropbox/notes")
+      .set("x-user-id", "share-open-classify-user")
+      .send({
+        noteType: "reading",
+        transcript: "The soup line in the poem stayed with me",
+        editedText: "The soup line in the poem stayed with me",
+        promptId: "reading-line",
+        promptText: "What did you read that stayed with you?",
+        promptKind: "reading",
+        connectionGoal: "Find readers with a similar thought.",
+        lang: "en",
+      })
+      .expect(201);
+
+    expect(concreteRes.body.note).toMatchObject({
+      noteType: "reading",
+      suggestedRoomSlug: "reading-room",
+    });
+
+    vi.stubEnv("OPENAI_API_KEY", "test-openai-key");
+    openAiToFileMock.mockResolvedValue("share-audio-file");
+    openAiTranscriptionCreateMock.mockResolvedValue({ text: "This song reminds me of the radio on Sundays" });
+
+    const params = new URLSearchParams({
+      noteType: "memory",
+      lang: "en",
+      durationMs: "1200",
+      promptId: "story-open",
+      promptText: "What would you like to share today?",
+      promptKind: "open",
+      connectionGoal: "VYVA will find the right room.",
+    });
+
+    const audioRes = await request(app())
+      .post(`/api/social/share-dropbox/notes/audio?${params.toString()}`)
+      .set("x-user-id", "share-open-classify-user")
+      .set("Content-Type", "audio/webm")
+      .send(Buffer.alloc(64, 1))
+      .expect(201);
+
+    expect(audioRes.body.note).toMatchObject({
+      noteType: "song",
+      suggestedRoomSlug: "music-room",
+      connectionGoal: "Find someone who remembers this song too.",
+    });
+  });
+
   it("keeps unsafe notes private and blocks publishing", async () => {
     const createRes = await request(app())
       .post("/api/social/share-dropbox/notes")
@@ -149,12 +240,16 @@ describe("social Share Drop Box API", () => {
       .expect(200);
 
     expect(homeRes.body.todayPrompt).toMatchObject({
-      id: expect.any(String),
-      promptText: expect.any(String),
+      id: "story-open",
+      promptKind: "open",
+      promptText: "What would you like to share today?",
     });
     expect(homeRes.body.prompts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "memory-small-moment", noteType: "memory", title: "Memory", roomName: "Memory Lane" }),
+      expect.objectContaining({ id: "hello-soft-start", noteType: "hello", title: "Hello", roomName: "Together Room" }),
       expect.objectContaining({ id: "song-old-favourite", noteType: "song", roomName: "Music Room" }),
-      expect.objectContaining({ id: "recipe-family-table", noteType: "recipe", roomName: "Kitchen Table" }),
+      expect.objectContaining({ id: "recipe-family-table", noteType: "recipe", title: "Recipe", roomName: "Kitchen Table" }),
+      expect.objectContaining({ id: "reading-line", noteType: "reading", title: "Reading", roomName: "Reading Room" }),
     ]));
     expect(homeRes.body.recentNotes[0]).toMatchObject({
       id: createRes.body.note.id,

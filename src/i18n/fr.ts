@@ -1408,6 +1408,14 @@ const fr = {
       ridePrefill: "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. Demandez ma confirmation avant toute reservation.",
     },
   },
+  community: {
+    master: {
+      cards: {
+        experts: "Demander a un expert",
+        expertsDetail: "Parler avec un specialiste VYVA",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Acces rapide aux services",
     actions: {

@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "@/lib/queryClient";
 import AgentAvatar from "./AgentAvatar";
 import SocialStyles from "./SocialStyles";
+import StoryRoomHandoffCard, { StoryRoomReplyLoopCard, type StoryRoomHandoffNote } from "./StoryRoomHandoffCard";
 import type {
   SocialLanguage,
   SocialRoomCostRange,
@@ -50,6 +51,8 @@ type TogetherRoomScreenProps = {
   visitId?: string | null;
   onBack: () => void;
   onOpenActivities?: () => void;
+  onOpenShareStories?: () => void;
+  shareStoryHandoff?: StoryRoomHandoffNote | null;
 };
 
 type StarterAction = "hello" | "plan" | "ask";
@@ -7139,6 +7142,8 @@ export default function TogetherRoomScreen({
   visitId,
   onBack,
   onOpenActivities,
+  onOpenShareStories,
+  shareStoryHandoff,
 }: TogetherRoomScreenProps) {
   const copy = copyByLanguage[language];
   const { room } = roomResponse;
@@ -7154,6 +7159,13 @@ export default function TogetherRoomScreen({
     "together-proposal-length",
   ].filter(Boolean).join(" ");
   const [showProposalComposer, setShowProposalComposer] = useState(false);
+  const [prefilledShareStoryId, setPrefilledShareStoryId] = useState<string | null>(null);
+  const [dismissedShareStoryId, setDismissedShareStoryId] = useState<string | null>(null);
+  const [placedShareStoryHandoff, setPlacedShareStoryHandoff] = useState<StoryRoomHandoffNote | null>(null);
+  const activeShareStoryHandoff = shareStoryHandoff && dismissedShareStoryId !== shareStoryHandoff.id ? shareStoryHandoff : null;
+  const replyLoopShareStoryHandoff = placedShareStoryHandoff && dismissedShareStoryId === placedShareStoryHandoff.id
+    ? placedShareStoryHandoff
+    : null;
   const [safetyHelpPanelAnchor, setSafetyHelpPanelAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
   const [lastSafetyHelpChoice, setLastSafetyHelpChoice] = useState<SafetyHelpChoice | null>(null);
   const [lastSafetyHelpReceiptAnchor, setLastSafetyHelpReceiptAnchor] = useState<SafetyHelpPanelAnchor | null>(null);
@@ -7861,6 +7873,46 @@ export default function TogetherRoomScreen({
     setProposalGroupSize("open_room");
     setProposalDraft(draft);
     setShowProposalComposer(true);
+  };
+
+  useEffect(() => {
+    if (!shareStoryHandoff || prefilledShareStoryId === shareStoryHandoff.id) return;
+
+    const text = limitProposalDraft(shareStoryHandoff.text.trim());
+    if (!text) return;
+
+    openViewComposer(text);
+    setPlacedShareStoryHandoff(null);
+    setPrefilledShareStoryId(shareStoryHandoff.id);
+  }, [prefilledShareStoryId, shareStoryHandoff]);
+
+  const editShareStoryHandoff = () => {
+    if (!activeShareStoryHandoff) return;
+    openViewComposer(limitProposalDraft(proposalDraft.trim() || activeShareStoryHandoff.text));
+  };
+
+  const sendShareStoryHandoff = async () => {
+    if (!activeShareStoryHandoff || !proposalDraft.trim()) return;
+
+    await submitProposal(
+      proposalDraft,
+      proposalDraft,
+      "online",
+      "message",
+      [],
+      "other",
+      "flexible",
+      "discuss",
+      "open_room",
+    );
+    setPlacedShareStoryHandoff(activeShareStoryHandoff);
+    setDismissedShareStoryId(activeShareStoryHandoff.id);
+  };
+
+  const prepareShareStoryReplyDraft = (draft: string) => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    openViewComposer(limitProposalDraft(trimmed));
   };
 
   const startRoomDirectionPlan = () => {
@@ -8623,6 +8675,42 @@ export default function TogetherRoomScreen({
           </div>
 
         </section>
+
+        {activeShareStoryHandoff ? (
+          <StoryRoomHandoffCard
+            note={activeShareStoryHandoff}
+            roomName={room.name}
+            language={language}
+            isBusy={isSending}
+            onPrimary={() => void sendShareStoryHandoff()}
+            onEdit={editShareStoryHandoff}
+            onShareAnother={() => {
+              if (onOpenShareStories) {
+                onOpenShareStories();
+                return;
+              }
+              onBack();
+            }}
+          />
+        ) : null}
+
+        {!activeShareStoryHandoff && replyLoopShareStoryHandoff ? (
+          <StoryRoomReplyLoopCard
+            note={replyLoopShareStoryHandoff}
+            roomName={room.name}
+            language={language}
+            responderName={members[0]?.name}
+            responderNames={members.slice(0, 2).map((member) => member.name)}
+            onReply={prepareShareStoryReplyDraft}
+            onShareAnother={() => {
+              if (onOpenShareStories) {
+                onOpenShareStories();
+                return;
+              }
+              onBack();
+            }}
+          />
+        ) : null}
 
         <section className="rounded-[30px] border border-[#E2D7C4] bg-[#FFFDF8] px-5 py-5 shadow-[0_18px_36px_rgba(151,110,37,0.08)]" data-testid="together-featured-plan">
           <div className="flex items-start gap-3">

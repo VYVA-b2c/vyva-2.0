@@ -33,26 +33,55 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
   });
 }
 
+const openPrompt: SocialShareStoryPrompt = {
+  id: "story-open",
+  noteType: "memory",
+  title: "Story",
+  body: "Say one thing you would like to share.",
+  promptText: "What would you like to share today?",
+  promptKind: "open",
+  connectionGoal: "VYVA will find the right room.",
+  suggestedRoomSlug: "memory-lane",
+  roomPath: "/social-rooms/memory-lane",
+  roomName: "Memory Lane",
+  connectionLabel: "See Memory Lane",
+  nextActionLabel: "Share another",
+};
+
 const prompts: SocialShareStoryPrompt[] = [
   {
-    id: "song-old-favourite",
-    noteType: "song",
-    title: "An old favourite song",
-    body: "Say the song and the memory it brings back.",
-    promptText: "What song would you like to share today?",
-    promptKind: "song",
-    connectionGoal: "Find someone who remembers this song too.",
-    suggestedRoomSlug: "music-room",
-    roomPath: "/social-rooms/music-room",
-    roomName: "Music Room",
-    connectionLabel: "See the Music Room",
+    id: "memory-small-moment",
+    noteType: "memory",
+    title: "Memory",
+    body: "A moment that still makes you smile.",
+    promptText: "What small memory came to mind today?",
+    promptKind: "memory",
+    connectionGoal: "Invite a kind response in Memory Lane.",
+    suggestedRoomSlug: "memory-lane",
+    roomPath: "/social-rooms/memory-lane",
+    roomName: "Memory Lane",
+    connectionLabel: "See Memory Lane",
     nextActionLabel: "Share another",
+  },
+  {
+    id: "hello-soft-start",
+    noteType: "hello",
+    title: "Hello",
+    body: "A gentle protected greeting.",
+    promptText: "What kind hello would you like to try?",
+    promptKind: "hello",
+    connectionGoal: "Start with a protected hello.",
+    suggestedRoomSlug: "together-room",
+    roomPath: "/social-rooms/together-room",
+    roomName: "Together Room",
+    connectionLabel: "Open Together Room",
+    nextActionLabel: "Send a kind hello",
   },
   {
     id: "recipe-family-table",
     noteType: "recipe",
-    title: "Family table",
-    body: "Leave a recipe, kitchen trick, or food memory.",
+    title: "Recipe",
+    body: "A recipe, kitchen trick, or food memory.",
     promptText: "What recipe or kitchen tip would you like to save?",
     promptKind: "recipe",
     connectionGoal: "Invite kitchen memories and tips.",
@@ -60,6 +89,34 @@ const prompts: SocialShareStoryPrompt[] = [
     roomPath: "/social-rooms/kitchen-table",
     roomName: "Kitchen Table",
     connectionLabel: "See Kitchen Table",
+    nextActionLabel: "Share another",
+  },
+  {
+    id: "reading-line",
+    noteType: "reading",
+    title: "Reading",
+    body: "One idea from a book, poem, or article.",
+    promptText: "What did you read that stayed with you?",
+    promptKind: "reading",
+    connectionGoal: "Find readers with a similar thought.",
+    suggestedRoomSlug: "reading-room",
+    roomPath: "/social-rooms/reading-room",
+    roomName: "Reading Room",
+    connectionLabel: "See Reading Room",
+    nextActionLabel: "Share another",
+  },
+  {
+    id: "song-old-favourite",
+    noteType: "song",
+    title: "Song",
+    body: "A song and the memory it brings back.",
+    promptText: "What song would you like to share today?",
+    promptKind: "song",
+    connectionGoal: "Find someone who remembers this song too.",
+    suggestedRoomSlug: "music-room",
+    roomPath: "/social-rooms/music-room",
+    roomName: "Music Room",
+    connectionLabel: "See the Music Room",
     nextActionLabel: "Share another",
   },
 ];
@@ -95,7 +152,7 @@ function note(overrides: Partial<SocialShareDropBoxNote> = {}): SocialShareDropB
 
 function home(overrides: Partial<SocialShareStoriesHomeResponse> = {}): SocialShareStoriesHomeResponse {
   return {
-    todayPrompt: prompts[0],
+    todayPrompt: openPrompt,
     prompts,
     recentNotes: [
       note({ id: "ready-note", status: "ready", editedText: "A reading thought", noteType: "reading", connectionLabel: "See Reading Room" }),
@@ -158,22 +215,26 @@ describe("ShareStoriesScreen", () => {
     vi.clearAllMocks();
   });
 
-  it("renders daily prompts, story cards, actions, and recent share statuses", async () => {
+  it("renders the simple story prompt, actions, theme chips, and recent share statuses", async () => {
     renderShareStories();
 
-    expect(await screen.findByText("Share Stories")).toBeInTheDocument();
-    expect(screen.getByTestId("share-stories-today")).toHaveTextContent("An old favourite song");
+    expect(await screen.findByText("Share a story")).toBeInTheDocument();
+    expect(screen.getByTestId("share-stories-today")).toHaveTextContent("What would you like to share today?");
+    expect(screen.getByTestId("share-stories-today")).toHaveTextContent("Your voice stays private.");
     expect(screen.getByTestId("button-share-stories-start-voice")).toBeInTheDocument();
     expect(screen.getByTestId("button-share-stories-type")).toBeInTheDocument();
 
     const promptRail = screen.getByTestId("share-stories-prompts");
-    expect(within(promptRail).getByText("An old favourite song")).toBeInTheDocument();
-    expect(within(promptRail).getByText("Family table")).toBeInTheDocument();
+    expect(within(promptRail).getByText("Memory")).toBeInTheDocument();
+    expect(within(promptRail).getByText("Hello")).toBeInTheDocument();
+    expect(within(promptRail).getByText("Recipe")).toBeInTheDocument();
+    expect(within(promptRail).getByText("Reading")).toBeInTheDocument();
+    expect(within(promptRail).getByText("Song")).toBeInTheDocument();
 
     const recent = screen.getByTestId("share-stories-recent");
     expect(recent).toHaveTextContent("Ready");
     expect(recent).toHaveTextContent("Placed");
-    expect(recent).toHaveTextContent("Needs review");
+    expect(recent).toHaveTextContent("Review");
   });
 
   it("sends prompt metadata for typed stories and shows the placement outcome", async () => {
@@ -220,9 +281,10 @@ describe("ShareStoriesScreen", () => {
     });
 
     renderShareStories();
-    await screen.findByText("Share Stories");
+    await screen.findByText("Share a story");
 
-    fireEvent.click(within(screen.getByTestId("share-story-prompt-recipe-family-table")).getByText("Type"));
+    fireEvent.click(screen.getByTestId("share-story-prompt-recipe-family-table"));
+    fireEvent.click(screen.getByTestId("button-share-stories-type"));
     fireEvent.change(screen.getByTestId("share-dropbox-typed-input"), {
       target: { value: "My soup needs parsley at the end" },
     });

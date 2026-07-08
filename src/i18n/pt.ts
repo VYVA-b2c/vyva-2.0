@@ -1350,6 +1350,14 @@ const pt = {
       ridePrefill: "Ajude-me a encontrar opcoes de transporte seguro para estes sinais vitais VYVA. Peca a minha confirmacao antes de reservar.",
     },
   },
+  community: {
+    master: {
+      cards: {
+        experts: "Perguntar a um especialista",
+        expertsDetail: "Falar com um especialista VYVA",
+      },
+    },
+  },
   informes: {
     fastServiceAccess: "Acesso rapido a servicos",
     actions: {

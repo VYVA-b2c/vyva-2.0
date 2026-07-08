@@ -24,6 +24,11 @@ import {
   retrieveMedicalProfileToolHandler,
   saveCallbackOnboardingSectionToolHandler,
 } from "./routes/elevenlabsTools.js";
+import {
+  elevenLabsTriageStepToolHandler,
+  voiceTriageSessionAnswerHandler,
+  voiceTriageSessionHandler,
+} from "./routes/voiceTriage.js";
 import { onboardingRouter } from "./routes/onboarding.js";
 import callbackOnboardingRouter from "./routes/callbackOnboarding.js";
 import billingRouter from "./routes/billing.js";
@@ -75,6 +80,7 @@ import symptomsRouter from "./routes/symptoms.js";
 import { triageScanHandler } from "./routes/triageScan.js";
 import companionsRouter from "./routes/companions.js";
 import socialRoomsRouter from "./routes/socialRooms.js";
+import advisorsRouter from "./routes/advisors.js";
 import medsAdherenceRouter from "./routes/medsAdherence.js";
 import scheduledSupportRouter from "./routes/scheduledSupport.js";
 import caregiverDashboardRouter from "./routes/caregiverDashboard.js";
@@ -165,6 +171,9 @@ app.post("/api/voice-readiness", authMiddleware, requireUser, requireEntitlement
 app.post("/api/elevenlabs-conversation-token", authMiddleware, requireUser, requireEntitlement("voice_assistant"), conversationTokenHandler);
 app.post("/api/elevenlabs/tools/retrieve-medical-profile", retrieveMedicalProfileToolHandler);
 app.post("/api/elevenlabs/tools/record-voice-recommendation-feedback", recordVoiceRecommendationFeedbackToolHandler);
+app.post("/api/elevenlabs/tools/triage-step", elevenLabsTriageStepToolHandler);
+app.get("/api/voice-triage/session/:conversation_id", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionHandler);
+app.post("/api/voice-triage/session/:conversation_id/answer", authMiddleware, requireUser, requireEntitlement("voice_assistant"), voiceTriageSessionAnswerHandler);
 app.post("/api/elevenlabs/tools/phone-onboarding/complete", completePhoneOnboardingToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/save-section", saveCallbackOnboardingSectionToolHandler);
 app.post("/api/elevenlabs/tools/callback-onboarding/complete", completeCallbackOnboardingToolHandler);
@@ -211,6 +220,7 @@ app.use("/api/triage", authMiddleware, requireUser, requireEntitlement("symptom_
 app.use("/api/symptoms", authMiddleware, requireUser, requireEntitlement("symptom_check"), symptomsRouter);
 app.use("/api/companions", authMiddleware, companionsRouter);
 app.use("/api/social", authMiddleware, socialRoomsRouter);
+app.use("/api/advisors", authMiddleware, requireUser, advisorsRouter);
 app.use("/api/meds/adherence-report", authMiddleware, requireUser, requireEntitlement("medication_tracking"), medsAdherenceRouter);
 app.use("/api", authMiddleware, scheduledSupportRouter);
 app.use("/api/caregiver/dashboard", authMiddleware, requireUser, caregiverDashboardRouter);

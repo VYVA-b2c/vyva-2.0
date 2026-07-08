@@ -209,12 +209,119 @@ describe("admin marketing router", () => {
     expect(table("communications_log")).toHaveLength(0);
   });
 
+  it("updates campaign planning rows and deletes campaigns without dispatch", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Partner outreach",
+        status: "draft",
+        audienceType: "b2b",
+        channels: [{ channel: "email", status: "draft" }],
+      })
+      .expect(201);
+
+    const campaignId = createResponse.body.campaign.id;
+    await request(app)
+      .patch(`/api/admin/marketing/campaigns/${campaignId}`)
+      .send({
+        name: "Updated outreach",
+        status: "scheduled",
+        audienceType: "both",
+        objective: "Updated objective",
+        scheduleStartsAt: "2026-07-10T09:00:00.000Z",
+        channels: [{ channel: "whatsapp", status: "scheduled", scheduledAt: "2026-07-10T09:00:00.000Z" }],
+        recipients: [{ channel: "whatsapp", recipient: "+34600000001", scheduledAt: "2026-07-10T09:00:00.000Z", snapshot: { fullName: "Karim" } }],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.campaign).toMatchObject({
+          id: campaignId,
+          name: "Updated outreach",
+          status: "scheduled",
+          audienceType: "both",
+          recipientCount: 1,
+        });
+      });
+
+    expect(table("marketing_campaign_channels")).toHaveLength(1);
+    expect(table("marketing_campaign_recipients")).toHaveLength(1);
+    expect(table("communications_log")).toHaveLength(0);
+
+    await request(app)
+      .delete(`/api/admin/marketing/campaigns/${campaignId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedCampaignId: campaignId });
+      });
+
+    expect(table("marketing_campaigns")).toHaveLength(0);
+    expect(table("marketing_campaign_channels")).toHaveLength(0);
+    expect(table("marketing_campaign_recipients")).toHaveLength(0);
+  });
+
+  it("updates and deletes journey planning records", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/journeys")
+      .send({
+        name: "Partner nurture",
+        audienceType: "b2b",
+        objective: "Warm partner leads",
+        steps: [{ stepOrder: 0, channel: "email", delayHours: 0, status: "draft" }],
+      })
+      .expect(201);
+
+    const journeyId = createResponse.body.journey.id;
+    expect(table("marketing_journeys")).toHaveLength(1);
+    expect(table("marketing_journey_steps")).toHaveLength(1);
+
+    await request(app)
+      .patch(`/api/admin/marketing/journeys/${journeyId}`)
+      .send({ name: "Updated nurture", status: "paused", audienceType: "both", objective: "Updated objective" })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.journey).toMatchObject({
+          id: journeyId,
+          name: "Updated nurture",
+          status: "paused",
+          audienceType: "both",
+          objective: "Updated objective",
+        });
+      });
+
+    await request(app)
+      .delete(`/api/admin/marketing/journeys/${journeyId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedJourneyId: journeyId });
+      });
+
+    expect(table("marketing_journeys")).toHaveLength(0);
+    expect(table("marketing_journey_steps")).toHaveLength(0);
+  });
+
   it("imports Lovable data one-way and upserts by external id", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       content: [{ id: "content-1", title: "Welcome email", channel: "email", subject: "Welcome", body: "Hello" }],
-      contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com", audienceType: "b2b" }],
+      contacts: [{
+        id: "contact-1",
+        name: "Hassan",
+        email: "hassan@example.com",
+        phoneNumber: "+34 600 000 001",
+        whatsappNumber: "+34 600 000 002",
+        audienceType: "b2b",
+        roleLabel: "Partner",
+        companyName: "Moka",
+        language: "en",
+        category: "lead",
+        vertical: "healthcare",
+        market: "Spain",
+        lists: ["Partners"],
+        tags: ["partner"],
+      }],
       campaigns: [{ id: "campaign-1", name: "Welcome campaign", status: "scheduled", channels: [{ channel: "email", contentExternalId: "content-1" }] }],
       journeys: [{ id: "journey-1", name: "Nurture", steps: [{ channel: "email", contentExternalId: "content-1" }] }],
       cursor: "cursor-1",
@@ -237,5 +344,25 @@ describe("admin marketing router", () => {
     expect(table("marketing_campaign_channels")).toHaveLength(1);
     expect(table("marketing_journey_steps")).toHaveLength(1);
     expect(table("marketing_sync_runs")).toHaveLength(2);
+
+    await request(app)
+      .get("/api/admin/marketing/contacts")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.contacts[0]).toMatchObject({
+          fullName: "Hassan",
+          email: "hassan@example.com",
+          phoneNumber: "+34 600 000 001",
+          whatsappNumber: "+34 600 000 002",
+          roleLabel: "Partner",
+          companyName: "Moka",
+          language: "en",
+          category: "lead",
+          vertical: "healthcare",
+          market: "Spain",
+          lists: ["Partners"],
+          tags: ["partner"],
+        });
+      });
   });
 });

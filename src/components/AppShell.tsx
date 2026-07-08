@@ -651,7 +651,7 @@ const AppShell = ({ children }: { children: ReactNode }) => {
             agentSlug: request.agentSlug,
             autoStartListening: true,
             dynamicVariables: {
-              app_entrypoint: "voice_specialist_transfer",
+              app_entrypoint: request.appEntrypoint || "voice_specialist_transfer",
               transfer_domain: request.domain,
               transfer_reason: request.reason,
             },

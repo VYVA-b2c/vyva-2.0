@@ -44,6 +44,20 @@ describe("voice QA", () => {
     expect(dashboard.totalIssues).toBe(2);
   });
 
+  it("flags health voice triage emergency and tool failure sessions", () => {
+    const dashboard = buildVoiceQaDashboard([
+      event({ id: "1", at: 100, kind: "voice_triage_started", title: "Voice triage started", sessionId: "health-1", domain: "health" }),
+      event({ id: "2", at: 140, kind: "voice_triage_emergency", title: "Emergency guidance", sessionId: "health-1", domain: "health", severity: "error" }),
+      event({ id: "3", at: 200, kind: "voice_triage_tool_failed", title: "Tool failed", sessionId: "health-2", domain: "health", severity: "error" }),
+    ]);
+
+    const emergency = dashboard.sessions.find((session) => session.sessionId === "health-1");
+    const failed = dashboard.sessions.find((session) => session.sessionId === "health-2");
+    expect(emergency?.flags).toEqual(expect.arrayContaining(["Error", "Health emergency"]));
+    expect(failed?.flags).toContain("Error");
+    expect(dashboard.totalIssues).toBeGreaterThanOrEqual(3);
+  });
+
   it("filters events by query, domain, kind and severity", () => {
     const events = [
       event({ id: "1", at: 100, kind: "action_completed", title: "Medication done", domain: "meds", severity: "success" }),

@@ -190,6 +190,21 @@ function textFrom(row: Record<string, unknown>, keys: string[], fallback = "") {
   return fallback;
 }
 
+function textArrayFrom(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    if (typeof item === "string") return item.trim();
+    const row = asRecord(item);
+    return textFrom(row, ["name", "title", "label", "id"]);
+  }).filter(Boolean);
+}
+
+function nestedText(primary: Record<string, unknown>, secondary: Record<string, unknown>, tertiary: Record<string, unknown>, keys: string[]) {
+  return emptyToNull(textFrom(primary, keys))
+    ?? emptyToNull(textFrom(secondary, keys))
+    ?? emptyToNull(textFrom(tertiary, keys));
+}
+
 function dateTextFrom(row: Record<string, unknown>, keys: string[]) {
   const value = textFrom(row, keys);
   if (!value) return null;
@@ -354,6 +369,16 @@ function serializeJourney(row: MarketingJourneyRow, steps: MarketingJourneyStepR
 }
 
 function serializeContact(row: MarketingContactRow) {
+  const metadata = asRecord(row.metadata);
+  const lovable = asRecord(metadata.lovable);
+  const segmentation = asRecord(metadata.segmentation);
+  const lists = [
+    ...textArrayFrom(lovable.lists),
+    ...textArrayFrom(lovable.listNames),
+    ...textArrayFrom(lovable.audiences),
+    ...textArrayFrom(lovable.memberships),
+    ...textArrayFrom(metadata.lists),
+  ];
   return {
     id: row.id,
     audienceType: row.audience_type,
@@ -369,6 +394,11 @@ function serializeContact(row: MarketingContactRow) {
     source: row.source,
     channelAvailability: row.channel_availability,
     tags: row.tags ?? [],
+    language: nestedText(segmentation, lovable, metadata, ["language", "lang", "locale"]),
+    category: nestedText(segmentation, lovable, metadata, ["category", "contactCategory", "contact_category"]),
+    vertical: nestedText(segmentation, lovable, metadata, ["vertical", "industry", "sector"]),
+    market: nestedText(segmentation, lovable, metadata, ["market", "country", "region"]),
+    lists: Array.from(new Set(lists)),
     lovableExternalId: row.lovable_external_id,
     lastSyncedAt: iso(row.last_synced_at),
     metadata: row.metadata,
@@ -572,6 +602,7 @@ adminMarketingRouter.post("/campaigns", async (req, res) => {
 adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
   const parsed = campaignPatchSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const bodyRecord = asRecord(req.body);
 
   const patch: Partial<typeof marketingCampaigns.$inferInsert> = {
     updated_at: new Date(),
@@ -594,6 +625,37 @@ adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
       .where(eq(marketingCampaigns.id, req.params.campaignId))
       .returning();
     if (!campaign) return res.status(404).json({ error: "Marketing campaign not found." });
+    const now = new Date();
+    if (Object.prototype.hasOwnProperty.call(bodyRecord, "channels")) {
+      await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
+      if (parsed.data.channels.length) {
+        await db.insert(marketingCampaignChannels).values(parsed.data.channels.map((item) => ({
+          campaign_id: campaign.id,
+          channel: item.channel,
+          content_asset_id: item.contentAssetId ?? null,
+          scheduled_at: dateOrNull(item.scheduledAt),
+          status: item.status,
+          send_capability: "locked",
+          metadata: { ...item.metadata, send_locked: true },
+          updated_at: now,
+        })));
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(bodyRecord, "recipients")) {
+      await db.delete(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id));
+      if (parsed.data.recipients.length) {
+        await db.insert(marketingCampaignRecipients).values(parsed.data.recipients.map((item) => ({
+          campaign_id: campaign.id,
+          contact_id: item.contactId ?? null,
+          profile_id: item.profileId ?? null,
+          channel: item.channel,
+          recipient: item.recipient,
+          status: item.status,
+          scheduled_at: dateOrNull(item.scheduledAt),
+          snapshot: { ...item.snapshot, dispatch_locked: true, source: "marketing_admin_snapshot" },
+        })));
+      }
+    }
     const [channels, recipients] = await Promise.all([
       db.select().from(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id)).orderBy(asc(marketingCampaignChannels.created_at)),
       db.select().from(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id)).orderBy(desc(marketingCampaignRecipients.created_at)),
@@ -602,6 +664,20 @@ adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
   } catch (error) {
     console.error("[admin/marketing] campaign update failed", error);
     return res.status(500).json({ error: "Marketing campaign could not be updated." });
+  }
+});
+
+adminMarketingRouter.delete("/campaigns/:campaignId", async (req, res) => {
+  try {
+    const [campaign] = await db.select().from(marketingCampaigns).where(eq(marketingCampaigns.id, req.params.campaignId)).limit(1);
+    if (!campaign) return res.status(404).json({ error: "Marketing campaign not found." });
+    await db.delete(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id));
+    await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
+    await db.delete(marketingCampaigns).where(eq(marketingCampaigns.id, campaign.id));
+    return res.json({ ok: true, deletedCampaignId: campaign.id });
+  } catch (error) {
+    console.error("[admin/marketing] campaign delete failed", error);
+    return res.status(500).json({ error: "Marketing campaign could not be deleted." });
   }
 });
 
@@ -774,6 +850,19 @@ adminMarketingRouter.patch("/journeys/:journeyId", async (req, res) => {
   }
 });
 
+adminMarketingRouter.delete("/journeys/:journeyId", async (req, res) => {
+  try {
+    const [journey] = await db.select().from(marketingJourneys).where(eq(marketingJourneys.id, req.params.journeyId)).limit(1);
+    if (!journey) return res.status(404).json({ error: "Marketing journey not found." });
+    await db.delete(marketingJourneySteps).where(eq(marketingJourneySteps.journey_id, journey.id));
+    await db.delete(marketingJourneys).where(eq(marketingJourneys.id, journey.id));
+    return res.json({ ok: true, deletedJourneyId: journey.id });
+  } catch (error) {
+    console.error("[admin/marketing] journey delete failed", error);
+    return res.status(500).json({ error: "Marketing journey could not be deleted." });
+  }
+});
+
 adminMarketingRouter.get("/contacts", async (req, res) => {
   try {
     const search = String(req.query.search ?? "").trim().toLowerCase();
@@ -781,7 +870,25 @@ adminMarketingRouter.get("/contacts", async (req, res) => {
     const rows = await db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(2000);
     const contacts = rows
       .filter((row) => audience === "all" || row.audience_type === audience)
-      .filter((row) => !search || textMatches(row.full_name, search) || textMatches(row.email, search) || textMatches(row.company_name, search))
+      .filter((row) => {
+        if (!search) return true;
+        const serialized = serializeContact(row);
+        return [
+          serialized.fullName,
+          serialized.email,
+          serialized.phoneNumber,
+          serialized.whatsappNumber,
+          serialized.companyName,
+          serialized.roleLabel,
+          serialized.language,
+          serialized.category,
+          serialized.vertical,
+          serialized.market,
+          serialized.source,
+          ...serialized.tags,
+          ...serialized.lists,
+        ].some((value) => textMatches(value, search));
+      })
       .map(serializeContact);
     return res.json({ contacts });
   } catch (error) {
