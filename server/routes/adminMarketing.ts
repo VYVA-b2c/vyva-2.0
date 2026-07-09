@@ -37,6 +37,7 @@ const campaignStatuses = ["draft", "scheduled", "published", "paused", "archived
 const contentStatuses = ["draft", "review", "approved", "published", "archived"] as const;
 const journeyStatuses = ["draft", "active", "paused", "archived"] as const;
 const consentStatuses = ["unknown", "pending", "opted_in", "opted_out"] as const;
+const recipientStatuses = ["planned", "blocked", "sent", "failed"] as const;
 
 adminMarketingRouter.use((req, res, next) => {
   if (req.user?.role !== "admin") {
@@ -113,6 +114,11 @@ const journeyStepInputSchema = z.object({
   channel: channelSchema,
   contentAssetId: nullableUuidSchema,
   delayHours: z.number().int().min(0).max(24 * 365).optional().default(0),
+  kind: z.string().trim().min(1).max(80).optional().default("message"),
+  dayOffset: z.number().int().min(0).max(3650).optional().default(0),
+  templateKind: z.string().trim().max(80).nullable().optional(),
+  templateRef: z.string().trim().max(240).nullable().optional(),
+  config: metadataSchema,
   status: journeyStatusSchema.optional().default("draft"),
   metadata: metadataSchema,
 });
@@ -122,6 +128,11 @@ const journeyBodySchema = z.object({
   status: journeyStatusSchema.optional().default("draft"),
   audienceType: audienceTypeSchema.optional().default("b2c"),
   objective: z.string().trim().max(500).optional().default(""),
+  triggerType: z.string().trim().max(120).nullable().optional(),
+  triggerConfig: metadataSchema,
+  goalType: z.string().trim().max(120).nullable().optional(),
+  goalConfig: metadataSchema,
+  exitOnGoal: z.boolean().optional().default(true),
   source: z.string().trim().min(1).max(80).optional().default("vyva"),
   lovableExternalId: z.string().trim().max(160).nullable().optional(),
   metadata: metadataSchema,
@@ -223,6 +234,31 @@ function audienceContactExternalIds(row: Record<string, unknown>) {
   ]);
 }
 
+function campaignAudienceExternalIds(row: Record<string, unknown>) {
+  return uniqueTextArray([
+    emptyToNull(textFrom(row, ["audienceExternalId", "audience_external_id", "audienceId", "audience_id"])),
+    ...textArrayFrom(row.audienceExternalIds),
+    ...textArrayFrom(row.audience_external_ids),
+    ...textArrayFrom(row.audienceIds),
+    ...textArrayFrom(row.audience_ids),
+    ...textArrayFrom(row.audiences),
+  ]);
+}
+
+function campaignDirectContactExternalIds(row: Record<string, unknown>) {
+  const explicitRecipientIds = arrayFrom(row.recipients ?? row.recipientSnapshots ?? row.campaignRecipients ?? row.campaign_recipients).map((item) => {
+    const recipient = asRecord(item);
+    return textFrom(recipient, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"]);
+  });
+  return uniqueTextArray([
+    ...textArrayFrom(row.contactExternalIds),
+    ...textArrayFrom(row.contact_external_ids),
+    ...textArrayFrom(row.contactIds),
+    ...textArrayFrom(row.contact_ids),
+    ...explicitRecipientIds,
+  ]);
+}
+
 function nestedText(primary: Record<string, unknown>, secondary: Record<string, unknown>, tertiary: Record<string, unknown>, keys: string[]) {
   return emptyToNull(textFrom(primary, keys))
     ?? emptyToNull(textFrom(secondary, keys))
@@ -238,6 +274,19 @@ function dateTextFrom(row: Record<string, unknown>, keys: string[]) {
 
 function arrayFrom(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boolean) {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      if (["true", "1", "yes"].includes(normalized)) return true;
+      if (["false", "0", "no"].includes(normalized)) return false;
+    }
+  }
+  return fallback;
 }
 
 function normalizeChannel(value: string) {
@@ -273,6 +322,12 @@ function normalizeJourneyStatus(value: string) {
   if ((journeyStatuses as readonly string[]).includes(normalized)) return normalized as typeof journeyStatuses[number];
   if (normalized === "published" || normalized === "scheduled") return "active";
   return "draft";
+}
+
+function normalizeRecipientStatus(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if ((recipientStatuses as readonly string[]).includes(normalized)) return normalized as typeof recipientStatuses[number];
+  return "planned";
 }
 
 function normalizeLovableId(row: Record<string, unknown>) {
@@ -367,6 +422,11 @@ function serializeJourneyStep(row: MarketingJourneyStepRow) {
     channel: row.channel,
     contentAssetId: row.content_asset_id,
     delayHours: row.delay_hours,
+    kind: row.kind,
+    dayOffset: row.day_offset,
+    templateKind: row.template_kind,
+    templateRef: row.template_ref,
+    config: row.config,
     status: row.status,
     metadata: row.metadata,
     createdAt: iso(row.created_at),
@@ -381,6 +441,11 @@ function serializeJourney(row: MarketingJourneyRow, steps: MarketingJourneyStepR
     status: row.status,
     audienceType: row.audience_type,
     objective: row.objective,
+    triggerType: row.trigger_type,
+    triggerConfig: row.trigger_config,
+    goalType: row.goal_type,
+    goalConfig: row.goal_config,
+    exitOnGoal: row.exit_on_goal,
     source: row.source,
     lovableExternalId: row.lovable_external_id,
     metadata: row.metadata,
@@ -1059,6 +1124,11 @@ adminMarketingRouter.post("/journeys", async (req, res) => {
       status: parsed.data.status,
       audience_type: parsed.data.audienceType,
       objective: parsed.data.objective,
+      trigger_type: parsed.data.triggerType ?? null,
+      trigger_config: parsed.data.triggerConfig,
+      goal_type: parsed.data.goalType ?? null,
+      goal_config: parsed.data.goalConfig,
+      exit_on_goal: parsed.data.exitOnGoal,
       source: parsed.data.source,
       lovable_external_id: emptyToNull(parsed.data.lovableExternalId),
       metadata: parsed.data.metadata,
@@ -1073,6 +1143,11 @@ adminMarketingRouter.post("/journeys", async (req, res) => {
         channel: step.channel,
         content_asset_id: step.contentAssetId ?? null,
         delay_hours: step.delayHours,
+        kind: step.kind,
+        day_offset: step.dayOffset,
+        template_kind: step.templateKind ?? null,
+        template_ref: step.templateRef ?? null,
+        config: step.config,
         status: step.status,
         metadata: step.metadata,
         updated_at: now,
@@ -1096,6 +1171,11 @@ adminMarketingRouter.patch("/journeys/:journeyId", async (req, res) => {
   if (parsed.data.status !== undefined) patch.status = parsed.data.status;
   if (parsed.data.audienceType !== undefined) patch.audience_type = parsed.data.audienceType;
   if (parsed.data.objective !== undefined) patch.objective = parsed.data.objective;
+  if (parsed.data.triggerType !== undefined) patch.trigger_type = parsed.data.triggerType ?? null;
+  if (parsed.data.triggerConfig !== undefined) patch.trigger_config = parsed.data.triggerConfig;
+  if (parsed.data.goalType !== undefined) patch.goal_type = parsed.data.goalType ?? null;
+  if (parsed.data.goalConfig !== undefined) patch.goal_config = parsed.data.goalConfig;
+  if (parsed.data.exitOnGoal !== undefined) patch.exit_on_goal = parsed.data.exitOnGoal;
   if (parsed.data.source !== undefined) patch.source = parsed.data.source;
   if (parsed.data.lovableExternalId !== undefined) patch.lovable_external_id = emptyToNull(parsed.data.lovableExternalId);
   if (parsed.data.metadata !== undefined) patch.metadata = parsed.data.metadata;
@@ -1111,6 +1191,11 @@ adminMarketingRouter.patch("/journeys/:journeyId", async (req, res) => {
           channel: step.channel,
           content_asset_id: step.contentAssetId ?? null,
           delay_hours: step.delayHours,
+          kind: step.kind,
+          day_offset: step.dayOffset,
+          template_kind: step.templateKind ?? null,
+          template_ref: step.templateRef ?? null,
+          config: step.config,
           status: step.status,
           metadata: step.metadata,
           updated_at: new Date(),
@@ -1392,7 +1477,123 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
   };
 }
 
-async function upsertLovableCampaign(raw: unknown, now: Date, actorLabel: string, contentByExternalId: Map<string, string>) {
+function recipientValueForContact(contact: MarketingContactRow, channel: typeof marketingChannels[number]) {
+  if (channel === "email") return contact.email;
+  if (channel === "whatsapp") return contact.whatsapp_number || contact.phone_number;
+  return contact.email || contact.whatsapp_number || contact.phone_number || contact.id;
+}
+
+function lovableCampaignRecipients(
+  row: Record<string, unknown>,
+  campaign: MarketingCampaignRow,
+  defaultChannel: typeof marketingChannels[number],
+  defaultScheduledAt: Date | null,
+  contactRowByExternalId: Map<string, MarketingContactRow>,
+  audienceContactExternalIdsByAudienceExternalId: Map<string, string[]>,
+) {
+  const explicitRows = arrayFrom(row.recipients ?? row.recipientSnapshots ?? row.campaignRecipients ?? row.campaign_recipients);
+  const directContactExternalIds = campaignDirectContactExternalIds(row);
+  const audienceExternalIds = campaignAudienceExternalIds(row);
+  const audienceContactExternalIds = audienceExternalIds.flatMap((audienceExternalId) => audienceContactExternalIdsByAudienceExternalId.get(audienceExternalId) ?? []);
+  const referencedContactExternalIds = uniqueTextArray([...directContactExternalIds, ...audienceContactExternalIds]);
+  const hasRecipientSource = explicitRows.length > 0 || directContactExternalIds.length > 0 || audienceExternalIds.length > 0;
+  const unmappedContactExternalIds: string[] = [];
+  const recipientRows: Array<typeof marketingCampaignRecipients.$inferInsert> = [];
+  const seen = new Set<string>();
+
+  function pushRecipient(input: {
+    contactExternalId: string | null;
+    contact: MarketingContactRow | null;
+    channel: typeof marketingChannels[number];
+    recipient: string;
+    status: typeof recipientStatuses[number];
+    scheduledAt: Date | null;
+    snapshot: Record<string, unknown>;
+  }) {
+    const key = `${input.channel}:${input.recipient}`;
+    if (!input.recipient || seen.has(key)) return;
+    seen.add(key);
+    recipientRows.push({
+      campaign_id: campaign.id,
+      contact_id: input.contact?.id ?? null,
+      profile_id: input.contact?.profile_id ?? null,
+      channel: input.channel,
+      recipient: input.recipient,
+      status: input.status,
+      scheduled_at: input.scheduledAt,
+      snapshot: {
+        ...input.snapshot,
+        source: "lovable_campaign_import",
+        dispatch_locked: true,
+        contact_external_id: input.contactExternalId,
+        campaign_external_id: campaign.lovable_external_id,
+      },
+      updated_at: new Date(),
+    });
+  }
+
+  for (const explicitRaw of explicitRows) {
+    const explicit = asRecord(explicitRaw);
+    const contactExternalId = emptyToNull(textFrom(explicit, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"]));
+    const contact = contactExternalId ? contactRowByExternalId.get(contactExternalId) ?? null : null;
+    const channel = normalizeChannel(textFrom(explicit, ["channel"], defaultChannel));
+    const fallbackRecipient = textFrom(explicit, ["recipient", "email", "phoneNumber", "phone_number", "whatsappNumber", "whatsapp_number", "phone", "whatsapp"]);
+    const recipient = fallbackRecipient || (contact ? recipientValueForContact(contact, channel) ?? "" : "");
+    if (contactExternalId && !contact) unmappedContactExternalIds.push(contactExternalId);
+    pushRecipient({
+      contactExternalId,
+      contact,
+      channel,
+      recipient,
+      status: normalizeRecipientStatus(textFrom(explicit, ["status"], "planned")),
+      scheduledAt: dateOrNull(dateTextFrom(explicit, ["scheduledAt", "scheduled_at"])) ?? defaultScheduledAt,
+      snapshot: { lovable: explicit },
+    });
+  }
+
+  for (const contactExternalId of referencedContactExternalIds) {
+    const contact = contactRowByExternalId.get(contactExternalId) ?? null;
+    if (!contact) {
+      unmappedContactExternalIds.push(contactExternalId);
+      continue;
+    }
+    const recipient = recipientValueForContact(contact, defaultChannel) ?? "";
+    pushRecipient({
+      contactExternalId,
+      contact,
+      channel: defaultChannel,
+      recipient,
+      status: "planned",
+      scheduledAt: defaultScheduledAt,
+      snapshot: {
+        fullName: contact.full_name,
+        email: contact.email,
+        phoneNumber: contact.phone_number,
+        whatsappNumber: contact.whatsapp_number,
+        audienceType: contact.audience_type,
+        companyName: contact.company_name,
+        roleLabel: contact.role_label,
+        consentStatus: contact.consent_status,
+        sourceAudienceExternalIds: audienceExternalIds,
+      },
+    });
+  }
+
+  return {
+    hasRecipientSource,
+    recipientRows,
+    unmappedContactExternalIds: Array.from(new Set(unmappedContactExternalIds)),
+  };
+}
+
+async function upsertLovableCampaign(
+  raw: unknown,
+  now: Date,
+  actorLabel: string,
+  contentByExternalId: Map<string, string>,
+  contactRowByExternalId: Map<string, MarketingContactRow>,
+  audienceContactExternalIdsByAudienceExternalId: Map<string, string[]>,
+) {
   const row = asRecord(raw);
   const externalId = normalizeLovableId(row);
   if (!externalId) return null;
@@ -1416,6 +1617,9 @@ async function upsertLovableCampaign(raw: unknown, now: Date, actorLabel: string
     .returning();
 
   const channelRows = arrayFrom(row.channels);
+  const firstChannelRow = asRecord(channelRows[0]);
+  const defaultChannel = normalizeChannel(textFrom(firstChannelRow, ["channel"], "email"));
+  const defaultScheduledAt = dateOrNull(dateTextFrom(firstChannelRow, ["scheduledAt", "scheduled_at"])) ?? campaign.schedule_starts_at ?? null;
   if (channelRows.length) {
     await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
     await db.insert(marketingCampaignChannels).values(channelRows.map((channelRaw) => {
@@ -1433,7 +1637,25 @@ async function upsertLovableCampaign(raw: unknown, now: Date, actorLabel: string
       };
     }));
   }
-  return campaign;
+  const recipientImport = lovableCampaignRecipients(
+    row,
+    campaign,
+    defaultChannel,
+    defaultScheduledAt,
+    contactRowByExternalId,
+    audienceContactExternalIdsByAudienceExternalId,
+  );
+  if (recipientImport.hasRecipientSource) {
+    await db.delete(marketingCampaignRecipients).where(eq(marketingCampaignRecipients.campaign_id, campaign.id));
+    if (recipientImport.recipientRows.length) {
+      await db.insert(marketingCampaignRecipients).values(recipientImport.recipientRows);
+    }
+  }
+  return {
+    campaign,
+    recipientCount: recipientImport.recipientRows.length,
+    unmappedRecipientExternalIds: recipientImport.unmappedContactExternalIds,
+  };
 }
 
 async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string, contentByExternalId: Map<string, string>) {
@@ -1445,6 +1667,11 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
     status: normalizeJourneyStatus(textFrom(row, ["status"], "draft")),
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2c")),
     objective: textFrom(row, ["objective", "description"], ""),
+    trigger_type: emptyToNull(textFrom(row, ["triggerType", "trigger_type"])),
+    trigger_config: asRecord(row.triggerConfig ?? row.trigger_config),
+    goal_type: emptyToNull(textFrom(row, ["goalType", "goal_type"])),
+    goal_config: asRecord(row.goalConfig ?? row.goal_config),
+    exit_on_goal: booleanFrom(row, ["exitOnGoal", "exit_on_goal"], true),
     source: "lovable",
     lovable_external_id: externalId,
     metadata: { lovable: row },
@@ -1461,12 +1688,19 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
     await db.insert(marketingJourneySteps).values(steps.map((stepRaw, index) => {
       const step = asRecord(stepRaw);
       const contentExternalId = textFrom(step, ["contentExternalId", "content_external_id", "contentId", "content_id"]);
+      const dayOffset = Number(step.dayOffset ?? step.day_offset ?? step.day ?? 0);
+      const delayHours = Number(step.delayHours ?? step.delay_hours ?? (Number.isFinite(dayOffset) ? dayOffset * 24 : 0));
       return {
         journey_id: journey.id,
         step_order: Number(step.stepOrder ?? step.step_order ?? index),
         channel: normalizeChannel(textFrom(step, ["channel"], "email")),
         content_asset_id: contentByExternalId.get(contentExternalId) ?? null,
-        delay_hours: Number(step.delayHours ?? step.delay_hours ?? 0),
+        delay_hours: Number.isFinite(delayHours) ? delayHours : 0,
+        kind: textFrom(step, ["kind", "stepKind", "step_kind", "type"], "message"),
+        day_offset: Number.isFinite(dayOffset) ? dayOffset : 0,
+        template_kind: emptyToNull(textFrom(step, ["templateKind", "template_kind"])),
+        template_ref: emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"])) ?? (contentExternalId || null),
+        config: asRecord(step.config),
         status: normalizeJourneyStatus(textFrom(step, ["status"], "draft")),
         metadata: { lovable: step },
         updated_at: now,
@@ -1530,6 +1764,10 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       const contact = await upsertLovableContact(item, now);
       if (contact) contactRows.push(contact);
     }
+    const contactRowByExternalId = new Map<string, MarketingContactRow>();
+    for (const item of contactRows) {
+      if (item.lovable_external_id) contactRowByExternalId.set(item.lovable_external_id, item);
+    }
     const contactByExternalId = new Map(contactRows.map((item) => [item.lovable_external_id ?? "", item.id]).filter(([externalId]) => externalId));
     if (contactByExternalId.size < contactRows.length) {
       const ids = contactRows.map((item) => item.lovable_external_id).filter((value): value is string => Boolean(value));
@@ -1537,6 +1775,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         const rows = await db.select().from(marketingContacts).where(inArray(marketingContacts.lovable_external_id, ids));
         for (const item of rows) {
           if (item.lovable_external_id) contactByExternalId.set(item.lovable_external_id, item.id);
+          if (item.lovable_external_id) contactRowByExternalId.set(item.lovable_external_id, item);
         }
       }
     }
@@ -1545,7 +1784,11 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     let audienceMemberCount = 0;
     let mappedAudienceMemberCount = 0;
     const unmappedAudienceContactExternalIds: string[] = [];
+    const audienceContactExternalIdsByAudienceExternalId = new Map<string, string[]>();
     for (const item of audiencePayload) {
+      const audienceRow = asRecord(item);
+      const audienceExternalId = normalizeLovableId(audienceRow);
+      if (audienceExternalId) audienceContactExternalIdsByAudienceExternalId.set(audienceExternalId, audienceContactExternalIds(audienceRow));
       const result = await upsertLovableAudience(item, now, actorLabel, contactByExternalId);
       if (!result) continue;
       audienceCount += 1;
@@ -1555,8 +1798,21 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     }
 
     let campaignCount = 0;
+    let campaignRecipientCount = 0;
+    const unmappedCampaignRecipientExternalIds: string[] = [];
     for (const item of campaignPayload) {
-      if (await upsertLovableCampaign(item, now, actorLabel, contentByExternalId)) campaignCount += 1;
+      const result = await upsertLovableCampaign(
+        item,
+        now,
+        actorLabel,
+        contentByExternalId,
+        contactRowByExternalId,
+        audienceContactExternalIdsByAudienceExternalId,
+      );
+      if (!result) continue;
+      campaignCount += 1;
+      campaignRecipientCount += result.recipientCount;
+      unmappedCampaignRecipientExternalIds.push(...result.unmappedRecipientExternalIds);
     }
 
     let journeyCount = 0;
@@ -1579,8 +1835,10 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       audiences: audienceCount,
       audienceMembers: audienceMemberCount,
       mappedAudienceMembers: mappedAudienceMemberCount,
+      campaignRecipients: campaignRecipientCount,
     };
     const uniqueUnmappedAudienceContactExternalIds = Array.from(new Set(unmappedAudienceContactExternalIds));
+    const uniqueUnmappedCampaignRecipientExternalIds = Array.from(new Set(unmappedCampaignRecipientExternalIds));
     const summary = {
       ...imported,
       exported,
@@ -1595,6 +1853,8 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       unmapped: {
         audienceContactExternalIdCount: uniqueUnmappedAudienceContactExternalIds.length,
         audienceContactExternalIds: uniqueUnmappedAudienceContactExternalIds.slice(0, 50),
+        campaignRecipientExternalIdCount: uniqueUnmappedCampaignRecipientExternalIds.length,
+        campaignRecipientExternalIds: uniqueUnmappedCampaignRecipientExternalIds.slice(0, 50),
       },
       mode: "one_way_into_vyva",
       dispatch_locked: true,
