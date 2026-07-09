@@ -469,7 +469,19 @@ describe("admin marketing router", () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
     const lovablePayload = {
-      content: [{ id: "content-1", title: "Welcome email", channel: "email", subject: "Welcome", body: "Hello" }],
+      content: [{
+        id: "content-1",
+        title: "Welcome email",
+        channel: "email",
+        subject: "Welcome",
+        body: "Hello",
+        htmlBody: "<h1>Hello</h1>",
+        designJson: { blocks: [{ type: "hero" }] },
+        mediaAssets: [{ url: "https://cdn.example.test/hero.png", type: "image" }],
+        ctaLabel: "Start",
+        ctaUrl: "https://v2.vyva.life/start",
+        extraLovableOnlyField: "kept in metadata",
+      }],
       contacts: [{
         id: "contact-1",
         name: "Hassan",
@@ -535,7 +547,25 @@ describe("admin marketing router", () => {
       }),
     }));
     expect(table("marketing_content_assets")).toHaveLength(1);
+    expect(table("marketing_content_assets")[0]).toMatchObject({
+      html_body: "<h1>Hello</h1>",
+      design_json: { blocks: [{ type: "hero" }] },
+      media_assets: [{ url: "https://cdn.example.test/hero.png", type: "image" }],
+      cta_label: "Start",
+      cta_url: "https://v2.vyva.life/start",
+      metadata: {
+        lovable: expect.objectContaining({
+          extraLovableOnlyField: "kept in metadata",
+        }),
+      },
+    });
     expect(table("marketing_contacts")).toHaveLength(1);
+    expect(table("marketing_contacts")[0]).toMatchObject({
+      language: "en",
+      category: "lead",
+      vertical: "healthcare",
+      market: "Spain",
+    });
     expect(table("marketing_audiences")).toHaveLength(1);
     expect(table("marketing_audience_members")).toHaveLength(2);
     expect(table("marketing_audience_members").filter((row) => row.contact_id)).toHaveLength(1);
@@ -554,6 +584,13 @@ describe("admin marketing router", () => {
       exit_on_goal: false,
     });
     expect(table("marketing_campaign_channels")).toHaveLength(1);
+    expect(table("marketing_campaign_channels")[0]).toMatchObject({
+      send_capability: "enabled",
+      metadata: expect.objectContaining({
+        send_locked: false,
+        provider: "communicationDispatcher",
+      }),
+    });
     expect(table("marketing_journey_steps")).toHaveLength(1);
     expect(table("marketing_journey_steps")[0]).toMatchObject({
       kind: "message",
@@ -581,6 +618,21 @@ describe("admin marketing router", () => {
           market: "Spain",
           lists: ["Partners"],
           tags: ["partner"],
+        });
+      });
+
+    await request(app)
+      .get("/api/admin/marketing/content")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.content[0]).toMatchObject({
+          title: "Welcome email",
+          htmlBody: "<h1>Hello</h1>",
+          hasHtml: true,
+          hasDesign: true,
+          mediaAssetCount: 1,
+          ctaLabel: "Start",
+          ctaUrl: "https://v2.vyva.life/start",
         });
       });
 
@@ -614,6 +666,16 @@ describe("admin marketing router", () => {
         audienceContactExternalIds: ["missing-contact"],
         campaignRecipientExternalIdCount: 1,
         campaignRecipientExternalIds: ["missing-contact"],
+      },
+      fieldCoverage: {
+        content: expect.objectContaining({
+          exportedFieldCount: expect.any(Number),
+          firstClassFieldCount: expect.any(Number),
+          metadataOnlyFields: expect.arrayContaining(["extraLovableOnlyField"]),
+        }),
+        contacts: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["language", "category", "vertical", "market"]),
+        }),
       },
     });
   });

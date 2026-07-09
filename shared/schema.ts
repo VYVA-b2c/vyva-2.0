@@ -2907,8 +2907,11 @@ export const marketingContentAssets = pgTable("marketing_content_assets", {
   status:               text("status").notNull().default("draft"),
   subject:              text("subject"),
   body:                 text("body").notNull().default(""),
+  html_body:            text("html_body"),
   cta_label:            text("cta_label"),
   cta_url:              text("cta_url"),
+  design_json:          jsonb("design_json").notNull().default({}),
+  media_assets:         jsonb("media_assets").notNull().default([]),
   source:               text("source").notNull().default("vyva"),
   lovable_external_id:  text("lovable_external_id").unique(),
   metadata:             jsonb("metadata").notNull().default({}),
@@ -3044,6 +3047,10 @@ export const marketingContacts = pgTable("marketing_contacts", {
   whatsapp_number:      text("whatsapp_number"),
   role_label:           text("role_label"),
   company_name:         text("company_name"),
+  language:             text("language"),
+  category:             text("category"),
+  vertical:             text("vertical"),
+  market:               text("market"),
   consent_status:       text("consent_status").notNull().default("unknown"),
   source:               text("source").notNull().default("vyva"),
   channel_availability: jsonb("channel_availability").notNull().default({}),
@@ -3059,6 +3066,10 @@ export const marketingContacts = pgTable("marketing_contacts", {
   index("marketing_contacts_organization_idx").on(t.organization_id),
   index("marketing_contacts_email_idx").on(t.email),
   index("marketing_contacts_source_idx").on(t.source),
+  index("marketing_contacts_language_idx").on(t.language),
+  index("marketing_contacts_category_idx").on(t.category),
+  index("marketing_contacts_vertical_idx").on(t.vertical),
+  index("marketing_contacts_market_idx").on(t.market),
 ]);
 
 export const insertMarketingContactSchema = createInsertSchema(marketingContacts).omit({ id: true, created_at: true, updated_at: true });

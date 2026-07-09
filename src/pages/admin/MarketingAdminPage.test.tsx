@@ -143,6 +143,14 @@ const content = [
     status: "draft",
     subject: null,
     body: "Partner update",
+    htmlBody: "<h1>Partner update</h1>",
+    ctaLabel: "Read more",
+    ctaUrl: "https://v2.vyva.life/partners",
+    designJson: { blocks: [{ type: "hero" }] },
+    mediaAssets: [{ url: "https://cdn.example.test/partner.png" }],
+    hasHtml: true,
+    hasDesign: true,
+    mediaAssetCount: 1,
     source: "lovable",
     lovableExternalId: "lovable-content-2",
   },
@@ -230,6 +238,20 @@ const sync = {
         campaignRecipientExternalIdCount: 1,
         campaignRecipientExternalIds: ["missing-contact"],
       },
+      fieldCoverage: {
+        content: {
+          exportedFieldCount: 7,
+          firstClassFieldCount: 6,
+          metadataOnlyFieldCount: 1,
+          metadataOnlyFields: ["extraLovableOnlyField"],
+        },
+        contacts: {
+          exportedFieldCount: 8,
+          firstClassFieldCount: 8,
+          metadataOnlyFieldCount: 0,
+          metadataOnlyFields: [],
+        },
+      },
     },
     error: null,
     createdBy: "karim.assad@mokadigital.net",
@@ -304,6 +326,10 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("HTML");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Design data");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 media");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-tab")).toHaveTextContent("No campaigns match the filters.");
@@ -324,6 +350,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Campaign recipients: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped campaign recipients: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 6 of 7 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
   });
@@ -387,6 +415,10 @@ describe("MarketingAdminPage", () => {
       whatsappNumber: "+34 600 000 003",
       roleLabel: "Director",
       companyName: "New Org",
+      language: "es",
+      category: "partner",
+      vertical: "health",
+      market: "Spain",
       tags: ["partner", "madrid"],
       metadata: {
         segmentation: {

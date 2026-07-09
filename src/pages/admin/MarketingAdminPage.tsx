@@ -128,6 +128,14 @@ type ContentAsset = {
   status: string;
   subject: string | null;
   body: string;
+  htmlBody?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  designJson?: Record<string, unknown>;
+  mediaAssets?: unknown[];
+  hasHtml?: boolean;
+  hasDesign?: boolean;
+  mediaAssetCount?: number;
   source: string;
   lovableExternalId: string | null;
 };
@@ -497,6 +505,21 @@ function syncUnmappedSample(summary: Record<string, unknown>) {
   return ids.map((id) => String(id)).filter(Boolean).slice(0, 5);
 }
 
+function syncFieldCoverageItems(summary: Record<string, unknown>) {
+  const coverage = recordValue(summary.fieldCoverage);
+  return Object.entries(coverage).map(([entity, value]) => {
+    const item = recordValue(value);
+    const metadataOnlyFields = Array.isArray(item.metadataOnlyFields) ? item.metadataOnlyFields.map(String).filter(Boolean) : [];
+    return {
+      entity,
+      exported: numberValue(item.exportedFieldCount),
+      firstClass: numberValue(item.firstClassFieldCount),
+      metadataOnly: numberValue(item.metadataOnlyFieldCount),
+      metadataOnlyFields,
+    };
+  }).filter((item) => item.exported > 0);
+}
+
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(url, options);
   const body = await response.json().catch(() => null) as T | { error?: string } | null;
@@ -572,7 +595,8 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   const unmappedCount = syncUnmappedCount(run.summary);
   const unmappedCampaignRecipientCount = syncUnmappedCampaignRecipientCount(run.summary);
   const unmappedSample = syncUnmappedSample(run.summary);
-  if (!exported.length && !imported.length && !skipped.length && !unmappedCount && !unmappedCampaignRecipientCount) return null;
+  const fieldCoverage = syncFieldCoverageItems(run.summary);
+  if (!exported.length && !imported.length && !skipped.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length) return null;
   return (
     <div className="mt-3 grid gap-2 rounded-xl bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
       {exported.length ? (
@@ -600,6 +624,23 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
             {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
           </div>
           {unmappedSample.length ? <p className="mt-2 font-semibold">Examples: {unmappedSample.join(", ")}</p> : null}
+        </div>
+      ) : null}
+      {fieldCoverage.length ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Field coverage</p>
+          <div className="mt-1 grid gap-1.5">
+            {fieldCoverage.map((item) => (
+              <div key={item.entity} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] px-3 py-2">
+                <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                {item.metadataOnly ? (
+                  <p className="mt-1 font-semibold">Metadata-only: {item.metadataOnlyFields.slice(0, 6).join(", ")}{item.metadataOnlyFields.length > 6 ? ` +${item.metadataOnlyFields.length - 6}` : ""}</p>
+                ) : (
+                  <p className="mt-1 font-semibold text-emerald-700">No extra metadata-only fields.</p>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>
@@ -982,6 +1023,10 @@ export default function MarketingAdminPage() {
         whatsappNumber: contactDraft.whatsappNumber || null,
         roleLabel: contactDraft.roleLabel || null,
         companyName: contactDraft.companyName || null,
+        language: contactDraft.language || null,
+        category: contactDraft.category || null,
+        vertical: contactDraft.vertical || null,
+        market: contactDraft.market || null,
         tags: splitTags(contactDraft.tags),
         metadata: {
           segmentation: {
@@ -1551,6 +1596,15 @@ export default function MarketingAdminPage() {
                         <div>
                           <h3 className="font-black">{item.title}</h3>
                           <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
+                            {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design data</Pill> : null}
+                            {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media</Pill> : null}
+                            {item.ctaLabel || item.ctaUrl ? <Pill className="bg-amber-50 text-amber-800">CTA</Pill> : null}
+                          </div>
+                          {item.ctaLabel || item.ctaUrl ? (
+                            <p className="mt-2 text-xs font-bold text-[#7d6b65]">CTA: {[item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ")}</p>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>

@@ -100,8 +100,11 @@ const contentBodySchema = z.object({
   status: contentStatusSchema.optional().default("draft"),
   subject: z.string().trim().max(240).nullable().optional(),
   body: z.string().trim().max(12000).optional().default(""),
+  htmlBody: z.string().trim().max(100000).nullable().optional(),
   ctaLabel: z.string().trim().max(80).nullable().optional(),
   ctaUrl: z.string().trim().max(500).nullable().optional(),
+  designJson: metadataSchema,
+  mediaAssets: z.array(z.unknown()).max(250).optional().default([]),
   source: z.string().trim().min(1).max(80).optional().default("vyva"),
   lovableExternalId: z.string().trim().max(160).nullable().optional(),
   metadata: metadataSchema,
@@ -151,6 +154,10 @@ const contactBodySchema = z.object({
   whatsappNumber: z.string().trim().max(60).nullable().optional(),
   roleLabel: z.string().trim().max(120).nullable().optional(),
   companyName: z.string().trim().max(180).nullable().optional(),
+  language: z.string().trim().max(24).nullable().optional(),
+  category: z.string().trim().max(120).nullable().optional(),
+  vertical: z.string().trim().max(120).nullable().optional(),
+  market: z.string().trim().max(120).nullable().optional(),
   consentStatus: consentStatusSchema.optional().default("unknown"),
   source: z.string().trim().min(1).max(80).optional().default("vyva"),
   channelAvailability: metadataSchema,
@@ -289,6 +296,94 @@ function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boo
   return fallback;
 }
 
+const fieldCoverageAliases = {
+  content: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["title", "name"],
+    ["channel"],
+    ["language", "locale"],
+    ["status"],
+    ["subject"],
+    ["body", "copy", "text"],
+    ["htmlBody", "html_body", "html", "renderedHtml", "rendered_html"],
+    ["ctaLabel", "cta_label"],
+    ["ctaUrl", "cta_url"],
+    ["designJson", "design_json", "design", "layout", "blocks"],
+    ["mediaAssets", "media_assets", "media", "images", "attachments"],
+    ["updatedAt", "updated_at"],
+  ],
+  contacts: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["name", "fullName", "full_name"],
+    ["email"],
+    ["phoneNumber", "phone_number", "phone"],
+    ["whatsappNumber", "whatsapp_number", "whatsapp"],
+    ["audienceType", "audience_type", "audience"],
+    ["roleLabel", "role_label", "role"],
+    ["companyName", "company_name", "company"],
+    ["consentStatus", "consent_status"],
+    ["channelAvailability", "channel_availability"],
+    ["tags"],
+    ["language", "lang", "locale"],
+    ["category", "contactCategory", "contact_category"],
+    ["vertical", "industry", "sector"],
+    ["market", "country", "region"],
+    ["updatedAt", "updated_at"],
+  ],
+  campaigns: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["name", "title"],
+    ["status"],
+    ["audienceType", "audience_type", "audience"],
+    ["objective", "description"],
+    ["scheduleStartsAt", "schedule_starts_at", "startsAt", "starts_at"],
+    ["scheduleEndsAt", "schedule_ends_at", "endsAt", "ends_at"],
+    ["timezone"],
+    ["channels"],
+    ["recipients", "recipientSnapshots", "campaignRecipients", "campaign_recipients"],
+    ["contactExternalIds", "contact_external_ids", "contactIds", "contact_ids"],
+    ["audienceExternalIds", "audience_external_ids", "audienceIds", "audience_ids", "audiences"],
+    ["updatedAt", "updated_at"],
+  ],
+  journeys: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["name", "title"],
+    ["status"],
+    ["audienceType", "audience_type", "audience"],
+    ["objective", "description"],
+    ["triggerType", "trigger_type"],
+    ["triggerConfig", "trigger_config"],
+    ["goalType", "goal_type"],
+    ["goalConfig", "goal_config"],
+    ["exitOnGoal", "exit_on_goal"],
+    ["steps"],
+    ["updatedAt", "updated_at"],
+  ],
+  audiences: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["name", "title"],
+    ["description"],
+    ["listType", "list_type", "type"],
+    ["rules", "ruleConfig", "rule_config", "filters"],
+    ["contactExternalIds", "contact_external_ids", "contactIds", "contact_ids", "members"],
+    ["updatedAt", "updated_at"],
+  ],
+} as const;
+
+function fieldCoverageForPayload(payload: unknown[], aliasGroups: readonly (readonly string[])[]) {
+  const exportedFields = Array.from(new Set(payload.flatMap((item) => Object.keys(asRecord(item))))).sort();
+  const firstClassFields = exportedFields.filter((field) => aliasGroups.some((aliases) => (aliases as readonly string[]).includes(field)));
+  const metadataOnlyFields = exportedFields.filter((field) => !firstClassFields.includes(field));
+  return {
+    exportedFieldCount: exportedFields.length,
+    firstClassFieldCount: firstClassFields.length,
+    metadataOnlyFieldCount: metadataOnlyFields.length,
+    exportedFields,
+    firstClassFields,
+    metadataOnlyFields,
+  };
+}
+
 function normalizeChannel(value: string) {
   const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (normalized === "whats_app") return "whatsapp";
@@ -339,6 +434,7 @@ function iso(value: Date | null | undefined) {
 }
 
 function serializeContent(row: MarketingContentAssetRow) {
+  const mediaAssets = Array.isArray(row.media_assets) ? row.media_assets : [];
   return {
     id: row.id,
     title: row.title,
@@ -347,8 +443,14 @@ function serializeContent(row: MarketingContentAssetRow) {
     status: row.status,
     subject: row.subject,
     body: row.body,
+    htmlBody: row.html_body,
     ctaLabel: row.cta_label,
     ctaUrl: row.cta_url,
+    designJson: row.design_json,
+    mediaAssets,
+    hasHtml: Boolean(row.html_body?.trim()),
+    hasDesign: Object.keys(asRecord(row.design_json)).length > 0,
+    mediaAssetCount: mediaAssets.length,
     source: row.source,
     lovableExternalId: row.lovable_external_id,
     metadata: row.metadata,
@@ -484,10 +586,10 @@ function serializeContact(row: MarketingContactRow, audienceListNames: string[] 
     source: row.source,
     channelAvailability: row.channel_availability,
     tags: row.tags ?? [],
-    language: nestedText(segmentation, lovable, metadata, ["language", "lang", "locale"]),
-    category: nestedText(segmentation, lovable, metadata, ["category", "contactCategory", "contact_category"]),
-    vertical: nestedText(segmentation, lovable, metadata, ["vertical", "industry", "sector"]),
-    market: nestedText(segmentation, lovable, metadata, ["market", "country", "region"]),
+    language: row.language ?? nestedText(segmentation, lovable, metadata, ["language", "lang", "locale"]),
+    category: row.category ?? nestedText(segmentation, lovable, metadata, ["category", "contactCategory", "contact_category"]),
+    vertical: row.vertical ?? nestedText(segmentation, lovable, metadata, ["vertical", "industry", "sector"]),
+    market: row.market ?? nestedText(segmentation, lovable, metadata, ["market", "country", "region"]),
     lists: Array.from(new Set(lists)),
     lovableExternalId: row.lovable_external_id,
     lastSyncedAt: iso(row.last_synced_at),
@@ -1030,7 +1132,7 @@ adminMarketingRouter.get("/content", async (req, res) => {
     const content = rows
       .filter((row) => channel === "all" || row.channel === channel)
       .filter((row) => status === "all" || row.status === status)
-      .filter((row) => !search || textMatches(row.title, search) || textMatches(row.subject, search) || textMatches(row.body, search))
+      .filter((row) => !search || textMatches(row.title, search) || textMatches(row.subject, search) || textMatches(row.body, search) || textMatches(row.html_body, search))
       .map(serializeContent);
     return res.json({ content });
   } catch (error) {
@@ -1050,8 +1152,11 @@ adminMarketingRouter.post("/content", async (req, res) => {
       status: parsed.data.status,
       subject: parsed.data.subject ?? null,
       body: parsed.data.body,
+      html_body: parsed.data.htmlBody ?? null,
       cta_label: parsed.data.ctaLabel ?? null,
       cta_url: parsed.data.ctaUrl ?? null,
+      design_json: parsed.data.designJson,
+      media_assets: parsed.data.mediaAssets,
       source: parsed.data.source,
       lovable_external_id: emptyToNull(parsed.data.lovableExternalId),
       metadata: parsed.data.metadata,
@@ -1079,8 +1184,11 @@ adminMarketingRouter.patch("/content/:contentId", async (req, res) => {
   if (parsed.data.status !== undefined) patch.status = parsed.data.status;
   if (parsed.data.subject !== undefined) patch.subject = parsed.data.subject ?? null;
   if (parsed.data.body !== undefined) patch.body = parsed.data.body;
+  if (parsed.data.htmlBody !== undefined) patch.html_body = parsed.data.htmlBody ?? null;
   if (parsed.data.ctaLabel !== undefined) patch.cta_label = parsed.data.ctaLabel ?? null;
   if (parsed.data.ctaUrl !== undefined) patch.cta_url = parsed.data.ctaUrl ?? null;
+  if (parsed.data.designJson !== undefined) patch.design_json = parsed.data.designJson;
+  if (parsed.data.mediaAssets !== undefined) patch.media_assets = parsed.data.mediaAssets;
   if (parsed.data.source !== undefined) patch.source = parsed.data.source;
   if (parsed.data.lovableExternalId !== undefined) patch.lovable_external_id = emptyToNull(parsed.data.lovableExternalId);
   if (parsed.data.metadata !== undefined) patch.metadata = parsed.data.metadata;
@@ -1310,6 +1418,10 @@ adminMarketingRouter.post("/contacts", async (req, res) => {
       whatsapp_number: parsed.data.whatsappNumber ?? null,
       role_label: parsed.data.roleLabel ?? null,
       company_name: parsed.data.companyName ?? null,
+      language: parsed.data.language ?? null,
+      category: parsed.data.category ?? null,
+      vertical: parsed.data.vertical ?? null,
+      market: parsed.data.market ?? null,
       consent_status: parsed.data.consentStatus,
       source: parsed.data.source,
       channel_availability: parsed.data.channelAvailability,
@@ -1338,6 +1450,10 @@ adminMarketingRouter.patch("/contacts/:contactId", async (req, res) => {
   if (parsed.data.whatsappNumber !== undefined) patch.whatsapp_number = parsed.data.whatsappNumber ?? null;
   if (parsed.data.roleLabel !== undefined) patch.role_label = parsed.data.roleLabel ?? null;
   if (parsed.data.companyName !== undefined) patch.company_name = parsed.data.companyName ?? null;
+  if (parsed.data.language !== undefined) patch.language = parsed.data.language ?? null;
+  if (parsed.data.category !== undefined) patch.category = parsed.data.category ?? null;
+  if (parsed.data.vertical !== undefined) patch.vertical = parsed.data.vertical ?? null;
+  if (parsed.data.market !== undefined) patch.market = parsed.data.market ?? null;
   if (parsed.data.consentStatus !== undefined) patch.consent_status = parsed.data.consentStatus;
   if (parsed.data.source !== undefined) patch.source = parsed.data.source;
   if (parsed.data.channelAvailability !== undefined) patch.channel_availability = parsed.data.channelAvailability;
@@ -1375,6 +1491,8 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   const row = asRecord(raw);
   const externalId = normalizeLovableId(row);
   if (!externalId) return null;
+  const designJson = asRecord(row.designJson ?? row.design_json ?? row.design ?? row.layout ?? row.blocks);
+  const mediaAssets = arrayFrom(row.mediaAssets ?? row.media_assets ?? row.media ?? row.images ?? row.attachments);
   const payload = {
     title: textFrom(row, ["title", "name"], "Untitled content"),
     channel: normalizeChannel(textFrom(row, ["channel"], "email")),
@@ -1382,8 +1500,11 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
     status: normalizeContentStatus(textFrom(row, ["status"], "draft")),
     subject: emptyToNull(textFrom(row, ["subject"])),
     body: textFrom(row, ["body", "copy", "text"], ""),
+    html_body: emptyToNull(textFrom(row, ["htmlBody", "html_body", "html", "renderedHtml", "rendered_html"])),
     cta_label: emptyToNull(textFrom(row, ["ctaLabel", "cta_label"])),
     cta_url: emptyToNull(textFrom(row, ["ctaUrl", "cta_url"])),
+    design_json: designJson,
+    media_assets: mediaAssets,
     source: "lovable",
     lovable_external_id: externalId,
     metadata: { lovable: row },
@@ -1401,23 +1522,45 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   const row = asRecord(raw);
   const externalId = normalizeLovableId(row);
   if (!externalId) return null;
+  const metadata = asRecord(row.metadata);
+  const segmentation = asRecord(row.segmentation ?? metadata.segmentation);
+  const language = nestedText(segmentation, row, metadata, ["language", "lang", "locale"]);
+  const category = nestedText(segmentation, row, metadata, ["category", "contactCategory", "contact_category"]);
+  const vertical = nestedText(segmentation, row, metadata, ["vertical", "industry", "sector"]);
+  const market = nestedText(segmentation, row, metadata, ["market", "country", "region"]);
+  const email = emptyToNull(textFrom(row, ["email"]));
+  const phoneNumber = emptyToNull(textFrom(row, ["phoneNumber", "phone_number", "phone"]));
+  const whatsappNumber = emptyToNull(textFrom(row, ["whatsappNumber", "whatsapp_number", "whatsapp"]));
+  const channelAvailability = {
+    email: Boolean(email),
+    phone: Boolean(phoneNumber),
+    whatsapp: Boolean(whatsappNumber),
+    ...asRecord(row.channelAvailability ?? row.channel_availability),
+  };
   const payload = {
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2b")),
     full_name: textFrom(row, ["fullName", "full_name", "name"], ""),
-    email: emptyToNull(textFrom(row, ["email"])),
-    phone_number: emptyToNull(textFrom(row, ["phoneNumber", "phone_number", "phone"])),
-    whatsapp_number: emptyToNull(textFrom(row, ["whatsappNumber", "whatsapp_number", "whatsapp"])),
+    email,
+    phone_number: phoneNumber,
+    whatsapp_number: whatsappNumber,
     role_label: emptyToNull(textFrom(row, ["roleLabel", "role_label", "role"])),
     company_name: emptyToNull(textFrom(row, ["companyName", "company_name", "company"])),
+    language,
+    category,
+    vertical,
+    market,
     consent_status: (consentStatuses as readonly string[]).includes(textFrom(row, ["consentStatus", "consent_status"], "unknown"))
       ? textFrom(row, ["consentStatus", "consent_status"], "unknown")
       : "unknown",
     source: "lovable",
-    channel_availability: asRecord(row.channelAvailability ?? row.channel_availability),
+    channel_availability: channelAvailability,
     tags: Array.isArray(row.tags) ? row.tags.map((tag) => String(tag).trim()).filter(Boolean) : [],
     lovable_external_id: externalId,
     last_synced_at: now,
-    metadata: { lovable: row },
+    metadata: {
+      lovable: row,
+      segmentation: { language, category, vertical, market },
+    },
     updated_at: now,
   };
   const [contact] = await db.insert(marketingContacts)
@@ -1625,14 +1768,15 @@ async function upsertLovableCampaign(
     await db.insert(marketingCampaignChannels).values(channelRows.map((channelRaw) => {
       const channelRow = asRecord(channelRaw);
       const contentExternalId = textFrom(channelRow, ["contentExternalId", "content_external_id", "contentId", "content_id"]);
+      const channel = normalizeChannel(textFrom(channelRow, ["channel"], "email"));
       return {
         campaign_id: campaign.id,
-        channel: normalizeChannel(textFrom(channelRow, ["channel"], "email")),
+        channel,
         content_asset_id: contentByExternalId.get(contentExternalId) ?? null,
         scheduled_at: dateOrNull(dateTextFrom(channelRow, ["scheduledAt", "scheduled_at"])),
         status: normalizeCampaignStatus(textFrom(channelRow, ["status"], payload.status)),
-        send_capability: "locked",
-        metadata: { lovable: channelRow, send_locked: true },
+        send_capability: sendCapabilityForChannel(channel),
+        metadata: sendMetadataForChannel(channel, { lovable: channelRow }),
         updated_at: now,
       };
     }));
@@ -1827,6 +1971,13 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       journeys: journeyPayload.length,
       audiences: audiencePayload.length,
     };
+    const fieldCoverage = {
+      content: fieldCoverageForPayload(contentPayload, fieldCoverageAliases.content),
+      contacts: fieldCoverageForPayload(contactPayload, fieldCoverageAliases.contacts),
+      campaigns: fieldCoverageForPayload(campaignPayload, fieldCoverageAliases.campaigns),
+      journeys: fieldCoverageForPayload(journeyPayload, fieldCoverageAliases.journeys),
+      audiences: fieldCoverageForPayload(audiencePayload, fieldCoverageAliases.audiences),
+    };
     const imported = {
       campaigns: campaignCount,
       contacts: contactRows.length,
@@ -1856,6 +2007,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         campaignRecipientExternalIdCount: uniqueUnmappedCampaignRecipientExternalIds.length,
         campaignRecipientExternalIds: uniqueUnmappedCampaignRecipientExternalIds.slice(0, 50),
       },
+      fieldCoverage,
       mode: "one_way_into_vyva",
       dispatch_locked: true,
     };
