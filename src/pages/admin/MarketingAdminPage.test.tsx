@@ -22,12 +22,15 @@ const summary = {
     campaigns: 2,
     journeys: 1,
     content: 2,
+    mediaAssets: 1,
     contacts: 2,
     audiences: 1,
+    journeyEnrollments: 1,
     thisWeek: 1,
     scheduled: 1,
     published: 0,
   },
+  analyticsTotals: { sent: 12, delivered: 11, opened: 8, clicked: 4, bounced: 0, unsubscribed: 0, replied: 1, socialEngagement: 3 },
   byChannel: [
     { channel: "email", campaigns: 1, content: 1 },
     { channel: "whatsapp", campaigns: 1, content: 1 },
@@ -156,6 +159,65 @@ const content = [
   },
 ];
 
+const mediaAssets = [
+  {
+    id: "media-1",
+    contentAssetId: "content-2",
+    contentTitle: "Partner post",
+    source: "lovable",
+    assetType: "image",
+    originalUrl: "https://cdn.example.test/partner.png",
+    localUrl: null,
+    status: "referenced",
+    lovableExternalId: "media-1",
+  },
+];
+
+const analytics = {
+  totals: { sent: 12, delivered: 11, opened: 8, clicked: 4, bounced: 0, unsubscribed: 0, replied: 1, socialEngagement: 3 },
+  metrics: [{
+    id: "metric-1",
+    campaignId: "campaign-1",
+    campaignName: "Caregiver welcome",
+    channel: "email",
+    metricDate: "2026-07-06T09:00:00.000Z",
+    sent: 12,
+    delivered: 11,
+    opened: 8,
+    clicked: 4,
+    bounced: 0,
+    unsubscribed: 0,
+    replied: 1,
+    socialEngagement: 3,
+    source: "lovable",
+    lovableExternalId: "metric-1",
+  }],
+};
+
+const journeyEnrollments = [
+  {
+    id: "enrollment-1",
+    journeyId: "journey-1",
+    journeyName: "B2B nurture",
+    contactId: "contact-2",
+    contactExternalId: "lovable-contact-2",
+    status: "active",
+    currentStepOrder: 0,
+    enteredAt: "2026-07-05T09:00:00.000Z",
+    exitedAt: null,
+    lastActivityAt: "2026-07-05T09:30:00.000Z",
+    source: "lovable",
+    lovableExternalId: "enrollment-1",
+    events: [{
+      id: "event-1",
+      eventType: "entered",
+      stepOrder: 0,
+      eventAt: "2026-07-05T09:00:00.000Z",
+      channel: "email",
+    }],
+  },
+];
+
 const contacts = [
   {
     id: "contact-1",
@@ -229,8 +291,8 @@ const sync = {
     startedAt: "2026-07-05T09:00:00.000Z",
     completedAt: "2026-07-05T09:01:00.000Z",
     summary: {
-      exported: { campaigns: 2, contacts: 2, content: 2, journeys: 1, audiences: 1 },
-      imported: { campaigns: 2, contacts: 2, content: 2, journeys: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1 },
+      exported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, audiences: 1 },
+      imported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1 },
       skipped: {},
       unmapped: {
         audienceContactExternalIdCount: 1,
@@ -275,7 +337,10 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/summary") return jsonResponse(summary);
     if (path === "/api/admin/marketing/campaigns" && method === "GET") return jsonResponse({ campaigns });
     if (path === "/api/admin/marketing/journeys" && method === "GET") return jsonResponse({ journeys });
+    if (path === "/api/admin/marketing/journey-enrollments" && method === "GET") return jsonResponse({ enrollments: journeyEnrollments });
     if (path === "/api/admin/marketing/content" && method === "GET") return jsonResponse({ content });
+    if (path === "/api/admin/marketing/media" && method === "GET") return jsonResponse({ mediaAssets });
+    if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analytics);
     if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts });
     if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
@@ -289,6 +354,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeys[0] });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
+    if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audiences[0] }, { status: 201 });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
   });
 
@@ -312,6 +378,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-send-readiness-panel")).toHaveTextContent("Email campaign sending is enabled");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Total campaigns");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Audiences");
+    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Imported media refs");
+    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Journey enrollments");
+    expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
+    expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
@@ -323,6 +393,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Trigger: signup");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
+    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-2");
+    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("entered / step 0");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
@@ -330,6 +402,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Design data");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 media");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
+    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-tab")).toHaveTextContent("No campaigns match the filters.");
@@ -338,6 +412,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Vertical: healthcare");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("List: Partners");
+    expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
 
@@ -347,6 +422,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Exported by Lovable");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Audiences: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Media assets: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Campaign metrics: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Journey enrollments: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Campaign recipients: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped campaign recipients: 1");
@@ -431,6 +509,24 @@ describe("MarketingAdminPage", () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Marketing contact created.");
+    });
+
+    fireEvent.change(screen.getByTestId("input-marketing-audience-name"), { target: { value: "Madrid partners" } });
+    fireEvent.change(screen.getByTestId("input-marketing-audience-description"), { target: { value: "Partners in Spain" } });
+    fireEvent.change(screen.getByTestId("input-marketing-audience-rules"), { target: { value: "{\"market\":\"Spain\",\"vertical\":\"health\"}" } });
+    fireEvent.change(screen.getByTestId("input-marketing-audience-contact-ids"), { target: { value: "lovable-contact-2\nmissing-contact" } });
+    fireEvent.click(screen.getByTestId("button-marketing-add-audience"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences", expect.objectContaining({ method: "POST" }));
+    });
+    const audiencePostCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/audiences" && init?.method === "POST");
+    expect(JSON.parse(String(audiencePostCall?.[1]?.body))).toMatchObject({
+      name: "Madrid partners",
+      description: "Partners in Spain",
+      listType: "dynamic",
+      rules: { market: "Spain", vertical: "health" },
+      contactExternalIds: ["lovable-contact-2", "missing-contact"],
     });
   });
 

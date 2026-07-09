@@ -512,6 +512,16 @@ describe("admin marketing router", () => {
         audienceExternalIds: ["audience-1"],
         channels: [{ channel: "email", contentExternalId: "content-1", scheduledAt: "2026-07-08T09:00:00.000Z" }],
       }],
+      campaignMetrics: [{
+        id: "metric-1",
+        campaignExternalId: "campaign-1",
+        channel: "email",
+        metricDate: "2026-07-09T09:00:00.000Z",
+        sent: 10,
+        delivered: 9,
+        opened: 6,
+        clicked: 3,
+      }],
       journeys: [{
         id: "journey-1",
         name: "Nurture",
@@ -528,6 +538,21 @@ describe("admin marketing router", () => {
           templateKind: "email_template",
           templateRef: "content-1",
           config: { variant: "a" },
+        }],
+      }],
+      journeyEnrollments: [{
+        id: "enrollment-1",
+        journeyExternalId: "journey-1",
+        contactExternalId: "contact-1",
+        status: "active",
+        currentStepOrder: 0,
+        enteredAt: "2026-07-08T08:00:00.000Z",
+        stepEvents: [{
+          id: "event-1",
+          stepOrder: 0,
+          eventType: "entered",
+          channel: "email",
+          eventAt: "2026-07-08T08:00:00.000Z",
         }],
       }],
       cursor: "cursor-1",
@@ -558,6 +583,12 @@ describe("admin marketing router", () => {
           extraLovableOnlyField: "kept in metadata",
         }),
       },
+    });
+    expect(table("marketing_media_assets")).toHaveLength(1);
+    expect(table("marketing_media_assets")[0]).toMatchObject({
+      original_url: "https://cdn.example.test/hero.png",
+      asset_type: "image",
+      status: "referenced",
     });
     expect(table("marketing_contacts")).toHaveLength(1);
     expect(table("marketing_contacts")[0]).toMatchObject({
@@ -591,6 +622,14 @@ describe("admin marketing router", () => {
         provider: "communicationDispatcher",
       }),
     });
+    expect(table("marketing_campaign_metrics")).toHaveLength(1);
+    expect(table("marketing_campaign_metrics")[0]).toMatchObject({
+      channel: "email",
+      sent: 10,
+      delivered: 9,
+      opened: 6,
+      clicked: 3,
+    });
     expect(table("marketing_journey_steps")).toHaveLength(1);
     expect(table("marketing_journey_steps")[0]).toMatchObject({
       kind: "message",
@@ -598,6 +637,18 @@ describe("admin marketing router", () => {
       template_kind: "email_template",
       template_ref: "content-1",
       config: { variant: "a" },
+    });
+    expect(table("marketing_journey_enrollments")).toHaveLength(1);
+    expect(table("marketing_journey_enrollments")[0]).toMatchObject({
+      contact_external_id: "contact-1",
+      status: "active",
+      current_step_order: 0,
+    });
+    expect(table("marketing_journey_step_events")).toHaveLength(1);
+    expect(table("marketing_journey_step_events")[0]).toMatchObject({
+      event_type: "entered",
+      step_order: 0,
+      channel: "email",
     });
     expect(table("marketing_sync_runs")).toHaveLength(2);
 
@@ -637,6 +688,45 @@ describe("admin marketing router", () => {
       });
 
     await request(app)
+      .get("/api/admin/marketing/media")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.mediaAssets[0]).toMatchObject({
+          originalUrl: "https://cdn.example.test/hero.png",
+          assetType: "image",
+          contentTitle: "Welcome email",
+        });
+      });
+
+    await request(app)
+      .get("/api/admin/marketing/analytics")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.totals).toMatchObject({
+          sent: 10,
+          delivered: 9,
+          opened: 6,
+          clicked: 3,
+        });
+        expect(response.body.metrics[0]).toMatchObject({
+          campaignName: "Welcome campaign",
+          channel: "email",
+        });
+      });
+
+    await request(app)
+      .get("/api/admin/marketing/journey-enrollments")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.enrollments[0]).toMatchObject({
+          journeyName: "Nurture",
+          contactExternalId: "contact-1",
+          status: "active",
+          events: [expect.objectContaining({ eventType: "entered" })],
+        });
+      });
+
+    await request(app)
       .get("/api/admin/marketing/audiences")
       .expect(200)
       .expect((response) => {
@@ -650,16 +740,20 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 1, contacts: 1, audiences: 1, campaigns: 1, journeys: 1 },
+      exported: { content: 1, mediaAssets: 1, contacts: 1, audiences: 1, campaigns: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
       imported: {
         content: 1,
+        mediaAssets: 1,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,
         mappedAudienceMembers: 1,
         campaignRecipients: 1,
         campaigns: 1,
+        campaignMetrics: 1,
         journeys: 1,
+        journeyEnrollments: 1,
+        journeyStepEvents: 1,
       },
       unmapped: {
         audienceContactExternalIdCount: 1,
@@ -673,8 +767,17 @@ describe("admin marketing router", () => {
           firstClassFieldCount: expect.any(Number),
           metadataOnlyFields: expect.arrayContaining(["extraLovableOnlyField"]),
         }),
+        media: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["url", "type"]),
+        }),
+        campaignMetrics: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["sent", "opened", "clicked"]),
+        }),
         contacts: expect.objectContaining({
           firstClassFields: expect.arrayContaining(["language", "category", "vertical", "market"]),
+        }),
+        journeyEnrollments: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["journeyExternalId", "contactExternalId", "status"]),
         }),
       },
     });
