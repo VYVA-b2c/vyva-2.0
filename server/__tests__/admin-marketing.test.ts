@@ -493,8 +493,31 @@ describe("admin marketing router", () => {
         rules: { market: "Spain" },
         contactExternalIds: ["contact-1", "missing-contact"],
       }],
-      campaigns: [{ id: "campaign-1", name: "Welcome campaign", status: "scheduled", channels: [{ channel: "email", contentExternalId: "content-1" }] }],
-      journeys: [{ id: "journey-1", name: "Nurture", steps: [{ channel: "email", contentExternalId: "content-1" }] }],
+      campaigns: [{
+        id: "campaign-1",
+        name: "Welcome campaign",
+        status: "scheduled",
+        audienceExternalIds: ["audience-1"],
+        channels: [{ channel: "email", contentExternalId: "content-1", scheduledAt: "2026-07-08T09:00:00.000Z" }],
+      }],
+      journeys: [{
+        id: "journey-1",
+        name: "Nurture",
+        triggerType: "signup",
+        triggerConfig: { source: "campaign" },
+        goalType: "activation",
+        goalConfig: { event: "first_login" },
+        exitOnGoal: false,
+        steps: [{
+          channel: "email",
+          contentExternalId: "content-1",
+          kind: "message",
+          dayOffset: 3,
+          templateKind: "email_template",
+          templateRef: "content-1",
+          config: { variant: "a" },
+        }],
+      }],
       cursor: "cursor-1",
     };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
@@ -517,9 +540,28 @@ describe("admin marketing router", () => {
     expect(table("marketing_audience_members")).toHaveLength(2);
     expect(table("marketing_audience_members").filter((row) => row.contact_id)).toHaveLength(1);
     expect(table("marketing_campaigns")).toHaveLength(1);
+    expect(table("marketing_campaign_recipients")).toHaveLength(1);
+    expect(table("marketing_campaign_recipients")[0]).toMatchObject({
+      recipient: "hassan@example.com",
+      status: "planned",
+    });
     expect(table("marketing_journeys")).toHaveLength(1);
+    expect(table("marketing_journeys")[0]).toMatchObject({
+      trigger_type: "signup",
+      trigger_config: { source: "campaign" },
+      goal_type: "activation",
+      goal_config: { event: "first_login" },
+      exit_on_goal: false,
+    });
     expect(table("marketing_campaign_channels")).toHaveLength(1);
     expect(table("marketing_journey_steps")).toHaveLength(1);
+    expect(table("marketing_journey_steps")[0]).toMatchObject({
+      kind: "message",
+      day_offset: 3,
+      template_kind: "email_template",
+      template_ref: "content-1",
+      config: { variant: "a" },
+    });
     expect(table("marketing_sync_runs")).toHaveLength(2);
 
     await request(app)
@@ -563,12 +605,15 @@ describe("admin marketing router", () => {
         audiences: 1,
         audienceMembers: 2,
         mappedAudienceMembers: 1,
+        campaignRecipients: 1,
         campaigns: 1,
         journeys: 1,
       },
       unmapped: {
         audienceContactExternalIdCount: 1,
         audienceContactExternalIds: ["missing-contact"],
+        campaignRecipientExternalIdCount: 1,
+        campaignRecipientExternalIds: ["missing-contact"],
       },
     });
   });

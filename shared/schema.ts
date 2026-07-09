@@ -2829,6 +2829,11 @@ export const marketingJourneys = pgTable("marketing_journeys", {
   status:              text("status").notNull().default("draft"),
   audience_type:       text("audience_type").notNull().default("b2c"),
   objective:           text("objective").notNull().default(""),
+  trigger_type:        text("trigger_type"),
+  trigger_config:      jsonb("trigger_config").notNull().default({}),
+  goal_type:           text("goal_type"),
+  goal_config:         jsonb("goal_config").notNull().default({}),
+  exit_on_goal:        boolean("exit_on_goal").notNull().default(true),
   source:              text("source").notNull().default("vyva"),
   lovable_external_id: text("lovable_external_id").unique(),
   metadata:            jsonb("metadata").notNull().default({}),
@@ -2840,6 +2845,8 @@ export const marketingJourneys = pgTable("marketing_journeys", {
   index("marketing_journeys_status_idx").on(t.status),
   index("marketing_journeys_audience_idx").on(t.audience_type),
   index("marketing_journeys_source_idx").on(t.source),
+  index("marketing_journeys_trigger_idx").on(t.trigger_type),
+  index("marketing_journeys_goal_idx").on(t.goal_type),
 ]);
 
 export const insertMarketingJourneySchema = createInsertSchema(marketingJourneys).omit({ id: true, created_at: true, updated_at: true });
@@ -2853,6 +2860,11 @@ export const marketingJourneySteps = pgTable("marketing_journey_steps", {
   channel:           text("channel").notNull(),
   content_asset_id:  uuid("content_asset_id").references(() => marketingContentAssets.id, { onDelete: "set null" }),
   delay_hours:       integer("delay_hours").notNull().default(0),
+  kind:              text("kind").notNull().default("message"),
+  day_offset:        integer("day_offset").notNull().default(0),
+  template_kind:     text("template_kind"),
+  template_ref:      text("template_ref"),
+  config:            jsonb("config").notNull().default({}),
   status:            text("status").notNull().default("draft"),
   metadata:          jsonb("metadata").notNull().default({}),
   created_at:        timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2861,6 +2873,8 @@ export const marketingJourneySteps = pgTable("marketing_journey_steps", {
   unique("marketing_journey_steps_order_unique").on(t.journey_id, t.step_order),
   index("marketing_journey_steps_journey_idx").on(t.journey_id),
   index("marketing_journey_steps_channel_idx").on(t.channel),
+  index("marketing_journey_steps_kind_idx").on(t.kind),
+  index("marketing_journey_steps_day_offset_idx").on(t.day_offset),
 ]);
 
 export const insertMarketingJourneyStepSchema = createInsertSchema(marketingJourneySteps).omit({ id: true, created_at: true, updated_at: true });

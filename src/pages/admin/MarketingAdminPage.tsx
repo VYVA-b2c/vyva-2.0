@@ -101,8 +101,23 @@ type Journey = {
   status: string;
   audienceType: Audience;
   objective: string;
+  triggerType: string | null;
+  triggerConfig: Record<string, unknown>;
+  goalType: string | null;
+  goalConfig: Record<string, unknown>;
+  exitOnGoal: boolean;
   source: string;
-  steps: Array<{ id: string; stepOrder: number; channel: Channel; delayHours: number; status: string }>;
+  steps: Array<{
+    id: string;
+    stepOrder: number;
+    channel: Channel;
+    delayHours: number;
+    kind: string;
+    dayOffset: number;
+    templateKind: string | null;
+    templateRef: string | null;
+    status: string;
+  }>;
 };
 
 type ContentAsset = {
@@ -445,6 +460,7 @@ const syncCountLabels = {
   audiences: "Audiences",
   audienceMembers: "Audience members",
   mappedAudienceMembers: "Mapped members",
+  campaignRecipients: "Campaign recipients",
 } as const;
 
 type SyncCountKey = keyof typeof syncCountLabels;
@@ -468,9 +484,17 @@ function syncUnmappedCount(summary: Record<string, unknown>) {
   return numberValue(recordValue(summary.unmapped).audienceContactExternalIdCount);
 }
 
+function syncUnmappedCampaignRecipientCount(summary: Record<string, unknown>) {
+  return numberValue(recordValue(summary.unmapped).campaignRecipientExternalIdCount);
+}
+
 function syncUnmappedSample(summary: Record<string, unknown>) {
-  const ids = recordValue(summary.unmapped).audienceContactExternalIds;
-  return Array.isArray(ids) ? ids.map((id) => String(id)).filter(Boolean).slice(0, 5) : [];
+  const unmapped = recordValue(summary.unmapped);
+  const ids = [
+    ...(Array.isArray(unmapped.audienceContactExternalIds) ? unmapped.audienceContactExternalIds : []),
+    ...(Array.isArray(unmapped.campaignRecipientExternalIds) ? unmapped.campaignRecipientExternalIds : []),
+  ];
+  return ids.map((id) => String(id)).filter(Boolean).slice(0, 5);
 }
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
@@ -546,8 +570,9 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   const imported = syncCountItems(run.summary, "imported");
   const skipped = syncCountItems(run.summary, "skipped");
   const unmappedCount = syncUnmappedCount(run.summary);
+  const unmappedCampaignRecipientCount = syncUnmappedCampaignRecipientCount(run.summary);
   const unmappedSample = syncUnmappedSample(run.summary);
-  if (!exported.length && !imported.length && !skipped.length && !unmappedCount) return null;
+  if (!exported.length && !imported.length && !skipped.length && !unmappedCount && !unmappedCampaignRecipientCount) return null;
   return (
     <div className="mt-3 grid gap-2 rounded-xl bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
       {exported.length ? (
@@ -566,12 +591,13 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
           </div>
         </div>
       ) : null}
-      {skipped.length || unmappedCount ? (
+      {skipped.length || unmappedCount || unmappedCampaignRecipientCount ? (
         <div>
           <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Needs review</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {skipped.map((item) => <Pill key={`skipped-${item.key}`} className="bg-amber-50 text-amber-800">Skipped {item.label}: {item.value}</Pill>)}
             {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
+            {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
           </div>
           {unmappedSample.length ? <p className="mt-2 font-semibold">Examples: {unmappedSample.join(", ")}</p> : null}
         </div>
@@ -1459,6 +1485,13 @@ export default function MarketingAdminPage() {
                                 <h3 className="font-black">{journey.name}</h3>
                                 <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
                                 {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Lovable source can reimport this after sync.</p> : null}
+                                {(journey.triggerType || journey.goalType) ? (
+                                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black" data-testid={`marketing-journey-logic-${journey.id}`}>
+                                    {journey.triggerType ? <Pill className="bg-blue-50 text-blue-800">Trigger: {journey.triggerType}</Pill> : null}
+                                    {journey.goalType ? <Pill className="bg-emerald-50 text-emerald-800">Goal: {journey.goalType}</Pill> : null}
+                                    <Pill className={journey.exitOnGoal ? "bg-purple-50 text-purple-800" : "bg-amber-50 text-amber-800"}>{journey.exitOnGoal ? "Exit on goal" : "Continue after goal"}</Pill>
+                                  </div>
+                                ) : null}
                               </div>
                               <div className="flex flex-wrap items-center justify-end gap-2">
                                 <Pill className={statusClass(journey.status)}>{journey.status}</Pill>
@@ -1473,7 +1506,10 @@ export default function MarketingAdminPage() {
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => (
-                                <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>{step.stepOrder + 1}. {channelLabel[step.channel]} / {step.delayHours}h</span>
+                                <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>
+                                  {step.stepOrder + 1}. {step.kind || "message"} / {channelLabel[step.channel]} / day {step.dayOffset ?? Math.floor(step.delayHours / 24)}
+                                  {step.templateRef ? ` / ${step.templateRef}` : ""}
+                                </span>
                               ))}
                             </div>
                           </>

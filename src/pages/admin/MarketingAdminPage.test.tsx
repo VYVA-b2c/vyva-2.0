@@ -103,8 +103,23 @@ const journeys = [
     status: "draft",
     audienceType: "b2b",
     objective: "Convert partners",
+    triggerType: "signup",
+    triggerConfig: { source: "lovable" },
+    goalType: "activation",
+    goalConfig: { event: "first_login" },
+    exitOnGoal: false,
     source: "lovable",
-    steps: [{ id: "step-1", stepOrder: 0, channel: "email", delayHours: 0, status: "draft" }],
+    steps: [{
+      id: "step-1",
+      stepOrder: 0,
+      channel: "email",
+      delayHours: 72,
+      kind: "message",
+      dayOffset: 3,
+      templateKind: "email_template",
+      templateRef: "content-1",
+      status: "draft",
+    }],
   },
 ];
 
@@ -207,9 +222,14 @@ const sync = {
     completedAt: "2026-07-05T09:01:00.000Z",
     summary: {
       exported: { campaigns: 2, contacts: 2, content: 2, journeys: 1, audiences: 1 },
-      imported: { campaigns: 2, contacts: 2, content: 2, journeys: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1 },
+      imported: { campaigns: 2, contacts: 2, content: 2, journeys: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1 },
       skipped: {},
-      unmapped: { audienceContactExternalIdCount: 1, audienceContactExternalIds: ["missing-contact"] },
+      unmapped: {
+        audienceContactExternalIdCount: 1,
+        audienceContactExternalIds: ["missing-contact"],
+        campaignRecipientExternalIdCount: 1,
+        campaignRecipientExternalIds: ["missing-contact"],
+      },
     },
     error: null,
     createdBy: "karim.assad@mokadigital.net",
@@ -278,6 +298,9 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("B2B nurture");
+    expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Trigger: signup");
+    expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
+    expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
@@ -298,7 +321,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Exported by Lovable");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Audiences: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Campaign recipients: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped list members: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped campaign recipients: 1");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
   });
