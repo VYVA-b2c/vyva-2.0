@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
+  BarChart3,
   CalendarDays,
   CheckCircle2,
   Clock,
+  Eye,
   FileText,
+  Image as ImageIcon,
   Megaphone,
   Pencil,
   Plus,
@@ -39,16 +43,30 @@ type MarketingSummary = {
     campaigns: number;
     journeys: number;
     content: number;
+    mediaAssets?: number;
     contacts: number;
     audiences: number;
+    journeyEnrollments?: number;
     thisWeek: number;
     scheduled: number;
     published: number;
   };
+  analyticsTotals?: MarketingAnalyticsTotals;
   byChannel: Array<{ channel: Channel; campaigns: number; content: number }>;
   byAudience: Array<{ audienceType: Audience; campaigns: number; contacts: number }>;
   lockedSendCapabilities: SendCapability[];
   latestSyncRun: SyncRun | null;
+};
+
+type MarketingAnalyticsTotals = {
+  sent: number;
+  delivered: number;
+  opened: number;
+  clicked: number;
+  bounced: number;
+  unsubscribed: number;
+  replied: number;
+  socialEngagement: number;
 };
 
 type SendCapability = {
@@ -138,6 +156,50 @@ type ContentAsset = {
   mediaAssetCount?: number;
   source: string;
   lovableExternalId: string | null;
+};
+
+type MarketingMediaAsset = {
+  id: string;
+  contentAssetId: string | null;
+  contentTitle?: string | null;
+  source: string;
+  assetType: string;
+  originalUrl: string;
+  localUrl: string | null;
+  status: string;
+  lovableExternalId: string | null;
+};
+
+type MarketingCampaignMetric = MarketingAnalyticsTotals & {
+  id: string;
+  campaignId: string | null;
+  campaignName: string | null;
+  channel: string;
+  metricDate: string | null;
+  source: string;
+  lovableExternalId: string | null;
+};
+
+type JourneyEnrollment = {
+  id: string;
+  journeyId: string;
+  journeyName: string | null;
+  contactId: string | null;
+  contactExternalId: string | null;
+  status: string;
+  currentStepOrder: number;
+  enteredAt: string | null;
+  exitedAt: string | null;
+  lastActivityAt: string | null;
+  source: string;
+  lovableExternalId: string | null;
+  events: Array<{
+    id: string;
+    eventType: string;
+    stepOrder: number;
+    eventAt: string | null;
+    channel: string | null;
+  }>;
 };
 
 type TestEmailResponse = {
@@ -285,17 +347,28 @@ type ContactDraft = {
   tags: string;
 };
 
+type AudienceDraft = {
+  name: string;
+  listType: string;
+  description: string;
+  rulesText: string;
+  contactExternalIds: string;
+};
+
 const emptySummary: MarketingSummary = {
   totals: {
     campaigns: 0,
     journeys: 0,
     content: 0,
+    mediaAssets: 0,
     contacts: 0,
     audiences: 0,
+    journeyEnrollments: 0,
     thisWeek: 0,
     scheduled: 0,
     published: 0,
   },
+  analyticsTotals: { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 },
   byChannel: CHANNELS.map((channel) => ({ channel, campaigns: 0, content: 0 })),
   byAudience: AUDIENCES.map((audienceType) => ({ audienceType, campaigns: 0, contacts: 0 })),
   lockedSendCapabilities: CHANNELS.map((channel) => ({
@@ -366,6 +439,26 @@ function lower(value: string | null | undefined) {
 
 function splitTags(value: string) {
   return value.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function splitLines(value: string) {
+  return value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+
+function groupCount<T>(items: T[], keyForItem: (item: T) => string | null | undefined) {
+  const result = new Map<string, number>();
+  for (const item of items) {
+    const key = keyForItem(item);
+    if (!key) continue;
+    result.set(key, (result.get(key) ?? 0) + 1);
+  }
+  return result;
+}
+
+function parseRulesText(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return {};
+  return JSON.parse(trimmed) as Record<string, unknown>;
 }
 
 function normalizeCampaignStatus(value: string): CampaignStatus {
@@ -464,7 +557,11 @@ const syncCountLabels = {
   campaigns: "Campaigns",
   contacts: "Contacts",
   content: "Content",
+  mediaAssets: "Media assets",
+  campaignMetrics: "Campaign metrics",
   journeys: "Journeys",
+  journeyEnrollments: "Journey enrollments",
+  journeyStepEvents: "Journey step events",
   audiences: "Audiences",
   audienceMembers: "Audience members",
   mappedAudienceMembers: "Mapped members",
@@ -656,8 +753,12 @@ export default function MarketingAdminPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [content, setContent] = useState<ContentAsset[]>([]);
+  const [mediaAssets, setMediaAssets] = useState<MarketingMediaAsset[]>([]);
+  const [analyticsTotals, setAnalyticsTotals] = useState<MarketingAnalyticsTotals>(emptySummary.analyticsTotals ?? { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 });
+  const [campaignMetrics, setCampaignMetrics] = useState<MarketingCampaignMetric[]>([]);
   const [contacts, setContacts] = useState<MarketingContact[]>([]);
   const [audiences, setAudiences] = useState<MarketingAudience[]>([]);
+  const [journeyEnrollments, setJourneyEnrollments] = useState<JourneyEnrollment[]>([]);
   const [syncState, setSyncState] = useState<SyncState>(emptySync);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
@@ -688,6 +789,7 @@ export default function MarketingAdminPage() {
   const [editingJourneyId, setEditingJourneyId] = useState<string | null>(null);
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>({ name: "", audienceType: "b2c", status: "draft", objective: "" });
   const [contentDraft, setContentDraft] = useState<ContentDraft>({ title: "", channel: "email", subject: "", body: "" });
+  const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
     fullName: "",
     audienceType: "b2b",
@@ -702,13 +804,18 @@ export default function MarketingAdminPage() {
     market: "",
     tags: "",
   });
+  const [audienceDraft, setAudienceDraft] = useState<AudienceDraft>({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
+  const [audienceFeedback, setAudienceFeedback] = useState("");
 
   async function refreshAll() {
-    const [summaryBody, campaignBody, journeyBody, contentBody, contactBody, audienceBody, syncBody] = await Promise.all([
+    const [summaryBody, campaignBody, journeyBody, enrollmentBody, contentBody, mediaBody, analyticsBody, contactBody, audienceBody, syncBody] = await Promise.all([
       api<MarketingSummary>("/api/admin/marketing/summary"),
       api<{ campaigns: Campaign[] }>("/api/admin/marketing/campaigns"),
       api<{ journeys: Journey[] }>("/api/admin/marketing/journeys"),
+      api<{ enrollments: JourneyEnrollment[] }>("/api/admin/marketing/journey-enrollments"),
       api<{ content: ContentAsset[] }>("/api/admin/marketing/content"),
+      api<{ mediaAssets: MarketingMediaAsset[] }>("/api/admin/marketing/media"),
+      api<{ totals: MarketingAnalyticsTotals; metrics: MarketingCampaignMetric[] }>("/api/admin/marketing/analytics"),
       api<{ contacts: MarketingContact[] }>("/api/admin/marketing/contacts"),
       api<{ audiences: MarketingAudience[] }>("/api/admin/marketing/audiences"),
       api<SyncState>("/api/admin/marketing/sync/lovable"),
@@ -716,7 +823,11 @@ export default function MarketingAdminPage() {
     setSummary(summaryBody);
     setCampaigns(campaignBody.campaigns);
     setJourneys(journeyBody.journeys);
+    setJourneyEnrollments(enrollmentBody.enrollments);
     setContent(contentBody.content);
+    setMediaAssets(mediaBody.mediaAssets);
+    setAnalyticsTotals(analyticsBody.totals);
+    setCampaignMetrics(analyticsBody.metrics);
     setContacts(contactBody.contacts);
     setAudiences(audienceBody.audiences);
     setSyncState(syncBody);
@@ -739,6 +850,11 @@ export default function MarketingAdminPage() {
     return matchesSearch && matchesChannel;
   }), [content, search, channelFilter]);
 
+  const visibleMediaAssets = useMemo(() => mediaAssets.filter((item) => {
+    const haystack = [item.contentTitle, item.originalUrl, item.localUrl, item.assetType, item.status, item.source].map((value) => lower(value)).join(" ");
+    return !search || haystack.includes(search.toLowerCase());
+  }), [mediaAssets, search]);
+
   const visibleContacts = useMemo(() => contacts.filter((contact) => {
     const matchesSearch = !search || contactSearchText(contact).includes(search.toLowerCase());
     const matchesAudience = audienceFilter === "all" || contact.audienceType === audienceFilter;
@@ -758,6 +874,13 @@ export default function MarketingAdminPage() {
   }), [audiences, search]);
 
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
+  const selectedContent = useMemo(() => content.find((item) => item.id === selectedContentId) ?? visibleContent[0] ?? null, [content, selectedContentId, visibleContent]);
+  const selectedContentMediaAssets = useMemo(() => {
+    if (!selectedContent) return [];
+    return mediaAssets.filter((item) => item.contentAssetId === selectedContent.id);
+  }, [mediaAssets, selectedContent]);
+  const enrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments, (item) => item.journeyId), [journeyEnrollments]);
+  const activeEnrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments.filter((item) => item.status === "active"), (item) => item.journeyId), [journeyEnrollments]);
   const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
   const selectedEmailContent = useMemo(
     () => emailContentAssets.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null,
@@ -1062,6 +1185,37 @@ export default function MarketingAdminPage() {
     await refreshAll();
   }
 
+  async function createAudience(event: FormEvent) {
+    event.preventDefault();
+    setAudienceFeedback("");
+    if (!audienceDraft.name.trim()) {
+      setAudienceFeedback("Audience name is required.");
+      return;
+    }
+    let rules: Record<string, unknown>;
+    try {
+      rules = parseRulesText(audienceDraft.rulesText);
+    } catch {
+      setAudienceFeedback("Rules must be valid JSON.");
+      return;
+    }
+    await api("/api/admin/marketing/audiences", {
+      method: "POST",
+      body: JSON.stringify({
+        name: audienceDraft.name,
+        listType: audienceDraft.listType || "dynamic",
+        description: audienceDraft.description || null,
+        rules,
+        contactExternalIds: splitLines(audienceDraft.contactExternalIds),
+        metadata: { created_from: "admin_rule_builder" },
+      }),
+    });
+    setAudienceDraft({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
+    setAudienceFeedback("Audience created.");
+    setMessage("Audience created.");
+    await refreshAll();
+  }
+
   async function runLovableSync() {
     setSyncFeedback("");
     setMessage("Running Lovable sync...");
@@ -1197,6 +1351,13 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Published" value={summary.totals.published} icon={CheckCircle2} />
               </div>
 
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Imported media refs" value={summary.totals.mediaAssets ?? mediaAssets.length} icon={ImageIcon} />
+                <MetricCard label="Journey enrollments" value={summary.totals.journeyEnrollments ?? journeyEnrollments.length} icon={Activity} />
+                <MetricCard label="Email/social sends tracked" value={analyticsTotals.sent} icon={BarChart3} />
+                <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
+              </div>
+
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
                 <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1224,6 +1385,41 @@ export default function MarketingAdminPage() {
                   </div>
                 </SectionCard>
               </div>
+
+              <SectionCard title="Analytics snapshots" subtitle={`${campaignMetrics.length} imported performance rows from Lovable or future providers.`}>
+                {campaignMetrics.length === 0 ? (
+                  <EmptyState text="No campaign analytics imported yet." />
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
+                    <table className="w-full border-collapse text-left text-sm">
+                      <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                        <tr>
+                          <th className="px-4 py-3">Campaign</th>
+                          <th className="px-4 py-3">Channel</th>
+                          <th className="px-4 py-3">Sent</th>
+                          <th className="px-4 py-3">Delivered</th>
+                          <th className="px-4 py-3">Opened</th>
+                          <th className="px-4 py-3">Clicked</th>
+                          <th className="px-4 py-3">Source</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campaignMetrics.slice(0, 8).map((metric) => (
+                          <tr key={metric.id} className="border-t border-[#f0e7df]">
+                            <td className="px-4 py-3 font-black">{metric.campaignName || metric.lovableExternalId || "Unlinked campaign"}</td>
+                            <td className="px-4 py-3 font-bold">{metric.channel}</td>
+                            <td className="px-4 py-3 font-bold">{metric.sent}</td>
+                            <td className="px-4 py-3 font-bold">{metric.delivered}</td>
+                            <td className="px-4 py-3 font-bold">{metric.opened}</td>
+                            <td className="px-4 py-3 font-bold">{metric.clicked}</td>
+                            <td className="px-4 py-3 font-bold">{metric.source}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </SectionCard>
 
               <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaign metadata. No provider dispatch is triggered.">
                 <form className="grid gap-3 xl:grid-cols-[1fr_160px_160px_200px_auto]" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
@@ -1530,6 +1726,7 @@ export default function MarketingAdminPage() {
                                 <h3 className="font-black">{journey.name}</h3>
                                 <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
                                 {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Lovable source can reimport this after sync.</p> : null}
+                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">{activeEnrollmentsByJourneyId.get(journey.id) ?? 0} active / {enrollmentsByJourneyId.get(journey.id) ?? 0} total enrollments</p>
                                 {(journey.triggerType || journey.goalType) ? (
                                   <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black" data-testid={`marketing-journey-logic-${journey.id}`}>
                                     {journey.triggerType ? <Pill className="bg-blue-50 text-blue-800">Trigger: {journey.triggerType}</Pill> : null}
@@ -1563,6 +1760,38 @@ export default function MarketingAdminPage() {
                     );
                   })}
                 </div>
+              </SectionCard>
+              <SectionCard title="Journey progress" subtitle={`${journeyEnrollments.length} imported enrollment records and event history rows.`}>
+                {journeyEnrollments.length === 0 ? (
+                  <EmptyState text="No journey enrollments imported yet." />
+                ) : (
+                  <div className="grid gap-3" data-testid="marketing-journey-enrollments">
+                    {journeyEnrollments.slice(0, 10).map((enrollment) => (
+                      <article key={enrollment.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-black">{enrollment.journeyName || enrollment.journeyId}</p>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">{enrollment.contactExternalId || enrollment.contactId || "No contact linked"}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            <Pill className={statusClass(enrollment.status)}>{enrollment.status}</Pill>
+                            <Pill className="bg-blue-50 text-blue-800">Step {enrollment.currentStepOrder}</Pill>
+                          </div>
+                        </div>
+                        {enrollment.events.length ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {enrollment.events.slice(0, 8).map((event) => (
+                              <Pill key={event.id} className="bg-white text-[#5b4a46]">{event.eventType} / step {event.stepOrder}</Pill>
+                            ))}
+                            {enrollment.events.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{enrollment.events.length - 8}</Pill> : null}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-xs font-bold text-[#8b7a73]">No event history for this enrollment.</p>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                )}
               </SectionCard>
             </div>
           )}
@@ -1610,12 +1839,64 @@ export default function MarketingAdminPage() {
                           <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
                           <Pill className={statusClass(item.status)}>{item.status}</Pill>
                           {item.source === "lovable" ? <Pill className="bg-violet-50 text-violet-700">Lovable</Pill> : null}
+                          <button type="button" onClick={() => setSelectedContentId(item.id)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-preview-content-${item.id}`}>
+                            <Eye size={13} /> Preview
+                          </button>
                         </div>
                       </div>
                     </article>
                   ))}
                 </div>
               </SectionCard>
+              <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+                <SectionCard title="Content preview" subtitle={selectedContent ? selectedContent.title : "Select a content asset to inspect."}>
+                  {selectedContent ? (
+                    <div className="grid gap-3" data-testid="marketing-content-preview">
+                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
+                        <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
+                      </div>
+                      {selectedContent.htmlBody ? (
+                        <iframe
+                          title={`Preview ${selectedContent.title}`}
+                          sandbox=""
+                          srcDoc={selectedContent.htmlBody}
+                          className="h-[360px] w-full rounded-xl border border-[#eadfd5] bg-white"
+                        />
+                      ) : (
+                        <div className="min-h-[180px] whitespace-pre-wrap rounded-xl border border-[#eadfd5] bg-white p-4 text-sm font-semibold leading-relaxed text-[#2f2135]">
+                          {selectedContent.body || "No body copy yet."}
+                        </div>
+                      )}
+                      <div className="grid gap-2 md:grid-cols-3">
+                        <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
+                        <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
+                        <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
+                      </div>
+                    </div>
+                  ) : (
+                    <EmptyState text="No content available." />
+                  )}
+                </SectionCard>
+
+                <SectionCard title="Media references" subtitle={`${visibleMediaAssets.length} visible of ${mediaAssets.length} imported media rows.`}>
+                  <div className="grid gap-3" data-testid="marketing-media-assets-list">
+                    {visibleMediaAssets.length === 0 ? (
+                      <EmptyState text="No media references imported yet." />
+                    ) : visibleMediaAssets.slice(0, 12).map((asset) => (
+                      <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
+                          <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
+                        </div>
+                        <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
+                        <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
+                        {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
+                      </article>
+                    ))}
+                  </div>
+                </SectionCard>
+              </div>
             </div>
           )}
 
@@ -1686,6 +1967,46 @@ export default function MarketingAdminPage() {
                       {contactFeedback}
                     </p>
                   ) : null}
+                </form>
+              </SectionCard>
+              <SectionCard title="Audience rule builder" subtitle="Store reusable list rules and optional Lovable contact external IDs.">
+                <form className="grid gap-3" onSubmit={(event) => createAudience(event).catch((error) => {
+                  setAudienceFeedback(error.message);
+                  setMessage(error.message);
+                })} data-testid="marketing-audience-builder">
+                  <div className="grid gap-3 xl:grid-cols-[1fr_180px_1fr]">
+                    <Field label="Audience name">
+                      <input className={inputClass} value={audienceDraft.name} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Madrid partners" data-testid="input-marketing-audience-name" />
+                    </Field>
+                    <Field label="List type">
+                      <select className={inputClass} value={audienceDraft.listType} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, listType: event.target.value }))} data-testid="select-marketing-audience-type">
+                        <option value="dynamic">dynamic</option>
+                        <option value="static">static</option>
+                        <option value="imported">imported</option>
+                      </select>
+                    </Field>
+                    <Field label="Description">
+                      <input className={inputClass} value={audienceDraft.description} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, description: event.target.value }))} placeholder="Who this list is for" data-testid="input-marketing-audience-description" />
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 xl:grid-cols-2">
+                    <Field label="Rules JSON">
+                      <textarea className={textareaClass} value={audienceDraft.rulesText} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, rulesText: event.target.value }))} data-testid="input-marketing-audience-rules" />
+                    </Field>
+                    <Field label="Contact external IDs">
+                      <textarea className={textareaClass} value={audienceDraft.contactExternalIds} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, contactExternalIds: event.target.value }))} placeholder="contact:123, contact:456" data-testid="input-marketing-audience-contact-ids" />
+                    </Field>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit" data-testid="button-marketing-add-audience">
+                      <UsersRound size={16} /> Add audience
+                    </button>
+                    {audienceFeedback ? (
+                      <p className={`rounded-xl px-4 py-3 text-sm font-bold ${audienceFeedback.includes("created") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-audience-feedback">
+                        {audienceFeedback}
+                      </p>
+                    ) : null}
+                  </div>
                 </form>
               </SectionCard>
               <SectionCard title="Audiences / lists" subtitle={`${visibleAudiences.length} visible of ${audiences.length} imported lists.`}>

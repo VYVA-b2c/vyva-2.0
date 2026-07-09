@@ -2929,6 +2929,30 @@ export const insertMarketingContentAssetSchema = createInsertSchema(marketingCon
 export type InsertMarketingContentAsset = z.infer<typeof insertMarketingContentAssetSchema>;
 export type MarketingContentAssetRow = typeof marketingContentAssets.$inferSelect;
 
+export const marketingMediaAssets = pgTable("marketing_media_assets", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  content_asset_id:    uuid("content_asset_id").references(() => marketingContentAssets.id, { onDelete: "cascade" }),
+  source:              text("source").notNull().default("lovable"),
+  asset_type:          text("asset_type").notNull().default("unknown"),
+  original_url:        text("original_url").notNull(),
+  local_url:           text("local_url"),
+  status:              text("status").notNull().default("referenced"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_media_assets_content_idx").on(t.content_asset_id),
+  index("marketing_media_assets_source_idx").on(t.source),
+  index("marketing_media_assets_status_idx").on(t.status),
+  index("marketing_media_assets_type_idx").on(t.asset_type),
+]);
+
+export const insertMarketingMediaAssetSchema = createInsertSchema(marketingMediaAssets).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingMediaAsset = z.infer<typeof insertMarketingMediaAssetSchema>;
+export type MarketingMediaAssetRow = typeof marketingMediaAssets.$inferSelect;
+
 export const marketingCampaigns = pgTable("marketing_campaigns", {
   id:                  uuid("id").primaryKey().defaultRandom(),
   name:                text("name").notNull(),
@@ -2977,6 +3001,36 @@ export const marketingCampaignChannels = pgTable("marketing_campaign_channels", 
 export const insertMarketingCampaignChannelSchema = createInsertSchema(marketingCampaignChannels).omit({ id: true, created_at: true, updated_at: true });
 export type InsertMarketingCampaignChannel = z.infer<typeof insertMarketingCampaignChannelSchema>;
 export type MarketingCampaignChannelRow = typeof marketingCampaignChannels.$inferSelect;
+
+export const marketingCampaignMetrics = pgTable("marketing_campaign_metrics", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  campaign_id:         uuid("campaign_id").references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+  channel:             text("channel").notNull().default("all"),
+  metric_date:         timestamp("metric_date", { withTimezone: true }),
+  sent:                integer("sent").notNull().default(0),
+  delivered:           integer("delivered").notNull().default(0),
+  opened:              integer("opened").notNull().default(0),
+  clicked:             integer("clicked").notNull().default(0),
+  bounced:             integer("bounced").notNull().default(0),
+  unsubscribed:        integer("unsubscribed").notNull().default(0),
+  replied:             integer("replied").notNull().default(0),
+  social_engagement:   integer("social_engagement").notNull().default(0),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  last_synced_at:      timestamp("last_synced_at", { withTimezone: true }),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_campaign_metrics_campaign_idx").on(t.campaign_id),
+  index("marketing_campaign_metrics_channel_idx").on(t.channel),
+  index("marketing_campaign_metrics_date_idx").on(t.metric_date),
+  index("marketing_campaign_metrics_source_idx").on(t.source),
+]);
+
+export const insertMarketingCampaignMetricSchema = createInsertSchema(marketingCampaignMetrics).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingCampaignMetric = z.infer<typeof insertMarketingCampaignMetricSchema>;
+export type MarketingCampaignMetricRow = typeof marketingCampaignMetrics.$inferSelect;
 
 export const marketingJourneys = pgTable("marketing_journeys", {
   id:                  uuid("id").primaryKey().defaultRandom(),
@@ -3075,6 +3129,58 @@ export const marketingContacts = pgTable("marketing_contacts", {
 export const insertMarketingContactSchema = createInsertSchema(marketingContacts).omit({ id: true, created_at: true, updated_at: true });
 export type InsertMarketingContact = z.infer<typeof insertMarketingContactSchema>;
 export type MarketingContactRow = typeof marketingContacts.$inferSelect;
+
+export const marketingJourneyEnrollments = pgTable("marketing_journey_enrollments", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  journey_id:          uuid("journey_id").notNull().references(() => marketingJourneys.id, { onDelete: "cascade" }),
+  contact_id:          uuid("contact_id").references(() => marketingContacts.id, { onDelete: "set null" }),
+  contact_external_id: text("contact_external_id"),
+  status:              text("status").notNull().default("active"),
+  current_step_order:  integer("current_step_order").notNull().default(0),
+  entered_at:          timestamp("entered_at", { withTimezone: true }),
+  exited_at:           timestamp("exited_at", { withTimezone: true }),
+  last_activity_at:    timestamp("last_activity_at", { withTimezone: true }),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_journey_enrollments_journey_idx").on(t.journey_id),
+  index("marketing_journey_enrollments_contact_idx").on(t.contact_id),
+  index("marketing_journey_enrollments_external_contact_idx").on(t.contact_external_id),
+  index("marketing_journey_enrollments_status_idx").on(t.status),
+]);
+
+export const insertMarketingJourneyEnrollmentSchema = createInsertSchema(marketingJourneyEnrollments).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingJourneyEnrollment = z.infer<typeof insertMarketingJourneyEnrollmentSchema>;
+export type MarketingJourneyEnrollmentRow = typeof marketingJourneyEnrollments.$inferSelect;
+
+export const marketingJourneyStepEvents = pgTable("marketing_journey_step_events", {
+  id:                  uuid("id").primaryKey().defaultRandom(),
+  enrollment_id:       uuid("enrollment_id").notNull().references(() => marketingJourneyEnrollments.id, { onDelete: "cascade" }),
+  journey_id:          uuid("journey_id").notNull().references(() => marketingJourneys.id, { onDelete: "cascade" }),
+  step_id:             uuid("step_id").references(() => marketingJourneySteps.id, { onDelete: "set null" }),
+  step_order:          integer("step_order").notNull().default(0),
+  event_type:          text("event_type").notNull().default("planned"),
+  event_at:            timestamp("event_at", { withTimezone: true }),
+  channel:             text("channel"),
+  source:              text("source").notNull().default("lovable"),
+  lovable_external_id: text("lovable_external_id").unique(),
+  metadata:            jsonb("metadata").notNull().default({}),
+  created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updated_at:          timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("marketing_journey_step_events_enrollment_idx").on(t.enrollment_id),
+  index("marketing_journey_step_events_journey_idx").on(t.journey_id),
+  index("marketing_journey_step_events_step_idx").on(t.step_id),
+  index("marketing_journey_step_events_type_idx").on(t.event_type),
+  index("marketing_journey_step_events_at_idx").on(t.event_at),
+]);
+
+export const insertMarketingJourneyStepEventSchema = createInsertSchema(marketingJourneyStepEvents).omit({ id: true, created_at: true, updated_at: true });
+export type InsertMarketingJourneyStepEvent = z.infer<typeof insertMarketingJourneyStepEventSchema>;
+export type MarketingJourneyStepEventRow = typeof marketingJourneyStepEvents.$inferSelect;
 
 export const marketingAudiences = pgTable("marketing_audiences", {
   id:                  uuid("id").primaryKey().defaultRandom(),
@@ -3339,10 +3445,14 @@ export const schema = {
   marketingAudiences,
   marketingAudienceMembers,
   marketingContentAssets,
+  marketingMediaAssets,
   marketingCampaigns,
   marketingCampaignChannels,
+  marketingCampaignMetrics,
   marketingJourneys,
   marketingJourneySteps,
+  marketingJourneyEnrollments,
+  marketingJourneyStepEvents,
   marketingContacts,
   marketingCampaignRecipients,
   marketingSyncRuns,
