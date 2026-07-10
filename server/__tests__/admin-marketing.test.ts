@@ -375,6 +375,74 @@ describe("admin marketing router", () => {
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
   });
 
+  it("updates and deletes marketing content assets", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Draft content",
+        channel: "email",
+        subject: "Draft",
+        body: "Original body",
+      })
+      .expect(201);
+
+    const contentId = createResponse.body.content.id;
+    await request(app)
+      .patch(`/api/admin/marketing/content/${contentId}`)
+      .send({
+        title: "Updated content",
+        channel: "instagram",
+        language: "es",
+        status: "approved",
+        subject: "Updated subject",
+        body: "Updated body",
+        htmlBody: "<p>Updated</p>",
+        ctaLabel: "Open",
+        ctaUrl: "https://v2.vyva.life/open",
+        designJson: { blocks: [{ type: "text" }] },
+        mediaAssets: [{ url: "https://cdn.example.test/content.png" }],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.content).toMatchObject({
+          id: contentId,
+          title: "Updated content",
+          channel: "instagram",
+          language: "es",
+          status: "approved",
+          subject: "Updated subject",
+          htmlBody: "<p>Updated</p>",
+          ctaLabel: "Open",
+          ctaUrl: "https://v2.vyva.life/open",
+          mediaAssetCount: 1,
+        });
+      });
+
+    expect(table("marketing_content_assets")[0]).toMatchObject({
+      title: "Updated content",
+      channel: "instagram",
+      language: "es",
+      status: "approved",
+      subject: "Updated subject",
+      body: "Updated body",
+      html_body: "<p>Updated</p>",
+      cta_label: "Open",
+      cta_url: "https://v2.vyva.life/open",
+      design_json: { blocks: [{ type: "text" }] },
+      media_assets: [{ url: "https://cdn.example.test/content.png" }],
+    });
+
+    await request(app)
+      .delete(`/api/admin/marketing/content/${contentId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedContentId: contentId });
+      });
+
+    expect(table("marketing_content_assets")).toHaveLength(0);
+  });
+
   it("updates campaign planning rows and deletes campaigns without dispatch", async () => {
     const app = buildApp();
     const createResponse = await request(app)
