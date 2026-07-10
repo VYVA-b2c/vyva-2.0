@@ -76,6 +76,10 @@ import {
   type HomeServiceType,
   type ServiceIntakeOrigin,
 } from "../../shared/serviceIntake";
+import {
+  CONCIERGE_FLOW_REFERENCES,
+  providerSetupFocusForFlow,
+} from "../../shared/conciergeFlowRegistry";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -126,6 +130,10 @@ type CoverageReadinessSummary = {
 };
 
 const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote", "task"] as const;
+const OTC_PHARMACY_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.otcPharmacy;
+const TRANSPORT_BOOKING_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.transportBooking;
+const OTC_PHARMACY_SETUP_FOCUS = providerSetupFocusForFlow(OTC_PHARMACY_FLOW_REFERENCE) ?? "pharmacy";
+const TRANSPORT_SETUP_FOCUS = providerSetupFocusForFlow(TRANSPORT_BOOKING_FLOW_REFERENCE) ?? "transport";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -4023,7 +4031,8 @@ const ConciergeScreen = () => {
                 onClick={() => navigate("/onboarding/profile/providers", {
                   state: {
                     returnTo: "/concierge",
-                    setupFocus: "pharmacy",
+                    setupFocus: OTC_PHARMACY_SETUP_FOCUS,
+                    setupFlow: OTC_PHARMACY_FLOW_REFERENCE,
                     setupReason: "Add a saved pharmacy",
                     notice: isSpanish
                       ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
@@ -4266,7 +4275,8 @@ const ConciergeScreen = () => {
                       onClick={() => navigate("/onboarding/profile/providers", {
                         state: {
                           returnTo: "/concierge",
-                          setupFocus: "transport",
+                          setupFocus: TRANSPORT_SETUP_FOCUS,
+                          setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
                           setupReason: "Add a saved transport provider",
                           notice: isSpanish
                             ? "Guarda un taxi o transporte preferido para usarlo primero."

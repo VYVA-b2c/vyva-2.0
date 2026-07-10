@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConciergeScreen from "./ConciergeScreen";
 import { apiFetch } from "@/lib/queryClient";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 
 const voiceHeroMock = vi.hoisted(() => vi.fn());
 const voiceActionMock = vi.hoisted(() => ({
@@ -1260,6 +1261,7 @@ describe("ConciergeScreen action hub", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
       expect(screen.getByTestId("route-state")).toHaveTextContent("Add a saved transport provider");
+      expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.transportBooking);
     });
   });
 
@@ -1278,6 +1280,7 @@ describe("ConciergeScreen action hub", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
       expect(screen.getByTestId("route-state")).toHaveTextContent("Add a saved pharmacy");
+      expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.otcPharmacy);
     });
   });
 
