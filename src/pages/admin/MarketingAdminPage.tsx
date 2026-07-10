@@ -760,6 +760,14 @@ function syncFieldCoverageItems(summary: Record<string, unknown>) {
   }).filter((item) => item.exported > 0);
 }
 
+function syncContentSourceItems(summary: Record<string, unknown>) {
+  const contentSources = recordValue(recordValue(summary.sourceBreakdown).content);
+  return Object.entries(contentSources)
+    .map(([key, value]) => ({ key, value: numberValue(value) }))
+    .filter((item) => item.value > 0)
+    .sort((left, right) => left.key.localeCompare(right.key));
+}
+
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(url, options);
   const body = await response.json().catch(() => null) as T | { error?: string } | null;
@@ -836,7 +844,8 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   const unmappedCampaignRecipientCount = syncUnmappedCampaignRecipientCount(run.summary);
   const unmappedSample = syncUnmappedSample(run.summary);
   const fieldCoverage = syncFieldCoverageItems(run.summary);
-  if (!exported.length && !imported.length && !skipped.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length) return null;
+  const contentSources = syncContentSourceItems(run.summary);
+  if (!exported.length && !imported.length && !skipped.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length && !contentSources.length) return null;
   return (
     <div className="mt-3 grid gap-2 rounded-xl bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
       {exported.length ? (
@@ -852,6 +861,14 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
           <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Imported into VYVA</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {imported.map((item) => <Pill key={`imported-${item.key}`} className="bg-emerald-50 text-emerald-800">{item.label}: {item.value}</Pill>)}
+          </div>
+        </div>
+      ) : null}
+      {contentSources.length ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Content sources</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {contentSources.map((item) => <Pill key={`content-source-${item.key}`} className="bg-violet-50 text-violet-800">{item.key}: {item.value}</Pill>)}
           </div>
         </div>
       ) : null}
@@ -2140,7 +2157,7 @@ export default function MarketingAdminPage() {
               </SectionCard>
               <SectionCard title="Content library" subtitle={`${visibleContent.length} visible of ${content.length} assets.`}>
                 <div className="grid gap-3">
-                  {visibleContent.length === 0 ? <EmptyState text="No content matches the filters." /> : visibleContent.map((item) => (
+                  {visibleContent.length === 0 ? <EmptyState text={content.length === 0 ? "No content imported yet. Run Lovable sync from Settings, then check the latest sync diagnostics for exported content sources." : "No content matches the filters."} /> : visibleContent.map((item) => (
                     <article key={item.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>

@@ -102,7 +102,9 @@ const dbMock = vi.hoisted(() => {
       })),
       delete: vi.fn((table: unknown) => ({
         where: async () => {
-          rows.set(nameFor(table), []);
+          const name = nameFor(table);
+          if (name === "marketing_media_assets") return;
+          rows.set(name, []);
         },
       })),
     },
@@ -523,6 +525,30 @@ describe("admin marketing router", () => {
         ctaUrl: "https://v2.vyva.life/start",
         extraLovableOnlyField: "kept in metadata",
       }],
+      savedEmailTemplates: [{
+        id: "welcome-template-1",
+        templateName: "Onboarding template",
+        emailSubject: "Your VYVA setup",
+        bodyHtml: "<p>Set up your profile</p>",
+        body: "Set up your profile",
+        status: "published",
+        language: "en",
+      }],
+      socialPosts: [{
+        id: "social-post-1",
+        title: "Instagram launch post",
+        platform: "instagram",
+        caption: "Meet VYVA",
+        mediaUrls: ["https://cdn.example.test/social.png"],
+        linkUrl: "https://v2.vyva.life",
+        state: "draft",
+      }],
+      contentBriefs: [{
+        id: "brief-1",
+        name: "Caregiver education brief",
+        description: "Explain VYVA for caregivers",
+        publicationStatus: "draft",
+      }],
       contacts: [{
         id: "contact-1",
         name: "Hassan",
@@ -612,7 +638,7 @@ describe("admin marketing router", () => {
         Authorization: "Bearer secret",
       }),
     }));
-    expect(table("marketing_content_assets")).toHaveLength(1);
+    expect(table("marketing_content_assets")).toHaveLength(4);
     expect(table("marketing_content_assets")[0]).toMatchObject({
       html_body: "<h1>Hello</h1>",
       design_json: { blocks: [{ type: "hero" }] },
@@ -625,10 +651,43 @@ describe("admin marketing router", () => {
         }),
       },
     });
-    expect(table("marketing_media_assets")).toHaveLength(1);
+    expect(table("marketing_content_assets").find((row) => row.lovable_external_id === "email_template:welcome-template-1")).toMatchObject({
+      title: "Onboarding template",
+      channel: "email",
+      subject: "Your VYVA setup",
+      html_body: "<p>Set up your profile</p>",
+      status: "published",
+      metadata: expect.objectContaining({
+        sourceKey: "savedEmailTemplates",
+        sourceKind: "email_template",
+      }),
+    });
+    expect(table("marketing_content_assets").find((row) => row.lovable_external_id === "social_post:social-post-1")).toMatchObject({
+      title: "Instagram launch post",
+      channel: "instagram",
+      body: "Meet VYVA",
+      cta_url: "https://v2.vyva.life",
+      metadata: expect.objectContaining({
+        sourceKey: "socialPosts",
+        sourceKind: "social_post",
+      }),
+    });
+    expect(table("marketing_content_assets").find((row) => row.lovable_external_id === "content_brief:brief-1")).toMatchObject({
+      title: "Caregiver education brief",
+      body: "Explain VYVA for caregivers",
+      metadata: expect.objectContaining({
+        sourceKey: "contentBriefs",
+        sourceKind: "content_brief",
+      }),
+    });
+    expect(table("marketing_media_assets")).toHaveLength(2);
     expect(table("marketing_media_assets")[0]).toMatchObject({
       original_url: "https://cdn.example.test/hero.png",
       asset_type: "image",
+      status: "referenced",
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/social.png")).toMatchObject({
+      asset_type: "unknown",
       status: "referenced",
     });
     expect(table("marketing_contacts")).toHaveLength(1);
@@ -781,10 +840,10 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 1, mediaAssets: 1, contacts: 1, audiences: 1, campaigns: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 4, mediaAssets: 2, contacts: 1, audiences: 1, campaigns: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
       imported: {
-        content: 1,
-        mediaAssets: 1,
+        content: 4,
+        mediaAssets: 2,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,
@@ -795,6 +854,14 @@ describe("admin marketing router", () => {
         journeys: 1,
         journeyEnrollments: 1,
         journeyStepEvents: 1,
+      },
+      sourceBreakdown: {
+        content: {
+          content: 1,
+          savedEmailTemplates: 1,
+          socialPosts: 1,
+          contentBriefs: 1,
+        },
       },
       unmapped: {
         audienceContactExternalIdCount: 1,

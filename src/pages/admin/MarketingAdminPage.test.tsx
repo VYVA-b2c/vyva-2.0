@@ -314,6 +314,12 @@ const sync = {
           metadataOnlyFields: [],
         },
       },
+      sourceBreakdown: {
+        content: {
+          content: 1,
+          savedEmailTemplates: 1,
+        },
+      },
     },
     error: null,
     createdBy: "karim.assad@mokadigital.net",
@@ -459,6 +465,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Campaign metrics: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Journey enrollments: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Campaign recipients: 1");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Content sources");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("savedEmailTemplates: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped campaign recipients: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 6 of 7 fields mapped first-class");
