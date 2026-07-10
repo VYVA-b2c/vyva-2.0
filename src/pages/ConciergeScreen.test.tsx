@@ -510,8 +510,9 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-appointment-discover-options"));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Marbella Dermatology Centre");
-    expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("VYVA chooses the safest next step from the provider details.");
-    expect(screen.getByTestId("button-appointment-handle-provider")).toHaveTextContent("Ask VYVA to handle this");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Confirm before VYVA acts");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Contact route: VYVA fills form");
+    expect(screen.getByTestId("button-appointment-handle-provider")).toHaveTextContent("Confirm: Ask VYVA to handle this");
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-2/discover-options", expect.objectContaining({ method: "POST" }));
   });
 

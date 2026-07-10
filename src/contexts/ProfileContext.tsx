@@ -27,6 +27,21 @@ interface ProfileData {
   gpPhone?: string;
   gpEmail?: string;
   gender?: string;
+  savedProviders?: Array<{
+    name?: string | null;
+    role?: string | null;
+    category?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  }>;
+  serviceReadiness?: {
+    hasSavedPharmacy?: boolean;
+    hasSavedDoctor?: boolean;
+    hasSavedTransportProvider?: boolean;
+    hasMobilityInfo?: boolean;
+    hasCoverageInfo?: boolean;
+    hasPreferredContactMethod?: boolean;
+  };
 }
 
 interface ProfileContextValue {

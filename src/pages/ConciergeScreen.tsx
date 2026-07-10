@@ -55,6 +55,7 @@ import {
 } from "@/components/vyva-ui";
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
+import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
@@ -94,6 +95,20 @@ type ConciergeLocationState = {
 type RoutePrefillHighlight = {
   label: string;
   value: string;
+};
+
+type ConciergeProfileSummary = {
+  savedProviders?: Array<{
+    name?: string | null;
+    role?: string | null;
+    category?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  }>;
+  serviceReadiness?: {
+    hasSavedPharmacy?: boolean;
+    hasCoverageInfo?: boolean;
+  };
 };
 
 const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote", "task"] as const;
@@ -1484,6 +1499,71 @@ function appointmentPreferredChannel(option: AppointmentProviderOption | null | 
   return available.find((channel) => channel !== "manual") ?? available[0] ?? null;
 }
 
+function appointmentConfirmationItems(params: {
+  providerName: string;
+  providerTrustNote: string;
+  contactRoute: string;
+  isMedical: boolean;
+  hasCoverageInfo: boolean;
+  isSpanish: boolean;
+}) {
+  const { providerName, providerTrustNote, contactRoute, isMedical, hasCoverageInfo, isSpanish } = params;
+  const items = [
+    {
+      label: isSpanish ? `Proveedor: ${providerName}` : `Provider: ${providerName}`,
+      helper: providerTrustNote,
+    },
+    {
+      label: isSpanish ? `Via de contacto: ${contactRoute}` : `Contact route: ${contactRoute}`,
+      helper: isSpanish
+        ? "VYVA usa esta via y se detiene antes de reservar o pagar."
+        : "VYVA uses this route and stops before booking or payment.",
+    },
+  ];
+
+  if (isMedical && !hasCoverageInfo) {
+    items.push({
+      label: isSpanish ? "Seguro: no guardado todavia" : "Insurance: not saved yet",
+      helper: isSpanish
+        ? "Si el proveedor lo necesita, VYVA te preguntara antes de compartir datos."
+        : "If the provider needs it, VYVA will ask before sharing details.",
+    });
+  }
+
+  items.push(
+    {
+      label: isSpanish ? "Tu confirmas antes de cualquier accion final" : "You confirm before any final action",
+      helper: isSpanish
+        ? "No se reserva, paga ni envia nada final sin tu aprobacion."
+        : "Nothing final is booked, paid, or sent without your approval.",
+    },
+    {
+      label: isSpanish ? "Guardar cuando el proveedor confirme" : "Save once the provider confirms",
+      helper: isSpanish
+        ? "VYVA registra la cita solo despues de tener fecha y hora."
+        : "VYVA records the appointment only after there is a date and time.",
+    },
+  );
+
+  return items;
+}
+
+function savedPharmacyName(profile: ConciergeProfileSummary | null | undefined): string {
+  const pharmacy = profile?.savedProviders?.find((provider) => {
+    const searchable = [provider.role, provider.category, provider.name]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLowerCase();
+    return /pharmacy|drugstore|chemist|farmacia/.test(searchable);
+  });
+  return pharmacy?.name?.trim() || "";
+}
+
+function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undefined): boolean {
+  if (profile?.serviceReadiness?.hasSavedPharmacy) return true;
+  return Boolean(savedPharmacyName(profile));
+}
+
 function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
   const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
     collecting_details: { en: "Details needed", es: "Faltan detalles" },
@@ -1824,6 +1904,16 @@ const ConciergeScreen = () => {
     refetchInterval: 8000,
   });
 
+  const { data: conciergeProfile = null } = useQuery<ConciergeProfileSummary | null>({
+    queryKey: ["/api/profile"],
+    queryFn: async () => {
+      const res = await apiFetch("/api/profile");
+      if (!res.ok) return null;
+      return (await res.json()) as ConciergeProfileSummary | null;
+    },
+    staleTime: 30 * 1000,
+  });
+
   const selectedAppointmentOption = useMemo(() => {
     if (selectedAppointmentOptionId) {
       return appointmentOptions.find((option) => option.id === selectedAppointmentOptionId) ?? appointmentOptions[0] ?? null;
@@ -1839,6 +1929,17 @@ const ConciergeScreen = () => {
       ? (isSpanish ? "Encontrado en fuentes verificables" : "Found from verifiable sources")
       : (isSpanish ? "Preparado para revisar" : "Prepared for review");
   const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
+  const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
+  const selectedAppointmentConfirmationItems = selectedAppointmentActionChannel
+    ? appointmentConfirmationItems({
+        providerName: appointmentProviderName,
+        providerTrustNote: appointmentProviderTrustNote,
+        contactRoute: appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish),
+        isMedical: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "medical",
+        hasCoverageInfo: hasAppointmentCoverageInfo,
+        isSpanish,
+      })
+    : [];
 
   function prepareAppointmentAccessFallback(appointmentType: AppointmentType, detail: string) {
     const cleanedDetail = detail.trim();
@@ -3261,6 +3362,19 @@ const ConciergeScreen = () => {
   }
 
   function openShoppingHelp(kind: "groceries" | "essentials" | "prepared-meals" | "pharmacy" = "groceries") {
+    if (kind === "pharmacy" && !profileHasSavedPharmacy(conciergeProfile)) {
+      navigate("/onboarding/profile/providers", {
+        state: {
+          returnTo: "/concierge",
+          notice: isSpanish
+            ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
+            : "Add a saved pharmacy before asking for help with over-the-counter items.",
+        },
+      });
+      return;
+    }
+
+    const pharmacyName = savedPharmacyName(conciergeProfile);
     const orderCopy = {
       groceries: {
         category: "groceries",
@@ -3292,11 +3406,11 @@ const ConciergeScreen = () => {
       pharmacy: {
         category: "pharmacy_basics",
         needText: isSpanish
-          ? "Ayudame a preparar un pedido o recarga de farmacia. No compres ni contactes sin mi confirmacion."
-          : "Help me prepare a pharmacy order or refill. Do not buy or contact anyone without my confirmation.",
+          ? `Ayudame con productos de farmacia sin receta${pharmacyName ? ` usando ${pharmacyName}` : ""}. No compres ni contactes sin mi confirmacion.`
+          : `Help me with over-the-counter pharmacy items${pharmacyName ? ` using ${pharmacyName}` : ""}. Do not buy or contact anyone without my confirmation.`,
         sourceRecommendation: isSpanish
-          ? "VYVA prepara opciones de farmacia y pide confirmacion antes de cualquier pedido."
-          : "VYVA prepares pharmacy options and asks for confirmation before any order.",
+          ? "VYVA solo prepara productos sin receta y pide confirmacion antes de contactar o pedir."
+          : "VYVA only prepares over-the-counter items and asks for confirmation before contact or ordering.",
       },
     }[kind];
 
@@ -4644,33 +4758,19 @@ const ConciergeScreen = () => {
                 </div>
 
                 {selectedAppointmentOption && selectedAppointmentActionChannel && (
-                  <div className="mt-4 rounded-[18px] border border-[#E9D5FF] bg-[#FBF8FF] p-3 sm:p-4">
-                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-purple">
-                      {isSpanish ? "Siguiente paso" : "Next step"}
-                    </p>
-                    <p className="mt-1 font-body text-[13px] font-black leading-snug text-vyva-text-1">
-                      {isSpanish
-                        ? "VYVA contacta con el proveedor, confirma los detalles y te pregunta antes de reservar o pagar."
-                        : "VYVA contacts the provider, confirms the details, and asks you before booking or payment."}
-                    </p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                      <p className="font-body text-[12px] font-semibold leading-snug text-vyva-text-3">
-                        {isSpanish
-                          ? "VYVA elige el siguiente paso mas seguro con los datos del proveedor."
-                          : "VYVA chooses the safest next step from the provider details."}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
-                        disabled={confirmAppointmentMutation.isPending}
-                        data-testid="button-appointment-handle-provider"
-                        className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} sm:w-auto`}
-                      >
-                        {confirmAppointmentMutation.isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
-                        {isSpanish ? "Pedir a VYVA que lo gestione" : "Ask VYVA to handle this"}
-                      </button>
-                    </div>
-                  </div>
+                  <ActionConfirmationCheckpoint
+                    title={isSpanish ? "Confirma antes de que VYVA actue" : "Confirm before VYVA acts"}
+                    summary={isSpanish
+                      ? "VYVA puede contactar al proveedor para comprobar opciones. Nada queda reservado, pagado ni enviado como final sin tu aprobacion."
+                      : "VYVA can contact the provider to check options. Nothing is booked, paid, or sent as final without your approval."}
+                    items={selectedAppointmentConfirmationItems}
+                    primaryLabel={isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this"}
+                    onConfirm={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
+                    isPending={confirmAppointmentMutation.isPending}
+                    disabled={confirmAppointmentMutation.isPending}
+                    testId="panel-appointment-confirmation-checkpoint"
+                    buttonTestId="button-appointment-handle-provider"
+                  />
                 )}
 
                 {appointmentOptions.length > 1 && (
