@@ -1007,7 +1007,7 @@ describe("ConciergeScreen action hub", () => {
     await waitFor(() => {
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Compare safe ways");
-      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Nothing is booked");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Tell VYVA where to go first");
     });
   });
 
@@ -1075,6 +1075,39 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-home-service-intake")).not.toBeInTheDocument();
   });
 
+  it("uses saved transport details and only asks for mobility when missing", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{ name: "Trusted Taxi", role: "taxi" }],
+          serviceReadiness: {
+            hasSavedTransportProvider: true,
+            hasMobilityInfo: true,
+          },
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await showBookRideFastHelp());
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Trusted Taxi");
+      expect(screen.getByTestId("note-transport-mobility-readiness")).toHaveTextContent("Mobility preferences saved");
+    });
+    expect(screen.queryByTestId("button-transport-need-wheelchair-access")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-transport-find-options")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("input-transport-destination"), {
+      target: { value: "Heart Clinic Madrid" },
+    });
+
+    expect(screen.getByTestId("button-transport-find-options")).not.toBeDisabled();
+  });
+
   it("finds transport options and prepares a provider without starting a booking", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
@@ -1119,6 +1152,8 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("card-transport-option-local-taxi-radio-taxi")).toHaveTextContent("Radio Taxi");
     expect(screen.getByTestId("link-transport-call-local-taxi-radio-taxi")).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Confirm first");
+    expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Destination: Heart Clinic Madrid");
 
     fireEvent.click(screen.getByTestId("button-transport-prepare-local-taxi-radio-taxi"));
 

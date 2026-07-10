@@ -108,6 +108,8 @@ type ConciergeProfileSummary = {
   serviceReadiness?: {
     hasSavedPharmacy?: boolean;
     hasCoverageInfo?: boolean;
+    hasSavedTransportProvider?: boolean;
+    hasMobilityInfo?: boolean;
   };
 };
 
@@ -1090,6 +1092,9 @@ async function prepareTransportConciergeAction(params: {
   destinationAddress: string;
   requestedTime: string;
   mobilityNeeds: string[];
+  hasSavedMobilityInfo: boolean;
+  hasSavedTransportProvider: boolean;
+  savedTransportProviderName: string;
   locale: string;
 }) {
   const summaryParts = [
@@ -1111,8 +1116,11 @@ async function prepareTransportConciergeAction(params: {
         destination_address: params.destinationAddress.trim(),
         requested_time: params.requestedTime.trim() || "now",
         mobility_needs: params.mobilityNeeds,
+        mobility_info_source: params.hasSavedMobilityInfo ? "profile" : "session",
         option_kind: params.option.kind,
         provider_url: params.option.url,
+        saved_transport_provider_first: params.hasSavedTransportProvider,
+        saved_transport_provider_name: params.savedTransportProviderName,
       },
       language: params.locale,
       trigger_source: "user_request",
@@ -1564,6 +1572,63 @@ function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undef
   return Boolean(savedPharmacyName(profile));
 }
 
+function savedTransportProviderName(profile: ConciergeProfileSummary | null | undefined): string {
+  const provider = profile?.savedProviders?.find((item) => {
+    const searchable = [item.role, item.category, item.name]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLowerCase();
+    return /transport|taxi|cab|ride|driver|chauffeur|car service|medical transport/.test(searchable);
+  });
+  return provider?.name?.trim() || "";
+}
+
+function profileHasSavedTransportProvider(profile: ConciergeProfileSummary | null | undefined): boolean {
+  if (profile?.serviceReadiness?.hasSavedTransportProvider) return true;
+  return Boolean(savedTransportProviderName(profile));
+}
+
+function transportConfirmationItems(params: {
+  option: TransportOption;
+  pickupAddress: string;
+  destinationAddress: string;
+  requestedTime: string;
+  mobilityNeeds: string[];
+  hasSavedMobilityInfo: boolean;
+  hasSavedTransportProvider: boolean;
+  savedProviderName: string;
+  isSpanish: boolean;
+}): Array<{ label: string; helper?: string }> {
+  const destination = params.destinationAddress.trim() || (params.isSpanish ? "Destino pendiente" : "Destination needed");
+  const pickup = params.pickupAddress.trim() || (params.isSpanish ? "Recogida pendiente" : "Pickup needed");
+  const time = params.requestedTime.trim() || (params.isSpanish ? "ahora" : "now");
+  const mobility = params.hasSavedMobilityInfo
+    ? (params.isSpanish ? "Preferencias guardadas en el perfil" : "Mobility preferences saved in profile")
+    : params.mobilityNeeds.length
+      ? params.mobilityNeeds.join(", ")
+      : (params.isSpanish ? "No se anadio ayuda especial" : "No extra help added");
+  const providerHelper = params.option.kind === "saved_provider" || params.hasSavedTransportProvider
+    ? params.savedProviderName
+      ? (params.isSpanish ? `Proveedor guardado: ${params.savedProviderName}` : `Saved provider: ${params.savedProviderName}`)
+      : (params.isSpanish ? "Se revisa primero el proveedor guardado" : "Saved provider is checked first")
+    : (params.isSpanish ? "VYVA compara opciones seguras disponibles" : "VYVA compares safe available options");
+
+  return [
+    {
+      label: params.isSpanish ? `Destino: ${destination}` : `Destination: ${destination}`,
+      helper: params.isSpanish ? `Recogida: ${pickup}` : `Pickup: ${pickup}`,
+    },
+    {
+      label: params.isSpanish ? `Hora: ${time}` : `Time: ${time}`,
+      helper: mobility,
+    },
+    {
+      label: params.isSpanish ? `Opcion: ${params.option.label}` : `Option: ${params.option.label}`,
+      helper: providerHelper,
+    },
+  ];
+}
+
 function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
   const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
     collecting_details: { en: "Details needed", es: "Faltan detalles" },
@@ -1930,6 +1995,11 @@ const ConciergeScreen = () => {
       : (isSpanish ? "Preparado para revisar" : "Prepared for review");
   const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
+  const savedTransportProvider = savedTransportProviderName(conciergeProfile);
+  const hasSavedTransportProvider = profileHasSavedTransportProvider(conciergeProfile);
+  const hasSavedTransportMobilityInfo = Boolean(conciergeProfile?.serviceReadiness?.hasMobilityInfo);
+  const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
+  const hasTransportDestination = transportDestination.trim().length > 0;
   const selectedAppointmentConfirmationItems = selectedAppointmentActionChannel
     ? appointmentConfirmationItems({
         providerName: appointmentProviderName,
@@ -2184,6 +2254,9 @@ const ConciergeScreen = () => {
       destinationAddress: transportDestination,
       requestedTime: transportTime,
       mobilityNeeds: transportMobilityNeeds,
+      hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
+      hasSavedTransportProvider,
+      savedTransportProviderName: savedTransportProvider,
       locale,
     }),
     onMutate: () => {
@@ -2429,7 +2502,7 @@ const ConciergeScreen = () => {
       setTransportResult(null);
       setTransportError(null);
       setTransportNotice(null);
-      setTransportDetailsOpen(Boolean(conciergeVoicePickup || conciergeVoiceTime || conciergeVoiceMobilityNeeds));
+      setTransportDetailsOpen(true);
       setOffersOpen(false);
     } else if (isReminderVoiceRequest) {
       setRoutePrefill({ kind: "task", message: conciergeVoiceDraft, source: "voice_action" });
@@ -2514,7 +2587,7 @@ const ConciergeScreen = () => {
       setTransportNotice(null);
       setTransportTime(routeTime || "now");
       setTransportMobilityNeeds(routeMobilityNeeds);
-      setTransportDetailsOpen(Boolean(routePickup || routeTime || routeMobilityNeeds.length));
+      setTransportDetailsOpen(true);
     }
 
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
@@ -2715,7 +2788,7 @@ const ConciergeScreen = () => {
     setTransportError(null);
     setTransportNotice(null);
     setTransportTime(requestedTime);
-    setTransportDetailsOpen(false);
+    setTransportDetailsOpen(true);
     setOffersOpen(false);
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
@@ -3688,6 +3761,24 @@ const ConciergeScreen = () => {
                   ) : null}
                 </div>
 
+                <div
+                  className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-white px-3 py-2"
+                  data-testid="note-transport-provider-readiness"
+                >
+                  <div className="flex items-start gap-2">
+                    <CircleCheck size={17} className="mt-0.5 flex-shrink-0 text-[#047857]" />
+                    <p className="font-body text-[13px] font-black leading-snug text-vyva-text-1">
+                      {hasSavedTransportProvider
+                        ? (
+                          savedTransportProvider
+                            ? (isSpanish ? `Primero: ${savedTransportProvider}.` : `Saved provider first: ${savedTransportProvider}.`)
+                            : (isSpanish ? "Primero revisamos tu proveedor guardado." : "Saved provider is checked first.")
+                        )
+                        : (isSpanish ? "Sin proveedor guardado: VYVA compara opciones seguras." : "No saved provider yet: VYVA compares safe options.")}
+                    </p>
+                  </div>
+                </div>
+
                 <div className="mt-4">
                   <label className="block">
                     <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
@@ -3776,34 +3867,57 @@ const ConciergeScreen = () => {
                     </div>
 
                     <div className="mt-3 border-t border-[#F0E6DB] pt-3">
-                      <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
-                        {isSpanish ? "Ayuda al subir o bajar" : "Help getting in or out"}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {TRANSPORT_MOBILITY_NEEDS.map((need) => {
-                          const selected = transportMobilityNeeds.includes(need.value);
-                          return (
-                            <button
-                              key={need.value}
-                              type="button"
-                              data-testid={`button-transport-need-${testIdSlug(need.value)}`}
-                              onClick={() => setTransportMobilityNeeds((current) => (
-                                current.includes(need.value)
-                                  ? current.filter((item) => item !== need.value)
-                                  : [...current, need.value]
-                              ))}
-                              className={`vyva-tap inline-flex min-h-[38px] items-center gap-2 rounded-full border px-3 font-body text-[12px] font-black ${
-                                selected
-                                  ? "border-[#047857] bg-[#ECFDF5] text-[#047857]"
-                                  : "border-[#E8DED4] bg-[#FFFCF8] text-vyva-text-2"
-                              }`}
-                            >
-                              {selected ? <CircleCheck size={15} /> : null}
-                              <span>{isSpanish ? need.es : need.en}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {shouldAskTransportMobility ? (
+                        <>
+                          <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                            {isSpanish ? "Ayuda al subir o bajar" : "Help getting in or out"}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {TRANSPORT_MOBILITY_NEEDS.map((need) => {
+                              const selected = transportMobilityNeeds.includes(need.value);
+                              return (
+                                <button
+                                  key={need.value}
+                                  type="button"
+                                  data-testid={`button-transport-need-${testIdSlug(need.value)}`}
+                                  onClick={() => setTransportMobilityNeeds((current) => (
+                                    current.includes(need.value)
+                                      ? current.filter((item) => item !== need.value)
+                                      : [...current, need.value]
+                                  ))}
+                                  className={`vyva-tap inline-flex min-h-[38px] items-center gap-2 rounded-full border px-3 font-body text-[12px] font-black ${
+                                    selected
+                                      ? "border-[#047857] bg-[#ECFDF5] text-[#047857]"
+                                      : "border-[#E8DED4] bg-[#FFFCF8] text-vyva-text-2"
+                                  }`}
+                                >
+                                  {selected ? <CircleCheck size={15} /> : null}
+                                  <span>{isSpanish ? need.es : need.en}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <div
+                          className="rounded-[16px] border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-2"
+                          data-testid="note-transport-mobility-readiness"
+                        >
+                          <div className="flex items-start gap-2">
+                            <CircleCheck size={16} className="mt-0.5 flex-shrink-0 text-[#047857]" />
+                            <div className="min-w-0">
+                              <p className="font-body text-[13px] font-black leading-snug text-[#047857]">
+                                {isSpanish ? "Movilidad guardada en tu perfil." : "Mobility preferences saved in your profile."}
+                              </p>
+                              <p className="mt-0.5 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                                {transportMobilityNeeds.length > 0
+                                  ? (isSpanish ? `Hoy: ${transportMobilityNeeds.join(", ")}` : `Today: ${transportMobilityNeeds.join(", ")}`)
+                                  : (isSpanish ? "Dile a VYVA si hoy es diferente." : "Tell VYVA if today is different.")}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : null}
@@ -3814,7 +3928,7 @@ const ConciergeScreen = () => {
                   <button
                     type="button"
                     onClick={() => transportOptionsMutation.mutate()}
-                    disabled={transportOptionsMutation.isPending}
+                    disabled={transportOptionsMutation.isPending || !hasTransportDestination}
                     data-testid="button-transport-find-options"
                     className="vyva-tap inline-flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(4,120,87,0.22)] disabled:opacity-60"
                   >
@@ -3835,7 +3949,9 @@ const ConciergeScreen = () => {
                 </div>
                 {!transportResult ? (
                   <p className="mt-3 rounded-full bg-[#ECFDF5] px-4 py-2 text-center font-body text-[12px] font-black text-[#047857]">
-                    {isSpanish ? "Nada se reserva ni se contacta sin tu confirmacion." : "Nothing is booked or requested without your confirmation."}
+                    {!hasTransportDestination
+                      ? (isSpanish ? "Primero dime a donde ir." : "Tell VYVA where to go first.")
+                      : (isSpanish ? "Nada se reserva ni se contacta sin tu confirmacion." : "Nothing is booked or requested without your confirmation.")}
                   </p>
                 ) : null}
               </div>
@@ -3859,9 +3975,22 @@ const ConciergeScreen = () => {
                     {isSpanish ? "Si falta algun dato, VYVA aun puede preparar una opcion manual." : "If a detail is missing, VYVA can still prepare a manual option."}
                   </p>
                 ) : null}
-                {transportResult.options.map((option) => {
+                {[...transportResult.options]
+                  .sort((left, right) => Number(right.kind === "saved_provider") - Number(left.kind === "saved_provider"))
+                  .map((option) => {
                   const href = phoneHref(option.phone);
                   const canPrepare = option.actions.includes("start_concierge_action");
+                  const confirmationItems = transportConfirmationItems({
+                    option,
+                    pickupAddress: transportPickup,
+                    destinationAddress: transportDestination,
+                    requestedTime: transportTime,
+                    mobilityNeeds: transportMobilityNeeds,
+                    hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
+                    hasSavedTransportProvider,
+                    savedProviderName: savedTransportProvider,
+                    isSpanish,
+                  });
                   return (
                     <article
                       key={option.id}
@@ -3904,19 +4033,24 @@ const ConciergeScreen = () => {
                             {isSpanish ? "Llamar" : "Call"}
                           </a>
                         ) : null}
-                        {canPrepare ? (
-                          <button
-                            type="button"
-                            onClick={() => prepareTransportMutation.mutate(option)}
-                            disabled={prepareTransportMutation.isPending}
-                            data-testid={`button-transport-prepare-${option.id}`}
-                            className="vyva-tap inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-4 font-body text-[15px] font-black text-white disabled:opacity-60"
-                          >
-                            {prepareTransportMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <CircleCheck size={16} />}
-                            {isSpanish ? "Preparar con VYVA" : "Prepare with VYVA"}
-                          </button>
-                        ) : null}
                       </div>
+                      {canPrepare ? (
+                        <div className="mt-3">
+                          <ActionConfirmationCheckpoint
+                            title={isSpanish ? "Confirmar primero" : "Confirm first"}
+                            summary={isSpanish
+                              ? "VYVA prepara este viaje. Aun no reserva ni contacta."
+                              : "VYVA prepares this ride. Nothing is booked or requested yet."}
+                            items={confirmationItems}
+                            primaryLabel={isSpanish ? "Confirmar: preparar viaje" : "Confirm: prepare ride"}
+                            onConfirm={() => prepareTransportMutation.mutate(option)}
+                            isPending={prepareTransportMutation.isPending}
+                            disabled={!hasTransportDestination}
+                            testId={`panel-transport-confirm-${option.id}`}
+                            buttonTestId={`button-transport-prepare-${option.id}`}
+                          />
+                        </div>
+                      ) : null}
                     </article>
                   );
                 })}
