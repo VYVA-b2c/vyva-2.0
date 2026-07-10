@@ -441,6 +441,85 @@ describe("admin marketing router", () => {
     expect(table("marketing_content_assets")).toHaveLength(0);
   });
 
+  it("updates and deletes marketing contacts", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/contacts")
+      .send({
+        fullName: "Partner Lead",
+        audienceType: "b2b",
+        email: "lead@example.com",
+        phoneNumber: "+34 600 000 001",
+        tags: ["partner"],
+      })
+      .expect(201);
+
+    const contactId = createResponse.body.contact.id;
+    await request(app)
+      .patch(`/api/admin/marketing/contacts/${contactId}`)
+      .send({
+        fullName: "Updated Partner Lead",
+        audienceType: "both",
+        email: "updated@example.com",
+        phoneNumber: "+34 600 000 004",
+        whatsappNumber: "+34 600 000 005",
+        roleLabel: "Growth lead",
+        companyName: "Updated Org",
+        language: "es",
+        category: "partner",
+        vertical: "care",
+        market: "Madrid",
+        consentStatus: "opted_in",
+        tags: ["partner", "priority"],
+        channelAvailability: { email: true, phone: true, whatsapp: true },
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.contact).toMatchObject({
+          id: contactId,
+          fullName: "Updated Partner Lead",
+          audienceType: "both",
+          email: "updated@example.com",
+          phoneNumber: "+34 600 000 004",
+          whatsappNumber: "+34 600 000 005",
+          roleLabel: "Growth lead",
+          companyName: "Updated Org",
+          language: "es",
+          category: "partner",
+          vertical: "care",
+          market: "Madrid",
+          consentStatus: "opted_in",
+          tags: ["partner", "priority"],
+        });
+      });
+
+    expect(table("marketing_contacts")[0]).toMatchObject({
+      full_name: "Updated Partner Lead",
+      audience_type: "both",
+      email: "updated@example.com",
+      phone_number: "+34 600 000 004",
+      whatsapp_number: "+34 600 000 005",
+      role_label: "Growth lead",
+      company_name: "Updated Org",
+      language: "es",
+      category: "partner",
+      vertical: "care",
+      market: "Madrid",
+      consent_status: "opted_in",
+      tags: ["partner", "priority"],
+      channel_availability: { email: true, phone: true, whatsapp: true },
+    });
+
+    await request(app)
+      .delete(`/api/admin/marketing/contacts/${contactId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedContactId: contactId });
+      });
+
+    expect(table("marketing_contacts")).toHaveLength(0);
+  });
+
   it("updates campaign planning rows and deletes campaigns without dispatch", async () => {
     const app = buildApp();
     const createResponse = await request(app)

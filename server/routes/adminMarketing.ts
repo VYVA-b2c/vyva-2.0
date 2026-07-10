@@ -1836,6 +1836,19 @@ adminMarketingRouter.patch("/contacts/:contactId", async (req, res) => {
   }
 });
 
+adminMarketingRouter.delete("/contacts/:contactId", async (req, res) => {
+  try {
+    const [contact] = await db.select().from(marketingContacts).where(eq(marketingContacts.id, req.params.contactId)).limit(1);
+    if (!contact) return res.status(404).json({ error: "Marketing contact not found." });
+    await db.delete(marketingAudienceMembers).where(eq(marketingAudienceMembers.contact_id, contact.id));
+    await db.delete(marketingContacts).where(eq(marketingContacts.id, contact.id));
+    return res.json({ ok: true, deletedContactId: contact.id });
+  } catch (error) {
+    console.error("[admin/marketing] contact delete failed", error);
+    return res.status(500).json({ error: "Marketing contact could not be deleted." });
+  }
+});
+
 adminMarketingRouter.get("/sync/lovable", async (req, res) => {
   const hasUrl = Boolean(process.env.LOVABLE_MARKETING_API_URL?.trim());
   const hasBearerToken = Boolean(process.env.LOVABLE_MARKETING_API_KEY?.trim());
