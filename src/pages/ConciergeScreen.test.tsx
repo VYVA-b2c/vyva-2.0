@@ -455,6 +455,134 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByDisplayValue("Prefer Tuesday morning and ask about wheelchair access")).toBeVisible();
   });
 
+  it("saves medical coverage readiness and removes the setup card", async () => {
+    let coverageSaved = false;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse(coverageSaved
+          ? {
+            coverage: {
+              coverageType: "private",
+              provider: "Sanitas",
+              memberId: "AB-123",
+              plan: "",
+              notes: "",
+            },
+            serviceReadiness: { hasCoverageInfo: true },
+          }
+          : { serviceReadiness: { hasCoverageInfo: false } });
+      }
+      if (target === "/api/profile/coverage") {
+        expect(init?.method).toBe("PATCH");
+        const body = JSON.parse(String(init?.body));
+        expect(body.coverageType).toBe("private");
+        expect(body.provider).toBe("Sanitas");
+        expect(body.memberId).toBe("AB-123");
+        coverageSaved = true;
+        return jsonResponse({
+          ok: true,
+          coverage: {
+            coverageType: "private",
+            provider: "Sanitas",
+            memberId: "AB-123",
+            plan: "",
+            notes: "",
+          },
+          serviceReadiness: { hasCoverageInfo: true },
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        return jsonResponse({
+          request: {
+            id: "request-coverage",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    fireEvent.click(screen.getByRole("button", { name: "Medical" }));
+
+    expect(await screen.findByTestId("panel-coverage-readiness")).toHaveTextContent("Coverage for medical bookings");
+    fireEvent.click(screen.getByTestId("button-coverage-type-private"));
+    fireEvent.change(screen.getByTestId("input-coverage-provider"), {
+      target: { value: "Sanitas" },
+    });
+    fireEvent.change(screen.getByTestId("input-coverage-member-id"), {
+      target: { value: "AB-123" },
+    });
+    fireEvent.click(screen.getByTestId("button-coverage-save"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/profile/coverage", expect.objectContaining({ method: "PATCH" }));
+      expect(screen.queryByTestId("panel-coverage-readiness")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByText("Coverage saved. VYVA will ask before sharing it.")).toBeVisible();
+  });
+
+  it("skips the coverage setup card when medical coverage is already saved", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          coverage: {
+            coverageType: "private",
+            provider: "Sanitas",
+            memberId: "AB-123",
+            plan: "",
+            notes: "",
+          },
+          serviceReadiness: { hasCoverageInfo: true },
+        });
+      }
+      if (target.endsWith("/api/appointments/requests")) {
+        return jsonResponse({
+          request: {
+            id: "request-saved-coverage",
+            appointment_type: "medical",
+            reason_detail: "dermatology",
+            status: "options_ready",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [{
+            id: "option-saved-coverage",
+            provider_id: "provider-saved-coverage",
+            provider_source: "saved",
+            provider_snapshot: {
+              name: "Clinica Coverage",
+              phone: "+34 600 111 444",
+              address: "Calle Salud 4",
+            },
+            match_reason: "Saved medical provider",
+            available_channels: ["phone", "manual"],
+            rank: 1,
+            status: "recommended",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    fireEvent.click(screen.getByRole("button", { name: "Medical" }));
+
+    expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Coverage");
+    expect(screen.queryByTestId("panel-coverage-readiness")).not.toBeInTheDocument();
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Insurance: saved in profile");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("VYVA will ask before sharing any details.");
+  });
+
   it("discovers external appointment options inside the request flow", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
