@@ -351,6 +351,14 @@ type ServiceGate = {
   recommended?: MissingSetupStep[];
 };
 
+type SavedProviderSummary = {
+  name: string;
+  role: string;
+  category: string;
+  phone: string;
+  address: string;
+};
+
 function hasText(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -401,6 +409,93 @@ function entitlementGate(enabled: boolean, feature: string, nextGate: ServiceGat
 function accountGate(enabled: boolean, nextGate: ServiceGate): ServiceGate {
   if (!enabled) return gate(false, [accountAccessStep()]);
   return nextGate;
+}
+
+function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
+  const providersSection = consentSection(consent, "providers");
+  const providers = Array.isArray(providersSection.providers)
+    ? providersSection.providers
+    : [];
+
+  return providers.flatMap((value) => {
+    const provider = objectRecord(value);
+    const name = trimToNull(provider.name);
+    const role = trimToNull(provider.role) ?? "";
+    const category = trimToNull(provider.category) ?? role;
+    const phone = trimToNull(provider.phone) ?? "";
+    const address = trimToNull(provider.address) ?? "";
+    if (!name && !role && !category) return [];
+    return [{
+      name: name ?? category,
+      role,
+      category,
+      phone,
+      address,
+    }];
+  });
+}
+
+function providerMatches(provider: SavedProviderSummary, terms: string[]): boolean {
+  const searchable = [provider.role, provider.category, provider.name]
+    .join(" ")
+    .toLowerCase();
+  return terms.some((term) => searchable.includes(term));
+}
+
+function hasCoverageInfo(consent: unknown): boolean {
+  const coverage = {
+    ...consentSection(consent, "insurance"),
+    ...consentSection(consent, "coverage"),
+  };
+  return [
+    coverage.provider,
+    coverage.insurer,
+    coverage.company,
+    coverage.policy_number,
+    coverage.member_id,
+    coverage.plan,
+  ].some(hasText);
+}
+
+function buildProfileServiceSignals(profile?: {
+  data_sharing_consent?: unknown;
+  email?: unknown;
+  phone_number?: unknown;
+  whatsapp_number?: unknown;
+  gp_name?: unknown;
+  gp_phone?: unknown;
+  gp_email?: unknown;
+} | null) {
+  const consent = profile?.data_sharing_consent;
+  const providers = savedProvidersFromConsent(consent);
+  const conditions = consentSection(consent, "conditions");
+  const hasSavedPharmacy = providers.some((provider) =>
+    providerMatches(provider, ["pharmacy", "drugstore", "chemist", "farmacia"]),
+  );
+  const hasSavedDoctor =
+    hasText(profile?.gp_name) ||
+    hasText(profile?.gp_phone) ||
+    hasText(profile?.gp_email) ||
+    providers.some((provider) =>
+      providerMatches(provider, ["doctor", "medical_clinic", "clinic", "hospital", "gp"]),
+    );
+  const hasSavedTransportProvider = providers.some((provider) =>
+    providerMatches(provider, ["taxi", "transport", "car_service", "ride", "driver"]),
+  );
+  const hasPreferredContactMethod =
+    hasText(profile?.phone_number) ||
+    hasText(profile?.whatsapp_number) ||
+    hasText(profile?.email);
+
+  return {
+    hasSavedPharmacy,
+    hasSavedDoctor,
+    hasSavedTransportProvider,
+    hasMobilityInfo: hasText(conditions.mobility_level),
+    hasCoverageInfo: hasCoverageInfo(consent),
+    hasPreferredContactMethod,
+    savedProviders: providers,
+  };
 }
 
 function hasUsableMedication(med: typeof userMedications.$inferSelect): boolean {
@@ -520,6 +615,7 @@ router.get("/readiness", async (req: Request, res: Response) => {
     const hasHealthContext = healthConditions.length > 0;
     const hasAllergies = Array.isArray(profile?.known_allergies) && profile.known_allergies.some(hasText);
     const hasGp = hasText(profile?.gp_name) || hasText(profile?.gp_phone) || hasText(profile?.gp_email);
+    const profileSignals = buildProfileServiceSignals(profile);
     const subscriptionSync = await syncProfileEntitlement({
       profile,
       profileId: profile?.id ?? userId,
@@ -552,6 +648,20 @@ router.get("/readiness", async (req: Request, res: Response) => {
       ...(!hasMedicationForServices ? [setupStep("medications", "Add medications so the doctor agent can consider them.")] : []),
       ...(!hasAllergies ? [setupStep("allergies", "Add allergies so recommendations stay safer.")] : []),
       ...(!hasGp ? [setupStep("gp", "Add GP details in case follow-up is needed.")] : []),
+    ];
+    const pharmacyMissing = [
+      setupStep("providers", "Add a saved pharmacy before VYVA helps with pharmacy items."),
+    ];
+    const appointmentMissing = [
+      ...(!hasBasics ? [setupStep("basics", "Add the user's basic details before VYVA handles appointment booking.")] : []),
+      ...(!hasContact ? [setupStep("basics", "Add a phone number, email, or WhatsApp before VYVA handles appointment booking.")] : []),
+    ];
+    const appointmentRecommended = [
+      ...(!hasHealthContext ? [setupStep("health", "Add health conditions so VYVA can prepare better appointment context.")] : []),
+      ...(!hasMedicationForServices ? [setupStep("medications", "Add medications so VYVA can mention them when relevant.")] : []),
+      ...(!hasAllergies ? [setupStep("allergies", "Add allergies so appointment notes stay safer.")] : []),
+      ...(!hasGp ? [setupStep("gp", "Add GP details if this should use a regular doctor.")] : []),
+      ...(!profileSignals.hasCoverageInfo ? [setupStep("insurance", "Add insurance or coverage details if appointments may depend on them.")] : []),
     ];
     const medicationGate = gate(hasMedicationForServices, medicationMissing);
     const voiceEnabled = true;
@@ -586,6 +696,13 @@ router.get("/readiness", async (req: Request, res: Response) => {
         hasHealthContext,
         hasAllergies,
         hasGp,
+        hasSavedPharmacy: profileSignals.hasSavedPharmacy,
+        hasSavedDoctor: profileSignals.hasSavedDoctor,
+        hasSavedTransportProvider: profileSignals.hasSavedTransportProvider,
+        hasMobilityInfo: profileSignals.hasMobilityInfo,
+        hasCoverageInfo: profileSignals.hasCoverageInfo,
+        hasPreferredContactMethod: profileSignals.hasPreferredContactMethod,
+        savedProviders: profileSignals.savedProviders,
       },
       services: {
         medications: accountGate(accountEnabled, entitlementGate(medicationEnabled, "medication tracking", medicationGate)),
@@ -596,6 +713,9 @@ router.get("/readiness", async (req: Request, res: Response) => {
         doctor: accountGate(accountEnabled, gate(hasBasics && hasContact, doctorMissing, doctorRecommended)),
         localServices: accountGate(accountEnabled, gate(hasLocalAddress, addressMissing)),
         specialistFinder: accountGate(accountEnabled, gate(hasLocalAddress, addressMissing)),
+        pharmacyOtc: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge", gate(profileSignals.hasSavedPharmacy, pharmacyMissing))),
+        transport: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge", gate(hasLocalAddress, addressMissing))),
+        medicalAppointments: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge", gate(hasBasics && hasContact, appointmentMissing, appointmentRecommended))),
         reports: accountGate(accountEnabled, gate(true, [])),
         concierge: accountGate(accountEnabled, entitlementGate(conciergeEnabled, "concierge")),
         socialRooms: accountGate(accountEnabled, gate(true, [])),
@@ -1128,6 +1248,7 @@ router.get("/", async (req: Request, res: Response) => {
     const firstName = nameParts[0] ?? "";
     const lastName  = nameParts.slice(1).join(" ");
     const language = resolvedProfileLanguage(p);
+    const profileSignals = buildProfileServiceSignals(p);
 
     return res.json({
       firstName,
@@ -1155,6 +1276,15 @@ router.get("/", async (req: Request, res: Response) => {
       gpPhone:          p.gp_phone ?? "",
       gpEmail:          p.gp_email ?? "",
       avatarUrl:        p.avatar_url ?? null,
+      savedProviders:   profileSignals.savedProviders,
+      serviceReadiness: {
+        hasSavedPharmacy: profileSignals.hasSavedPharmacy,
+        hasSavedDoctor: profileSignals.hasSavedDoctor,
+        hasSavedTransportProvider: profileSignals.hasSavedTransportProvider,
+        hasMobilityInfo: profileSignals.hasMobilityInfo,
+        hasCoverageInfo: profileSignals.hasCoverageInfo,
+        hasPreferredContactMethod: profileSignals.hasPreferredContactMethod,
+      },
     });
   } catch (err) {
     console.error("[profile GET]", err);
