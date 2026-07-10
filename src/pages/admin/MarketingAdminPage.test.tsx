@@ -361,6 +361,29 @@ function journeyFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
+function contentFromRequestBody(id: string, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}"));
+  return {
+    id,
+    title: body.title ?? "Untitled content",
+    channel: body.channel ?? "email",
+    language: body.language ?? "en",
+    status: body.status ?? "draft",
+    subject: body.subject ?? null,
+    body: body.body ?? "",
+    htmlBody: body.htmlBody ?? null,
+    ctaLabel: body.ctaLabel ?? null,
+    ctaUrl: body.ctaUrl ?? null,
+    designJson: body.designJson ?? {},
+    mediaAssets: body.mediaAssets ?? [],
+    hasHtml: Boolean(body.htmlBody),
+    hasDesign: Boolean(body.designJson && Object.keys(body.designJson).length),
+    mediaAssetCount: Array.isArray(body.mediaAssets) ? body.mediaAssets.length : 0,
+    source: "vyva",
+    lovableExternalId: null,
+  };
+}
+
 function renderPage(syncOverride: Partial<typeof sync> = {}) {
   const syncResponse = { ...sync, ...syncOverride };
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -385,6 +408,9 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-1", init) });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
+    if (path === "/api/admin/marketing/content" && method === "POST") return jsonResponse({ ok: true, content: contentFromRequestBody("content-created", init) }, { status: 201 });
+    if (path === "/api/admin/marketing/content/content-2" && method === "PATCH") return jsonResponse({ ok: true, content: contentFromRequestBody("content-2", init) });
+    if (path === "/api/admin/marketing/content/content-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContentId: "content-2" });
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
     if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audiences[0] }, { status: 201 });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
@@ -491,6 +517,59 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Lovable sync completed.");
     });
+  });
+
+  it("edits and deletes imported content assets", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+
+    expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+
+    fireEvent.change(screen.getByTestId("input-marketing-edit-content-title"), { target: { value: "Updated partner post" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-content-channel"), { target: { value: "instagram" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-content-status"), { target: { value: "approved" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-content-language"), { target: { value: "es" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-content-subject"), { target: { value: "Updated subject" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-content-cta-label"), { target: { value: "Open" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-content-cta-url"), { target: { value: "https://v2.vyva.life/open" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-body"), { target: { value: "Updated plain copy" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-html"), { target: { value: "<p>Updated HTML</p>" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-design-json"), { target: { value: "{\"blocks\":[{\"type\":\"text\"}]}" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-media-assets"), { target: { value: "[{\"url\":\"https://cdn.example.test/new.png\"}]" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-content"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content/content-2" && init?.method === "PATCH");
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      title: "Updated partner post",
+      channel: "instagram",
+      status: "approved",
+      language: "es",
+      subject: "Updated subject",
+      body: "Updated plain copy",
+      htmlBody: "<p>Updated HTML</p>",
+      ctaLabel: "Open",
+      ctaUrl: "https://v2.vyva.life/open",
+      designJson: { blocks: [{ type: "text" }] },
+      mediaAssets: [{ url: "https://cdn.example.test/new.png" }],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Updated.");
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-content"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(confirmSpy).toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 
   it("validates and creates richer marketing contacts", async () => {

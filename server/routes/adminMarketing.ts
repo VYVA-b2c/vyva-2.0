@@ -1433,6 +1433,19 @@ adminMarketingRouter.patch("/content/:contentId", async (req, res) => {
   }
 });
 
+adminMarketingRouter.delete("/content/:contentId", async (req, res) => {
+  try {
+    const [content] = await db.select().from(marketingContentAssets).where(eq(marketingContentAssets.id, req.params.contentId)).limit(1);
+    if (!content) return res.status(404).json({ error: "Marketing content not found." });
+    await db.delete(marketingMediaAssets).where(eq(marketingMediaAssets.content_asset_id, content.id));
+    await db.delete(marketingContentAssets).where(eq(marketingContentAssets.id, content.id));
+    return res.json({ ok: true, deletedContentId: content.id });
+  } catch (error) {
+    console.error("[admin/marketing] content delete failed", error);
+    return res.status(500).json({ error: "Marketing content could not be deleted." });
+  }
+});
+
 adminMarketingRouter.get("/journeys", async (req, res) => {
   try {
     const search = String(req.query.search ?? "").trim().toLowerCase();
