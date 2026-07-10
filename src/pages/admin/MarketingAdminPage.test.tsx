@@ -329,6 +329,38 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
   });
 }
 
+function journeyFromRequestBody(id: string, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}"));
+  return {
+    id,
+    name: body.name ?? "Untitled journey",
+    status: body.status ?? "draft",
+    audienceType: body.audienceType ?? "b2c",
+    objective: body.objective ?? "",
+    triggerType: body.triggerType ?? null,
+    triggerConfig: body.triggerConfig ?? {},
+    goalType: body.goalType ?? null,
+    goalConfig: body.goalConfig ?? {},
+    exitOnGoal: body.exitOnGoal ?? true,
+    source: "vyva",
+    lovableExternalId: null,
+    steps: (body.steps ?? []).map((step: Record<string, unknown>, index: number) => ({
+      id: `${id}-step-${index + 1}`,
+      stepOrder: step.stepOrder ?? index,
+      channel: step.channel ?? "email",
+      contentAssetId: step.contentAssetId ?? null,
+      delayHours: step.delayHours ?? 0,
+      kind: step.kind ?? "message",
+      dayOffset: step.dayOffset ?? 0,
+      templateKind: step.templateKind ?? null,
+      templateRef: step.templateRef ?? null,
+      config: step.config ?? {},
+      status: step.status ?? "draft",
+      metadata: step.metadata ?? {},
+    })),
+  };
+}
+
 function renderPage(syncOverride: Partial<typeof sync> = {}) {
   const syncResponse = { ...sync, ...syncOverride };
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -350,8 +382,8 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
     if (path === "/api/admin/marketing/campaigns/campaign-1/send-email" && method === "POST") return jsonResponse({ ok: true, sentCount: 1, failedCount: 0, skippedCount: 0, campaign: { ...campaigns[0], status: "published" }, delivery: [{ id: "comm-2", recipient: "karim@example.com", status: "sent" }] });
-    if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeys[0] }, { status: 201 });
-    if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeys[0] });
+    if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-created", init) }, { status: 201 });
+    if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-1", init) });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
     if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audiences[0] }, { status: 201 });
@@ -390,6 +422,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("B2B nurture");
+    expect(screen.queryByText("First channel")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Trigger: signup");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
@@ -530,7 +563,43 @@ describe("MarketingAdminPage", () => {
     });
   });
 
-  it("edits and deletes journey metadata", async () => {
+  it("creates a blank journey draft and keeps the editor open", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-new-journey"));
+
+    expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.queryByText("First channel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("button-marketing-add-first-journey-step")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+    expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Journey name is required");
+
+    fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "New onboarding" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Create a useful draft first" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/journeys" && init?.method === "POST");
+    expect(JSON.parse(String(postCall?.[1]?.body))).toMatchObject({
+      name: "New onboarding",
+      status: "draft",
+      audienceType: "b2c",
+      objective: "Create a useful draft first",
+      steps: [],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Created.");
+    });
+    expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("New onboarding");
+    expect(screen.getByTestId("button-marketing-save-journey")).toHaveTextContent("Save journey");
+  });
+
+  it("edits journey logic, steps, ordering, and deletes journey records", async () => {
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
@@ -538,12 +607,31 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
     fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
 
-    expect(screen.getByTestId("marketing-journey-edit-form-journey-1")).toBeInTheDocument();
-    fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name-journey-1"), { target: { value: "Updated nurture" } });
-    fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective-journey-1"), { target: { value: "Updated objective" } });
-    fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience-journey-1"), { target: { value: "both" } });
-    fireEvent.change(screen.getByTestId("select-marketing-edit-journey-status-journey-1"), { target: { value: "paused" } });
-    fireEvent.click(screen.getByTestId("button-marketing-save-journey-journey-1"));
+    expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-journey-status"), { target: { value: "paused" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-journey-trigger"), { target: { value: "list_joined" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-trigger-config"), { target: { value: "{\"list\":\"partners\"}" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-journey-goal"), { target: { value: "reply" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-goal-config"), { target: { value: "{\"withinDays\":14}" } });
+    fireEvent.click(screen.getByTestId("checkbox-marketing-edit-journey-exit-on-goal"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-add-journey-step"));
+    fireEvent.click(screen.getByTestId("button-marketing-remove-journey-step-0"));
+    fireEvent.change(screen.getByTestId("input-marketing-journey-step-delay-0"), { target: { value: "48" } });
+    fireEvent.change(screen.getByTestId("select-marketing-journey-step-channel-0"), { target: { value: "whatsapp" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-journey-step-notes-0"), { target: { value: "Check WhatsApp reply window" } });
+
+    fireEvent.click(screen.getByTestId("button-marketing-add-journey-step"));
+    fireEvent.change(screen.getByTestId("select-marketing-journey-step-channel-1"), { target: { value: "email" } });
+    fireEvent.change(screen.getByTestId("select-marketing-journey-step-content-1"), { target: { value: "content-1" } });
+    fireEvent.change(screen.getByTestId("input-marketing-journey-step-template-kind-1"), { target: { value: "email_template" } });
+    fireEvent.change(screen.getByTestId("input-marketing-journey-step-template-ref-1"), { target: { value: "welcome-template" } });
+    fireEvent.click(screen.getByTestId("button-marketing-move-journey-step-up-1"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys/journey-1", expect.objectContaining({ method: "PATCH" }));
@@ -554,6 +642,30 @@ describe("MarketingAdminPage", () => {
       objective: "Updated objective",
       audienceType: "both",
       status: "paused",
+      triggerType: "list_joined",
+      triggerConfig: { list: "partners" },
+      goalType: "reply",
+      goalConfig: { withinDays: 14 },
+      exitOnGoal: true,
+    });
+    expect(JSON.parse(String(patchCall?.[1]?.body)).steps).toMatchObject([
+      {
+        stepOrder: 0,
+        channel: "email",
+        contentAssetId: "content-1",
+        templateKind: "email_template",
+        templateRef: "welcome-template",
+      },
+      {
+        stepOrder: 1,
+        channel: "whatsapp",
+        delayHours: 48,
+        dayOffset: 2,
+        metadata: { notes: "Check WhatsApp reply window" },
+      },
+    ]);
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Updated.");
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));

@@ -21,6 +21,8 @@ import {
   UsersRound,
   Waypoints,
   X,
+  ArrowDown,
+  ArrowUp,
 } from "lucide-react";
 import AdminMenu from "./AdminMenu";
 import AdminPageHeader from "./AdminPageHeader";
@@ -125,17 +127,23 @@ type Journey = {
   goalConfig: Record<string, unknown>;
   exitOnGoal: boolean;
   source: string;
-  steps: Array<{
-    id: string;
-    stepOrder: number;
-    channel: Channel;
-    delayHours: number;
-    kind: string;
-    dayOffset: number;
-    templateKind: string | null;
-    templateRef: string | null;
-    status: string;
-  }>;
+  lovableExternalId?: string | null;
+  steps: JourneyStep[];
+};
+
+type JourneyStep = {
+  id: string;
+  stepOrder: number;
+  channel: Channel;
+  contentAssetId: string | null;
+  delayHours: number;
+  kind: string;
+  dayOffset: number;
+  templateKind: string | null;
+  templateRef: string | null;
+  config?: Record<string, unknown>;
+  status: string;
+  metadata?: Record<string, unknown>;
 };
 
 type ContentAsset = {
@@ -311,18 +319,30 @@ type CampaignEditDraft = {
   snapshotRecipients: boolean;
 };
 
-type JourneyDraft = {
-  name: string;
-  audienceType: Audience;
-  channel: Channel;
-  objective: string;
-};
-
 type JourneyEditDraft = {
   name: string;
   audienceType: Audience;
   status: JourneyStatus;
   objective: string;
+  triggerType: string;
+  triggerConfigText: string;
+  goalType: string;
+  goalConfigText: string;
+  exitOnGoal: boolean;
+  steps: JourneyStepDraft[];
+};
+
+type JourneyStepDraft = {
+  id: string;
+  channel: Channel;
+  contentAssetId: string;
+  delayHours: string;
+  kind: string;
+  templateKind: string;
+  templateRef: string;
+  status: JourneyStatus;
+  configText: string;
+  notes: string;
 };
 
 type ContentDraft = {
@@ -467,6 +487,129 @@ function normalizeCampaignStatus(value: string): CampaignStatus {
 
 function normalizeJourneyStatus(value: string): JourneyStatus {
   return JOURNEY_STATUSES.includes(value as JourneyStatus) ? value as JourneyStatus : "draft";
+}
+
+function jsonText(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length === 0) return "";
+  return JSON.stringify(value, null, 2);
+}
+
+function newDraftId() {
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function notesFromMetadata(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const notes = (value as Record<string, unknown>).notes;
+  return typeof notes === "string" ? notes : "";
+}
+
+function emptyJourneyEditDraft(): JourneyEditDraft {
+  return {
+    name: "",
+    audienceType: "b2c",
+    status: "draft",
+    objective: "",
+    triggerType: "",
+    triggerConfigText: "",
+    goalType: "",
+    goalConfigText: "",
+    exitOnGoal: true,
+    steps: [],
+  };
+}
+
+function journeyStepDraftFromStep(step: JourneyStep): JourneyStepDraft {
+  return {
+    id: step.id || newDraftId(),
+    channel: step.channel,
+    contentAssetId: step.contentAssetId ?? "",
+    delayHours: String(Math.max(0, step.delayHours ?? 0)),
+    kind: step.kind || "message",
+    templateKind: step.templateKind ?? "",
+    templateRef: step.templateRef ?? "",
+    status: normalizeJourneyStatus(step.status),
+    configText: jsonText(step.config),
+    notes: notesFromMetadata(step.metadata),
+  };
+}
+
+function journeyEditDraftFromJourney(journey: Journey): JourneyEditDraft {
+  return {
+    name: journey.name,
+    audienceType: journey.audienceType,
+    status: normalizeJourneyStatus(journey.status),
+    objective: journey.objective,
+    triggerType: journey.triggerType ?? "",
+    triggerConfigText: jsonText(journey.triggerConfig),
+    goalType: journey.goalType ?? "",
+    goalConfigText: jsonText(journey.goalConfig),
+    exitOnGoal: journey.exitOnGoal,
+    steps: journey.steps.map(journeyStepDraftFromStep),
+  };
+}
+
+function newJourneyStepDraft(channel: Channel = "email"): JourneyStepDraft {
+  return {
+    id: newDraftId(),
+    channel,
+    contentAssetId: "",
+    delayHours: "0",
+    kind: "message",
+    templateKind: "",
+    templateRef: "",
+    status: "draft",
+    configText: "",
+    notes: "",
+  };
+}
+
+function parseJsonText(value: string, label: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return {};
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    return parsed as Record<string, unknown>;
+  } catch {
+    throw new Error(`${label} must be valid JSON.`);
+  }
+}
+
+function nonNegativeInt(value: string, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.round(parsed));
+}
+
+function journeyPayloadFromDraft(draft: JourneyEditDraft) {
+  return {
+    name: draft.name.trim(),
+    audienceType: draft.audienceType,
+    status: draft.status,
+    objective: draft.objective,
+    triggerType: draft.triggerType.trim() || null,
+    triggerConfig: parseJsonText(draft.triggerConfigText, "Trigger config"),
+    goalType: draft.goalType.trim() || null,
+    goalConfig: parseJsonText(draft.goalConfigText, "Goal config"),
+    exitOnGoal: draft.exitOnGoal,
+    steps: draft.steps.map((step, index) => {
+      const delayHours = nonNegativeInt(step.delayHours);
+      return {
+        stepOrder: index,
+        channel: step.channel,
+        contentAssetId: step.contentAssetId || null,
+        delayHours,
+        dayOffset: Math.floor(delayHours / 24),
+        kind: step.kind.trim() || "message",
+        templateKind: step.templateKind.trim() || null,
+        templateRef: step.templateRef.trim() || null,
+        status: step.status,
+        config: parseJsonText(step.configText, `Step ${index + 1} config`),
+        metadata: step.notes.trim() ? { notes: step.notes.trim() } : {},
+      };
+    }),
+  };
 }
 
 function toDateTimeLocal(value: string | null) {
@@ -785,9 +928,10 @@ export default function MarketingAdminPage() {
     recipientFilter: "",
     snapshotRecipients: false,
   });
-  const [journeyDraft, setJourneyDraft] = useState<JourneyDraft>({ name: "", audienceType: "b2c", channel: "email", objective: "" });
-  const [editingJourneyId, setEditingJourneyId] = useState<string | null>(null);
-  const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>({ name: "", audienceType: "b2c", status: "draft", objective: "" });
+  const [editingJourneyId, setEditingJourneyId] = useState<string | "new" | null>(null);
+  const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>(() => emptyJourneyEditDraft());
+  const [journeySaving, setJourneySaving] = useState(false);
+  const [journeyFeedback, setJourneyFeedback] = useState("");
   const [contentDraft, setContentDraft] = useState<ContentDraft>({ title: "", channel: "email", subject: "", body: "" });
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
@@ -874,6 +1018,7 @@ export default function MarketingAdminPage() {
   }), [audiences, search]);
 
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
+  const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const selectedContent = useMemo(() => content.find((item) => item.id === selectedContentId) ?? visibleContent[0] ?? null, [content, selectedContentId, visibleContent]);
   const selectedContentMediaAssets = useMemo(() => {
     if (!selectedContent) return [];
@@ -1045,68 +1190,109 @@ export default function MarketingAdminPage() {
     await refreshAll();
   }
 
-  async function createJourney(event: FormEvent) {
-    event.preventDefault();
-    if (!journeyDraft.name.trim()) {
-      setMessage("Journey name is required before creating a draft.");
-      return;
-    }
-    await api("/api/admin/marketing/journeys", {
-      method: "POST",
-      body: JSON.stringify({
-        name: journeyDraft.name,
-        audienceType: journeyDraft.audienceType,
-        objective: journeyDraft.objective,
-        steps: [{ stepOrder: 0, channel: journeyDraft.channel, delayHours: 0, status: "draft" }],
-      }),
-    });
-    setJourneyDraft({ name: "", audienceType: "b2c", channel: "email", objective: "" });
-    setMessage("Journey draft created.");
-    await refreshAll();
+  function startNewJourney() {
+    setEditingJourneyId("new");
+    setJourneyEditDraft(emptyJourneyEditDraft());
+    setJourneyFeedback("");
+    setMessage("");
   }
 
   function startJourneyEdit(journey: Journey) {
     setEditingJourneyId(journey.id);
-    setJourneyEditDraft({
-      name: journey.name,
-      audienceType: journey.audienceType,
-      status: normalizeJourneyStatus(journey.status),
-      objective: journey.objective,
-    });
+    setJourneyEditDraft(journeyEditDraftFromJourney(journey));
+    setJourneyFeedback("");
     setMessage("");
   }
 
   function cancelJourneyEdit() {
     setEditingJourneyId(null);
-    setJourneyEditDraft({ name: "", audienceType: "b2c", status: "draft", objective: "" });
+    setJourneyEditDraft(emptyJourneyEditDraft());
+    setJourneyFeedback("");
   }
 
-  async function saveJourneyEdit(event: FormEvent, journeyId: string) {
+  function updateJourneyStep(stepId: string, patch: Partial<JourneyStepDraft>) {
+    setJourneyEditDraft((draft) => ({
+      ...draft,
+      steps: draft.steps.map((step) => step.id === stepId ? { ...step, ...patch } : step),
+    }));
+  }
+
+  function addJourneyStep() {
+    setJourneyEditDraft((draft) => {
+      const previousChannel = draft.steps.at(-1)?.channel ?? "email";
+      return { ...draft, steps: [...draft.steps, newJourneyStepDraft(previousChannel)] };
+    });
+    setJourneyFeedback("");
+  }
+
+  function removeJourneyStep(stepId: string) {
+    setJourneyEditDraft((draft) => ({ ...draft, steps: draft.steps.filter((step) => step.id !== stepId) }));
+    setJourneyFeedback("");
+  }
+
+  function moveJourneyStep(stepId: string, direction: -1 | 1) {
+    setJourneyEditDraft((draft) => {
+      const currentIndex = draft.steps.findIndex((step) => step.id === stepId);
+      const nextIndex = currentIndex + direction;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= draft.steps.length) return draft;
+      const steps = [...draft.steps];
+      const [step] = steps.splice(currentIndex, 1);
+      steps.splice(nextIndex, 0, step);
+      return { ...draft, steps };
+    });
+    setJourneyFeedback("");
+  }
+
+  async function saveJourneyEdit(event: FormEvent) {
     event.preventDefault();
     if (!journeyEditDraft.name.trim()) {
-      setMessage("Journey name is required before saving.");
+      setJourneyFeedback("Journey name is required before saving.");
       return;
     }
-    await api(`/api/admin/marketing/journeys/${journeyId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        name: journeyEditDraft.name,
-        audienceType: journeyEditDraft.audienceType,
-        status: journeyEditDraft.status,
-        objective: journeyEditDraft.objective,
-      }),
-    });
-    cancelJourneyEdit();
-    setMessage("Journey updated.");
-    await refreshAll();
+    setJourneySaving(true);
+    setJourneyFeedback("Saving journey...");
+    try {
+      const payload = journeyPayloadFromDraft(journeyEditDraft);
+      const isNewJourney = editingJourneyId === "new";
+      const result = await api<{ journey: Journey }>(
+        isNewJourney ? "/api/admin/marketing/journeys" : `/api/admin/marketing/journeys/${editingJourneyId}`,
+        {
+          method: isNewJourney ? "POST" : "PATCH",
+          body: JSON.stringify(payload),
+        },
+      );
+      await refreshAll();
+      setJourneys((current) => [result.journey, ...current.filter((journey) => journey.id !== result.journey.id)]);
+      setEditingJourneyId(result.journey.id);
+      setJourneyEditDraft(journeyEditDraftFromJourney(result.journey));
+      setJourneyFeedback(isNewJourney ? "Created." : "Updated.");
+      setMessage(isNewJourney ? "Journey created." : "Journey updated.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Journey could not be saved.";
+      setJourneyFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setJourneySaving(false);
+    }
   }
 
   async function deleteJourney(journey: Journey) {
     if (!window.confirm(`Delete journey "${journey.name}"? This removes the local VYVA planning record.`)) return;
-    await api(`/api/admin/marketing/journeys/${journey.id}`, { method: "DELETE" });
-    if (editingJourneyId === journey.id) cancelJourneyEdit();
-    setMessage("Journey deleted.");
-    await refreshAll();
+    setJourneySaving(true);
+    setJourneyFeedback("Deleting journey...");
+    try {
+      await api(`/api/admin/marketing/journeys/${journey.id}`, { method: "DELETE" });
+      if (editingJourneyId === journey.id) cancelJourneyEdit();
+      setJourneyFeedback("Deleted.");
+      setMessage("Journey deleted.");
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Journey could not be deleted.";
+      setJourneyFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setJourneySaving(false);
+    }
   }
 
   async function createContent(event: FormEvent) {
@@ -1274,6 +1460,7 @@ export default function MarketingAdminPage() {
   const testEmailPromptIsBlocked = Boolean(!testEmailFeedback && testEmailBlockedReason);
   const campaignEmailFeedbackIsError = Boolean(campaignEmailFeedback && /fail|error|could not|attach|only|no eligible/i.test(campaignEmailFeedback));
   const campaignEmailPromptIsBlocked = Boolean(!campaignEmailFeedback && campaignEmailBlockedReason);
+  const journeyFeedbackIsError = Boolean(journeyFeedback && /fail|error|could not|required|valid json/i.test(journeyFeedback));
   const savedCampaignRecipients = editingCampaign?.recipients ?? [];
   const visibleSavedCampaignRecipients = savedCampaignRecipients.slice(0, 8);
 
@@ -1660,105 +1847,239 @@ export default function MarketingAdminPage() {
 
           {activeTab === "journeys" && (
             <div className="grid gap-4" data-testid="marketing-journeys-tab">
-              <SectionCard title="Journey draft" subtitle="Create a starter journey with one locked planning step.">
-                <form className="grid gap-3 xl:grid-cols-[1fr_180px_180px_auto]" onSubmit={(event) => createJourney(event).catch((error) => setMessage(error.message))}>
-                  <Field label="Journey name">
-                    <input className={inputClass} value={journeyDraft.name} onChange={(event) => setJourneyDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Lead nurture sequence" data-testid="input-marketing-journey-name" />
-                  </Field>
-                  <Field label="Audience">
-                    <select className={inputClass} value={journeyDraft.audienceType} onChange={(event) => setJourneyDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))}>
-                      {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="First channel">
-                    <select className={inputClass} value={journeyDraft.channel} onChange={(event) => setJourneyDraft((draft) => ({ ...draft, channel: event.target.value as Channel }))}>
-                      {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
-                    </select>
-                  </Field>
-                  <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit">
-                    <Waypoints size={16} /> Add journey
+              <SectionCard
+                title="Journeys"
+                subtitle={`${journeys.length} journeys in the planning foundation.`}
+                action={(
+                  <button
+                    type="button"
+                    onClick={startNewJourney}
+                    disabled={journeySaving}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                    data-testid="button-marketing-new-journey"
+                  >
+                    <Plus size={15} /> New journey
                   </button>
-                </form>
-              </SectionCard>
-              <SectionCard title="Journeys" subtitle={`${journeys.length} journeys in the planning foundation.`}>
-                <div className="grid gap-3">
-                  {journeys.length === 0 ? <EmptyState text="No journeys yet." /> : journeys.map((journey) => {
-                    const isEditing = editingJourneyId === journey.id;
-                    return (
-                      <article key={journey.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">
-                        {isEditing ? (
-                          <form
-                            className="grid gap-3"
-                            onSubmit={(event) => saveJourneyEdit(event, journey.id).catch((error) => setMessage(error.message))}
-                            data-testid={`marketing-journey-edit-form-${journey.id}`}
-                          >
-                            <div className="grid gap-3 xl:grid-cols-[1fr_160px_160px]">
-                              <Field label="Journey name">
-                                <input className={inputClass} value={journeyEditDraft.name} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, name: event.target.value }))} data-testid={`input-marketing-edit-journey-name-${journey.id}`} />
-                              </Field>
-                              <Field label="Audience">
-                                <select className={inputClass} value={journeyEditDraft.audienceType} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))} data-testid={`select-marketing-edit-journey-audience-${journey.id}`}>
-                                  {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
-                                </select>
-                              </Field>
-                              <Field label="Status">
-                                <select className={inputClass} value={journeyEditDraft.status} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, status: event.target.value as JourneyStatus }))} data-testid={`select-marketing-edit-journey-status-${journey.id}`}>
-                                  {JOURNEY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-                                </select>
-                              </Field>
+                )}
+              >
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(560px,1.35fr)]">
+                  <div className="grid content-start gap-3">
+                    {journeys.length === 0 ? <EmptyState text="No journeys yet." /> : journeys.map((journey) => {
+                      const isActive = editingJourneyId === journey.id;
+                      return (
+                        <article key={journey.id} className={`rounded-xl border p-4 ${isActive ? "border-purple-300 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <h3 className="font-black">{journey.name}</h3>
+                              <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
+                              {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Lovable source can reimport this after sync.</p> : null}
+                              <p className="mt-1 text-xs font-bold text-[#7d6b65]">{activeEnrollmentsByJourneyId.get(journey.id) ?? 0} active / {enrollmentsByJourneyId.get(journey.id) ?? 0} total enrollments</p>
+                              {(journey.triggerType || journey.goalType) ? (
+                                <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black" data-testid={`marketing-journey-logic-${journey.id}`}>
+                                  {journey.triggerType ? <Pill className="bg-blue-50 text-blue-800">Trigger: {journey.triggerType}</Pill> : null}
+                                  {journey.goalType ? <Pill className="bg-emerald-50 text-emerald-800">Goal: {journey.goalType}</Pill> : null}
+                                  <Pill className={journey.exitOnGoal ? "bg-purple-50 text-purple-800" : "bg-amber-50 text-amber-800"}>{journey.exitOnGoal ? "Exit on goal" : "Continue after goal"}</Pill>
+                                </div>
+                              ) : null}
                             </div>
-                            <Field label="Objective">
-                              <textarea className={textareaClass} value={journeyEditDraft.objective} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, objective: event.target.value }))} data-testid={`textarea-marketing-edit-journey-objective-${journey.id}`} />
-                            </Field>
-                            <div className="flex flex-wrap gap-2">
-                              <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white" data-testid={`button-marketing-save-journey-${journey.id}`}>
-                                <Save size={15} /> Save journey
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <Pill className={statusClass(journey.status)}>{journey.status}</Pill>
+                              <Pill className="bg-purple-50 text-purple-700">{journey.audienceType.toUpperCase()}</Pill>
+                              <button type="button" onClick={() => startJourneyEdit(journey)} disabled={journeySaving} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-edit-journey-${journey.id}`}>
+                                <Pencil size={14} /> Edit
                               </button>
-                              <button type="button" onClick={cancelJourneyEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135]" data-testid={`button-marketing-cancel-journey-${journey.id}`}>
-                                <X size={15} /> Cancel
+                              <button type="button" onClick={() => deleteJourney(journey)} disabled={journeySaving} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-delete-journey-${journey.id}`}>
+                                <Trash2 size={14} /> Delete
                               </button>
                             </div>
-                          </form>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => (
+                              <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>
+                                {step.stepOrder + 1}. {step.kind || "message"} / {channelLabel[step.channel]} / day {step.dayOffset ?? Math.floor(step.delayHours / 24)}
+                                {step.templateRef ? ` / ${step.templateRef}` : ""}
+                              </span>
+                            ))}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  {editingJourneyId ? (
+                    <form
+                      className="grid content-start gap-4 rounded-xl border border-[#eadfd5] bg-white p-4"
+                      onSubmit={saveJourneyEdit}
+                      data-testid="marketing-journey-editor-form"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-black text-[#241133]">{editingJourneyId === "new" ? "New journey" : "Journey details"}</h3>
+                          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">Build the sequence first. Sending remains controlled elsewhere.</p>
+                        </div>
+                        {editingJourney ? <Pill className={statusClass(editingJourney.status)}>{editingJourney.status}</Pill> : <Pill className="bg-amber-50 text-amber-800">draft</Pill>}
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-[1fr_150px_150px]">
+                        <Field label="Journey name">
+                          <input className={inputClass} value={journeyEditDraft.name} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Caregiver onboarding sequence" disabled={journeySaving} data-testid="input-marketing-edit-journey-name" />
+                        </Field>
+                        <Field label="Audience">
+                          <select className={inputClass} value={journeyEditDraft.audienceType} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))} disabled={journeySaving} data-testid="select-marketing-edit-journey-audience">
+                            {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Status">
+                          <select className={inputClass} value={journeyEditDraft.status} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, status: event.target.value as JourneyStatus }))} disabled={journeySaving} data-testid="select-marketing-edit-journey-status">
+                            {JOURNEY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                          </select>
+                        </Field>
+                      </div>
+
+                      <Field label="Objective / notes">
+                        <textarea className={textareaClass} value={journeyEditDraft.objective} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, objective: event.target.value }))} disabled={journeySaving} data-testid="textarea-marketing-edit-journey-objective" />
+                      </Field>
+
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        <Field label="Trigger type">
+                          <input className={inputClass} value={journeyEditDraft.triggerType} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, triggerType: event.target.value }))} placeholder="signup, list_joined, date..." disabled={journeySaving} data-testid="input-marketing-edit-journey-trigger" />
+                        </Field>
+                        <Field label="Goal type">
+                          <input className={inputClass} value={journeyEditDraft.goalType} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, goalType: event.target.value }))} placeholder="activation, reply, conversion..." disabled={journeySaving} data-testid="input-marketing-edit-journey-goal" />
+                        </Field>
+                        <Field label="Trigger config JSON">
+                          <textarea className={`${textareaClass} min-h-[76px]`} value={journeyEditDraft.triggerConfigText} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, triggerConfigText: event.target.value }))} placeholder="{ }" disabled={journeySaving} data-testid="textarea-marketing-edit-journey-trigger-config" />
+                        </Field>
+                        <Field label="Goal config JSON">
+                          <textarea className={`${textareaClass} min-h-[76px]`} value={journeyEditDraft.goalConfigText} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, goalConfigText: event.target.value }))} placeholder="{ }" disabled={journeySaving} data-testid="textarea-marketing-edit-journey-goal-config" />
+                        </Field>
+                      </div>
+
+                      <label className="flex items-center gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3 text-sm font-black text-[#2f2135]">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-purple-700"
+                          checked={journeyEditDraft.exitOnGoal}
+                          onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, exitOnGoal: event.target.checked }))}
+                          disabled={journeySaving}
+                          data-testid="checkbox-marketing-edit-journey-exit-on-goal"
+                        />
+                        Exit this journey when the goal is reached
+                      </label>
+
+                      <div className="grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-journey-steps-builder">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h4 className="font-black text-[#241133]">Journey steps</h4>
+                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">Each step owns its channel, delay, content, and planning config.</p>
+                          </div>
+                          <button type="button" onClick={addJourneyStep} disabled={journeySaving} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-add-journey-step">
+                            <Plus size={14} /> Add step
+                          </button>
+                        </div>
+
+                        {journeyEditDraft.steps.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-[#eadfd5] bg-white p-4 text-center">
+                            <p className="text-sm font-bold text-[#8b7a73]">No steps yet.</p>
+                            <button type="button" onClick={addJourneyStep} disabled={journeySaving} className="mt-3 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-add-first-journey-step">
+                              <Plus size={14} /> Add step
+                            </button>
+                          </div>
                         ) : (
-                          <>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <h3 className="font-black">{journey.name}</h3>
-                                <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
-                                {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Lovable source can reimport this after sync.</p> : null}
-                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">{activeEnrollmentsByJourneyId.get(journey.id) ?? 0} active / {enrollmentsByJourneyId.get(journey.id) ?? 0} total enrollments</p>
-                                {(journey.triggerType || journey.goalType) ? (
-                                  <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black" data-testid={`marketing-journey-logic-${journey.id}`}>
-                                    {journey.triggerType ? <Pill className="bg-blue-50 text-blue-800">Trigger: {journey.triggerType}</Pill> : null}
-                                    {journey.goalType ? <Pill className="bg-emerald-50 text-emerald-800">Goal: {journey.goalType}</Pill> : null}
-                                    <Pill className={journey.exitOnGoal ? "bg-purple-50 text-purple-800" : "bg-amber-50 text-amber-800"}>{journey.exitOnGoal ? "Exit on goal" : "Continue after goal"}</Pill>
+                          <div className="grid gap-3">
+                            {journeyEditDraft.steps.map((step, index) => {
+                              const contentOptions = content.filter((item) => item.channel === step.channel && item.status !== "archived");
+                              const selectedContentOption = step.contentAssetId ? content.find((item) => item.id === step.contentAssetId) : null;
+                              const options = selectedContentOption && !contentOptions.some((item) => item.id === selectedContentOption.id)
+                                ? [selectedContentOption, ...contentOptions]
+                                : contentOptions;
+                              return (
+                                <div key={step.id} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid={`marketing-journey-step-${index}`}>
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-sm font-black text-[#241133]">Step {index + 1}</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      <button type="button" onClick={() => moveJourneyStep(step.id, -1)} disabled={journeySaving || index === 0} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-up-${index}`}>
+                                        <ArrowUp size={13} />
+                                      </button>
+                                      <button type="button" onClick={() => moveJourneyStep(step.id, 1)} disabled={journeySaving || index === journeyEditDraft.steps.length - 1} className="inline-flex min-h-8 items-center justify-center rounded-lg border border-[#eadfd5] bg-white px-2 text-xs font-black text-[#5b4a46] disabled:cursor-not-allowed disabled:text-[#b8abb8]" data-testid={`button-marketing-move-journey-step-down-${index}`}>
+                                        <ArrowDown size={13} />
+                                      </button>
+                                      <button type="button" onClick={() => removeJourneyStep(step.id)} disabled={journeySaving} className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-remove-journey-step-${index}`}>
+                                        <Trash2 size={13} /> Remove
+                                      </button>
+                                    </div>
                                   </div>
-                                ) : null}
-                              </div>
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <Pill className={statusClass(journey.status)}>{journey.status}</Pill>
-                                <Pill className="bg-purple-50 text-purple-700">{journey.audienceType.toUpperCase()}</Pill>
-                                <button type="button" onClick={() => startJourneyEdit(journey)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-edit-journey-${journey.id}`}>
-                                  <Pencil size={14} /> Edit
-                                </button>
-                                <button type="button" onClick={() => deleteJourney(journey).catch((error) => setMessage(error.message))} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700" data-testid={`button-marketing-delete-journey-${journey.id}`}>
-                                  <Trash2 size={14} /> Delete
-                                </button>
-                              </div>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {journey.steps.length === 0 ? <span className="text-sm font-bold text-[#8b7a73]">No steps yet.</span> : journey.steps.map((step) => (
-                                <span key={step.id} className={`rounded-full border px-3 py-1 text-xs font-black ${channelClass(step.channel)}`}>
-                                  {step.stepOrder + 1}. {step.kind || "message"} / {channelLabel[step.channel]} / day {step.dayOffset ?? Math.floor(step.delayHours / 24)}
-                                  {step.templateRef ? ` / ${step.templateRef}` : ""}
-                                </span>
-                              ))}
-                            </div>
-                          </>
+                                  <div className="grid gap-3 xl:grid-cols-[120px_150px_1fr_130px]">
+                                    <Field label="Delay hours">
+                                      <input type="number" min="0" className={inputClass} value={step.delayHours} onChange={(event) => updateJourneyStep(step.id, { delayHours: event.target.value })} disabled={journeySaving} data-testid={`input-marketing-journey-step-delay-${index}`} />
+                                    </Field>
+                                    <Field label="Channel">
+                                      <select className={inputClass} value={step.channel} onChange={(event) => updateJourneyStep(step.id, { channel: event.target.value as Channel, contentAssetId: "" })} disabled={journeySaving} data-testid={`select-marketing-journey-step-channel-${index}`}>
+                                        {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                                      </select>
+                                    </Field>
+                                    <Field label="Content asset">
+                                      <select className={inputClass} value={step.contentAssetId} onChange={(event) => updateJourneyStep(step.id, { contentAssetId: event.target.value })} disabled={journeySaving} data-testid={`select-marketing-journey-step-content-${index}`}>
+                                        <option value="">No content asset</option>
+                                        {options.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                                      </select>
+                                    </Field>
+                                    <Field label="Status">
+                                      <select className={inputClass} value={step.status} onChange={(event) => updateJourneyStep(step.id, { status: event.target.value as JourneyStatus })} disabled={journeySaving} data-testid={`select-marketing-journey-step-status-${index}`}>
+                                        {JOURNEY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                                      </select>
+                                    </Field>
+                                  </div>
+                                  <div className="grid gap-3 xl:grid-cols-[150px_150px_1fr]">
+                                    <Field label="Kind">
+                                      <input className={inputClass} value={step.kind} onChange={(event) => updateJourneyStep(step.id, { kind: event.target.value })} placeholder="message" disabled={journeySaving} data-testid={`input-marketing-journey-step-kind-${index}`} />
+                                    </Field>
+                                    <Field label="Template kind">
+                                      <input className={inputClass} value={step.templateKind} onChange={(event) => updateJourneyStep(step.id, { templateKind: event.target.value })} placeholder="email_template" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-kind-${index}`} />
+                                    </Field>
+                                    <Field label="Template ref">
+                                      <input className={inputClass} value={step.templateRef} onChange={(event) => updateJourneyStep(step.id, { templateRef: event.target.value })} placeholder="Lovable or VYVA template ID" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-ref-${index}`} />
+                                    </Field>
+                                  </div>
+                                  <div className="grid gap-3 xl:grid-cols-2">
+                                    <Field label="Internal notes">
+                                      <textarea className={`${textareaClass} min-h-[72px]`} value={step.notes} onChange={(event) => updateJourneyStep(step.id, { notes: event.target.value })} disabled={journeySaving} data-testid={`textarea-marketing-journey-step-notes-${index}`} />
+                                    </Field>
+                                    <Field label="Config JSON">
+                                      <textarea className={`${textareaClass} min-h-[72px]`} value={step.configText} onChange={(event) => updateJourneyStep(step.id, { configText: event.target.value })} placeholder="{ }" disabled={journeySaving} data-testid={`textarea-marketing-journey-step-config-${index}`} />
+                                    </Field>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
-                      </article>
-                    );
-                  })}
+                      </div>
+
+                      {journeyFeedback ? (
+                        <p className={`rounded-xl px-4 py-3 text-sm font-bold ${journeyFeedbackIsError ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`} data-testid="marketing-journey-feedback" role="status">
+                          {journeyFeedback}
+                        </p>
+                      ) : null}
+
+                      <div className="flex flex-wrap gap-2">
+                        <button type="submit" disabled={journeySaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-save-journey">
+                          <Save size={15} /> {journeySaving ? "Saving..." : editingJourneyId === "new" ? "Create journey" : "Save journey"}
+                        </button>
+                        <button type="button" onClick={cancelJourneyEdit} disabled={journeySaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-journey">
+                          <X size={15} /> Close details
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-6 text-center">
+                      <div>
+                        <Waypoints className="mx-auto text-purple-700" size={28} />
+                        <p className="mt-3 text-sm font-black text-[#241133]">Select a journey or create a new one.</p>
+                        <p className="mt-1 text-xs font-bold text-[#8b7a73]">Steps, trigger logic, and goals are edited here.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </SectionCard>
               <SectionCard title="Journey progress" subtitle={`${journeyEnrollments.length} imported enrollment records and event history rows.`}>

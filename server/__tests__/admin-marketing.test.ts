@@ -432,17 +432,32 @@ describe("admin marketing router", () => {
         name: "Partner nurture",
         audienceType: "b2b",
         objective: "Warm partner leads",
-        steps: [{ stepOrder: 0, channel: "email", delayHours: 0, status: "draft" }],
+        steps: [],
       })
       .expect(201);
 
     const journeyId = createResponse.body.journey.id;
+    expect(createResponse.body.journey.steps).toEqual([]);
     expect(table("marketing_journeys")).toHaveLength(1);
-    expect(table("marketing_journey_steps")).toHaveLength(1);
+    expect(table("marketing_journey_steps")).toHaveLength(0);
 
     await request(app)
       .patch(`/api/admin/marketing/journeys/${journeyId}`)
-      .send({ name: "Updated nurture", status: "paused", audienceType: "both", objective: "Updated objective" })
+      .send({
+        name: "Updated nurture",
+        status: "paused",
+        audienceType: "both",
+        objective: "Updated objective",
+        triggerType: "list_joined",
+        triggerConfig: { list: "partners" },
+        goalType: "reply",
+        goalConfig: { withinDays: 14 },
+        exitOnGoal: false,
+        steps: [
+          { stepOrder: 0, channel: "email", delayHours: 0, dayOffset: 0, status: "draft", kind: "message", templateKind: "email_template", templateRef: "welcome-template", config: { subject: "Welcome" }, metadata: { notes: "First touch" } },
+          { stepOrder: 1, channel: "whatsapp", delayHours: 48, dayOffset: 2, status: "draft", kind: "message", config: { window: "caregiver" }, metadata: { notes: "Second touch" } },
+        ],
+      })
       .expect(200)
       .expect((response) => {
         expect(response.body.journey).toMatchObject({
@@ -451,8 +466,34 @@ describe("admin marketing router", () => {
           status: "paused",
           audienceType: "both",
           objective: "Updated objective",
+          triggerType: "list_joined",
+          triggerConfig: { list: "partners" },
+          goalType: "reply",
+          goalConfig: { withinDays: 14 },
+          exitOnGoal: false,
+          steps: [
+            { stepOrder: 0, channel: "email", delayHours: 0, templateKind: "email_template", templateRef: "welcome-template", config: { subject: "Welcome" }, metadata: { notes: "First touch" } },
+            { stepOrder: 1, channel: "whatsapp", delayHours: 48, dayOffset: 2, config: { window: "caregiver" }, metadata: { notes: "Second touch" } },
+          ],
         });
       });
+
+    expect(table("marketing_journey_steps")).toHaveLength(2);
+
+    await request(app)
+      .patch(`/api/admin/marketing/journeys/${journeyId}`)
+      .send({
+        steps: [
+          { stepOrder: 0, channel: "email", delayHours: 24, dayOffset: 1, status: "active", kind: "message" },
+        ],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.journey.steps).toHaveLength(1);
+        expect(response.body.journey.steps[0]).toMatchObject({ stepOrder: 0, channel: "email", delayHours: 24, status: "active" });
+      });
+
+    expect(table("marketing_journey_steps")).toHaveLength(1);
 
     await request(app)
       .delete(`/api/admin/marketing/journeys/${journeyId}`)
