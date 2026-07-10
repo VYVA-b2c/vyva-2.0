@@ -241,6 +241,14 @@ const channelPreferencesPatchSchema = z.object({
   max_whatsapp_messages_per_day: channelPreferenceLimitSchema.optional(),
 });
 
+const coveragePatchSchema = z.object({
+  coverageType: z.enum(["public", "private", "mixed", "self_pay", "unknown"]).default("public"),
+  provider: z.string().max(160).optional().default(""),
+  memberId: z.string().max(160).optional().default(""),
+  plan: z.string().max(160).optional().default(""),
+  notes: z.string().max(500).optional().default(""),
+});
+
 type ChannelPreferencesRow = typeof userChannelPreferences.$inferSelect;
 
 const channelPreferencesDefaults = {
@@ -369,6 +377,23 @@ function consentSection(consent: unknown, section: string): Record<string, unkno
   return value && typeof value === "object" ? value as Record<string, unknown> : {};
 }
 
+function readCoverageSummary(consent: unknown) {
+  const coverage = {
+    ...consentSection(consent, "insurance"),
+    ...consentSection(consent, "coverage"),
+  };
+  const coverageType = trimToNull(coverage.coverage_type) ?? trimToNull(coverage.type) ?? "";
+  const provider = trimToNull(coverage.provider) ?? trimToNull(coverage.insurer) ?? trimToNull(coverage.company) ?? "";
+  const memberId = trimToNull(coverage.member_id) ?? trimToNull(coverage.policy_number) ?? "";
+  return {
+    coverageType,
+    provider,
+    memberId,
+    plan: trimToNull(coverage.plan) ?? "",
+    notes: trimToNull(coverage.notes) ?? "",
+  };
+}
+
 function setupStep(section: string, reason: string): MissingSetupStep {
   return {
     section,
@@ -447,6 +472,10 @@ function hasCoverageInfo(consent: unknown): boolean {
     ...consentSection(consent, "insurance"),
     ...consentSection(consent, "coverage"),
   };
+  const coverageType = trimToNull(coverage.coverage_type) ?? trimToNull(coverage.type);
+  const hasMeaningfulType = Boolean(
+    coverageType && !["unknown", "not_sure", "not sure"].includes(coverageType.toLowerCase()),
+  );
   return [
     coverage.provider,
     coverage.insurer,
@@ -454,7 +483,7 @@ function hasCoverageInfo(consent: unknown): boolean {
     coverage.policy_number,
     coverage.member_id,
     coverage.plan,
-  ].some(hasText);
+  ].some(hasText) || hasMeaningfulType;
 }
 
 function buildProfileServiceSignals(profile?: {
@@ -1181,6 +1210,70 @@ router.patch("/channel-preferences", async (req: Request, res: Response) => {
   }
 });
 
+router.patch("/coverage", async (req: Request, res: Response) => {
+  const userId = await resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const parsed = coveragePatchSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Invalid request body", details: parsed.error.flatten() });
+  }
+
+  try {
+    const [profileRow] = await db
+      .select({ data_sharing_consent: profiles.data_sharing_consent })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+
+    const currentConsent = objectRecord(profileRow?.data_sharing_consent);
+    const existingCoverage = objectRecord(currentConsent.coverage);
+    const now = new Date();
+    const provider = trimToNull(parsed.data.provider) ?? "";
+    const nextConsent = {
+      ...currentConsent,
+      coverage: {
+        ...existingCoverage,
+        coverage_type: parsed.data.coverageType,
+        provider,
+        insurer: provider,
+        member_id: trimToNull(parsed.data.memberId) ?? "",
+        plan: trimToNull(parsed.data.plan) ?? "",
+        notes: trimToNull(parsed.data.notes) ?? "",
+        source: "concierge_medical_booking",
+        updated_at: now.toISOString(),
+      },
+    };
+
+    await db
+      .insert(profiles)
+      .values({
+        id: userId,
+        data_sharing_consent: nextConsent,
+        updated_at: now,
+      })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          data_sharing_consent: nextConsent,
+          updated_at: now,
+        },
+      });
+
+    const profileSignals = buildProfileServiceSignals({ data_sharing_consent: nextConsent });
+    return res.json({
+      ok: true,
+      coverage: readCoverageSummary(nextConsent),
+      serviceReadiness: {
+        hasCoverageInfo: profileSignals.hasCoverageInfo,
+      },
+    });
+  } catch (error) {
+    console.error("[profile] failed to save coverage readiness", error);
+    return res.status(500).json({ error: "Unable to save coverage readiness" });
+  }
+});
+
 const profileSettingsSelection = {
   id: profiles.id,
   full_name: profiles.full_name,
@@ -1277,6 +1370,7 @@ router.get("/", async (req: Request, res: Response) => {
       gpEmail:          p.gp_email ?? "",
       avatarUrl:        p.avatar_url ?? null,
       savedProviders:   profileSignals.savedProviders,
+      coverage:         readCoverageSummary(p.data_sharing_consent),
       serviceReadiness: {
         hasSavedPharmacy: profileSignals.hasSavedPharmacy,
         hasSavedDoctor: profileSignals.hasSavedDoctor,

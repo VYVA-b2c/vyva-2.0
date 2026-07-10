@@ -106,12 +106,23 @@ type ConciergeProfileSummary = {
     phone?: string | null;
     address?: string | null;
   }>;
+  coverage?: CoverageReadinessSummary | null;
   serviceReadiness?: {
     hasSavedPharmacy?: boolean;
     hasCoverageInfo?: boolean;
     hasSavedTransportProvider?: boolean;
     hasMobilityInfo?: boolean;
   };
+};
+
+type CoverageReadinessType = "public" | "private" | "mixed" | "self_pay" | "unknown";
+
+type CoverageReadinessSummary = {
+  coverageType?: string | null;
+  provider?: string | null;
+  memberId?: string | null;
+  plan?: string | null;
+  notes?: string | null;
 };
 
 const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote", "task"] as const;
@@ -772,6 +783,23 @@ const APPOINTMENT_TYPE_CHIPS = [
     promptEn: "Help me schedule an appointment or service. Ask me for anything missing, prepare the options, and confirm with me before acting.",
   },
 ] as const;
+
+const COVERAGE_TYPE_OPTIONS: Array<{
+  key: CoverageReadinessType;
+  en: string;
+  es: string;
+}> = [
+  { key: "public", en: "Public", es: "Publica" },
+  { key: "private", en: "Private", es: "Privada" },
+  { key: "mixed", en: "Both", es: "Ambas" },
+  { key: "self_pay", en: "Self-pay", es: "Pago propio" },
+];
+
+function normalizeCoverageReadinessType(value: unknown): CoverageReadinessType {
+  return COVERAGE_TYPE_OPTIONS.some((option) => option.key === value)
+    ? value as CoverageReadinessType
+    : "public";
+}
 
 const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
   "medical",
@@ -1511,6 +1539,29 @@ async function cancelPendingAction(id: string) {
   }
 }
 
+async function saveCoverageReadiness(payload: {
+  coverageType: CoverageReadinessType;
+  provider: string;
+  memberId: string;
+  plan: string;
+  notes: string;
+}) {
+  const res = await apiFetch("/api/profile/coverage", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = (await res.json().catch(() => null)) as {
+    error?: string;
+    coverage?: CoverageReadinessSummary;
+    serviceReadiness?: { hasCoverageInfo?: boolean };
+  } | null;
+  if (!res.ok) {
+    throw new Error(data?.error ?? "Failed to save coverage details");
+  }
+  return data ?? {};
+}
+
 function phoneHref(phone?: string | null): string {
   const raw = phone?.trim();
   if (!raw) return "";
@@ -1585,12 +1636,18 @@ function appointmentConfirmationItems(params: {
     },
   ];
 
-  if (isMedical && !hasCoverageInfo) {
+  if (isMedical) {
     items.push({
-      label: isSpanish ? "Seguro: no guardado todavia" : "Insurance: not saved yet",
-      helper: isSpanish
-        ? "Si el proveedor lo necesita, VYVA te preguntara antes de compartir datos."
-        : "If the provider needs it, VYVA will ask before sharing details.",
+      label: hasCoverageInfo
+        ? (isSpanish ? "Seguro: guardado en perfil" : "Insurance: saved in profile")
+        : (isSpanish ? "Seguro: no guardado todavia" : "Insurance: not saved yet"),
+      helper: hasCoverageInfo
+        ? (isSpanish
+          ? "VYVA te preguntara antes de compartir cualquier dato."
+          : "VYVA will ask before sharing any details.")
+        : (isSpanish
+          ? "Si el proveedor lo necesita, VYVA te preguntara antes de compartir datos."
+          : "If the provider needs it, VYVA will ask before sharing details."),
     });
   }
 
@@ -1944,6 +2001,13 @@ const ConciergeScreen = () => {
   });
   const [appointmentNotice, setAppointmentNotice] = useState<string | null>(null);
   const [appointmentError, setAppointmentError] = useState<string | null>(null);
+  const [coverageType, setCoverageType] = useState<CoverageReadinessType>("public");
+  const [coverageProvider, setCoverageProvider] = useState("");
+  const [coverageMemberId, setCoverageMemberId] = useState("");
+  const [coveragePlan, setCoveragePlan] = useState("");
+  const [coverageNotes, setCoverageNotes] = useState("");
+  const [coverageNotice, setCoverageNotice] = useState<string | null>(null);
+  const [coverageError, setCoverageError] = useState<string | null>(null);
   const [appointmentBookedForm, setAppointmentBookedForm] = useState({
     scheduledFor: "",
     location: "",
@@ -2086,6 +2150,7 @@ const ConciergeScreen = () => {
       : (isSpanish ? "Preparado para revisar" : "Prepared for review");
   const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
+  const savedCoverage = conciergeProfile?.coverage ?? null;
   const savedPharmacy = savedPharmacyName(conciergeProfile);
   const hasSavedPharmacy = profileHasSavedPharmacy(conciergeProfile);
   const savedTransportProvider = savedTransportProviderName(conciergeProfile);
@@ -2112,6 +2177,22 @@ const ConciergeScreen = () => {
         isSpanish,
       })
     : [];
+
+  useEffect(() => {
+    if (!hasAppointmentCoverageInfo || !savedCoverage) return;
+    setCoverageType(normalizeCoverageReadinessType(savedCoverage.coverageType));
+    setCoverageProvider(savedCoverage.provider?.trim() ?? "");
+    setCoverageMemberId(savedCoverage.memberId?.trim() ?? "");
+    setCoveragePlan(savedCoverage.plan?.trim() ?? "");
+    setCoverageNotes(savedCoverage.notes?.trim() ?? "");
+  }, [
+    hasAppointmentCoverageInfo,
+    savedCoverage?.coverageType,
+    savedCoverage?.memberId,
+    savedCoverage?.notes,
+    savedCoverage?.plan,
+    savedCoverage?.provider,
+  ]);
 
   function prepareAppointmentAccessFallback(appointmentType: AppointmentType, detail: string) {
     const cleanedDetail = detail.trim();
@@ -2172,6 +2253,48 @@ const ConciergeScreen = () => {
   function prepareHomeServiceAccessFallback(detail: string) {
     prepareAppointmentAccessFallback("home-service", detail);
   }
+
+  const saveCoverageMutation = useMutation({
+    mutationFn: () => saveCoverageReadiness({
+      coverageType,
+      provider: coverageProvider,
+      memberId: coverageMemberId,
+      plan: coveragePlan,
+      notes: coverageNotes,
+    }),
+    onMutate: () => {
+      setCoverageError(null);
+      setCoverageNotice(null);
+    },
+    onSuccess: async (result) => {
+      const nextCoverage = result.coverage ?? {
+        coverageType,
+        provider: coverageProvider,
+        memberId: coverageMemberId,
+        plan: coveragePlan,
+        notes: coverageNotes,
+      };
+      queryClient.setQueryData<ConciergeProfileSummary | null>(["/api/profile"], (current) => ({
+        ...(current ?? {}),
+        coverage: nextCoverage,
+        serviceReadiness: {
+          ...(current?.serviceReadiness ?? {}),
+          hasCoverageInfo: result.serviceReadiness?.hasCoverageInfo ?? true,
+        },
+      }));
+      const savedMessage = isSpanish
+        ? "Cobertura guardada. VYVA te preguntara antes de compartirla."
+        : "Coverage saved. VYVA will ask before sharing it.";
+      setCoverageNotice(savedMessage);
+      setAppointmentNotice(savedMessage);
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+    },
+    onError: (error) => {
+      setCoverageError(error instanceof Error
+        ? error.message
+        : (isSpanish ? "No he podido guardar la cobertura." : "I could not save coverage details."));
+    },
+  });
 
   const createAppointmentMutation = useMutation({
     mutationFn: createAppointmentRequest,
@@ -2423,6 +2546,12 @@ const ConciergeScreen = () => {
   });
 
   const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
+  const isMedicalAppointmentIntent = appointmentIntentType === "medical";
+  const shouldShowCoverageReadiness = isMedicalAppointmentIntent && !hasAppointmentCoverageInfo;
+  const canSaveCoverageReadiness = coverageType !== "unknown"
+    || coverageProvider.trim().length > 0
+    || coverageMemberId.trim().length > 0
+    || coveragePlan.trim().length > 0;
   const isHomeServiceAppointment = appointmentIntentType === "home-service";
   const isHomeServiceIntakeActive = isHomeServiceAppointment && Boolean(homeServiceType);
   const isHomeServiceWithoutProvider = isHomeServiceAppointment && appointmentOptions.length === 0 && !appointmentAttemptResult;
@@ -5188,6 +5317,93 @@ const ConciergeScreen = () => {
                   placeholder={appointmentDetailPlaceholder}
                   className="mt-2 min-h-[50px] rounded-[18px] border-[#D8B4FE] bg-white font-body text-[15px] focus-visible:ring-[#7C3AED]/20"
                 />
+              </div>
+            )}
+
+            {shouldShowCoverageReadiness && (
+              <div
+                className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_12px_28px_rgba(15,118,110,0.10)]"
+                data-testid="panel-coverage-readiness"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#0F766E]">
+                    <ShieldCheck size={18} aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-body text-[16px] font-black leading-tight text-[#0F766E]">
+                      {isSpanish ? "Cobertura para citas medicas" : "Coverage for medical bookings"}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                      {isSpanish ? "Guardala una vez. VYVA pregunta antes de compartirla." : "Save it once. VYVA asks before sharing it."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {COVERAGE_TYPE_OPTIONS.map((option) => {
+                    const selected = coverageType === option.key;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setCoverageType(option.key)}
+                        data-testid={`button-coverage-type-${option.key}`}
+                        className={`vyva-tap min-h-[44px] rounded-full border px-3 font-body text-[13px] font-black ${
+                          selected
+                            ? "border-[#0F766E] bg-[#0F766E] text-white"
+                            : "border-[#99F6E4] bg-white text-[#0F766E]"
+                        }`}
+                      >
+                        {isSpanish ? option.es : option.en}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input
+                    value={coverageProvider}
+                    onChange={(event) => setCoverageProvider(event.target.value)}
+                    data-testid="input-coverage-provider"
+                    placeholder={isSpanish ? "Aseguradora o sistema (opcional)" : "Insurer or system (optional)"}
+                    className="min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#0F766E]/20"
+                  />
+                  <Input
+                    value={coverageMemberId}
+                    onChange={(event) => setCoverageMemberId(event.target.value)}
+                    data-testid="input-coverage-member-id"
+                    placeholder={isSpanish ? "Numero o referencia (opcional)" : "Member or policy ref (optional)"}
+                    className="min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#0F766E]/20"
+                  />
+                  <Input
+                    value={coveragePlan}
+                    onChange={(event) => setCoveragePlan(event.target.value)}
+                    data-testid="input-coverage-plan"
+                    placeholder={isSpanish ? "Plan o red preferida (opcional)" : "Plan or network (optional)"}
+                    className="min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#0F766E]/20 sm:col-span-2"
+                  />
+                </div>
+
+                {(coverageNotice || coverageError) && (
+                  <p
+                    className={`mt-3 rounded-[14px] px-3 py-2 font-body text-[12px] font-black ${
+                      coverageError ? "bg-[#FEF2F2] text-[#B91C1C]" : "bg-white text-[#0F766E]"
+                    }`}
+                  >
+                    {coverageError || coverageNotice}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => saveCoverageMutation.mutate()}
+                  disabled={!canSaveCoverageReadiness || saveCoverageMutation.isPending}
+                  data-testid="button-coverage-save"
+                  className="vyva-tap mt-3 inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-[#0F766E] px-4 font-body text-[15px] font-black text-white shadow-[0_12px_26px_rgba(15,118,110,0.18)] disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {saveCoverageMutation.isPending ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <CircleCheck size={16} aria-hidden="true" />}
+                  {isSpanish ? "Guardar cobertura" : "Save coverage"}
+                </button>
               </div>
             )}
 
