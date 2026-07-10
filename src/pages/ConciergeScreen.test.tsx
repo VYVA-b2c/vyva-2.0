@@ -1244,6 +1244,25 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("button-transport-find-options")).not.toBeDisabled();
   });
 
+  it("routes missing transport provider setup to trusted providers", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showBookRideFastHelp());
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("No saved provider yet");
+    });
+    fireEvent.click(screen.getByTestId("button-transport-provider-setup"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("Add a saved transport provider");
+    });
+  });
+
   it("requires pharmacy setup before OTC pharmacy help can start", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));

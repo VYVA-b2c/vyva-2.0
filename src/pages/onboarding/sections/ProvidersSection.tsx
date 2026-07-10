@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import {
   ChevronLeft,
@@ -11,6 +11,10 @@ import {
   MapPin,
   Phone,
   Pencil,
+  Mail,
+  MessageCircle,
+  Link2,
+  ShieldCheck,
 } from "lucide-react";
 import { ProfileSectionHero, seniorInputClassName } from "@/components/onboarding/ProfileSectionHero";
 import { Input } from "@/components/ui/input";
@@ -25,8 +29,10 @@ import { friendlyError } from "@/lib/apiError";
 interface ProviderCategory {
   id: string;
   label: string;
-  placesType: PlaceCategory;
+  placesType?: PlaceCategory;
 }
+
+type ProviderContactChannel = "phone" | "whatsapp" | "email" | "booking_url" | "manual";
 
 const GOOGLE_TYPE_LABELS: Record<string, string> = {
   accounting: "Accounting",
@@ -170,23 +176,61 @@ function getPrimaryGoogleTypeLabel(types: string[]): string | null {
 }
 
 const PROVIDER_CATEGORIES: ProviderCategory[] = [
-  { id: "pharmacy",        label: "Pharmacy",     placesType: "pharmacy" },
-  { id: "doctor",          label: "GP / Doctor",  placesType: "doctor" },
-  { id: "hospital",        label: "Hospital",     placesType: "hospital" },
-  { id: "dentist",         label: "Dentist",      placesType: "dentist" },
-  { id: "physiotherapist", label: "Physio",       placesType: "physiotherapist" },
-  { id: "clinic",          label: "Clinic",       placesType: "health" },
-  { id: "restaurant",      label: "Restaurant",   placesType: "restaurant" },
-  { id: "cafe",            label: "Cafe",         placesType: "cafe" },
-  { id: "meal_takeaway",   label: "Takeaway",     placesType: "meal_takeaway" },
-  { id: "meal_delivery",   label: "Deliveries",   placesType: "meal_delivery" },
-  { id: "supermarket",     label: "Supermarket",  placesType: "supermarket" },
-  { id: "convenience",     label: "Convenience",  placesType: "convenience_store" },
-  { id: "shopping",        label: "Shopping",     placesType: "shopping_mall" },
-  { id: "beauty_salon",    label: "Beauty Salon", placesType: "beauty_salon" },
-  { id: "hair_care",       label: "Hair Care",    placesType: "hair_care" },
-  { id: "spa",             label: "Spa",          placesType: "spa" },
-  { id: "gym",             label: "Gym",          placesType: "gym" },
+  { id: "pharmacy",      label: "Pharmacy",       placesType: "pharmacy" },
+  { id: "doctor_clinic", label: "Doctor / Clinic", placesType: "health" },
+  { id: "transport",     label: "Transport / Taxi", placesType: "transport" },
+  { id: "home_service",  label: "Home service",   placesType: "home_service" },
+  { id: "personal_care", label: "Personal care",  placesType: "beauty_salon" },
+  { id: "food",          label: "Restaurant / Food", placesType: "restaurant" },
+  { id: "other",         label: "Other" },
+];
+
+const CATEGORY_ALIASES: Record<string, string> = {
+  doctor: "doctor_clinic",
+  clinic: "doctor_clinic",
+  hospital: "doctor_clinic",
+  dentist: "doctor_clinic",
+  physiotherapist: "doctor_clinic",
+  gp: "doctor_clinic",
+  health: "doctor_clinic",
+  taxi: "transport",
+  taxi_stand: "transport",
+  ride: "transport",
+  driver: "transport",
+  car_service: "transport",
+  "home-service": "home_service",
+  home_repair: "home_service",
+  repair: "home_service",
+  plumber: "home_service",
+  electrician: "home_service",
+  cleaner: "home_service",
+  beauty_salon: "personal_care",
+  hair_care: "personal_care",
+  spa: "personal_care",
+  restaurant: "food",
+  cafe: "food",
+  meal_takeaway: "food",
+  meal_delivery: "food",
+};
+
+function normalizeProviderCategory(value: string | null | undefined): string {
+  const key = (value ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (PROVIDER_CATEGORIES.some((category) => category.id === key)) return key;
+  return CATEGORY_ALIASES[key] ?? "other";
+}
+
+function setupFocusFromState(state: unknown): string | null {
+  if (!state || typeof state !== "object") return null;
+  const focus = (state as Record<string, unknown>).setupFocus;
+  return typeof focus === "string" ? normalizeProviderCategory(focus) : null;
+}
+
+const CONTACT_CHANNELS: { value: ProviderContactChannel; label: string }[] = [
+  { value: "phone", label: "Phone" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "email", label: "Email" },
+  { value: "booking_url", label: "Booking link" },
+  { value: "manual", label: "Ask me" },
 ];
 
 interface ProviderEntry {
@@ -204,6 +248,11 @@ interface ProviderEntry {
   contact_name?: string;
   contact_role?: string;
   contact_phone?: string;
+  email?: string;
+  whatsapp?: string;
+  booking_url?: string;
+  preferred_channel?: ProviderContactChannel;
+  can_contact_after_confirmation?: boolean;
   usual_order?: string;
   special_requests?: string;
   online_order_url?: string;
@@ -214,7 +263,13 @@ interface ProviderEntry {
 interface SavedProvider {
   name: string;
   role?: string;
+  category?: string;
   phone?: string;
+  email?: string;
+  whatsapp?: string;
+  booking_url?: string;
+  preferred_channel?: ProviderContactChannel;
+  can_contact_after_confirmation?: boolean;
   google_maps_url?: string;
   google_place_id?: string;
   address?: string;
@@ -225,6 +280,11 @@ interface SavedProvider {
   contact_name?: string;
   contact_role?: string;
   contact_phone?: string;
+  email?: string;
+  whatsapp?: string;
+  booking_url?: string;
+  preferred_channel?: ProviderContactChannel;
+  can_contact_after_confirmation?: boolean;
   usual_order?: string;
   special_requests?: string;
   online_order_url?: string;
@@ -236,6 +296,9 @@ interface PendingProvider {
   name: string;
   address: string;
   phone: string;
+  email: string;
+  whatsapp: string;
+  bookingUrl: string;
   mapsUrl: string;
   placeId: string;
   types?: string[];
@@ -259,6 +322,11 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
         contact_name:     e.contact_name || undefined,
         contact_role:     e.contact_role || undefined,
         contact_phone:    e.contact_phone || undefined,
+        email:            e.email || undefined,
+        whatsapp:         e.whatsapp || undefined,
+        booking_url:      e.booking_url || e.online_order_url || undefined,
+        preferred_channel: e.preferred_channel || undefined,
+        can_contact_after_confirmation: e.can_contact_after_confirmation ?? undefined,
         usual_order:      e.usual_order || undefined,
         special_requests: e.special_requests || undefined,
         online_order_url: e.online_order_url || undefined,
@@ -271,9 +339,11 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
 
 const ProvidersSection = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
-  const [activeCategory, setActiveCategory] = useState<string>(PROVIDER_CATEGORIES[0].id);
+  const initialCategory = setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
+  const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
 
   const [pending, setPending] = useState<PendingProvider | null>(null);
@@ -281,6 +351,11 @@ const ProvidersSection = () => {
   const [manualName, setManualName] = useState("");
   const [manualAddress, setManualAddress] = useState("");
   const [manualPhone, setManualPhone] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualWhatsapp, setManualWhatsapp] = useState("");
+  const [manualBookingUrl, setManualBookingUrl] = useState("");
+  const [manualPreferredChannel, setManualPreferredChannel] = useState<ProviderContactChannel>("phone");
+  const [manualCanContactAfterConfirmation, setManualCanContactAfterConfirmation] = useState(true);
 
   const [searchKey, setSearchKey] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -303,12 +378,9 @@ const ProvidersSection = () => {
       loadedRef.current = true;
       const entries: ProviderEntry[] = saved.map((p, i) => {
         counterRef.current = i + 1;
-        const categoryMatch = PROVIDER_CATEGORIES.find(
-          (c) => c.id === p.role || c.placesType === p.role || c.label.toLowerCase() === (p.role ?? "").toLowerCase()
-        );
         return {
           id: `provider-${i + 1}`,
-          category: categoryMatch?.id ?? "pharmacy",
+          category: normalizeProviderCategory(p.category ?? p.role),
           name: p.name,
           address: p.address ?? "",
           phone: p.phone ?? "",
@@ -321,6 +393,11 @@ const ProvidersSection = () => {
           contact_name: p.contact_name,
           contact_role: p.contact_role,
           contact_phone: p.contact_phone,
+          email: p.email,
+          whatsapp: p.whatsapp,
+          booking_url: p.booking_url,
+          preferred_channel: p.preferred_channel,
+          can_contact_after_confirmation: p.can_contact_after_confirmation,
           usual_order: p.usual_order,
           special_requests: p.special_requests,
           online_order_url: p.online_order_url,
@@ -345,6 +422,9 @@ const ProvidersSection = () => {
       name: p.name,
       address: p.full_address,
       phone: p.phone,
+      email: "",
+      whatsapp: "",
+      bookingUrl: "",
       mapsUrl: p.google_maps_url ?? "",
       placeId: p.google_place_id ?? "",
       types: p.types,
@@ -368,6 +448,11 @@ const ProvidersSection = () => {
       name: pending.name,
       address: pending.address,
       phone: pending.phone,
+      email: pending.email,
+      whatsapp: pending.whatsapp,
+      booking_url: pending.bookingUrl,
+      preferred_channel: pending.bookingUrl ? "booking_url" : (pending.phone ? "phone" : "manual"),
+      can_contact_after_confirmation: true,
       google_maps_url: resolvedMapsUrl,
       google_place_id: pending.placeId || undefined,
     };
@@ -402,6 +487,11 @@ const ProvidersSection = () => {
       name: manualName,
       address: manualAddress,
       phone: manualPhone,
+      email: manualEmail,
+      whatsapp: manualWhatsapp,
+      booking_url: manualBookingUrl,
+      preferred_channel: manualPreferredChannel,
+      can_contact_after_confirmation: manualCanContactAfterConfirmation,
       google_maps_url: resolvedMapsUrl,
     };
     const updated = [...providers, entry];
@@ -409,9 +499,19 @@ const ProvidersSection = () => {
     const snapshotName = manualName;
     const snapshotAddress = manualAddress;
     const snapshotPhone = manualPhone;
+    const snapshotEmail = manualEmail;
+    const snapshotWhatsapp = manualWhatsapp;
+    const snapshotBookingUrl = manualBookingUrl;
+    const snapshotPreferredChannel = manualPreferredChannel;
+    const snapshotCanContact = manualCanContactAfterConfirmation;
     setManualName("");
     setManualAddress("");
     setManualPhone("");
+    setManualEmail("");
+    setManualWhatsapp("");
+    setManualBookingUrl("");
+    setManualPreferredChannel("phone");
+    setManualCanContactAfterConfirmation(true);
     setShowManualForm(false);
     let res: Response | undefined;
     try {
@@ -422,6 +522,11 @@ const ProvidersSection = () => {
       setManualName(snapshotName);
       setManualAddress(snapshotAddress);
       setManualPhone(snapshotPhone);
+      setManualEmail(snapshotEmail);
+      setManualWhatsapp(snapshotWhatsapp);
+      setManualBookingUrl(snapshotBookingUrl);
+      setManualPreferredChannel(snapshotPreferredChannel);
+      setManualCanContactAfterConfirmation(snapshotCanContact);
       setShowManualForm(true);
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
       toast({ title: "Could not add provider", description: msg, variant: "destructive" });
@@ -482,6 +587,11 @@ const ProvidersSection = () => {
       contact_name:    updated.contact_name,
       contact_role:    updated.contact_role,
       contact_phone:   updated.contact_phone,
+      email:           updated.email,
+      whatsapp:        updated.whatsapp,
+      booking_url:     updated.booking_url,
+      preferred_channel: updated.preferred_channel,
+      can_contact_after_confirmation: updated.can_contact_after_confirmation,
       usual_order:     updated.usual_order,
       special_requests: updated.special_requests,
       online_order_url: updated.online_order_url,
@@ -522,19 +632,19 @@ const ProvidersSection = () => {
           >
             <Building2 size={18} style={{ color: "#6B21A8" }} />
           </div>
-          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">My Providers</h1>
+          <h1 className="font-display text-[20px] font-semibold text-vyva-text-1">Trusted providers</h1>
         </div>
       </div>
 
       <div className="flex-1 px-5 space-y-7 pb-4">
         <ProfileSectionHero
           icon={Building2}
-          title="Trusted places"
+          title="Trusted providers"
           kicker="Concierge-ready"
-          description="Save the pharmacies, clinics, restaurants, salons, and services VYVA can help you call, book, or find again."
+          description="Save the people and places VYVA can help contact after you confirm."
           badges={[
-            { label: "Health services", color: "blue" },
-            { label: "Daily help", color: "amber" },
+            { label: "No booking without your say", color: "blue" },
+            { label: "Calls and links ready", color: "amber" },
             { label: "Trusted list", color: "purple" },
           ]}
         />
@@ -575,6 +685,7 @@ const ProvidersSection = () => {
                 Confirm this {categoryLabel}
               </p>
               {pending.types && pending.types.length > 0 &&
+                activeCategoryDef.placesType &&
                 !CATEGORY_TYPES[activeCategoryDef.placesType]?.some((t) =>
                   pending.types!.includes(t)
                 ) && (() => {
@@ -723,6 +834,95 @@ const ProvidersSection = () => {
                 />
               )}
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
+                  <Mail size={12} className="text-vyva-text-3" />
+                  Email <span className="text-vyva-text-3 font-normal">(optional)</span>
+                </label>
+                <Input
+                  data-testid="input-manual-email"
+                  type="email"
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  placeholder="hello@example.com"
+                  className={seniorInputClassName}
+                />
+              </div>
+              <div>
+                <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
+                  <MessageCircle size={12} className="text-vyva-text-3" />
+                  WhatsApp <span className="text-vyva-text-3 font-normal">(optional)</span>
+                </label>
+                <Input
+                  data-testid="input-manual-whatsapp"
+                  type="tel"
+                  value={manualWhatsapp}
+                  onChange={(e) => setManualWhatsapp(e.target.value)}
+                  placeholder="+44 1234 567890"
+                  className={seniorInputClassName}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="font-body text-[12px] font-medium text-vyva-text-2 mb-1 flex items-center gap-1">
+                <Link2 size={12} className="text-vyva-text-3" />
+                Booking link <span className="text-vyva-text-3 font-normal">(optional)</span>
+              </label>
+              <Input
+                data-testid="input-manual-booking-url"
+                type="url"
+                value={manualBookingUrl}
+                onChange={(e) => setManualBookingUrl(e.target.value)}
+                placeholder="https://booking.example.com"
+                className={seniorInputClassName}
+              />
+            </div>
+            <div>
+              <p className="mb-2 font-body text-[12px] font-medium text-vyva-text-2">
+                Best way to reach them
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {CONTACT_CHANNELS.map((channel) => (
+                  <button
+                    key={channel.value}
+                    type="button"
+                    data-testid={`button-manual-channel-${channel.value}`}
+                    onClick={() => setManualPreferredChannel(channel.value)}
+                    className={`min-h-9 rounded-full border px-3 font-body text-[12px] font-black ${
+                      manualPreferredChannel === channel.value
+                        ? "border-vyva-purple bg-vyva-purple text-white"
+                        : "border-vyva-border bg-white text-vyva-text-2"
+                    }`}
+                  >
+                    {channel.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="button-manual-contact-permission"
+              onClick={() => setManualCanContactAfterConfirmation((value) => !value)}
+              className={`flex w-full items-start gap-3 rounded-[16px] border px-3 py-3 text-left ${
+                manualCanContactAfterConfirmation
+                  ? "border-[#BBF7D0] bg-[#ECFDF5]"
+                  : "border-vyva-border bg-white"
+              }`}
+            >
+              <ShieldCheck
+                size={18}
+                className={manualCanContactAfterConfirmation ? "mt-0.5 text-[#047857]" : "mt-0.5 text-vyva-text-3"}
+              />
+              <span className="min-w-0">
+                <span className="block font-body text-[13px] font-black text-vyva-text-1">
+                  VYVA may contact them after I confirm.
+                </span>
+                <span className="mt-0.5 block font-body text-[11px] font-semibold text-vyva-text-3">
+                  Nothing is called, sent, or booked without your final say.
+                </span>
+              </span>
+            </button>
             <button
               data-testid="button-manual-add"
               onClick={addFromManual}
@@ -760,6 +960,7 @@ const ProvidersSection = () => {
             {providers.map((p) => {
               const catLabel = PROVIDER_CATEGORIES.find((c) => c.id === p.category)?.label ?? p.category;
               const hasPrefs = p.usual_order || p.special_requests || p.contact_name || p.opening_hours?.length;
+              const hasContact = p.phone || p.email || p.whatsapp || p.booking_url || p.online_order_url;
               return (
                 <div
                   key={p.id}
@@ -772,9 +973,18 @@ const ProvidersSection = () => {
                     {p.address && (
                       <p className="font-body text-[12px] text-vyva-text-2 truncate">{p.address}</p>
                     )}
-                    {hasPrefs && (
-                      <p className="font-body text-[11px] text-vyva-purple mt-0.5">Details saved</p>
-                    )}
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {hasContact && (
+                        <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 font-body text-[11px] font-black text-[#047857]">
+                          Contact ready
+                        </span>
+                      )}
+                      {hasPrefs && (
+                        <span className="rounded-full bg-[#F5F3FF] px-2 py-0.5 font-body text-[11px] font-black text-vyva-purple">
+                          Details saved
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button

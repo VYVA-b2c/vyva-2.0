@@ -4023,6 +4023,8 @@ const ConciergeScreen = () => {
                 onClick={() => navigate("/onboarding/profile/providers", {
                   state: {
                     returnTo: "/concierge",
+                    setupFocus: "pharmacy",
+                    setupReason: "Add a saved pharmacy",
                     notice: isSpanish
                       ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
                       : "Add a saved pharmacy before asking for help with over-the-counter items.",
@@ -4257,6 +4259,25 @@ const ConciergeScreen = () => {
                         : (isSpanish ? "Sin proveedor guardado: VYVA compara opciones seguras." : "No saved provider yet: VYVA compares safe options.")}
                     </p>
                   </div>
+                  {!hasSavedTransportProvider ? (
+                    <button
+                      type="button"
+                      data-testid="button-transport-provider-setup"
+                      onClick={() => navigate("/onboarding/profile/providers", {
+                        state: {
+                          returnTo: "/concierge",
+                          setupFocus: "transport",
+                          setupReason: "Add a saved transport provider",
+                          notice: isSpanish
+                            ? "Guarda un taxi o transporte preferido para usarlo primero."
+                            : "Save a preferred taxi or transport provider to check first.",
+                        },
+                      })}
+                      className="ml-auto flex-shrink-0 rounded-full border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-1.5 font-body text-[12px] font-black text-[#047857]"
+                    >
+                      {isSpanish ? "Guardar" : "Save"}
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="mt-4">
