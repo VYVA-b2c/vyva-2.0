@@ -143,6 +143,14 @@ function showBookRideFastHelp() {
   return screen.getByTestId("button-concierge-fast-book-ride");
 }
 
+function showOtcPharmacyFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(9000);
+  });
+  return screen.getByTestId("button-concierge-fast-otc-pharmacy");
+}
+
 afterEach(() => {
   vi.useRealTimers();
   apiFetchMock.mockReset();
@@ -1106,6 +1114,81 @@ describe("ConciergeScreen action hub", () => {
     });
 
     expect(screen.getByTestId("button-transport-find-options")).not.toBeDisabled();
+  });
+
+  it("requires pharmacy setup before OTC pharmacy help can start", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showOtcPharmacyFastHelp());
+    vi.useRealTimers();
+
+    expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Save a pharmacy first");
+    expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Service not active yet");
+    fireEvent.click(screen.getByTestId("button-otc-pharmacy-setup"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+      expect(screen.getByTestId("route-state")).toHaveTextContent("Add a saved pharmacy");
+    });
+  });
+
+  it("prepares OTC pharmacy requests only through a saved pharmacy", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{ name: "Neighborhood Pharmacy", role: "pharmacy" }],
+          serviceReadiness: { hasSavedPharmacy: true },
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.use_case).toBe("order_medicine");
+        expect(body.provider_name).toBe("Neighborhood Pharmacy");
+        expect(body.auto_start).toBe(false);
+        expect(body.action_payload.item_scope).toBe("over_the_counter_only");
+        expect(body.action_payload.prescription_items_allowed).toBe(false);
+        expect(body.action_payload.item_text).toBe("Vitamins");
+        expect(body.action_payload.fulfillment_preference).toBe("pickup");
+        expect(body.action_payload.requested_time).toBe("tomorrow");
+        return jsonResponse({ pendingId: "otc-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await showOtcPharmacyFastHelp());
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
+    });
+    expect(screen.getByTestId("button-otc-pharmacy-prepare")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("input-otc-pharmacy-item"), {
+      target: { value: "Vitamins" },
+    });
+    fireEvent.click(screen.getByTestId("button-otc-fulfillment-pickup"));
+    fireEvent.change(screen.getByTestId("input-otc-pharmacy-time"), {
+      target: { value: "tomorrow" },
+    });
+    fireEvent.change(screen.getByTestId("input-otc-pharmacy-notes"), {
+      target: { value: "Small bottle if possible" },
+    });
+
+    expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("OTC item: Vitamins");
+    expect(screen.getByTestId("button-otc-pharmacy-prepare")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("button-otc-pharmacy-prepare"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(await screen.findByText("OTC request prepared. Confirm before VYVA contacts the pharmacy.")).toBeVisible();
   });
 
   it("finds transport options and prepares a provider without starting a booking", async () => {

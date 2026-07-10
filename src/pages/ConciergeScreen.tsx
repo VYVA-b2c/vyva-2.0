@@ -25,6 +25,7 @@ import {
   Mic,
   PackageCheck,
   ShoppingBasket,
+  Pill,
   PiggyBank,
   Building2,
   PencilLine,
@@ -957,6 +958,23 @@ const TRANSPORT_MOBILITY_NEEDS = [
   { value: "Low walking distance", en: "Low walking", es: "Caminar poco" },
 ] as const;
 
+const OTC_PHARMACY_TIME_HINTS = [
+  { value: "today", en: "Today", es: "Hoy" },
+  { value: "tomorrow", en: "Tomorrow", es: "Manana" },
+  { value: "this week", en: "This week", es: "Esta semana" },
+] as const;
+
+const OTC_PHARMACY_DELIVERY_OPTIONS = [
+  { value: "delivery", en: "Delivery", es: "Entrega" },
+  { value: "pickup", en: "Pickup", es: "Recoger" },
+] as const;
+
+const OTC_PHARMACY_ITEM_HINTS = [
+  { value: "Pain relief, non-prescription", en: "Pain relief", es: "Dolor sin receta" },
+  { value: "Bandages or first aid", en: "First aid", es: "Botiquin" },
+  { value: "Vitamins", en: "Vitamins", es: "Vitaminas" },
+] as const;
+
 async function callConcierge(
   prompt: string,
   history: ChatMessage[],
@@ -1130,6 +1148,44 @@ async function prepareTransportConciergeAction(params: {
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Could not prepare transport request");
+  }
+  return await res.json() as { pendingId?: string; status?: string; message?: string };
+}
+
+async function prepareOtcPharmacyConciergeAction(params: {
+  pharmacyName: string;
+  itemText: string;
+  fulfillmentPreference: string;
+  requestedTime: string;
+  notes: string;
+  locale: string;
+}) {
+  const itemText = params.itemText.trim();
+  const res = await apiFetch("/api/concierge/actions/trigger", {
+    method: "POST",
+    body: JSON.stringify({
+      use_case: "order_medicine",
+      provider_name: params.pharmacyName,
+      found_externally: false,
+      action_summary: `OTC pharmacy request prepared: ${itemText || "items"} via ${params.pharmacyName}.`,
+      action_payload: {
+        pharmacy_name: params.pharmacyName,
+        item_text: itemText,
+        item_scope: "over_the_counter_only",
+        prescription_items_allowed: false,
+        fulfillment_preference: params.fulfillmentPreference,
+        requested_time: params.requestedTime.trim() || "today",
+        notes: params.notes.trim(),
+        confirmation_required_before_contact: true,
+      },
+      language: params.locale,
+      trigger_source: "user_request",
+      auto_start: false,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not prepare OTC pharmacy request");
   }
   return await res.json() as { pendingId?: string; status?: string; message?: string };
 }
@@ -1629,6 +1685,34 @@ function transportConfirmationItems(params: {
   ];
 }
 
+function otcPharmacyConfirmationItems(params: {
+  pharmacyName: string;
+  itemText: string;
+  fulfillmentPreference: string;
+  requestedTime: string;
+  notes: string;
+  isSpanish: boolean;
+}): Array<{ label: string; helper?: string }> {
+  const itemText = params.itemText.trim() || (params.isSpanish ? "Producto pendiente" : "Item needed");
+  const preference = params.fulfillmentPreference === "pickup"
+    ? (params.isSpanish ? "Recoger" : "Pickup")
+    : (params.isSpanish ? "Entrega" : "Delivery");
+  return [
+    {
+      label: params.isSpanish ? `Farmacia: ${params.pharmacyName}` : `Pharmacy: ${params.pharmacyName}`,
+      helper: params.isSpanish ? "Proveedor guardado en el perfil" : "Saved provider from profile",
+    },
+    {
+      label: params.isSpanish ? `Producto OTC: ${itemText}` : `OTC item: ${itemText}`,
+      helper: params.isSpanish ? "Solo productos sin receta" : "Over-the-counter only",
+    },
+    {
+      label: params.isSpanish ? `${preference}: ${params.requestedTime.trim() || "hoy"}` : `${preference}: ${params.requestedTime.trim() || "today"}`,
+      helper: params.notes.trim() || (params.isSpanish ? "Sin notas extra" : "No extra notes"),
+    },
+  ];
+}
+
 function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
   const labels: Record<AppointmentMissionState["status"], { en: string; es: string }> = {
     collecting_details: { en: "Details needed", es: "Faltan detalles" },
@@ -1874,6 +1958,13 @@ const ConciergeScreen = () => {
   const [transportResult, setTransportResult] = useState<TransportOptionsResponse | null>(null);
   const [transportError, setTransportError] = useState<string | null>(null);
   const [transportNotice, setTransportNotice] = useState<string | null>(null);
+  const [otcPharmacyOpen, setOtcPharmacyOpen] = useState(false);
+  const [otcItemText, setOtcItemText] = useState("");
+  const [otcFulfillmentPreference, setOtcFulfillmentPreference] = useState<"delivery" | "pickup">("delivery");
+  const [otcRequestedTime, setOtcRequestedTime] = useState("today");
+  const [otcNotes, setOtcNotes] = useState("");
+  const [otcNotice, setOtcNotice] = useState<string | null>(null);
+  const [otcError, setOtcError] = useState<string | null>(null);
   const [offersOpen, setOffersOpen] = useState(false);
   const [savingsPanelView, setSavingsPanelView] = useState<SavingsPanelView>("overview");
   const [offersQuery, setOffersQuery] = useState("");
@@ -1995,11 +2086,22 @@ const ConciergeScreen = () => {
       : (isSpanish ? "Preparado para revisar" : "Prepared for review");
   const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
+  const savedPharmacy = savedPharmacyName(conciergeProfile);
+  const hasSavedPharmacy = profileHasSavedPharmacy(conciergeProfile);
   const savedTransportProvider = savedTransportProviderName(conciergeProfile);
   const hasSavedTransportProvider = profileHasSavedTransportProvider(conciergeProfile);
   const hasSavedTransportMobilityInfo = Boolean(conciergeProfile?.serviceReadiness?.hasMobilityInfo);
   const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
   const hasTransportDestination = transportDestination.trim().length > 0;
+  const canPrepareOtcPharmacy = hasSavedPharmacy && otcItemText.trim().length > 0;
+  const otcPharmacyConfirmation = otcPharmacyConfirmationItems({
+    pharmacyName: savedPharmacy || (isSpanish ? "Farmacia guardada" : "Saved pharmacy"),
+    itemText: otcItemText,
+    fulfillmentPreference: otcFulfillmentPreference,
+    requestedTime: otcRequestedTime,
+    notes: otcNotes,
+    isSpanish,
+  });
   const selectedAppointmentConfirmationItems = selectedAppointmentActionChannel
     ? appointmentConfirmationItems({
         providerName: appointmentProviderName,
@@ -2293,6 +2395,30 @@ const ConciergeScreen = () => {
     },
     onError: (error) => {
       setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la solicitud." : "I could not prepare the request."));
+    },
+  });
+
+  const prepareOtcPharmacyMutation = useMutation({
+    mutationFn: () => prepareOtcPharmacyConciergeAction({
+      pharmacyName: savedPharmacy || (isSpanish ? "Farmacia guardada" : "Saved pharmacy"),
+      itemText: otcItemText,
+      fulfillmentPreference: otcFulfillmentPreference,
+      requestedTime: otcRequestedTime,
+      notes: otcNotes,
+      locale,
+    }),
+    onMutate: () => {
+      setOtcError(null);
+      setOtcNotice(null);
+    },
+    onSuccess: async () => {
+      setOtcNotice(isSpanish
+        ? "Solicitud OTC preparada. Confirma antes de que VYVA contacte con la farmacia."
+        : "OTC request prepared. Confirm before VYVA contacts the pharmacy.");
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setOtcError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la solicitud OTC." : "I could not prepare the OTC request."));
     },
   });
 
@@ -3435,15 +3561,8 @@ const ConciergeScreen = () => {
   }
 
   function openShoppingHelp(kind: "groceries" | "essentials" | "prepared-meals" | "pharmacy" = "groceries") {
-    if (kind === "pharmacy" && !profileHasSavedPharmacy(conciergeProfile)) {
-      navigate("/onboarding/profile/providers", {
-        state: {
-          returnTo: "/concierge",
-          notice: isSpanish
-            ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
-            : "Add a saved pharmacy before asking for help with over-the-counter items.",
-        },
-      });
+    if (kind === "pharmacy") {
+      openOtcPharmacyAssistant();
       return;
     }
 
@@ -3500,6 +3619,22 @@ const ConciergeScreen = () => {
         },
       },
     });
+  }
+
+  function openOtcPharmacyAssistant() {
+    setOtcPharmacyOpen(true);
+    setAppointmentOpen(false);
+    setOffersOpen(false);
+    setRoutePrefill(null);
+    setOtcNotice(null);
+    setOtcError(null);
+    setOtcFulfillmentPreference("delivery");
+    setOtcRequestedTime("today");
+    setOtcNotes("");
+    if (!otcItemText.trim()) {
+      setOtcItemText("");
+    }
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
   const conciergeMasterCards: MasterDashboardCard[] = [
@@ -3610,6 +3745,15 @@ const ConciergeScreen = () => {
       testId: "button-concierge-fast-order-groceries",
     },
     {
+      id: "otc-pharmacy",
+      icon: Pill,
+      label: t("concierge.master.fastHelp.otcPharmacy", "OTC Pharmacy"),
+      detail: t("concierge.master.fastHelp.otcPharmacyDetail", "Non-prescription"),
+      tone: { iconBg: "#FFF7ED", iconColor: "#B45309", border: "#FED7AA" },
+      onClick: openOtcPharmacyAssistant,
+      testId: "button-concierge-fast-otc-pharmacy",
+    },
+    {
       id: "find-specialist",
       icon: UserRound,
       label: t("concierge.master.fastHelp.findSpecialist", "Find Specialist"),
@@ -3687,6 +3831,213 @@ const ConciergeScreen = () => {
       cards={conciergeMasterCards}
       fastHelpActions={conciergeMasterFastHelpActions}
     >
+
+      {otcPharmacyOpen && (
+        <section
+          className="relative z-20 order-[15] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#FED7AA] bg-white"
+          style={{ boxShadow: "0 18px 42px rgba(180,83,9,0.12)" }}
+          data-testid="panel-otc-pharmacy"
+        >
+          <div className="bg-[#FFF7ED] p-4 lg:p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#B45309] shadow-sm">
+                <Pill size={23} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#B45309]">
+                  {isSpanish ? "Farmacia OTC" : "OTC pharmacy"}
+                </p>
+                <h2 className="mt-1 font-body text-[23px] font-black leading-tight text-vyva-text-1">
+                  {hasSavedPharmacy
+                    ? (isSpanish ? "Productos sin receta" : "Non-prescription items")
+                    : (isSpanish ? "Guarda una farmacia primero" : "Save a pharmacy first")}
+                </h2>
+                <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                  {isSpanish
+                    ? "VYVA no gestiona medicinas con receta aqui."
+                    : "VYVA does not handle prescription medicines here."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOtcPharmacyOpen(false)}
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#B45309]"
+                aria-label={isSpanish ? "Cerrar" : "Close"}
+                data-testid="button-otc-pharmacy-close"
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
+
+          {!hasSavedPharmacy ? (
+            <div className="space-y-3 p-4 lg:p-5">
+              <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFFCF8] p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#FFF7ED] text-[#B45309]">
+                    <ShieldCheck size={19} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-body text-[17px] font-black leading-tight text-vyva-text-1">
+                      {isSpanish ? "Servicio no activo todavia" : "Service not active yet"}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                      {isSpanish
+                        ? "Para OTC, primero guarda una farmacia preferida. Despues VYVA puede preparar entrega o recogida."
+                        : "For OTC help, save a preferred pharmacy first. Then VYVA can prepare delivery or pickup."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/onboarding/profile/providers", {
+                  state: {
+                    returnTo: "/concierge",
+                    notice: isSpanish
+                      ? "Anade una farmacia guardada antes de pedir ayuda con productos sin receta."
+                      : "Add a saved pharmacy before asking for help with over-the-counter items.",
+                  },
+                })}
+                className="vyva-tap inline-flex min-h-[54px] w-full items-center justify-center gap-2 rounded-full bg-[#B45309] px-5 font-body text-[16px] font-black text-white"
+                data-testid="button-otc-pharmacy-setup"
+              >
+                <PencilLine size={17} />
+                {isSpanish ? "Guardar farmacia" : "Save pharmacy"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3 p-4 lg:p-5">
+              <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFFCF8] p-4">
+                <div className="flex items-start gap-3 rounded-[16px] bg-white px-3 py-2">
+                  <CircleCheck size={17} className="mt-0.5 flex-shrink-0 text-[#B45309]" />
+                  <p className="font-body text-[13px] font-black leading-snug text-vyva-text-1">
+                    {isSpanish ? `Farmacia guardada: ${savedPharmacy || "Farmacia"}` : `Saved pharmacy: ${savedPharmacy || "Pharmacy"}`}
+                  </p>
+                </div>
+
+                <label className="mt-4 block">
+                  <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                    {isSpanish ? "Que necesitas" : "What do you need"}
+                  </span>
+                  <Input
+                    value={otcItemText}
+                    onChange={(event) => setOtcItemText(event.target.value)}
+                    placeholder={isSpanish ? "Ej. vitaminas, tiritas, jarabe sin receta" : "E.g. vitamins, bandages, OTC cough syrup"}
+                    data-testid="input-otc-pharmacy-item"
+                    className="min-h-[56px] rounded-[18px] border-[#FED7AA] bg-white font-body text-[17px] font-semibold shadow-sm"
+                  />
+                </label>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {OTC_PHARMACY_ITEM_HINTS.map((hint) => (
+                    <button
+                      key={hint.value}
+                      type="button"
+                      onClick={() => setOtcItemText(hint.value)}
+                      className="vyva-tap min-h-[38px] rounded-full border border-[#FED7AA] bg-white px-3 font-body text-[12px] font-black text-[#B45309]"
+                      data-testid={`button-otc-item-${testIdSlug(hint.en)}`}
+                    >
+                      {isSpanish ? hint.es : hint.en}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                      {isSpanish ? "Como" : "How"}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {OTC_PHARMACY_DELIVERY_OPTIONS.map((option) => {
+                        const selected = otcFulfillmentPreference === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setOtcFulfillmentPreference(option.value)}
+                            data-testid={`button-otc-fulfillment-${option.value}`}
+                            className={`vyva-tap min-h-[40px] rounded-full border px-4 font-body text-[13px] font-black ${
+                              selected ? "border-[#B45309] bg-[#FFF7ED] text-[#B45309]" : "border-[#FED7AA] bg-white text-vyva-text-2"
+                            }`}
+                          >
+                            {isSpanish ? option.es : option.en}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block">
+                      <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                        {isSpanish ? "Cuando" : "When"}
+                      </span>
+                      <Input
+                        value={otcRequestedTime}
+                        onChange={(event) => setOtcRequestedTime(event.target.value)}
+                        placeholder={isSpanish ? "hoy, manana..." : "today, tomorrow..."}
+                        data-testid="input-otc-pharmacy-time"
+                        className="min-h-[48px] rounded-[16px] border-[#FED7AA] bg-white font-body text-[15px] font-semibold"
+                      />
+                    </label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {OTC_PHARMACY_TIME_HINTS.map((hint) => (
+                        <button
+                          key={hint.value}
+                          type="button"
+                          onClick={() => setOtcRequestedTime(hint.value)}
+                          className="vyva-tap min-h-[34px] rounded-full border border-[#FED7AA] bg-white px-3 font-body text-[11px] font-black text-[#B45309]"
+                        >
+                          {isSpanish ? hint.es : hint.en}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <label className="mt-4 block">
+                  <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                    {isSpanish ? "Marca, cantidad o nota" : "Brand, quantity, or note"}
+                  </span>
+                  <textarea
+                    value={otcNotes}
+                    onChange={(event) => setOtcNotes(event.target.value)}
+                    placeholder={isSpanish ? "Opcional" : "Optional"}
+                    data-testid="input-otc-pharmacy-notes"
+                    className="min-h-[74px] w-full rounded-[18px] border border-[#FED7AA] bg-white px-4 py-3 font-body text-[15px] font-semibold text-vyva-text-1 shadow-sm outline-none focus:border-[#B45309]"
+                  />
+                </label>
+              </div>
+
+              {otcError ? (
+                <p className="rounded-[18px] border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 font-body text-[13px] font-black text-[#B91C1C]">
+                  {otcError}
+                </p>
+              ) : null}
+              {otcNotice ? (
+                <p className="rounded-[18px] border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-2 font-body text-[13px] font-black text-[#047857]">
+                  {otcNotice}
+                </p>
+              ) : null}
+
+              <ActionConfirmationCheckpoint
+                title={isSpanish ? "Confirmar primero" : "Confirm first"}
+                summary={isSpanish
+                  ? "VYVA prepara una solicitud OTC. No contacta ni compra nada todavia."
+                  : "VYVA prepares an OTC request. Nothing is contacted or bought yet."}
+                items={otcPharmacyConfirmation}
+                primaryLabel={isSpanish ? "Confirmar: preparar OTC" : "Confirm: prepare OTC request"}
+                onConfirm={() => prepareOtcPharmacyMutation.mutate()}
+                isPending={prepareOtcPharmacyMutation.isPending}
+                disabled={!canPrepareOtcPharmacy}
+                testId="panel-otc-pharmacy-confirmation"
+                buttonTestId="button-otc-pharmacy-prepare"
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       {routePrefill?.kind === "ride" && routePrefillMeta && (
         <section
