@@ -364,6 +364,11 @@ type SavedProviderSummary = {
   role: string;
   category: string;
   phone: string;
+  email: string;
+  whatsapp: string;
+  bookingUrl: string;
+  preferredChannel: string;
+  canContactAfterConfirmation: boolean;
   address: string;
 };
 
@@ -448,6 +453,11 @@ function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
     const role = trimToNull(provider.role) ?? "";
     const category = trimToNull(provider.category) ?? role;
     const phone = trimToNull(provider.phone) ?? "";
+    const email = trimToNull(provider.email) ?? "";
+    const whatsapp = trimToNull(provider.whatsapp) ?? "";
+    const bookingUrl = trimToNull(provider.booking_url) ?? trimToNull(provider.online_order_url) ?? "";
+    const preferredChannel = trimToNull(provider.preferred_channel) ?? "";
+    const canContactAfterConfirmation = provider.can_contact_after_confirmation === true;
     const address = trimToNull(provider.address) ?? "";
     if (!name && !role && !category) return [];
     return [{
@@ -455,6 +465,11 @@ function savedProvidersFromConsent(consent: unknown): SavedProviderSummary[] {
       role,
       category,
       phone,
+      email,
+      whatsapp,
+      bookingUrl,
+      preferredChannel,
+      canContactAfterConfirmation,
       address,
     }];
   });
