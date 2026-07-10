@@ -25,9 +25,14 @@ import { MerchantDetailSheet, ProviderDetails } from "@/components/onboarding/Me
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
+import {
+  CONCIERGE_PROVIDER_CATEGORIES,
+  normalizeConciergeProviderCategory,
+  type ConciergeProviderCategoryId,
+} from "../../../../shared/conciergeFlowRegistry";
 
 interface ProviderCategory {
-  id: string;
+  id: ConciergeProviderCategoryId;
   label: string;
   placesType?: PlaceCategory;
 }
@@ -175,48 +180,14 @@ function getPrimaryGoogleTypeLabel(types: string[]): string | null {
   return fallback ? formatFallbackType(fallback) : null;
 }
 
-const PROVIDER_CATEGORIES: ProviderCategory[] = [
-  { id: "pharmacy",      label: "Pharmacy",       placesType: "pharmacy" },
-  { id: "doctor_clinic", label: "Doctor / Clinic", placesType: "health" },
-  { id: "transport",     label: "Transport / Taxi", placesType: "transport" },
-  { id: "home_service",  label: "Home service",   placesType: "home_service" },
-  { id: "personal_care", label: "Personal care",  placesType: "beauty_salon" },
-  { id: "food",          label: "Restaurant / Food", placesType: "restaurant" },
-  { id: "other",         label: "Other" },
-];
+const PROVIDER_CATEGORIES: ProviderCategory[] = CONCIERGE_PROVIDER_CATEGORIES.map((category) => ({
+  id: category.id,
+  label: category.label,
+  placesType: category.placesType as PlaceCategory | undefined,
+}));
 
-const CATEGORY_ALIASES: Record<string, string> = {
-  doctor: "doctor_clinic",
-  clinic: "doctor_clinic",
-  hospital: "doctor_clinic",
-  dentist: "doctor_clinic",
-  physiotherapist: "doctor_clinic",
-  gp: "doctor_clinic",
-  health: "doctor_clinic",
-  taxi: "transport",
-  taxi_stand: "transport",
-  ride: "transport",
-  driver: "transport",
-  car_service: "transport",
-  "home-service": "home_service",
-  home_repair: "home_service",
-  repair: "home_service",
-  plumber: "home_service",
-  electrician: "home_service",
-  cleaner: "home_service",
-  beauty_salon: "personal_care",
-  hair_care: "personal_care",
-  spa: "personal_care",
-  restaurant: "food",
-  cafe: "food",
-  meal_takeaway: "food",
-  meal_delivery: "food",
-};
-
-function normalizeProviderCategory(value: string | null | undefined): string {
-  const key = (value ?? "").trim().toLowerCase().replace(/\s+/g, "_");
-  if (PROVIDER_CATEGORIES.some((category) => category.id === key)) return key;
-  return CATEGORY_ALIASES[key] ?? "other";
+function normalizeProviderCategory(value: string | null | undefined): ConciergeProviderCategoryId {
+  return normalizeConciergeProviderCategory(value);
 }
 
 function setupFocusFromState(state: unknown): string | null {
