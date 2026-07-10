@@ -29,7 +29,8 @@ const fr = {
   },
   sos: {
     title: "Besoin d'aide urgente ?",
-    description: "Appelez les urgences maintenant, ou appelez le contact d'urgence enregistre dans votre profil.",
+    description:
+      "Appelez les urgences maintenant, ou appelez le contact d'urgence enregistre dans votre profil.",
     callEmergencyNumber: "Appeler {{number}} maintenant",
     callEmergency: "Appeler les urgences",
     callEmergencyAria: "Appeler les services d'urgence maintenant",
@@ -45,8 +46,10 @@ const fr = {
       stepLabel: "Etape 1 sur 5",
       titleSelf: "A propos de vous",
       titleCaregiver: "A propos de cette personne",
-      subtitleSelf: "Commencez par l'essentiel. Vous pourrez modifier votre profil a tout moment.",
-      subtitleCaregiver: "Dites a VYVA qui recevra du soutien. Vous pourrez ajouter les details de soin ensuite.",
+      subtitleSelf:
+        "Commencez par l'essentiel. Vous pourrez modifier votre profil a tout moment.",
+      subtitleCaregiver:
+        "Dites a VYVA qui recevra du soutien. Vous pourrez ajouter les details de soin ensuite.",
       fullNameSelf: "Nom complet",
       fullNameCaregiver: "Nom complet",
       fullNamePlaceholder: "ex. Margaret Collins",
@@ -71,9 +74,18 @@ const fr = {
       continue: "Continuer",
       saving: "Enregistrement...",
       options: {
-        phone: { label: "Appel telephonique", sub: "Ideal pour les controles quotidiens" },
-        whatsapp: { label: "WhatsApp", sub: "Ideal pour les rappels et messages vocaux" },
-        app: { label: "Application seule", sub: "Aucun appel ni message par defaut" },
+        phone: {
+          label: "Appel telephonique",
+          sub: "Ideal pour les controles quotidiens",
+        },
+        whatsapp: {
+          label: "WhatsApp",
+          sub: "Ideal pour les rappels et messages vocaux",
+        },
+        app: {
+          label: "Application seule",
+          sub: "Aucun appel ni message par defaut",
+        },
       },
       defaults: {
         eyebrow: "Reglages intelligents",
@@ -91,27 +103,39 @@ const fr = {
         },
       },
       phoneLabel: "Meilleur numero de contact",
-      phoneHint: "Nous utiliserons ce numero pour le canal par defaut. Les preferences detaillees sont dans Reglages.",
+      phoneHint:
+        "Nous utiliserons ce numero pour le canal par defaut. Les preferences detaillees sont dans Reglages.",
     },
     consent: {
       eyebrow: "Confidentialite et consentement",
       stepLabel: "Etape 3 sur 5",
       title: "Vos donnees, votre choix",
-      subtitle: "VYVA utilise vos donnees uniquement pour fournir le soin. Vous pouvez modifier ces choix dans Reglages.",
+      subtitle:
+        "VYVA utilise vos donnees uniquement pour fournir le soin. Vous pouvez modifier ces choix dans Reglages.",
       agree: "Accepter et continuer",
       saving: "Enregistrement...",
       error: "Une erreur est survenue - veuillez reessayer.",
       required: "Requis pour que VYVA fonctionne",
       footer: "Protege par le RGPD. Nous ne vendons jamais vos donnees.",
       items: {
-        conversation: { label: "Resumes de conversation", sub: "VYVA apprend de vos echanges pour personnaliser le soin" },
-        health: { label: "Informations de sante", sub: "Pathologies, medicaments et donnees de bien-etre" },
-        alerts: { label: "Partager les alertes avec l'aidant", sub: "Alertes de sante ou de securite envoyees a votre aidant" },
+        conversation: {
+          label: "Resumes de conversation",
+          sub: "VYVA apprend de vos echanges pour personnaliser le soin",
+        },
+        health: {
+          label: "Informations de sante",
+          sub: "Pathologies, medicaments et donnees de bien-etre",
+        },
+        alerts: {
+          label: "Partager les alertes avec l'aidant",
+          sub: "Alertes de sante ou de securite envoyees a votre aidant",
+        },
       },
     },
     activation: {
       title: "Tout est pret !",
-      subtitle: "VYVA est pret. Vous pouvez completer votre profil de sante quand vous voulez.",
+      subtitle:
+        "VYVA est pret. Vous pouvez completer votre profil de sante quand vous voulez.",
       completeProfile: "Completer mon profil de sante",
       later: "Je le ferai plus tard",
       items: {
@@ -126,10 +150,14 @@ const fr = {
       confirmedTitle: "Compte confirme !",
       confirmedSubtitle: "VYVA est maintenant configure et pret pour vous.",
       continueSetup: "Continuer la configuration",
-      proxyBody: "a rempli votre profil de sante et configure votre compte VYVA.",
-      defaultBody: "Un proche a rempli votre profil de sante et configure votre compte VYVA.",
-      confirmPrompt: "Veuillez confirmer qu'il s'agit de votre compte et que VYVA peut utiliser ces informations.",
-      reviewNote: "Vous pouvez tout verifier et modifier dans votre profil a tout moment. Rien n'est partage sans votre consentement.",
+      proxyBody:
+        "a rempli votre profil de sante et configure votre compte VYVA.",
+      defaultBody:
+        "Un proche a rempli votre profil de sante et configure votre compte VYVA.",
+      confirmPrompt:
+        "Veuillez confirmer qu'il s'agit de votre compte et que VYVA peut utiliser ces informations.",
+      reviewNote:
+        "Vous pouvez tout verifier et modifier dans votre profil a tout moment. Rien n'est partage sans votre consentement.",
       confirming: "Confirmation...",
       yesAccount: "Oui, c'est mon compte",
       reviewFirst: "Verifier mon profil d'abord",
@@ -146,7 +174,8 @@ const fr = {
   meds: {
     contextPanel: {
       title: "Contexte medicaments pret",
-      description: "VYVA peut utiliser le programme du jour et votre profil medicaments sur cette page.",
+      description:
+        "VYVA peut utiliser le programme du jour et votre profil medicaments sur cette page.",
     },
     focusLabels: {
       medication: "Medicament",
@@ -160,7 +189,8 @@ const fr = {
     focusLeft_other: "{{count}} restants",
     focusStatusAll: "Toutes les prises prevues sont faites aujourd'hui",
     focusStatusDue_one: "{{count}} prise prevue reste a faire aujourd'hui",
-    focusStatusDue_other: "{{count}} prises prevues restent a faire aujourd'hui",
+    focusStatusDue_other:
+      "{{count}} prises prevues restent a faire aujourd'hui",
     focusStatusLoaded_one: "{{count}} medicament au programme aujourd'hui",
     focusStatusLoaded_other: "{{count}} medicaments au programme aujourd'hui",
     focusStatusEmpty: "Aucun programme medicaments charge pour le moment",
@@ -183,39 +213,52 @@ const fr = {
       adherence: "Observance",
       adherenceSub: "Voir progres et prises manquees.",
     },
-    scheduleSubtitle: "Verifiez ce qui est prevu aujourd'hui et marquez les prises faites.",
+    scheduleSubtitle:
+      "Verifiez ce qui est prevu aujourd'hui et marquez les prises faites.",
     remainingBadge_one: "{{count}} a faire",
     remainingBadge_other: "{{count}} a faire",
     allTakenShort: "Termine",
     confirmRemaining: "Confirmer les prises restantes",
     canHelpWith: "Je peux vous aider avec",
     supportTitle: "Aide medicaments",
-    supportSubtitle: "Verifications rapides pour renouvellements, interactions et progres.",
+    supportSubtitle:
+      "Verifications rapides pour renouvellements, interactions et progres.",
     medicationSummaryFallback: "mes medicaments",
     refillSupport: "Preparer le renouvellement",
-    refillSupportSub: "Trouver des options de pharmacie ou livraison avant toute commande.",
+    refillSupportSub:
+      "Trouver des options de pharmacie ou livraison avant toute commande.",
     interactionSupport: "Verifier interactions",
-    interactionSupportSub: "Demandez a VYVA de revoir medicaments, complements et questions.",
-    interactionSupportSubWithMeds_one: "Revoir {{count}} medicament pour interactions ou questions.",
-    interactionSupportSubWithMeds_other: "Revoir {{count}} medicaments pour interactions ou questions.",
+    interactionSupportSub:
+      "Demandez a VYVA de revoir medicaments, complements et questions.",
+    interactionSupportSubWithMeds_one:
+      "Revoir {{count}} medicament pour interactions ou questions.",
+    interactionSupportSubWithMeds_other:
+      "Revoir {{count}} medicaments pour interactions ou questions.",
     callGpNamed: "Appeler {{name}}",
     callGp: "Appeler medecin",
     emailGp: "Email medecin",
     doctorReview: "Aide medecin",
-    doctorReviewSub: "Partager le contexte medicaments du jour et obtenir de l'aide rapidement.",
-    assistantSubtitle: "Posez des questions sur la securite, les commandes, les options naturelles ou les recherches recentes.",
+    doctorReviewSub:
+      "Partager le contexte medicaments du jour et obtenir de l'aide rapidement.",
+    assistantSubtitle:
+      "Posez des questions sur la securite, les commandes, les options naturelles ou les recherches recentes.",
     adherenceService: {
       kicker: "Aide rapide",
       title: "Aide medicaments en un geste",
-      subtitle: "Renouvellements, contact medecin et rendez-vous sont prets depuis ce rapport.",
+      subtitle:
+        "Renouvellements, contact medecin et rendez-vous sont prets depuis ce rapport.",
       refill: "Preparer le renouvellement",
-      refillSub: "Trouver pharmacie ou livraison. Vous confirmez avant toute commande.",
+      refillSub:
+        "Trouver pharmacie ou livraison. Vous confirmez avant toute commande.",
       callGpSub: "Parler au medecin avec ce rapport pret.",
       emailGpSub: "Ouvrir un email avec le contexte du rapport deja rempli.",
-      doctorHelpSub: "Parler des oublis, effets secondaires ou questions medicaments.",
+      doctorHelpSub:
+        "Parler des oublis, effets secondaires ou questions medicaments.",
       appointment: "Rendez-vous medicaments",
-      appointmentSub: "VYVA prepare la demande de rendez-vous pour confirmation.",
-      appointmentPrefill: "Aidez-moi a programmer un rendez-vous de revue des medicaments. Rapport: {{summary}}. A surveiller: {{attention}}. Demandez ma confirmation avant toute reservation.",
+      appointmentSub:
+        "VYVA prepare la demande de rendez-vous pour confirmation.",
+      appointmentPrefill:
+        "Aidez-moi a programmer un rendez-vous de revue des medicaments. Rapport: {{summary}}. A surveiller: {{attention}}. Demandez ma confirmation avant toute reservation.",
       ride: "Trouver transport",
       rideSub: "Comparer des facons sures d'y aller.",
       doctorNoteTitle: "Rapport VYVA d'observance medicamenteuse",
@@ -230,12 +273,15 @@ const fr = {
         hint: "Verifier comment je me sens",
         mobileLabel: "Symptomes",
         mobileHint: "Comment je me sens",
+        prefill: "Je veux parler de ce que je ressens.",
       },
       medication: {
         label: "Mes medicaments",
-        hint: "Revoir mes traitements",
+        hint: "Renouvellement, question, rappel",
         mobileLabel: "Medicaments",
-        mobileHint: "Mes traitements",
+        mobileHint: "Renouvellement ou question",
+        prefill:
+          "Aidez-moi avec mes medicaments. Demandez ce dont j'ai besoin, utilisez les informations medicament ou pharmacie seulement si elles existent, et ne contactez ni ne changez rien sans ma confirmation.",
       },
       vitals: {
         label: "Mes constantes",
@@ -281,7 +327,8 @@ const fr = {
       actions: {
         bookTransport: "Trouver transport",
         bookTransportSub: "Comparer des facons sures d'y aller.",
-        ridePrefill: "Aidez-moi a trouver des options de transport sur pour un rendez-vous medical. Demandez ma confirmation avant toute reservation.\n\n{{context}}",
+        ridePrefill:
+          "Aidez-moi a trouver des options de transport sur pour un rendez-vous medical. Demandez ma confirmation avant toute reservation.\n\n{{context}}",
       },
     },
     vitalsPage: {
@@ -292,7 +339,8 @@ const fr = {
       activeDevices: "{{count}} appareils actifs",
       trackedDays: "{{count}}/7 jours",
       contextPanelTitle: "Contexte des signes pret",
-      contextPanelDescription: "VYVA peut utiliser les dernieres mesures, les tendances et le moment du scan depuis cette page.",
+      contextPanelDescription:
+        "VYVA peut utiliser les dernieres mesures, les tendances et le moment du scan depuis cette page.",
       generalStatusLabel: "Etat general",
       generalStatusValue: "Stable - aucun changement important",
       generalStatusBadge: "Bon",
@@ -332,9 +380,21 @@ const fr = {
       saving: "Enregistrement...",
       saveReading: "Enregistrer",
       metrics: {
-        hr: { label: "Frequence cardiaque", placeholder: "ex. 72", defaultStatus: "Normal" },
-        rr: { label: "Frequence respiratoire", placeholder: "ex. 16", defaultStatus: "Stable" },
-        bp: { label: "Tension arterielle", placeholder: "ex. 118/76", defaultStatus: "Normal" },
+        hr: {
+          label: "Frequence cardiaque",
+          placeholder: "ex. 72",
+          defaultStatus: "Normal",
+        },
+        rr: {
+          label: "Frequence respiratoire",
+          placeholder: "ex. 16",
+          defaultStatus: "Stable",
+        },
+        bp: {
+          label: "Tension arterielle",
+          placeholder: "ex. 118/76",
+          defaultStatus: "Normal",
+        },
       },
       devices: {
         watch: { label: "Montre connectee", model: "VYVA Band 2" },
@@ -374,7 +434,8 @@ const fr = {
     doctorChoice: {
       quickActions: {
         title: "Acces rapide aux services",
-        subtitle: "Appelez, ecrivez, prenez rendez-vous ou organisez un transport ici.",
+        subtitle:
+          "Appelez, ecrivez, prenez rendez-vous ou organisez un transport ici.",
         callGp: "Appeler {{name}}",
         callGpSub: "Parler au cabinet maintenant.",
         emailGp: "Email medecin",
@@ -398,12 +459,16 @@ const fr = {
         voiceStart: "Utiliser la voix",
         voiceStop: "Arreter la voix",
         voiceTranscribing: "Conversion de la voix en texte",
-        voiceRecording: "Ecoute... touchez encore pour arreter. Arret automatique apres 30 secondes.",
+        voiceRecording:
+          "Ecoute... touchez encore pour arreter. Arret automatique apres 30 secondes.",
         voiceTranscribingStatus: "Conversion de la voix en texte...",
         voiceEmpty: "Je n'ai rien entendu clairement. Reessayez.",
-        voiceFailed: "Je n'ai pas pu convertir cette note vocale en texte. Reessayez.",
-        voiceUnsupported: "La saisie vocale n'est pas disponible dans ce navigateur.",
-        voiceMicError: "Je n'ai pas pu utiliser le micro. Reessayez ou ecrivez.",
+        voiceFailed:
+          "Je n'ai pas pu convertir cette note vocale en texte. Reessayez.",
+        voiceUnsupported:
+          "La saisie vocale n'est pas disponible dans ce navigateur.",
+        voiceMicError:
+          "Je n'ai pas pu utiliser le micro. Reessayez ou ecrivez.",
       },
       tracker: {
         label: "Niveau de confiance",
@@ -430,41 +495,52 @@ const fr = {
         oneQuestion: "Une question a la fois",
         currentQuestion: "Question actuelle",
         answersSaved: "{{count}} reponses enregistrees",
-        startAnswering: "Choisissez la reponse la plus proche ou ecrivez avec vos mots.",
+        startAnswering:
+          "Choisissez la reponse la plus proche ou ecrivez avec vos mots.",
       },
       report: {
         emergencyLabel: "Urgence maintenant",
         doctorTodayLabel: "Medecin aujourd'hui",
-        summaryIntro: "Merci pour vos reponses. Voici le resume de votre situation :",
+        summaryIntro:
+          "Merci pour vos reponses. Voici le resume de votre situation :",
         nextStepEmergency: "Appelez les urgences maintenant",
         nextStepDoctorToday: "Parlez a un medecin aujourd'hui",
         nextStepDoctor24_48: "Parlez a un medecin sous 24 a 48 heures",
-        nextStepMonitorReady: "Surveillez a domicile, avec un medecin pret a etre contacte",
+        nextStepMonitorReady:
+          "Surveillez a domicile, avec un medecin pret a etre contacte",
         callEmergencyNumber: "Appeler le {{number}}",
         contactEmergencyServices: "Contacter les urgences",
-        emergencyBodyWithNumber: "Appelez le {{number}} maintenant. Ne conduisez pas vous-meme. Gardez ce rapport ouvert pour l'intervenant.",
-        emergencyBodyGeneric: "Contactez les urgences locales maintenant. Ne conduisez pas vous-meme. Gardez ce rapport ouvert pour l'intervenant.",
+        emergencyBodyWithNumber:
+          "Appelez le {{number}} maintenant. Ne conduisez pas vous-meme. Gardez ce rapport ouvert pour l'intervenant.",
+        emergencyBodyGeneric:
+          "Contactez les urgences locales maintenant. Ne conduisez pas vous-meme. Gardez ce rapport ouvert pour l'intervenant.",
         savedToReports: "Enregistre dans Rapports",
         savingReport: "Enregistrement du rapport...",
         saveFailed: "Rapport non enregistre",
         readyReport: "Rapport pret",
         doctorContact: "votre medecin",
         caregiverContact: "votre aidant",
-        sentToBoth: "Une copie de ce rapport a ete envoyee a {{first}} et {{second}}.",
+        sentToBoth:
+          "Une copie de ce rapport a ete envoyee a {{first}} et {{second}}.",
         sentToOne: "Une copie de ce rapport a ete envoyee a {{contact}}.",
         noContactsConfigured: "Aucun medecin ni aidant n'est encore configure.",
         checkGlucoseNow: "Verifier la glycemie maintenant",
-        checkGlucoseReason: "Ajoutez la valeur a ce rapport avant de parler a un medecin.",
+        checkGlucoseReason:
+          "Ajoutez la valeur a ce rapport avant de parler a un medecin.",
         checkBloodPressureNow: "Verifier la tension maintenant",
-        checkBloodPressureReason: "Entrez les deux nombres, par exemple 120/80.",
+        checkBloodPressureReason:
+          "Entrez les deux nombres, par exemple 120/80.",
         checkOxygenNow: "Verifier l'oxygene maintenant",
-        checkOxygenReason: "Ajoutez votre mesure d'oxygene si vous avez un oxymetre.",
+        checkOxygenReason:
+          "Ajoutez votre mesure d'oxygene si vous avez un oxymetre.",
         checkBreathingRateNow: "Verifier la respiration maintenant",
-        checkBreathingRateReason: "Comptez les respirations pendant une minute, ou utilisez le resultat du scan.",
+        checkBreathingRateReason:
+          "Comptez les respirations pendant une minute, ou utilisez le resultat du scan.",
         checkTemperatureNow: "Verifier la temperature maintenant",
         checkTemperatureReason: "Ajoutez la mesure du thermometre.",
         checkPulseNow: "Verifier le pouls maintenant",
-        checkPulseReason: "Ajoutez le pouls depuis un appareil ou comptez-le manuellement.",
+        checkPulseReason:
+          "Ajoutez le pouls depuis un appareil ou comptez-le manuellement.",
         tellMainSymptom: "Symptome principal",
         nextStep: "Prochaine etape",
         whyThisStep: "Évaluation initiale",
@@ -477,11 +553,13 @@ const fr = {
         timeTaken: "Temps ecoule",
         actionNeeded: "Action maintenant",
         vitalRefinementTitle: "Affiner avec une mesure",
-        vitalRefinementBody: "Une mesure pertinente peut aider VYVA a mettre a jour cette evaluation. Les estimations du telephone sont utiles pour les tendances; les mesures d'appareil ou manuelles sont des preuves plus fortes.",
+        vitalRefinementBody:
+          "Une mesure pertinente peut aider VYVA a mettre a jour cette evaluation. Les estimations du telephone sont utiles pour les tendances; les mesures d'appareil ou manuelles sont des preuves plus fortes.",
         useLatestReading: "Utiliser la derniere mesure enregistree",
         noLatestReading: "Aucune mesure enregistree",
         latestReadingDetail: "{{display}} depuis {{source}}",
-        noLatestReadingDetail: "Entrez cette mesure manuellement pour affiner l'evaluation.",
+        noLatestReadingDetail:
+          "Entrez cette mesure manuellement pour affiner l'evaluation.",
         latestSourceDevice: "mesure appareil",
         latestSourceClinical: "mesure clinique",
         latestSourcePhone: "estimation telephone",
@@ -491,10 +569,14 @@ const fr = {
         saveAndRefine: "Enregistrer et affiner le resultat",
         savingReading: "Enregistrement de {{display}}...",
         updatingWithReading: "Mise a jour du resultat avec cette mesure...",
-        updatedReadingChanged: "Mis a jour avec {{display}}. La prochaine etape a change. Le rapport est pret a partager.",
-        updatedReadingSame: "Mis a jour avec {{display}}. La prochaine etape reste la meme. Le rapport est pret a partager.",
-        updateReadingFailed: "Impossible de mettre a jour avec cette mesure. Le rapport original reste disponible.",
-        refinePrompt: "Nouvelle constante ajoutee apres le premier rapport : {{title}} : {{display}}. Affinez le triage avec cette mesure. Les constantes peuvent augmenter ou clarifier l'urgence, mais ne doivent pas reduire les signaux d'urgence.",
+        updatedReadingChanged:
+          "Mis a jour avec {{display}}. La prochaine etape a change. Le rapport est pret a partager.",
+        updatedReadingSame:
+          "Mis a jour avec {{display}}. La prochaine etape reste la meme. Le rapport est pret a partager.",
+        updateReadingFailed:
+          "Impossible de mettre a jour avec cette mesure. Le rapport original reste disponible.",
+        refinePrompt:
+          "Nouvelle constante ajoutee apres le premier rapport : {{title}} : {{display}}. Affinez le triage avec cette mesure. Les constantes peuvent augmenter ou clarifier l'urgence, mais ne doivent pas reduire les signaux d'urgence.",
         emergencyDoNotWait: "N'attendez pas",
         doctorNoteSub: "Texte simple a lire, montrer ou partager.",
         shareWithDoctor: "Partager avec le medecin",
@@ -511,15 +593,31 @@ const fr = {
           requestQuote: "Demander un devis",
           aria: "{{action}} pour : {{recommendation}}",
           emailSubject: "Rapport de symptomes VYVA",
-          ridePrefill: "Aidez-moi a trouver des options de transport sur pour cette recommandation de sante : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant de reserver.",
-          appointmentPrefill: "Aidez-moi a planifier des soins pour cette recommandation de sante : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant de reserver.",
-          hydrationPrefill: "Aide a l'hydratation pour cette recommandation de sante : {{recommendation}}. Proposez des options de livraison simples comme de l'eau, des sels de rehydratation orale ou des boissons electrolytiques.",
-          quotePrefill: "Aidez-moi a demander un devis pour qu'une personne reste avec moi ou m'aide a domicile : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant toute demande.",
+          ridePrefill:
+            "Aidez-moi a trouver des options de transport sur pour cette recommandation de sante : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant de reserver.",
+          appointmentPrefill:
+            "Aidez-moi a planifier des soins pour cette recommandation de sante : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant de reserver.",
+          hydrationPrefill:
+            "Aide a l'hydratation pour cette recommandation de sante : {{recommendation}}. Proposez des options de livraison simples comme de l'eau, des sels de rehydratation orale ou des boissons electrolytiques.",
+          quotePrefill:
+            "Aidez-moi a demander un devis pour qu'une personne reste avec moi ou m'aide a domicile : {{recommendation}}. Rapport : {{report}}. Demandez ma confirmation avant toute demande.",
         },
       },
     },
   },
   activities: {
+    primaryTitle: "Choisissez votre objectif",
+    libraryTitle: "Choisissez une activite",
+    primary: {
+      memory: "Renforcer la memoire",
+      memorySub: "Pratiquez le rappel, les associations et les routines.",
+      reflexes: "Entrainer les reflexes",
+      reflexesSub: "Developpez attention et reponse.",
+      intelligence: "Stimuler l'esprit",
+      intelligenceSub: "Travaillez logique, planification et resolution.",
+      senses: "Aiguiser les sens",
+      sensesSub: "Ecoutez des sons doux et cultivez une attention calme.",
+    },
     chooseActivity: "Choisissez une activite",
     trivia: "Concentration et attention",
     memory: "Jeu de memoire",
@@ -537,7 +635,8 @@ const fr = {
       ofLabel: "sur",
       breatheIn: "Inspirez",
       breatheOut: "Expirez",
-      safety: "Si respirer semble difficile, douloureux ou inhabituel, arretez-vous et demandez de l'aide.",
+      safety:
+        "Si respirer semble difficile, douloureux ou inhabituel, arretez-vous et demandez de l'aide.",
       startGuide: "Demarrer le guide Marco",
       guideStarting: "Demarrage...",
       guideLive: "Le guide Marco est actif",
@@ -546,23 +645,27 @@ const fr = {
       next: "Suivant",
       finish: "Terminer",
       completeTitle: "La pause calme est terminee.",
-      completeBody: "Vous pouvez y revenir quand vous voulez un moment plus calme.",
+      completeBody:
+        "Vous pouvez y revenir quand vous voulez un moment plus calme.",
       tryAgain: "Recommencer",
       audioUnavailable: "Le guide visuel fonctionne aussi sans audio.",
       stages: {
         settle: {
           title: "S'installer",
-          instruction: "Asseyez-vous confortablement. Laissez vos epaules se relacher.",
+          instruction:
+            "Asseyez-vous confortablement. Laissez vos epaules se relacher.",
           cue: "Trouvez une assise confortable.",
         },
         breathe: {
           title: "Respirer lentement",
-          instruction: "Inspirez quand le cercle grandit. Expirez quand il se pose.",
+          instruction:
+            "Inspirez quand le cercle grandit. Expirez quand il se pose.",
           cue: "Suivez le cercle lent.",
         },
         return: {
           title: "Revenir doucement",
-          instruction: "Remarquez la chaise, la piece et une respiration calme.",
+          instruction:
+            "Remarquez la chaise, la piece et une respiration calme.",
           cue: "Revenez doucement dans la piece.",
         },
       },
@@ -581,7 +684,8 @@ const fr = {
   },
   memory: {
     title: "Jeu de memoire",
-    subtitle: "De courts exercices pour entrainer la memoire, l'attention et la concentration.",
+    subtitle:
+      "De courts exercices pour entrainer la memoire, l'attention et la concentration.",
     recommendedToday: "Recommande aujourd'hui",
     chooseAnother: "Choisir un autre exercice",
     chooseAnotherExercise: "Choisir un autre exercice",
@@ -604,8 +708,10 @@ const fr = {
     backToMemory: "Retour a la memoire",
     nextRecommended: "Prochaine recommandation",
     trainingDaily: "Entrainement quotidien",
-    recommendationHint: "Nous continuons la progression sans repeter les exercices recents.",
-    recommendationLoading: "Nous preparons le meilleur exercice pour aujourd'hui.",
+    recommendationHint:
+      "Nous continuons la progression sans repeter les exercices recents.",
+    recommendationLoading:
+      "Nous preparons le meilleur exercice pour aujourd'hui.",
     matchInstruction: "Touchez deux cartes pour trouver la paire.",
     sequenceWatch: "Observez la sequence.",
     sequenceYourTurn: "C'est a vous.",
@@ -617,26 +723,32 @@ const fr = {
     sequenceCountdown: "On commence dans",
     sequenceCountdownHint: "Vous allez d'abord voir toute la sequence.",
     sequenceReady: "Les tuiles vont s'allumer l'une apres l'autre.",
-    sequenceTapHint: "Touchez les tuiles dans le bon ordre. Prenez votre temps.",
+    sequenceTapHint:
+      "Touchez les tuiles dans le bon ordre. Prenez votre temps.",
     sequenceWaitTurn: "Attendez la fin de la sequence.",
-    sequenceWaitTurnHint: "Regardez d'abord toute la sequence. Ensuite, ce sera a vous de la repeter.",
+    sequenceWaitTurnHint:
+      "Regardez d'abord toute la sequence. Ensuite, ce sera a vous de la repeter.",
     sequenceWrong: "Ce n'etait pas la bonne sequence.",
     sequenceTryAgain: "Regardons-la encore une fois et reessayons.",
     pairs: "Paires",
     currentAccuracy: "Precision actuelle",
     exerciseNotFound: "Exercice introuvable",
     exerciseNotFoundBody: "Nous n'avons pas pu ouvrir cet exercice.",
-    stubBody: "Il est deja relie au parcours memoire et pret pour la prochaine phase d'implementation.",
+    stubBody:
+      "Il est deja relie au parcours memoire et pret pour la prochaine phase d'implementation.",
   },
   wordRecall: {
     memorizeInstruction: "Lisez ces mots calmement et memorisez-les.",
     readyButton: "Je suis pret",
     recallInstruction: "Rappelez-vous autant de mots que possible.",
-    selectRememberedWords: "Vous pouvez toucher les mots, les ecrire ou les dire a voix haute.",
+    selectRememberedWords:
+      "Vous pouvez toucher les mots, les ecrire ou les dire a voix haute.",
     distractionTitle: "Petite pause",
-    distractionInstruction: "Faites une courte pause avant de rappeler les mots.",
+    distractionInstruction:
+      "Faites une courte pause avant de rappeler les mots.",
     distractionChooseBlue: "Touchez la couleur bleue pour continuer.",
-    distractionBreathe: "Respirez une fois calmement puis appuyez sur continuer.",
+    distractionBreathe:
+      "Respirez une fois calmement puis appuyez sur continuer.",
     distractionCountBackwards: "Comptez a rebours depuis 10 puis continuez.",
     continueButton: "Continuer",
     remembered: "Mots retenus",
@@ -645,17 +757,21 @@ const fr = {
     muteAudio: "Couper le son",
     unmuteAudio: "Activer le son",
     listenAgain: "Ecouter encore les mots",
-    coachIntro: "Bonjour. Nous allons faire un court exercice pour memoriser des mots.",
+    coachIntro:
+      "Bonjour. Nous allons faire un court exercice pour memoriser des mots.",
     coachMemorize: "Ecoutez les mots calmement et essayez de les retenir.",
-    coachReady: "Quand vous etes pret, appuyez sur je suis pret pour continuer.",
-    coachDistraction: "Tres bien. Nous allons faire une courte pause avant de rappeler les mots.",
+    coachReady:
+      "Quand vous etes pret, appuyez sur je suis pret pour continuer.",
+    coachDistraction:
+      "Tres bien. Nous allons faire une courte pause avant de rappeler les mots.",
     coachRecall: "Essayez maintenant de vous souvenir des mots entendus.",
     voiceCommandsHint: "Vous pouvez aussi dire pret ou repeter.",
     commandReadyHeard: "J'ai entendu pret.",
     commandRepeatHeard: "Je repete les consignes.",
     speakWords: "Dire les mots",
     listening: "Je vous ecoute...",
-    voiceNotSupported: "La saisie vocale n'est pas disponible dans ce navigateur.",
+    voiceNotSupported:
+      "La saisie vocale n'est pas disponible dans ce navigateur.",
     tryAgain: "Reessayer",
     typeWordsPlaceholder: "Ecrivez un ou plusieurs mots",
     addWord: "Ajouter",
@@ -666,7 +782,8 @@ const fr = {
     pauseAudio: "Pause",
     resumeAudio: "Reprendre",
     stopAudio: "Arreter",
-    audioUnavailable: "L'audio de l'histoire n'est pas disponible pour le moment. Vous pouvez lire l'histoire.",
+    audioUnavailable:
+      "L'audio de l'histoire n'est pas disponible pour le moment. Vous pouvez lire l'histoire.",
     startQuestions: "Repondre aux questions",
     questionProgress: "Question",
     chooseAnswer: "Choisissez une reponse",
@@ -674,7 +791,8 @@ const fr = {
     nextQuestion: "Question suivante",
     continueToRetell: "Continuer vers le rappel",
     retellTitle: "Racontez l'histoire",
-    retellInstruction: "Ecrivez ce dont vous vous souvenez avec vos mots. L'ordre n'a pas besoin d'etre parfait.",
+    retellInstruction:
+      "Ecrivez ce dont vous vous souvenez avec vos mots. L'ordre n'a pas besoin d'etre parfait.",
     retellPlaceholder: "Ecrivez l'histoire ici...",
     retellMissing: "Ecrivez ce dont vous vous souvenez avant d'envoyer.",
     words: "mots",
@@ -684,7 +802,8 @@ const fr = {
     recall: "Rappel",
     remembered: "Vous avez retenu",
     alsoInStory: "Aussi dans l'histoire",
-    scoringFallback: "Nous avons enregistre ceci comme une revue d'entrainement. Vous pouvez continuer.",
+    scoringFallback:
+      "Nous avons enregistre ceci comme une revue d'entrainement. Vous pouvez continuer.",
     completionTitle: "Tres bien",
     completionBody: "Vous avez termine l'exercice d'histoire courte.",
   },
@@ -707,7 +826,8 @@ const fr = {
     },
     routineMemory: {
       title: "Routines quotidiennes",
-      description: "Classez les activites du jour et entrainez la memoire pratique.",
+      description:
+        "Classez les activites du jour et entrainez la memoire pratique.",
     },
     associationMemory: {
       title: "Association",
@@ -715,7 +835,8 @@ const fr = {
     },
     storyRecall: {
       title: "Histoires courtes",
-      description: "Ecoutez ou lisez une histoire courte et repondez a des questions.",
+      description:
+        "Ecoutez ou lisez une histoire courte et repondez a des questions.",
     },
   },
   cognitiveDomains: {
@@ -730,6 +851,52 @@ const fr = {
     comprehension_memory: "Comprehension et rappel",
   },
   games: {
+    listenClosely: {
+      preparing: "Preparation des sons...",
+      practiceFallback:
+        "Nous utiliserons un court paysage sonore d'entrainement.",
+      title: "Ecouter attentivement",
+      subtitle: "Un jeu sonore doux pour une attention calme.",
+      instructionFind: "Touchez chaque fois que vous entendez le son cible.",
+      instructionOddball:
+        "Touchez quand le son special apparait parmi les autres sons.",
+      instructionCompare:
+        "Ecoutez les deux sons. A la fin, choisissez celui qui est revenu le plus souvent.",
+      tapWhenHeard: "Touchez quand vous l'entendez.",
+      justListen: "Ecoutez simplement.",
+      resultGood: "Bonne ecoute.",
+      resultTry: "Belle pratique. Ecouter devient plus facile avec le temps.",
+      listenFor: "Ecoutez",
+      sampleTarget: "Ecouter la cible",
+      start: "Commencer",
+      audioUnavailable:
+        "Le son n'est pas disponible dans ce navigateur, mais vous pouvez quand meme voir le jeu.",
+      modeFind: "Trouver",
+      modeOddball: "Son different",
+      modeCompare: "Comparer le nombre",
+      targetSound: "Son cible",
+      playingLabelCompare: "Ecoutez les deux sons",
+      tapButton: "Je l'ai entendu",
+      heard: "Entendu",
+      whichMore: "Quel son est revenu le plus souvent?",
+      accuracy: "Precision",
+      score: "Score",
+      heardCount: "Entendu",
+      streak: "Serie",
+      progress: "Progression du niveau",
+      playAgain: "Rejouer",
+      finish: "Terminer",
+      sounds: {
+        chime: "carillon",
+        chirp: "gazouillis",
+        tap: "tapotement",
+        whoosh: "souffle",
+        drip: "goutte",
+        hum: "bourdonnement",
+        click: "clic",
+        ring: "sonnerie",
+      },
+    },
     numberTrails: {
       preparing: "Preparation du parcours...",
       practiceNote: "Nous utiliserons un parcours d'entrainement.",
@@ -760,26 +927,64 @@ const fr = {
       preparing: "Preparation du rappel...",
       practiceFallback: "Nous utiliserons une courte ronde d'entrainement.",
       title: "S'en souvenir plus tard",
-      subtitle: "Nous te donnons quelque chose a retenir. Sans indice.",
+      subtitle: "Lis les deux regles, puis appuie sur Demarrer.",
       cardBadge: "Nouveau",
       cardTitle: "S'en souvenir plus tard",
-      cardDescription: "Souviens-toi d'une action future pendant que tu continues a jouer.",
-      intentionEvent: "Souviens-toi: quand tu vois l'icone indice, touche l'etoile doree.",
-      intentionTime: "Souviens-toi: dans un moment, touche l'etoile doree. Nous ne te le rappellerons pas.",
-      noReminder: "Nous ne te le rappellerons plus pendant le jeu.",
-      tutorialBody: "Pendant que tu joues, observe les formes. Si tu vois l'icone indice, touche l'etoile. Cet exemple est le seul moment ou nous te guidons.",
+      cardDescription:
+        "Souviens-toi d'une action future pendant que tu continues a jouer.",
+      countedRoundIntro:
+        "Pour monter: utilise les deux bons boutons. 3 rondes comptees = niveau suivant.",
+      tapButtonShort: "Appuie si ca correspond",
+      matchButtonLabel: "Appuie quand tu vois {rule}",
+      shapeRuleIntro: "Appuie quand tu vois {rule}. Autre chose: attends.",
+      intentionEvent: "{cue}: appuie sur l'etoile doree.",
+      intentionTime: "Plus tard: appuie sur l'etoile doree. Pas de rappel.",
+      starReminderEvent: "{cue}: appuie sur l'etoile doree.",
+      starReminderTime: "Plus tard: appuie sur l'etoile doree.",
+      noReminder: "Apres Demarrer, garde ces regles en tete.",
+      tutorialBody:
+        "Appuie quand tu vois {rule}. {cue}: appuie sur l'etoile doree. Autre chose: attends. C'est le seul exemple.",
       tutorialReady: "Pret a essayer pour de vrai?",
       tryForReal: "Essayer pour de vrai",
-      ongoingRule: "Touche si cela correspond: {rule}",
+      ongoingRule: "Appuie quand tu vois {rule}. Autre chose: attends.",
+      noMatchInstruction: "Pas {rule}? Attends.",
       intentionButton: "Etoile doree",
       resultHit: "Tu t'en es souvenu sans que personne te le rappelle.",
-      resultMiss: "Tu ne t'en es pas souvenu cette fois, et ce n'est pas grave. Continuons a pratiquer.",
+      resultMiss:
+        "Tu ne t'en es pas souvenu cette fois, et ce n'est pas grave. Continuons a pratiquer.",
+      verdictLevelUp: "Niveau superieur",
+      verdictCounted: "Ronde comptee",
+      verdictMemoryCredit: "Credit memoire",
+      verdictNotCounted: "Pas encore comptee",
+      resultWhyCounted: "Etoile doree faite. Cible violette faite.",
+      resultWhyMemoryCredit:
+        "Etoile doree faite. Il faut plus de touches violettes.",
+      resultWhyNeedsRecall: "Ronde comptee = etoile doree + cible violette.",
       backgroundTask: "Tache de fond",
+      matchingTask: "Tache de correspondance",
       remembered: "Souvenir",
       score: "Score",
       streak: "Serie",
       promotionProgress: "Progression du niveau",
       currentLevel: "Niveau actuel",
+      levelProgressPromoted:
+        "Niveau superieur. Tu as eu 3 rondes comptees, donc la prochaine est le niveau {level}.",
+      levelProgressCounted:
+        "Cette ronde a compte. Il faut 3 rondes comptees pour monter.",
+      levelProgressNeedsBackground:
+        "Tu as pense a l'etoile doree. Cette ronde ne compte pas encore. Il faut 3 rondes comptees pour monter; appuie sur violet quand la cible apparait.",
+      levelProgressNeedsRecall:
+        "Cette ronde ne compte pas encore. Il faut 3 rondes comptees pour monter; souviens-toi de l'etoile doree et appuie sur violet pour la cible.",
+      shortRules: {
+        shape_circle: "cercle",
+        shape_square: "carre",
+        shape_triangle: "triangle",
+        color_red: "rouge",
+        color_blue: "bleu",
+        color_yellow: "jaune",
+        number_even: "nombre pair",
+        number_odd: "nombre impair",
+      },
       rules: {
         shape_circle: "un cercle",
         shape_square: "un carre",
@@ -789,6 +994,16 @@ const fr = {
         color_yellow: "jaune",
         number_even: "un nombre pair",
         number_odd: "un nombre impair",
+      },
+      cueLabels: {
+        bell: "cloche",
+        moon: "lune",
+        key: "cle",
+        leaf: "feuille",
+        heart: "coeur",
+        sparkle: "etincelle",
+        flag: "drapeau",
+        music: "note de musique",
       },
     },
   },
@@ -802,7 +1017,8 @@ const fr = {
     },
     attentionBoosters: {
       title: "Concentration et attention",
-      subtitle: "Choisissez un exercice pour travailler concentration, reaction et rythme.",
+      subtitle:
+        "Choisissez un exercice pour travailler concentration, reaction et rythme.",
       dualTask: {
         title: "Double Tache",
         description: "Comptez a rebours tout en reagissant aux symboles.",
@@ -810,27 +1026,32 @@ const fr = {
       },
       rhythmTap: {
         title: "Séquences",
-        description: "Regardez la sequence puis touchez les cases dans le meme ordre.",
+        description:
+          "Regardez la sequence puis touchez les cases dans le meme ordre.",
         badge: "Focus",
       },
     },
     executiveFunction: {
       title: "Entrainement cerebral",
-      subtitle: "Travaillez la pensee flexible, la planification et les changements de regles.",
+      subtitle:
+        "Travaillez la pensee flexible, la planification et les changements de regles.",
       categorySort: {
         title: "Tri de categories",
-        description: "Triez chaque carte lorsque la regle change entre couleur, forme et sens.",
+        description:
+          "Triez chaque carte lorsque la regle change entre couleur, forme et sens.",
         badge: "Regles",
       },
       numberTrails: {
         title: "Parcours numeriques",
-        description: "Reliez les nombres, puis les nombres et les lettres, pour travailler vitesse et flexibilite.",
+        description:
+          "Reliez les nombres, puis les nombres et les lettres, pour travailler vitesse et flexibilite.",
         badge: "Parcours",
       },
     },
     language: {
       title: "Mots et langage",
-      subtitle: "Choisissez un exercice pour les mots, les histoires et le rappel.",
+      subtitle:
+        "Choisissez un exercice pour les mots, les histoires et le rappel.",
       storyRecall: {
         badge: "Histoire",
         ariaLabel: "Ouvrir Histoires courtes",
@@ -844,7 +1065,8 @@ const fr = {
       badge: "Noms",
       people: "personnes",
       start: "Commencer!",
-      introHint: "Regardez chaque visage et son nom. Ensuite je vous interrogerai.",
+      introHint:
+        "Regardez chaque visage et son nom. Ensuite je vous interrogerai.",
       studyTitle: "Memorisez!",
       ready: "C'est bon, je m'en souviens",
       exit: "Sortir",
@@ -872,7 +1094,8 @@ const fr = {
       subtitle: "Comptez et reagissez en meme temps.",
       example: "Voir l'exemple",
       countBack: "Comptez a rebours de 7 en 7.",
-      tapMatch: "Touchez lorsque vous voyez le meme symbole deux fois de suite.",
+      tapMatch:
+        "Touchez lorsque vous voyez le meme symbole deux fois de suite.",
       tutorialTitle: "Exemple sans score",
       skip: "Passer",
       start: "Commencer l'exercice",
@@ -912,7 +1135,8 @@ const fr = {
       loading: "Preparation des cartes...",
       practiceNote: "Nous utiliserons un jeu de cartes d'entrainement.",
       title: "Tri de categories",
-      subtitle: "Triez chaque carte selon la regle affichee en haut. La regle changera.",
+      subtitle:
+        "Triez chaque carte selon la regle affichee en haut. La regle changera.",
       example: "Voir l'exemple",
       start: "Commencer l'exercice",
       tutorialTitle: "Exemple sans score",
@@ -995,7 +1219,8 @@ const fr = {
   triageScan: {
     eyebrow: "Votre choix",
     resultAdded: "Note du controle ajoutee",
-    photoError: "Nous n'avons pas pu verifier cette photo. Vous pouvez reessayer ou continuer sans elle.",
+    photoError:
+      "Nous n'avons pas pu verifier cette photo. Vous pouvez reessayer ou continuer sans elle.",
     actions: {
       checkNow: "Verifier maintenant",
       takePhoto: "Prendre une photo",
@@ -1021,17 +1246,204 @@ const fr = {
       wound_photo: {
         title: "Photo du changement sur la peau",
         body: "Si vous le souhaitez, prenez une photo du changement sur la peau pour que VYVA regarde ce qui est visible.",
-        privacyNote: "Photographiez seulement la zone a verifier. La photo est analysee puis supprimee.",
+        privacyNote:
+          "Photographiez seulement la zone a verifier. La photo est analysee puis supprimee.",
       },
       urine_photo: {
         title: "Photo de l'apparence de l'urine",
         body: "Si la couleur ou l'aspect trouble semble different, une photo peut aider VYVA a noter le changement.",
-        privacyNote: "Photographiez seulement l'urine. Evitez les visages et les papiers d'identite. Une photo ne peut pas dire si vous avez une infection urinaire.",
+        privacyNote:
+          "Photographiez seulement l'urine. Evitez les visages et les papiers d'identite. Une photo ne peut pas dire si vous avez une infection urinaire.",
       },
       stool_photo: {
         title: "Photo de l'apparence des selles",
         body: "Si les selles vous ont semble inhabituelles, une photo peut aider VYVA a noter le changement.",
-        privacyNote: "Photographiez seulement les selles. Evitez les visages et les papiers d'identite. Une photo ne peut pas dire s'il y a un saignement ou une maladie de l'estomac.",
+        privacyNote:
+          "Photographiez seulement les selles. Evitez les visages et les papiers d'identite. Une photo ne peut pas dire s'il y a un saignement ou une maladie de l'estomac.",
+      },
+    },
+  },
+  guidedActions: {
+    common: {
+      reset: "Reinitialiser",
+      stepCount: "Etape {{current}} sur {{total}}",
+      continue: "Continuer",
+      sayOrType: "Dites-le ou ecrivez-le",
+      useAnswer: "Utiliser la reponse",
+    },
+    concierge: {
+      bookRide: {
+        title: "Organisons votre transport",
+        intro:
+          "Dites-le, ecrivez-le ou touchez une option. VYVA compare avant toute reservation.",
+        completion: "Details du trajet prets. Comparons les options sures.",
+        confirmation:
+          "Si un transporteur est enregistre, VYVA le montre d'abord. Sinon VYVA compare des options sures. Rien n'est reserve sans votre confirmation.",
+        customAnswer: "Utiliser le texte",
+        steps: {
+          destination: {
+            title: "Ou allez-vous?",
+            helper:
+              "Utilisez un lieu enregistre, choisissez un arret courant ou ecrivez l'adresse.",
+            placeholder: "Clinique, pharmacie, adresse familiale...",
+          },
+          pickup: {
+            title: "Ou venir vous chercher?",
+            helper:
+              "Utilisez votre domicile enregistre, le lieu actuel ou une adresse de depart.",
+            placeholder: "Domicile, hotel, accueil, entree...",
+          },
+          time: {
+            title: "Quand devez-vous partir?",
+            helper:
+              "Choisissez un horaire simple ou ecrivez l'heure du rendez-vous.",
+            placeholder: "Demain a 10h, plus tard aujourd'hui...",
+          },
+          mobility: {
+            title: "Besoin d'aide pour monter ou descendre?",
+            helper:
+              "Choisissez tout ce qui compte. VYVA compare ainsi des options plus sures.",
+          },
+        },
+        choices: {
+          doctor: "Medecin",
+          pharmacy: "Pharmacie",
+          hospital: "Hopital",
+          newAddress: "Nouvelle adresse",
+          savedHome: "Domicile",
+          currentPlace: "Lieu actuel",
+          newPickup: "Nouveau depart",
+          now: "Maintenant",
+          laterToday: "Plus tard aujourd'hui",
+          tomorrow: "Demain",
+          appointmentTime: "Pour un rendez-vous",
+          noExtraHelp: "Pas d'aide en plus",
+          walker: "Deambulateur",
+          wheelchair: "Fauteuil roulant",
+          companion: "Quelqu'un avec moi",
+        },
+      },
+      bookMedicalAppointment: {
+        title: "Preparons votre rendez-vous",
+        intro:
+          "Repondez a quelques points. VYVA verifie d'abord vos prestataires enregistres, puis des options sures.",
+        completion: "Demande de rendez-vous prete.",
+        confirmation:
+          "VYVA prepare la demande et demande confirmation avant de reserver ou contacter quelqu'un.",
+        customAnswer: "Utiliser la reponse",
+        steps: {
+          need: {
+            title: "Quel type de soin vous faut-il ?",
+            helper: "Choisissez le plus proche. Vous pouvez aussi ecrire.",
+            placeholder: "Cardiologie, peau, analyse...",
+          },
+          reason: {
+            title: "Pour quelle raison ?",
+            helper: "Cela aide VYVA a rediger une demande claire.",
+            placeholder: "Raison courte...",
+          },
+          provider: {
+            title: "Quel prestataire essayer d'abord ?",
+            helper: "Si un medecin est enregistre, VYVA le verifie d'abord.",
+            placeholder: "Nom de clinique ou medecin...",
+          },
+          timing: {
+            title: "Quand cela vous convient-il ?",
+            helper: "Une periode approximative suffit pour commencer.",
+            placeholder: "Mardi matin, semaine prochaine...",
+          },
+          contact: {
+            title: "Comment VYVA doit-il gerer cela ?",
+            helper: "Choisissez le canal confortable. Vous confirmez d'abord.",
+          },
+        },
+        choices: {
+          doctor: "Medecin",
+          specialist: "Specialiste",
+          nurse: "Infirmier",
+          lab: "Analyse ou labo",
+          other: "Autre",
+          routine: "Controle routine",
+          symptom: "Nouveau symptome",
+          followUp: "Suivi",
+          medication: "Medicament",
+          urgent: "Inquietude urgente",
+          savedProvider: "Medecin enregistre",
+          findNearby: "Chercher proche",
+          clinicName: "Nom de clinique",
+          notSure: "Pas sur",
+          soon: "Bientot",
+          thisWeek: "Cette semaine",
+          specificTime: "Heure precise",
+          flexible: "Flexible",
+          phone: "Telephone",
+          online: "Formulaire en ligne",
+          message: "Message",
+          askVyva: "Laisser VYVA choisir",
+        },
+      },
+    },
+    health: {
+      medicationHelp: {
+        title: "Aide medicaments",
+        intro:
+          "Repondez a quelques points. VYVA prepare une etape sure, sans jamais changer un medicament pour vous.",
+        completion: "Demande medicament prete.",
+        confirmation:
+          "L'aide pharmacie concerne les articles sans ordonnance via une pharmacie enregistree. VYVA demande avant tout contact.",
+        customAnswer: "Utiliser la reponse",
+        steps: {
+          need: {
+            title: "De quoi avez-vous besoin?",
+            helper:
+              "Choisissez le besoin le plus proche. Si cela semble urgent, VYVA oriente vers une aide plus sure.",
+          },
+          medicine: {
+            title: "De quel medicament s'agit-il?",
+            helper:
+              "Utilisez un medicament enregistre, dites le nom ou choisissez pas sur.",
+            placeholder: "Nom du medicament...",
+          },
+          pharmacy: {
+            title: "Utiliser votre pharmacie enregistree?",
+            helper:
+              "Pour l'instant, VYVA aide seulement pour les articles sans ordonnance via une pharmacie enregistree dans votre profil.",
+            placeholder: "Nom ou quartier de la pharmacie...",
+          },
+          urgency: {
+            title: "Dans quel delai avez-vous besoin d'aide?",
+            helper:
+              "Cela aide VYVA a choisir entre aide routine et etape urgente plus sure.",
+          },
+          nextStep: {
+            title: "Que doit preparer VYVA?",
+            helper: "VYVA prepare la demande. Vous confirmez avant tout envoi.",
+          },
+        },
+        choices: {
+          missedDose: "Dose oubliee",
+          refill: "Article sans ordonnance",
+          sideEffect: "Effet secondaire",
+          schedule: "Horaire",
+          addMedicine: "Ajouter medicament",
+          question: "Question",
+          savedMedicine: "Medicament enregistre",
+          typeName: "Ecrire le nom",
+          notSure: "Pas sur",
+          usualPharmacy: "Pharmacie enregistree",
+          nearbyPharmacy: "Pharmacie proche",
+          setupPharmacyFirst: "Configurer pharmacie",
+          pharmacyName: "Ecrire pharmacie",
+          now: "Maintenant",
+          today: "Aujourd'hui",
+          thisWeek: "Cette semaine",
+          routine: "Routine",
+          callPharmacy: "Demander a la pharmacie",
+          messageDoctor: "Message medecin",
+          addReminder: "Ajouter rappel",
+          reviewList: "Revoir liste",
+          askVyva: "Laisser VYVA choisir",
+        },
       },
     },
   },
@@ -1041,12 +1453,14 @@ const fr = {
         label: "Trouver transport",
         sub: "Comparer des facons sures d'y aller.",
       },
-      ridePrefill: "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, et ne reservez rien sans ma confirmation.",
+      ridePrefill:
+        "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, et ne reservez rien sans ma confirmation.",
     },
   },
   concierge: {
     fastHelp: {
-      ridePrefill: "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, preparez des options claires et ne reservez rien sans ma confirmation.",
+      ridePrefill:
+        "Aidez-moi a trouver des options de transport sur. Demandez destination et horaire, preparez des options claires et ne reservez rien sans ma confirmation.",
       actions: {
         ride: {
           label: "Trouver transport",
@@ -1058,12 +1472,14 @@ const fr = {
   activity: {
     bookRide: "Trouver transport",
     bookRideSub: "Comparer des facons sures d'y aller.",
-    ridePrefill: "Aidez-moi a trouver des options de transport sur pour une activite {{activity}} de {{duration}} minutes. Demandez-moi confirmation avant toute reservation.",
+    ridePrefill:
+      "Aidez-moi a trouver des options de transport sur pour une activite {{activity}} de {{duration}} minutes. Demandez-moi confirmation avant toute reservation.",
   },
   statusVitals: {
     actions: {
       ride: "Trouver transport",
-      ridePrefill: "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. Demandez ma confirmation avant toute reservation.",
+      ridePrefill:
+        "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. Demandez ma confirmation avant toute reservation.",
     },
   },
   informes: {
@@ -1075,26 +1491,43 @@ const fr = {
       bookRide: "Trouver transport",
       reviewMeds: "Voir medicaments",
       prepareRefill: "Renouvellement",
-      vitalsContext: "Dernieres constantes VYVA : pouls {{bpm}} bpm{{resp}}. Aidez-moi a choisir l'etape la plus sure.",
-      vitalsAppointmentPrefill: "Aidez-moi a planifier une consultation pour ces constantes VYVA. {{context}} Demandez ma confirmation avant toute reservation.",
-      vitalsRidePrefill: "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. {{context}} Demandez ma confirmation avant toute reservation.",
-      medsContext: "Etat des medicaments aujourd'hui : {{taken}} sur {{total}} pris, {{pending}} restants.",
-      medsRefillPrefill: "Aidez-moi a preparer un renouvellement ou une livraison pharmacie selon cet etat : {{context}} Demandez ma confirmation avant toute commande ou paiement.",
-      medsDoctorContext: "Demande d'aide medicaments VYVA. {{context}} Aidez-moi a decider si je dois contacter mon medecin ou pharmacien.",
-      medsAppointmentPrefill: "Aidez-moi a planifier un rendez-vous de revue des medicaments. {{context}} Demandez ma confirmation avant toute reservation.",
+      vitalsContext:
+        "Dernieres constantes VYVA : pouls {{bpm}} bpm{{resp}}. Aidez-moi a choisir l'etape la plus sure.",
+      vitalsAppointmentPrefill:
+        "Aidez-moi a planifier une consultation pour ces constantes VYVA. {{context}} Demandez ma confirmation avant toute reservation.",
+      vitalsRidePrefill:
+        "Aidez-moi a trouver des options de transport sur pour une visite medicale liee a ces constantes VYVA. {{context}} Demandez ma confirmation avant toute reservation.",
+      medsContext:
+        "Etat des medicaments aujourd'hui : {{taken}} sur {{total}} pris, {{pending}} restants.",
+      medsRefillPrefill:
+        "Aidez-moi a preparer un renouvellement ou une livraison pharmacie selon cet etat : {{context}} Demandez ma confirmation avant toute commande ou paiement.",
+      medsDoctorContext:
+        "Demande d'aide medicaments VYVA. {{context}} Aidez-moi a decider si je dois contacter mon medecin ou pharmacien.",
+      medsAppointmentPrefill:
+        "Aidez-moi a planifier un rendez-vous de revue des medicaments. {{context}} Demandez ma confirmation avant toute reservation.",
     },
   },
   recommendationReasons: {
-    attention: "Aujourd'hui, nous travaillons la concentration et l'attention avec un exercice doux.",
-    executive_function: "Aujourd'hui, nous travaillons l'entrainement cerebral avec un exercice doux.",
-    language: "Aujourd'hui, nous travaillons les mots et le langage avec un exercice doux.",
-    visual_memory: "Aujourd'hui, nous entrainons la memoire visuelle avec un exercice doux.",
-    working_memory: "Aujourd'hui, nous entrainons la memoire de travail avec un exercice doux.",
-    episodic_memory: "Aujourd'hui, nous entrainons la memoire episodique avec un exercice doux.",
-    prospective_memory: "Aujourd'hui, nous entrainons la memoire prospective avec un exercice doux.",
-    associative_memory: "Aujourd'hui, nous entrainons la memoire associative avec un exercice doux.",
-    comprehension_memory: "Aujourd'hui, nous entrainons la comprehension et le rappel avec un exercice doux.",
-    beginner: "Aujourd'hui, nous commencons par un exercice doux pour prendre confiance.",
+    attention:
+      "Aujourd'hui, nous travaillons la concentration et l'attention avec un exercice doux.",
+    executive_function:
+      "Aujourd'hui, nous travaillons l'entrainement cerebral avec un exercice doux.",
+    language:
+      "Aujourd'hui, nous travaillons les mots et le langage avec un exercice doux.",
+    visual_memory:
+      "Aujourd'hui, nous entrainons la memoire visuelle avec un exercice doux.",
+    working_memory:
+      "Aujourd'hui, nous entrainons la memoire de travail avec un exercice doux.",
+    episodic_memory:
+      "Aujourd'hui, nous entrainons la memoire episodique avec un exercice doux.",
+    prospective_memory:
+      "Aujourd'hui, nous entrainons la memoire prospective avec un exercice doux.",
+    associative_memory:
+      "Aujourd'hui, nous entrainons la memoire associative avec un exercice doux.",
+    comprehension_memory:
+      "Aujourd'hui, nous entrainons la comprehension et le rappel avec un exercice doux.",
+    beginner:
+      "Aujourd'hui, nous commencons par un exercice doux pour prendre confiance.",
   },
 } as const;
 

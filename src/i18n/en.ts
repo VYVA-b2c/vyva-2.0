@@ -31,7 +31,8 @@ const en = {
   },
   sos: {
     title: "Need urgent help?",
-    description: "Call emergency services now, or call the emergency contact saved in your profile.",
+    description:
+      "Call emergency services now, or call the emergency contact saved in your profile.",
     callEmergencyNumber: "Call {{number}} now",
     callEmergency: "Call emergency now",
     callEmergencyAria: "Call emergency services now",
@@ -47,8 +48,10 @@ const en = {
       stepLabel: "Step 1 of 5",
       titleSelf: "About you",
       titleCaregiver: "About them",
-      subtitleSelf: "Start with the essentials. You can update your profile any time.",
-      subtitleCaregiver: "Tell VYVA who will receive support. You can add more health and care details after this.",
+      subtitleSelf:
+        "Start with the essentials. You can update your profile any time.",
+      subtitleCaregiver:
+        "Tell VYVA who will receive support. You can add more health and care details after this.",
       fullNameSelf: "Full name",
       fullNameCaregiver: "Their full name",
       fullNamePlaceholder: "e.g. Margaret Collins",
@@ -66,14 +69,18 @@ const en = {
       stepLabel: "Step 2 of 5",
       titleSelf: "Choose your default contact",
       titleCaregiver: "Choose their default contact",
-      subtitleSelf: "Pick the everyday channel for VYVA. Reminders, alerts and quiet hours can be customised later.",
+      subtitleSelf:
+        "Pick the everyday channel for VYVA. Reminders, alerts and quiet hours can be customised later.",
       subtitleCaregiver:
         "Pick the everyday channel for the person receiving support. Reminders, alerts and quiet hours can be customised later.",
       continue: "Continue",
       saving: "Saving...",
       options: {
         phone: { label: "Phone call", sub: "Best for daily check-ins" },
-        whatsapp: { label: "WhatsApp", sub: "Best for reminders and voice notes" },
+        whatsapp: {
+          label: "WhatsApp",
+          sub: "Best for reminders and voice notes",
+        },
         app: { label: "App only", sub: "No calls or messages by default" },
       },
       defaults: {
@@ -92,27 +99,39 @@ const en = {
         },
       },
       phoneLabel: "Best contact number",
-      phoneHint: "We'll use this for the default channel now. More detailed notification preferences live in Settings.",
+      phoneHint:
+        "We'll use this for the default channel now. More detailed notification preferences live in Settings.",
     },
     consent: {
       eyebrow: "Privacy and consent",
       stepLabel: "Step 3 of 5",
       title: "Your data, your choice",
-      subtitle: "VYVA only uses your data to provide care. You can change these choices at any time in Settings.",
+      subtitle:
+        "VYVA only uses your data to provide care. You can change these choices at any time in Settings.",
       agree: "Agree & continue",
       saving: "Saving...",
       error: "Something went wrong - please try again.",
       required: "Required for VYVA to work",
       footer: "Protected under GDPR. We never sell your data.",
       items: {
-        conversation: { label: "Conversation summaries", sub: "VYVA learns from your chats to personalise care" },
-        health: { label: "Health information", sub: "Conditions, medications, and wellbeing data" },
-        alerts: { label: "Share alerts with carer", sub: "Health or safety alerts sent to your caregiver" },
+        conversation: {
+          label: "Conversation summaries",
+          sub: "VYVA learns from your chats to personalise care",
+        },
+        health: {
+          label: "Health information",
+          sub: "Conditions, medications, and wellbeing data",
+        },
+        alerts: {
+          label: "Share alerts with carer",
+          sub: "Health or safety alerts sent to your caregiver",
+        },
       },
     },
     activation: {
       title: "You're all set!",
-      subtitle: "VYVA is ready. You can complete your health profile whenever you like - it makes care better.",
+      subtitle:
+        "VYVA is ready. You can complete your health profile whenever you like - it makes care better.",
       completeProfile: "Complete my health profile",
       later: "I'll do this later",
       items: {
@@ -127,10 +146,14 @@ const en = {
       confirmedTitle: "Account confirmed!",
       confirmedSubtitle: "VYVA is now set up and ready for you.",
       continueSetup: "Continue to set up",
-      proxyBody: "has filled in your health profile and set up your VYVA account.",
-      defaultBody: "Someone close to you has filled in your health profile and set up your VYVA account.",
-      confirmPrompt: "Please confirm this is your account and you're happy for VYVA to use this information.",
-      reviewNote: "You can review and edit everything in your profile at any time. Nothing is shared without your consent.",
+      proxyBody:
+        "has filled in your health profile and set up your VYVA account.",
+      defaultBody:
+        "Someone close to you has filled in your health profile and set up your VYVA account.",
+      confirmPrompt:
+        "Please confirm this is your account and you're happy for VYVA to use this information.",
+      reviewNote:
+        "You can review and edit everything in your profile at any time. Nothing is shared without your consent.",
       confirming: "Confirming...",
       yesAccount: "Yes, this is my account",
       reviewFirst: "Review my profile first",
@@ -147,7 +170,8 @@ const en = {
   meds: {
     contextPanel: {
       title: "Medication context ready",
-      description: "VYVA can use today's schedule and your medication profile on this page.",
+      description:
+        "VYVA can use today's schedule and your medication profile on this page.",
     },
     focusLabels: {
       medication: "Medication",
@@ -175,14 +199,160 @@ const en = {
     },
     quickAccess: "Medication",
     primary: {
-      reminders: "Reminders",
+      reminders: "My Reminders",
       remindersSub: "Review today's schedule and add medication reminders.",
-      refills: "Refills",
+      refills: "My Refills",
       refillsSub: "Prepare repeat prescriptions or delivery.",
-      interactions: "Interactions",
+      interactions: "Stay Safe",
       interactionsSub: "Check medicines and supplements.",
       adherence: "Adherence",
       adherenceSub: "See progress and missed doses.",
+      safety: "Safety signals",
+      safetySub: "Review early signals and draft case packets.",
+      homeRemedies: "Home Remedies",
+      homeRemediesSub: "Check natural and alternative options.",
+    },
+    dashboard: {
+      title: "Medication dashboard",
+      loadingStatus: "Checking today's medicines",
+      emptyStatus: "Add medicines to start tracking today",
+      doneStatus: "All scheduled doses are done",
+      steadyStatus: "Today is mostly on track",
+      watchStatus: "A few doses still need attention",
+      focusNow: "Focus now",
+      noPlanLabel: "No plan yet",
+      allClearLabel: "All clear today",
+      dosesLeftLabel: "doses left today",
+      adherenceRingLabel: "Today's adherence is {{value}}",
+      rhythmTitle: "Today rhythm",
+      rhythmSub: "{{taken}} of {{scheduled}} planned doses confirmed",
+      rhythmEmpty: "Add medicines to see your daily rhythm.",
+      reviewSchedule: "Review schedule",
+      hideSchedule: "Hide schedule",
+      takenToday: "Taken today",
+      takenDetail: "confirmed doses",
+      dueNow: "Due now",
+      dueDetail: "still due today",
+      noneDueDetail: "nothing due",
+      adherence: "Adherence",
+      adherenceDetail: "today's schedule",
+      medicines: "Medicines",
+      medicinesDetail: "tracked here",
+      nextMedicine: "Next medicine",
+      checkingSchedule: "Checking schedule...",
+      dailyRoutine: "Daily routine",
+      scheduledTime: "at {{time}}",
+      confirmNext: "Confirm taken",
+      doseDue_one: "{{count}} dose due",
+      doseDue_other: "{{count}} doses due",
+      allDoneTitle: "All scheduled doses are done",
+      allDoneSub: "Your medicine routine is complete for today.",
+      pharmacy: "Pharmacy",
+      noPharmacyTitle: "No pharmacy saved yet",
+      noPharmacySub: "Add a pharmacy so contact details are ready.",
+      callPharmacy: "Call pharmacy",
+      addPharmacy: "Add pharmacy",
+      orderRefill: "Order refill",
+      personalGuidance: "Personal guidance",
+      guidanceSub: "Small steps matched to the health profile VYVA can see.",
+      healthTipTitle: "Health tip",
+      exerciseTipTitle: "Exercise tip",
+      tipContextConditions: "Based on {{conditions}}",
+      tipContextMedicines: "Based on current medicines",
+      tipContextMobility: "Based on mobility level",
+      tipContextHobby: "Based on saved hobbies",
+      tipContextProfile: "Based on your saved profile",
+      tipContextRoutine: "Based on today's medicine routine",
+      healthTipDiabetesBloodPressure:
+        "For {{conditions}}, use a meal cue for medicine checks and stand up slowly. Note shakiness, thirst, or dizziness.",
+      healthTipBloodPressure:
+        "For blood pressure, rise slowly after sitting and note dizziness, swelling, or headaches for your next health chat.",
+      healthTipDiabetes:
+        "For diabetes, keep medicine checks close to your normal meal rhythm and ask for help if you feel shaky or unusually thirsty.",
+      healthTipBloodThinner:
+        "Because your medicines include aspirin or a blood thinner, keep an eye on unusual bruising or bleeding and check with a pharmacist before adding new painkillers.",
+      healthTipRespiratory:
+        "With breathing support in your profile, keep inhalers or breathing medicines easy to find and note any new breathlessness before your next health conversation.",
+      healthTipStatin:
+        "Because a cholesterol medicine is on your list, make a note of new muscle pain or weakness so you can mention it to your pharmacist or doctor.",
+      healthTipConditionFallback:
+        "With {{conditions}} saved in your profile, keep a short note of how you feel after medicines so your next pharmacy or doctor chat is easier.",
+      healthTipGeneric:
+        "Keep medicines in the routine your doctor gave you, and ask a pharmacist before adding supplements or over-the-counter medicines.",
+      exerciseTipMobility:
+        "For your mobility profile, try seated ankle circles or slow sit-to-stand practice beside a steady chair.",
+      exerciseTipDiabetesBloodPressure:
+        "For diabetes and blood pressure, choose 5 to 10 minutes of easy walking or seated marching after a meal, keeping the pace comfortable enough to talk.",
+      exerciseTipDiabetes:
+        "For diabetes, a short gentle walk after a meal can support the routine; wear comfortable shoes and stop if you feel shaky or unwell.",
+      exerciseTipBloodPressure:
+        "For blood pressure, try a steady walk or chair marching and avoid holding your breath during strength movements.",
+      exerciseTipRespiratory:
+        "For breathing support, try a slow walk with relaxed shoulders and pause for pursed-lip breathing if you feel short of breath.",
+      exerciseTipGardening:
+        "Since gardening is in your profile, use it gently: water plants, tend pots, or walk the garden for 5 minutes without bending too long.",
+      exerciseTipGeneric:
+        "Try 5 to 10 minutes of gentle walking or seated movement when you feel ready, and keep it easy enough to talk.",
+      actionsTitle: "What can I do next?",
+      addByVoiceSub: "Say a medicine name, dose, and routine.",
+    },
+    safety: {
+      title: "Medication safety signals",
+      subtitle: "Early signal review and audit-ready case packets.",
+      steadyBadge: "Steady",
+      caseBadge_one: "{{count}} case",
+      caseBadge_other: "{{count}} cases",
+      signalBadge_one: "{{count}} signal",
+      signalBadge_other: "{{count}} signals",
+      steadyTitle: "No medication safety signals found",
+      steadySub: "Today looks steady from the medication data VYVA can see.",
+      statSignals: "Signals",
+      statCases: "Cases",
+      statReady: "Ready",
+      emptyTitle: "No case needed right now",
+      emptySub:
+        "A single missed confirmation stays in reminders. Draft cases appear only for explicit or repeated signals.",
+      analyse: "Analyse signals",
+      analyseSuccess: "Medication safety signals updated",
+      analyseError: "Could not analyse medication safety",
+      newCase: "New side-effect note",
+      newCaseTitle: "New safety case",
+      reviewCase: "Review safety case",
+      caseDrawerSub:
+        "Prepare a review packet. This does not submit anything to a regulator.",
+      caseFallback: "Medication safety case",
+      readyToExport: "Ready to export",
+      missingFields_one: "{{count}} field missing",
+      missingFields_other: "{{count}} fields missing",
+      missingTitle: "Missing for audit-ready export",
+      readyTitle: "All export fields are filled",
+      status: "Status",
+      severity: "Severity",
+      suspectedMedication: "Suspected medication",
+      medicationPlaceholder: "e.g. Metformin",
+      reaction: "Symptom or reaction",
+      reactionPlaceholder: "e.g. dizziness after taking dose",
+      reactionStarted: "Reaction start date",
+      seriousness: "Seriousness assessment",
+      outcome: "Outcome",
+      outcomePlaceholder: "e.g. improving",
+      actionTaken: "Action taken",
+      actionPlaceholder: "e.g. called pharmacist",
+      reporterName: "Reporter name",
+      reporterContact: "Reporter contact",
+      narrative: "Narrative",
+      narrativePlaceholder: "Add context without guessing or diagnosing.",
+      evidence: "Evidence timeline",
+      exportPacket: "Export packet",
+      export: "Export packet",
+      exportSuccess: "Audit-ready packet created",
+      exportError: "Could not export safety case",
+      saveSuccess: "Safety case saved",
+      saveError: "Could not save safety case",
+      sharedSuccess: "Case shared with caregiver",
+      loadErrorTitle: "Safety signals unavailable",
+      loadErrorSub:
+        "Try again in a moment. Reminders and adherence are still available.",
     },
     scheduleSubtitle: "Review what is due today and mark doses as taken.",
     remainingBadge_one: "{{count}} due",
@@ -194,29 +364,39 @@ const en = {
     supportSubtitle: "Quick checks for refills, interactions, and progress.",
     medicationSummaryFallback: "my medications",
     refillSupport: "Prepare refill",
-    refillSupportSub: "Find safe pharmacy or delivery options before anything is ordered.",
+    refillSupportSub:
+      "Find safe pharmacy or delivery options before anything is ordered.",
     interactionSupport: "Check interactions",
-    interactionSupportSub: "Ask VYVA to review medicines, supplements, and questions.",
-    interactionSupportSubWithMeds_one: "Review {{count}} medication for interactions or questions.",
-    interactionSupportSubWithMeds_other: "Review {{count}} medications for interactions or questions.",
+    interactionSupportSub:
+      "Ask VYVA to review medicines, supplements, and questions.",
+    interactionSupportSubWithMeds_one:
+      "Review {{count}} medication for interactions or questions.",
+    interactionSupportSubWithMeds_other:
+      "Review {{count}} medications for interactions or questions.",
     callGpNamed: "Call {{name}}",
     callGp: "Call GP",
     emailGp: "Email GP",
     doctorReview: "Doctor help",
     doctorReviewSub: "Share today's medication context and get help quickly.",
-    assistantSubtitle: "Ask about safety, ordering, natural options, or latest research.",
+    assistantSubtitle:
+      "Ask about safety, ordering, natural options, or latest research.",
     adherenceService: {
       kicker: "Fast help",
       title: "Medication help in one tap",
-      subtitle: "Refills, doctor contact, and appointment help are ready from this report.",
+      subtitle:
+        "Refills, doctor contact, and appointment help are ready from this report.",
       refill: "Prepare refill",
-      refillSub: "Find pharmacy or delivery options. You confirm before anything is ordered.",
+      refillSub:
+        "Find pharmacy or delivery options. You confirm before anything is ordered.",
       callGpSub: "Speak to your doctor with this report ready.",
       emailGpSub: "Open an email with the report context filled in.",
-      doctorHelpSub: "Talk through missed doses, side effects, or medication worries.",
+      doctorHelpSub:
+        "Talk through missed doses, side effects, or medication worries.",
       appointment: "Medication appointment",
-      appointmentSub: "VYVA prepares the appointment request for you to confirm.",
-      appointmentPrefill: "Please help me schedule a medication review appointment. Medication report: {{summary}}. Needs attention: {{attention}}. Ask me to confirm before booking anything.",
+      appointmentSub:
+        "VYVA prepares the appointment request for you to confirm.",
+      appointmentPrefill:
+        "Please help me schedule a medication review appointment. Medication report: {{summary}}. Needs attention: {{attention}}. Ask me to confirm before booking anything.",
       ride: "Find transport",
       rideSub: "Compare safe ways to get there.",
       doctorNoteTitle: "VYVA medication adherence report",
@@ -227,27 +407,30 @@ const en = {
     talkToDoctorMobile: "Talk to doctor",
     homeCards: {
       symptoms: {
-        label: "My Symptoms",
+        label: "Feel Better",
         hint: "Check how I feel",
-        mobileLabel: "Symptoms",
+        mobileLabel: "Feel Better",
         mobileHint: "Check feelings",
+        prefill: "I want to talk about how I feel.",
       },
       medication: {
         label: "My Medication",
-        hint: "Review my medicines",
-        mobileLabel: "Medication",
-        mobileHint: "Review medicines",
+        hint: "Refill, question, reminder",
+        mobileLabel: "My Medication",
+        mobileHint: "Refill or question",
+        prefill:
+          "Please help me with my medication. Ask what I need, use saved medicine or pharmacy details only if available, and do not contact or change anything without my confirmation.",
       },
       vitals: {
         label: "My Vitals",
         hint: "Pulse, breathing, trends",
-        mobileLabel: "Vitals",
+        mobileLabel: "My Vitals",
         mobileHint: "Pulse and trends",
       },
       healthPlan: {
-        label: "My Health Plan",
+        label: "Stay Well",
         hint: "Check-ins and care plan",
-        mobileLabel: "Health Plan",
+        mobileLabel: "Stay Well",
         mobileHint: "Check-ins",
       },
     },
@@ -261,12 +444,12 @@ const en = {
         subMobile: "Recent health summaries",
       },
       visualScan: {
-        label: "Visual Health Scan",
+        label: "Visual Scan",
         sub: "Take or upload an image for review",
         subMobile: "Take or upload an image",
       },
       specialist: {
-        label: "Find a Specialist",
+        label: "Find Specialist",
         sub: "Connect with the right expert",
         subMobile: "Find the right expert",
       },
@@ -282,7 +465,8 @@ const en = {
       actions: {
         bookTransport: "Find transport",
         bookTransportSub: "Compare safe ways to get there.",
-        ridePrefill: "Please help me find safe transport options for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
+        ridePrefill:
+          "Please help me find safe transport options for a medical appointment. Ask me to confirm before booking anything.\n\n{{context}}",
       },
     },
     vitalsPage: {
@@ -293,7 +477,8 @@ const en = {
       activeDevices: "{{count}} active devices",
       trackedDays: "{{count}}/7 days",
       contextPanelTitle: "Vitals context ready",
-      contextPanelDescription: "VYVA can use the latest readings, trend cards, and scan timing from this page.",
+      contextPanelDescription:
+        "VYVA can use the latest readings, trend cards, and scan timing from this page.",
       generalStatusLabel: "General status",
       generalStatusValue: "Stable - no relevant changes",
       generalStatusBadge: "Good",
@@ -333,9 +518,21 @@ const en = {
       saving: "Saving...",
       saveReading: "Save reading",
       metrics: {
-        hr: { label: "Heart rate", placeholder: "e.g. 72", defaultStatus: "Normal" },
-        rr: { label: "Respiratory rate", placeholder: "e.g. 16", defaultStatus: "Stable" },
-        bp: { label: "Blood pressure", placeholder: "e.g. 118/76", defaultStatus: "Normal" },
+        hr: {
+          label: "Heart rate",
+          placeholder: "e.g. 72",
+          defaultStatus: "Normal",
+        },
+        rr: {
+          label: "Respiratory rate",
+          placeholder: "e.g. 16",
+          defaultStatus: "Stable",
+        },
+        bp: {
+          label: "Blood pressure",
+          placeholder: "e.g. 118/76",
+          defaultStatus: "Normal",
+        },
       },
       devices: {
         watch: { label: "Smartwatch", model: "VYVA Band 2" },
@@ -356,7 +553,7 @@ const en = {
       nextAt: "Next check-in",
       defaultTime: "Default time: 10:00",
       needsCaregiver: "Caregiver contact needed",
-      history: "My Health Plan",
+      history: "Stay Well",
       messages: {
         completed: "VYVA has today's signal.",
         dueNow: "Answer in a few seconds.",
@@ -367,7 +564,7 @@ const en = {
       },
       actions: {
         primary: "Check in",
-        viewHistory: "My Health Plan",
+        viewHistory: "Stay Well",
         checkInEarly: "Check early",
         setup: "Set up",
       },
@@ -394,7 +591,7 @@ const en = {
     symptomCheck: {
       intro: {
         clueSub: "Say or type a few words.",
-        simpleTitle: "Tell VYVA what feels wrong",
+        simpleTitle: "Tell me how you feel, right now",
         simpleBody: "Speak, type, or tap an example.",
         simplePlaceholder: "Type what you feel...",
         startBtn: "Start check",
@@ -408,12 +605,15 @@ const en = {
         voiceStart: "Use voice input",
         voiceStop: "Stop voice input",
         voiceTranscribing: "Turning voice into text",
-        voiceRecording: "Listening... tap again to stop. It stops after 30 seconds.",
+        voiceRecording:
+          "Listening... tap again to stop. It stops after 30 seconds.",
         voiceTranscribingStatus: "Turning voice into text...",
         voiceEmpty: "I couldn't hear anything clearly. Please try again.",
-        voiceFailed: "I couldn't turn that voice note into text. Please try again.",
+        voiceFailed:
+          "I couldn't turn that voice note into text. Please try again.",
         voiceUnsupported: "Voice input is not available in this browser.",
-        voiceMicError: "I couldn't use the microphone. Please try again or type instead.",
+        voiceMicError:
+          "I couldn't use the microphone. Please try again or type instead.",
       },
       tracker: {
         label: "Confidence level",
@@ -424,7 +624,7 @@ const en = {
         starting: "Getting started",
         building: "Confidence improving",
         ready: "Ready to guide",
-        listening: "Tell VYVA what feels wrong",
+        listening: "Tell me how you feel, right now",
         checking: "VYVA is checking symptoms and safety signs",
         prepared: "Next steps are ready",
         listen: "Symptoms",
@@ -448,32 +648,39 @@ const en = {
       report: {
         emergencyLabel: "Emergency now",
         doctorTodayLabel: "Doctor today",
-        summaryIntro: "This recommendation is based on the answers and any profile or vitals context available during this check.",
+        summaryIntro:
+          "This recommendation is based on the answers and any profile or vitals context available during this check.",
         nextStepEmergency: "Call emergency services now",
         nextStepDoctorToday: "Talk to a doctor today",
         nextStepDoctor24_48: "Talk to a doctor within 24-48 hours",
         nextStepMonitorReady: "Monitor at home, with doctor access ready",
         callEmergencyNumber: "Call {{number}}",
         contactEmergencyServices: "Contact emergency services",
-        emergencyBodyWithNumber: "Call {{number}} now. Do not drive yourself. Keep this report open for the responder.",
-        emergencyBodyGeneric: "Contact local emergency services now. Do not drive yourself. Keep this report open for the responder.",
+        emergencyBodyWithNumber:
+          "Call {{number}} now. Do not drive yourself. Keep this report open for the responder.",
+        emergencyBodyGeneric:
+          "Contact local emergency services now. Do not drive yourself. Keep this report open for the responder.",
         savedToReports: "Saved to Reports",
         savingReport: "Saving report...",
         saveFailed: "Report not saved",
         readyReport: "Report ready",
         doctorContact: "your doctor",
         caregiverContact: "your caregiver",
-        sentToBoth: "A copy of this report has been sent to {{first}} and {{second}}.",
+        sentToBoth:
+          "A copy of this report has been sent to {{first}} and {{second}}.",
         sentToOne: "A copy of this report has been sent to {{contact}}.",
         noContactsConfigured: "No doctor or caregiver contact is set yet.",
         checkGlucoseNow: "Check glucose now",
-        checkGlucoseReason: "Add the number to this report before you speak to a doctor.",
+        checkGlucoseReason:
+          "Add the number to this report before you speak to a doctor.",
         checkBloodPressureNow: "Check blood pressure now",
         checkBloodPressureReason: "Enter both numbers, for example 120/80.",
         checkOxygenNow: "Check oxygen now",
-        checkOxygenReason: "Add your oxygen reading if you have a pulse oximeter.",
+        checkOxygenReason:
+          "Add your oxygen reading if you have a pulse oximeter.",
         checkBreathingRateNow: "Check breathing rate now",
-        checkBreathingRateReason: "Count breaths for one minute, or use the scan result.",
+        checkBreathingRateReason:
+          "Count breaths for one minute, or use the scan result.",
         checkTemperatureNow: "Check temperature now",
         checkTemperatureReason: "Add the thermometer reading.",
         checkPulseNow: "Check pulse now",
@@ -493,11 +700,13 @@ const en = {
         timeTaken: "Time taken",
         actionNeeded: "Action now",
         vitalRefinementTitle: "Refine with a reading",
-        vitalRefinementBody: "A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.",
+        vitalRefinementBody:
+          "A relevant reading can help VYVA update this assessment. Phone estimates are useful for trends; device or manual readings are stronger evidence.",
         useLatestReading: "Use latest saved reading",
         noLatestReading: "No saved reading yet",
         latestReadingDetail: "{{display}} from {{source}}",
-        noLatestReadingDetail: "Enter this reading manually to refine the assessment.",
+        noLatestReadingDetail:
+          "Enter this reading manually to refine the assessment.",
         addReading: "Add reading",
         latestSourceDevice: "device reading",
         latestSourceClinical: "clinical reading",
@@ -508,10 +717,14 @@ const en = {
         saveAndRefine: "Save and refine result",
         savingReading: "Saving {{display}}...",
         updatingWithReading: "Updating your result with this reading...",
-        updatedReadingChanged: "Updated with {{display}}. Next step changed. Report updated and ready to share.",
-        updatedReadingSame: "Updated with {{display}}. Next step stayed the same. Report updated and ready to share.",
-        updateReadingFailed: "Could not update with this reading. The original report is still available.",
-        refinePrompt: "New vital added after the first report: {{title}}: {{display}}. Refine the triage result with this new reading. Vitals can increase or clarify urgency, but must not downgrade emergency red flags.",
+        updatedReadingChanged:
+          "Updated with {{display}}. Next step changed. Report updated and ready to share.",
+        updatedReadingSame:
+          "Updated with {{display}}. Next step stayed the same. Report updated and ready to share.",
+        updateReadingFailed:
+          "Could not update with this reading. The original report is still available.",
+        refinePrompt:
+          "New vital added after the first report: {{title}}: {{display}}. Refine the triage result with this new reading. Vitals can increase or clarify urgency, but must not downgrade emergency red flags.",
         emergencyDoNotWait: "Do not wait",
         showAllSteps: "Show all steps",
         shareOrSave: "Share or save",
@@ -531,10 +744,14 @@ const en = {
           requestQuote: "Request quote",
           aria: "{{action}} for: {{recommendation}}",
           emailSubject: "VYVA symptom report",
-          ridePrefill: "Please help me find safe transport options for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
-          appointmentPrefill: "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
-          hydrationPrefill: "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
-          quotePrefill: "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.",
+          ridePrefill:
+            "Please help me find safe transport options for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
+          appointmentPrefill:
+            "Please help me schedule care for this health recommendation: {{recommendation}}. Report: {{report}}. Ask me to confirm before booking.",
+          hydrationPrefill:
+            "Hydration support for this health recommendation: {{recommendation}}. Please suggest easy delivery options such as water, oral rehydration salts, or electrolyte drinks.",
+          quotePrefill:
+            "Please help me request a quote for someone to stay with me or support me at home: {{recommendation}}. Report: {{report}}. Ask me to confirm before requesting anything.",
         },
       },
     },
@@ -547,10 +764,10 @@ const en = {
       memorySub: "Practice recall, matching, and daily routines.",
       reflexes: "Train Reflexes",
       reflexesSub: "Build faster focus and response.",
-      intelligence: "Boost Intelligence",
+      intelligence: "Boost Focus",
       intelligenceSub: "Challenge logic, planning, and problem solving.",
       senses: "Sharpen Senses",
-      sensesSub: "Reset with sound, breath, and calm attention.",
+      sensesSub: "Listen for gentle sounds and build calm focus.",
     },
     chooseActivity: "Choose an activity",
     trivia: "Focus & Attention",
@@ -569,7 +786,8 @@ const en = {
       ofLabel: "of",
       breatheIn: "Breathe in",
       breatheOut: "Breathe out",
-      safety: "If breathing feels difficult, painful, or unusual, stop and seek help.",
+      safety:
+        "If breathing feels difficult, painful, or unusual, stop and seek help.",
       startGuide: "Start Marco guide",
       guideStarting: "Starting...",
       guideLive: "Marco guide is live",
@@ -578,7 +796,8 @@ const en = {
       next: "Next",
       finish: "Finish",
       completeTitle: "A calm pause is complete.",
-      completeBody: "You can come back to this whenever you want a quieter moment.",
+      completeBody:
+        "You can come back to this whenever you want a quieter moment.",
       tryAgain: "Try again",
       audioUnavailable: "The visual guide still works without audio.",
       stages: {
@@ -589,7 +808,8 @@ const en = {
         },
         breathe: {
           title: "Breathe slowly",
-          instruction: "Breathe in as the circle grows. Breathe out as it settles.",
+          instruction:
+            "Breathe in as the circle grows. Breathe out as it settles.",
           cue: "Follow the slow circle.",
         },
         return: {
@@ -643,8 +863,10 @@ const en = {
     backToMemory: "Back to memory",
     nextRecommended: "Next recommended",
     trainingDaily: "Daily training",
-    recommendationHint: "We continue with progression and avoid repeating recent exercises.",
-    recommendationLoading: "We are preparing the ideal next exercise for today.",
+    recommendationHint:
+      "We continue with progression and avoid repeating recent exercises.",
+    recommendationLoading:
+      "We are preparing the ideal next exercise for today.",
     matchInstruction: "Tap two cards to find the pair.",
     sequenceWatch: "Watch the sequence.",
     sequenceYourTurn: "Now it's your turn.",
@@ -656,29 +878,37 @@ const en = {
     sequenceCountdown: "We start in",
     sequenceCountdownHint: "First you will see the full sequence.",
     sequenceReady: "The tiles will light up one by one.",
-    sequenceTapHint: "Tap the tiles in the correct order. There is no time pressure.",
+    sequenceTapHint:
+      "Tap the tiles in the correct order. There is no time pressure.",
     sequenceWaitTurn: "Wait until the sequence ends.",
-    sequenceWaitTurnHint: "First watch the whole sequence. Then it will be your turn to repeat it.",
+    sequenceWaitTurnHint:
+      "First watch the whole sequence. Then it will be your turn to repeat it.",
     sequenceWrong: "That was not the right sequence.",
     sequenceTryAgain: "Let's watch it again and try one more time.",
     pairs: "Pairs",
     currentAccuracy: "Current accuracy",
     exerciseNotFound: "Exercise not found",
     exerciseNotFoundBody: "We could not open this exercise.",
-    stubBody: "It is already wired into the memory flow and ready for the next implementation phase.",
+    stubBody:
+      "It is already wired into the memory flow and ready for the next implementation phase.",
   },
   wordRecall: {
-    memorizeInstruction: "Read these words calmly and try to remember them.",
-    readyButton: "I'm ready",
-    recallInstruction: "Recall as many words as you can.",
-    selectRememberedWords: "You can tap the words, type them, or say them aloud.",
+    memorizeInstruction: "Study words",
+    studyHint: "Words hide next.",
+    readyButton: "Hide words",
+    recallInstruction: "Remember the words",
+    recallHint: "Tap, type, or speak any words you remember.",
+    selectRememberedWords: "Tap, type, or speak any words you remember.",
+    tapWordsLabel: "Tap words",
+    wordCount: "{{count}} words",
+    rememberedShort: "Remembered",
     distractionTitle: "Short pause",
     distractionInstruction: "Take a short pause before recalling the words.",
     distractionChooseBlue: "Tap the blue colour to continue.",
     distractionBreathe: "Take one calm breath and press continue.",
     distractionCountBackwards: "Count backwards from 10 and then continue.",
     continueButton: "Continue",
-    remembered: "Remembered words",
+    remembered: "Your words",
     missedWords: "Words you missed",
     correctWords: "Correct words",
     muteAudio: "Mute audio",
@@ -687,16 +917,18 @@ const en = {
     coachIntro: "Hello. We are going to do a short word memory exercise.",
     coachMemorize: "Listen to the words calmly and try to remember them.",
     coachReady: "When you are ready, press I'm ready to continue.",
-    coachDistraction: "Very good. Now we will do a short pause before recalling the words.",
+    coachDistraction:
+      "Very good. Now we will do a short pause before recalling the words.",
     coachRecall: "Now try to remember the words you heard.",
     voiceCommandsHint: "You can also say ready or repeat.",
     commandReadyHeard: "I heard ready.",
     commandRepeatHeard: "Repeating the instructions.",
-    speakWords: "Say the words",
+    speakWords: "Say words",
+    voiceInputTitle: "Voice",
     listening: "I'm listening...",
     voiceNotSupported: "Voice input is not available in this browser.",
     tryAgain: "Try again",
-    typeWordsPlaceholder: "Type one or more words",
+    typeWordsPlaceholder: "Type words",
     addWord: "Add",
   },
   storyRecall: {
@@ -705,7 +937,8 @@ const en = {
     pauseAudio: "Pause",
     resumeAudio: "Resume",
     stopAudio: "Stop",
-    audioUnavailable: "Story audio is not available right now. You can still read the story.",
+    audioUnavailable:
+      "Story audio is not available right now. You can still read the story.",
     startQuestions: "Answer questions",
     questionProgress: "Question",
     chooseAnswer: "Choose an answer",
@@ -713,7 +946,8 @@ const en = {
     nextQuestion: "Next question",
     continueToRetell: "Continue to retell",
     retellTitle: "Tell the story",
-    retellInstruction: "Write what you remember in your own words. The order does not need to be perfect.",
+    retellInstruction:
+      "Write what you remember in your own words. The order does not need to be perfect.",
     retellPlaceholder: "Write the story here...",
     retellMissing: "Write what you remember before submitting.",
     words: "words",
@@ -782,7 +1016,8 @@ const en = {
       niceGuess: "Nice guess!",
       ideaPlaceholder: "Another idea...",
       doneIdeas: "I can't think of more",
-      callbackPrompt: "Earlier I told you something curious. Do you remember what it was?",
+      callbackPrompt:
+        "Earlier I told you something curious. Do you remember what it was?",
       callbackPlaceholder: "Whatever you remember...",
       dontRemember: "I don't remember",
       callbackAck: "That's it! Here's a reminder:",
@@ -794,9 +1029,11 @@ const en = {
       dictateLabel: "Dictate",
       listeningLabel: "Listening...",
       voiceUnavailableLabel: "Voice input is not available",
-      contentUnavailable: "There is no reviewed Curious Minds content available yet.",
+      contentUnavailable:
+        "There is no reviewed Curious Minds content available yet.",
       tryAgain: "Try again",
-      saveWarning: "Your session summary is shown here, but saving may need to be retried.",
+      saveWarning:
+        "Your session summary is shown here, but saving may need to be retried.",
       encouragements: {
         one: "Nice guess!",
         two: "Interesting",
@@ -806,11 +1043,19 @@ const en = {
       },
       admin: {
         title: "Content review",
-        subtitle: "Approve, edit, or reject Curious Minds draft content before it reaches members.",
+        subtitle:
+          "Approve, edit, or reject draft content before it reaches members.",
         hooksTitle: "Curiosity hooks",
+        contentReviewSubtitle:
+          "Approve, edit, or reject draft content before it reaches members.",
         promptsTitle: "Divergent prompts",
+        ccStoryTitle: "CC Story Recall",
+        ccSimilaritiesTitle: "CC Similarities",
         hooksTab: "Hooks",
         promptsTab: "Prompts",
+        ccStoryTab: "CC Story Recall",
+        ccSimilaritiesTab: "CC Similarities",
+        modeLabel: "Content type",
         pendingCount: "{n} pending",
         loading: "Loading drafts...",
         empty: "No pending drafts in this section.",
@@ -818,20 +1063,94 @@ const en = {
         checklistTitle: "Review checklist",
         approve: "Approve",
         reject: "Reject",
+        wordCount: "{n} words",
+        addIdeaUnit: "Add unit",
+        addAnswer: "Add answer",
+        removeItem: "Remove item",
         fields: {
           fact_prompt: "Question",
           fact_answer: "Answer",
           prompt_text: "Prompt",
           topic: "Topic",
+          title: "Title",
+          body: "Story body",
+          idea_units: "Idea units",
+          estimated_grade_level: "Grade level",
+          difficulty_tier: "Difficulty tier",
+          pairWord: "Pair word",
+          abstract_answer_examples: "Abstract answer examples",
+          concrete_answer_examples: "Concrete answer examples",
         },
         checklist: {
           factuallyAccurate: "Factually accurate",
           warmTone: "Warm, conversational tone",
           naturalLanguage: "Culturally natural for the target language",
-          safeContent: "No distressing, political, religious, or medical content",
+          safeContent:
+            "No distressing, political, religious, or medical content",
           notPatronising: "Not patronising to an intelligent older adult",
           openEnded: "Genuinely open-ended",
+          ccStoryWordCount: "Word count is 40-60",
+          ccStoryReadingLevel: "Reading level is appropriate, grade 3-5",
+          ccStoryTone: "Story is emotionally warm or neutral",
+          ccStoryIdeaUnits: "Idea units enumerate 20-25 recallable details",
+          ccStoryCultural: "Culturally natural, like a native speaker wrote it",
+          ccStoryNoReferences:
+            "No named public figures, religious, or political references",
+          ccStoryNotPatronising: "No content that could feel patronising",
+          ccSimilaritiesFamiliar:
+            "Both words are culturally natural and familiar to seniors",
+          ccSimilaritiesAbstract:
+            "Abstract answers represent a genuine shared category",
+          ccSimilaritiesConcrete:
+            "Concrete answers are plausible partial-credit responses",
+          ccSimilaritiesTier:
+            "Difficulty tier matches the abstraction level required",
         },
+      },
+    },
+    listenClosely: {
+      preparing: "Preparing the sounds...",
+      practiceFallback: "We will use a short practice soundscape.",
+      title: "Listen Closely",
+      subtitle: "A gentle sound game for calm focus.",
+      instructionFind: "Tap whenever you hear the target sound.",
+      instructionOddball:
+        "Tap when the special target sound appears among the other sounds.",
+      instructionCompare:
+        "Listen to both sounds. At the end, choose which one happened more.",
+      tapWhenHeard: "Tap when you hear it.",
+      justListen: "Just listen.",
+      resultGood: "Good listening.",
+      resultTry: "Nice practice. Listening gets easier with time.",
+      listenFor: "Listen for",
+      sampleTarget: "Hear target",
+      start: "Start",
+      audioUnavailable:
+        "Sound is not available in this browser, but you can still view the game.",
+      modeFind: "Find it",
+      modeOddball: "Odd sound",
+      modeCompare: "Count compare",
+      targetSound: "Target sound",
+      playingLabelCompare: "Listen to both sounds",
+      tapButton: "I heard it",
+      heard: "Heard it",
+      whichMore: "Which sound happened more?",
+      accuracy: "Accuracy",
+      score: "Score",
+      heardCount: "Heard",
+      streak: "Streak",
+      progress: "Level progress",
+      playAgain: "Play again",
+      finish: "Finish",
+      sounds: {
+        chime: "chime",
+        chirp: "chirp",
+        tap: "tap",
+        whoosh: "whoosh",
+        drip: "drip",
+        hum: "hum",
+        click: "click",
+        ring: "ring",
       },
     },
     numberTrails: {
@@ -888,7 +1207,8 @@ const en = {
       starReminderEvent: "{cue}: tap gold star.",
       starReminderTime: "Later: tap gold star.",
       noReminder: "Remember both rules after you start.",
-      tutorialBody: "Tap when you see {rule}. {cue}: tap gold star. Anything else: wait. This is the only example.",
+      tutorialBody:
+        "Tap when you see {rule}. {cue}: tap gold star. Anything else: wait. This is the only example.",
       tutorialReady: "Ready to try it for real?",
       tryForReal: "Try it for real",
       ongoingRule: "Tap when you see {rule}. Anything else: wait.",
@@ -896,14 +1216,17 @@ const en = {
       intentionButton: "Gold star",
       starButtonHint: "Use only for the reminder.",
       resultHit: "You remembered without anyone reminding you.",
-      resultMiss: "You did not remember this time, and that is okay. Let us keep practicing.",
+      resultMiss:
+        "You did not remember this time, and that is okay. Let us keep practicing.",
       verdictLevelUp: "Level up",
       verdictCounted: "Good round",
       verdictMemoryCredit: "Gold star remembered",
       verdictNotCounted: "Try again",
       resultWhyCounted: "You used both buttons at the right time.",
-      resultWhyMemoryCredit: "You got the gold star. Next time, tap purple for the target too.",
-      resultWhyNeedsRecall: "To count: tap purple for the target and gold star for the reminder.",
+      resultWhyMemoryCredit:
+        "You got the gold star. Next time, tap purple for the target too.",
+      resultWhyNeedsRecall:
+        "To count: tap purple for the target and gold star for the reminder.",
       backgroundTask: "Background task",
       matchingTask: "Matching task",
       remembered: "Recall",
@@ -911,10 +1234,13 @@ const en = {
       streak: "Streak",
       promotionProgress: "Level progress",
       currentLevel: "Current level",
-      levelProgressPromoted: "Level up. You got 3 counted rounds, so your next round is Level {level}.",
+      levelProgressPromoted:
+        "Level up. You got 3 counted rounds, so your next round is Level {level}.",
       levelProgressCounted: "Good round. {count} more to move up.",
-      levelProgressNeedsBackground: "You remembered the gold star. To count the round, also tap purple for the target.",
-      levelProgressNeedsRecall: "To count the round, use both buttons: purple for the target and gold star for the reminder.",
+      levelProgressNeedsBackground:
+        "You remembered the gold star. To count the round, also tap purple for the target.",
+      levelProgressNeedsRecall:
+        "To count the round, use both buttons: purple for the target and gold star for the reminder.",
       shortRules: {
         shape_circle: "circle",
         shape_square: "square",
@@ -935,6 +1261,16 @@ const en = {
         number_even: "an even number",
         number_odd: "an odd number",
       },
+      cueLabels: {
+        bell: "bell",
+        moon: "moon",
+        key: "key",
+        leaf: "leaf",
+        heart: "heart",
+        sparkle: "sparkle",
+        flag: "flag",
+        music: "music note",
+      },
     },
   },
   brainGames: {
@@ -944,6 +1280,25 @@ const en = {
       nextRecommended: "Next recommended round",
       playAgain: "Play again",
       playAnotherGame: "Play another game",
+    },
+    senses: {
+      title: "Sharpen Senses",
+      subtitle: "Choose a sound, breathing, or sensory memory exercise.",
+      breathingGarden: {
+        title: "Breathing Garden",
+        description: "Use calm breathing to bring a garden to life.",
+        badge: "Calm practice",
+      },
+      listenClosely: {
+        title: "Attentive Listening",
+        description: "Listen for gentle sounds and train quiet focus.",
+        badge: "Sound",
+      },
+      sensoryMemory: {
+        title: "Memory of the Senses",
+        description: "Recall a familiar smell and the memory it brings.",
+        badge: "Daily memory",
+      },
     },
     attentionBoosters: {
       title: "Focus & Attention",
@@ -964,12 +1319,14 @@ const en = {
       subtitle: "Practice flexible thinking, planning, and switching rules.",
       categorySort: {
         title: "Category Sort",
-        description: "Sort each card as the rule changes from colour to shape and meaning.",
+        description:
+          "Sort each card as the rule changes from colour to shape and meaning.",
         badge: "Rules",
       },
       numberTrails: {
         title: "Number Trails",
-        description: "Connect numbers, then numbers and letters, to train speed and flexibility.",
+        description:
+          "Connect numbers, then numbers and letters, to train speed and flexibility.",
         badge: "Trails",
       },
     },
@@ -1057,7 +1414,8 @@ const en = {
       loading: "Preparing the cards...",
       practiceNote: "We will use a practice deck.",
       title: "Category Sort",
-      subtitle: "Sort the card by the rule shown at the top. The rule will change.",
+      subtitle:
+        "Sort the card by the rule shown at the top. The rule will change.",
       example: "See example",
       start: "Start exercise",
       tutorialTitle: "Example without scoring",
@@ -1140,7 +1498,8 @@ const en = {
   triageScan: {
     eyebrow: "Your choice",
     resultAdded: "Scan note added",
-    photoError: "We could not check that photo. You can try again or continue without it.",
+    photoError:
+      "We could not check that photo. You can try again or continue without it.",
     actions: {
       checkNow: "Check now",
       takePhoto: "Take photo",
@@ -1166,32 +1525,245 @@ const en = {
       wound_photo: {
         title: "Photo of the skin change",
         body: "If you want, you can take a photo of the skin change so VYVA can look for visible changes.",
-        privacyNote: "Only photograph the area you want checked. The photo is reviewed and then discarded.",
+        privacyNote:
+          "Only photograph the area you want checked. The photo is reviewed and then discarded.",
       },
       urine_photo: {
         title: "Photo of urine appearance",
         body: "If the color or cloudiness looks different, a photo may help VYVA note what changed.",
-        privacyNote: "Only photograph the urine itself. Keep faces and ID cards out of the photo. A photo cannot tell if you have a urine infection.",
+        privacyNote:
+          "Only photograph the urine itself. Keep faces and ID cards out of the photo. A photo cannot tell if you have a urine infection.",
       },
       stool_photo: {
         title: "Photo of stool appearance",
         body: "If the stool looked unusual for you, a photo may help VYVA note the change.",
-        privacyNote: "Only photograph the stool itself. Keep faces and ID cards out of the photo. A photo cannot tell if there is bleeding or stomach disease.",
+        privacyNote:
+          "Only photograph the stool itself. Keep faces and ID cards out of the photo. A photo cannot tell if there is bleeding or stomach disease.",
+      },
+    },
+  },
+  guidedActions: {
+    common: {
+      reset: "Reset",
+      stepCount: "Step {{current}} of {{total}}",
+      continue: "Continue",
+      sayOrType: "Say it or type it",
+      useAnswer: "Use answer",
+    },
+    concierge: {
+      bookRide: {
+        title: "Let's book your ride",
+        intro:
+          "Say it, type it, or tap a choice. VYVA compares options before anything is booked.",
+        completion: "Ride details ready. Now compare safe options.",
+        confirmation:
+          "If you have a saved transport provider, VYVA shows it first. Otherwise VYVA compares safe options. Nothing is booked without your confirmation.",
+        customAnswer: "Use typed answer",
+        steps: {
+          destination: {
+            title: "Where are you going?",
+            helper:
+              "Use a saved place, choose a common stop, or type the address.",
+            placeholder: "Clinic, pharmacy, family address...",
+          },
+          pickup: {
+            title: "Where should we pick you up?",
+            helper:
+              "Use your saved home, current place, or type a pickup address.",
+            placeholder: "Home, hotel, reception, entrance...",
+          },
+          time: {
+            title: "When do you need to go?",
+            helper: "Choose a simple time or type the appointment time.",
+            placeholder: "Tomorrow at 10, later today...",
+          },
+          mobility: {
+            title: "Any help getting in or out?",
+            helper:
+              "Pick all that matter. This helps VYVA compare safer options.",
+          },
+        },
+        choices: {
+          doctor: "Doctor",
+          pharmacy: "Pharmacy",
+          hospital: "Hospital",
+          newAddress: "New address",
+          savedHome: "Home",
+          currentPlace: "Current place",
+          newPickup: "New pickup",
+          now: "Now",
+          laterToday: "Later today",
+          tomorrow: "Tomorrow",
+          appointmentTime: "For appointment",
+          noExtraHelp: "No extra help",
+          walker: "Walker",
+          wheelchair: "Wheelchair",
+          companion: "Someone with me",
+        },
+      },
+      bookMedicalAppointment: {
+        title: "Let's prepare your appointment",
+        intro:
+          "Answer a few things. VYVA checks saved providers first, then safe options.",
+        completion: "Appointment request ready.",
+        confirmation:
+          "VYVA will prepare the request and ask before booking or contacting anyone.",
+        customAnswer: "Use typed answer",
+        steps: {
+          need: {
+            title: "What kind of care do you need?",
+            helper: "Choose the closest match. You can type your own.",
+            placeholder: "Cardiology, skin, blood test...",
+          },
+          reason: {
+            title: "What is this for?",
+            helper: "This helps VYVA write a clearer request.",
+            placeholder: "Short reason...",
+          },
+          provider: {
+            title: "Which provider should VYVA try first?",
+            helper: "If you have a saved doctor, VYVA checks that first.",
+            placeholder: "Clinic or doctor name...",
+          },
+          timing: {
+            title: "When would you like it?",
+            helper: "A rough time is enough to start.",
+            placeholder: "Tuesday morning, next week...",
+          },
+          contact: {
+            title: "How should VYVA handle it?",
+            helper:
+              "Choose the route you are comfortable with. You confirm first.",
+          },
+        },
+        choices: {
+          doctor: "Doctor",
+          specialist: "Specialist",
+          nurse: "Nurse",
+          lab: "Test or lab",
+          other: "Other",
+          routine: "Routine check",
+          symptom: "New symptom",
+          followUp: "Follow-up",
+          medication: "Medication",
+          urgent: "Urgent worry",
+          savedProvider: "Saved doctor",
+          findNearby: "Find nearby",
+          clinicName: "Clinic name",
+          notSure: "Not sure",
+          soon: "Soon",
+          thisWeek: "This week",
+          specificTime: "Specific time",
+          flexible: "Flexible",
+          phone: "Phone",
+          online: "Online form",
+          message: "Message",
+          askVyva: "Let VYVA choose",
+        },
+      },
+    },
+    health: {
+      medicationHelp: {
+        title: "Medication help",
+        intro:
+          "Answer a few things. VYVA prepares a safe next step and never changes medication for you.",
+        completion: "Medication request ready.",
+        confirmation:
+          "Pharmacy help is for OTC items through a saved pharmacy. VYVA asks before contacting anyone.",
+        customAnswer: "Use typed answer",
+        steps: {
+          need: {
+            title: "What do you need help with?",
+            helper:
+              "Choose the closest need. If it feels urgent, VYVA will point you to safer help.",
+          },
+          medicine: {
+            title: "Which medicine is this about?",
+            helper: "Use a saved medicine, say the name, or choose not sure.",
+            placeholder: "Medicine name...",
+          },
+          pharmacy: {
+            title: "Use your saved pharmacy?",
+            helper:
+              "For now, VYVA only helps with non-prescription items through a pharmacy saved in your profile.",
+            placeholder: "Pharmacy name or area...",
+          },
+          urgency: {
+            title: "How soon do you need help?",
+            helper:
+              "This helps VYVA choose between routine help and a safer urgent step.",
+          },
+          nextStep: {
+            title: "What should VYVA prepare?",
+            helper:
+              "VYVA prepares the request. You confirm before anything is sent.",
+          },
+        },
+        choices: {
+          missedDose: "Missed dose",
+          refill: "OTC item",
+          sideEffect: "Side effect",
+          schedule: "Schedule",
+          addMedicine: "Add medicine",
+          question: "Question",
+          savedMedicine: "Saved medicine",
+          typeName: "Type name",
+          notSure: "Not sure",
+          usualPharmacy: "Saved pharmacy",
+          nearbyPharmacy: "Nearby pharmacy",
+          setupPharmacyFirst: "Set up pharmacy first",
+          pharmacyName: "Enter pharmacy",
+          now: "Now",
+          today: "Today",
+          thisWeek: "This week",
+          routine: "Routine",
+          callPharmacy: "Ask saved pharmacy",
+          messageDoctor: "Message doctor",
+          addReminder: "Add reminder",
+          reviewList: "Review list",
+          askVyva: "Let VYVA choose",
+        },
       },
     },
   },
   home: {
     fastHelp: {
-      ride: {
-        label: "Find transport",
-        sub: "Compare safe ways to get there.",
+      feelBetter: {
+        label: "Feel Better",
+        sub: "Talk through symptoms",
       },
-      ridePrefill: "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation.",
+      stayWell: {
+        label: "Stay Well",
+        sub: "Check-ins and care plan",
+      },
+      findCare: {
+        label: "Find Care",
+        sub: "Compare support options",
+        prefill:
+          "Help me find care or support options. Compare safe, nearby, easy choices and do not contact or book anything without my confirmation.",
+      },
+      bookRide: {
+        label: "Book Ride",
+        sub: "Compare safe transport",
+        prefill:
+          "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation.",
+      },
+      paperwork: {
+        label: "Paperwork Help",
+        sub: "Forms, letters, documents",
+        prefill:
+          "Help me with paperwork. Review forms, letters, documents, or bills, summarize what matters, and prepare the next step without sending anything without my confirmation.",
+      },
+      safeHome: {
+        label: "Safe Home",
+        sub: "Check risks and support",
+      },
     },
   },
   concierge: {
     fastHelp: {
-      ridePrefill: "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
+      ridePrefill:
+        "Please help me find safe transport options. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
       actions: {
         ride: {
           label: "Find transport",
@@ -1203,12 +1775,14 @@ const en = {
   activity: {
     bookRide: "Find transport",
     bookRideSub: "Compare safe ways to get there.",
-    ridePrefill: "Please help me find safe transport options for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
+    ridePrefill:
+      "Please help me find safe transport options for a {{duration}} minute {{activity}} activity. Ask me to confirm before booking anything.",
   },
   statusVitals: {
     actions: {
       ride: "Find transport",
-      ridePrefill: "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking.",
+      ridePrefill:
+        "Please help me find safe transport options based on my VYVA vitals. Ask me to confirm before booking.",
     },
   },
   informes: {
@@ -1220,27 +1794,40 @@ const en = {
       bookRide: "Find transport",
       reviewMeds: "Review meds",
       prepareRefill: "Prepare refill",
-      vitalsContext: "Latest VYVA vitals: pulse {{bpm}} bpm{{resp}}. Please help me decide the safest next step.",
-      vitalsAppointmentPrefill: "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
-      vitalsRidePrefill: "Please help me find safe transport options for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
-      medsContext: "Today's medication status: {{taken}} of {{total}} taken, {{pending}} still pending.",
-      medsRefillPrefill: "Please help me prepare a safe pharmacy refill or delivery based on this medication status: {{context}} Ask me to confirm before ordering or paying.",
-      medsDoctorContext: "VYVA medication support request. {{context}} Please help me decide if I should contact my doctor or pharmacist.",
-      medsAppointmentPrefill: "Please help me schedule a medication review appointment. {{context}} Ask me to confirm before booking.",
+      vitalsContext:
+        "Latest VYVA vitals: pulse {{bpm}} bpm{{resp}}. Please help me decide the safest next step.",
+      vitalsAppointmentPrefill:
+        "Please help me schedule care to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
+      vitalsRidePrefill:
+        "Please help me find safe transport options for a medical visit to review these VYVA vitals. {{context}} Ask me to confirm before booking.",
+      medsContext:
+        "Today's medication status: {{taken}} of {{total}} taken, {{pending}} still pending.",
+      medsRefillPrefill:
+        "Please help me prepare a safe pharmacy refill or delivery based on this medication status: {{context}} Ask me to confirm before ordering or paying.",
+      medsDoctorContext:
+        "VYVA medication support request. {{context}} Please help me decide if I should contact my doctor or pharmacist.",
+      medsAppointmentPrefill:
+        "Please help me schedule a medication review appointment. {{context}} Ask me to confirm before booking.",
     },
   },
   recommendationReasons: {
     attention: "Today we work on focus and attention with a gentle exercise.",
-    executive_function: "Today we work on brain training with a gentle exercise.",
+    executive_function:
+      "Today we work on brain training with a gentle exercise.",
     language: "Today we work on words and language with a gentle exercise.",
     visual_memory: "Today we train visual memory with a gentle exercise.",
     working_memory: "Today we train working memory with a gentle exercise.",
     episodic_memory: "Today we train episodic memory with a gentle exercise.",
-    prospective_memory: "Today we train prospective memory with a gentle exercise.",
-    associative_memory: "Today we train associative memory with a gentle exercise.",
-    comprehension_memory: "Today we train comprehension and recall with a gentle exercise.",
-    divergent_thinking: "Today we train flexible idea generation with a gentle exercise.",
-    beginner: "Today we begin with a gentle exercise to get comfortable with memory training.",
+    prospective_memory:
+      "Today we train prospective memory with a gentle exercise.",
+    associative_memory:
+      "Today we train associative memory with a gentle exercise.",
+    comprehension_memory:
+      "Today we train comprehension and recall with a gentle exercise.",
+    divergent_thinking:
+      "Today we train flexible idea generation with a gentle exercise.",
+    beginner:
+      "Today we begin with a gentle exercise to get comfortable with memory training.",
   },
 } as const;
 

@@ -18,6 +18,7 @@ interface ProfileData {
   profileId?: string | null;
   street: string;
   cityState: string;
+  region?: string | null;
   postalCode: string;
   caregiverName: string;
   caregiverContact: string;
@@ -25,6 +26,22 @@ interface ProfileData {
   gpPhone?: string;
   gpEmail?: string;
   gender?: string;
+  mobilityLevel?: string | null;
+  savedProviders?: Array<{
+    name: string;
+    role?: string;
+    category?: string;
+    phone?: string;
+    address?: string;
+  }>;
+  serviceReadiness?: {
+    hasSavedPharmacy?: boolean;
+    hasSavedDoctor?: boolean;
+    hasSavedTransportProvider?: boolean;
+    hasMobilityInfo?: boolean;
+    hasCoverageInfo?: boolean;
+    hasPreferredContactMethod?: boolean;
+  };
 }
 
 interface ProfileContextValue {
@@ -37,11 +54,14 @@ interface ProfileContextValue {
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
-function normalizeProfileLanguage(language?: string | null): LanguageCode | null {
+function normalizeProfileLanguage(
+  language?: string | null,
+): LanguageCode | null {
   if (!language) return null;
 
   const raw = language.trim().toLowerCase();
-  if (SUPPORTED_LANGUAGES.includes(raw as LanguageCode)) return raw as LanguageCode;
+  if (SUPPORTED_LANGUAGES.includes(raw as LanguageCode))
+    return raw as LanguageCode;
 
   const normalized = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const languageAliases: Record<string, LanguageCode> = {
@@ -85,10 +105,17 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!token) return;
-    const lang = normalizeProfileLanguage(profile?.languagePreference ?? profile?.language);
+    const lang = normalizeProfileLanguage(
+      profile?.languagePreference ?? profile?.language,
+    );
     if (!lang) return;
     syncProfileLanguage(lang, profile?.profileId ?? null);
-  }, [profile?.language, profile?.languagePreference, profile?.profileId, token]);
+  }, [
+    profile?.language,
+    profile?.languagePreference,
+    profile?.profileId,
+    token,
+  ]);
 
   useEffect(() => {
     if (!token || source !== "user" || !profile?.profileId) return;
@@ -104,18 +131,28 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       method: "PATCH",
       body: JSON.stringify({ language: normalized }),
       signal: controller.signal,
-    }).then((response) => {
-      if (!response.ok) return;
-      void queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-    }).catch(() => {
-      savedLanguageRevisionRef.current = null;
-    });
+    })
+      .then((response) => {
+        if (!response.ok) return;
+        void queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      })
+      .catch(() => {
+        savedLanguageRevisionRef.current = null;
+      });
 
     return () => controller.abort();
   }, [language, profile?.profileId, revision, source, token]);
 
   return (
-    <ProfileContext.Provider value={{ profile: profile ?? null, isLoading, fullName, initials, firstName }}>
+    <ProfileContext.Provider
+      value={{
+        profile: profile ?? null,
+        isLoading,
+        fullName,
+        initials,
+        firstName,
+      }}
+    >
       {children}
     </ProfileContext.Provider>
   );
