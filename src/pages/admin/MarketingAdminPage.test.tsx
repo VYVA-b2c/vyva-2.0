@@ -390,6 +390,30 @@ function contentFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
+function contactFromRequestBody(id: string, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}"));
+  return {
+    id,
+    audienceType: body.audienceType ?? "b2b",
+    fullName: body.fullName ?? "",
+    email: body.email ?? null,
+    phoneNumber: body.phoneNumber ?? null,
+    whatsappNumber: body.whatsappNumber ?? null,
+    roleLabel: body.roleLabel ?? null,
+    companyName: body.companyName ?? null,
+    consentStatus: body.consentStatus ?? "unknown",
+    source: "vyva",
+    channelAvailability: body.channelAvailability ?? {},
+    tags: body.tags ?? [],
+    language: body.language ?? null,
+    category: body.category ?? null,
+    vertical: body.vertical ?? null,
+    market: body.market ?? null,
+    lists: [],
+    lovableExternalId: null,
+  };
+}
+
 function renderPage(syncOverride: Partial<typeof sync> = {}) {
   const syncResponse = { ...sync, ...syncOverride };
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -418,6 +442,8 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/content/content-2" && method === "PATCH") return jsonResponse({ ok: true, content: contentFromRequestBody("content-2", init) });
     if (path === "/api/admin/marketing/content/content-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContentId: "content-2" });
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
+    if (path === "/api/admin/marketing/contacts/contact-2" && method === "PATCH") return jsonResponse({ ok: true, contact: contactFromRequestBody("contact-2", init) });
+    if (path === "/api/admin/marketing/contacts/contact-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContactId: "contact-2" });
     if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audiences[0] }, { status: 201 });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
   });
@@ -648,6 +674,68 @@ describe("MarketingAdminPage", () => {
       rules: { market: "Spain", vertical: "health" },
       contactExternalIds: ["lovable-contact-2", "missing-contact"],
     });
+  });
+
+  it("edits and deletes imported marketing contacts", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-contact-contact-2"));
+
+    expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue("Hassan Partner");
+
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-name"), { target: { value: "Updated Partner" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-contact-audience"), { target: { value: "both" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-contact-consent"), { target: { value: "opted_in" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-email"), { target: { value: "updated@example.com" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-phone"), { target: { value: "+34 600 000 004" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-whatsapp"), { target: { value: "+34 600 000 005" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-role"), { target: { value: "Growth lead" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-company"), { target: { value: "Updated Org" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-language"), { target: { value: "es" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-category"), { target: { value: "partner" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-vertical"), { target: { value: "care" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-market"), { target: { value: "Madrid" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-contact-tags"), { target: { value: "partner, priority" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-contact"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/contacts/contact-2" && init?.method === "PATCH");
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      fullName: "Updated Partner",
+      audienceType: "both",
+      email: "updated@example.com",
+      phoneNumber: "+34 600 000 004",
+      whatsappNumber: "+34 600 000 005",
+      roleLabel: "Growth lead",
+      companyName: "Updated Org",
+      language: "es",
+      category: "partner",
+      vertical: "care",
+      market: "Madrid",
+      consentStatus: "opted_in",
+      tags: ["partner", "priority"],
+      channelAvailability: {
+        email: true,
+        phone: true,
+        whatsapp: true,
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-contact-editor-feedback")).toHaveTextContent("Contact updated.");
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-contact"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete contact"));
+    confirmSpy.mockRestore();
   });
 
   it("creates a blank journey draft and keeps the editor open", async () => {
