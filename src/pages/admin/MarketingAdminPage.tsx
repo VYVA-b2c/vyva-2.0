@@ -1523,6 +1523,7 @@ export default function MarketingAdminPage() {
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(() => emptyCampaignDraft());
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
+  const [campaignSaving, setCampaignSaving] = useState(false);
   const [editingJourneyId, setEditingJourneyId] = useState<string | "new" | null>(null);
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>(() => emptyJourneyEditDraft());
   const [journeySaving, setJourneySaving] = useState(false);
@@ -1707,31 +1708,39 @@ export default function MarketingAdminPage() {
         },
       }))
       : undefined;
-    const result = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
-      method: "POST",
-      body: JSON.stringify({
-        name: campaignDraft.name,
-        audienceType: campaignDraft.audienceType,
-        status: campaignDraft.status,
-        objective: campaignDraft.objective,
-        scheduleStartsAt: scheduledAt,
-        metadata: campaignMetadataWithTarget({}, selectedCampaignDraftTargetAudience),
-        channels: [{
-          channel: campaignDraft.channel,
-          contentAssetId: campaignDraft.contentAssetId || null,
+    setCampaignSaving(true);
+    setMessage("Creating campaign...");
+    try {
+      const result = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: campaignDraft.name,
+          audienceType: campaignDraft.audienceType,
           status: campaignDraft.status,
-          scheduledAt,
-        }],
-        ...(recipients ? { recipients } : {}),
-      }),
-    });
-    setCampaigns((current) => [result.campaign, ...current.filter((campaign) => campaign.id !== result.campaign.id)]);
-    setEditingCampaignId(result.campaign.id);
-    setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
-    setCampaignDraft(emptyCampaignDraft());
-    const recipientMessage = campaignDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
-    setMessage(`Campaign draft created.${recipientMessage}`);
-    await refreshAll();
+          objective: campaignDraft.objective,
+          scheduleStartsAt: scheduledAt,
+          metadata: campaignMetadataWithTarget({}, selectedCampaignDraftTargetAudience),
+          channels: [{
+            channel: campaignDraft.channel,
+            contentAssetId: campaignDraft.contentAssetId || null,
+            status: campaignDraft.status,
+            scheduledAt,
+          }],
+          ...(recipients ? { recipients } : {}),
+        }),
+      });
+      setCampaigns((current) => [result.campaign, ...current.filter((campaign) => campaign.id !== result.campaign.id)]);
+      setEditingCampaignId(result.campaign.id);
+      setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
+      setCampaignDraft(emptyCampaignDraft());
+      const recipientMessage = campaignDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
+      setMessage(`Campaign draft created.${recipientMessage}`);
+      await refreshAll();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Campaign could not be created.");
+    } finally {
+      setCampaignSaving(false);
+    }
   }
 
   function startCampaignEdit(campaign: Campaign) {
@@ -1776,28 +1785,36 @@ export default function MarketingAdminPage() {
         },
       }))
       : undefined;
-    await api(`/api/admin/marketing/campaigns/${campaignId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        name: campaignEditDraft.name,
-        audienceType: campaignEditDraft.audienceType,
-        status: campaignEditDraft.status,
-        objective: campaignEditDraft.objective,
-        scheduleStartsAt: scheduledAt,
-        timezone: campaignEditDraft.timezone,
-        source: campaignEditDraft.source.trim() || "vyva",
-        lovableExternalId: campaignEditDraft.lovableExternalId.trim() || null,
-        metadata: campaignMetadataWithTarget(existingMetadata, selectedCampaignTargetAudience),
-        channels: campaignChannelsPayload(campaignEditDraft),
-        ...(recipients ? { recipients } : {}),
-      }),
-    });
-    const recipientMessage = campaignEditDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
-    setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: false }));
-    setCampaignEmailFeedback("");
-    setTestEmailFeedback("");
-    setMessage(`Campaign updated.${recipientMessage}`);
-    await refreshAll();
+    setCampaignSaving(true);
+    setMessage("Saving campaign...");
+    try {
+      await api(`/api/admin/marketing/campaigns/${campaignId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: campaignEditDraft.name,
+          audienceType: campaignEditDraft.audienceType,
+          status: campaignEditDraft.status,
+          objective: campaignEditDraft.objective,
+          scheduleStartsAt: scheduledAt,
+          timezone: campaignEditDraft.timezone,
+          source: campaignEditDraft.source.trim() || "vyva",
+          lovableExternalId: campaignEditDraft.lovableExternalId.trim() || null,
+          metadata: campaignMetadataWithTarget(existingMetadata, selectedCampaignTargetAudience),
+          channels: campaignChannelsPayload(campaignEditDraft),
+          ...(recipients ? { recipients } : {}),
+        }),
+      });
+      const recipientMessage = campaignEditDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
+      setCampaignEditDraft((draft) => ({ ...draft, snapshotRecipients: false }));
+      setCampaignEmailFeedback("");
+      setTestEmailFeedback("");
+      setMessage(`Campaign updated.${recipientMessage}`);
+      await refreshAll();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Campaign could not be saved.");
+    } finally {
+      setCampaignSaving(false);
+    }
   }
 
   function updateCampaignChannel(channelId: string, patch: Partial<CampaignChannelDraft>) {
@@ -1915,10 +1932,18 @@ export default function MarketingAdminPage() {
 
   async function deleteCampaign(campaign: Campaign) {
     if (!window.confirm(`Delete campaign "${campaign.name}"? This removes the local VYVA planning record.`)) return;
-    await api(`/api/admin/marketing/campaigns/${campaign.id}`, { method: "DELETE" });
-    if (editingCampaignId === campaign.id) cancelCampaignEdit();
-    setMessage("Campaign deleted.");
-    await refreshAll();
+    setCampaignSaving(true);
+    setMessage("Deleting campaign...");
+    try {
+      await api(`/api/admin/marketing/campaigns/${campaign.id}`, { method: "DELETE" });
+      if (editingCampaignId === campaign.id) cancelCampaignEdit();
+      setMessage("Campaign deleted.");
+      await refreshAll();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Campaign could not be deleted.");
+    } finally {
+      setCampaignSaving(false);
+    }
   }
 
   function startNewJourney() {
@@ -2630,7 +2655,7 @@ export default function MarketingAdminPage() {
                 )}
               </SectionCard>
 
-              <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaign metadata. No provider dispatch is triggered.">
+              <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
                 <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
                   <div className="grid gap-3 xl:grid-cols-[1fr_140px_150px_1fr_200px_auto]">
                     <Field label="Campaign name">
@@ -2660,8 +2685,8 @@ export default function MarketingAdminPage() {
                     <Field label="Schedule">
                       <input className={inputClass} type="datetime-local" value={campaignDraft.scheduleStartsAt} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value, status: event.target.value ? "scheduled" : "draft" }))} data-testid="input-marketing-campaign-schedule" />
                     </Field>
-                    <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit" data-testid="button-marketing-create-campaign">
-                      <Plus size={16} /> Add campaign
+                    <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" type="submit" disabled={campaignSaving} data-testid="button-marketing-create-campaign">
+                      <Plus size={16} /> {campaignSaving ? "Creating..." : "Add campaign"}
                     </button>
                   </div>
                   <div className="grid gap-3 xl:grid-cols-[1fr_1fr_auto_160px]">
@@ -2709,6 +2734,7 @@ export default function MarketingAdminPage() {
                     activeCampaignId={editingCampaignId}
                     onEdit={startCampaignEdit}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
+                    actionsDisabled={campaignSaving}
                   />
                 </SectionCard>
 
@@ -3053,8 +3079,8 @@ export default function MarketingAdminPage() {
                       </div>
 
                       <div className="grid gap-2">
-                        <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white" data-testid="button-marketing-save-campaign">
-                          <Save size={15} /> Save campaign
+                        <button type="submit" disabled={campaignSaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" data-testid="button-marketing-save-campaign">
+                          <Save size={15} /> {campaignSaving ? "Saving..." : "Save campaign"}
                         </button>
                         <button
                           type="button"
@@ -3074,7 +3100,7 @@ export default function MarketingAdminPage() {
                         >
                           <Send size={15} /> {campaignEmailSending ? "Sending campaign..." : "Send campaign emails"}
                         </button>
-                        <button type="button" onClick={cancelCampaignEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135]" data-testid="button-marketing-cancel-campaign">
+                        <button type="button" onClick={cancelCampaignEdit} disabled={campaignSaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-campaign">
                           <X size={15} /> Close details
                         </button>
                       </div>
@@ -4195,7 +4221,7 @@ function EmptyState({ text }: { text: string }) {
   return <p className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4 text-center text-sm font-bold text-[#8b7a73]">{text}</p>;
 }
 
-function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete }: { campaigns: Campaign[]; activeCampaignId?: string | null; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void }) {
+function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsDisabled = false }: { campaigns: Campaign[]; activeCampaignId?: string | null; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void; actionsDisabled?: boolean }) {
   const showActions = Boolean(onEdit || onDelete);
   return (
     <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
@@ -4219,16 +4245,16 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete }: { camp
             return (
             <tr
               key={campaign.id}
-              className={`border-t border-[#f0e7df] ${onEdit ? "cursor-pointer hover:bg-purple-50" : ""} ${isActive ? "bg-purple-50" : ""}`}
-              onClick={onEdit ? () => onEdit(campaign) : undefined}
-              onKeyDown={onEdit ? (event) => {
+              className={`border-t border-[#f0e7df] ${onEdit && !actionsDisabled ? "cursor-pointer hover:bg-purple-50" : ""} ${isActive ? "bg-purple-50" : ""}`}
+              onClick={onEdit && !actionsDisabled ? () => onEdit(campaign) : undefined}
+              onKeyDown={onEdit && !actionsDisabled ? (event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   onEdit(campaign);
                 }
               } : undefined}
-              role={onEdit ? "button" : undefined}
-              tabIndex={onEdit ? 0 : undefined}
+              role={onEdit && !actionsDisabled ? "button" : undefined}
+              tabIndex={onEdit && !actionsDisabled ? 0 : undefined}
               aria-selected={isActive || undefined}
               data-testid={`row-marketing-campaign-${campaign.id}`}
             >
@@ -4251,12 +4277,12 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete }: { camp
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
                     {onEdit ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid={`button-marketing-edit-campaign-${campaign.id}`}>
                         <Pencil size={14} /> Edit
                       </button>
                     ) : null}
                     {onDelete ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700" data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300" data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
                         <Trash2 size={14} /> Delete
                       </button>
                     ) : null}
