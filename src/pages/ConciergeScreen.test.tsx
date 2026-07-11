@@ -1633,6 +1633,62 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm and call");
   });
 
+  it("renders prepared email actions as draft mail links", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "email-1",
+        use_case: "send_message",
+        provider_name: "Clinic desk",
+        provider_phone: null,
+        action_summary: "Email draft prepared for the clinic.",
+        action_payload: {
+          execution_channel: "email",
+          provider_email: "clinic@example.com",
+          email_subject: "Question about my appointment",
+          email_body: "Hello, I would like to confirm my appointment details.",
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const emailLink = await screen.findByTestId("link-concierge-email-email-1");
+    expect(emailLink).toHaveAttribute(
+      "href",
+      "mailto:clinic@example.com?subject=Question%20about%20my%20appointment&body=Hello%2C%20I%20would%20like%20to%20confirm%20my%20appointment%20details.",
+    );
+    expect(screen.getByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Open email draft");
+  });
+
+  it("renders prepared WhatsApp actions as draft message links", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "whatsapp-1",
+        use_case: "send_message",
+        provider_name: "Care coordinator",
+        provider_phone: "+34 611 222 333",
+        action_summary: "WhatsApp draft prepared for the care coordinator.",
+        action_payload: {
+          preferred_channel: "whatsapp",
+          whatsapp_message: "Hello, can we confirm the visit time?",
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    const whatsAppLink = await screen.findByTestId("link-concierge-whatsapp-whatsapp-1");
+    expect(whatsAppLink).toHaveAttribute(
+      "href",
+      "https://wa.me/34611222333?text=Hello%2C%20can%20we%20confirm%20the%20visit%20time%3F",
+    );
+    expect(screen.getByTestId("button-concierge-confirm-whatsapp-1")).toHaveTextContent("Open WhatsApp draft");
+  });
+
   it("shows compact form plan details for VYVA-handled booking tasks", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
@@ -1662,7 +1718,44 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
     expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA is handling this");
     expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
-    expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs: number of guests");
+    expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs first: number of guests");
     expect(screen.getByText("VYVA is handling it")).toBeVisible();
+  });
+
+  it("shows booking forms as ready to open when no details are missing", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "form-ready-1",
+        use_case: "book_appointment",
+        provider_name: "The Good Table",
+        provider_phone: null,
+        action_summary: "Booking form ready for The Good Table.",
+        action_payload: {
+          mission_status: "form_in_progress",
+          preferred_channel: "booking_url",
+          execution_channel: "booking_url",
+          booking_url: "https://www.thefork.es/restaurante/example",
+          form_automation_plan: {
+            adapter_label: "TheFork",
+            missing_fields: [],
+            next_step: "Use the supported booking page with the gathered details.",
+            prefilled_url: "https://www.thefork.es/restaurante/example?date=tomorrow",
+          },
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form ready");
+    expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Ready to open with the gathered details.");
+    expect(screen.queryByText("VYVA is handling it")).not.toBeInTheDocument();
+    expect(screen.getByTestId("link-concierge-form-form-ready-1")).toHaveAttribute(
+      "href",
+      "https://www.thefork.es/restaurante/example?date=tomorrow",
+    );
+    expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Open form");
   });
 });

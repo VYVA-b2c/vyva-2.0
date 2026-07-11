@@ -377,6 +377,17 @@ interface ConciergePendingItem {
   expires_at?: string | null;
 }
 
+type ConciergeEmailDraft = {
+  address: string;
+  subject: string;
+  body: string;
+};
+
+type ConciergeWhatsAppDraft = {
+  number: string;
+  message: string;
+};
+
 type AppointmentType = (typeof APPOINTMENT_TYPE_CHIPS)[number]["key"];
 type AppointmentChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
 
@@ -1689,6 +1700,19 @@ function billClientMessage(locale: string, key: "unsupported" | "read_failed"): 
 
 async function confirmPendingAction(item: ConciergePendingItem) {
   const bookingUrl = getBookingUrl(item);
+  const emailDraft = getActionEmailDraft(item);
+  const whatsAppDraft = getActionWhatsAppDraft(item);
+  const preferredHandoffChannel = getPreferredHandoffChannel(item);
+
+  if (whatsAppDraft && (preferredHandoffChannel === "whatsapp" || (!item.provider_phone && !emailDraft && !bookingUrl))) {
+    window.open(whatsAppDraftHref(whatsAppDraft), "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  if (emailDraft && (preferredHandoffChannel === "email" || (!item.provider_phone && !bookingUrl))) {
+    window.open(emailDraftHref(emailDraft), "_blank", "noopener,noreferrer");
+    return;
+  }
 
   if (!item.provider_phone && bookingUrl) {
     window.open(bookingUrl, "_blank", "noopener,noreferrer");
@@ -2175,9 +2199,13 @@ function offerCardKey(option: OfferOption): string {
 }
 
 function getBookingUrl(item: ConciergePendingItem): string {
-  return typeof item.action_payload?.booking_url === "string"
-    ? item.action_payload.booking_url.trim()
-    : "";
+  const plan = item.action_payload?.form_automation_plan;
+  const planPrefilledUrl = plan && typeof plan === "object" && !Array.isArray(plan)
+    ? (plan as Record<string, unknown>).prefilled_url
+    : null;
+  return payloadString(item.action_payload, ["form_automation_prefilled_url"]) ||
+    (typeof planPrefilledUrl === "string" ? planPrefilledUrl.trim() : "") ||
+    payloadString(item.action_payload, ["booking_url"]);
 }
 
 function getExecutionChannel(item: ConciergePendingItem): string {
@@ -2186,20 +2214,93 @@ function getExecutionChannel(item: ConciergePendingItem): string {
     : "";
 }
 
+function getPreferredHandoffChannel(item: ConciergePendingItem): string {
+  return getExecutionChannel(item) || payloadString(item.action_payload, ["preferred_channel"]);
+}
+
+function payloadString(payload: Record<string, unknown> | null | undefined, keys: string[]): string {
+  if (!payload) return "";
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function getActionEmailDraft(item: ConciergePendingItem): ConciergeEmailDraft | null {
+  const payload = item.action_payload;
+  const address = payloadString(payload, [
+    "provider_email",
+    "recipient_email",
+    "to_email",
+    "email_to",
+    "email",
+  ]);
+  if (!address || !address.includes("@")) return null;
+
+  return {
+    address,
+    subject: payloadString(payload, ["email_subject", "subject"]) || item.action_summary,
+    body: payloadString(payload, ["email_body", "draft_body", "message_body", "message", "body"]) || item.action_summary,
+  };
+}
+
+function emailDraftHref(draft: ConciergeEmailDraft): string {
+  const params = [
+    draft.subject ? `subject=${encodeURIComponent(draft.subject)}` : "",
+    draft.body ? `body=${encodeURIComponent(draft.body)}` : "",
+  ].filter(Boolean);
+  return `mailto:${draft.address}${params.length ? `?${params.join("&")}` : ""}`;
+}
+
+function normalizeWhatsAppNumber(value: string): string {
+  return value.replace(/[^\d]/g, "");
+}
+
+function getActionWhatsAppDraft(item: ConciergePendingItem): ConciergeWhatsAppDraft | null {
+  const payload = item.action_payload;
+  const preferredChannel = getPreferredHandoffChannel(item);
+  const explicitNumber = payloadString(payload, [
+    "provider_whatsapp",
+    "recipient_whatsapp",
+    "to_whatsapp",
+    "whatsapp_to",
+    "whatsapp_number",
+    "whatsapp",
+  ]);
+  const number = explicitNumber || (preferredChannel === "whatsapp" ? item.provider_phone?.trim() ?? "" : "");
+  const normalized = normalizeWhatsAppNumber(number);
+  if (!normalized) return null;
+
+  return {
+    number: normalized,
+    message: payloadString(payload, ["whatsapp_message", "draft_message", "message_body", "message", "body"]) || item.action_summary,
+  };
+}
+
+function whatsAppDraftHref(draft: ConciergeWhatsAppDraft): string {
+  const params = draft.message ? `?text=${encodeURIComponent(draft.message)}` : "";
+  return `https://wa.me/${draft.number}${params}`;
+}
+
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim()).map((entry) => entry.trim()) : [];
 }
 
-function getFormAutomationPlan(item: ConciergePendingItem): { adapterLabel: string | null; missingFields: string[]; nextStep: string | null } | null {
+function getFormAutomationPlan(item: ConciergePendingItem): { adapterLabel: string | null; missingFields: string[]; nextStep: string | null; prefilledUrl: string | null } | null {
   const plan = item.action_payload?.form_automation_plan;
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
   const record = plan as Record<string, unknown>;
   const adapterLabel = typeof record.adapter_label === "string" && record.adapter_label.trim() ? record.adapter_label.trim() : null;
   const nextStep = typeof record.next_step === "string" && record.next_step.trim() ? record.next_step.trim() : null;
+  const prefilledUrl = typeof record.prefilled_url === "string" && record.prefilled_url.trim()
+    ? record.prefilled_url.trim()
+    : payloadString(item.action_payload, ["form_automation_prefilled_url"]);
   return {
     adapterLabel,
     missingFields: stringList(record.missing_fields),
     nextStep,
+    prefilledUrl,
   };
 }
 
@@ -4144,9 +4245,37 @@ const ConciergeScreen = () => {
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
+  const activeActionEmailDraft = activeAction ? getActionEmailDraft(activeAction) : null;
+  const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
+  const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
+  const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
+  const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";
+  const activeActionOpensWhatsApp = Boolean(activeActionWhatsAppDraft && (
+    activeActionPreferredHandoffChannel === "whatsapp" ||
+    (!activeAction?.provider_phone && !activeActionEmailDraft && !activeActionBookingUrl)
+  ));
+  const activeActionOpensEmail = Boolean(activeActionEmailDraft && !activeActionOpensWhatsApp && (
+    activeActionPreferredHandoffChannel === "email" ||
+    (!activeAction?.provider_phone && !activeActionBookingUrl)
+  ));
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
-  const activeActionIsVyvaTask = activeActionExecutionChannel === "booking_url" || activeActionExecutionChannel === "manual";
   const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
+  const activeActionFormMissingFields = activeActionFormPlan?.missingFields ?? [];
+  const activeActionCanOpenForm = Boolean(
+    activeActionExecutionChannel === "booking_url" &&
+    activeActionBookingUrl &&
+    activeActionFormMissingFields.length === 0,
+  );
+  const activeActionIsVyvaTask = activeActionExecutionChannel === "manual" || (
+    activeActionExecutionChannel === "booking_url" &&
+    !activeActionCanOpenForm
+  );
+  const activeActionOpensBooking = Boolean(
+    activeActionBookingUrl &&
+    !activeActionOpensWhatsApp &&
+    !activeActionOpensEmail &&
+    (activeActionCanOpenForm || (!activeAction?.provider_phone && activeActionExecutionChannel !== "booking_url"))
+  );
   const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
@@ -5518,7 +5647,9 @@ const ConciergeScreen = () => {
                 data-testid="panel-concierge-appointment-mission"
               >
                 <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
-                  {isSpanish ? "VYVA lo gestiona" : "VYVA is handling this"}
+                  {activeActionCanOpenForm
+                    ? (isSpanish ? "Formulario listo" : "Form ready")
+                    : (isSpanish ? "VYVA lo gestiona" : "VYVA is handling this")}
                 </p>
                 <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
                   {activeActionMissionStatus
@@ -5568,7 +5699,7 @@ const ConciergeScreen = () => {
               </div>
             )}
 
-            {activeActionIsVyvaTask && activeActionFormPlan && (
+            {activeActionFormPlan && (
               <div
                 className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
                 data-testid="panel-concierge-form-plan"
@@ -5580,7 +5711,11 @@ const ConciergeScreen = () => {
                 </p>
                 {activeActionFormPlan.missingFields.length > 0 ? (
                   <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
-                    {isSpanish ? "Falta: " : "Needs: "}{activeActionFormPlan.missingFields.slice(0, 3).join(", ")}
+                    {isSpanish ? "Falta primero: " : "Needs first: "}{activeActionFormPlan.missingFields.join(", ")}
+                  </p>
+                ) : activeActionCanOpenForm ? (
+                  <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
+                    {isSpanish ? "Listo para abrir con los datos reunidos." : "Ready to open with the gathered details."}
                   </p>
                 ) : activeActionFormPlan.nextStep ? (
                   <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
@@ -5601,15 +5736,51 @@ const ConciergeScreen = () => {
                   {activeAction.provider_phone}
                 </a>
               )}
-              {!activeAction.provider_phone && activeActionBookingUrl && activeActionIsVyvaTask && (
+              {activeActionEmailDraft && (
+                <a
+                  href={activeActionEmailHref}
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
+                  aria-label={`Email ${activeActionEmailDraft.address}`}
+                  data-testid={`link-concierge-email-${activeAction.id}`}
+                >
+                  <Mail size={13} style={{ color: "#6B21A8" }} />
+                  {activeActionEmailDraft.address}
+                </a>
+              )}
+              {activeActionWhatsAppDraft && (
+                <a
+                  href={activeActionWhatsAppHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                  aria-label={`WhatsApp ${activeActionWhatsAppDraft.number}`}
+                  data-testid={`link-concierge-whatsapp-${activeAction.id}`}
+                >
+                  <Send size={13} style={{ color: "#047857" }} />
+                  WhatsApp
+                </a>
+              )}
+              {activeActionBookingUrl && activeActionIsVyvaTask && (
                 <span
                   className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                 >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
-                  {isSpanish ? "Formulario guardado para VYVA" : "Form saved for VYVA"}
+                  {isSpanish ? "Formulario pendiente en VYVA" : "Form waiting in VYVA"}
                 </span>
               )}
-              {!activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && (
+              {activeActionCanOpenForm && activeActionBookingUrl && (
+                <a
+                  href={activeActionBookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                  data-testid={`link-concierge-form-${activeAction.id}`}
+                >
+                  <Calendar size={13} style={{ color: "#0A7C4E" }} />
+                  {isSpanish ? "Formulario listo" : "Form ready"}
+                </a>
+              )}
+              {!activeActionCanOpenForm && !activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && (
                 <a
                   href={activeActionBookingUrl}
                   target="_blank"
@@ -5636,9 +5807,15 @@ const ConciergeScreen = () => {
                     disabled={confirmMutation.isPending || cancelMutation.isPending}
                     className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
                   >
-                    {!activeAction.provider_phone && activeActionBookingUrl ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
-                    {!activeAction.provider_phone && activeActionBookingUrl
-                      ? (isSpanish ? "Abrir reserva" : "Open booking")
+                    {activeActionOpensWhatsApp ? <Send size={16} className="mr-2" /> : activeActionOpensEmail ? <Mail size={16} className="mr-2" /> : activeActionOpensBooking ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
+                    {activeActionOpensWhatsApp
+                      ? (isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft")
+                      : activeActionOpensEmail
+                      ? (isSpanish ? "Abrir email" : "Open email draft")
+                      : activeActionOpensBooking
+                      ? activeActionCanOpenForm
+                        ? (isSpanish ? "Abrir formulario" : "Open form")
+                        : (isSpanish ? "Abrir reserva" : "Open booking")
                       : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
                   </Button>
                 )}
