@@ -190,6 +190,12 @@ describe("admin marketing router", () => {
       .expect((response) => {
         expect(response.body.error).toBe("Only the super admin can send marketing campaign emails.");
       });
+    await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/campaigns/send-due-email")
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.error).toBe("Only the super admin can send due scheduled marketing emails.");
+      });
     expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
   });
 
@@ -371,6 +377,87 @@ describe("admin marketing router", () => {
     expect(table("marketing_campaigns")[0]).toMatchObject({ status: "published" });
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
+  });
+
+  it("runs due scheduled email campaigns without sending future campaigns", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Due newsletter",
+        channel: "email",
+        subject: "Due update",
+        body: "This should go now.",
+      })
+      .expect(201);
+    const dueAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const futureAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    const dueCampaignResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Due campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: dueAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: dueAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "due@example.com", status: "planned", scheduledAt: dueAt, snapshot: { fullName: "Due Contact", consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Future campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: futureAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: futureAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "future@example.com", status: "planned", scheduledAt: futureAt, snapshot: { fullName: "Future Contact", consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns/send-due-email")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          dueCount: 1,
+          sentCount: 1,
+          failedCount: 0,
+          skippedCount: 0,
+          results: [{
+            campaignId: dueCampaignResponse.body.campaign.id,
+            campaignName: "Due campaign",
+            ok: true,
+            sentCount: 1,
+          }],
+        });
+      });
+
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      recipient: "due@example.com",
+      purpose: "marketing_campaign_email",
+    });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "due@example.com")).toMatchObject({ status: "sent" });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "future@example.com")).toMatchObject({ status: "planned" });
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
   });
 
   it("updates and deletes marketing content assets", async () => {

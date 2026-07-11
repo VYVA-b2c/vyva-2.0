@@ -250,6 +250,23 @@ type CampaignEmailSendResponse = {
   }>;
 };
 
+type DueCampaignEmailSendResponse = {
+  ok?: boolean;
+  dueCount: number;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  results?: Array<{
+    campaignId: string;
+    campaignName: string;
+    ok: boolean;
+    sentCount: number;
+    failedCount: number;
+    skippedCount: number;
+    error?: string | null;
+  }>;
+};
+
 type MarketingContact = {
   id: string;
   audienceType: Audience;
@@ -1104,6 +1121,8 @@ export default function MarketingAdminPage() {
   const [testEmailFeedback, setTestEmailFeedback] = useState("");
   const [campaignEmailSending, setCampaignEmailSending] = useState(false);
   const [campaignEmailFeedback, setCampaignEmailFeedback] = useState("");
+  const [dueEmailSending, setDueEmailSending] = useState(false);
+  const [dueEmailFeedback, setDueEmailFeedback] = useState("");
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
@@ -1391,6 +1410,27 @@ export default function MarketingAdminPage() {
       setMessage(messageText);
     } finally {
       setCampaignEmailSending(false);
+    }
+  }
+
+  async function sendDueCampaignEmails() {
+    if (!window.confirm("Send all due scheduled email campaigns now?")) return;
+    setDueEmailSending(true);
+    setDueEmailFeedback("Checking due scheduled email campaigns...");
+    try {
+      const result = await api<DueCampaignEmailSendResponse>("/api/admin/marketing/campaigns/send-due-email", { method: "POST" });
+      const summaryText = result.dueCount === 0
+        ? "No scheduled email campaigns are due."
+        : `Due email run checked ${result.dueCount} campaign${result.dueCount === 1 ? "" : "s"}: ${result.sentCount} sent, ${result.failedCount} failed, ${result.skippedCount} skipped.`;
+      setDueEmailFeedback(summaryText);
+      setMessage(summaryText);
+      await refreshAll();
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Due scheduled emails could not be sent.";
+      setDueEmailFeedback(messageText);
+      setMessage(messageText);
+    } finally {
+      setDueEmailSending(false);
     }
   }
 
@@ -2795,7 +2835,29 @@ export default function MarketingAdminPage() {
 
           {activeTab === "calendar" && (
             <div className="grid gap-4" data-testid="marketing-calendar-tab">
-              <SectionCard title="Calendar" subtitle="Scheduled campaign timeline and unscheduled planning queue.">
+              <SectionCard
+                title="Calendar"
+                subtitle="Scheduled campaign timeline and unscheduled planning queue."
+                action={(
+                  <button
+                    type="button"
+                    onClick={() => void sendDueCampaignEmails()}
+                    disabled={dueEmailSending}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                    data-testid="button-marketing-run-due-email"
+                  >
+                    <Send size={15} /> {dueEmailSending ? "Running..." : "Run due emails"}
+                  </button>
+                )}
+              >
+                {dueEmailFeedback ? (
+                  <p
+                    className={`mb-3 rounded-xl px-4 py-3 text-sm font-bold ${/failed|could not|error/i.test(dueEmailFeedback) ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
+                    data-testid="marketing-due-email-feedback"
+                  >
+                    {dueEmailFeedback}
+                  </p>
+                ) : null}
                 <MarketingCalendarView
                   campaigns={visibleCampaigns}
                   onEdit={openCampaignFromCalendar}

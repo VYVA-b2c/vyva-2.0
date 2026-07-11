@@ -466,6 +466,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
     if (path === "/api/admin/marketing/campaigns/campaign-1/send-email" && method === "POST") return jsonResponse({ ok: true, sentCount: 1, failedCount: 0, skippedCount: 0, campaign: { ...campaigns[0], status: "published" }, delivery: [{ id: "comm-2", recipient: "karim@example.com", status: "sent" }] });
+    if (path === "/api/admin/marketing/campaigns/send-due-email" && method === "POST") return jsonResponse({ ok: true, dueCount: 1, sentCount: 1, failedCount: 0, skippedCount: 0, results: [{ campaignId: "campaign-1", campaignName: "Caregiver welcome", ok: true, sentCount: 1, failedCount: 0, skippedCount: 0 }] });
     if (path === "/api/admin/marketing/journeys" && method === "POST") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") return jsonResponse({ ok: true, journey: journeyFromRequestBody("journey-1", init) });
     if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") return jsonResponse({ ok: true, deletedJourneyId: "journey-1" });
@@ -958,6 +959,24 @@ describe("MarketingAdminPage", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
     });
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
+  });
+
+  it("runs due scheduled email campaigns from the calendar tab", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    fireEvent.click(screen.getByTestId("button-marketing-run-due-email"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/send-due-email", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-due-email-feedback")).toHaveTextContent("1 sent");
+    });
+    expect(confirmSpy).toHaveBeenCalledWith("Send all due scheduled email campaigns now?");
+    confirmSpy.mockRestore();
   });
 
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
