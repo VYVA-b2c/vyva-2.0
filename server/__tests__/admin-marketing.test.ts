@@ -996,6 +996,8 @@ describe("admin marketing router", () => {
         id: "campaign:campaign-1",
         name: "Welcome campaign",
         status: "scheduled",
+        scheduleStartsAt: "2026-07-08T09:00:00.000Z",
+        scheduleEndsAt: "2026-07-08T11:00:00.000Z",
         audienceExternalIds: ["audience-1"],
         channels: [{ channel: "email", contentExternalId: "content-1", scheduledAt: "2026-07-08T09:00:00.000Z" }],
       }, {
@@ -1137,6 +1139,10 @@ describe("admin marketing router", () => {
     expect(table("marketing_audience_members")).toHaveLength(2);
     expect(table("marketing_audience_members").filter((row) => row.contact_id)).toHaveLength(1);
     expect(table("marketing_campaigns")).toHaveLength(2);
+    expect(table("marketing_campaigns").find((row) => row.name === "Welcome campaign")).toMatchObject({
+      schedule_starts_at: new Date("2026-07-08T09:00:00.000Z"),
+      schedule_ends_at: new Date("2026-07-08T11:00:00.000Z"),
+    });
     const templateContent = table("marketing_content_assets").find((row) => row.title === "Template welcome");
     const templateCampaign = table("marketing_campaigns").find((row) => row.name === "Template launch");
     expect(table("marketing_campaign_channels").find((row) => row.campaign_id === templateCampaign?.id)).toMatchObject({
@@ -1211,6 +1217,16 @@ describe("admin marketing router", () => {
           consentStatus: "opted_out",
           lists: ["Partners"],
           tags: ["partner"],
+        });
+      });
+
+    await request(app)
+      .get("/api/admin/marketing/campaigns")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.campaigns.find((row: { name: string }) => row.name === "Welcome campaign")).toMatchObject({
+          scheduleStartsAt: "2026-07-08T09:00:00.000Z",
+          scheduleEndsAt: "2026-07-08T11:00:00.000Z",
         });
       });
 
