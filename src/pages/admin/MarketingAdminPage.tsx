@@ -111,6 +111,7 @@ type Campaign = {
   audienceType: Audience;
   objective: string;
   scheduleStartsAt: string | null;
+  scheduleEndsAt: string | null;
   timezone: string;
   source: string;
   lovableExternalId: string | null;
@@ -338,6 +339,7 @@ type CampaignDraft = {
   contentAssetId: string;
   status: "draft" | "scheduled";
   scheduleStartsAt: string;
+  scheduleEndsAt: string;
   objective: string;
   targetAudienceId: string;
   recipientFilter: string;
@@ -351,6 +353,7 @@ type CampaignEditDraft = {
   contentAssetId: string;
   status: CampaignStatus;
   scheduleStartsAt: string;
+  scheduleEndsAt: string;
   timezone: string;
   objective: string;
   targetAudienceId: string;
@@ -669,6 +672,7 @@ function emptyCampaignDraft(): CampaignDraft {
     contentAssetId: "",
     status: "draft",
     scheduleStartsAt: "",
+    scheduleEndsAt: "",
     objective: "",
     targetAudienceId: "",
     recipientFilter: "",
@@ -745,6 +749,7 @@ function emptyCampaignEditDraft(): CampaignEditDraft {
     contentAssetId: "",
     status: "draft",
     scheduleStartsAt: "",
+    scheduleEndsAt: "",
     timezone: "Europe/Madrid",
     objective: "",
     targetAudienceId: "",
@@ -760,6 +765,7 @@ function emptyCampaignEditDraft(): CampaignEditDraft {
 function campaignEditDraftFromCampaign(campaign: Campaign, audiences: MarketingAudience[] = []): CampaignEditDraft {
   const status = normalizeCampaignStatus(campaign.status);
   const scheduleStartsAt = toDateTimeLocal(campaign.scheduleStartsAt);
+  const scheduleEndsAt = toDateTimeLocal(campaign.scheduleEndsAt);
   const channels = campaign.channels.length
     ? campaign.channels.map((channel) => campaignChannelDraftFromChannel(channel, status, scheduleStartsAt))
     : [newCampaignChannelDraft("email", status, scheduleStartsAt)];
@@ -772,6 +778,7 @@ function campaignEditDraftFromCampaign(campaign: Campaign, audiences: MarketingA
     contentAssetId: primaryChannel.contentAssetId,
     status,
     scheduleStartsAt,
+    scheduleEndsAt,
     timezone: campaign.timezone || "Europe/Madrid",
     objective: campaign.objective,
     targetAudienceId: targetAudience?.id ?? "",
@@ -1645,6 +1652,7 @@ export default function MarketingAdminPage() {
       campaign.status,
       campaign.audienceType,
       campaign.scheduleStartsAt,
+      campaign.scheduleEndsAt,
       campaign.timezone,
       campaign.source,
       campaign.lovableExternalId,
@@ -1828,6 +1836,7 @@ export default function MarketingAdminPage() {
       return;
     }
     const scheduledAt = campaignDraft.scheduleStartsAt ? new Date(campaignDraft.scheduleStartsAt).toISOString() : null;
+    const scheduleEndsAt = campaignDraft.scheduleEndsAt ? new Date(campaignDraft.scheduleEndsAt).toISOString() : null;
     const targetAudienceSnapshot = audienceSnapshot(selectedCampaignDraftTargetAudience);
     const recipients = campaignDraft.snapshotRecipients
       ? campaignDraftRecipientPreview.map((contact) => ({
@@ -1853,6 +1862,7 @@ export default function MarketingAdminPage() {
           status: campaignDraft.status,
           objective: campaignDraft.objective,
           scheduleStartsAt: scheduledAt,
+          scheduleEndsAt,
           metadata: campaignMetadataWithTarget({}, selectedCampaignDraftTargetAudience),
           channels: [{
             channel: campaignDraft.channel,
@@ -1904,6 +1914,7 @@ export default function MarketingAdminPage() {
       return;
     }
     const scheduledAt = fromDateTimeLocal(campaignEditDraft.scheduleStartsAt);
+    const scheduleEndsAt = fromDateTimeLocal(campaignEditDraft.scheduleEndsAt);
     const existingMetadata = parseJsonText(campaignEditDraft.metadataText, "Campaign metadata");
     const targetAudienceSnapshot = audienceSnapshot(selectedCampaignTargetAudience);
     const recipients = campaignEditDraft.snapshotRecipients
@@ -1930,6 +1941,7 @@ export default function MarketingAdminPage() {
           status: campaignEditDraft.status,
           objective: campaignEditDraft.objective,
           scheduleStartsAt: scheduledAt,
+          scheduleEndsAt,
           timezone: campaignEditDraft.timezone,
           source: campaignEditDraft.source.trim() || "vyva",
           lovableExternalId: campaignEditDraft.lovableExternalId.trim() || null,
@@ -2609,6 +2621,7 @@ export default function MarketingAdminPage() {
     campaignEditDraft.audienceType !== editingCampaign.audienceType ||
     campaignEditDraft.status !== normalizeCampaignStatus(editingCampaign.status) ||
     campaignEditDraft.scheduleStartsAt !== toDateTimeLocal(editingCampaign.scheduleStartsAt) ||
+    campaignEditDraft.scheduleEndsAt !== toDateTimeLocal(editingCampaign.scheduleEndsAt) ||
     campaignEditDraft.timezone !== (editingCampaign.timezone || "Europe/Madrid") ||
     campaignEditDraft.objective !== editingCampaign.objective ||
     campaignEditDraft.targetAudienceId !== (campaignTargetAudience(editingCampaign, audiences)?.id ?? "") ||
@@ -2791,7 +2804,7 @@ export default function MarketingAdminPage() {
 
               <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaigns, choose imported content, and optionally snapshot eligible recipients. Email sending remains a separate explicit action.">
                 <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
-                  <div className="grid gap-3 xl:grid-cols-[1fr_140px_150px_1fr_200px_auto]">
+                  <div className="grid gap-3 xl:grid-cols-[1fr_130px_140px_1fr_180px_180px_auto]">
                     <Field label="Campaign name">
                       <input className={inputClass} value={campaignDraft.name} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Summer caregiver onboarding" data-testid="input-marketing-campaign-name" />
                     </Field>
@@ -2816,8 +2829,11 @@ export default function MarketingAdminPage() {
                         {campaignDraftContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                       </select>
                     </Field>
-                    <Field label="Schedule">
+                    <Field label="Starts">
                       <input className={inputClass} type="datetime-local" value={campaignDraft.scheduleStartsAt} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value, status: event.target.value ? "scheduled" : "draft" }))} data-testid="input-marketing-campaign-schedule" />
+                    </Field>
+                    <Field label="Ends">
+                      <input className={inputClass} type="datetime-local" value={campaignDraft.scheduleEndsAt} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, scheduleEndsAt: event.target.value }))} data-testid="input-marketing-campaign-schedule-end" />
                     </Field>
                     <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" type="submit" disabled={campaignSaving} data-testid="button-marketing-create-campaign">
                       <Plus size={16} /> {campaignSaving ? "Creating..." : "Add campaign"}
@@ -2898,6 +2914,9 @@ export default function MarketingAdminPage() {
                           <div className="rounded-lg bg-white p-2">
                             <p className="uppercase tracking-[0.12em]">Schedule</p>
                             <p className="mt-1 text-[#241133]">{formatDate(editingCampaign.scheduleStartsAt)}</p>
+                            {editingCampaign.scheduleEndsAt ? (
+                              <p className="mt-1 text-[#7d6b65]">Ends {formatDate(editingCampaign.scheduleEndsAt)}</p>
+                            ) : null}
                           </div>
                           <div className="rounded-lg bg-white p-2">
                             <p className="uppercase tracking-[0.12em]">Timezone</p>
@@ -3040,8 +3059,8 @@ export default function MarketingAdminPage() {
                             </select>
                           </Field>
                         </div>
-                        <div className="grid gap-3 xl:grid-cols-2">
-                          <Field label="Schedule">
+                        <div className="grid gap-3 xl:grid-cols-3">
+                          <Field label="Starts">
                             <input className={inputClass} type="datetime-local" value={campaignEditDraft.scheduleStartsAt} onChange={(event) => {
                               const scheduleStartsAt = event.target.value;
                               setCampaignEditDraft((draft) => {
@@ -3053,6 +3072,9 @@ export default function MarketingAdminPage() {
                                 };
                               });
                             }} data-testid="input-marketing-edit-campaign-schedule" />
+                          </Field>
+                          <Field label="Ends">
+                            <input className={inputClass} type="datetime-local" value={campaignEditDraft.scheduleEndsAt} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, scheduleEndsAt: event.target.value }))} data-testid="input-marketing-edit-campaign-schedule-end" />
                           </Field>
                           <Field label="Timezone">
                             <input className={inputClass} value={campaignEditDraft.timezone} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, timezone: event.target.value }))} data-testid="input-marketing-edit-campaign-timezone" />
@@ -4418,7 +4440,10 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
                   ))}
                 </div>
               </td>
-              <td className="px-4 py-3 font-bold text-[#7d6b65]">{formatDate(campaign.scheduleStartsAt)}</td>
+              <td className="px-4 py-3 font-bold text-[#7d6b65]">
+                <p>{formatDate(campaign.scheduleStartsAt)}</p>
+                {campaign.scheduleEndsAt ? <p className="text-xs">Ends {formatDate(campaign.scheduleEndsAt)}</p> : null}
+              </td>
               <td className="px-4 py-3"><Pill className={statusClass(campaign.status)}>{campaign.status}</Pill></td>
               <td className="px-4 py-3 font-black">{campaign.recipientCount}</td>
               {showActions ? (
@@ -4480,6 +4505,9 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Cam
                       <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                         <Clock size={13} aria-hidden="true" /> {formatCalendarTime(campaign.scheduleStartsAt)}
                       </p>
+                      {campaign.scheduleEndsAt ? (
+                        <p className="mt-1 text-xs font-bold text-[#7d6b65]">Ends {formatCalendarTime(campaign.scheduleEndsAt)}</p>
+                      ) : null}
                       <h4 className="mt-1 font-black text-[#241133]">{campaign.name}</h4>
                       <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
                     </div>

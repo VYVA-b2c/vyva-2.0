@@ -63,6 +63,7 @@ const campaigns = [
     audienceType: "b2c",
     objective: "Invite caregivers",
     scheduleStartsAt: "2026-07-06T09:00:00.000Z",
+    scheduleEndsAt: "2026-07-06T11:00:00.000Z",
     timezone: "Europe/Madrid",
     source: "lovable",
     lovableExternalId: "lovable-campaign-1",
@@ -94,6 +95,7 @@ const campaigns = [
     audienceType: "b2b",
     objective: "Warm B2B leads",
     scheduleStartsAt: null,
+    scheduleEndsAt: null,
     timezone: "Europe/Madrid",
     source: "lovable",
     lovableExternalId: "lovable-campaign-2",
@@ -348,6 +350,12 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
+}
+
+function toLocalInput(value: string) {
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
 }
 
 function openMetadataPanel(testId: string) {
@@ -1139,6 +1147,8 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "New draft" } });
     fireEvent.change(screen.getByTestId("select-marketing-campaign-audience"), { target: { value: "b2b" } });
     fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-schedule"), { target: { value: "2026-07-08T10:30" } });
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-schedule-end"), { target: { value: "2026-07-08T12:00" } });
     fireEvent.change(screen.getByTestId("select-marketing-campaign-target-audience"), { target: { value: "audience-1" } });
     expect(screen.getByTestId("marketing-campaign-draft-target-audience-summary")).toHaveTextContent("1 mapped");
     fireEvent.change(screen.getByTestId("input-marketing-campaign-recipient-filter"), { target: { value: "Hassan" } });
@@ -1154,6 +1164,9 @@ describe("MarketingAdminPage", () => {
     expect(postBody).toMatchObject({
       name: "New draft",
       audienceType: "b2b",
+      status: "scheduled",
+      scheduleStartsAt: new Date("2026-07-08T10:30").toISOString(),
+      scheduleEndsAt: new Date("2026-07-08T12:00").toISOString(),
       channels: [{ channel: "email", contentAssetId: "content-1" }],
       metadata: {
         targetAudience: {
@@ -1164,6 +1177,7 @@ describe("MarketingAdminPage", () => {
       recipients: [{
         contactId: "contact-2",
         recipient: "hassan@example.com",
+        scheduledAt: new Date("2026-07-08T10:30").toISOString(),
         snapshot: {
           fullName: "Hassan Partner",
           audienceList: {
@@ -1206,6 +1220,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-campaign-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-campaign-lovable-id")).toHaveValue("lovable-campaign-1");
     expect(screen.getByTestId("textarea-marketing-edit-campaign-metadata")).toHaveValue(JSON.stringify({ extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" }, targetAudience: { lovableExternalId: "lovable-audience-1" } }, null, 2));
+    expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue(toLocalInput("2026-07-06T11:00:00.000Z"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Ends");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("12 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
@@ -1220,6 +1236,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-timezone"), { target: { value: "Europe/London" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-schedule-end"), { target: { value: "2026-07-09T12:30" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-audience"), { target: { value: "both" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-channel"), { target: { value: "email" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-status"), { target: { value: "scheduled" } });
@@ -1245,6 +1262,7 @@ describe("MarketingAdminPage", () => {
       objective: "Updated objective",
       audienceType: "both",
       status: "scheduled",
+      scheduleEndsAt: new Date("2026-07-09T12:30").toISOString(),
       timezone: "Europe/London",
       source: "lovable",
       lovableExternalId: "lovable-campaign-1",
