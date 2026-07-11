@@ -135,6 +135,8 @@ type ConciergeProfileSummary = {
   };
 };
 
+type SavedConciergeProvider = NonNullable<ConciergeProfileSummary["savedProviders"]>[number];
+
 type CoverageReadinessType = "public" | "private" | "mixed" | "self_pay" | "unknown";
 
 type CoverageReadinessSummary = {
@@ -377,6 +379,17 @@ interface ConciergePendingItem {
   expires_at?: string | null;
 }
 
+type ConciergeEmailDraft = {
+  address: string;
+  subject: string;
+  body: string;
+};
+
+type ConciergeWhatsAppDraft = {
+  number: string;
+  message: string;
+};
+
 type AppointmentType = (typeof APPOINTMENT_TYPE_CHIPS)[number]["key"];
 type AppointmentChannel = "booking_url" | "phone" | "whatsapp" | "email" | "manual";
 
@@ -538,6 +551,10 @@ interface TransportOption {
   description: string;
   providerName?: string;
   phone?: string;
+  email?: string;
+  whatsapp?: string;
+  bookingUrl?: string;
+  preferredChannel?: string;
   url?: string;
   actions: TransportAction[];
 }
@@ -1303,6 +1320,93 @@ async function fetchTransportOptions(params: {
   return await res.json() as TransportOptionsResponse;
 }
 
+function cleanContactValue(value?: string | null): string {
+  return value?.trim() ?? "";
+}
+
+function normalizeProviderChannel(value?: string | null): AppointmentChannel | "" {
+  const normalized = cleanContactValue(value).toLowerCase().replace("-", "_");
+  if (normalized === "booking_link") return "booking_url";
+  if (normalized === "booking_url" || normalized === "phone" || normalized === "whatsapp" || normalized === "email" || normalized === "manual") {
+    return normalized;
+  }
+  return "";
+}
+
+function preferredChannelForContacts(params: {
+  preferredChannel?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  whatsapp?: string | null;
+  bookingUrl?: string | null;
+  fallbackActions?: TransportAction[];
+}): AppointmentChannel {
+  const explicit = normalizeProviderChannel(params.preferredChannel);
+  if (explicit) return explicit;
+  if (cleanContactValue(params.bookingUrl)) return "booking_url";
+  if (cleanContactValue(params.whatsapp)) return "whatsapp";
+  if (cleanContactValue(params.email)) return "email";
+  if (cleanContactValue(params.phone)) return "phone";
+  if (params.fallbackActions?.includes("draft_message")) return "whatsapp";
+  if (params.fallbackActions?.includes("open_url")) return "booking_url";
+  return "manual";
+}
+
+function toolFromPreferredChannel(channel: AppointmentChannel): ConciergeToolRequirement {
+  if (channel === "booking_url") return "booking_link";
+  if (channel === "phone") return "phone_call";
+  if (channel === "whatsapp") return "whatsapp";
+  if (channel === "email") return "email";
+  return "operator_review";
+}
+
+function preferredToolForTransportOption(option: TransportOption): ConciergeToolRequirement {
+  const bookingUrl = cleanContactValue(option.bookingUrl || (option.kind === "ride_app" ? option.url : ""));
+  const channel = preferredChannelForContacts({
+    preferredChannel: option.preferredChannel,
+    phone: option.phone,
+    email: option.email,
+    whatsapp: option.whatsapp,
+    bookingUrl,
+    fallbackActions: option.actions,
+  });
+  const tool = toolFromPreferredChannel(channel);
+  return tool === "operator_review" ? preferredToolFromTransportActions(option.actions) : tool;
+}
+
+function transportDraftMessage(params: {
+  pickupAddress: string;
+  destinationAddress: string;
+  requestedTime: string;
+  mobilityNeeds: string[];
+}): string {
+  const parts = [
+    "Hello, I would like to arrange a ride.",
+    params.pickupAddress.trim() ? `Pickup: ${params.pickupAddress.trim()}.` : "",
+    params.destinationAddress.trim() ? `Destination: ${params.destinationAddress.trim()}.` : "",
+    params.requestedTime.trim() ? `Time: ${params.requestedTime.trim()}.` : "",
+    params.mobilityNeeds.length ? `Mobility needs: ${params.mobilityNeeds.join(", ")}.` : "",
+    "Please confirm availability and the next step before anything is booked.",
+  ].filter(Boolean);
+  return parts.join(" ");
+}
+
+function otcPharmacyDraftMessage(params: {
+  itemText: string;
+  fulfillmentPreference: string;
+  requestedTime: string;
+  notes: string;
+}): string {
+  const parts = [
+    `Hello, I would like help with over-the-counter pharmacy items: ${params.itemText.trim() || "items to confirm"}.`,
+    `Preference: ${params.fulfillmentPreference}.`,
+    params.requestedTime.trim() ? `Timing: ${params.requestedTime.trim()}.` : "",
+    params.notes.trim() ? `Notes: ${params.notes.trim()}.` : "",
+    "Please confirm availability and cost before preparing anything.",
+  ].filter(Boolean);
+  return parts.join(" ");
+}
+
 async function prepareTransportConciergeAction(params: {
   option: TransportOption;
   pickupAddress: string;
@@ -1314,6 +1418,21 @@ async function prepareTransportConciergeAction(params: {
   savedTransportProviderName: string;
   locale: string;
 }) {
+  const bookingUrl = cleanContactValue(params.option.bookingUrl || (params.option.kind === "ride_app" ? params.option.url : ""));
+  const preferredChannel = preferredChannelForContacts({
+    preferredChannel: params.option.preferredChannel,
+    phone: params.option.phone,
+    email: params.option.email,
+    whatsapp: params.option.whatsapp,
+    bookingUrl,
+    fallbackActions: params.option.actions,
+  });
+  const messageBody = transportDraftMessage({
+    pickupAddress: params.pickupAddress,
+    destinationAddress: params.destinationAddress,
+    requestedTime: params.requestedTime,
+    mobilityNeeds: params.mobilityNeeds,
+  });
   const summaryParts = [
     params.option.providerName || params.option.label,
     params.destinationAddress.trim() ? `to ${params.destinationAddress.trim()}` : "",
@@ -1336,6 +1455,15 @@ async function prepareTransportConciergeAction(params: {
         mobility_info_source: params.hasSavedMobilityInfo ? "profile" : "session",
         option_kind: params.option.kind,
         provider_url: params.option.url,
+        provider_email: cleanContactValue(params.option.email) || null,
+        provider_whatsapp: cleanContactValue(params.option.whatsapp) || null,
+        booking_url: bookingUrl || null,
+        preferred_channel: preferredChannel,
+        execution_channel: preferredChannel,
+        email_subject: "Ride request",
+        email_body: messageBody,
+        whatsapp_message: messageBody,
+        draft_message: messageBody,
         saved_transport_provider_first: params.hasSavedTransportProvider,
         saved_transport_provider_name: params.savedTransportProviderName,
       },
@@ -1353,6 +1481,11 @@ async function prepareTransportConciergeAction(params: {
 
 async function prepareOtcPharmacyConciergeAction(params: {
   pharmacyName: string;
+  providerPhone?: string | null;
+  providerEmail?: string | null;
+  providerWhatsapp?: string | null;
+  providerBookingUrl?: string | null;
+  preferredChannel?: string | null;
   itemText: string;
   fulfillmentPreference: string;
   requestedTime: string;
@@ -1360,15 +1493,39 @@ async function prepareOtcPharmacyConciergeAction(params: {
   locale: string;
 }) {
   const itemText = params.itemText.trim();
+  const providerBookingUrl = cleanContactValue(params.providerBookingUrl);
+  const preferredChannel = preferredChannelForContacts({
+    preferredChannel: params.preferredChannel,
+    phone: params.providerPhone,
+    email: params.providerEmail,
+    whatsapp: params.providerWhatsapp,
+    bookingUrl: providerBookingUrl,
+  });
+  const messageBody = otcPharmacyDraftMessage({
+    itemText,
+    fulfillmentPreference: params.fulfillmentPreference,
+    requestedTime: params.requestedTime,
+    notes: params.notes,
+  });
   const res = await apiFetch("/api/concierge/actions/trigger", {
     method: "POST",
     body: JSON.stringify({
       use_case: "order_medicine",
       provider_name: params.pharmacyName,
+      provider_phone: cleanContactValue(params.providerPhone) || null,
       found_externally: false,
       action_summary: `OTC pharmacy request prepared: ${itemText || "items"} via ${params.pharmacyName}.`,
       action_payload: {
         pharmacy_name: params.pharmacyName,
+        provider_email: cleanContactValue(params.providerEmail) || null,
+        provider_whatsapp: cleanContactValue(params.providerWhatsapp) || null,
+        booking_url: providerBookingUrl || null,
+        preferred_channel: preferredChannel,
+        execution_channel: preferredChannel,
+        email_subject: "OTC pharmacy request",
+        email_body: messageBody,
+        whatsapp_message: messageBody,
+        draft_message: messageBody,
         item_text: itemText,
         item_scope: "over_the_counter_only",
         prescription_items_allowed: false,
@@ -1689,6 +1846,19 @@ function billClientMessage(locale: string, key: "unsupported" | "read_failed"): 
 
 async function confirmPendingAction(item: ConciergePendingItem) {
   const bookingUrl = getBookingUrl(item);
+  const emailDraft = getActionEmailDraft(item);
+  const whatsAppDraft = getActionWhatsAppDraft(item);
+  const preferredHandoffChannel = getPreferredHandoffChannel(item);
+
+  if (whatsAppDraft && (preferredHandoffChannel === "whatsapp" || (!item.provider_phone && !emailDraft && !bookingUrl))) {
+    window.open(whatsAppDraftHref(whatsAppDraft), "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  if (emailDraft && (preferredHandoffChannel === "email" || (!item.provider_phone && !bookingUrl))) {
+    window.open(emailDraftHref(emailDraft), "_blank", "noopener,noreferrer");
+    return;
+  }
 
   if (!item.provider_phone && bookingUrl) {
     window.open(bookingUrl, "_blank", "noopener,noreferrer");
@@ -1898,7 +2068,7 @@ function appointmentConfirmationItems(params: {
   return items;
 }
 
-function savedPharmacyProviderDetails(profile: ConciergeProfileSummary | null | undefined): NonNullable<ConciergeProfileSummary["savedProviders"]>[number] | null {
+function savedPharmacyProviderDetails(profile: ConciergeProfileSummary | null | undefined): SavedConciergeProvider | null {
   return profile?.savedProviders?.find((provider) => {
     const searchable = [provider.role, provider.category, provider.name]
       .filter((value): value is string => typeof value === "string")
@@ -1918,7 +2088,7 @@ function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undef
   return Boolean(savedPharmacyName(profile));
 }
 
-function savedTransportProviderDetails(profile: ConciergeProfileSummary | null | undefined): NonNullable<ConciergeProfileSummary["savedProviders"]>[number] | null {
+function savedTransportProviderDetails(profile: ConciergeProfileSummary | null | undefined): SavedConciergeProvider | null {
   return profile?.savedProviders?.find((item) => {
     const searchable = [item.role, item.category, item.name]
       .filter((value): value is string => typeof value === "string")
@@ -1941,16 +2111,16 @@ function profileHasSavedTransportProvider(profile: ConciergeProfileSummary | nul
 function savedHomeServiceProviderDetails(
   profile: ConciergeProfileSummary | null | undefined,
   serviceType: HomeServiceType | null,
-): NonNullable<ConciergeProfileSummary["savedProviders"]>[number] | null {
+): SavedConciergeProvider | null {
   const providers = profile?.savedProviders ?? [];
-  const searchText = (provider: NonNullable<ConciergeProfileSummary["savedProviders"]>[number]) => (
+  const searchText = (provider: SavedConciergeProvider) => (
     [provider.role, provider.category, provider.name]
       .filter((value): value is string => typeof value === "string")
       .join(" ")
       .toLowerCase()
   );
   const matchesTerms = (
-    provider: NonNullable<ConciergeProfileSummary["savedProviders"]>[number],
+    provider: SavedConciergeProvider,
     terms: string[],
   ) => terms.some((term) => searchText(provider).includes(term.toLowerCase()));
   const serviceTerms = serviceType
@@ -1984,7 +2154,7 @@ function savedHomeServiceProviderDetails(
 }
 
 function preferredToolForSavedProvider(
-  provider: ReturnType<typeof savedTransportProviderDetails> | ReturnType<typeof savedHomeServiceProviderDetails>,
+  provider: SavedConciergeProvider | null,
 ): ConciergeToolRequirement {
   const preferredChannel = (provider?.preferredChannel || provider?.preferred_channel || "").trim().toLowerCase();
   if (preferredChannel === "booking_url") return "booking_link";
@@ -2175,9 +2345,13 @@ function offerCardKey(option: OfferOption): string {
 }
 
 function getBookingUrl(item: ConciergePendingItem): string {
-  return typeof item.action_payload?.booking_url === "string"
-    ? item.action_payload.booking_url.trim()
-    : "";
+  const plan = item.action_payload?.form_automation_plan;
+  const planPrefilledUrl = plan && typeof plan === "object" && !Array.isArray(plan)
+    ? (plan as Record<string, unknown>).prefilled_url
+    : null;
+  return payloadString(item.action_payload, ["form_automation_prefilled_url"]) ||
+    (typeof planPrefilledUrl === "string" ? planPrefilledUrl.trim() : "") ||
+    payloadString(item.action_payload, ["booking_url"]);
 }
 
 function getExecutionChannel(item: ConciergePendingItem): string {
@@ -2186,20 +2360,93 @@ function getExecutionChannel(item: ConciergePendingItem): string {
     : "";
 }
 
+function getPreferredHandoffChannel(item: ConciergePendingItem): string {
+  return getExecutionChannel(item) || payloadString(item.action_payload, ["preferred_channel"]);
+}
+
+function payloadString(payload: Record<string, unknown> | null | undefined, keys: string[]): string {
+  if (!payload) return "";
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function getActionEmailDraft(item: ConciergePendingItem): ConciergeEmailDraft | null {
+  const payload = item.action_payload;
+  const address = payloadString(payload, [
+    "provider_email",
+    "recipient_email",
+    "to_email",
+    "email_to",
+    "email",
+  ]);
+  if (!address || !address.includes("@")) return null;
+
+  return {
+    address,
+    subject: payloadString(payload, ["email_subject", "subject"]) || item.action_summary,
+    body: payloadString(payload, ["email_body", "draft_body", "message_body", "message", "body"]) || item.action_summary,
+  };
+}
+
+function emailDraftHref(draft: ConciergeEmailDraft): string {
+  const params = [
+    draft.subject ? `subject=${encodeURIComponent(draft.subject)}` : "",
+    draft.body ? `body=${encodeURIComponent(draft.body)}` : "",
+  ].filter(Boolean);
+  return `mailto:${draft.address}${params.length ? `?${params.join("&")}` : ""}`;
+}
+
+function normalizeWhatsAppNumber(value: string): string {
+  return value.replace(/[^\d]/g, "");
+}
+
+function getActionWhatsAppDraft(item: ConciergePendingItem): ConciergeWhatsAppDraft | null {
+  const payload = item.action_payload;
+  const preferredChannel = getPreferredHandoffChannel(item);
+  const explicitNumber = payloadString(payload, [
+    "provider_whatsapp",
+    "recipient_whatsapp",
+    "to_whatsapp",
+    "whatsapp_to",
+    "whatsapp_number",
+    "whatsapp",
+  ]);
+  const number = explicitNumber || (preferredChannel === "whatsapp" ? item.provider_phone?.trim() ?? "" : "");
+  const normalized = normalizeWhatsAppNumber(number);
+  if (!normalized) return null;
+
+  return {
+    number: normalized,
+    message: payloadString(payload, ["whatsapp_message", "draft_message", "message_body", "message", "body"]) || item.action_summary,
+  };
+}
+
+function whatsAppDraftHref(draft: ConciergeWhatsAppDraft): string {
+  const params = draft.message ? `?text=${encodeURIComponent(draft.message)}` : "";
+  return `https://wa.me/${draft.number}${params}`;
+}
+
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim()).map((entry) => entry.trim()) : [];
 }
 
-function getFormAutomationPlan(item: ConciergePendingItem): { adapterLabel: string | null; missingFields: string[]; nextStep: string | null } | null {
+function getFormAutomationPlan(item: ConciergePendingItem): { adapterLabel: string | null; missingFields: string[]; nextStep: string | null; prefilledUrl: string | null } | null {
   const plan = item.action_payload?.form_automation_plan;
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) return null;
   const record = plan as Record<string, unknown>;
   const adapterLabel = typeof record.adapter_label === "string" && record.adapter_label.trim() ? record.adapter_label.trim() : null;
   const nextStep = typeof record.next_step === "string" && record.next_step.trim() ? record.next_step.trim() : null;
+  const prefilledUrl = typeof record.prefilled_url === "string" && record.prefilled_url.trim()
+    ? record.prefilled_url.trim()
+    : payloadString(item.action_payload, ["form_automation_prefilled_url"]);
   return {
     adapterLabel,
     missingFields: stringList(record.missing_fields),
     nextStep,
+    prefilledUrl,
   };
 }
 
@@ -2886,6 +3133,9 @@ const ConciergeScreen = () => {
       destinationAddress: transportDestination,
       requestedTime: transportTime,
       mobilityNeeds: transportMobilityNeeds,
+      hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
+      hasSavedTransportProvider,
+      savedTransportProviderName: savedTransportProvider,
       locale,
     }),
     onMutate: () => {
@@ -2906,6 +3156,11 @@ const ConciergeScreen = () => {
   const prepareOtcPharmacyMutation = useMutation({
     mutationFn: () => prepareOtcPharmacyConciergeAction({
       pharmacyName: savedPharmacy || (isSpanish ? "Farmacia guardada" : "Saved pharmacy"),
+      providerPhone: savedPharmacyProviderDetailsValue?.phone,
+      providerEmail: savedPharmacyProviderDetailsValue?.email,
+      providerWhatsapp: savedPharmacyProviderDetailsValue?.whatsapp,
+      providerBookingUrl: savedPharmacyProviderDetailsValue?.bookingUrl || savedPharmacyProviderDetailsValue?.booking_url,
+      preferredChannel: savedPharmacyProviderDetailsValue?.preferredChannel || savedPharmacyProviderDetailsValue?.preferred_channel,
       itemText: otcItemText,
       fulfillmentPreference: otcFulfillmentPreference,
       requestedTime: otcRequestedTime,
@@ -4144,9 +4399,37 @@ const ConciergeScreen = () => {
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
+  const activeActionEmailDraft = activeAction ? getActionEmailDraft(activeAction) : null;
+  const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
+  const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
+  const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
+  const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";
+  const activeActionOpensWhatsApp = Boolean(activeActionWhatsAppDraft && (
+    activeActionPreferredHandoffChannel === "whatsapp" ||
+    (!activeAction?.provider_phone && !activeActionEmailDraft && !activeActionBookingUrl)
+  ));
+  const activeActionOpensEmail = Boolean(activeActionEmailDraft && !activeActionOpensWhatsApp && (
+    activeActionPreferredHandoffChannel === "email" ||
+    (!activeAction?.provider_phone && !activeActionBookingUrl)
+  ));
   const activeActionExecutionChannel = activeAction ? getExecutionChannel(activeAction) : "";
-  const activeActionIsVyvaTask = activeActionExecutionChannel === "booking_url" || activeActionExecutionChannel === "manual";
   const activeActionFormPlan = activeAction ? getFormAutomationPlan(activeAction) : null;
+  const activeActionFormMissingFields = activeActionFormPlan?.missingFields ?? [];
+  const activeActionCanOpenForm = Boolean(
+    activeActionExecutionChannel === "booking_url" &&
+    activeActionBookingUrl &&
+    activeActionFormMissingFields.length === 0,
+  );
+  const activeActionIsVyvaTask = activeActionExecutionChannel === "manual" || (
+    activeActionExecutionChannel === "booking_url" &&
+    !activeActionCanOpenForm
+  );
+  const activeActionOpensBooking = Boolean(
+    activeActionBookingUrl &&
+    !activeActionOpensWhatsApp &&
+    !activeActionOpensEmail &&
+    (activeActionCanOpenForm || (!activeAction?.provider_phone && activeActionExecutionChannel !== "booking_url"))
+  );
   const activeActionIsAppointment = activeAction?.use_case === "book_appointment";
   const activeActionMissionStatus = activeActionIsAppointment && isAppointmentMissionStatus(activeAction?.action_payload?.mission_status)
     ? activeAction.action_payload.mission_status
@@ -5180,9 +5463,12 @@ const ConciergeScreen = () => {
                   const canPrepare = option.actions.includes("start_concierge_action");
                   const toolReadiness = evaluateConciergeToolReadiness({
                     flowReference: TRANSPORT_BOOKING_FLOW_REFERENCE,
-                    requestedTool: preferredToolFromTransportActions(option.actions),
+                    requestedTool: preferredToolForTransportOption(option),
                     provider: {
                       phone: option.phone,
+                      email: option.email,
+                      whatsapp: option.whatsapp,
+                      booking_url: option.bookingUrl,
                       url: option.url,
                       actions: option.actions,
                       providerName: option.providerName,
@@ -5518,7 +5804,9 @@ const ConciergeScreen = () => {
                 data-testid="panel-concierge-appointment-mission"
               >
                 <p className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-purple">
-                  {isSpanish ? "VYVA lo gestiona" : "VYVA is handling this"}
+                  {activeActionCanOpenForm
+                    ? (isSpanish ? "Formulario listo" : "Form ready")
+                    : (isSpanish ? "VYVA lo gestiona" : "VYVA is handling this")}
                 </p>
                 <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
                   {activeActionMissionStatus
@@ -5568,7 +5856,7 @@ const ConciergeScreen = () => {
               </div>
             )}
 
-            {activeActionIsVyvaTask && activeActionFormPlan && (
+            {activeActionFormPlan && (
               <div
                 className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
                 data-testid="panel-concierge-form-plan"
@@ -5580,7 +5868,11 @@ const ConciergeScreen = () => {
                 </p>
                 {activeActionFormPlan.missingFields.length > 0 ? (
                   <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
-                    {isSpanish ? "Falta: " : "Needs: "}{activeActionFormPlan.missingFields.slice(0, 3).join(", ")}
+                    {isSpanish ? "Falta primero: " : "Needs first: "}{activeActionFormPlan.missingFields.join(", ")}
+                  </p>
+                ) : activeActionCanOpenForm ? (
+                  <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
+                    {isSpanish ? "Listo para abrir con los datos reunidos." : "Ready to open with the gathered details."}
                   </p>
                 ) : activeActionFormPlan.nextStep ? (
                   <p className="mt-1 font-body text-[13px] font-bold text-vyva-text-2">
@@ -5601,15 +5893,51 @@ const ConciergeScreen = () => {
                   {activeAction.provider_phone}
                 </a>
               )}
-              {!activeAction.provider_phone && activeActionBookingUrl && activeActionIsVyvaTask && (
+              {activeActionEmailDraft && (
+                <a
+                  href={activeActionEmailHref}
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#EEF2FF] px-3 py-2 font-body text-[12px] font-black text-vyva-purple"
+                  aria-label={`Email ${activeActionEmailDraft.address}`}
+                  data-testid={`link-concierge-email-${activeAction.id}`}
+                >
+                  <Mail size={13} style={{ color: "#6B21A8" }} />
+                  {activeActionEmailDraft.address}
+                </a>
+              )}
+              {activeActionWhatsAppDraft && (
+                <a
+                  href={activeActionWhatsAppHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                  aria-label={`WhatsApp ${activeActionWhatsAppDraft.number}`}
+                  data-testid={`link-concierge-whatsapp-${activeAction.id}`}
+                >
+                  <Send size={13} style={{ color: "#047857" }} />
+                  WhatsApp
+                </a>
+              )}
+              {activeActionBookingUrl && activeActionIsVyvaTask && (
                 <span
                   className="inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
                 >
                   <Calendar size={13} style={{ color: "#0A7C4E" }} />
-                  {isSpanish ? "Formulario guardado para VYVA" : "Form saved for VYVA"}
+                  {isSpanish ? "Formulario pendiente en VYVA" : "Form waiting in VYVA"}
                 </span>
               )}
-              {!activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && (
+              {activeActionCanOpenForm && activeActionBookingUrl && (
+                <a
+                  href={activeActionBookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vyva-tap inline-flex items-center gap-2 rounded-full bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]"
+                  data-testid={`link-concierge-form-${activeAction.id}`}
+                >
+                  <Calendar size={13} style={{ color: "#0A7C4E" }} />
+                  {isSpanish ? "Formulario listo" : "Form ready"}
+                </a>
+              )}
+              {!activeActionCanOpenForm && !activeAction.provider_phone && activeActionBookingUrl && !activeActionIsVyvaTask && (
                 <a
                   href={activeActionBookingUrl}
                   target="_blank"
@@ -5636,9 +5964,15 @@ const ConciergeScreen = () => {
                     disabled={confirmMutation.isPending || cancelMutation.isPending}
                     className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
                   >
-                    {!activeAction.provider_phone && activeActionBookingUrl ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
-                    {!activeAction.provider_phone && activeActionBookingUrl
-                      ? (isSpanish ? "Abrir reserva" : "Open booking")
+                    {activeActionOpensWhatsApp ? <Send size={16} className="mr-2" /> : activeActionOpensEmail ? <Mail size={16} className="mr-2" /> : activeActionOpensBooking ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
+                    {activeActionOpensWhatsApp
+                      ? (isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft")
+                      : activeActionOpensEmail
+                      ? (isSpanish ? "Abrir email" : "Open email draft")
+                      : activeActionOpensBooking
+                      ? activeActionCanOpenForm
+                        ? (isSpanish ? "Abrir formulario" : "Open form")
+                        : (isSpanish ? "Abrir reserva" : "Open booking")
                       : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
                   </Button>
                 )}
