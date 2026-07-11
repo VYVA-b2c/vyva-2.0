@@ -1586,6 +1586,36 @@ describe("ConciergeScreen action hub", () => {
         expect(body.action_payload.whatsapp_message).toContain("Destination: Heart Clinic Madrid");
         return jsonResponse({ pendingId: "transport-1", status: "pending" });
       }
+      if (String(url).includes("/api/profile/scheduled-events")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body).toMatchObject({
+          event_type: "transport",
+          title: "Ride with Radio Taxi",
+          source: "concierge",
+          status: "upcoming",
+        });
+        expect(body.description).toContain("Pickup: Saved home");
+        expect(body.description).toContain("Destination: Heart Clinic Madrid");
+        expect(body.description).toContain("Provider reply: Confirmed, arrives at 09:30.");
+        expect(body.description).toContain("Price: EUR18");
+        expect(body.description).toContain("Reference: RT-123");
+        expect(body.metadata).toMatchObject({
+          flow_reference: "FLOW_TRANSPORT_BOOKING",
+          pending_id: "transport-1",
+          provider_name: "Radio Taxi",
+          provider_phone: "+34 612 345 678",
+          provider_whatsapp: "+34 612 345 679",
+          option_kind: "local_taxi",
+          pickup_address: "Saved home",
+          destination_address: "Heart Clinic Madrid",
+          requested_time: "now",
+          provider_reply: "Confirmed, arrives at 09:30.",
+          price_estimate: "EUR18",
+          booking_reference: "RT-123",
+        });
+        return jsonResponse({ event: { id: "ride-event-1", title: body.title } });
+      }
       return jsonResponse({ items: [] });
     });
 
@@ -1615,7 +1645,30 @@ describe("ConciergeScreen action hub", () => {
         method: "POST",
       }));
     });
-    expect(await screen.findByText("Transport request prepared. Confirm before VYVA contacts anyone.")).toBeVisible();
+    expect(await screen.findByText("Ride request prepared. Confirm contact in Right now, then review and save the ride.")).toBeVisible();
+    expect(screen.getByTestId("panel-transport-final-review")).toHaveTextContent("Review and confirm ride");
+
+    fireEvent.change(screen.getByTestId("input-transport-provider-reply"), {
+      target: { value: "Confirmed, arrives at 09:30." },
+    });
+    fireEvent.change(screen.getByTestId("input-transport-confirmed-time"), {
+      target: { value: "2026-08-04T09:30" },
+    });
+    fireEvent.change(screen.getByTestId("input-transport-confirmed-price"), {
+      target: { value: "EUR18" },
+    });
+    fireEvent.change(screen.getByTestId("input-transport-confirmed-reference"), {
+      target: { value: "RT-123" },
+    });
+
+    fireEvent.click(screen.getByTestId("button-transport-save-confirmed-ride"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/profile/scheduled-events", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(await screen.findByText("Ride saved in Scheduled Support.")).toBeVisible();
   });
 });
 
