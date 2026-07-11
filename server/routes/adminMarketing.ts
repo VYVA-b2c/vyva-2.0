@@ -404,6 +404,24 @@ const LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY = "__vyvaLovableEmailUnsubscribeRows"
 
 const contentMediaArrayKeys = ["mediaAssets", "media_assets", "media", "images", "attachments"] as const;
 const contentMediaUrlKeys = ["imageUrl", "image_url", "assetUrl", "asset_url", "thumbnailUrl", "thumbnail_url"] as const;
+const mediaContentRefKeys = [
+  "contentAssetId",
+  "content_asset_id",
+  "contentExternalId",
+  "content_external_id",
+  "contentId",
+  "content_id",
+  "templateId",
+  "template_id",
+  "emailTemplateId",
+  "email_template_id",
+  "socialPostId",
+  "social_post_id",
+  "assetOwnerId",
+  "asset_owner_id",
+  "parentId",
+  "parent_id",
+] as const;
 
 function withLovableContentSource(items: unknown[], sourceType: string) {
   return items.map((item) => ({
@@ -421,6 +439,17 @@ function lovableContentPayload(payload: Record<string, unknown>) {
     ...withLovableContentSource(arrayFrom(payload.content), "content"),
     ...withLovableContentSource(arrayFrom(payload.social_posts ?? payload.socialPosts), "social_post"),
   ];
+}
+
+function lovableMediaPayload(payload: Record<string, unknown>) {
+  return arrayFrom(
+    payload.mediaAssets
+      ?? payload.media_assets
+      ?? payload.marketing_media_assets
+      ?? payload.media
+      ?? payload.images
+      ?? payload.attachments,
+  ).map(asRecord);
 }
 
 function contentMediaAssetsFrom(row: Record<string, unknown>) {
@@ -752,9 +781,10 @@ const fieldCoverageAliases = {
   ],
   media: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
-    ["url", "src", "href", "originalUrl", "original_url"],
+    ["url", "src", "href", "originalUrl", "original_url", "assetUrl", "asset_url", "imageUrl", "image_url", "thumbnailUrl", "thumbnail_url"],
     ["localUrl", "local_url"],
     ["type", "kind", "assetType", "asset_type", "mimeType", "mime_type"],
+    ["contentAssetId", "content_asset_id", "contentExternalId", "content_external_id", "contentId", "content_id", "templateId", "template_id", "emailTemplateId", "email_template_id", "socialPostId", "social_post_id"],
     ["status", "importStatus", "import_status"],
     ["updatedAt", "updated_at"],
   ],
@@ -2477,6 +2507,45 @@ async function replaceLovableMediaAssets(content: MarketingContentAssetRow, medi
   return rows.length;
 }
 
+async function upsertLovableStandaloneMedia(
+  raw: Record<string, unknown>,
+  now: Date,
+  contentByExternalId: Map<string, string>,
+  index: number,
+) {
+  const originalUrl = emptyToNull(textFrom(raw, ["url", "src", "href", "originalUrl", "original_url", "assetUrl", "asset_url", "imageUrl", "image_url", "thumbnailUrl", "thumbnail_url"]))
+    ?? emptyToNull(textFrom(raw, ["localUrl", "local_url"]));
+  if (!originalUrl) return false;
+  const localUrl = emptyToNull(textFrom(raw, ["localUrl", "local_url"]));
+  const contentRef = emptyToNull(textFrom(raw, [...mediaContentRefKeys]));
+  const contentAssetId = lookupByExternalId(
+    contentByExternalId,
+    contentRef,
+    ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"],
+  );
+  const externalId = normalizeLovableId(raw) ?? `${contentRef ?? "standalone"}:media:${index}:${originalUrl}`;
+  const row = {
+    content_asset_id: contentAssetId ?? null,
+    source: "lovable",
+    asset_type: textFrom(raw, ["type", "kind", "assetType", "asset_type", "mimeType", "mime_type"], "unknown"),
+    original_url: originalUrl,
+    local_url: localUrl,
+    status: textFrom(raw, ["status", "importStatus", "import_status"], localUrl ? "mirrored" : "referenced"),
+    lovable_external_id: externalId,
+    metadata: {
+      lovable: raw,
+      content_external_ref: contentRef,
+      linked_content_asset_id: contentAssetId ?? null,
+    },
+    last_synced_at: now,
+    updated_at: now,
+  };
+  await db.insert(marketingMediaAssets)
+    .values(row)
+    .onConflictDoUpdate({ target: marketingMediaAssets.lovable_external_id, set: row });
+  return true;
+}
+
 async function upsertLovableContact(raw: unknown, now: Date) {
   const row = asRecord(raw);
   const externalId = normalizeLovableId(row);
@@ -2970,6 +3039,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
 
     const actorLabel = actor(req);
     const contentPayload = lovableContentPayload(payload);
+    const standaloneMediaPayload = lovableMediaPayload(payload);
     const contactPayload = lovableContactPayload(payload);
     const campaignPayload = lovableCampaignPayload(payload);
     const journeyPayload = lovableJourneyPayload(payload);
@@ -2996,6 +3066,9 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
           addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
         }
       }
+    }
+    for (const [index, item] of standaloneMediaPayload.entries()) {
+      if (await upsertLovableStandaloneMedia(item, now, contentByExternalId, index)) mediaAssetCount += 1;
     }
 
     const contactRows = [];
@@ -3144,6 +3217,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       const row = asRecord(item);
       return count + contentMediaAssetsFrom(row).length;
     }, 0);
+    const mediaAssetExportCount = nestedMediaAssetExportCount + standaloneMediaPayload.length;
     const campaignChannelExportCount = campaignPayload.reduce((count, item) => count + campaignChannelPayload(asRecord(item)).length, 0);
     const campaignRecipientExportCount = campaignPayload.reduce((count, item) => (
       count + campaignRecipientSourceCount(asRecord(item), audienceContactExternalIdsByAudienceExternalId)
@@ -3152,7 +3226,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
       content: contentPayload.length,
-      mediaAssets: nestedMediaAssetExportCount,
+      mediaAssets: mediaAssetExportCount,
       campaignChannels: campaignChannelExportCount,
       campaignRecipients: campaignRecipientExportCount,
       campaignMetrics: allCampaignMetricPayload.length,
@@ -3162,10 +3236,10 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     };
     const fieldCoverage = {
       content: fieldCoverageForPayload(contentPayload, fieldCoverageAliases.content),
-      media: fieldCoverageForPayload(contentPayload.flatMap((item) => {
+      media: fieldCoverageForPayload([...contentPayload.flatMap((item) => {
         const row = asRecord(item);
         return contentMediaAssetsFrom(row);
-      }), fieldCoverageAliases.media),
+      }), ...standaloneMediaPayload], fieldCoverageAliases.media),
       contacts: fieldCoverageForPayload(contactPayload, fieldCoverageAliases.contacts),
       campaigns: fieldCoverageForPayload(campaignPayload, fieldCoverageAliases.campaigns),
       campaignMetrics: fieldCoverageForPayload(allCampaignMetricPayload.map((item) => item.raw), fieldCoverageAliases.campaignMetrics),

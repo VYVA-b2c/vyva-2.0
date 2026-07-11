@@ -871,6 +871,13 @@ describe("admin marketing router", () => {
         caption: "Partner update copy",
         image_url: "https://cdn.example.test/social.png",
       }],
+      media_assets: [{
+        id: "media:standalone-1",
+        content_external_id: "content-1",
+        original_url: "https://cdn.example.test/standalone.png",
+        asset_type: "image",
+        status: "referenced",
+      }],
       content_briefs: [{
         id: "brief-1",
         title: "Brief idea",
@@ -1025,11 +1032,17 @@ describe("admin marketing router", () => {
       lovable_external_id: "content_brief:brief-1",
       metadata: { lovable_source_type: "content_brief" },
     });
-    expect(table("marketing_media_assets")).toHaveLength(2);
+    expect(table("marketing_media_assets")).toHaveLength(3);
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/hero.png")).toMatchObject({
       original_url: "https://cdn.example.test/hero.png",
       asset_type: "image",
       status: "referenced",
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/standalone.png")).toMatchObject({
+      content_asset_id: table("marketing_content_assets").find((row) => row.title === "Welcome email")?.id,
+      asset_type: "image",
+      status: "referenced",
+      lovable_external_id: "media:standalone-1",
     });
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/social.png")).toMatchObject({
       asset_type: "unknown",
@@ -1155,6 +1168,11 @@ describe("admin marketing router", () => {
           assetType: "image",
           contentTitle: "Welcome email",
         });
+        expect(response.body.mediaAssets.find((row: { originalUrl: string }) => row.originalUrl === "https://cdn.example.test/standalone.png")).toMatchObject({
+          originalUrl: "https://cdn.example.test/standalone.png",
+          assetType: "image",
+          contentTitle: "Welcome email",
+        });
       });
 
     await request(app)
@@ -1199,10 +1217,10 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 4, mediaAssets: 2, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 4, mediaAssets: 3, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
       imported: {
         content: 4,
-        mediaAssets: 2,
+        mediaAssets: 3,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,
