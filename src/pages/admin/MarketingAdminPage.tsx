@@ -1511,6 +1511,53 @@ function MediaPreviewTile({ url, label, testId }: { url: string; label?: string;
   );
 }
 
+function LinkedContentPreview({ contentAsset, linkedMediaAssets, testId }: { contentAsset: ContentAsset | null; linkedMediaAssets: MarketingMediaAsset[]; testId: string }) {
+  if (!contentAsset) {
+    return (
+      <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-3 text-sm font-bold text-[#8b7a73]" data-testid={testId}>
+        No content selected for this channel.
+      </div>
+    );
+  }
+
+  const previewUrls = contentMediaPreviewUrls(contentAsset, linkedMediaAssets);
+  return (
+    <div className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3" data-testid={testId}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase text-purple-700">Linked content</p>
+          <h4 className="mt-1 font-black text-[#241133]">{contentAsset.title}</h4>
+          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{contentAsset.subject || contentAsset.body || "No copy yet."}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Pill className={channelClass(contentAsset.channel)}>{channelLabel[contentAsset.channel]}</Pill>
+          <Pill className={statusClass(contentAsset.status)}>{contentAsset.status}</Pill>
+          {contentAsset.source === "lovable" ? <Pill className="bg-violet-50 text-violet-700">{contentOriginLabel(contentAsset)}</Pill> : null}
+          {contentAsset.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
+          {contentAsset.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design data</Pill> : null}
+          {previewUrls.length ? <Pill className="bg-emerald-50 text-emerald-800">{previewUrls.length} media</Pill> : null}
+        </div>
+      </div>
+      {contentAsset.ctaLabel || contentAsset.ctaUrl ? (
+        <p className="mt-2 text-xs font-bold text-[#7d6b65]">CTA: {[contentAsset.ctaLabel, contentAsset.ctaUrl].filter(Boolean).join(" -> ")}</p>
+      ) : null}
+      {contentAsset.body && contentAsset.body !== contentAsset.subject ? (
+        <p className="mt-2 rounded-lg bg-white p-3 text-sm font-semibold text-[#5b4a46]">{contentAsset.body}</p>
+      ) : null}
+      {previewUrls.length ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {previewUrls.slice(0, 3).map((url) => (
+            <MediaPreviewTile key={url} url={url} label={contentAsset.title} />
+          ))}
+        </div>
+      ) : null}
+      {contentAsset.lovableExternalId ? (
+        <p className="mt-2 break-all text-xs font-bold text-[#8b7a73]">Lovable ID: {contentAsset.lovableExternalId}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function LockedSendPanel() {
   return (
     <div className="rounded-[14px] border border-emerald-200 bg-emerald-50 p-4 text-emerald-950" data-testid="marketing-send-readiness-panel">
@@ -3267,45 +3314,49 @@ export default function MarketingAdminPage() {
                           {campaignChannelsWithPrimary(campaignEditDraft).map((channelDraft, index) => {
                             const channelContentAssets = content.filter((item) => item.channel === channelDraft.channel && item.status !== "archived");
                             const selectedChannelContent = channelDraft.contentAssetId ? content.find((item) => item.id === channelDraft.contentAssetId) : null;
+                            const selectedChannelMediaAssets = selectedChannelContent ? mediaAssets.filter((item) => item.contentAssetId === selectedChannelContent.id) : [];
                             const options = selectedChannelContent && !channelContentAssets.some((item) => item.id === selectedChannelContent.id)
                               ? [selectedChannelContent, ...channelContentAssets]
                               : channelContentAssets;
                             return (
-                              <div key={channelDraft.id} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-white p-3 xl:grid-cols-[150px_1fr_130px_190px_auto]" data-testid={`marketing-campaign-channel-row-${index}`}>
-                                <Field label={index === 0 ? "Primary channel" : "Channel"}>
-                                  <select
-                                    className={inputClass}
-                                    value={channelDraft.channel}
-                                    onChange={(event) => updateCampaignChannel(channelDraft.id, { channel: event.target.value as Channel })}
-                                    data-testid={`select-marketing-campaign-channel-${index}`}
-                                  >
-                                    {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
-                                  </select>
-                                </Field>
-                                <Field label="Content asset">
-                                  <select
-                                    className={inputClass}
-                                    value={channelDraft.contentAssetId}
-                                    onChange={(event) => updateCampaignChannel(channelDraft.id, { contentAssetId: event.target.value })}
-                                    data-testid={`select-marketing-campaign-channel-content-${index}`}
-                                  >
-                                    <option value="">No content asset</option>
-                                    {options.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-                                  </select>
-                                </Field>
-                                <Field label="Status">
-                                  <select className={inputClass} value={channelDraft.status} onChange={(event) => updateCampaignChannel(channelDraft.id, { status: event.target.value as CampaignStatus })} data-testid={`select-marketing-campaign-channel-status-${index}`}>
-                                    {CAMPAIGN_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-                                  </select>
-                                </Field>
-                                <Field label="Scheduled at">
-                                  <input className={inputClass} type="datetime-local" value={channelDraft.scheduledAt} onChange={(event) => updateCampaignChannel(channelDraft.id, { scheduledAt: event.target.value })} data-testid={`input-marketing-campaign-channel-schedule-${index}`} />
-                                </Field>
-                                <div className="flex items-end">
-                                  <button type="button" onClick={() => removeCampaignChannel(channelDraft.id)} disabled={campaignChannelsWithPrimary(campaignEditDraft).length <= 1} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300" data-testid={`button-marketing-remove-campaign-channel-${index}`}>
-                                    <Trash2 size={13} /> Remove
-                                  </button>
+                              <div key={channelDraft.id} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid={`marketing-campaign-channel-row-${index}`}>
+                                <div className="grid gap-3 xl:grid-cols-[150px_1fr_130px_190px_auto]">
+                                  <Field label={index === 0 ? "Primary channel" : "Channel"}>
+                                    <select
+                                      className={inputClass}
+                                      value={channelDraft.channel}
+                                      onChange={(event) => updateCampaignChannel(channelDraft.id, { channel: event.target.value as Channel })}
+                                      data-testid={`select-marketing-campaign-channel-${index}`}
+                                    >
+                                      {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                                    </select>
+                                  </Field>
+                                  <Field label="Content asset">
+                                    <select
+                                      className={inputClass}
+                                      value={channelDraft.contentAssetId}
+                                      onChange={(event) => updateCampaignChannel(channelDraft.id, { contentAssetId: event.target.value })}
+                                      data-testid={`select-marketing-campaign-channel-content-${index}`}
+                                    >
+                                      <option value="">No content asset</option>
+                                      {options.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                                    </select>
+                                  </Field>
+                                  <Field label="Status">
+                                    <select className={inputClass} value={channelDraft.status} onChange={(event) => updateCampaignChannel(channelDraft.id, { status: event.target.value as CampaignStatus })} data-testid={`select-marketing-campaign-channel-status-${index}`}>
+                                      {CAMPAIGN_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                                    </select>
+                                  </Field>
+                                  <Field label="Scheduled at">
+                                    <input className={inputClass} type="datetime-local" value={channelDraft.scheduledAt} onChange={(event) => updateCampaignChannel(channelDraft.id, { scheduledAt: event.target.value })} data-testid={`input-marketing-campaign-channel-schedule-${index}`} />
+                                  </Field>
+                                  <div className="flex items-end">
+                                    <button type="button" onClick={() => removeCampaignChannel(channelDraft.id)} disabled={campaignChannelsWithPrimary(campaignEditDraft).length <= 1} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300" data-testid={`button-marketing-remove-campaign-channel-${index}`}>
+                                      <Trash2 size={13} /> Remove
+                                    </button>
+                                  </div>
                                 </div>
+                                <LinkedContentPreview contentAsset={selectedChannelContent ?? null} linkedMediaAssets={selectedChannelMediaAssets} testId={`marketing-campaign-channel-content-preview-${index}`} />
                               </div>
                             );
                           })}

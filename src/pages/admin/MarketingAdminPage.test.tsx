@@ -1293,6 +1293,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
+    const emailContentPreview = screen.getByTestId("marketing-campaign-channel-content-preview-0");
+    expect(emailContentPreview).toHaveTextContent("Linked content");
+    expect(emailContentPreview).toHaveTextContent("Welcome email");
+    expect(emailContentPreview).toHaveTextContent("Welcome to VYVA");
+    expect(emailContentPreview).toHaveTextContent("Hello");
+    const socialContentPreview = screen.getByTestId("marketing-campaign-channel-content-preview-1");
+    expect(socialContentPreview).toHaveTextContent("Partner post");
+    expect(socialContentPreview).toHaveTextContent("Partner update");
+    expect(socialContentPreview).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
+    expect(socialContentPreview).toHaveTextContent("Social post");
+    expect(socialContentPreview).toHaveTextContent("Lovable ID: lovable-content-2");
+    expect(within(socialContentPreview).getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
     expect(screen.getByTestId("select-marketing-edit-campaign-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("Partners");
     expect(screen.getByText("Karim Assad")).toBeInTheDocument();
