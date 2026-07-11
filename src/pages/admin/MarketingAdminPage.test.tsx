@@ -67,7 +67,10 @@ const campaigns = [
     source: "vyva",
     lovableExternalId: null,
     metadata: { extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" } },
-    channels: [{ id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "enabled" }],
+    channels: [
+      { id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "enabled" },
+      { id: "channel-1-linkedin", channel: "linkedin", contentAssetId: "content-2", scheduledAt: "2026-07-06T10:00:00.000Z", status: "draft", sendCapability: "planning_only" },
+    ],
     recipientCount: 1,
     recipients: [{
       id: "recipient-1",
@@ -998,6 +1001,8 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
+    expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
+    expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
     expect(screen.getByText("Karim Assad")).toBeInTheDocument();
     expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-1")).toHaveTextContent("recipient-export");
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
@@ -1021,7 +1026,10 @@ describe("MarketingAdminPage", () => {
       objective: "Updated objective",
       status: "scheduled",
       timezone: "Europe/London",
-      channels: [{ channel: "email", contentAssetId: "content-1", status: "scheduled" }],
+      channels: [
+        { channel: "email", contentAssetId: "content-1", status: "scheduled" },
+        { channel: "linkedin", contentAssetId: "content-2", status: "draft" },
+      ],
     });
     expect(patchBody.recipients).toHaveLength(1);
     expect(patchBody.recipients[0]).toMatchObject({

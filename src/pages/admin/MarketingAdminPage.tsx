@@ -349,6 +349,15 @@ type CampaignEditDraft = {
   objective: string;
   recipientFilter: string;
   snapshotRecipients: boolean;
+  channels: CampaignChannelDraft[];
+};
+
+type CampaignChannelDraft = {
+  id: string;
+  channel: Channel;
+  contentAssetId: string;
+  status: CampaignStatus;
+  scheduledAt: string;
 };
 
 type JourneyEditDraft = {
@@ -602,6 +611,100 @@ function contentMediaPreviewUrls(content: ContentAsset, linkedAssets: MarketingM
 
 function newDraftId() {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function newCampaignChannelDraft(channel: Channel = "email", status: CampaignStatus = "draft", scheduledAt = ""): CampaignChannelDraft {
+  return {
+    id: newDraftId(),
+    channel,
+    contentAssetId: "",
+    status,
+    scheduledAt,
+  };
+}
+
+function campaignChannelDraftFromChannel(channel: CampaignChannel, fallbackStatus: CampaignStatus, fallbackSchedule: string): CampaignChannelDraft {
+  return {
+    id: channel.id || newDraftId(),
+    channel: channel.channel,
+    contentAssetId: channel.contentAssetId ?? "",
+    status: normalizeCampaignStatus(channel.status || fallbackStatus),
+    scheduledAt: toDateTimeLocal(channel.scheduledAt) || fallbackSchedule,
+  };
+}
+
+function emptyCampaignEditDraft(): CampaignEditDraft {
+  return {
+    name: "",
+    audienceType: "b2c",
+    channel: "email",
+    contentAssetId: "",
+    status: "draft",
+    scheduleStartsAt: "",
+    timezone: "Europe/Madrid",
+    objective: "",
+    recipientFilter: "",
+    snapshotRecipients: false,
+    channels: [newCampaignChannelDraft()],
+  };
+}
+
+function campaignEditDraftFromCampaign(campaign: Campaign): CampaignEditDraft {
+  const status = normalizeCampaignStatus(campaign.status);
+  const scheduleStartsAt = toDateTimeLocal(campaign.scheduleStartsAt);
+  const channels = campaign.channels.length
+    ? campaign.channels.map((channel) => campaignChannelDraftFromChannel(channel, status, scheduleStartsAt))
+    : [newCampaignChannelDraft("email", status, scheduleStartsAt)];
+  const primaryChannel = channels[0];
+  return {
+    name: campaign.name,
+    audienceType: campaign.audienceType,
+    channel: primaryChannel.channel,
+    contentAssetId: primaryChannel.contentAssetId,
+    status,
+    scheduleStartsAt,
+    timezone: campaign.timezone || "Europe/Madrid",
+    objective: campaign.objective,
+    recipientFilter: "",
+    snapshotRecipients: false,
+    channels,
+  };
+}
+
+function campaignChannelsWithPrimary(draft: CampaignEditDraft) {
+  const first = draft.channels[0] ?? newCampaignChannelDraft(draft.channel, draft.status, draft.scheduleStartsAt);
+  return [
+    {
+      ...first,
+      channel: draft.channel,
+      contentAssetId: draft.channel === "email" ? draft.contentAssetId : "",
+      status: draft.status,
+      scheduledAt: draft.scheduleStartsAt,
+    },
+    ...draft.channels.slice(1),
+  ];
+}
+
+function campaignChannelsPayload(draft: CampaignEditDraft) {
+  return campaignChannelsWithPrimary(draft).map((channel) => ({
+    channel: channel.channel,
+    contentAssetId: channel.channel === "email" ? channel.contentAssetId || null : channel.contentAssetId || null,
+    status: channel.status,
+    scheduledAt: fromDateTimeLocal(channel.scheduledAt || draft.scheduleStartsAt),
+  }));
+}
+
+function campaignChannelsMatch(draft: CampaignEditDraft, campaign: Campaign) {
+  const drafted = campaignChannelsPayload(draft);
+  if (drafted.length !== campaign.channels.length) return false;
+  return drafted.every((channel, index) => {
+    const saved = campaign.channels[index];
+    if (!saved) return false;
+    return channel.channel === saved.channel
+      && (channel.contentAssetId ?? "") === (saved.contentAssetId ?? "")
+      && channel.status === normalizeCampaignStatus(saved.status)
+      && toDateTimeLocal(channel.scheduledAt) === toDateTimeLocal(saved.scheduledAt);
+  });
 }
 
 function notesFromMetadata(value: unknown) {
@@ -1168,18 +1271,7 @@ export default function MarketingAdminPage() {
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>({ name: "", audienceType: "b2c", channel: "email", status: "draft", scheduleStartsAt: "", objective: "" });
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
-  const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>({
-    name: "",
-    audienceType: "b2c",
-    channel: "email",
-    contentAssetId: "",
-    status: "draft",
-    scheduleStartsAt: "",
-    timezone: "Europe/Madrid",
-    objective: "",
-    recipientFilter: "",
-    snapshotRecipients: false,
-  });
+  const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [editingJourneyId, setEditingJourneyId] = useState<string | "new" | null>(null);
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>(() => emptyJourneyEditDraft());
   const [journeySaving, setJourneySaving] = useState(false);
@@ -1292,9 +1384,10 @@ export default function MarketingAdminPage() {
   const enrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments, (item) => item.journeyId), [journeyEnrollments]);
   const activeEnrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments.filter((item) => item.status === "active"), (item) => item.journeyId), [journeyEnrollments]);
   const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
+  const draftEmailChannel = campaignChannelsWithPrimary(campaignEditDraft).find((channel) => channel.channel === "email") ?? null;
   const selectedEmailContent = useMemo(
-    () => emailContentAssets.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null,
-    [campaignEditDraft.contentAssetId, emailContentAssets],
+    () => emailContentAssets.find((item) => item.id === draftEmailChannel?.contentAssetId) ?? null,
+    [draftEmailChannel?.contentAssetId, emailContentAssets],
   );
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
@@ -1332,20 +1425,8 @@ export default function MarketingAdminPage() {
   }
 
   function startCampaignEdit(campaign: Campaign) {
-    const firstChannel = campaign.channels[0];
     setEditingCampaignId(campaign.id);
-    setCampaignEditDraft({
-      name: campaign.name,
-      audienceType: campaign.audienceType,
-      channel: firstChannel?.channel ?? "email",
-      contentAssetId: firstChannel?.contentAssetId ?? "",
-      status: normalizeCampaignStatus(campaign.status),
-      scheduleStartsAt: toDateTimeLocal(campaign.scheduleStartsAt),
-      timezone: campaign.timezone || "Europe/Madrid",
-      objective: campaign.objective,
-      recipientFilter: "",
-      snapshotRecipients: false,
-    });
+    setCampaignEditDraft(campaignEditDraftFromCampaign(campaign));
     setMessage("");
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
@@ -1360,18 +1441,7 @@ export default function MarketingAdminPage() {
     setEditingCampaignId(null);
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
-    setCampaignEditDraft({
-      name: "",
-      audienceType: "b2c",
-      channel: "email",
-      contentAssetId: "",
-      status: "draft",
-      scheduleStartsAt: "",
-      timezone: "Europe/Madrid",
-      objective: "",
-      recipientFilter: "",
-      snapshotRecipients: false,
-    });
+    setCampaignEditDraft(emptyCampaignEditDraft());
   }
 
   async function saveCampaignEdit(event: FormEvent, campaignId: string) {
@@ -1400,12 +1470,7 @@ export default function MarketingAdminPage() {
         objective: campaignEditDraft.objective,
         scheduleStartsAt: scheduledAt,
         timezone: campaignEditDraft.timezone,
-        channels: [{
-          channel: campaignEditDraft.channel,
-          contentAssetId: campaignEditDraft.channel === "email" ? campaignEditDraft.contentAssetId || null : null,
-          status: campaignEditDraft.status,
-          scheduledAt,
-        }],
+        channels: campaignChannelsPayload(campaignEditDraft),
         ...(recipients ? { recipients } : {}),
       }),
     });
@@ -1415,6 +1480,61 @@ export default function MarketingAdminPage() {
     setTestEmailFeedback("");
     setMessage(`Campaign updated.${recipientMessage}`);
     await refreshAll();
+  }
+
+  function updateCampaignChannel(channelId: string, patch: Partial<CampaignChannelDraft>) {
+    setCampaignEditDraft((draft) => {
+      const channels = campaignChannelsWithPrimary(draft).map((channel) => (
+        channel.id === channelId
+          ? {
+              ...channel,
+              ...patch,
+              contentAssetId: patch.channel && patch.channel !== channel.channel ? "" : patch.contentAssetId ?? channel.contentAssetId,
+            }
+          : channel
+      ));
+      const primary = channels[0] ?? newCampaignChannelDraft();
+      return {
+        ...draft,
+        channels,
+        channel: primary.channel,
+        contentAssetId: primary.contentAssetId,
+        status: primary.status,
+        scheduleStartsAt: primary.scheduledAt,
+      };
+    });
+    setCampaignEmailFeedback("");
+    setTestEmailFeedback("");
+  }
+
+  function addCampaignChannel() {
+    setCampaignEditDraft((draft) => ({
+      ...draft,
+      channels: [
+        ...campaignChannelsWithPrimary(draft),
+        newCampaignChannelDraft("linkedin", draft.status, draft.scheduleStartsAt),
+      ],
+    }));
+    setCampaignEmailFeedback("");
+    setTestEmailFeedback("");
+  }
+
+  function removeCampaignChannel(channelId: string) {
+    setCampaignEditDraft((draft) => {
+      const nextChannels = campaignChannelsWithPrimary(draft).filter((channel) => channel.id !== channelId);
+      const channels = nextChannels.length ? nextChannels : [newCampaignChannelDraft("email", draft.status, draft.scheduleStartsAt)];
+      const primary = channels[0];
+      return {
+        ...draft,
+        channels,
+        channel: primary.channel,
+        contentAssetId: primary.contentAssetId,
+        status: primary.status,
+        scheduleStartsAt: primary.scheduledAt,
+      };
+    });
+    setCampaignEmailFeedback("");
+    setTestEmailFeedback("");
   }
 
   async function sendTestCampaignEmail(campaignId: string) {
@@ -1945,8 +2065,7 @@ export default function MarketingAdminPage() {
   const syncButtonDisabled = Boolean(syncBlockedReason) || syncRunning;
   const syncFeedbackText = syncFeedback || syncBlockedReason;
   const syncFeedbackIsError = Boolean(syncBlockedReason) || /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(syncFeedback);
-  const testEmailDisabled = !editingCampaign || testEmailSending || campaignEditDraft.channel !== "email" || !campaignEditDraft.contentAssetId;
-  const savedCampaignChannel = editingCampaign?.channels[0] ?? null;
+  const testEmailDisabled = !editingCampaign || testEmailSending || !draftEmailChannel?.contentAssetId;
   const hasUnsavedCampaignSendChanges = Boolean(editingCampaign && (
     campaignEditDraft.name !== editingCampaign.name ||
     campaignEditDraft.audienceType !== editingCampaign.audienceType ||
@@ -1954,21 +2073,20 @@ export default function MarketingAdminPage() {
     campaignEditDraft.scheduleStartsAt !== toDateTimeLocal(editingCampaign.scheduleStartsAt) ||
     campaignEditDraft.timezone !== (editingCampaign.timezone || "Europe/Madrid") ||
     campaignEditDraft.objective !== editingCampaign.objective ||
-    campaignEditDraft.channel !== (savedCampaignChannel?.channel ?? "email") ||
-    campaignEditDraft.contentAssetId !== (savedCampaignChannel?.contentAssetId ?? "") ||
+    !campaignChannelsMatch(campaignEditDraft, editingCampaign) ||
     campaignEditDraft.snapshotRecipients
   ));
-  const campaignEmailDisabled = !editingCampaign || campaignEmailSending || hasUnsavedCampaignSendChanges || campaignEditDraft.channel !== "email" || !campaignEditDraft.contentAssetId || editingCampaign.recipientCount <= 0;
-  const testEmailBlockedReason = campaignEditDraft.channel !== "email"
-    ? "Test sending is email-only in this first unlock."
-    : !campaignEditDraft.contentAssetId
+  const campaignEmailDisabled = !editingCampaign || campaignEmailSending || hasUnsavedCampaignSendChanges || !draftEmailChannel?.contentAssetId || editingCampaign.recipientCount <= 0;
+  const testEmailBlockedReason = !draftEmailChannel
+    ? "Add an Email channel before sending a test."
+    : !draftEmailChannel.contentAssetId
       ? "Attach an email content asset before sending a test."
       : "";
-  const campaignEmailBlockedReason = campaignEditDraft.channel !== "email"
-    ? "Campaign sending is email-only right now."
+  const campaignEmailBlockedReason = !draftEmailChannel
+    ? "Add an Email channel before sending this campaign."
     : hasUnsavedCampaignSendChanges
       ? "Save campaign changes before sending."
-      : !campaignEditDraft.contentAssetId
+      : !draftEmailChannel.contentAssetId
       ? "Attach an email content asset before sending."
       : editingCampaign && editingCampaign.recipientCount <= 0
         ? "Save a recipient snapshot before sending."
@@ -2263,23 +2381,58 @@ export default function MarketingAdminPage() {
                             </select>
                           </Field>
                           <Field label="Status">
-                            <select className={inputClass} value={campaignEditDraft.status} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, status: event.target.value as CampaignStatus }))} data-testid="select-marketing-edit-campaign-status">
+                            <select className={inputClass} value={campaignEditDraft.status} onChange={(event) => {
+                              const status = event.target.value as CampaignStatus;
+                              setCampaignEditDraft((draft) => {
+                                const channels = campaignChannelsWithPrimary(draft);
+                                return {
+                                  ...draft,
+                                  status,
+                                  channels: channels.map((channel, index) => index === 0 ? { ...channel, status } : channel),
+                                };
+                              });
+                            }} data-testid="select-marketing-edit-campaign-status">
                               {CAMPAIGN_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                             </select>
                           </Field>
                         </div>
                         <div className="grid gap-3 xl:grid-cols-2">
-                          <Field label="Channel">
-                            <select className={inputClass} value={campaignEditDraft.channel} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, channel: event.target.value as Channel, contentAssetId: event.target.value === "email" ? draft.contentAssetId : "" }))} data-testid="select-marketing-edit-campaign-channel">
+                          <Field label="Primary/send channel">
+                            <select className={inputClass} value={campaignEditDraft.channel} onChange={(event) => {
+                              const channel = event.target.value as Channel;
+                              setCampaignEditDraft((draft) => {
+                                const channels = campaignChannelsWithPrimary(draft);
+                                const firstContentAssetId = channel === "email" ? draft.contentAssetId : "";
+                                return {
+                                  ...draft,
+                                  channel,
+                                  contentAssetId: firstContentAssetId,
+                                  channels: [
+                                    { ...(channels[0] ?? newCampaignChannelDraft()), channel, contentAssetId: firstContentAssetId },
+                                    ...channels.slice(1),
+                                  ],
+                                };
+                              });
+                            }} data-testid="select-marketing-edit-campaign-channel">
                               {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
                             </select>
                           </Field>
-                          <Field label="Email content">
+                          <Field label="Primary email content">
                             <select
                               className={inputClass}
                               value={campaignEditDraft.contentAssetId}
                               disabled={campaignEditDraft.channel !== "email"}
-                              onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, contentAssetId: event.target.value }))}
+                              onChange={(event) => {
+                                const contentAssetId = event.target.value;
+                                setCampaignEditDraft((draft) => {
+                                  const channels = campaignChannelsWithPrimary(draft);
+                                  return {
+                                    ...draft,
+                                    contentAssetId,
+                                    channels: channels.map((channel, index) => index === 0 ? { ...channel, contentAssetId } : channel),
+                                  };
+                                });
+                              }}
                               data-testid="select-marketing-edit-campaign-content"
                             >
                               <option value="">{campaignEditDraft.channel === "email" ? "Select email content" : "Email only"}</option>
@@ -2289,7 +2442,17 @@ export default function MarketingAdminPage() {
                         </div>
                         <div className="grid gap-3 xl:grid-cols-2">
                           <Field label="Schedule">
-                            <input className={inputClass} type="datetime-local" value={campaignEditDraft.scheduleStartsAt} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value }))} data-testid="input-marketing-edit-campaign-schedule" />
+                            <input className={inputClass} type="datetime-local" value={campaignEditDraft.scheduleStartsAt} onChange={(event) => {
+                              const scheduleStartsAt = event.target.value;
+                              setCampaignEditDraft((draft) => {
+                                const channels = campaignChannelsWithPrimary(draft);
+                                return {
+                                  ...draft,
+                                  scheduleStartsAt,
+                                  channels: channels.map((channel, index) => index === 0 ? { ...channel, scheduledAt: scheduleStartsAt } : channel),
+                                };
+                              });
+                            }} data-testid="input-marketing-edit-campaign-schedule" />
                           </Field>
                           <Field label="Timezone">
                             <input className={inputClass} value={campaignEditDraft.timezone} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, timezone: event.target.value }))} data-testid="input-marketing-edit-campaign-timezone" />
@@ -2298,6 +2461,65 @@ export default function MarketingAdminPage() {
                         <Field label="Objective">
                           <textarea className={textareaClass} value={campaignEditDraft.objective} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, objective: event.target.value }))} data-testid="input-marketing-edit-campaign-objective" />
                         </Field>
+                      </div>
+
+                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-channels-editor">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-[#241133]">Campaign channels</p>
+                            <p className="text-xs font-bold text-[#8b7a73]">Imported Lovable channels stay here. Email can send; social channels remain planning/tracking rows.</p>
+                          </div>
+                          <button type="button" onClick={addCampaignChannel} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-purple-700 px-3 text-xs font-black text-white" data-testid="button-marketing-add-campaign-channel">
+                            <Plus size={14} /> Add channel
+                          </button>
+                        </div>
+                        <div className="mt-3 grid gap-3">
+                          {campaignChannelsWithPrimary(campaignEditDraft).map((channelDraft, index) => {
+                            const channelContentAssets = content.filter((item) => item.channel === channelDraft.channel && item.status !== "archived");
+                            const selectedChannelContent = channelDraft.contentAssetId ? content.find((item) => item.id === channelDraft.contentAssetId) : null;
+                            const options = selectedChannelContent && !channelContentAssets.some((item) => item.id === selectedChannelContent.id)
+                              ? [selectedChannelContent, ...channelContentAssets]
+                              : channelContentAssets;
+                            return (
+                              <div key={channelDraft.id} className="grid gap-3 rounded-xl border border-[#eadfd5] bg-white p-3 xl:grid-cols-[150px_1fr_130px_190px_auto]" data-testid={`marketing-campaign-channel-row-${index}`}>
+                                <Field label={index === 0 ? "Primary channel" : "Channel"}>
+                                  <select
+                                    className={inputClass}
+                                    value={channelDraft.channel}
+                                    onChange={(event) => updateCampaignChannel(channelDraft.id, { channel: event.target.value as Channel })}
+                                    data-testid={`select-marketing-campaign-channel-${index}`}
+                                  >
+                                    {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                                  </select>
+                                </Field>
+                                <Field label="Content asset">
+                                  <select
+                                    className={inputClass}
+                                    value={channelDraft.contentAssetId}
+                                    onChange={(event) => updateCampaignChannel(channelDraft.id, { contentAssetId: event.target.value })}
+                                    data-testid={`select-marketing-campaign-channel-content-${index}`}
+                                  >
+                                    <option value="">No content asset</option>
+                                    {options.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                                  </select>
+                                </Field>
+                                <Field label="Status">
+                                  <select className={inputClass} value={channelDraft.status} onChange={(event) => updateCampaignChannel(channelDraft.id, { status: event.target.value as CampaignStatus })} data-testid={`select-marketing-campaign-channel-status-${index}`}>
+                                    {CAMPAIGN_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                                  </select>
+                                </Field>
+                                <Field label="Scheduled at">
+                                  <input className={inputClass} type="datetime-local" value={channelDraft.scheduledAt} onChange={(event) => updateCampaignChannel(channelDraft.id, { scheduledAt: event.target.value })} data-testid={`input-marketing-campaign-channel-schedule-${index}`} />
+                                </Field>
+                                <div className="flex items-end">
+                                  <button type="button" onClick={() => removeCampaignChannel(channelDraft.id)} disabled={campaignChannelsWithPrimary(campaignEditDraft).length <= 1} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300" data-testid={`button-marketing-remove-campaign-channel-${index}`}>
+                                    <Trash2 size={13} /> Remove
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
