@@ -147,9 +147,17 @@ function showBookRideFastHelp() {
 function showOtcPharmacyFastHelp() {
   screen.getByTestId("button-concierge-fast-home-service");
   act(() => {
-    vi.advanceTimersByTime(9000);
+    vi.advanceTimersByTime(18000);
   });
   return screen.getByTestId("button-concierge-fast-otc-pharmacy");
+}
+
+function showScamCheckFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(9000);
+  });
+  return screen.getByTestId("button-concierge-fast-check-scam");
 }
 
 afterEach(() => {
@@ -320,6 +328,7 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Lopez");
     expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("Ask VYVA to handle this");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Tool ready: call");
     expect(screen.queryByTestId("button-appointment-channel-phone")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
@@ -1148,6 +1157,57 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("opens an insurance admin router and prepares a claim review request", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
+
+    const panel = await screen.findByTestId("panel-insurance-admin");
+    expect(panel).toHaveTextContent("What do you need to prepare?");
+    expect(panel).toHaveTextContent("Insurance letter or bill");
+    expect(panel).toHaveTextContent("Claim or reimbursement");
+    expect(panel).toHaveTextContent("Government/admin form");
+    expect(panel).toHaveTextContent("Call or email someone");
+    expect(panel).toHaveTextContent("Review path ready");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Direct tool: email");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Current path: VYVA review");
+
+    fireEvent.click(screen.getByTestId("button-insurance-admin-claim"));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Help me prepare a claim or reimbursement");
+    expect(prefill).toHaveTextContent("Prepare a draft for review");
+    expect(prefill).toHaveTextContent("Nothing is booked or requested without your confirmation");
+    expect(screen.queryByTestId("panel-insurance-admin")).not.toBeInTheDocument();
+  }, 60000);
+
+  it("opens a scam check router and prepares a safe review request", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showScamCheckFastHelp());
+    vi.useRealTimers();
+
+    const panel = await screen.findByTestId("panel-scam-check");
+    expect(panel).toHaveTextContent("Check a possible scam");
+    expect(panel).toHaveTextContent("Email or message");
+    expect(panel).toHaveTextContent("Document or photo");
+    expect(panel).toHaveTextContent("Phone number");
+    expect(panel).toHaveTextContent("Company or offer");
+    expect(panel).toHaveTextContent("Review path ready");
+
+    fireEvent.click(screen.getByTestId("button-scam-check-company"));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Help me check a company, offer, seller, or service reputation online");
+    expect(prefill).toHaveTextContent("Do not click, reply, pay, or share personal details");
+    expect(screen.queryByTestId("panel-scam-check")).not.toBeInTheDocument();
+  }, 60000);
+
   it("opens voice ride handoffs on the transport card with known details", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 
@@ -1330,6 +1390,7 @@ describe("ConciergeScreen action hub", () => {
     });
 
     expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("OTC item: Vitamins");
+    expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("Tool ready: VYVA review");
     expect(screen.getByTestId("button-otc-pharmacy-prepare")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-otc-pharmacy-prepare"));
 
@@ -1387,6 +1448,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("link-transport-call-local-taxi-radio-taxi")).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Confirm first");
     expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Destination: Heart Clinic Madrid");
+    expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Tool ready: VYVA review");
 
     fireEvent.click(screen.getByTestId("button-transport-prepare-local-taxi-radio-taxi"));
 
