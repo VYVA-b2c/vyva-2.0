@@ -486,8 +486,10 @@ function audienceFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
-function renderPage(syncOverride: Partial<typeof sync> = {}) {
+function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: { content?: unknown[]; mediaAssets?: unknown[] } = {}) {
   const syncResponse = { ...sync, ...syncOverride };
+  const contentResponse = dataOverride.content ?? content;
+  const mediaAssetsResponse = dataOverride.mediaAssets ?? mediaAssets;
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     const method = init?.method ?? "GET";
@@ -495,8 +497,8 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/campaigns" && method === "GET") return jsonResponse({ campaigns });
     if (path === "/api/admin/marketing/journeys" && method === "GET") return jsonResponse({ journeys });
     if (path === "/api/admin/marketing/journey-enrollments" && method === "GET") return jsonResponse({ enrollments: journeyEnrollments });
-    if (path === "/api/admin/marketing/content" && method === "GET") return jsonResponse({ content });
-    if (path === "/api/admin/marketing/media" && method === "GET") return jsonResponse({ mediaAssets });
+    if (path === "/api/admin/marketing/content" && method === "GET") return jsonResponse({ content: contentResponse });
+    if (path === "/api/admin/marketing/media" && method === "GET") return jsonResponse({ mediaAssets: mediaAssetsResponse });
     if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analytics);
     if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts });
     if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
@@ -674,6 +676,35 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Welcome email");
     expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Partner post");
     expect(screen.queryByTestId("marketing-content-origin-summary")).not.toBeInTheDocument();
+  });
+
+  it("explains empty content when Lovable sync has not imported anything yet", async () => {
+    renderPage({ runs: [] }, { content: [], mediaAssets: [] });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("No Lovable content has been imported yet.");
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Run the one-way sync in Settings");
+
+    fireEvent.click(screen.getByTestId("button-marketing-open-sync-settings"));
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Lovable sync");
+  });
+
+  it("explains when content exists but filters hide every asset", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "no matching content" } });
+
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Content is loaded, but hidden by filters.");
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("2 content assets are in VYVA");
+
+    fireEvent.click(screen.getByTestId("button-marketing-clear-content-filters"));
+    expect(screen.getByTestId("input-marketing-search")).toHaveValue("");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
   });
 
   it("shows scheduled and unscheduled campaigns in the calendar and opens campaign details", async () => {

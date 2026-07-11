@@ -1370,6 +1370,10 @@ function syncCountItems(summary: Record<string, unknown>, group: "exported" | "i
     .filter((item) => item.value > 0);
 }
 
+function syncCountValue(summary: Record<string, unknown>, group: "exported" | "imported" | "skipped", key: SyncCountKey) {
+  return numberValue(recordValue(summary[group])[key]);
+}
+
 function syncUnmappedCount(summary: Record<string, unknown>) {
   return numberValue(recordValue(summary.unmapped).audienceContactExternalIdCount);
 }
@@ -1830,6 +1834,53 @@ export default function MarketingAdminPage() {
   }, [mediaAssets, selectedContent]);
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
+  const latestSyncRun = syncState.runs[0] ?? null;
+  const contentEmptyDiagnostic = useMemo(() => {
+    if (content.length > 0 && visibleContent.length === 0) {
+      return {
+        title: "Content is loaded, but hidden by filters.",
+        detail: `${content.length} content asset${content.length === 1 ? "" : "s"} are in VYVA. Clear search, channel, or content type filters to see them.`,
+        action: "clear_filters" as const,
+      };
+    }
+    if (content.length > 0) return null;
+    if (!latestSyncRun) {
+      return {
+        title: "No Lovable content has been imported yet.",
+        detail: "Run the one-way sync in Settings. If Lovable exports content, it will appear here as email templates, social posts, briefs, or assets.",
+        action: "open_settings" as const,
+      };
+    }
+    if (latestSyncRun.status === "failed") {
+      return {
+        title: "Last Lovable sync failed.",
+        detail: latestSyncRun.error || "Open Settings to review the sync error, fix the export endpoint or token, then run sync again.",
+        action: "open_settings" as const,
+      };
+    }
+    const exportedContent = syncCountValue(latestSyncRun.summary, "exported", "content");
+    const importedContent = syncCountValue(latestSyncRun.summary, "imported", "content") || numberValue(latestSyncRun.summary.content);
+    const skippedContent = syncCountValue(latestSyncRun.summary, "skipped", "content");
+    if (exportedContent > 0 && importedContent === 0) {
+      return {
+        title: "Lovable exported content, but VYVA did not import it.",
+        detail: `Last sync saw ${exportedContent} content row${exportedContent === 1 ? "" : "s"}${skippedContent ? ` and skipped ${skippedContent}` : ""}. Open Settings to inspect skipped counts and field coverage.`,
+        action: "open_settings" as const,
+      };
+    }
+    if (importedContent > 0) {
+      return {
+        title: "Content was reported as imported, but none is loaded.",
+        detail: "Refresh the admin page. If this stays empty, check the marketing content API and database rows.",
+        action: "open_settings" as const,
+      };
+    }
+    return {
+      title: "Last sync did not receive content from Lovable.",
+      detail: "Ask the Lovable export to include content, saved email templates, content briefs, social posts, templates, or assets, then run sync again.",
+      action: "open_settings" as const,
+    };
+  }, [content.length, latestSyncRun, visibleContent.length]);
   const enrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments, (item) => item.journeyId), [journeyEnrollments]);
   const activeEnrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments.filter((item) => item.status === "active"), (item) => item.journeyId), [journeyEnrollments]);
   const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
@@ -3706,7 +3757,41 @@ export default function MarketingAdminPage() {
                 )}
               >
                 <div className="grid gap-3">
-                  {visibleContent.length === 0 ? <EmptyState text="No content matches the filters." /> : visibleContent.map((item) => (
+                  {visibleContent.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-content-empty-diagnostic">
+                      <p className="text-center text-sm font-black text-[#241133]">{contentEmptyDiagnostic?.title ?? "No content matches the filters."}</p>
+                      <p className="mx-auto mt-2 max-w-3xl text-center text-sm font-bold text-[#8b7a73]">
+                        {contentEmptyDiagnostic?.detail ?? "Clear filters or run Lovable sync from Settings."}
+                      </p>
+                      {contentEmptyDiagnostic ? (
+                        <div className="mt-3 flex justify-center">
+                          {contentEmptyDiagnostic.action === "clear_filters" ? (
+                            <button
+                              type="button"
+                              className="inline-flex min-h-9 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+                              onClick={() => {
+                                setSearch("");
+                                setChannelFilter("all");
+                                setContentSourceFilter("all");
+                              }}
+                              data-testid="button-marketing-clear-content-filters"
+                            >
+                              Clear content filters
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="inline-flex min-h-9 items-center justify-center rounded-xl bg-purple-700 px-3 text-xs font-black text-white"
+                              onClick={() => setActiveTab("settings")}
+                              data-testid="button-marketing-open-sync-settings"
+                            >
+                              Open sync settings
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : visibleContent.map((item) => (
                     <article key={item.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
