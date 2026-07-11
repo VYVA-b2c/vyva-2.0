@@ -575,6 +575,31 @@ function jsonArrayText(value: unknown) {
   return JSON.stringify(value, null, 2);
 }
 
+function designShapeSummary(value: unknown) {
+  const record = recordValue(value);
+  const topLevelKeys = Object.keys(record);
+  const arrayKeys = ["blocks", "sections", "elements", "nodes", "components", "rows"]
+    .map((key) => ({ key, count: Array.isArray(record[key]) ? (record[key] as unknown[]).length : 0 }))
+    .filter((item) => item.count > 0);
+  return { topLevelKeys, arrayKeys };
+}
+
+function mediaUrlFrom(value: unknown) {
+  if (typeof value === "string") return value;
+  const record = recordValue(value);
+  for (const key of ["url", "originalUrl", "original_url", "src", "href", "assetUrl", "asset_url", "imageUrl", "image_url"]) {
+    const url = record[key];
+    if (typeof url === "string" && url.trim()) return url.trim();
+  }
+  return "";
+}
+
+function contentMediaPreviewUrls(content: ContentAsset, linkedAssets: MarketingMediaAsset[]) {
+  const embedded = Array.isArray(content.mediaAssets) ? content.mediaAssets.map(mediaUrlFrom) : [];
+  const linked = linkedAssets.flatMap((asset) => [asset.originalUrl, asset.localUrl ?? ""]);
+  return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean))).slice(0, 6);
+}
+
 function newDraftId() {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -1262,6 +1287,8 @@ export default function MarketingAdminPage() {
     if (!selectedContent) return [];
     return mediaAssets.filter((item) => item.contentAssetId === selectedContent.id);
   }, [mediaAssets, selectedContent]);
+  const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
+  const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
   const enrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments, (item) => item.journeyId), [journeyEnrollments]);
   const activeEnrollmentsByJourneyId = useMemo(() => groupCount(journeyEnrollments.filter((item) => item.status === "active"), (item) => item.journeyId), [journeyEnrollments]);
   const emailContentAssets = useMemo(() => content.filter((item) => item.channel === "email" && item.status !== "archived"), [content]);
@@ -2819,6 +2846,31 @@ export default function MarketingAdminPage() {
                         <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
                         <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
                         <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
+                      </div>
+                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-content-design-media-summary">
+                        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable design/media</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {selectedContentDesignSummary?.arrayKeys.length ? selectedContentDesignSummary.arrayKeys.map((item) => (
+                            <Pill key={item.key} className="bg-purple-50 text-purple-800">Design {item.key}: {item.count}</Pill>
+                          )) : (
+                            <Pill className="bg-[#f5eee8] text-[#7d6b65]">No builder arrays found</Pill>
+                          )}
+                          {selectedContentDesignSummary?.topLevelKeys.length ? (
+                            <Pill className="bg-white text-[#5b4a46]">Design keys: {selectedContentDesignSummary.topLevelKeys.slice(0, 5).join(", ")}</Pill>
+                          ) : null}
+                          <Pill className={selectedContentMediaPreviewUrls.length ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>
+                            Media refs: {selectedContentMediaPreviewUrls.length}
+                          </Pill>
+                        </div>
+                        {selectedContentMediaPreviewUrls.length ? (
+                          <div className="mt-2 grid gap-1">
+                            {selectedContentMediaPreviewUrls.map((url) => (
+                              <a key={url} className="break-all text-xs font-bold text-purple-700 underline" href={url} target="_blank" rel="noreferrer">{url}</a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs font-semibold text-[#8b7a73]">No imported media URLs attached to this content.</p>
+                        )}
                       </div>
                       <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
                     </div>
