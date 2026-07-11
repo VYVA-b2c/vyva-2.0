@@ -104,7 +104,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     tools: ["phone_call", "whatsapp", "booking_link", "operator_review"],
     firstQuestions: ["destination", "pickup", "pickup_time"],
     confirmationRule: "Confirm pickup, destination, time, mobility needs, provider, and price before contacting or booking.",
-    nextImplementationStep: "Use saved transport provider as the first actionable option when channels are available.",
+    nextImplementationStep: "Connect confirmed provider handoff actions after the transport readiness panel.",
   },
   {
     reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
@@ -117,7 +117,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     tools: ["phone_call", "whatsapp", "email", "operator_review"],
     firstQuestions: ["otc_item", "pickup_or_delivery", "needed_time"],
     confirmationRule: "Only handle non-prescription items and confirm the item, pharmacy, timing, and contact action first.",
-    nextImplementationStep: "Prepare the saved pharmacy channel handoff and keep prescription medicines blocked.",
+    nextImplementationStep: "Connect confirmed OTC pharmacy handoff status while keeping prescription medicines blocked.",
   },
   {
     reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
@@ -130,7 +130,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     tools: ["phone_call", "email", "booking_link", "operator_review"],
     firstQuestions: ["reason", "preferred_time", "provider_preference"],
     confirmationRule: "Confirm provider, coverage note, channel, date, time, and location before VYVA acts or saves the appointment.",
-    nextImplementationStep: "Unify provider channel readiness checks across phone, email, and booking form paths.",
+    nextImplementationStep: "Connect missing doctor/clinic setup prompts and provider handoff status after the appointment readiness panel.",
   },
   {
     reference: CONCIERGE_FLOW_REFERENCES.homeService,
@@ -143,7 +143,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     tools: ["phone_call", "whatsapp", "email", "booking_link", "operator_review"],
     firstQuestions: ["service_type", "urgency", "home_access_or_safety_notes"],
     confirmationRule: "Confirm problem, urgency, address, provider, estimate/price, and visit time before booking or contacting.",
-    nextImplementationStep: "Prefer saved home-service providers before external discovery.",
+    nextImplementationStep: "Connect confirmed home-service provider handoff status after saved-provider readiness.",
   },
   {
     reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
@@ -165,7 +165,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     tools: ["email", "phone_call", "camera_or_upload", "operator_review"],
     firstQuestions: ["document_or_task_type", "deadline", "who_it_is_for"],
     confirmationRule: "Confirm document/task, recipient, deadline, and whether VYVA is only preparing or also sending.",
-    nextImplementationStep: "Connect direct document upload, email, and call tools while keeping review fallback available.",
+    nextImplementationStep: "Connect confirmed email and call handoffs while keeping document upload and review fallback available.",
   },
   {
     reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
@@ -176,7 +176,7 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     tools: ["phone_call", "email", "booking_link", "camera_or_upload", "operator_review"],
     firstQuestions: ["task_goal", "recipient_or_website", "deadline"],
     confirmationRule: "Check tool readiness first, prepare a draft/action plan, and ask before sending, calling, uploading, or submitting.",
-    nextImplementationStep: "Reuse the shared action-readiness panel across booking, admin, and provider handoff flows.",
+    nextImplementationStep: "Connect confirmed phone, email, WhatsApp, and external form execution tools behind the readiness fallback.",
   },
 ];
 

@@ -118,6 +118,12 @@ type ConciergeProfileSummary = {
     role?: string | null;
     category?: string | null;
     phone?: string | null;
+    email?: string | null;
+    whatsapp?: string | null;
+    bookingUrl?: string | null;
+    booking_url?: string | null;
+    preferredChannel?: string | null;
+    preferred_channel?: string | null;
     address?: string | null;
   }>;
   coverage?: CoverageReadinessSummary | null;
@@ -303,6 +309,54 @@ function buildRoutePrefillHighlights(message: string, isSpanish: boolean): Route
       value,
     }))
     : [{ label: isSpanish ? "Solicitud" : "Request", value: cleanText || message.trim() }];
+}
+
+function toolGatedRequirementFromMessage(message: string): ConciergeToolRequirement {
+  const text = message.toLowerCase();
+  if (/\b(whatsapp|wa)\b/.test(text)) return "whatsapp";
+  if (/\b(email|e-mail|correo)\b/.test(text)) return "email";
+  if (/\b(call|phone|ring|llamar|llamada|telefono|tel[eé]fono)\b/.test(text)) return "phone_call";
+  if (/\b(photo|camera|upload|document|letter|bill|invoice|foto|camara|c[aá]mara|subir|documento|carta|factura)\b/.test(text)) return "camera_or_upload";
+  if (/\b(search|reputation|company|offer|seller|lookup|buscar|busqueda|b[uú]squeda|reputacion|reputaci[oó]n|empresa|oferta|vendedor)\b/.test(text)) return "web_search";
+  if (/\b(form|application|apply|submit|booking link|reservation|formulario|solicitud|enviar|reservar|reserva)\b/.test(text)) return "booking_link";
+  return "operator_review";
+}
+
+function routePrefillTaskReadiness(message: string): ConciergeToolReadinessResult {
+  const requestedTool = toolGatedRequirementFromMessage(message);
+  return evaluateConciergeToolReadiness({
+    flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+    requestedTool,
+    capabilities: {
+      operator_review: true,
+      camera_or_upload: true,
+      web_search: true,
+      booking_link: false,
+      email: false,
+      phone_call: false,
+      whatsapp: false,
+    },
+    provider: { name: "Concierge task" },
+  });
+}
+
+function routePrefillTaskActionLabel(tool: ConciergeToolRequirement, isSpanish: boolean): string {
+  switch (tool) {
+    case "phone_call":
+      return isSpanish ? "Preparar llamada" : "Prepare call";
+    case "email":
+      return isSpanish ? "Preparar email" : "Prepare email";
+    case "whatsapp":
+      return isSpanish ? "Preparar WhatsApp" : "Prepare WhatsApp";
+    case "booking_link":
+      return isSpanish ? "Preparar formulario" : "Prepare form";
+    case "camera_or_upload":
+      return isSpanish ? "Revisar documento" : "Review document";
+    case "web_search":
+      return isSpanish ? "Preparar busqueda" : "Prepare search";
+    default:
+      return isSpanish ? "Preparar solicitud" : "Prepare request";
+  }
 }
 
 interface StoredChatHistory {
@@ -845,7 +899,7 @@ const SCAM_CHECK_OPTIONS: Array<{
     es: "Email o mensaje",
     detailEn: "Forward or paste it",
     detailEs: "Reenviar o pegar",
-    requestedTool: "operator_review",
+    requestedTool: "email",
     Icon: Mail,
   },
   {
@@ -1844,14 +1898,18 @@ function appointmentConfirmationItems(params: {
   return items;
 }
 
-function savedPharmacyName(profile: ConciergeProfileSummary | null | undefined): string {
-  const pharmacy = profile?.savedProviders?.find((provider) => {
+function savedPharmacyProviderDetails(profile: ConciergeProfileSummary | null | undefined): NonNullable<ConciergeProfileSummary["savedProviders"]>[number] | null {
+  return profile?.savedProviders?.find((provider) => {
     const searchable = [provider.role, provider.category, provider.name]
       .filter((value): value is string => typeof value === "string")
       .join(" ")
       .toLowerCase();
     return /pharmacy|drugstore|chemist|farmacia/.test(searchable);
-  });
+  }) ?? null;
+}
+
+function savedPharmacyName(profile: ConciergeProfileSummary | null | undefined): string {
+  const pharmacy = savedPharmacyProviderDetails(profile);
   return pharmacy?.name?.trim() || "";
 }
 
@@ -1860,20 +1918,84 @@ function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undef
   return Boolean(savedPharmacyName(profile));
 }
 
-function savedTransportProviderName(profile: ConciergeProfileSummary | null | undefined): string {
-  const provider = profile?.savedProviders?.find((item) => {
+function savedTransportProviderDetails(profile: ConciergeProfileSummary | null | undefined): NonNullable<ConciergeProfileSummary["savedProviders"]>[number] | null {
+  return profile?.savedProviders?.find((item) => {
     const searchable = [item.role, item.category, item.name]
       .filter((value): value is string => typeof value === "string")
       .join(" ")
       .toLowerCase();
     return /transport|taxi|cab|ride|driver|chauffeur|car service|medical transport/.test(searchable);
-  });
+  }) ?? null;
+}
+
+function savedTransportProviderName(profile: ConciergeProfileSummary | null | undefined): string {
+  const provider = savedTransportProviderDetails(profile);
   return provider?.name?.trim() || "";
 }
 
 function profileHasSavedTransportProvider(profile: ConciergeProfileSummary | null | undefined): boolean {
   if (profile?.serviceReadiness?.hasSavedTransportProvider) return true;
   return Boolean(savedTransportProviderName(profile));
+}
+
+function savedHomeServiceProviderDetails(
+  profile: ConciergeProfileSummary | null | undefined,
+  serviceType: HomeServiceType | null,
+): NonNullable<ConciergeProfileSummary["savedProviders"]>[number] | null {
+  const providers = profile?.savedProviders ?? [];
+  const searchText = (provider: NonNullable<ConciergeProfileSummary["savedProviders"]>[number]) => (
+    [provider.role, provider.category, provider.name]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLowerCase()
+  );
+  const matchesTerms = (
+    provider: NonNullable<ConciergeProfileSummary["savedProviders"]>[number],
+    terms: string[],
+  ) => terms.some((term) => searchText(provider).includes(term.toLowerCase()));
+  const serviceTerms = serviceType
+    ? HOME_SERVICE_TYPES.find((item) => item.key === serviceType)?.searchTerms ?? []
+    : [];
+  const generalTerms = [
+    "home_service",
+    "home service",
+    "home-service",
+    "repair",
+    "maintenance",
+    "handyman",
+    "manitas",
+    "plumber",
+    "plumbing",
+    "fontanero",
+    "electrician",
+    "electricista",
+    "locksmith",
+    "cerrajero",
+    "cleaner",
+    "cleaning",
+    "limpieza",
+  ];
+
+  return (
+    (serviceTerms.length > 0 ? providers.find((provider) => matchesTerms(provider, serviceTerms)) : null)
+    ?? providers.find((provider) => matchesTerms(provider, generalTerms))
+    ?? null
+  );
+}
+
+function preferredToolForSavedProvider(
+  provider: ReturnType<typeof savedTransportProviderDetails> | ReturnType<typeof savedHomeServiceProviderDetails>,
+): ConciergeToolRequirement {
+  const preferredChannel = (provider?.preferredChannel || provider?.preferred_channel || "").trim().toLowerCase();
+  if (preferredChannel === "booking_url") return "booking_link";
+  if (preferredChannel === "phone") return "phone_call";
+  if (preferredChannel === "whatsapp") return "whatsapp";
+  if (preferredChannel === "email") return "email";
+  if (provider?.bookingUrl?.trim() || provider?.booking_url?.trim()) return "booking_link";
+  if (provider?.phone?.trim()) return "phone_call";
+  if (provider?.whatsapp?.trim()) return "whatsapp";
+  if (provider?.email?.trim()) return "email";
+  return "operator_review";
 }
 
 function transportConfirmationItems(params: {
@@ -2336,10 +2458,15 @@ const ConciergeScreen = () => {
   const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
   const savedCoverage = conciergeProfile?.coverage ?? null;
-  const savedPharmacy = savedPharmacyName(conciergeProfile);
+  const savedPharmacyProviderDetailsValue = savedPharmacyProviderDetails(conciergeProfile);
+  const savedPharmacy = savedPharmacyProviderDetailsValue?.name?.trim() || savedPharmacyName(conciergeProfile);
   const hasSavedPharmacy = profileHasSavedPharmacy(conciergeProfile);
+  const savedTransportProviderDetailsValue = savedTransportProviderDetails(conciergeProfile);
   const savedTransportProvider = savedTransportProviderName(conciergeProfile);
   const hasSavedTransportProvider = profileHasSavedTransportProvider(conciergeProfile);
+  const savedHomeServiceProviderDetailsValue = savedHomeServiceProviderDetails(conciergeProfile, homeServiceType);
+  const savedHomeServiceProvider = savedHomeServiceProviderDetailsValue?.name?.trim() || "";
+  const hasSavedHomeServiceProvider = Boolean(savedHomeServiceProviderDetailsValue);
   const hasSavedTransportMobilityInfo = Boolean(conciergeProfile?.serviceReadiness?.hasMobilityInfo);
   const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
   const hasTransportDestination = transportDestination.trim().length > 0;
@@ -2350,10 +2477,57 @@ const ConciergeScreen = () => {
     : CONCIERGE_FLOW_REFERENCES.medicalAppointment;
   const otcToolReadiness = evaluateConciergeToolReadiness({
     flowReference: OTC_PHARMACY_FLOW_REFERENCE,
-    requestedTool: "operator_review",
-    provider: {
-      name: savedPharmacy || "pharmacy",
-    },
+    requestedTool: hasSavedPharmacy
+      ? preferredToolForSavedProvider(savedPharmacyProviderDetailsValue)
+      : "operator_review",
+    provider: savedPharmacyProviderDetailsValue
+      ? {
+          name: savedPharmacyProviderDetailsValue.name,
+          providerName: savedPharmacyProviderDetailsValue.name,
+          phone: savedPharmacyProviderDetailsValue.phone,
+          email: savedPharmacyProviderDetailsValue.email,
+          whatsapp: savedPharmacyProviderDetailsValue.whatsapp,
+          booking_url: savedPharmacyProviderDetailsValue.bookingUrl || savedPharmacyProviderDetailsValue.booking_url,
+        }
+      : {
+          name: savedPharmacy || "pharmacy",
+        },
+  });
+  const transportToolReadiness = evaluateConciergeToolReadiness({
+    flowReference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+    requestedTool: hasSavedTransportProvider
+      ? preferredToolForSavedProvider(savedTransportProviderDetailsValue)
+      : "operator_review",
+    provider: savedTransportProviderDetailsValue
+      ? {
+          name: savedTransportProviderDetailsValue.name,
+          providerName: savedTransportProviderDetailsValue.name,
+          phone: savedTransportProviderDetailsValue.phone,
+          email: savedTransportProviderDetailsValue.email,
+          whatsapp: savedTransportProviderDetailsValue.whatsapp,
+          booking_url: savedTransportProviderDetailsValue.bookingUrl || savedTransportProviderDetailsValue.booking_url,
+        }
+      : {
+          name: savedTransportProvider || "transport",
+        },
+  });
+  const homeServiceToolReadiness = evaluateConciergeToolReadiness({
+    flowReference: CONCIERGE_FLOW_REFERENCES.homeService,
+    requestedTool: hasSavedHomeServiceProvider
+      ? preferredToolForSavedProvider(savedHomeServiceProviderDetailsValue)
+      : "operator_review",
+    provider: savedHomeServiceProviderDetailsValue
+      ? {
+          name: savedHomeServiceProviderDetailsValue.name,
+          providerName: savedHomeServiceProviderDetailsValue.name,
+          phone: savedHomeServiceProviderDetailsValue.phone,
+          email: savedHomeServiceProviderDetailsValue.email,
+          whatsapp: savedHomeServiceProviderDetailsValue.whatsapp,
+          booking_url: savedHomeServiceProviderDetailsValue.bookingUrl || savedHomeServiceProviderDetailsValue.booking_url,
+        }
+      : {
+          name: savedHomeServiceProvider || "home service",
+        },
   });
   const otcPharmacyConfirmation = otcPharmacyConfirmationItems({
     pharmacyName: savedPharmacy || (isSpanish ? "Farmacia guardada" : "Saved pharmacy"),
@@ -3833,14 +4007,17 @@ const ConciergeScreen = () => {
   function scamCheckReadiness(option: typeof SCAM_CHECK_OPTIONS[number]) {
     const capabilities: Partial<Record<ConciergeToolRequirement, boolean>> = {
       operator_review: true,
+      camera_or_upload: true,
+      web_search: true,
     };
-    if (option.requestedTool !== "operator_review") {
+    if (option.requestedTool === "email") {
       capabilities[option.requestedTool] = false;
     }
     return evaluateConciergeToolReadiness({
       flowReference: SCAM_CHECK_FLOW_REFERENCE,
       requestedTool: option.requestedTool,
       capabilities,
+      provider: { name: isSpanish ? option.es : option.en },
     });
   }
 
@@ -3887,7 +4064,7 @@ const ConciergeScreen = () => {
   function insuranceAdminReadiness(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
     const capabilities: Partial<Record<ConciergeToolRequirement, boolean>> = {
       operator_review: true,
-      camera_or_upload: false,
+      camera_or_upload: true,
       email: false,
       phone_call: false,
     };
@@ -3895,6 +4072,7 @@ const ConciergeScreen = () => {
       flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
       requestedTool: option.requestedTool,
       capabilities,
+      provider: { name: isSpanish ? option.es : option.en },
     });
   }
 
@@ -3979,6 +4157,9 @@ const ConciergeScreen = () => {
   const routePrefillHighlights = routePrefill
     ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
+  const routePrefillReadiness = routePrefill?.kind === "task"
+    ? routePrefillTaskReadiness(routePrefill.message)
+    : null;
   const routePrefillMeta = routePrefill
     ? {
         Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
@@ -4417,7 +4598,7 @@ const ConciergeScreen = () => {
             <div className="grid gap-3 sm:grid-cols-2">
               {SCAM_CHECK_OPTIONS.map((option) => {
                 const Icon = option.Icon;
-                const readinessItem = toolReadinessConfirmationItem(scamCheckReadiness(option), isSpanish);
+                const readiness = scamCheckReadiness(option);
                 return (
                   <button
                     key={option.key}
@@ -4436,11 +4617,13 @@ const ConciergeScreen = () => {
                       <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
                         {isSpanish ? option.detailEs : option.detailEn}
                       </span>
-                      {readinessItem ? (
-                        <span className="mt-3 inline-flex rounded-full bg-[#FFE4E6] px-3 py-1 font-body text-[11px] font-black text-[#BE123C]">
-                          {readinessItem.label}
-                        </span>
-                      ) : null}
+                      <ActionReadinessPanel
+                        readiness={readiness}
+                        desiredAction={isSpanish ? option.es : option.en}
+                        isSpanish={isSpanish}
+                        compact
+                        testId={`panel-scam-check-readiness-${option.key}`}
+                      />
                     </span>
                   </button>
                 );
@@ -4541,6 +4724,15 @@ const ConciergeScreen = () => {
                     {isSpanish ? `Farmacia guardada: ${savedPharmacy || "Farmacia"}` : `Saved pharmacy: ${savedPharmacy || "Pharmacy"}`}
                   </p>
                 </div>
+
+                <ActionReadinessPanel
+                  readiness={otcToolReadiness}
+                  desiredAction={isSpanish ? "Preparar OTC" : "Prepare OTC request"}
+                  recipient={savedPharmacy || (isSpanish ? "Farmacia guardada" : "Saved pharmacy")}
+                  isSpanish={isSpanish}
+                  compact
+                  testId="panel-otc-pharmacy-readiness"
+                />
 
                 <label className="mt-4 block">
                   <span className="mb-1 block font-body text-[11px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
@@ -4775,6 +4967,15 @@ const ConciergeScreen = () => {
                     </button>
                   ) : null}
                 </div>
+
+                <ActionReadinessPanel
+                  readiness={transportToolReadiness}
+                  desiredAction={isSpanish ? "Preparar transporte" : "Prepare ride"}
+                  recipient={savedTransportProvider || (isSpanish ? "Opciones seguras" : "Safe ride options")}
+                  isSpanish={isSpanish}
+                  compact
+                  testId="panel-transport-readiness"
+                />
 
                 <div className="mt-4">
                   <label className="block">
@@ -5087,6 +5288,16 @@ const ConciergeScreen = () => {
             closeLabel={isSpanish ? "Cerrar" : "Close"}
           />
           <div className="p-4">
+            {routePrefillReadiness ? (
+              <ActionReadinessPanel
+                readiness={routePrefillReadiness}
+                desiredAction={routePrefillTaskActionLabel(routePrefillReadiness.requestedTool, isSpanish)}
+                recipient={isSpanish ? "Antes de actuar" : "Before action"}
+                isSpanish={isSpanish}
+                compact
+                testId="panel-route-prefill-readiness"
+              />
+            ) : null}
             <div className="rounded-[22px] border border-[#E9D5FF] bg-[#FBF8FF] p-3">
               <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
                 {isSpanish ? "Detalles clave" : "Key details"}
@@ -5937,6 +6148,19 @@ const ConciergeScreen = () => {
             )}
 
             {isHomeServiceAppointment && !isHomeServiceElectricalDanger && !appointmentRequest && (!homeServiceType || !activeHomeServiceQuestion) && (
+              isHomeServiceIntakeComplete ? (
+                <ActionReadinessPanel
+                  readiness={homeServiceToolReadiness}
+                  desiredAction={isSpanish ? "Preparar servicio en casa" : "Prepare home service"}
+                  recipient={savedHomeServiceProvider || (isSpanish ? "Busqueda fiable" : "Trusted search")}
+                  isSpanish={isSpanish}
+                  compact
+                  testId="panel-home-service-readiness"
+                />
+              ) : null
+            )}
+
+            {isHomeServiceAppointment && !isHomeServiceElectricalDanger && !appointmentRequest && (!homeServiceType || !activeHomeServiceQuestion) && (
               <button
                 type="button"
                 onClick={() => startAppointmentFlow(selectedAppointmentChip ?? APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0])}
@@ -5988,19 +6212,33 @@ const ConciergeScreen = () => {
                 </div>
 
                 {selectedAppointmentOption && selectedAppointmentActionChannel && (
-                  <ActionConfirmationCheckpoint
-                    title={isSpanish ? "Confirma antes de que VYVA actue" : "Confirm before VYVA acts"}
-                    summary={isSpanish
-                      ? "VYVA puede contactar al proveedor para comprobar opciones. Nada queda reservado, pagado ni enviado como final sin tu aprobacion."
-                      : "VYVA can contact the provider to check options. Nothing is booked, paid, or sent as final without your approval."}
-                    items={selectedAppointmentConfirmationItems}
-                    primaryLabel={isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this"}
-                    onConfirm={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
-                    isPending={confirmAppointmentMutation.isPending}
-                    disabled={confirmAppointmentMutation.isPending}
-                    testId="panel-appointment-confirmation-checkpoint"
-                    buttonTestId="button-appointment-handle-provider"
-                  />
+                  <>
+                    {selectedAppointmentToolReadiness ? (
+                      <ActionReadinessPanel
+                        readiness={selectedAppointmentToolReadiness}
+                        desiredAction={isHomeServiceAppointment
+                          ? (isSpanish ? "Preparar servicio en casa" : "Prepare home service")
+                          : (isSpanish ? "Preparar cita" : "Prepare appointment")}
+                        recipient={appointmentProviderName}
+                        isSpanish={isSpanish}
+                        compact
+                        testId="panel-appointment-readiness"
+                      />
+                    ) : null}
+                    <ActionConfirmationCheckpoint
+                      title={isSpanish ? "Confirma antes de que VYVA actue" : "Confirm before VYVA acts"}
+                      summary={isSpanish
+                        ? "VYVA puede contactar al proveedor para comprobar opciones. Nada queda reservado, pagado ni enviado como final sin tu aprobacion."
+                        : "VYVA can contact the provider to check options. Nothing is booked, paid, or sent as final without your approval."}
+                      items={selectedAppointmentConfirmationItems}
+                      primaryLabel={isSpanish ? "Confirmar: VYVA lo gestiona" : "Confirm: Ask VYVA to handle this"}
+                      onConfirm={() => handleAppointmentChannel(selectedAppointmentActionChannel)}
+                      isPending={confirmAppointmentMutation.isPending}
+                      disabled={confirmAppointmentMutation.isPending}
+                      testId="panel-appointment-confirmation-checkpoint"
+                      buttonTestId="button-appointment-handle-provider"
+                    />
+                  </>
                 )}
 
                 {appointmentOptions.length > 1 && (
