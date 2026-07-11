@@ -650,6 +650,27 @@ function contentMediaPreviewUrls(content: ContentAsset, linkedAssets: MarketingM
   return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean))).slice(0, 6);
 }
 
+const lovableContentSourceLabels: Record<string, string> = {
+  content: "Content",
+  content_asset: "Content asset",
+  saved_email_template: "Saved email template",
+  template: "Template",
+  content_brief: "Content brief",
+  social_post: "Social post",
+};
+
+function metadataString(value: unknown, key: string) {
+  const item = recordValue(value)[key];
+  return typeof item === "string" && item.trim() ? item.trim() : "";
+}
+
+function contentOriginLabel(item: ContentAsset) {
+  const sourceType = metadataString(item.metadata, "lovable_source_type");
+  if (sourceType) return lovableContentSourceLabels[sourceType] ?? sourceType.replace(/_/g, " ");
+  if (item.source === "lovable") return "Lovable content";
+  return item.source;
+}
+
 function newDraftId() {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -3652,11 +3673,18 @@ export default function MarketingAdminPage() {
                           {item.ctaLabel || item.ctaUrl ? (
                             <p className="mt-2 text-xs font-bold text-[#7d6b65]">CTA: {[item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ")}</p>
                           ) : null}
+                          {item.source === "lovable" ? (
+                            <p className="mt-2 break-all text-xs font-bold text-[#7d6b65]">
+                              Imported from {contentOriginLabel(item)}
+                              {item.lovableExternalId ? ` - Lovable ID: ${item.lovableExternalId}` : ""}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
                           <Pill className={statusClass(item.status)}>{item.status}</Pill>
                           {item.source === "lovable" ? <Pill className="bg-violet-50 text-violet-700">Lovable</Pill> : null}
+                          {item.source === "lovable" ? <Pill className="bg-white text-[#5b4a46]">{contentOriginLabel(item)}</Pill> : null}
                           <button type="button" onClick={() => setSelectedContentId(item.id)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-preview-content-${item.id}`}>
                             <Eye size={13} /> Preview
                           </button>
@@ -3760,6 +3788,14 @@ export default function MarketingAdminPage() {
                         <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
                         <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
                       </div>
+                      {selectedContent.source === "lovable" ? (
+                        <div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-sm font-bold text-violet-900" data-testid="marketing-content-origin-summary">
+                          Imported from {contentOriginLabel(selectedContent)}
+                          {selectedContent.lovableExternalId ? (
+                            <span className="break-all"> - Lovable ID: {selectedContent.lovableExternalId}</span>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {selectedContent.htmlBody ? (
                         <iframe
                           title={`Preview ${selectedContent.title}`}
@@ -3875,10 +3911,14 @@ export default function MarketingAdminPage() {
                     ) : visibleMediaAssets.slice(0, 12).map((asset) => (
                       <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
+                          <div className="flex flex-wrap gap-1.5">
+                            <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
+                            <Pill className="bg-violet-50 text-violet-700">{asset.source}</Pill>
+                          </div>
                           <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
                         </div>
                         <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
+                        {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
                         <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
                         {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
                         <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />

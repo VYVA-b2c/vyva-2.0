@@ -164,7 +164,7 @@ const content = [
     mediaAssetCount: 1,
     source: "lovable",
     lovableExternalId: "lovable-content-2",
-    metadata: { extraLovableOnlyField: "kept", lovable: { tone: "partner" } },
+    metadata: { extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" } },
   },
 ];
 
@@ -578,13 +578,17 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Design data");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 media");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Imported from Social post");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
+    expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Lovable ID: media-1");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Partner outreach");
@@ -700,7 +704,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-content-lovable-id")).toHaveValue("lovable-content-2");
-    expect(screen.getByTestId("textarea-marketing-edit-content-metadata")).toHaveValue(JSON.stringify({ extraLovableOnlyField: "kept", lovable: { tone: "partner" } }, null, 2));
+    expect(screen.getByTestId("textarea-marketing-edit-content-metadata")).toHaveValue(JSON.stringify({ extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" } }, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-content-title"), { target: { value: "Updated partner post" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-content-channel"), { target: { value: "instagram" } });
@@ -713,7 +717,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-html"), { target: { value: "<p>Updated HTML</p>" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-design-json"), { target: { value: "{\"blocks\":[{\"type\":\"text\"}]}" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-media-assets"), { target: { value: "[{\"url\":\"https://cdn.example.test/new.png\"}]" } });
-    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-metadata"), { target: { value: "{\"extraLovableOnlyField\":\"kept\",\"lovable\":{\"tone\":\"partner\"},\"review\":\"done\"}" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-metadata"), { target: { value: "{\"extraLovableOnlyField\":\"kept\",\"lovable_source_type\":\"social_post\",\"lovable\":{\"tone\":\"partner\"},\"review\":\"done\"}" } });
     fireEvent.click(screen.getByTestId("button-marketing-save-content"));
 
     await waitFor(() => {
@@ -734,7 +738,7 @@ describe("MarketingAdminPage", () => {
       lovableExternalId: "lovable-content-2",
       designJson: { blocks: [{ type: "text" }] },
       mediaAssets: [{ url: "https://cdn.example.test/new.png" }],
-      metadata: { extraLovableOnlyField: "kept", lovable: { tone: "partner" }, review: "done" },
+      metadata: { extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" }, review: "done" },
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Updated.");
