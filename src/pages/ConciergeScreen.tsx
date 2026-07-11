@@ -80,6 +80,12 @@ import {
   CONCIERGE_FLOW_REFERENCES,
   providerSetupFocusForFlow,
 } from "../../shared/conciergeFlowRegistry";
+import {
+  evaluateConciergeToolReadiness,
+  preferredToolFromTransportActions,
+  toolFromAppointmentChannel,
+  type ConciergeToolReadinessResult,
+} from "../../shared/conciergeToolReadiness";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -1607,6 +1613,61 @@ function appointmentChannelLabel(channel: AppointmentChannel, isSpanish: boolean
   }
 }
 
+function toolReadinessLabel(tool: ConciergeToolReadinessResult["activeTool"], isSpanish: boolean): string {
+  switch (tool) {
+    case "phone_call":
+      return isSpanish ? "llamada" : "call";
+    case "email":
+      return isSpanish ? "email" : "email";
+    case "whatsapp":
+      return "WhatsApp";
+    case "booking_link":
+      return isSpanish ? "enlace de reserva" : "booking link";
+    case "camera_or_upload":
+      return isSpanish ? "camara o subida" : "camera or upload";
+    case "web_search":
+      return isSpanish ? "busqueda web" : "web search";
+    case "operator_review":
+      return isSpanish ? "revision de VYVA" : "VYVA review";
+    default:
+      return tool;
+  }
+}
+
+function toolReadinessConfirmationItem(
+  readiness: ConciergeToolReadinessResult | null | undefined,
+  isSpanish: boolean,
+): { label: string; helper?: string } | null {
+  if (!readiness) return null;
+  const activeTool = toolReadinessLabel(readiness.activeTool, isSpanish);
+  const requestedTool = toolReadinessLabel(readiness.requestedTool, isSpanish);
+
+  if (readiness.status === "ready") {
+    return {
+      label: isSpanish ? `Herramienta lista: ${activeTool}` : `Tool ready: ${activeTool}`,
+      helper: isSpanish
+        ? "VYVA puede preparar esta via, pero aun pide tu confirmacion."
+        : "VYVA can prepare this route, but still asks for your confirmation.",
+    };
+  }
+
+  if (readiness.status === "manual_review") {
+    return {
+      label: isSpanish ? "Revision lista" : "Review path ready",
+      helper: isSpanish
+        ? `La via directa (${requestedTool}) necesita un dato o configuracion. VYVA lo prepara para revisar.`
+        : `The direct route (${requestedTool}) needs a detail or setup. VYVA prepares it for review.`,
+    };
+  }
+
+  return {
+    label: isSpanish ? "Falta configurar una herramienta" : "Tool setup needed",
+    helper: isSpanish
+      ? "VYVA no actuara hasta que esta via este configurada."
+      : "VYVA will not act until this route is configured.",
+  };
+}
+
 function appointmentHandlingLabel(channel: AppointmentChannel | null | undefined, isSpanish: boolean): string {
   if (!channel) return isSpanish ? "VYVA prepara el camino" : "VYVA prepares the path";
   return isSpanish ? "VYVA elige la via segura" : "VYVA chooses the safe path";
@@ -1628,9 +1689,10 @@ function appointmentConfirmationItems(params: {
   contactRoute: string;
   isMedical: boolean;
   hasCoverageInfo: boolean;
+  toolReadiness?: ConciergeToolReadinessResult | null;
   isSpanish: boolean;
 }) {
-  const { providerName, providerTrustNote, contactRoute, isMedical, hasCoverageInfo, isSpanish } = params;
+  const { providerName, providerTrustNote, contactRoute, isMedical, hasCoverageInfo, toolReadiness, isSpanish } = params;
   const items = [
     {
       label: isSpanish ? `Proveedor: ${providerName}` : `Provider: ${providerName}`,
@@ -1643,6 +1705,8 @@ function appointmentConfirmationItems(params: {
         : "VYVA uses this route and stops before booking or payment.",
     },
   ];
+  const readinessItem = toolReadinessConfirmationItem(toolReadiness, isSpanish);
+  if (readinessItem) items.push(readinessItem);
 
   if (isMedical) {
     items.push({
@@ -1718,6 +1782,7 @@ function transportConfirmationItems(params: {
   hasSavedMobilityInfo: boolean;
   hasSavedTransportProvider: boolean;
   savedProviderName: string;
+  toolReadiness?: ConciergeToolReadinessResult | null;
   isSpanish: boolean;
 }): Array<{ label: string; helper?: string }> {
   const destination = params.destinationAddress.trim() || (params.isSpanish ? "Destino pendiente" : "Destination needed");
@@ -1734,7 +1799,7 @@ function transportConfirmationItems(params: {
       : (params.isSpanish ? "Se revisa primero el proveedor guardado" : "Saved provider is checked first")
     : (params.isSpanish ? "VYVA compara opciones seguras disponibles" : "VYVA compares safe available options");
 
-  return [
+  const items = [
     {
       label: params.isSpanish ? `Destino: ${destination}` : `Destination: ${destination}`,
       helper: params.isSpanish ? `Recogida: ${pickup}` : `Pickup: ${pickup}`,
@@ -1748,6 +1813,9 @@ function transportConfirmationItems(params: {
       helper: providerHelper,
     },
   ];
+  const readinessItem = toolReadinessConfirmationItem(params.toolReadiness, params.isSpanish);
+  if (readinessItem) items.push(readinessItem);
+  return items;
 }
 
 function otcPharmacyConfirmationItems(params: {
@@ -1756,13 +1824,14 @@ function otcPharmacyConfirmationItems(params: {
   fulfillmentPreference: string;
   requestedTime: string;
   notes: string;
+  toolReadiness?: ConciergeToolReadinessResult | null;
   isSpanish: boolean;
 }): Array<{ label: string; helper?: string }> {
   const itemText = params.itemText.trim() || (params.isSpanish ? "Producto pendiente" : "Item needed");
   const preference = params.fulfillmentPreference === "pickup"
     ? (params.isSpanish ? "Recoger" : "Pickup")
     : (params.isSpanish ? "Entrega" : "Delivery");
-  return [
+  const items = [
     {
       label: params.isSpanish ? `Farmacia: ${params.pharmacyName}` : `Pharmacy: ${params.pharmacyName}`,
       helper: params.isSpanish ? "Proveedor guardado en el perfil" : "Saved provider from profile",
@@ -1776,6 +1845,9 @@ function otcPharmacyConfirmationItems(params: {
       helper: params.notes.trim() || (params.isSpanish ? "Sin notas extra" : "No extra notes"),
     },
   ];
+  const readinessItem = toolReadinessConfirmationItem(params.toolReadiness, params.isSpanish);
+  if (readinessItem) items.push(readinessItem);
+  return items;
 }
 
 function appointmentMissionStatusLabel(status: AppointmentMissionState["status"], isSpanish: boolean): string {
@@ -2167,14 +2239,36 @@ const ConciergeScreen = () => {
   const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
   const hasTransportDestination = transportDestination.trim().length > 0;
   const canPrepareOtcPharmacy = hasSavedPharmacy && otcItemText.trim().length > 0;
+  const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
+  const appointmentFlowReference = appointmentIntentType === "home-service"
+    ? CONCIERGE_FLOW_REFERENCES.homeService
+    : CONCIERGE_FLOW_REFERENCES.medicalAppointment;
+  const otcToolReadiness = evaluateConciergeToolReadiness({
+    flowReference: OTC_PHARMACY_FLOW_REFERENCE,
+    requestedTool: "operator_review",
+    provider: {
+      name: savedPharmacy || "pharmacy",
+    },
+  });
   const otcPharmacyConfirmation = otcPharmacyConfirmationItems({
     pharmacyName: savedPharmacy || (isSpanish ? "Farmacia guardada" : "Saved pharmacy"),
     itemText: otcItemText,
     fulfillmentPreference: otcFulfillmentPreference,
     requestedTime: otcRequestedTime,
     notes: otcNotes,
+    toolReadiness: otcToolReadiness,
     isSpanish,
   });
+  const selectedAppointmentToolReadiness = selectedAppointmentActionChannel && selectedAppointmentOption
+    ? evaluateConciergeToolReadiness({
+        flowReference: appointmentFlowReference,
+        requestedTool: toolFromAppointmentChannel(selectedAppointmentActionChannel),
+        provider: {
+          ...selectedAppointmentOption.provider_snapshot,
+          availableChannels: selectedAppointmentOption.available_channels,
+        },
+      })
+    : null;
   const selectedAppointmentConfirmationItems = selectedAppointmentActionChannel
     ? appointmentConfirmationItems({
         providerName: appointmentProviderName,
@@ -2182,6 +2276,7 @@ const ConciergeScreen = () => {
         contactRoute: appointmentChannelLabel(selectedAppointmentActionChannel, isSpanish),
         isMedical: (appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key) === "medical",
         hasCoverageInfo: hasAppointmentCoverageInfo,
+        toolReadiness: selectedAppointmentToolReadiness,
         isSpanish,
       })
     : [];
@@ -2553,7 +2648,6 @@ const ConciergeScreen = () => {
     },
   });
 
-  const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
   const isMedicalAppointmentIntent = appointmentIntentType === "medical";
   const shouldShowCoverageReadiness = isMedicalAppointmentIntent && !hasAppointmentCoverageInfo;
   const canSaveCoverageReadiness = coverageType !== "unknown"
@@ -4491,6 +4585,17 @@ const ConciergeScreen = () => {
                   .map((option) => {
                   const href = phoneHref(option.phone);
                   const canPrepare = option.actions.includes("start_concierge_action");
+                  const toolReadiness = evaluateConciergeToolReadiness({
+                    flowReference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+                    requestedTool: preferredToolFromTransportActions(option.actions),
+                    provider: {
+                      phone: option.phone,
+                      url: option.url,
+                      actions: option.actions,
+                      providerName: option.providerName,
+                      name: option.label,
+                    },
+                  });
                   const confirmationItems = transportConfirmationItems({
                     option,
                     pickupAddress: transportPickup,
@@ -4500,6 +4605,7 @@ const ConciergeScreen = () => {
                     hasSavedMobilityInfo: hasSavedTransportMobilityInfo,
                     hasSavedTransportProvider,
                     savedProviderName: savedTransportProvider,
+                    toolReadiness,
                     isSpanish,
                   });
                   return (
