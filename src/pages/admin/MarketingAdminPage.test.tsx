@@ -64,8 +64,8 @@ const campaigns = [
     objective: "Invite caregivers",
     scheduleStartsAt: "2026-07-06T09:00:00.000Z",
     timezone: "Europe/Madrid",
-    source: "vyva",
-    lovableExternalId: null,
+    source: "lovable",
+    lovableExternalId: "lovable-campaign-1",
     metadata: { extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" }, targetAudience: { lovableExternalId: "lovable-audience-1" } },
     channels: [
       { id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "enabled" },
@@ -1140,7 +1140,9 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
-    expect(openMetadataPanel("marketing-campaign-metadata-panel")).toHaveTextContent("extraCampaignField");
+    expect(screen.getByTestId("input-marketing-edit-campaign-source")).toHaveValue("lovable");
+    expect(screen.getByTestId("input-marketing-edit-campaign-lovable-id")).toHaveValue("lovable-campaign-1");
+    expect(screen.getByTestId("textarea-marketing-edit-campaign-metadata")).toHaveValue(JSON.stringify({ extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" }, targetAudience: { lovableExternalId: "lovable-audience-1" } }, null, 2));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("12 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
@@ -1158,6 +1160,9 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-audience"), { target: { value: "both" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-channel"), { target: { value: "email" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-status"), { target: { value: "scheduled" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-campaign-metadata"), {
+      target: { value: JSON.stringify({ extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" }, importNote: "reviewed" }, null, 2) },
+    });
     fireEvent.click(screen.getByTestId("checkbox-marketing-edit-campaign-snapshot"));
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-target-audience"), { target: { value: "audience-1" } });
     expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("Partners");
@@ -1178,8 +1183,12 @@ describe("MarketingAdminPage", () => {
       audienceType: "both",
       status: "scheduled",
       timezone: "Europe/London",
+      source: "lovable",
+      lovableExternalId: "lovable-campaign-1",
       metadata: {
         extraCampaignField: "from-lovable",
+        lovable: { originalStatus: "queued" },
+        importNote: "reviewed",
         targetAudience: {
           name: "Partners",
           lovableExternalId: "lovable-audience-1",

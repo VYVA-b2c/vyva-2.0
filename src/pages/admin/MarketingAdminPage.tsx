@@ -354,6 +354,9 @@ type CampaignEditDraft = {
   timezone: string;
   objective: string;
   targetAudienceId: string;
+  source: string;
+  lovableExternalId: string;
+  metadataText: string;
   recipientFilter: string;
   snapshotRecipients: boolean;
   channels: CampaignChannelDraft[];
@@ -735,6 +738,9 @@ function emptyCampaignEditDraft(): CampaignEditDraft {
     timezone: "Europe/Madrid",
     objective: "",
     targetAudienceId: "",
+    source: "vyva",
+    lovableExternalId: "",
+    metadataText: "",
     recipientFilter: "",
     snapshotRecipients: false,
     channels: [newCampaignChannelDraft()],
@@ -759,6 +765,9 @@ function campaignEditDraftFromCampaign(campaign: Campaign, audiences: MarketingA
     timezone: campaign.timezone || "Europe/Madrid",
     objective: campaign.objective,
     targetAudienceId: targetAudience?.id ?? "",
+    source: campaign.source ?? "vyva",
+    lovableExternalId: campaign.lovableExternalId ?? "",
+    metadataText: jsonText(campaign.metadata),
     recipientFilter: "",
     snapshotRecipients: false,
     channels,
@@ -1721,6 +1730,7 @@ export default function MarketingAdminPage() {
       return;
     }
     const scheduledAt = fromDateTimeLocal(campaignEditDraft.scheduleStartsAt);
+    const existingMetadata = parseJsonText(campaignEditDraft.metadataText, "Campaign metadata");
     const targetAudienceSnapshot = audienceSnapshot(selectedCampaignTargetAudience);
     const recipients = campaignEditDraft.snapshotRecipients
       ? campaignRecipientPreview.map((contact) => ({
@@ -1744,7 +1754,9 @@ export default function MarketingAdminPage() {
         objective: campaignEditDraft.objective,
         scheduleStartsAt: scheduledAt,
         timezone: campaignEditDraft.timezone,
-        metadata: campaignMetadataWithTarget(editingCampaign?.metadata, selectedCampaignTargetAudience),
+        source: campaignEditDraft.source.trim() || "vyva",
+        lovableExternalId: campaignEditDraft.lovableExternalId.trim() || null,
+        metadata: campaignMetadataWithTarget(existingMetadata, selectedCampaignTargetAudience),
         channels: campaignChannelsPayload(campaignEditDraft),
         ...(recipients ? { recipients } : {}),
       }),
@@ -2409,6 +2421,10 @@ export default function MarketingAdminPage() {
     campaignEditDraft.scheduleStartsAt !== toDateTimeLocal(editingCampaign.scheduleStartsAt) ||
     campaignEditDraft.timezone !== (editingCampaign.timezone || "Europe/Madrid") ||
     campaignEditDraft.objective !== editingCampaign.objective ||
+    campaignEditDraft.targetAudienceId !== (campaignTargetAudience(editingCampaign, audiences)?.id ?? "") ||
+    campaignEditDraft.source !== (editingCampaign.source || "vyva") ||
+    campaignEditDraft.lovableExternalId !== (editingCampaign.lovableExternalId ?? "") ||
+    campaignEditDraft.metadataText !== jsonText(editingCampaign.metadata) ||
     !campaignChannelsMatch(campaignEditDraft, editingCampaign) ||
     campaignEditDraft.snapshotRecipients
   ));
@@ -2706,7 +2722,17 @@ export default function MarketingAdminPage() {
                         ) : null}
                       </div>
 
-                      <MetadataPanel title="Imported campaign metadata" value={editingCampaign.metadata} testId="marketing-campaign-metadata-panel" />
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        <Field label="Source">
+                          <input className={inputClass} value={campaignEditDraft.source} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, source: event.target.value }))} data-testid="input-marketing-edit-campaign-source" />
+                        </Field>
+                        <Field label="Lovable ID">
+                          <input className={inputClass} value={campaignEditDraft.lovableExternalId} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} data-testid="input-marketing-edit-campaign-lovable-id" />
+                        </Field>
+                      </div>
+                      <Field label="Campaign metadata JSON">
+                        <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={campaignEditDraft.metadataText} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} data-testid="textarea-marketing-edit-campaign-metadata" />
+                      </Field>
 
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
                         <div className="flex items-start justify-between gap-3">
