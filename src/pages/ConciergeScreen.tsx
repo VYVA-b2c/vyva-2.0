@@ -142,6 +142,7 @@ const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote",
 const OTC_PHARMACY_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.otcPharmacy;
 const TRANSPORT_BOOKING_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.transportBooking;
 const SCAM_CHECK_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.scamCheck;
+const INSURANCE_ADMIN_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
 const OTC_PHARMACY_SETUP_FOCUS = providerSetupFocusForFlow(OTC_PHARMACY_FLOW_REFERENCE) ?? "pharmacy";
 const TRANSPORT_SETUP_FOCUS = providerSetupFocusForFlow(TRANSPORT_BOOKING_FLOW_REFERENCE) ?? "transport";
 
@@ -826,6 +827,7 @@ const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
 ]);
 
 type ScamCheckKind = "email" | "document" | "phone" | "company";
+type InsuranceAdminKind = "insurance-letter" | "claim" | "government-form" | "call-email";
 
 const SCAM_CHECK_OPTIONS: Array<{
   key: ScamCheckKind;
@@ -871,6 +873,53 @@ const SCAM_CHECK_OPTIONS: Array<{
     detailEs: "Buscar reputacion",
     requestedTool: "web_search",
     Icon: Building2,
+  },
+];
+
+const INSURANCE_ADMIN_OPTIONS: Array<{
+  key: InsuranceAdminKind;
+  en: string;
+  es: string;
+  detailEn: string;
+  detailEs: string;
+  requestedTool: ConciergeToolRequirement;
+  Icon: LucideIcon;
+}> = [
+  {
+    key: "insurance-letter",
+    en: "Insurance letter or bill",
+    es: "Carta o factura de seguro",
+    detailEn: "Photo, upload, or paste",
+    detailEs: "Foto, subir o pegar",
+    requestedTool: "camera_or_upload",
+    Icon: FileUp,
+  },
+  {
+    key: "claim",
+    en: "Claim or reimbursement",
+    es: "Reclamo o reembolso",
+    detailEn: "Prepare what to send",
+    detailEs: "Preparar que enviar",
+    requestedTool: "email",
+    Icon: PiggyBank,
+  },
+  {
+    key: "government-form",
+    en: "Government/admin form",
+    es: "Formulario oficial",
+    detailEn: "Fill step by step",
+    detailEs: "Rellenar paso a paso",
+    requestedTool: "camera_or_upload",
+    Icon: Building2,
+  },
+  {
+    key: "call-email",
+    en: "Call or email someone",
+    es: "Llamar o enviar email",
+    detailEn: "Draft before action",
+    detailEs: "Borrador antes de actuar",
+    requestedTool: "phone_call",
+    Icon: PhoneCall,
   },
 ];
 
@@ -2155,6 +2204,7 @@ const ConciergeScreen = () => {
   const [transportResult, setTransportResult] = useState<TransportOptionsResponse | null>(null);
   const [transportError, setTransportError] = useState<string | null>(null);
   const [transportNotice, setTransportNotice] = useState<string | null>(null);
+  const [insuranceAdminOpen, setInsuranceAdminOpen] = useState(false);
   const [scamCheckOpen, setScamCheckOpen] = useState(false);
   const [otcPharmacyOpen, setOtcPharmacyOpen] = useState(false);
   const [otcItemText, setOtcItemText] = useState("");
@@ -3119,6 +3169,9 @@ const ConciergeScreen = () => {
     setOffersOpen(true);
     setSavingsPanelView("overview");
     setAppointmentOpen(false);
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
+    setOtcPharmacyOpen(false);
     setOffersError(null);
     if (query) {
       setOffersQuery(query);
@@ -3134,6 +3187,9 @@ const ConciergeScreen = () => {
   function openAppointmentAssistant() {
     setAppointmentOpen(true);
     setOffersOpen(false);
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
+    setOtcPharmacyOpen(false);
     setAppointmentError(null);
   }
 
@@ -3192,6 +3248,9 @@ const ConciergeScreen = () => {
     setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
     setInput((current) => current.trim() ? current : message);
     clearAppointmentAssistantState();
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
+    setOtcPharmacyOpen(false);
     setTransportPickup(savedTransportPickupLabel);
     setTransportDestination("");
     setTransportMobilityNeeds([]);
@@ -3752,12 +3811,16 @@ const ConciergeScreen = () => {
   function prepareConciergeRequest(message: string) {
     setRoutePrefill({ kind: "task", message });
     setInput(message);
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
+    setOtcPharmacyOpen(false);
     closeOffersPanel();
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function openScamCheckAssistant() {
     setScamCheckOpen(true);
+    setInsuranceAdminOpen(false);
     setOtcPharmacyOpen(false);
     setRoutePrefill(null);
     closeOffersPanel();
@@ -3807,6 +3870,60 @@ const ConciergeScreen = () => {
   function handleScamCheckChoice(option: typeof SCAM_CHECK_OPTIONS[number]) {
     prepareConciergeRequest(scamCheckPrompt(option));
     setScamCheckOpen(false);
+  }
+
+  function openInsuranceAdminAssistant() {
+    setInsuranceAdminOpen(true);
+    setScamCheckOpen(false);
+    setOtcPharmacyOpen(false);
+    setRoutePrefill(null);
+    closeOffersPanel();
+    window.setTimeout(() => {
+      chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }
+
+  function insuranceAdminReadiness(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
+    const capabilities: Partial<Record<ConciergeToolRequirement, boolean>> = {
+      operator_review: true,
+      camera_or_upload: false,
+      email: false,
+      phone_call: false,
+    };
+    return evaluateConciergeToolReadiness({
+      flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
+      requestedTool: option.requestedTool,
+      capabilities,
+    });
+  }
+
+  function insuranceAdminPrompt(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
+    const common = isSpanish
+      ? "Pide primero el documento, destinatario, fecha limite y para quien es. No envies, llames, subas ni compartas datos sin mi confirmacion."
+      : "Ask first for the document, recipient, deadline, and who this is for. Do not send, call, upload, or share details without my confirmation.";
+    if (option.key === "insurance-letter") {
+      return isSpanish
+        ? `Ayudame a entender una carta o factura de seguro. Resume lo importante, marca lo que falte, y dime el siguiente paso mas seguro. ${common}`
+        : `Help me understand an insurance letter or bill. Summarize what matters, flag anything missing, and tell me the safest next step. ${common}`;
+    }
+    if (option.key === "claim") {
+      return isSpanish
+        ? `Ayudame a preparar un reclamo o reembolso. Pregunta que paso, que documentos tengo, importe, fecha limite y destinatario. Prepara un borrador para revisar. ${common}`
+        : `Help me prepare a claim or reimbursement. Ask what happened, what documents I have, amount, deadline, and recipient. Prepare a draft for review. ${common}`;
+    }
+    if (option.key === "government-form") {
+      return isSpanish
+        ? `Ayudame a rellenar un formulario oficial o administrativo. Guiame campo por campo, marca lo que falte y prepara un resumen antes de enviar. ${common}`
+        : `Help me fill a government or admin form. Guide me field by field, flag missing items, and prepare a summary before submission. ${common}`;
+    }
+    return isSpanish
+      ? `Ayudame a preparar una llamada o email administrativo. Pregunta a quien contactar, motivo, datos necesarios y resultado deseado. Prepara guion o borrador y espera mi confirmacion. ${common}`
+      : `Help me prepare an admin call or email. Ask who to contact, the reason, needed details, and desired outcome. Prepare a script or draft and wait for my confirmation. ${common}`;
+  }
+
+  function handleInsuranceAdminChoice(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
+    prepareConciergeRequest(insuranceAdminPrompt(option));
+    setInsuranceAdminOpen(false);
   }
 
   function handleOfferAssistance(option: OfferOption) {
@@ -3961,6 +4078,8 @@ const ConciergeScreen = () => {
 
   function openOtcPharmacyAssistant() {
     setOtcPharmacyOpen(true);
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
     setAppointmentOpen(false);
     setOffersOpen(false);
     setRoutePrefill(null);
@@ -4050,9 +4169,7 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.paperworkHelp", "Paperwork Help"),
       detail: t("concierge.master.fastHelp.paperworkHelpDetail", "Forms and admin"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => prepareConciergeRequest(isSpanish
-        ? "Ayudame a rellenar un formulario. Prepara respuestas, marca lo que falte y deten antes de enviar para que yo confirme."
-        : "Help me fill a form. Prepare answers, flag anything missing, and stop before submitting so I can confirm."),
+      onClick: openInsuranceAdminAssistant,
       testId: "button-concierge-fast-fill-form",
     },
     {
@@ -4178,6 +4295,84 @@ const ConciergeScreen = () => {
       cards={conciergeMasterCards}
       fastHelpActions={conciergeMasterFastHelpActions}
     >
+
+      {insuranceAdminOpen && (
+        <section
+          className="relative z-20 order-[14] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#DDD6FE] bg-white"
+          style={{ boxShadow: "0 18px 42px rgba(107,33,168,0.12)" }}
+          data-testid="panel-insurance-admin"
+        >
+          <div className="bg-[#F5F3FF] p-4 lg:p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#6B21A8] shadow-sm">
+                <FileText size={23} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#6B21A8]">
+                  {isSpanish ? "Ayuda administrativa" : "Paperwork help"}
+                </p>
+                <h2 className="mt-1 font-body text-[23px] font-black leading-tight text-vyva-text-1">
+                  {isSpanish ? "Que necesitas preparar?" : "What do you need to prepare?"}
+                </h2>
+                <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                  {isSpanish
+                    ? "VYVA organiza los pasos, pero no envia, llama ni comparte datos sin tu confirmacion."
+                    : "VYVA organizes the steps, but does not send, call, or share details without your confirmation."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInsuranceAdminOpen(false)}
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#6B21A8]"
+                aria-label={isSpanish ? "Cerrar" : "Close"}
+                data-testid="button-insurance-admin-close"
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-4 lg:p-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {INSURANCE_ADMIN_OPTIONS.map((option) => {
+                const Icon = option.Icon;
+                const readinessItem = toolReadinessConfirmationItem(insuranceAdminReadiness(option), isSpanish);
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => handleInsuranceAdminChoice(option)}
+                    className="vyva-tap flex min-h-[112px] items-start gap-3 rounded-[22px] border border-[#DDD6FE] bg-[#FBF8FF] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                    data-testid={`button-insurance-admin-${option.key}`}
+                  >
+                    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[17px] bg-white text-[#6B21A8] shadow-sm">
+                      <Icon size={22} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                        {isSpanish ? option.es : option.en}
+                      </span>
+                      <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                        {isSpanish ? option.detailEs : option.detailEn}
+                      </span>
+                      {readinessItem ? (
+                        <span className="mt-3 inline-flex rounded-full bg-[#F3E8FF] px-3 py-1 font-body text-[11px] font-black text-[#6B21A8]">
+                          {readinessItem.label}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="rounded-[20px] bg-[#F8FAFC] px-4 py-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+              {isSpanish
+                ? "Si falta una herramienta, VYVA prepara un resumen para revision en lugar de dejarte bloqueado."
+                : "If a tool is missing, VYVA prepares a review summary instead of leaving you stuck."}
+            </p>
+          </div>
+        </section>
+      )}
 
       {scamCheckOpen && (
         <section

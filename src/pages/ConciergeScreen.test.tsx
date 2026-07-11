@@ -1157,6 +1157,30 @@ describe("ConciergeScreen action hub", () => {
     });
   });
 
+  it("opens an insurance admin router and prepares a claim review request", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
+
+    const panel = await screen.findByTestId("panel-insurance-admin");
+    expect(panel).toHaveTextContent("What do you need to prepare?");
+    expect(panel).toHaveTextContent("Insurance letter or bill");
+    expect(panel).toHaveTextContent("Claim or reimbursement");
+    expect(panel).toHaveTextContent("Government/admin form");
+    expect(panel).toHaveTextContent("Call or email someone");
+    expect(panel).toHaveTextContent("Review path ready");
+
+    fireEvent.click(screen.getByTestId("button-insurance-admin-claim"));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Help me prepare a claim or reimbursement");
+    expect(prefill).toHaveTextContent("Prepare a draft for review");
+    expect(prefill).toHaveTextContent("Nothing is booked or requested without your confirmation");
+    expect(screen.queryByTestId("panel-insurance-admin")).not.toBeInTheDocument();
+  }, 60000);
+
   it("opens a scam check router and prepares a safe review request", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
