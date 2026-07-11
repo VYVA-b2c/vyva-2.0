@@ -403,8 +403,9 @@ function contentFromRequestBody(id: string, init?: RequestInit) {
     hasHtml: Boolean(body.htmlBody),
     hasDesign: Boolean(body.designJson && Object.keys(body.designJson).length),
     mediaAssetCount: Array.isArray(body.mediaAssets) ? body.mediaAssets.length : 0,
-    source: "vyva",
-    lovableExternalId: null,
+    source: body.source ?? "vyva",
+    lovableExternalId: body.lovableExternalId ?? null,
+    metadata: body.metadata ?? {},
   };
 }
 
@@ -646,6 +647,9 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+    expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
+    expect(screen.getByTestId("input-marketing-edit-content-lovable-id")).toHaveValue("lovable-content-2");
+    expect(screen.getByTestId("textarea-marketing-edit-content-metadata")).toHaveValue(JSON.stringify({ extraLovableOnlyField: "kept", lovable: { tone: "partner" } }, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-content-title"), { target: { value: "Updated partner post" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-content-channel"), { target: { value: "instagram" } });
@@ -658,6 +662,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-html"), { target: { value: "<p>Updated HTML</p>" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-design-json"), { target: { value: "{\"blocks\":[{\"type\":\"text\"}]}" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-media-assets"), { target: { value: "[{\"url\":\"https://cdn.example.test/new.png\"}]" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-metadata"), { target: { value: "{\"extraLovableOnlyField\":\"kept\",\"lovable\":{\"tone\":\"partner\"},\"review\":\"done\"}" } });
     fireEvent.click(screen.getByTestId("button-marketing-save-content"));
 
     await waitFor(() => {
@@ -674,8 +679,11 @@ describe("MarketingAdminPage", () => {
       htmlBody: "<p>Updated HTML</p>",
       ctaLabel: "Open",
       ctaUrl: "https://v2.vyva.life/open",
+      source: "lovable",
+      lovableExternalId: "lovable-content-2",
       designJson: { blocks: [{ type: "text" }] },
       mediaAssets: [{ url: "https://cdn.example.test/new.png" }],
+      metadata: { extraLovableOnlyField: "kept", lovable: { tone: "partner" }, review: "done" },
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Updated.");

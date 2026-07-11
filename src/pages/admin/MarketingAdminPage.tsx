@@ -414,8 +414,11 @@ type ContentEditDraft = {
   htmlBody: string;
   ctaLabel: string;
   ctaUrl: string;
+  source: string;
+  lovableExternalId: string;
   designJsonText: string;
   mediaAssetsText: string;
+  metadataText: string;
 };
 
 type MediaEditDraft = {
@@ -954,8 +957,11 @@ function contentEditDraftFromContent(content: ContentAsset): ContentEditDraft {
     htmlBody: content.htmlBody ?? "",
     ctaLabel: content.ctaLabel ?? "",
     ctaUrl: content.ctaUrl ?? "",
+    source: content.source ?? "vyva",
+    lovableExternalId: content.lovableExternalId ?? "",
     designJsonText: jsonText(content.designJson),
     mediaAssetsText: jsonArrayText(content.mediaAssets),
+    metadataText: jsonText(content.metadata),
   };
 }
 
@@ -970,8 +976,11 @@ function contentPayloadFromDraft(draft: ContentEditDraft) {
     htmlBody: draft.htmlBody.trim() || null,
     ctaLabel: draft.ctaLabel.trim() || null,
     ctaUrl: draft.ctaUrl.trim() || null,
+    source: draft.source.trim() || "vyva",
+    lovableExternalId: draft.lovableExternalId.trim() || null,
     designJson: parseJsonText(draft.designJsonText, "Design JSON"),
     mediaAssets: parseJsonArrayText(draft.mediaAssetsText, "Media assets"),
+    metadata: parseJsonText(draft.metadataText, "Content metadata"),
   };
 }
 
@@ -3463,6 +3472,14 @@ export default function MarketingAdminPage() {
                         <input className={inputClass} value={contentEditDraft.ctaUrl} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, ctaUrl: event.target.value }) : draft)} disabled={contentSaving} data-testid="input-marketing-edit-content-cta-url" />
                       </Field>
                     </div>
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      <Field label="Source">
+                        <input className={inputClass} value={contentEditDraft.source} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, source: event.target.value }) : draft)} disabled={contentSaving} data-testid="input-marketing-edit-content-source" />
+                      </Field>
+                      <Field label="Lovable ID">
+                        <input className={inputClass} value={contentEditDraft.lovableExternalId} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={contentSaving} data-testid="input-marketing-edit-content-lovable-id" />
+                      </Field>
+                    </div>
                     <Field label="Plain copy">
                       <textarea className={textareaClass} value={contentEditDraft.body} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, body: event.target.value }) : draft)} disabled={contentSaving} data-testid="textarea-marketing-edit-content-body" />
                     </Field>
@@ -3477,6 +3494,9 @@ export default function MarketingAdminPage() {
                         <textarea className={`${textareaClass} min-h-[160px] font-mono text-xs`} value={contentEditDraft.mediaAssetsText} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, mediaAssetsText: event.target.value }) : draft)} placeholder="[]" disabled={contentSaving} data-testid="textarea-marketing-edit-content-media-assets" />
                       </Field>
                     </div>
+                    <Field label="Content metadata JSON">
+                      <textarea className={`${textareaClass} min-h-[150px] font-mono text-xs`} value={contentEditDraft.metadataText} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, metadataText: event.target.value }) : draft)} placeholder="{ }" disabled={contentSaving} data-testid="textarea-marketing-edit-content-metadata" />
+                    </Field>
                     <div className="flex flex-wrap items-center gap-2">
                       <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contentSaving} data-testid="button-marketing-save-content">
                         <Save size={16} /> {contentSaving ? "Saving..." : "Save content"}
