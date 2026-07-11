@@ -333,9 +333,13 @@ type CampaignDraft = {
   name: string;
   audienceType: Audience;
   channel: Channel;
+  contentAssetId: string;
   status: "draft" | "scheduled";
   scheduleStartsAt: string;
   objective: string;
+  targetAudienceId: string;
+  recipientFilter: string;
+  snapshotRecipients: boolean;
 };
 
 type CampaignEditDraft = {
@@ -621,6 +625,21 @@ function newCampaignChannelDraft(channel: Channel = "email", status: CampaignSta
     contentAssetId: "",
     status,
     scheduledAt,
+  };
+}
+
+function emptyCampaignDraft(): CampaignDraft {
+  return {
+    name: "",
+    audienceType: "b2c",
+    channel: "email",
+    contentAssetId: "",
+    status: "draft",
+    scheduleStartsAt: "",
+    objective: "",
+    targetAudienceId: "",
+    recipientFilter: "",
+    snapshotRecipients: false,
   };
 }
 
@@ -1293,7 +1312,7 @@ export default function MarketingAdminPage() {
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
-  const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>({ name: "", audienceType: "b2c", channel: "email", status: "draft", scheduleStartsAt: "", objective: "" });
+  const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(() => emptyCampaignDraft());
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [editingJourneyId, setEditingJourneyId] = useState<string | "new" | null>(null);
@@ -1413,12 +1432,31 @@ export default function MarketingAdminPage() {
     () => emailContentAssets.find((item) => item.id === draftEmailChannel?.contentAssetId) ?? null,
     [draftEmailChannel?.contentAssetId, emailContentAssets],
   );
+  const campaignDraftContentOptions = useMemo(
+    () => content.filter((item) => item.channel === campaignDraft.channel && item.status !== "archived"),
+    [campaignDraft.channel, content],
+  );
+  const selectedCampaignDraftTargetAudience = useMemo(
+    () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
+    [audiences, campaignDraft.targetAudienceId],
+  );
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
   const selectedCampaignTargetAudience = useMemo(
     () => audiences.find((audience) => audience.id === campaignEditDraft.targetAudienceId) ?? null,
     [audiences, campaignEditDraft.targetAudienceId],
   );
+
+  const campaignDraftRecipientPreview = useMemo(() => {
+    if (!campaignDraft.snapshotRecipients) return [];
+    const filter = campaignDraft.recipientFilter.trim().toLowerCase();
+    return contacts.filter((contact) => {
+      if (!campaignAllowsContact(campaignDraft.audienceType, contact.audienceType)) return false;
+      if (!contactMatchesAudienceList(contact, selectedCampaignDraftTargetAudience)) return false;
+      if (!recipientForChannel(contact, campaignDraft.channel)) return false;
+      return !filter || contactSearchText(contact).includes(filter);
+    });
+  }, [campaignDraft, contacts, selectedCampaignDraftTargetAudience]);
 
   const campaignRecipientPreview = useMemo(() => {
     if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return [];
@@ -1437,19 +1475,44 @@ export default function MarketingAdminPage() {
       setMessage("Campaign name is required before creating a draft.");
       return;
     }
-    await api("/api/admin/marketing/campaigns", {
+    const scheduledAt = campaignDraft.scheduleStartsAt ? new Date(campaignDraft.scheduleStartsAt).toISOString() : null;
+    const targetAudienceSnapshot = audienceSnapshot(selectedCampaignDraftTargetAudience);
+    const recipients = campaignDraft.snapshotRecipients
+      ? campaignDraftRecipientPreview.map((contact) => ({
+        contactId: contact.id,
+        channel: campaignDraft.channel,
+        recipient: recipientForChannel(contact, campaignDraft.channel) ?? contact.id,
+        status: "planned",
+        scheduledAt,
+        snapshot: {
+          ...recipientSnapshot(contact),
+          ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+        },
+      }))
+      : undefined;
+    const result = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
       method: "POST",
       body: JSON.stringify({
         name: campaignDraft.name,
         audienceType: campaignDraft.audienceType,
         status: campaignDraft.status,
         objective: campaignDraft.objective,
-        scheduleStartsAt: campaignDraft.scheduleStartsAt ? new Date(campaignDraft.scheduleStartsAt).toISOString() : null,
-        channels: [{ channel: campaignDraft.channel, status: campaignDraft.status, scheduledAt: campaignDraft.scheduleStartsAt ? new Date(campaignDraft.scheduleStartsAt).toISOString() : null }],
+        scheduleStartsAt: scheduledAt,
+        channels: [{
+          channel: campaignDraft.channel,
+          contentAssetId: campaignDraft.contentAssetId || null,
+          status: campaignDraft.status,
+          scheduledAt,
+        }],
+        ...(recipients ? { recipients } : {}),
       }),
     });
-    setCampaignDraft({ name: "", audienceType: "b2c", channel: "email", status: "draft", scheduleStartsAt: "", objective: "" });
-    setMessage("Campaign draft created. Sending remains locked.");
+    setCampaigns((current) => [result.campaign, ...current.filter((campaign) => campaign.id !== result.campaign.id)]);
+    setEditingCampaignId(result.campaign.id);
+    setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign));
+    setCampaignDraft(emptyCampaignDraft());
+    const recipientMessage = campaignDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
+    setMessage(`Campaign draft created.${recipientMessage}`);
     await refreshAll();
   }
 
@@ -2281,28 +2344,75 @@ export default function MarketingAdminPage() {
               </SectionCard>
 
               <SectionCard title="Campaign planner" subtitle="Create draft or scheduled campaign metadata. No provider dispatch is triggered.">
-                <form className="grid gap-3 xl:grid-cols-[1fr_160px_160px_200px_auto]" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
-                  <Field label="Campaign name">
-                    <input className={inputClass} value={campaignDraft.name} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Summer caregiver onboarding" data-testid="input-marketing-campaign-name" />
-                  </Field>
-                  <Field label="Audience">
-                    <select className={inputClass} value={campaignDraft.audienceType} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))}>
-                      {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Channel">
-                    <select className={inputClass} value={campaignDraft.channel} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, channel: event.target.value as Channel }))}>
-                      {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Schedule">
-                    <input className={inputClass} type="datetime-local" value={campaignDraft.scheduleStartsAt} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value, status: event.target.value ? "scheduled" : "draft" }))} />
-                  </Field>
-                  <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit" data-testid="button-marketing-create-campaign">
-                    <Plus size={16} /> Add campaign
-                  </button>
+                <form className="grid gap-3" onSubmit={(event) => createCampaign(event).catch((error) => setMessage(error.message))}>
+                  <div className="grid gap-3 xl:grid-cols-[1fr_140px_150px_1fr_200px_auto]">
+                    <Field label="Campaign name">
+                      <input className={inputClass} value={campaignDraft.name} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Summer caregiver onboarding" data-testid="input-marketing-campaign-name" />
+                    </Field>
+                    <Field label="Audience">
+                      <select className={inputClass} value={campaignDraft.audienceType} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, audienceType: event.target.value as Audience }))} data-testid="select-marketing-campaign-audience">
+                        {AUDIENCES.map((audience) => <option key={audience} value={audience}>{audience.toUpperCase()}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Channel">
+                      <select
+                        className={inputClass}
+                        value={campaignDraft.channel}
+                        onChange={(event) => setCampaignDraft((draft) => ({ ...draft, channel: event.target.value as Channel, contentAssetId: "" }))}
+                        data-testid="select-marketing-campaign-channel"
+                      >
+                        {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Content asset">
+                      <select className={inputClass} value={campaignDraft.contentAssetId} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, contentAssetId: event.target.value }))} data-testid="select-marketing-campaign-content">
+                        <option value="">No content asset</option>
+                        {campaignDraftContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Schedule">
+                      <input className={inputClass} type="datetime-local" value={campaignDraft.scheduleStartsAt} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, scheduleStartsAt: event.target.value, status: event.target.value ? "scheduled" : "draft" }))} data-testid="input-marketing-campaign-schedule" />
+                    </Field>
+                    <button className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit" data-testid="button-marketing-create-campaign">
+                      <Plus size={16} /> Add campaign
+                    </button>
+                  </div>
+                  <div className="grid gap-3 xl:grid-cols-[1fr_1fr_auto_160px]">
+                    <Field label="Target list">
+                      <select className={inputClass} value={campaignDraft.targetAudienceId} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, targetAudienceId: event.target.value }))} data-testid="select-marketing-campaign-target-audience">
+                        <option value="">All eligible contacts</option>
+                        {audiences.map((audience) => (
+                          <option key={audience.id} value={audience.id}>
+                            {audience.name} ({audience.mappedMemberCount}/{audience.memberCount} mapped)
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Recipient filter">
+                      <input className={inputClass} value={campaignDraft.recipientFilter} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, recipientFilter: event.target.value }))} placeholder="Optional name, company, tag..." data-testid="input-marketing-campaign-recipient-filter" />
+                    </Field>
+                    <label className="mt-6 flex min-h-11 items-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-sm font-black text-[#241133]">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-purple-700"
+                        checked={campaignDraft.snapshotRecipients}
+                        onChange={(event) => setCampaignDraft((draft) => ({ ...draft, snapshotRecipients: event.target.checked }))}
+                        data-testid="checkbox-marketing-campaign-snapshot"
+                      />
+                      Snapshot now
+                    </label>
+                    <div className="rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-draft-recipient-preview">
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Recipients</p>
+                      <p className="mt-1 text-2xl font-black text-[#241133]">{campaignDraft.snapshotRecipients ? campaignDraftRecipientPreview.length : "-"}</p>
+                    </div>
+                  </div>
+                  {selectedCampaignDraftTargetAudience ? (
+                    <p className="rounded-xl border border-purple-100 bg-white px-4 py-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-draft-target-audience-summary">
+                      {selectedCampaignDraftTargetAudience.name}: {selectedCampaignDraftTargetAudience.mappedMemberCount} mapped / {selectedCampaignDraftTargetAudience.unmappedContactExternalIds.length} unmapped contacts.
+                    </p>
+                  ) : null}
+                  <textarea className={textareaClass} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" />
                 </form>
-                <textarea className={`${textareaClass} mt-3`} value={campaignDraft.objective} onChange={(event) => setCampaignDraft((draft) => ({ ...draft, objective: event.target.value }))} placeholder="Objective or internal notes" />
               </SectionCard>
 
               <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px]">

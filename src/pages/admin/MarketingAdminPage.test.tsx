@@ -960,10 +960,35 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.change(screen.getByTestId("input-marketing-campaign-name"), { target: { value: "New draft" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-audience"), { target: { value: "b2b" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-content"), { target: { value: "content-1" } });
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-target-audience"), { target: { value: "audience-1" } });
+    expect(screen.getByTestId("marketing-campaign-draft-target-audience-summary")).toHaveTextContent("1 mapped");
+    fireEvent.change(screen.getByTestId("input-marketing-campaign-recipient-filter"), { target: { value: "Hassan" } });
+    fireEvent.click(screen.getByTestId("checkbox-marketing-campaign-snapshot"));
+    expect(screen.getByTestId("marketing-campaign-draft-recipient-preview")).toHaveTextContent("1");
     fireEvent.click(screen.getByTestId("button-marketing-create-campaign"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns" && init?.method === "POST");
+    const postBody = JSON.parse(String(postCall?.[1]?.body));
+    expect(postBody).toMatchObject({
+      name: "New draft",
+      audienceType: "b2b",
+      channels: [{ channel: "email", contentAssetId: "content-1" }],
+      recipients: [{
+        contactId: "contact-2",
+        recipient: "hassan@example.com",
+        snapshot: {
+          fullName: "Hassan Partner",
+          audienceList: {
+            name: "Partners",
+            lovableExternalId: "lovable-audience-1",
+          },
+        },
+      }],
     });
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
   });
