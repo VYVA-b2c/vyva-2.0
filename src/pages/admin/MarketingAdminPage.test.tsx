@@ -539,10 +539,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "Warm B2B" } });
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Partner outreach")).toBeInTheDocument();
     expect(within(screen.getByTestId("marketing-campaign-table")).queryByText("Caregiver welcome")).not.toBeInTheDocument();
 
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner" } });
     fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("B2B nurture");
     expect(screen.queryByText("First channel")).not.toBeInTheDocument();
@@ -601,6 +602,28 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
+  });
+
+  it("searches imported Lovable IDs, metadata, media, lists, and journey steps", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "recipient-export" } });
+    expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
+    expect(within(screen.getByTestId("marketing-campaign-table")).queryByText("Partner outreach")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "triggerWindow" } });
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("B2B nurture");
+
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "partner hero image" } });
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
+
+    fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "lovable-audience-1" } });
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
   });
 
   it("shows scheduled and unscheduled campaigns in the calendar and opens campaign details", async () => {

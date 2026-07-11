@@ -1239,10 +1239,12 @@ function sumMarketingMetrics(metrics: MarketingCampaignMetric[]): MarketingAnaly
 
 function contactSearchText(contact: MarketingContact) {
   return [
+    contact.id,
     contact.fullName,
     contact.email,
     contact.phoneNumber,
     contact.whatsappNumber,
+    contact.consentStatus,
     contact.roleLabel,
     contact.companyName,
     contact.language,
@@ -1250,9 +1252,30 @@ function contactSearchText(contact: MarketingContact) {
     contact.vertical,
     contact.market,
     contact.source,
+    contact.lovableExternalId,
+    contact.profileId,
+    contact.organizationId,
+    contact.channelAvailability,
+    contact.metadata,
     ...(contact.tags ?? []),
     ...(contact.lists ?? []),
-  ].map((value) => lower(value)).join(" ");
+  ].map(searchableValue).join(" ");
+}
+
+function searchableValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value).toLowerCase();
+  try {
+    return JSON.stringify(value).toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function matchesSearch(search: string, values: unknown[]) {
+  const query = search.trim().toLowerCase();
+  if (!query) return true;
+  return values.map(searchableValue).join(" ").includes(query);
 }
 
 function contactDirectChannels(contact: MarketingContact) {
@@ -1591,22 +1614,77 @@ export default function MarketingAdminPage() {
     refreshAll().catch((error) => setMessage(error.message));
   }, []);
 
+  const contentTitleById = useMemo(() => new Map(content.map((item) => [item.id, item.title])), [content]);
+
   const visibleCampaigns = useMemo(() => campaigns.filter((campaign) => {
-    const matchesSearch = !search || lower(campaign.name).includes(search.toLowerCase()) || lower(campaign.objective).includes(search.toLowerCase());
+    const targetAudience = campaignTargetAudience(campaign, audiences);
+    const campaignMatchesSearch = matchesSearch(search, [
+      campaign.id,
+      campaign.name,
+      campaign.objective,
+      campaign.status,
+      campaign.audienceType,
+      campaign.scheduleStartsAt,
+      campaign.timezone,
+      campaign.source,
+      campaign.lovableExternalId,
+      campaign.metadata,
+      targetAudience?.name,
+      targetAudience?.lovableExternalId,
+      ...(campaign.channels ?? []).flatMap((item) => [
+        item.channel,
+        item.status,
+        item.sendCapability,
+        item.scheduledAt,
+        contentTitleById.get(item.contentAssetId ?? ""),
+      ]),
+      ...(campaign.recipients ?? []).flatMap((recipient) => [
+        recipient.recipient,
+        recipient.channel,
+        recipient.status,
+        recipient.snapshot,
+      ]),
+    ]);
     const matchesAudience = audienceFilter === "all" || campaign.audienceType === audienceFilter;
     const matchesChannel = channelFilter === "all" || campaign.channels.some((item) => item.channel === channelFilter);
-    return matchesSearch && matchesAudience && matchesChannel;
-  }), [campaigns, search, audienceFilter, channelFilter]);
+    return campaignMatchesSearch && matchesAudience && matchesChannel;
+  }), [campaigns, search, audienceFilter, channelFilter, audiences, contentTitleById]);
 
   const visibleContent = useMemo(() => content.filter((item) => {
-    const matchesSearch = !search || lower(item.title).includes(search.toLowerCase()) || lower(item.subject).includes(search.toLowerCase()) || lower(item.body).includes(search.toLowerCase());
+    const contentMatchesSearch = matchesSearch(search, [
+      item.id,
+      item.title,
+      item.channel,
+      item.language,
+      item.status,
+      item.subject,
+      item.body,
+      item.htmlBody,
+      item.ctaLabel,
+      item.ctaUrl,
+      item.source,
+      item.lovableExternalId,
+      item.designJson,
+      item.mediaAssets,
+      item.metadata,
+    ]);
     const matchesChannel = channelFilter === "all" || item.channel === channelFilter;
-    return matchesSearch && matchesChannel;
+    return contentMatchesSearch && matchesChannel;
   }), [content, search, channelFilter]);
 
   const visibleMediaAssets = useMemo(() => mediaAssets.filter((item) => {
-    const haystack = [item.contentTitle, item.originalUrl, item.localUrl, item.assetType, item.status, item.source].map((value) => lower(value)).join(" ");
-    return !search || haystack.includes(search.toLowerCase());
+    return matchesSearch(search, [
+      item.id,
+      item.contentAssetId,
+      item.contentTitle,
+      item.originalUrl,
+      item.localUrl,
+      item.assetType,
+      item.status,
+      item.source,
+      item.lovableExternalId,
+      item.metadata,
+    ]);
   }), [mediaAssets, search]);
 
   const visibleContacts = useMemo(() => contacts.filter((contact) => {
@@ -1616,16 +1694,52 @@ export default function MarketingAdminPage() {
   }), [contacts, search, audienceFilter]);
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
-    const haystack = [
+    return matchesSearch(search, [
+      audience.id,
       audience.name,
       audience.description,
       audience.listType,
       audience.source,
       audience.lovableExternalId,
+      audience.rules,
+      audience.metadata,
+      ...(audience.contactExternalIds ?? []),
       ...(audience.unmappedContactExternalIds ?? []),
-    ].map((value) => lower(value)).join(" ");
-    return !search || haystack.includes(search.toLowerCase());
+    ]);
   }), [audiences, search]);
+
+  const visibleJourneys = useMemo(() => journeys.filter((journey) => {
+    const targetAudience = journeyTargetAudience(journey, audiences);
+    const journeyMatchesSearch = matchesSearch(search, [
+      journey.id,
+      journey.name,
+      journey.objective,
+      journey.status,
+      journey.audienceType,
+      journey.triggerType,
+      journey.triggerConfig,
+      journey.goalType,
+      journey.goalConfig,
+      journey.source,
+      journey.lovableExternalId,
+      journey.metadata,
+      targetAudience?.name,
+      targetAudience?.lovableExternalId,
+      ...(journey.steps ?? []).flatMap((step) => [
+        step.kind,
+        step.channel,
+        step.status,
+        step.templateKind,
+        step.templateRef,
+        step.config,
+        step.metadata,
+        contentTitleById.get(step.contentAssetId ?? ""),
+      ]),
+    ]);
+    const matchesAudience = audienceFilter === "all" || journey.audienceType === audienceFilter;
+    const matchesChannel = channelFilter === "all" || journey.steps.some((step) => step.channel === channelFilter);
+    return journeyMatchesSearch && matchesAudience && matchesChannel;
+  }), [journeys, search, audienceFilter, channelFilter, audiences, contentTitleById]);
 
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
@@ -2563,7 +2677,7 @@ export default function MarketingAdminPage() {
           <div className="grid gap-3 rounded-[14px] border border-[#eadfd5] bg-white p-4 shadow-sm xl:grid-cols-[1fr_180px_180px]">
             <label className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7a73]" aria-hidden="true" />
-              <input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns, content, or contacts" data-testid="input-marketing-search" />
+              <input className={`${inputClass} pl-9`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns, journeys, content, contacts, lists, or media" data-testid="input-marketing-search" />
             </label>
             <select className={inputClass} value={channelFilter} onChange={(event) => setChannelFilter(event.target.value as Channel | "all")} aria-label="Channel filter">
               <option value="all">All channels</option>
@@ -3133,7 +3247,7 @@ export default function MarketingAdminPage() {
             <div className="grid gap-4" data-testid="marketing-journeys-tab">
               <SectionCard
                 title="Journeys"
-                subtitle={`${journeys.length} journeys in the planning foundation.`}
+                subtitle={`${visibleJourneys.length} visible of ${journeys.length} journeys in the planning foundation.`}
                 action={(
                   <button
                     type="button"
@@ -3148,7 +3262,7 @@ export default function MarketingAdminPage() {
               >
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(560px,1.35fr)]">
                   <div className="grid content-start gap-3">
-                    {journeys.length === 0 ? <EmptyState text="No journeys yet." /> : journeys.map((journey) => {
+                    {visibleJourneys.length === 0 ? <EmptyState text="No journeys match the filters." /> : visibleJourneys.map((journey) => {
                       const isActive = editingJourneyId === journey.id;
                       const journeyAudience = journeyTargetAudience(journey, audiences);
                       const journeyAudienceReference = journeyAudienceReferenceFromConfig(journey.triggerConfig);
