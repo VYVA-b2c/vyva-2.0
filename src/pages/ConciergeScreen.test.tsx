@@ -335,7 +335,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("button-appointment-channel-phone")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
-    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA is calling now. Save the appointment once confirmed.")).toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests", expect.objectContaining({ method: "POST" }));
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-1/confirm-attempt", expect.objectContaining({ method: "POST" }));
@@ -396,7 +396,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Current path: email");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
-    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA sent the message. Save the appointment when they reply.")).toBeVisible();
   });
 
@@ -455,7 +455,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Current path: booking link");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
-    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA has the booking form task. Save the appointment once confirmed.")).toBeVisible();
   });
 
@@ -1136,6 +1136,34 @@ describe("ConciergeScreen action hub", () => {
           needs_booking_confirmation: true,
         });
       }
+      if (target.endsWith("/api/appointments/requests/request-voice-home-service/mark-booked")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body).toMatchObject({
+          provider_name: "Saved Plumber",
+          location: "Home kitchen",
+        });
+        expect(body.notes).toContain("Provider reply: Can visit tomorrow at 10:00. Estimated cost EUR80.");
+        expect(body.notes).toContain("Notes: Caregiver will open the door.");
+        return jsonResponse({
+          scheduled_event: {
+            id: "scheduled-home-service",
+            scheduled_for: body.scheduled_for,
+            title: "Saved Plumber",
+          },
+          mission: {
+            status: "booked",
+            current_step: "Saved",
+            preferred_channel: "whatsapp",
+            user_control_state: {
+              listening: false,
+              muted: false,
+              stopped: true,
+              awaiting_confirmation: false,
+            },
+            activity_log: ["Saved"],
+          },
+        });
+      }
       if (target.endsWith("/api/appointments/requests")) {
         const body = JSON.parse(String(init?.body));
         expect(body.preferences.service_intake).toMatchObject({
@@ -1204,6 +1232,29 @@ describe("ConciergeScreen action hub", () => {
       );
     });
     expect(await screen.findByText("VYVA sent the message. Save the appointment when they reply.")).toBeVisible();
+    expect(screen.getByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm visit");
+
+    fireEvent.change(screen.getByTestId("input-appointment-provider-reply"), {
+      target: { value: "Can visit tomorrow at 10:00. Estimated cost EUR80." },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-time"), {
+      target: { value: "2026-08-04T10:00" },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-location"), {
+      target: { value: "Home kitchen" },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-note"), {
+      target: { value: "Caregiver will open the door." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save confirmed visit" }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/appointments/requests/request-voice-home-service/mark-booked",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(await screen.findByText("Appointment saved in Scheduled Support.")).toBeVisible();
   });
 
   it("still prepares ride requests without booking", async () => {
