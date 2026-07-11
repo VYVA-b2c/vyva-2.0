@@ -551,7 +551,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-2");
-    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("entered / step 0");
+    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Lovable enrollment ID: enrollment-1");
+    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Entered");
+    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Last activity");
+    expect(openMetadataPanel("marketing-journey-enrollment-metadata-enrollment-1")).toHaveTextContent("partners-july");
+    expect(screen.getByTestId("marketing-journey-event-event-1")).toHaveTextContent("entered");
+    expect(screen.getByTestId("marketing-journey-event-event-1")).toHaveTextContent("email");
+    expect(openMetadataPanel("marketing-journey-event-metadata-event-1")).toHaveTextContent("automation-log");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");

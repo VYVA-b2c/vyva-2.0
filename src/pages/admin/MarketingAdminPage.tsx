@@ -3386,16 +3386,33 @@ export default function MarketingAdminPage() {
                           <div>
                             <p className="font-black">{enrollment.journeyName || enrollment.journeyId}</p>
                             <p className="mt-1 text-xs font-bold text-[#7d6b65]">{enrollment.contactExternalId || enrollment.contactId || "No contact linked"}</p>
+                            <p className="mt-1 text-xs font-bold text-[#8b7a73]">
+                              Entered {formatDate(enrollment.enteredAt)} · Last activity {formatDate(enrollment.lastActivityAt)}
+                              {enrollment.exitedAt ? ` · Exited ${formatDate(enrollment.exitedAt)}` : ""}
+                            </p>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             <Pill className={statusClass(enrollment.status)}>{enrollment.status}</Pill>
                             <Pill className="bg-blue-50 text-blue-800">Step {enrollment.currentStepOrder}</Pill>
+                            <Pill className="bg-violet-50 text-violet-700">{enrollment.source}</Pill>
                           </div>
                         </div>
+                        {enrollment.lovableExternalId ? (
+                          <p className="mt-2 break-all text-xs font-bold text-[#8b7a73]">Lovable enrollment ID: {enrollment.lovableExternalId}</p>
+                        ) : null}
+                        <MetadataPanel title="Imported enrollment metadata" value={enrollment.metadata} testId={`marketing-journey-enrollment-metadata-${enrollment.id}`} />
                         {enrollment.events.length ? (
-                          <div className="mt-3 flex flex-wrap gap-1.5">
+                          <div className="mt-3 grid gap-2">
                             {enrollment.events.slice(0, 8).map((event) => (
-                              <Pill key={event.id} className="bg-white text-[#5b4a46]">{event.eventType} / step {event.stepOrder}</Pill>
+                              <div key={event.id} className="rounded-lg border border-[#eadfd5] bg-white p-2" data-testid={`marketing-journey-event-${event.id}`}>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <Pill className="bg-white text-[#5b4a46]">{event.eventType}</Pill>
+                                  <Pill className="bg-blue-50 text-blue-800">Step {event.stepOrder}</Pill>
+                                  {event.channel ? <Pill className={channelClass(event.channel as Channel)}>{event.channel}</Pill> : null}
+                                  <span className="text-xs font-bold text-[#8b7a73]">{formatDate(event.eventAt)}</span>
+                                </div>
+                                <MetadataPanel title="Imported event metadata" value={event.metadata} testId={`marketing-journey-event-metadata-${event.id}`} />
+                              </div>
                             ))}
                             {enrollment.events.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{enrollment.events.length - 8}</Pill> : null}
                           </div>
