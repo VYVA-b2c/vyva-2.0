@@ -2563,6 +2563,7 @@ const ConciergeScreen = () => {
   const [appointmentBookedForm, setAppointmentBookedForm] = useState({
     scheduledFor: "",
     location: "",
+    providerReply: "",
     notes: "",
   });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
@@ -2936,6 +2937,7 @@ const ConciergeScreen = () => {
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
       setAppointmentControlMode("listening");
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
     },
     onSuccess: (result) => {
       setAppointmentRequest(result.request);
@@ -3074,7 +3076,7 @@ const ConciergeScreen = () => {
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
       setAppointmentAttemptResult(null);
-      setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
       queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
     onError: (error) => {
@@ -3190,7 +3192,7 @@ const ConciergeScreen = () => {
     || coveragePlan.trim().length > 0;
   const isHomeServiceAppointment = appointmentIntentType === "home-service";
   const isHomeServiceIntakeActive = isHomeServiceAppointment && Boolean(homeServiceType);
-  const isHomeServiceWithoutProvider = isHomeServiceAppointment && appointmentOptions.length === 0 && !appointmentAttemptResult;
+  const isHomeServiceWithoutProvider = isHomeServiceAppointment && Boolean(appointmentRequest) && appointmentOptions.length === 0 && !appointmentAttemptResult;
   const AppointmentPanelIcon = isHomeServiceAppointment ? Wrench : Calendar;
   const appointmentPanelKicker = isHomeServiceAppointment
     ? (isSpanish ? "Servicio" : "Service")
@@ -3218,6 +3220,19 @@ const ConciergeScreen = () => {
   const appointmentPrepareLabel = isHomeServiceAppointment
     ? (isSpanish ? "Preparar mensaje" : "Prepare message")
     : (isSpanish ? "Prepararlo por chat" : "Prepare in chat");
+  const appointmentFinalReviewTitle = isHomeServiceAppointment
+    ? (isSpanish ? "Revisar y confirmar visita" : "Review and confirm visit")
+    : (isSpanish ? "Revisar y confirmar cita" : "Review and confirm appointment");
+  const appointmentFinalReviewBody = isHomeServiceAppointment
+    ? (isSpanish
+      ? "Cuando el proveedor responda, guarda aqui la hora, lugar, precio o preparacion. Nada queda final hasta que confirmes."
+      : "When the provider replies, save the time, place, price, or prep here. Nothing is final until you confirm.")
+    : (isSpanish
+      ? "Cuando el proveedor responda, guarda aqui la hora, lugar y cualquier instruccion. Nada queda final hasta que confirmes."
+      : "When the provider replies, save the time, place, and any instructions here. Nothing is final until you confirm.");
+  const appointmentFinalSaveLabel = isHomeServiceAppointment
+    ? (isSpanish ? "Guardar visita confirmada" : "Save confirmed visit")
+    : (isSpanish ? "Guardar cita confirmada" : "Save confirmed appointment");
   const showAppointmentStatusMessage = Boolean(
     appointmentError
     || createAppointmentMutation.isPending
@@ -3347,7 +3362,7 @@ const ConciergeScreen = () => {
     setAppointmentAttemptResult(null);
     setAppointmentNotice(null);
     setAppointmentError(null);
-    setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
   }, [resetHomeServiceIntake]);
 
   useEffect(() => {
@@ -3857,14 +3872,29 @@ const ConciergeScreen = () => {
       setAppointmentError(isSpanish ? "Anade fecha y hora confirmadas." : "Add the confirmed date and time.");
       return;
     }
+    const providerReply = appointmentBookedForm.providerReply.trim();
+    const userNotes = appointmentBookedForm.notes.trim();
+    const finalNotes = [
+      providerReply ? `Provider reply: ${providerReply}` : "",
+      userNotes ? `Notes: ${userNotes}` : "",
+    ].filter(Boolean).join("\n");
     markAppointmentBookedMutation.mutate({
       requestId: appointmentRequest.id,
       scheduledFor: appointmentBookedForm.scheduledFor,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
       providerName: appointmentProviderName,
       location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || undefined,
-      notes: appointmentBookedForm.notes.trim() || appointmentRequest.reason_detail || undefined,
+      notes: finalNotes || appointmentRequest.reason_detail || undefined,
     });
+  }
+
+  function handleReviseAppointmentAfterReply() {
+    setAppointmentAttemptResult(null);
+    setAppointmentNotice(isSpanish
+      ? "Revisa la opcion o pide a VYVA que contacte de nuevo."
+      : "Review the option or ask VYVA to contact them again.");
+    setAppointmentError(null);
+    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
   }
 
   async function handleSearchOffers(nextQuery = offersQuery, documentContext?: BillDocumentAnalysis) {
@@ -6674,40 +6704,89 @@ const ConciergeScreen = () => {
             )}
 
             {appointmentAttemptResult && appointmentRequest && !appointmentAttemptResult.scheduled_event && (
-              <div className="mt-3 rounded-[20px] border border-[#D8B4FE] bg-white p-4" data-testid="panel-appointment-mark-booked">
-                <p className="font-body text-[15px] font-black text-vyva-text-1">
-                  {isSpanish ? "Cuando este confirmada" : "When it is confirmed"}
-                </p>
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Input
-                    type="datetime-local"
-                    value={appointmentBookedForm.scheduledFor}
-                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, scheduledFor: event.target.value }))}
-                    className="min-h-[48px] rounded-[16px] border-[#D8B4FE] bg-white font-body text-[14px] focus-visible:ring-[#7C3AED]/20"
-                    aria-label={isSpanish ? "Fecha y hora" : "Date and time"}
-                  />
-                  <Input
-                    value={appointmentBookedForm.location}
-                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, location: event.target.value }))}
-                    placeholder={isSpanish ? "Lugar" : "Location"}
-                    className="min-h-[48px] rounded-[16px] border-[#D8B4FE] bg-white font-body text-[14px] focus-visible:ring-[#7C3AED]/20"
-                  />
+              <div className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_14px_30px_rgba(13,148,136,0.10)] sm:p-5" data-testid="panel-appointment-mark-booked">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E] shadow-sm">
+                    <CircleCheck size={19} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+                      {isSpanish ? "Ultimo paso" : "Final step"}
+                    </p>
+                    <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+                      {appointmentFinalReviewTitle}
+                    </h3>
+                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+                      {appointmentFinalReviewBody}
+                    </p>
+                  </div>
                 </div>
-                <Input
-                  value={appointmentBookedForm.notes}
-                  onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, notes: event.target.value }))}
-                  placeholder={isSpanish ? "Nota opcional" : "Optional note"}
-                  className="mt-2 min-h-[48px] rounded-[16px] border-[#D8B4FE] bg-white font-body text-[14px] focus-visible:ring-[#7C3AED]/20"
-                />
-                <button
-                  type="button"
-                  onClick={handleMarkAppointmentBooked}
-                  disabled={markAppointmentBookedMutation.isPending}
-                  className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-3`}
-                >
-                  {markAppointmentBookedMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-                  {isSpanish ? "Guardar cita" : "Save appointment"}
-                </button>
+                <label className="mt-4 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                  {isSpanish ? "Respuesta del proveedor" : "Provider reply"}
+                  <textarea
+                    value={appointmentBookedForm.providerReply}
+                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, providerReply: event.target.value }))}
+                    placeholder={isHomeServiceAppointment
+                      ? (isSpanish ? "Ej. Puede venir manana a las 10:00. Coste estimado 80 EUR." : "E.g. Can visit tomorrow at 10:00. Estimated cost EUR80.")
+                      : (isSpanish ? "Ej. Confirmado martes a las 10:00. Traer tarjeta sanitaria." : "E.g. Confirmed Tuesday at 10:00. Bring insurance card.")}
+                    rows={3}
+                    className="mt-2 w-full resize-none rounded-[16px] border border-[#99F6E4] bg-white px-3 py-3 font-body text-[14px] font-semibold normal-case tracking-normal text-vyva-text-1 outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-[#14B8A6]/15"
+                    data-testid="input-appointment-provider-reply"
+                  />
+                </label>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                    {isSpanish ? "Fecha y hora" : "Date and time"}
+                    <Input
+                      type="datetime-local"
+                      value={appointmentBookedForm.scheduledFor}
+                      onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, scheduledFor: event.target.value }))}
+                      className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
+                      aria-label={isSpanish ? "Fecha y hora" : "Date and time"}
+                      data-testid="input-appointment-confirmed-time"
+                    />
+                  </label>
+                  <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                    {isSpanish ? "Lugar" : "Place"}
+                    <Input
+                      value={appointmentBookedForm.location}
+                      onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, location: event.target.value }))}
+                      placeholder={appointmentProviderAddress || (isSpanish ? "Lugar" : "Location")}
+                      className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
+                      data-testid="input-appointment-confirmed-location"
+                    />
+                  </label>
+                </div>
+                <label className="mt-3 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
+                  {isSpanish ? "Nota para VYVA" : "Note for VYVA"}
+                  <Input
+                    value={appointmentBookedForm.notes}
+                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, notes: event.target.value }))}
+                    placeholder={isSpanish ? "Opcional" : "Optional"}
+                    className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
+                    data-testid="input-appointment-confirmed-note"
+                  />
+                </label>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                  <button
+                    type="button"
+                    onClick={handleMarkAppointmentBooked}
+                    disabled={markAppointmentBookedMutation.isPending}
+                    className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+                  >
+                    {markAppointmentBookedMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+                    {appointmentFinalSaveLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReviseAppointmentAfterReply}
+                    disabled={markAppointmentBookedMutation.isPending}
+                    className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} border-[#99F6E4] text-[#0F766E]`}
+                    data-testid="button-appointment-revise-after-reply"
+                  >
+                    {isSpanish ? "Cambiar" : "Change"}
+                  </button>
+                </div>
               </div>
             )}
 
