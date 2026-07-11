@@ -1121,6 +1121,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-journey-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-journey-lovable-id")).toHaveValue("lovable-journey-1");
     expect(screen.getByTestId("textarea-marketing-edit-journey-metadata")).toHaveValue(JSON.stringify({ lovable: { triggerWindow: "morning" } }, null, 2));
+    const journeyStepPreview = screen.getByTestId("marketing-journey-step-content-preview-0");
+    expect(journeyStepPreview).toHaveTextContent("Linked content");
+    expect(journeyStepPreview).toHaveTextContent("Welcome email");
+    expect(journeyStepPreview).toHaveTextContent("Welcome to VYVA");
+    expect(journeyStepPreview).toHaveTextContent("Hello");
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });

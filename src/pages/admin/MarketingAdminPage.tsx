@@ -700,6 +700,21 @@ function contentOriginLabel(item: ContentAsset) {
   return item.source;
 }
 
+function contentAssetByReference(content: ContentAsset[], reference?: string | null) {
+  const normalized = lower(reference);
+  if (!normalized) return null;
+  return content.find((item) => [
+    item.id,
+    item.lovableExternalId ?? "",
+    `content:${item.lovableExternalId ?? ""}`,
+    `content_asset:${item.lovableExternalId ?? ""}`,
+    `saved_email_template:${item.lovableExternalId ?? ""}`,
+    `social_post:${item.lovableExternalId ?? ""}`,
+    `template:${item.lovableExternalId ?? ""}`,
+    `content_brief:${item.lovableExternalId ?? ""}`,
+  ].some((candidate) => lower(candidate) === normalized)) ?? null;
+}
+
 function newDraftId() {
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -3658,7 +3673,8 @@ export default function MarketingAdminPage() {
                           <div className="grid gap-3">
                             {journeyEditDraft.steps.map((step, index) => {
                               const contentOptions = content.filter((item) => item.channel === step.channel && item.status !== "archived");
-                              const selectedContentOption = step.contentAssetId ? content.find((item) => item.id === step.contentAssetId) : null;
+                              const selectedContentOption = contentAssetByReference(content, step.contentAssetId) ?? contentAssetByReference(content, step.templateRef);
+                              const selectedStepMediaAssets = selectedContentOption ? mediaAssets.filter((item) => item.contentAssetId === selectedContentOption.id) : [];
                               const options = selectedContentOption && !contentOptions.some((item) => item.id === selectedContentOption.id)
                                 ? [selectedContentOption, ...contentOptions]
                                 : contentOptions;
@@ -3710,6 +3726,7 @@ export default function MarketingAdminPage() {
                                       <input className={inputClass} value={step.templateRef} onChange={(event) => updateJourneyStep(step.id, { templateRef: event.target.value })} placeholder="Lovable or VYVA template ID" disabled={journeySaving} data-testid={`input-marketing-journey-step-template-ref-${index}`} />
                                     </Field>
                                   </div>
+                                  <LinkedContentPreview contentAsset={selectedContentOption} linkedMediaAssets={selectedStepMediaAssets} testId={`marketing-journey-step-content-preview-${index}`} />
                                   <div className="grid gap-3 xl:grid-cols-2">
                                     <Field label="Internal notes">
                                       <textarea className={`${textareaClass} min-h-[72px]`} value={step.notes} onChange={(event) => updateJourneyStep(step.id, { notes: event.target.value })} disabled={journeySaving} data-testid={`textarea-marketing-journey-step-notes-${index}`} />
