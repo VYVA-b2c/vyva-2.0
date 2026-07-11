@@ -2658,7 +2658,7 @@ export default function MarketingAdminPage() {
   }
 
   const syncBlockedReason = !syncState.configured
-    ? "Set LOVABLE_MARKETING_API_URL and LOVABLE_MARKETING_API_KEY before running a sync."
+    ? "Set LOVABLE_MARKETING_API_URL plus LOVABLE_MARKETING_API_KEY or VYVA_MARKETING_EXPORT_TOKEN before running a sync."
     : syncState.canRunSync === false
       ? `Only the super admin${syncState.requiredRunnerEmail ? ` (${syncState.requiredRunnerEmail})` : ""} can run Lovable sync.`
       : "";

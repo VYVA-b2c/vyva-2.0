@@ -213,7 +213,7 @@ describe("admin marketing router", () => {
 
   it("reports whether the current admin can run Lovable sync", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
 
     await request(buildApp("ops@example.com"))
       .get("/api/admin/marketing/sync/lovable")
@@ -242,6 +242,45 @@ describe("admin marketing router", () => {
           requiredRunnerEmail: "karim.assad@mokadigital.net",
         });
       });
+  });
+
+  it("accepts VYVA export URL and token aliases for Lovable sync", async () => {
+    vi.stubEnv("VYVA_MARKETING_EXPORT_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "alias-secret");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        content: [],
+        contacts: [],
+        campaigns: [],
+        journeys: [],
+        audiences: [],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .get("/api/admin/marketing/sync/lovable")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          configured: true,
+          canRunSync: true,
+          apiUrl: "https://lovable.example.test",
+        });
+      });
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.ok).toBe(true);
+      });
+
+    expect(fetchSpy).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", {
+      headers: {
+        Authorization: "Bearer alias-secret",
+        Accept: "application/json",
+      },
+    });
   });
 
   it("surfaces missing marketing migration tables with an actionable message", async () => {

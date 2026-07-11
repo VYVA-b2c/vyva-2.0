@@ -238,6 +238,22 @@ function safeUrlOrigin(value: string | undefined) {
   }
 }
 
+function envValue(...keys: string[]) {
+  for (const key of keys) {
+    const value = process.env[key]?.trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function lovableMarketingApiUrl() {
+  return envValue("LOVABLE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL");
+}
+
+function lovableMarketingApiKey() {
+  return envValue("LOVABLE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN");
+}
+
 function dateOrNull(value: string | null | undefined) {
   return value ? new Date(value) : null;
 }
@@ -2470,15 +2486,17 @@ adminMarketingRouter.delete("/contacts/:contactId", async (req, res) => {
 });
 
 adminMarketingRouter.get("/sync/lovable", async (req, res) => {
-  const hasUrl = Boolean(process.env.LOVABLE_MARKETING_API_URL?.trim());
-  const hasBearerToken = Boolean(process.env.LOVABLE_MARKETING_API_KEY?.trim());
+  const apiUrl = lovableMarketingApiUrl();
+  const apiKey = lovableMarketingApiKey();
+  const hasUrl = Boolean(apiUrl);
+  const hasBearerToken = Boolean(apiKey);
   const runs = await db.select().from(marketingSyncRuns).orderBy(desc(marketingSyncRuns.created_at)).limit(10);
   return res.json({
     provider: "lovable",
     configured: hasUrl && hasBearerToken,
     canRunSync: isSuperAdmin(req),
     requiredRunnerEmail: SUPER_ADMIN_EMAIL,
-    apiUrl: safeUrlOrigin(process.env.LOVABLE_MARKETING_API_URL),
+    apiUrl: safeUrlOrigin(apiUrl),
     mode: "one_way_into_vyva",
     realSendingLocked: false,
     lockedSendCapabilities: channelSendCapabilities(),
@@ -3068,8 +3086,8 @@ async function upsertLovableJourneyEnrollment(
 
 adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
   if (!requireSuperAdmin(req, res)) return;
-  const apiUrl = process.env.LOVABLE_MARKETING_API_URL?.trim();
-  const apiKey = process.env.LOVABLE_MARKETING_API_KEY?.trim();
+  const apiUrl = lovableMarketingApiUrl();
+  const apiKey = lovableMarketingApiKey();
   if (!apiUrl || !apiKey) {
     return res.status(409).json({ error: "Lovable marketing sync is not configured." });
   }
