@@ -1216,6 +1216,79 @@ describe("admin marketing router", () => {
     });
   });
 
+  it("maps Lovable CRM-style contact aliases into first-class contact fields", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        contacts: [{
+          id: "contact-1",
+          first_name: "Maria",
+          last_name: "Garcia",
+          email_address: "maria@example.com",
+          mobile_number: "+34 600 000 010",
+          whats_app_number: "+34 600 000 011",
+          job_title: "Partnership lead",
+          organization_name: "Madrid Health",
+          preferred_language: "es",
+          contactCategory: "partner",
+          industry: "healthcare",
+          country: "Spain",
+          subscription_status: "subscribed",
+          tags: "warm, madrid; public",
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app)
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200);
+
+    expect(table("marketing_contacts")).toHaveLength(1);
+    expect(table("marketing_contacts")[0]).toMatchObject({
+      full_name: "Maria Garcia",
+      email: "maria@example.com",
+      phone_number: "+34 600 000 010",
+      whatsapp_number: "+34 600 000 011",
+      role_label: "Partnership lead",
+      company_name: "Madrid Health",
+      language: "es",
+      category: "partner",
+      vertical: "healthcare",
+      market: "Spain",
+      consent_status: "opted_in",
+      tags: ["warm", "madrid", "public"],
+    });
+
+    await request(app)
+      .get("/api/admin/marketing/contacts")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.contacts[0]).toMatchObject({
+          fullName: "Maria Garcia",
+          email: "maria@example.com",
+          phoneNumber: "+34 600 000 010",
+          whatsappNumber: "+34 600 000 011",
+          roleLabel: "Partnership lead",
+          companyName: "Madrid Health",
+          language: "es",
+          consentStatus: "opted_in",
+          tags: ["warm", "madrid", "public"],
+        });
+      });
+
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      exported: { contacts: 1 },
+      imported: { contacts: 1 },
+      fieldCoverage: {
+        contacts: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["first_name", "last_name", "email_address", "mobile_number", "organization_name", "preferred_language"]),
+        }),
+      },
+    });
+  });
+
   it("merges top-level Lovable campaign channel and recipient rows into campaigns", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");

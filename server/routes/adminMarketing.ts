@@ -260,6 +260,37 @@ function uniqueTextArray(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
 }
 
+function splitTextList(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (typeof item === "string") return item.trim();
+      const row = asRecord(item);
+      return textFrom(row, ["name", "title", "label", "value", "id"]);
+    }).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value.split(/[,\n;]/).map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function contactFullName(row: Record<string, unknown>) {
+  const explicit = emptyToNull(textFrom(row, ["fullName", "full_name", "name", "displayName", "display_name"]));
+  if (explicit) return explicit;
+  return uniqueTextArray([
+    emptyToNull(textFrom(row, ["firstName", "first_name", "givenName", "given_name"])),
+    emptyToNull(textFrom(row, ["lastName", "last_name", "familyName", "family_name", "surname"])),
+  ]).join(" ");
+}
+
+function normalizeConsentStatus(value: string) {
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["opted_out", "unsubscribed", "unsubscribe", "do_not_contact", "blocked", "false", "no"].includes(normalized)) return "opted_out";
+  if (["opted_in", "subscribed", "subscribe", "active", "true", "yes", "consented"].includes(normalized)) return "opted_in";
+  if (["pending", "invited", "needs_consent"].includes(normalized)) return "pending";
+  return "unknown";
+}
+
 function audienceContactExternalIds(row: Record<string, unknown>) {
   const memberIds = arrayFrom(row.members).map((item) => {
     const member = asRecord(item);
@@ -657,17 +688,17 @@ const fieldCoverageAliases = {
   ],
   contacts: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
-    ["name", "fullName", "full_name"],
-    ["email"],
-    ["phoneNumber", "phone_number", "phone"],
-    ["whatsappNumber", "whatsapp_number", "whatsapp"],
+    ["name", "fullName", "full_name", "displayName", "display_name", "firstName", "first_name", "givenName", "given_name", "lastName", "last_name", "familyName", "family_name", "surname"],
+    ["email", "emailAddress", "email_address"],
+    ["phoneNumber", "phone_number", "phone", "mobileNumber", "mobile_number", "mobile", "telephone"],
+    ["whatsappNumber", "whatsapp_number", "whatsapp", "whatsAppNumber", "whats_app_number"],
     ["audienceType", "audience_type", "audience"],
-    ["roleLabel", "role_label", "role"],
-    ["companyName", "company_name", "company"],
+    ["roleLabel", "role_label", "role", "jobTitle", "job_title", "title", "position"],
+    ["companyName", "company_name", "company", "organization", "organizationName", "organization_name", "organisation", "organisationName", "organisation_name"],
     ["consentStatus", "consent_status"],
     ["channelAvailability", "channel_availability"],
     ["tags"],
-    ["language", "lang", "locale"],
+    ["language", "lang", "locale", "preferredLanguage", "preferred_language"],
     ["category", "contactCategory", "contact_category"],
     ["vertical", "industry", "sector"],
     ["market", "country", "region"],
@@ -2330,13 +2361,14 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   const { [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeRows, ...lovableMetadata } = row;
   const metadata = asRecord(row.metadata);
   const segmentation = asRecord(row.segmentation ?? metadata.segmentation);
-  const language = nestedText(segmentation, row, metadata, ["language", "lang", "locale"]);
+  const language = nestedText(segmentation, row, metadata, ["language", "lang", "locale", "preferredLanguage", "preferred_language"]);
   const category = nestedText(segmentation, row, metadata, ["category", "contactCategory", "contact_category"]);
   const vertical = nestedText(segmentation, row, metadata, ["vertical", "industry", "sector"]);
   const market = nestedText(segmentation, row, metadata, ["market", "country", "region"]);
-  const email = emptyToNull(textFrom(row, ["email"]));
-  const phoneNumber = emptyToNull(textFrom(row, ["phoneNumber", "phone_number", "phone"]));
-  const whatsappNumber = emptyToNull(textFrom(row, ["whatsappNumber", "whatsapp_number", "whatsapp"]));
+  const email = emptyToNull(textFrom(row, ["email", "emailAddress", "email_address"]));
+  const phoneNumber = emptyToNull(textFrom(row, ["phoneNumber", "phone_number", "phone", "mobileNumber", "mobile_number", "mobile", "telephone"]));
+  const whatsappNumber = emptyToNull(textFrom(row, ["whatsappNumber", "whatsapp_number", "whatsapp", "whatsAppNumber", "whats_app_number"]));
+  const consentStatus = normalizeConsentStatus(textFrom(row, ["consentStatus", "consent_status", "subscriptionStatus", "subscription_status", "emailStatus", "email_status"], "unknown"));
   const channelAvailability = {
     email: Boolean(email),
     phone: Boolean(phoneNumber),
@@ -2345,22 +2377,24 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   };
   const payload = {
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2b")),
-    full_name: textFrom(row, ["fullName", "full_name", "name"], ""),
+    full_name: contactFullName(row),
     email,
     phone_number: phoneNumber,
     whatsapp_number: whatsappNumber,
-    role_label: emptyToNull(textFrom(row, ["roleLabel", "role_label", "role"])),
-    company_name: emptyToNull(textFrom(row, ["companyName", "company_name", "company"])),
+    role_label: emptyToNull(textFrom(row, ["roleLabel", "role_label", "role", "jobTitle", "job_title", "title", "position"])),
+    company_name: emptyToNull(textFrom(row, ["companyName", "company_name", "company", "organization", "organizationName", "organization_name", "organisation", "organisationName", "organisation_name"])),
     language,
     category,
     vertical,
     market,
-    consent_status: (consentStatuses as readonly string[]).includes(textFrom(row, ["consentStatus", "consent_status"], "unknown"))
-      ? textFrom(row, ["consentStatus", "consent_status"], "unknown")
-      : "unknown",
+    consent_status: consentStatus,
     source: "lovable",
     channel_availability: channelAvailability,
-    tags: Array.isArray(row.tags) ? row.tags.map((tag) => String(tag).trim()).filter(Boolean) : [],
+    tags: uniqueTextArray([
+      ...splitTextList(row.tags),
+      ...splitTextList(row.tagNames ?? row.tag_names),
+      ...splitTextList(row.labels),
+    ]),
     lovable_external_id: externalId,
     last_synced_at: now,
     metadata: {
