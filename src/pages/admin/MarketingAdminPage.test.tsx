@@ -322,12 +322,16 @@ const sync = {
           exportedFieldCount: 7,
           firstClassFieldCount: 6,
           metadataOnlyFieldCount: 1,
+          exportedFields: ["body", "channel", "extraLovableOnlyField", "id", "status", "subject", "title"],
+          firstClassFields: ["body", "channel", "id", "status", "subject", "title"],
           metadataOnlyFields: ["extraLovableOnlyField"],
         },
         contacts: {
           exportedFieldCount: 8,
           firstClassFieldCount: 8,
           metadataOnlyFieldCount: 0,
+          exportedFields: ["audienceType", "email", "id", "name", "phoneNumber", "tags", "updatedAt", "vertical"],
+          firstClassFields: ["audienceType", "email", "id", "name", "phoneNumber", "tags", "updatedAt", "vertical"],
           metadataOnlyFields: [],
         },
       },
@@ -603,6 +607,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped campaign recipients: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 6 of 7 fields mapped first-class");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    const contentCoverage = openMetadataPanel("marketing-sync-field-coverage-sync-1-content");
+    expect(contentCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    expect(contentCoverage).toHaveTextContent("Mapped first-class: body, channel, id, status, subject, title");
+    expect(contentCoverage).toHaveTextContent("All exported: body, channel, extraLovableOnlyField, id, status, subject, title");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
   });
