@@ -111,7 +111,7 @@ const journeys = [
     audienceType: "b2b",
     objective: "Convert partners",
     triggerType: "signup",
-    triggerConfig: { source: "lovable" },
+    triggerConfig: { source: "lovable", audienceExternalId: "lovable-audience-1" },
     goalType: "activation",
     goalConfig: { event: "first_login" },
     exitOnGoal: false,
@@ -519,6 +519,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("B2B nurture");
     expect(screen.queryByText("First channel")).not.toBeInTheDocument();
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Trigger: signup");
+    expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-2");
@@ -849,6 +850,8 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
     expect(screen.queryByText("First channel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-journey-target-audience-summary")).toHaveTextContent("No target list selected");
     expect(screen.getByTestId("button-marketing-add-first-journey-step")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
@@ -885,12 +888,15 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
 
     expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-journey-target-audience-summary")).toHaveTextContent("Partners: 1 mapped of 2 members");
     expect(openMetadataPanel("marketing-journey-metadata-panel")).toHaveTextContent("triggerWindow");
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-status"), { target: { value: "paused" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-trigger"), { target: { value: "list_joined" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-journey-target-audience"), { target: { value: "audience-1" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-trigger-config"), { target: { value: "{\"list\":\"partners\"}" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-goal"), { target: { value: "reply" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-goal-config"), { target: { value: "{\"withinDays\":14}" } });
@@ -921,7 +927,16 @@ describe("MarketingAdminPage", () => {
       audienceType: "both",
       status: "paused",
       triggerType: "list_joined",
-      triggerConfig: { list: "partners" },
+      triggerConfig: {
+        list: "partners",
+        targetAudienceId: "audience-1",
+        audienceExternalId: "lovable-audience-1",
+        audienceList: {
+          name: "Partners",
+          source: "lovable",
+          lovableExternalId: "lovable-audience-1",
+        },
+      },
       goalType: "reply",
       goalConfig: { withinDays: 14 },
       exitOnGoal: true,

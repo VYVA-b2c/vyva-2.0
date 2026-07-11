@@ -370,6 +370,7 @@ type JourneyEditDraft = {
   audienceType: Audience;
   status: JourneyStatus;
   objective: string;
+  targetAudienceId: string;
   triggerType: string;
   triggerConfigText: string;
   goalType: string;
@@ -741,6 +742,7 @@ function emptyJourneyEditDraft(): JourneyEditDraft {
     audienceType: "b2c",
     status: "draft",
     objective: "",
+    targetAudienceId: "",
     triggerType: "",
     triggerConfigText: "",
     goalType: "",
@@ -765,12 +767,48 @@ function journeyStepDraftFromStep(step: JourneyStep): JourneyStepDraft {
   };
 }
 
-function journeyEditDraftFromJourney(journey: Journey): JourneyEditDraft {
+function journeyAudienceReferenceFromConfig(value: unknown) {
+  const config = recordValue(value);
+  for (const key of ["targetAudienceId", "audienceId", "audienceListId", "listId", "lovableAudienceId", "audienceExternalId", "audience_external_id"]) {
+    const item = config[key];
+    if (typeof item === "string" && item.trim()) return item.trim();
+  }
+  const audienceList = recordValue(config.audienceList ?? config.audience ?? config.list);
+  for (const key of ["id", "lovableExternalId", "lovable_external_id", "externalId", "external_id", "name"]) {
+    const item = audienceList[key];
+    if (typeof item === "string" && item.trim()) return item.trim();
+  }
+  const list = config.list;
+  return typeof list === "string" && list.trim() ? list.trim() : "";
+}
+
+function audienceMatchesReference(audience: MarketingAudience, reference: string) {
+  const normalized = lower(reference);
+  return Boolean(normalized) && [audience.id, audience.name, audience.lovableExternalId ?? ""].some((item) => lower(item) === normalized);
+}
+
+function journeyTargetAudience(journey: Pick<Journey, "triggerConfig">, audiences: MarketingAudience[]) {
+  const reference = journeyAudienceReferenceFromConfig(journey.triggerConfig);
+  if (!reference) return null;
+  return audiences.find((audience) => audienceMatchesReference(audience, reference)) ?? null;
+}
+
+function stripJourneyAudienceSelection(config: Record<string, unknown>) {
+  const next = { ...config };
+  for (const key of ["targetAudienceId", "audienceId", "audienceListId", "listId", "lovableAudienceId", "audienceExternalId", "audience_external_id", "audienceList"]) {
+    delete next[key];
+  }
+  return next;
+}
+
+function journeyEditDraftFromJourney(journey: Journey, audiences: MarketingAudience[] = []): JourneyEditDraft {
+  const targetAudience = journeyTargetAudience(journey, audiences);
   return {
     name: journey.name,
     audienceType: journey.audienceType,
     status: normalizeJourneyStatus(journey.status),
     objective: journey.objective,
+    targetAudienceId: targetAudience?.id ?? "",
     triggerType: journey.triggerType ?? "",
     triggerConfigText: jsonText(journey.triggerConfig),
     goalType: journey.goalType ?? "",
@@ -918,14 +956,23 @@ function audiencePayloadFromDraft(draft: AudienceEditDraft) {
   };
 }
 
-function journeyPayloadFromDraft(draft: JourneyEditDraft) {
+function journeyPayloadFromDraft(draft: JourneyEditDraft, targetAudience: MarketingAudience | null = null) {
+  const triggerConfig = stripJourneyAudienceSelection(parseJsonText(draft.triggerConfigText, "Trigger config"));
+  const targetAudienceSnapshot = audienceSnapshot(targetAudience);
   return {
     name: draft.name.trim(),
     audienceType: draft.audienceType,
     status: draft.status,
     objective: draft.objective,
     triggerType: draft.triggerType.trim() || null,
-    triggerConfig: parseJsonText(draft.triggerConfigText, "Trigger config"),
+    triggerConfig: targetAudienceSnapshot
+      ? {
+          ...triggerConfig,
+          targetAudienceId: targetAudience.id,
+          audienceExternalId: targetAudience.lovableExternalId ?? targetAudience.id,
+          audienceList: targetAudienceSnapshot,
+        }
+      : triggerConfig,
     goalType: draft.goalType.trim() || null,
     goalConfig: parseJsonText(draft.goalConfigText, "Goal config"),
     exitOnGoal: draft.exitOnGoal,
@@ -1446,6 +1493,10 @@ export default function MarketingAdminPage() {
     () => audiences.find((audience) => audience.id === campaignEditDraft.targetAudienceId) ?? null,
     [audiences, campaignEditDraft.targetAudienceId],
   );
+  const selectedJourneyTargetAudience = useMemo(
+    () => audiences.find((audience) => audience.id === journeyEditDraft.targetAudienceId) ?? null,
+    [audiences, journeyEditDraft.targetAudienceId],
+  );
 
   const campaignDraftRecipientPreview = useMemo(() => {
     if (!campaignDraft.snapshotRecipients) return [];
@@ -1708,7 +1759,7 @@ export default function MarketingAdminPage() {
 
   function startJourneyEdit(journey: Journey) {
     setEditingJourneyId(journey.id);
-    setJourneyEditDraft(journeyEditDraftFromJourney(journey));
+    setJourneyEditDraft(journeyEditDraftFromJourney(journey, audiences));
     setJourneyFeedback("");
     setMessage("");
   }
@@ -1761,7 +1812,7 @@ export default function MarketingAdminPage() {
     setJourneySaving(true);
     setJourneyFeedback("Saving journey...");
     try {
-      const payload = journeyPayloadFromDraft(journeyEditDraft);
+      const payload = journeyPayloadFromDraft(journeyEditDraft, selectedJourneyTargetAudience);
       const isNewJourney = editingJourneyId === "new";
       const result = await api<{ journey: Journey }>(
         isNewJourney ? "/api/admin/marketing/journeys" : `/api/admin/marketing/journeys/${editingJourneyId}`,
@@ -1773,7 +1824,7 @@ export default function MarketingAdminPage() {
       await refreshAll();
       setJourneys((current) => [result.journey, ...current.filter((journey) => journey.id !== result.journey.id)]);
       setEditingJourneyId(result.journey.id);
-      setJourneyEditDraft(journeyEditDraftFromJourney(result.journey));
+      setJourneyEditDraft(journeyEditDraftFromJourney(result.journey, audiences));
       setJourneyFeedback(isNewJourney ? "Created." : "Updated.");
       setMessage(isNewJourney ? "Journey created." : "Journey updated.");
     } catch (error) {
@@ -2825,6 +2876,8 @@ export default function MarketingAdminPage() {
                   <div className="grid content-start gap-3">
                     {journeys.length === 0 ? <EmptyState text="No journeys yet." /> : journeys.map((journey) => {
                       const isActive = editingJourneyId === journey.id;
+                      const journeyAudience = journeyTargetAudience(journey, audiences);
+                      const journeyAudienceReference = journeyAudienceReferenceFromConfig(journey.triggerConfig);
                       return (
                         <article key={journey.id} className={`rounded-xl border p-4 ${isActive ? "border-purple-300 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
                           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2833,9 +2886,10 @@ export default function MarketingAdminPage() {
                               <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{journey.objective || "No objective yet."}</p>
                               {journey.source === "lovable" ? <p className="mt-1 text-xs font-bold text-[#8b7a73]">Lovable source can reimport this after sync.</p> : null}
                               <p className="mt-1 text-xs font-bold text-[#7d6b65]">{activeEnrollmentsByJourneyId.get(journey.id) ?? 0} active / {enrollmentsByJourneyId.get(journey.id) ?? 0} total enrollments</p>
-                              {(journey.triggerType || journey.goalType) ? (
+                              {(journey.triggerType || journey.goalType || journeyAudience || journeyAudienceReference) ? (
                                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black" data-testid={`marketing-journey-logic-${journey.id}`}>
                                   {journey.triggerType ? <Pill className="bg-blue-50 text-blue-800">Trigger: {journey.triggerType}</Pill> : null}
+                                  {journeyAudience || journeyAudienceReference ? <Pill className="bg-violet-50 text-violet-800">List: {journeyAudience?.name ?? journeyAudienceReference}</Pill> : null}
                                   {journey.goalType ? <Pill className="bg-emerald-50 text-emerald-800">Goal: {journey.goalType}</Pill> : null}
                                   <Pill className={journey.exitOnGoal ? "bg-purple-50 text-purple-800" : "bg-amber-50 text-amber-800"}>{journey.exitOnGoal ? "Exit on goal" : "Continue after goal"}</Pill>
                                 </div>
@@ -2879,7 +2933,7 @@ export default function MarketingAdminPage() {
                         {editingJourney ? <Pill className={statusClass(editingJourney.status)}>{editingJourney.status}</Pill> : <Pill className="bg-amber-50 text-amber-800">draft</Pill>}
                       </div>
 
-                      <div className="grid gap-3 xl:grid-cols-[1fr_150px_150px]">
+                      <div className="grid gap-3 xl:grid-cols-[1fr_140px_140px_240px]">
                         <Field label="Journey name">
                           <input className={inputClass} value={journeyEditDraft.name} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Caregiver onboarding sequence" disabled={journeySaving} data-testid="input-marketing-edit-journey-name" />
                         </Field>
@@ -2893,6 +2947,25 @@ export default function MarketingAdminPage() {
                             {JOURNEY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                           </select>
                         </Field>
+                        <Field label="Target list">
+                          <select className={inputClass} value={journeyEditDraft.targetAudienceId} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, targetAudienceId: event.target.value }))} disabled={journeySaving} data-testid="select-marketing-edit-journey-target-audience">
+                            <option value="">No specific list</option>
+                            {audiences.map((audience) => (
+                              <option key={audience.id} value={audience.id}>{audience.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                      </div>
+
+                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] px-4 py-3 text-sm font-bold text-[#6b5b54]" data-testid="marketing-journey-target-audience-summary">
+                        {selectedJourneyTargetAudience ? (
+                          <span>
+                            {selectedJourneyTargetAudience.name}: {selectedJourneyTargetAudience.mappedMemberCount} mapped of {selectedJourneyTargetAudience.memberCount} members
+                            {selectedJourneyTargetAudience.unmappedContactExternalIds.length ? `, ${selectedJourneyTargetAudience.unmappedContactExternalIds.length} unmapped` : ""}. Source {selectedJourneyTargetAudience.source}.
+                          </span>
+                        ) : (
+                          <span>No target list selected. This journey can still use event trigger JSON.</span>
+                        )}
                       </div>
 
                       <Field label="Objective / notes">
