@@ -513,7 +513,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
-    expect(screen.getByTestId("marketing-calendar-tab")).toHaveTextContent("No campaigns match the filters.");
+    expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
@@ -539,6 +540,23 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Set LOVABLE_MARKETING_API_URL");
+  });
+
+  it("shows scheduled and unscheduled campaigns in the calendar and opens campaign details", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+
+    expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-calendar-timeline")).toHaveTextContent("1 scheduled");
+    expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
+
+    fireEvent.click(screen.getByTestId("button-marketing-calendar-edit-campaign-1"));
+
+    expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Caregiver welcome");
   });
 
   it("explains when the current admin cannot run Lovable sync", async () => {

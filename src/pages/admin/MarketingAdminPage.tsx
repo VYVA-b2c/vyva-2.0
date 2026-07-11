@@ -463,6 +463,26 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
+function formatCalendarDay(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unscheduled";
+  return new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" }).format(date);
+}
+
+function formatCalendarTime(value: string | null) {
+  if (!value) return "No time";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function calendarDayKey(value: string | null) {
+  if (!value) return "unscheduled";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unscheduled";
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString();
+}
+
 function statusClass(status: string) {
   if (["published", "active", "succeeded", "opted_in"].includes(status)) return "bg-emerald-50 text-emerald-700";
   if (["scheduled", "running", "pending", "review"].includes(status)) return "bg-sky-50 text-sky-700";
@@ -1235,6 +1255,11 @@ export default function MarketingAdminPage() {
     setMessage("");
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
+  }
+
+  function openCampaignFromCalendar(campaign: Campaign) {
+    startCampaignEdit(campaign);
+    setActiveTab("dashboard");
   }
 
   function cancelCampaignEdit() {
@@ -2679,8 +2704,20 @@ export default function MarketingAdminPage() {
 
           {activeTab === "calendar" && (
             <div className="grid gap-4" data-testid="marketing-calendar-tab">
-              <SectionCard title="Calendar" subtitle="Scheduled campaign metadata only. Dispatch remains locked.">
-                <CampaignTable campaigns={visibleCampaigns.filter((campaign) => campaign.scheduleStartsAt || campaign.status === "scheduled")} />
+              <SectionCard title="Calendar" subtitle="Scheduled campaign timeline and unscheduled planning queue.">
+                <MarketingCalendarView
+                  campaigns={visibleCampaigns}
+                  onEdit={openCampaignFromCalendar}
+                  onDelete={(campaign) => void deleteCampaign(campaign)}
+                />
+              </SectionCard>
+              <SectionCard title="Scheduled campaign details" subtitle="Table view for scheduled records.">
+                <CampaignTable
+                  campaigns={visibleCampaigns.filter((campaign) => campaign.scheduleStartsAt || campaign.status === "scheduled")}
+                  activeCampaignId={editingCampaignId}
+                  onEdit={openCampaignFromCalendar}
+                  onDelete={(campaign) => void deleteCampaign(campaign)}
+                />
               </SectionCard>
             </div>
           )}
@@ -3162,6 +3199,101 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete }: { camp
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Campaign[]; onEdit: (campaign: Campaign) => void; onDelete: (campaign: Campaign) => void }) {
+  const scheduledCampaigns = [...campaigns]
+    .filter((campaign) => campaign.scheduleStartsAt)
+    .sort((a, b) => new Date(a.scheduleStartsAt ?? 0).getTime() - new Date(b.scheduleStartsAt ?? 0).getTime());
+  const unscheduledCampaigns = campaigns.filter((campaign) => !campaign.scheduleStartsAt);
+  const days = scheduledCampaigns.reduce<Array<{ key: string; campaigns: Campaign[] }>>((result, campaign) => {
+    const key = calendarDayKey(campaign.scheduleStartsAt);
+    const existing = result.find((item) => item.key === key);
+    if (existing) existing.campaigns.push(campaign);
+    else result.push({ key, campaigns: [campaign] });
+    return result;
+  }, []);
+
+  if (!campaigns.length) return <EmptyState text="No campaigns match the filters." />;
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="marketing-calendar-scheduler">
+      <div className="grid content-start gap-3" data-testid="marketing-calendar-timeline">
+        {days.length === 0 ? (
+          <EmptyState text="No scheduled campaigns match the filters." />
+        ) : days.map((day) => (
+          <section key={day.key} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-black text-[#241133]">{formatCalendarDay(day.key)}</h3>
+              <Pill className="bg-sky-50 text-sky-700">{day.campaigns.length} scheduled</Pill>
+            </div>
+            <div className="grid gap-2">
+              {day.campaigns.map((campaign) => (
+                <article key={campaign.id} className="rounded-xl border border-[#eadfd5] bg-white p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                        <Clock size={13} aria-hidden="true" /> {formatCalendarTime(campaign.scheduleStartsAt)}
+                      </p>
+                      <h4 className="mt-1 font-black text-[#241133]">{campaign.name}</h4>
+                      <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{campaign.objective || campaign.source}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
+                      <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>
+                      <Pill className="bg-[#f5eee8] text-[#7d6b65]">{campaign.recipientCount} recipients</Pill>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {campaign.channels.length === 0 ? (
+                        <span className="text-xs font-bold text-[#8b7a73]">No channels</span>
+                      ) : campaign.channels.map((item) => (
+                        <Pill key={item.id} className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => onEdit(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-calendar-edit-${campaign.id}`}>
+                        <Pencil size={14} /> Edit
+                      </button>
+                      <button type="button" onClick={() => onDelete(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700" data-testid={`button-marketing-calendar-delete-${campaign.id}`}>
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <aside className="grid content-start gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-calendar-unscheduled">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-black text-[#241133]">Unscheduled drafts</h3>
+          <Pill className="bg-amber-50 text-amber-800">{unscheduledCampaigns.length}</Pill>
+        </div>
+        {unscheduledCampaigns.length === 0 ? (
+          <EmptyState text="No unscheduled campaigns." />
+        ) : unscheduledCampaigns.map((campaign) => (
+          <button
+            key={campaign.id}
+            type="button"
+            onClick={() => onEdit(campaign)}
+            className="rounded-xl border border-[#eadfd5] bg-white p-3 text-left transition hover:border-purple-200 hover:bg-purple-50"
+            data-testid={`button-marketing-calendar-unscheduled-${campaign.id}`}
+          >
+            <span className="block font-black text-[#241133]">{campaign.name}</span>
+            <span className="mt-1 block text-xs font-bold text-[#7d6b65]">{campaign.objective || campaign.source}</span>
+            <span className="mt-2 flex flex-wrap gap-1.5">
+              <Pill className={statusClass(campaign.status)}>{campaign.status}</Pill>
+              <Pill className="bg-purple-50 text-purple-700">{campaign.audienceType.toUpperCase()}</Pill>
+            </span>
+          </button>
+        ))}
+      </aside>
     </div>
   );
 }
