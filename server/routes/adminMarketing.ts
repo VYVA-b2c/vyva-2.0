@@ -323,6 +323,7 @@ function arrayOrSingleton(value: unknown): unknown[] {
 }
 
 const LOVABLE_CONTENT_SOURCE_KEY = "__vyvaLovableContentSource";
+const LOVABLE_AUDIENCE_MEMBER_ROWS_KEY = "__vyvaLovableAudienceMemberRows";
 
 const contentMediaArrayKeys = ["mediaAssets", "media_assets", "media", "images", "attachments"] as const;
 const contentMediaUrlKeys = ["imageUrl", "image_url", "assetUrl", "asset_url", "thumbnailUrl", "thumbnail_url"] as const;
@@ -352,6 +353,48 @@ function contentMediaAssetsFrom(row: Record<string, unknown>) {
     return url ? { url, sourceField: key } : null;
   }).filter((item): item is { url: string; sourceField: string } => Boolean(item));
   return [...nestedAssets, ...urlAssets];
+}
+
+function lovableAudiencePayload(payload: Record<string, unknown>) {
+  const audienceRows = arrayFrom(payload.audiences ?? payload.lists ?? payload.contactLists ?? payload.contact_lists).map(asRecord);
+  const memberRows = arrayFrom(payload.contact_list_members ?? payload.contactListMembers).map(asRecord);
+  if (!memberRows.length) return audienceRows;
+
+  const membersByListId = new Map<string, Record<string, unknown>[]>();
+  for (const member of memberRows) {
+    const listId = emptyToNull(textFrom(member, ["audienceExternalId", "audience_external_id", "audienceId", "audience_id", "contactListId", "contact_list_id", "listId", "list_id"]));
+    if (!listId) continue;
+    const current = membersByListId.get(listId) ?? [];
+    current.push(member);
+    membersByListId.set(listId, current);
+  }
+
+  return audienceRows.map((audience) => {
+    const audienceExternalId = normalizeLovableId(audience);
+    const members = audienceExternalId ? membersByListId.get(audienceExternalId) ?? [] : [];
+    if (!members.length) return audience;
+    const memberContactExternalIds = members.map((member) => (
+      textFrom(member, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"])
+    ));
+    return {
+      ...audience,
+      members: [
+        ...arrayFrom(audience.members),
+        ...members.map((member) => ({
+          ...member,
+          contactExternalId: textFrom(member, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"]),
+        })),
+      ],
+      contactExternalIds: uniqueTextArray([
+        ...textArrayFrom(audience.contactExternalIds),
+        ...textArrayFrom(audience.contact_external_ids),
+        ...textArrayFrom(audience.contactIds),
+        ...textArrayFrom(audience.contact_ids),
+        ...memberContactExternalIds,
+      ]),
+      [LOVABLE_AUDIENCE_MEMBER_ROWS_KEY]: members,
+    };
+  });
 }
 
 function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boolean) {
@@ -478,7 +521,7 @@ const fieldCoverageAliases = {
 
 function fieldCoverageForPayload(payload: unknown[], aliasGroups: readonly (readonly string[])[]) {
   const exportedFields = Array.from(new Set(
-    payload.flatMap((item) => Object.keys(asRecord(item)).filter((key) => key !== LOVABLE_CONTENT_SOURCE_KEY)),
+    payload.flatMap((item) => Object.keys(asRecord(item)).filter((key) => !key.startsWith("__vyva"))),
   )).sort();
   const firstClassFields = exportedFields.filter((field) => aliasGroups.some((aliases) => (aliases as readonly string[]).includes(field)));
   const metadataOnlyFields = exportedFields.filter((field) => !firstClassFields.includes(field));
@@ -2116,6 +2159,7 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
   if (!externalId) return null;
   const contactExternalIds = audienceContactExternalIds(row);
   const unmappedContactExternalIds = contactExternalIds.filter((contactExternalId) => !contactByExternalId.has(contactExternalId));
+  const { [LOVABLE_AUDIENCE_MEMBER_ROWS_KEY]: listMemberRows, ...lovableMetadata } = row;
   const payload = {
     name: textFrom(row, ["name", "title"], "Untitled audience"),
     description: emptyToNull(textFrom(row, ["description"])),
@@ -2124,7 +2168,8 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
     source: "lovable",
     lovable_external_id: externalId,
     metadata: {
-      lovable: row,
+      lovable: lovableMetadata,
+      lovable_list_member_rows: arrayFrom(listMemberRows),
       contact_external_ids: contactExternalIds,
       unmapped_contact_external_ids: unmappedContactExternalIds,
     },
@@ -2543,7 +2588,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const contactPayload = arrayFrom(payload.contacts);
     const campaignPayload = arrayFrom(payload.campaigns);
     const journeyPayload = arrayFrom(payload.journeys);
-    const audiencePayload = arrayFrom(payload.audiences ?? payload.lists ?? payload.contactLists);
+    const audiencePayload = lovableAudiencePayload(payload);
     const campaignMetricPayload = arrayFrom(payload.campaignMetrics ?? payload.campaign_metrics ?? payload.analytics ?? payload.metrics);
     const journeyEnrollmentPayload = arrayFrom(payload.journeyEnrollments ?? payload.journey_enrollments ?? payload.enrollments ?? payload.progress);
     const contentRows: MarketingContentAssetRow[] = [];

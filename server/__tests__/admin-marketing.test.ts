@@ -871,13 +871,21 @@ describe("admin marketing router", () => {
         market: "Spain",
         tags: ["partner"],
       }],
-      audiences: [{
+      contact_lists: [{
         id: "audience-1",
         name: "Partners",
         description: "Partner mailing list",
         listType: "static",
         rules: { market: "Spain" },
-        contactExternalIds: ["contact-1", "missing-contact"],
+      }],
+      contact_list_members: [{
+        id: "list-member-1",
+        list_id: "audience-1",
+        contact_id: "contact-1",
+      }, {
+        id: "list-member-2",
+        list_id: "audience-1",
+        contact_id: "missing-contact",
       }],
       campaigns: [{
         id: "campaign-1",
