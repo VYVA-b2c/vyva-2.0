@@ -260,6 +260,14 @@ function uniqueTextArray(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
 }
 
+function textFromSources(sources: Array<Record<string, unknown>>, keys: string[], fallback = "") {
+  for (const source of sources) {
+    const value = textFrom(source, keys);
+    if (value) return value;
+  }
+  return fallback;
+}
+
 function splitTextList(value: unknown) {
   if (Array.isArray(value)) {
     return value.map((item) => {
@@ -274,12 +282,35 @@ function splitTextList(value: unknown) {
   return [];
 }
 
+function contactFieldSources(row: Record<string, unknown>) {
+  const metadata = asRecord(row.metadata);
+  return [
+    row,
+    asRecord(row.contact),
+    asRecord(row.profile),
+    asRecord(row.properties),
+    asRecord(row.fields),
+    asRecord(row.customFields ?? row.custom_fields),
+    metadata,
+    asRecord(metadata.lovable),
+    asRecord(metadata.contact),
+    asRecord(metadata.profile),
+    asRecord(metadata.properties),
+    asRecord(metadata.fields),
+    asRecord(metadata.customFields ?? metadata.custom_fields),
+  ];
+}
+
+function contactText(row: Record<string, unknown>, keys: string[], fallback = "") {
+  return textFromSources(contactFieldSources(row), keys, fallback);
+}
+
 function contactFullName(row: Record<string, unknown>) {
-  const explicit = emptyToNull(textFrom(row, ["fullName", "full_name", "name", "displayName", "display_name"]));
+  const explicit = emptyToNull(contactText(row, ["fullName", "full_name", "name", "displayName", "display_name"]));
   if (explicit) return explicit;
   return uniqueTextArray([
-    emptyToNull(textFrom(row, ["firstName", "first_name", "givenName", "given_name"])),
-    emptyToNull(textFrom(row, ["lastName", "last_name", "familyName", "family_name", "surname"])),
+    emptyToNull(contactText(row, ["firstName", "first_name", "givenName", "given_name"])),
+    emptyToNull(contactText(row, ["lastName", "last_name", "familyName", "family_name", "surname"])),
   ]).join(" ");
 }
 
@@ -403,7 +434,9 @@ function lovableAudiencePayload(payload: Record<string, unknown>) {
 
   return audienceRows.map((audience) => {
     const audienceExternalId = normalizeLovableId(audience);
-    const members = audienceExternalId ? membersByListId.get(audienceExternalId) ?? [] : [];
+    const members = audienceExternalId
+      ? externalIdVariants(audienceExternalId, ["audience", "list", "contact_list"]).flatMap((variant) => membersByListId.get(variant) ?? [])
+      : [];
     if (!members.length) return audience;
     const memberContactExternalIds = members.map((member) => (
       textFrom(member, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"])
@@ -474,7 +507,9 @@ function lovableJourneyPayload(payload: Record<string, unknown>) {
 
   return journeyRows.map((journey) => {
     const journeyExternalId = normalizeLovableId(journey);
-    const rawSteps = journeyExternalId ? stepsByJourneyId.get(journeyExternalId) ?? [] : [];
+    const rawSteps = journeyExternalId
+      ? externalIdVariants(journeyExternalId, ["journey", "workflow"]).flatMap((variant) => stepsByJourneyId.get(variant) ?? [])
+      : [];
     if (!rawSteps.length) return journey;
     return {
       ...journey,
@@ -498,7 +533,7 @@ function lovableContactPayload(payload: Record<string, unknown>) {
   }
 
   return contactRows.map((contact) => {
-    const email = emptyToNull(textFrom(contact, ["email"]))?.toLowerCase();
+    const email = emptyToNull(contactText(contact, ["email", "emailAddress", "email_address"]))?.toLowerCase();
     const unsubscribeMatches = email ? unsubscribesByEmail.get(email) ?? [] : [];
     if (!unsubscribeMatches.length) return contact;
     return {
@@ -550,11 +585,7 @@ function groupCampaignChildRows(rows: Record<string, unknown>[]) {
 }
 
 function campaignChildRowsForCampaign(grouped: Map<string, Record<string, unknown>[]>, campaignExternalId: string) {
-  return [
-    ...(grouped.get(campaignExternalId) ?? []),
-    ...(campaignExternalId.includes(":") ? grouped.get(campaignExternalId.split(":").slice(1).join(":")) ?? [] : []),
-    ...(!campaignExternalId.includes(":") ? grouped.get(`campaign:${campaignExternalId}`) ?? [] : []),
-  ];
+  return externalIdVariants(campaignExternalId, ["campaign"]).flatMap((variant) => grouped.get(variant) ?? []);
 }
 
 function lovableCampaignChannelRows(payload: Record<string, unknown>) {
@@ -573,7 +604,7 @@ function campaignRecipientSourceCount(row: Record<string, unknown>, audienceCont
   const explicitCount = campaignRecipientPayload(row).length;
   const directCount = campaignDirectContactExternalIds(row).length;
   const audienceCount = campaignAudienceExternalIds(row).reduce((count, audienceExternalId) => (
-    count + (audienceContactExternalIdsByAudienceExternalId.get(audienceExternalId)?.length ?? 0)
+    count + (lookupByExternalId(audienceContactExternalIdsByAudienceExternalId, audienceExternalId, ["audience", "list", "contact_list"])?.length ?? 0)
   ), 0);
   return Math.max(explicitCount, directCount + audienceCount);
 }
@@ -620,16 +651,7 @@ function lovableContentReference(row: Record<string, unknown>) {
 }
 
 function contentIdForLovableReference(contentByExternalId: Map<string, string>, externalId: string) {
-  const normalized = emptyToNull(externalId);
-  if (!normalized) return null;
-  return contentByExternalId.get(normalized)
-    ?? contentByExternalId.get(`content:${normalized}`)
-    ?? contentByExternalId.get(`content_asset:${normalized}`)
-    ?? contentByExternalId.get(`saved_email_template:${normalized}`)
-    ?? contentByExternalId.get(`social_post:${normalized}`)
-    ?? contentByExternalId.get(`template:${normalized}`)
-    ?? contentByExternalId.get(`content_brief:${normalized}`)
-    ?? null;
+  return lookupByExternalId(contentByExternalId, externalId, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]) ?? null;
 }
 
 function campaignChannelPayload(row: Record<string, unknown>) {
@@ -831,6 +853,55 @@ function normalizeRecipientStatus(value: string) {
 
 function normalizeLovableId(row: Record<string, unknown>) {
   return emptyToNull(textFrom(row, ["lovableExternalId", "lovable_external_id", "externalId", "external_id", "id"]));
+}
+
+function externalIdVariants(externalId: string | null | undefined, prefixes: string[] = []) {
+  const trimmed = emptyToNull(externalId);
+  if (!trimmed) return [];
+  const variants = [trimmed];
+  if (trimmed.includes(":")) {
+    const raw = trimmed.split(":").slice(1).join(":");
+    if (raw) variants.push(raw);
+  } else {
+    variants.push(...prefixes.map((prefix) => `${prefix}:${trimmed}`));
+  }
+  return Array.from(new Set(variants));
+}
+
+function lookupByExternalId<T>(map: Map<string, T>, externalId: string | null | undefined, prefixes: string[] = []) {
+  for (const variant of externalIdVariants(externalId, prefixes)) {
+    const value = map.get(variant);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function addExternalIdVariants<T>(map: Map<string, T>, externalId: string | null | undefined, value: T, prefixes: string[] = []) {
+  for (const variant of externalIdVariants(externalId, prefixes)) {
+    map.set(variant, value);
+  }
+}
+
+function jsonObjectFromLovable(value: unknown, arrayKey: string) {
+  if (Array.isArray(value)) return { [arrayKey]: value };
+  return asRecord(value);
+}
+
+function contentDesignJson(row: Record<string, unknown>) {
+  const candidates: Array<[unknown, string]> = [
+    [row.designJson, "designJson"],
+    [row.design_json, "design_json"],
+    [row.design, "design"],
+    [row.layout, "layout"],
+    [row.blocks, "blocks"],
+    [row.templateJson, "templateJson"],
+    [row.template_json, "template_json"],
+  ];
+  for (const [value, key] of candidates) {
+    const object = jsonObjectFromLovable(value, key);
+    if (Object.keys(object).length > 0) return object;
+  }
+  return {};
 }
 
 function iso(value: Date | null | undefined) {
@@ -2287,7 +2358,7 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
       ? `${sourceType}:${rawExternalId}`
       : null;
   if (!externalId) return null;
-  const designJson = asRecord(row.designJson ?? row.design_json ?? row.design ?? row.layout ?? row.blocks ?? row.templateJson ?? row.template_json);
+  const designJson = contentDesignJson(row);
   const mediaAssets = contentMediaAssetsFrom(row);
   const title = textFrom(
     row,
@@ -2361,14 +2432,15 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   const { [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeRows, ...lovableMetadata } = row;
   const metadata = asRecord(row.metadata);
   const segmentation = asRecord(row.segmentation ?? metadata.segmentation);
-  const language = nestedText(segmentation, row, metadata, ["language", "lang", "locale", "preferredLanguage", "preferred_language"]);
-  const category = nestedText(segmentation, row, metadata, ["category", "contactCategory", "contact_category"]);
-  const vertical = nestedText(segmentation, row, metadata, ["vertical", "industry", "sector"]);
-  const market = nestedText(segmentation, row, metadata, ["market", "country", "region"]);
-  const email = emptyToNull(textFrom(row, ["email", "emailAddress", "email_address"]));
-  const phoneNumber = emptyToNull(textFrom(row, ["phoneNumber", "phone_number", "phone", "mobileNumber", "mobile_number", "mobile", "telephone"]));
-  const whatsappNumber = emptyToNull(textFrom(row, ["whatsappNumber", "whatsapp_number", "whatsapp", "whatsAppNumber", "whats_app_number"]));
-  const consentStatus = normalizeConsentStatus(textFrom(row, ["consentStatus", "consent_status", "subscriptionStatus", "subscription_status", "emailStatus", "email_status"], "unknown"));
+  const contactSources = contactFieldSources(row);
+  const language = emptyToNull(textFromSources([segmentation, ...contactSources], ["language", "lang", "locale", "preferredLanguage", "preferred_language"]));
+  const category = emptyToNull(textFromSources([segmentation, ...contactSources], ["category", "contactCategory", "contact_category"]));
+  const vertical = emptyToNull(textFromSources([segmentation, ...contactSources], ["vertical", "industry", "sector"]));
+  const market = emptyToNull(textFromSources([segmentation, ...contactSources], ["market", "country", "region"]));
+  const email = emptyToNull(contactText(row, ["email", "emailAddress", "email_address"]));
+  const phoneNumber = emptyToNull(contactText(row, ["phoneNumber", "phone_number", "phone", "mobileNumber", "mobile_number", "mobile", "telephone"]));
+  const whatsappNumber = emptyToNull(contactText(row, ["whatsappNumber", "whatsapp_number", "whatsapp", "whatsAppNumber", "whats_app_number"]));
+  const consentStatus = normalizeConsentStatus(contactText(row, ["consentStatus", "consent_status", "subscriptionStatus", "subscription_status", "emailStatus", "email_status"], "unknown"));
   const channelAvailability = {
     email: Boolean(email),
     phone: Boolean(phoneNumber),
@@ -2381,8 +2453,8 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     email,
     phone_number: phoneNumber,
     whatsapp_number: whatsappNumber,
-    role_label: emptyToNull(textFrom(row, ["roleLabel", "role_label", "role", "jobTitle", "job_title", "title", "position"])),
-    company_name: emptyToNull(textFrom(row, ["companyName", "company_name", "company", "organization", "organizationName", "organization_name", "organisation", "organisationName", "organisation_name"])),
+    role_label: emptyToNull(contactText(row, ["roleLabel", "role_label", "role", "jobTitle", "job_title", "title", "position"])),
+    company_name: emptyToNull(contactText(row, ["companyName", "company_name", "company", "organization", "organizationName", "organization_name", "organisation", "organisationName", "organisation_name"])),
     language,
     category,
     vertical,
@@ -2390,11 +2462,11 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     consent_status: consentStatus,
     source: "lovable",
     channel_availability: channelAvailability,
-    tags: uniqueTextArray([
-      ...splitTextList(row.tags),
-      ...splitTextList(row.tagNames ?? row.tag_names),
-      ...splitTextList(row.labels),
-    ]),
+    tags: uniqueTextArray(contactSources.flatMap((source) => [
+      ...splitTextList(source.tags),
+      ...splitTextList(source.tagNames ?? source.tag_names),
+      ...splitTextList(source.labels),
+    ])),
     lovable_external_id: externalId,
     last_synced_at: now,
     metadata: {
@@ -2416,7 +2488,7 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
   const externalId = normalizeLovableId(row);
   if (!externalId) return null;
   const contactExternalIds = audienceContactExternalIds(row);
-  const unmappedContactExternalIds = contactExternalIds.filter((contactExternalId) => !contactByExternalId.has(contactExternalId));
+  const unmappedContactExternalIds = contactExternalIds.filter((contactExternalId) => !lookupByExternalId(contactByExternalId, contactExternalId, ["contact"]));
   const { [LOVABLE_AUDIENCE_MEMBER_ROWS_KEY]: listMemberRows, ...lovableMetadata } = row;
   const payload = {
     name: textFrom(row, ["name", "title"], "Untitled audience"),
@@ -2444,12 +2516,12 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
   if (contactExternalIds.length) {
     await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => ({
       audience_id: audience.id,
-      contact_id: contactByExternalId.get(contactExternalId) ?? null,
+      contact_id: lookupByExternalId(contactByExternalId, contactExternalId, ["contact"]) ?? null,
       contact_external_id: contactExternalId,
       source: "lovable",
       metadata: {
         lovable_audience_external_id: externalId,
-        mapped: contactByExternalId.has(contactExternalId),
+        mapped: Boolean(lookupByExternalId(contactByExternalId, contactExternalId, ["contact"])),
       },
       updated_at: now,
     })));
@@ -2480,7 +2552,9 @@ function lovableCampaignRecipients(
   const explicitRows = campaignRecipientPayload(row);
   const directContactExternalIds = campaignDirectContactExternalIds(row);
   const audienceExternalIds = campaignAudienceExternalIds(row);
-  const audienceContactExternalIds = audienceExternalIds.flatMap((audienceExternalId) => audienceContactExternalIdsByAudienceExternalId.get(audienceExternalId) ?? []);
+  const audienceContactExternalIds = audienceExternalIds.flatMap((audienceExternalId) => (
+    lookupByExternalId(audienceContactExternalIdsByAudienceExternalId, audienceExternalId, ["audience", "list", "contact_list"]) ?? []
+  ));
   const referencedContactExternalIds = uniqueTextArray([...directContactExternalIds, ...audienceContactExternalIds]);
   const hasRecipientSource = explicitRows.length > 0 || directContactExternalIds.length > 0 || audienceExternalIds.length > 0;
   const unmappedContactExternalIds: string[] = [];
@@ -2521,7 +2595,7 @@ function lovableCampaignRecipients(
   for (const explicitRaw of explicitRows) {
     const explicit = asRecord(explicitRaw);
     const contactExternalId = emptyToNull(textFrom(explicit, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"]));
-    const contact = contactExternalId ? contactRowByExternalId.get(contactExternalId) ?? null : null;
+    const contact = contactExternalId ? lookupByExternalId(contactRowByExternalId, contactExternalId, ["contact"]) ?? null : null;
     const channel = normalizeChannel(textFrom(explicit, ["channel"], defaultChannel));
     const fallbackRecipient = textFrom(explicit, ["recipient", "email", "phoneNumber", "phone_number", "whatsappNumber", "whatsapp_number", "phone", "whatsapp"]);
     const recipient = fallbackRecipient || (contact ? recipientValueForContact(contact, channel) ?? "" : "");
@@ -2538,7 +2612,7 @@ function lovableCampaignRecipients(
   }
 
   for (const contactExternalId of referencedContactExternalIds) {
-    const contact = contactRowByExternalId.get(contactExternalId) ?? null;
+    const contact = lookupByExternalId(contactRowByExternalId, contactExternalId, ["contact"]) ?? null;
     if (!contact) {
       unmappedContactExternalIds.push(contactExternalId);
       continue;
@@ -2587,7 +2661,7 @@ async function upsertLovableCampaignMetric(
 ) {
   const row = asRecord(raw);
   const campaignExternalId = emptyToNull(textFrom(row, ["campaignExternalId", "campaign_external_id", "campaignId", "campaign_id"])) ?? fallbackCampaignExternalId;
-  const campaign = campaignExternalId ? campaignByExternalId.get(campaignExternalId) ?? null : null;
+  const campaign = campaignExternalId ? lookupByExternalId(campaignByExternalId, campaignExternalId, ["campaign"]) ?? null : null;
   const channel = normalizeMetricChannel(textFrom(row, ["channel"], "all"));
   const metricDate = dateOrNull(dateTextFrom(row, ["metricDate", "metric_date", "date", "updatedAt", "updated_at"]));
   const externalId = normalizeLovableId(row)
@@ -2754,10 +2828,10 @@ async function upsertLovableJourneyEnrollment(
 ) {
   const row = asRecord(raw);
   const journeyExternalId = emptyToNull(textFrom(row, ["journeyExternalId", "journey_external_id", "journeyId", "journey_id"])) ?? fallbackJourneyExternalId;
-  const journey = journeyExternalId ? journeyByExternalId.get(journeyExternalId) ?? null : null;
+  const journey = journeyExternalId ? lookupByExternalId(journeyByExternalId, journeyExternalId, ["journey", "workflow"]) ?? null : null;
   if (!journey) return null;
   const contactExternalId = emptyToNull(textFrom(row, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id"]));
-  const contact = contactExternalId ? contactRowByExternalId.get(contactExternalId) ?? null : null;
+  const contact = contactExternalId ? lookupByExternalId(contactRowByExternalId, contactExternalId, ["contact"]) ?? null : null;
   const currentStepOrder = numberFrom(row, ["currentStepOrder", "current_step_order", "stepOrder", "step_order"], 0);
   const externalId = normalizeLovableId(row)
     ?? `${journeyExternalId}:enrollment:${contactExternalId ?? index}`;
@@ -2858,13 +2932,16 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       contentRows.push(result.content);
       mediaAssetCount += result.mediaAssetCount;
     }
-    const contentByExternalId = new Map(contentRows.map((item) => [item.lovable_external_id ?? "", item.id]).filter(([externalId]) => externalId));
+    const contentByExternalId = new Map<string, string>();
+    for (const item of contentRows) {
+      addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
+    }
     if (contentByExternalId.size < contentRows.length) {
       const ids = contentRows.map((item) => item.lovable_external_id).filter((value): value is string => Boolean(value));
       if (ids.length) {
         const rows = await db.select().from(marketingContentAssets).where(inArray(marketingContentAssets.lovable_external_id, ids));
         for (const item of rows) {
-          if (item.lovable_external_id) contentByExternalId.set(item.lovable_external_id, item.id);
+          addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
         }
       }
     }
@@ -2876,16 +2953,19 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     }
     const contactRowByExternalId = new Map<string, MarketingContactRow>();
     for (const item of contactRows) {
-      if (item.lovable_external_id) contactRowByExternalId.set(item.lovable_external_id, item);
+      addExternalIdVariants(contactRowByExternalId, item.lovable_external_id, item, ["contact"]);
     }
-    const contactByExternalId = new Map(contactRows.map((item) => [item.lovable_external_id ?? "", item.id]).filter(([externalId]) => externalId));
+    const contactByExternalId = new Map<string, string>();
+    for (const item of contactRows) {
+      addExternalIdVariants(contactByExternalId, item.lovable_external_id, item.id, ["contact"]);
+    }
     if (contactByExternalId.size < contactRows.length) {
       const ids = contactRows.map((item) => item.lovable_external_id).filter((value): value is string => Boolean(value));
       if (ids.length) {
         const rows = await db.select().from(marketingContacts).where(inArray(marketingContacts.lovable_external_id, ids));
         for (const item of rows) {
-          if (item.lovable_external_id) contactByExternalId.set(item.lovable_external_id, item.id);
-          if (item.lovable_external_id) contactRowByExternalId.set(item.lovable_external_id, item);
+          addExternalIdVariants(contactByExternalId, item.lovable_external_id, item.id, ["contact"]);
+          addExternalIdVariants(contactRowByExternalId, item.lovable_external_id, item, ["contact"]);
         }
       }
     }
@@ -2898,7 +2978,11 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     for (const item of audiencePayload) {
       const audienceRow = asRecord(item);
       const audienceExternalId = normalizeLovableId(audienceRow);
-      if (audienceExternalId) audienceContactExternalIdsByAudienceExternalId.set(audienceExternalId, audienceContactExternalIds(audienceRow));
+      if (audienceExternalId) {
+        for (const variant of externalIdVariants(audienceExternalId, ["audience", "list", "contact_list"])) {
+          audienceContactExternalIdsByAudienceExternalId.set(variant, audienceContactExternalIds(audienceRow));
+        }
+      }
       const result = await upsertLovableAudience(item, now, actorLabel, contactByExternalId);
       if (!result) continue;
       audienceCount += 1;
@@ -2958,11 +3042,11 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
 
     const campaignByExternalId = new Map<string, MarketingCampaignRow>();
     for (const item of campaignRows) {
-      if (item.lovable_external_id) campaignByExternalId.set(item.lovable_external_id, item);
+      addExternalIdVariants(campaignByExternalId, item.lovable_external_id, item, ["campaign"]);
     }
     const knownCampaignRows = await db.select().from(marketingCampaigns).orderBy(desc(marketingCampaigns.updated_at)).limit(5000);
     for (const item of knownCampaignRows) {
-      if (item.lovable_external_id) campaignByExternalId.set(item.lovable_external_id, item);
+      addExternalIdVariants(campaignByExternalId, item.lovable_external_id, item, ["campaign"]);
     }
     let campaignMetricCount = 0;
     const allCampaignMetricPayload = [
@@ -2975,11 +3059,11 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
 
     const journeyByExternalId = new Map<string, MarketingJourneyRow>();
     for (const item of journeyRows) {
-      if (item.lovable_external_id) journeyByExternalId.set(item.lovable_external_id, item);
+      addExternalIdVariants(journeyByExternalId, item.lovable_external_id, item, ["journey", "workflow"]);
     }
     const knownJourneyRows = await db.select().from(marketingJourneys).orderBy(desc(marketingJourneys.updated_at)).limit(5000);
     for (const item of knownJourneyRows) {
-      if (item.lovable_external_id) journeyByExternalId.set(item.lovable_external_id, item);
+      addExternalIdVariants(journeyByExternalId, item.lovable_external_id, item, ["journey", "workflow"]);
     }
     const knownJourneySteps = await db.select().from(marketingJourneySteps).orderBy(asc(marketingJourneySteps.step_order)).limit(20000);
     const stepByJourneyAndOrder = new Map(knownJourneySteps.map((step) => [`${step.journey_id}:${step.step_order}`, step]));

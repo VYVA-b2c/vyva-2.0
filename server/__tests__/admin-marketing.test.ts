@@ -823,13 +823,13 @@ describe("admin marketing router", () => {
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
     const lovablePayload = {
       content: [{
-        id: "content-1",
+        id: "content:content-1",
         title: "Welcome email",
         channel: "email",
         subject: "Welcome",
         body: "Hello",
         htmlBody: "<h1>Hello</h1>",
-        designJson: { blocks: [{ type: "hero" }] },
+        blocks: [{ type: "hero" }],
         mediaAssets: [{ url: "https://cdn.example.test/hero.png", type: "image" }],
         ctaLabel: "Start",
         ctaUrl: "https://v2.vyva.life/start",
@@ -857,11 +857,13 @@ describe("admin marketing router", () => {
         brief: "Long-form planning brief",
       }],
       contacts: [{
-        id: "contact-1",
-        name: "Hassan",
-        email: "hassan@example.com",
-        phoneNumber: "+34 600 000 001",
-        whatsappNumber: "+34 600 000 002",
+        id: "contact:contact-1",
+        profile: {
+          firstName: "Hassan",
+          emailAddress: "hassan@example.com",
+          phoneNumber: "+34 600 000 001",
+          whatsappNumber: "+34 600 000 002",
+        },
         audienceType: "b2b",
         roleLabel: "Partner",
         companyName: "Moka",
@@ -877,7 +879,7 @@ describe("admin marketing router", () => {
         reason: "lovable_opt_out",
       }],
       contact_lists: [{
-        id: "audience-1",
+        id: "audience:audience-1",
         name: "Partners",
         description: "Partner mailing list",
         listType: "static",
@@ -893,7 +895,7 @@ describe("admin marketing router", () => {
         contact_id: "missing-contact",
       }],
       campaigns: [{
-        id: "campaign-1",
+        id: "campaign:campaign-1",
         name: "Welcome campaign",
         status: "scheduled",
         audienceExternalIds: ["audience-1"],
@@ -918,7 +920,7 @@ describe("admin marketing router", () => {
         clicked: 3,
       }],
       journeys: [{
-        id: "journey-1",
+        id: "journey:journey-1",
         name: "Nurture",
         triggerType: "signup",
         triggerConfig: { source: "campaign" },
@@ -1014,6 +1016,10 @@ describe("admin marketing router", () => {
     });
     expect(table("marketing_contacts")).toHaveLength(1);
     expect(table("marketing_contacts")[0]).toMatchObject({
+      full_name: "Hassan",
+      email: "hassan@example.com",
+      phone_number: "+34 600 000 001",
+      whatsapp_number: "+34 600 000 002",
       language: "en",
       category: "lead",
       vertical: "healthcare",
@@ -1216,7 +1222,7 @@ describe("admin marketing router", () => {
     });
   });
 
-  it("maps Lovable CRM-style contact aliases into first-class contact fields", async () => {
+  it("maps Lovable CRM-style contact aliases and unsubscribe aliases into first-class contact fields", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
@@ -1236,6 +1242,10 @@ describe("admin marketing router", () => {
           country: "Spain",
           subscription_status: "subscribed",
           tags: "warm, madrid; public",
+        }],
+        email_unsubscribes: [{
+          id: "unsubscribe-1",
+          email_address: "maria@example.com",
         }],
       }), { status: 200, headers: { "Content-Type": "application/json" } })
     ));
@@ -1257,7 +1267,7 @@ describe("admin marketing router", () => {
       category: "partner",
       vertical: "healthcare",
       market: "Spain",
-      consent_status: "opted_in",
+      consent_status: "opted_out",
       tags: ["warm", "madrid", "public"],
     });
 
@@ -1273,7 +1283,7 @@ describe("admin marketing router", () => {
           roleLabel: "Partnership lead",
           companyName: "Madrid Health",
           language: "es",
-          consentStatus: "opted_in",
+          consentStatus: "opted_out",
           tags: ["warm", "madrid", "public"],
         });
       });
