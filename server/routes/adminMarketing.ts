@@ -39,6 +39,20 @@ export const adminMarketingRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 
+function marketingSchemaErrorMessage(error: unknown, fallback: string) {
+  const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const missingRelation = /relation "([^"]+)" does not exist/i.exec(message)?.[1];
+  const missingColumn = /column (?:"?([^"\s]+)"?\.)?"?([^"\s]+)"? does not exist/i.exec(message)?.[2];
+  if (code === "42P01" || missingRelation) {
+    return `Marketing database schema is behind this build. Missing table "${missingRelation ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, then retry.`;
+  }
+  if (code === "42703" || missingColumn) {
+    return `Marketing database schema is behind this build. Missing column "${missingColumn ?? "unknown"}". Apply the committed marketing migrations through 0064_marketing_parity_completion.sql, then retry.`;
+  }
+  return fallback;
+}
+
 const marketingChannels = ["email", "whatsapp", "facebook", "instagram", "linkedin", "tiktok"] as const;
 const audienceTypes = ["b2c", "b2b", "both"] as const;
 const campaignStatuses = ["draft", "scheduled", "published", "paused", "archived"] as const;
@@ -1368,7 +1382,7 @@ adminMarketingRouter.get("/summary", async (_req, res) => {
     });
   } catch (error) {
     console.error("[admin/marketing] summary failed", error);
-    return res.status(500).json({ error: "Marketing summary could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing summary could not be loaded.") });
   }
 });
 
@@ -1388,7 +1402,7 @@ adminMarketingRouter.get("/campaigns", async (req, res) => {
     return res.json({ campaigns });
   } catch (error) {
     console.error("[admin/marketing] campaigns load failed", error);
-    return res.status(500).json({ error: "Marketing campaigns could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing campaigns could not be loaded.") });
   }
 });
 
@@ -1418,7 +1432,7 @@ adminMarketingRouter.get("/analytics", async (req, res) => {
     return res.json({ totals, metrics });
   } catch (error) {
     console.error("[admin/marketing] analytics load failed", error);
-    return res.status(500).json({ error: "Marketing analytics could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing analytics could not be loaded.") });
   }
 });
 
@@ -1473,7 +1487,7 @@ adminMarketingRouter.post("/campaigns", async (req, res) => {
     return res.status(201).json({ ok: true, campaign: serializeCampaign(campaign, channels, recipients) });
   } catch (error) {
     console.error("[admin/marketing] campaign create failed", error);
-    return res.status(500).json({ error: "Marketing campaign could not be created." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing campaign could not be created.") });
   }
 });
 
@@ -1541,7 +1555,7 @@ adminMarketingRouter.patch("/campaigns/:campaignId", async (req, res) => {
     return res.json({ ok: true, campaign: serializeCampaign(campaign, channels, recipients) });
   } catch (error) {
     console.error("[admin/marketing] campaign update failed", error);
-    return res.status(500).json({ error: "Marketing campaign could not be updated." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing campaign could not be updated.") });
   }
 });
 
@@ -1555,7 +1569,7 @@ adminMarketingRouter.delete("/campaigns/:campaignId", async (req, res) => {
     return res.json({ ok: true, deletedCampaignId: campaign.id });
   } catch (error) {
     console.error("[admin/marketing] campaign delete failed", error);
-    return res.status(500).json({ error: "Marketing campaign could not be deleted." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing campaign could not be deleted.") });
   }
 });
 
@@ -1865,7 +1879,7 @@ adminMarketingRouter.get("/content", async (req, res) => {
     return res.json({ content });
   } catch (error) {
     console.error("[admin/marketing] content load failed", error);
-    return res.status(500).json({ error: "Marketing content could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing content could not be loaded.") });
   }
 });
 
@@ -1888,7 +1902,7 @@ adminMarketingRouter.get("/media", async (req, res) => {
     return res.json({ mediaAssets });
   } catch (error) {
     console.error("[admin/marketing] media load failed", error);
-    return res.status(500).json({ error: "Marketing media assets could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing media assets could not be loaded.") });
   }
 });
 
@@ -1918,7 +1932,7 @@ adminMarketingRouter.post("/content", async (req, res) => {
     return res.status(201).json({ ok: true, content: serializeContent(content) });
   } catch (error) {
     console.error("[admin/marketing] content create failed", error);
-    return res.status(500).json({ error: "Marketing content could not be created." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing content could not be created.") });
   }
 });
 
@@ -1949,7 +1963,7 @@ adminMarketingRouter.patch("/content/:contentId", async (req, res) => {
     return res.json({ ok: true, content: serializeContent(content) });
   } catch (error) {
     console.error("[admin/marketing] content update failed", error);
-    return res.status(500).json({ error: "Marketing content could not be updated." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing content could not be updated.") });
   }
 });
 
@@ -1962,7 +1976,7 @@ adminMarketingRouter.delete("/content/:contentId", async (req, res) => {
     return res.json({ ok: true, deletedContentId: content.id });
   } catch (error) {
     console.error("[admin/marketing] content delete failed", error);
-    return res.status(500).json({ error: "Marketing content could not be deleted." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing content could not be deleted.") });
   }
 });
 
@@ -1982,7 +1996,7 @@ adminMarketingRouter.get("/journeys", async (req, res) => {
     return res.json({ journeys });
   } catch (error) {
     console.error("[admin/marketing] journeys load failed", error);
-    return res.status(500).json({ error: "Marketing journeys could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing journeys could not be loaded.") });
   }
 });
 
@@ -2007,7 +2021,7 @@ adminMarketingRouter.get("/journey-enrollments", async (req, res) => {
     return res.json({ enrollments });
   } catch (error) {
     console.error("[admin/marketing] journey enrollments load failed", error);
-    return res.status(500).json({ error: "Marketing journey enrollments could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing journey enrollments could not be loaded.") });
   }
 });
 
@@ -2053,7 +2067,7 @@ adminMarketingRouter.post("/journeys", async (req, res) => {
     return res.status(201).json({ ok: true, journey: serializeJourney(journey, steps) });
   } catch (error) {
     console.error("[admin/marketing] journey create failed", error);
-    return res.status(500).json({ error: "Marketing journey could not be created." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing journey could not be created.") });
   }
 });
 
@@ -2103,7 +2117,7 @@ adminMarketingRouter.patch("/journeys/:journeyId", async (req, res) => {
     return res.json({ ok: true, journey: serializeJourney(journey, steps) });
   } catch (error) {
     console.error("[admin/marketing] journey update failed", error);
-    return res.status(500).json({ error: "Marketing journey could not be updated." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing journey could not be updated.") });
   }
 });
 
@@ -2116,7 +2130,7 @@ adminMarketingRouter.delete("/journeys/:journeyId", async (req, res) => {
     return res.json({ ok: true, deletedJourneyId: journey.id });
   } catch (error) {
     console.error("[admin/marketing] journey delete failed", error);
-    return res.status(500).json({ error: "Marketing journey could not be deleted." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing journey could not be deleted.") });
   }
 });
 
@@ -2141,7 +2155,7 @@ adminMarketingRouter.get("/audiences", async (req, res) => {
     return res.json({ audiences });
   } catch (error) {
     console.error("[admin/marketing] audiences load failed", error);
-    return res.status(500).json({ error: "Marketing audiences could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audiences could not be loaded.") });
   }
 });
 
@@ -2181,7 +2195,7 @@ adminMarketingRouter.post("/audiences", async (req, res) => {
     return res.status(201).json({ ok: true, audience: serializeAudience(audience, members) });
   } catch (error) {
     console.error("[admin/marketing] audience create failed", error);
-    return res.status(500).json({ error: "Marketing audience could not be created." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audience could not be created.") });
   }
 });
 
@@ -2225,7 +2239,7 @@ adminMarketingRouter.patch("/audiences/:audienceId", async (req, res) => {
     return res.json({ ok: true, audience: serializeAudience(audience, members) });
   } catch (error) {
     console.error("[admin/marketing] audience update failed", error);
-    return res.status(500).json({ error: "Marketing audience could not be updated." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audience could not be updated.") });
   }
 });
 
@@ -2238,7 +2252,7 @@ adminMarketingRouter.delete("/audiences/:audienceId", async (req, res) => {
     return res.json({ ok: true, deletedAudienceId: audience.id });
   } catch (error) {
     console.error("[admin/marketing] audience delete failed", error);
-    return res.status(500).json({ error: "Marketing audience could not be deleted." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audience could not be deleted.") });
   }
 });
 
@@ -2286,7 +2300,7 @@ adminMarketingRouter.get("/contacts", async (req, res) => {
     return res.json({ contacts });
   } catch (error) {
     console.error("[admin/marketing] contacts load failed", error);
-    return res.status(500).json({ error: "Marketing contacts could not be loaded." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing contacts could not be loaded.") });
   }
 });
 
@@ -2319,7 +2333,7 @@ adminMarketingRouter.post("/contacts", async (req, res) => {
     return res.status(201).json({ ok: true, contact: serializeContact(contact) });
   } catch (error) {
     console.error("[admin/marketing] contact create failed", error);
-    return res.status(500).json({ error: "Marketing contact could not be created." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing contact could not be created.") });
   }
 });
 
@@ -2352,7 +2366,7 @@ adminMarketingRouter.patch("/contacts/:contactId", async (req, res) => {
     return res.json({ ok: true, contact: serializeContact(contact) });
   } catch (error) {
     console.error("[admin/marketing] contact update failed", error);
-    return res.status(500).json({ error: "Marketing contact could not be updated." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing contact could not be updated.") });
   }
 });
 
@@ -2365,7 +2379,7 @@ adminMarketingRouter.delete("/contacts/:contactId", async (req, res) => {
     return res.json({ ok: true, deletedContactId: contact.id });
   } catch (error) {
     console.error("[admin/marketing] contact delete failed", error);
-    return res.status(500).json({ error: "Marketing contact could not be deleted." });
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing contact could not be deleted.") });
   }
 });
 
@@ -3210,7 +3224,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     }).where(eq(marketingSyncRuns.id, run.id)).returning();
     return res.json({ ok: true, run: serializeSyncRun(completed), summary });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Lovable marketing sync failed.";
+    const message = marketingSchemaErrorMessage(error, error instanceof Error ? error.message : "Lovable marketing sync failed.");
     const [failed] = await db.update(marketingSyncRuns).set({
       status: "failed",
       completed_at: new Date(),

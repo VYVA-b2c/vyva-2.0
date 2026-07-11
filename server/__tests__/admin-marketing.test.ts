@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const dbMock = vi.hoisted(() => {
   let idCounter = 1;
   const rows = new Map<string, Record<string, unknown>[]>();
+  const missingTables = new Set<string>();
   let tableName: ((table: unknown) => string) | null = null;
 
   function nameFor(table: unknown) {
@@ -34,6 +35,11 @@ const dbMock = vi.hoisted(() => {
 
   function tableRows(table: unknown) {
     const name = nameFor(table);
+    if (missingTables.has(name)) {
+      const error = new Error(`relation "${name}" does not exist`) as Error & { code: string };
+      error.code = "42P01";
+      throw error;
+    }
     const existing = rows.get(name) ?? [];
     rows.set(name, existing);
     return existing;
@@ -47,6 +53,10 @@ const dbMock = vi.hoisted(() => {
     reset() {
       idCounter = 1;
       rows.clear();
+      missingTables.clear();
+    },
+    setMissingTable(name: string) {
+      missingTables.add(name);
     },
     db: {
       select: vi.fn(() => ({
@@ -232,6 +242,17 @@ describe("admin marketing router", () => {
           requiredRunnerEmail: "karim.assad@mokadigital.net",
         });
       });
+  });
+
+  it("surfaces missing marketing migration tables with an actionable message", async () => {
+    dbMock.setMissingTable("marketing_media_assets");
+
+    const response = await request(buildApp())
+      .get("/api/admin/marketing/media")
+      .expect(500);
+
+    expect(response.body.error).toContain('Missing table "marketing_media_assets"');
+    expect(response.body.error).toContain("0064_marketing_parity_completion.sql");
   });
 
   it("creates scheduled campaign snapshots without communication dispatch rows", async () => {
