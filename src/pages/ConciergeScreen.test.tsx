@@ -1110,8 +1110,30 @@ describe("ConciergeScreen action hub", () => {
             name: "Saved Plumber",
             role: "plumber",
             phone: "+34 600 222 333",
-            preferredChannel: "phone",
+            email: "plumber@example.com",
+            whatsapp: "+34 600 222 334",
+            bookingUrl: "https://plumber.example/book",
+            preferredChannel: "whatsapp",
           }],
+        });
+      }
+      if (target.endsWith("/api/appointments/requests/request-voice-home-service/confirm-attempt")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body).toMatchObject({
+          option_id: "option-saved-plumber",
+          channel: "whatsapp",
+        });
+        return jsonResponse({
+          attempt: { id: "attempt-home-service", channel: "whatsapp", status: "whatsapp_sent" },
+          pending: null,
+          communication: {
+            id: "communication-home-service",
+            channel: "whatsapp",
+            recipient: "+34 600 222 334",
+            status: "sent",
+          },
+          handled_by_vyva: true,
+          needs_booking_confirmation: true,
         });
       }
       if (target.endsWith("/api/appointments/requests")) {
@@ -1139,9 +1161,16 @@ describe("ConciergeScreen action hub", () => {
             id: "option-saved-plumber",
             provider_id: "provider-1",
             provider_source: "saved",
-            provider_snapshot: { name: "Saved Plumber", phone: "+34 600 222 333", preferred_channel: "phone" },
+            provider_snapshot: {
+              name: "Saved Plumber",
+              phone: "+34 600 222 333",
+              email: "plumber@example.com",
+              whatsapp: "+34 600 222 334",
+              booking_url: "https://plumber.example/book",
+              preferred_channel: "whatsapp",
+            },
             match_reason: "Saved plumber provider",
-            available_channels: ["phone", "manual"],
+            available_channels: ["whatsapp", "booking_url", "phone", "email", "manual"],
             rank: 1,
             status: "recommended",
           }],
@@ -1155,7 +1184,7 @@ describe("ConciergeScreen action hub", () => {
     expect(await screen.findByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
     await waitFor(() => {
       expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Tool ready");
-      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Direct tool: phone call");
+      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Direct tool: WhatsApp");
       expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Recipient: Saved Plumber");
     });
     await waitFor(() => {
@@ -1164,6 +1193,17 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
 
     expect(await screen.findByText("Saved Plumber")).toBeVisible();
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Direct tool: WhatsApp");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Tool ready: WhatsApp");
+    fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/appointments/requests/request-voice-home-service/confirm-attempt",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(await screen.findByText("VYVA sent the message. Save the appointment when they reply.")).toBeVisible();
   });
 
   it("still prepares ride requests without booking", async () => {
