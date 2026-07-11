@@ -328,6 +328,9 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Lopez");
     expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("Ask VYVA to handle this");
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Tool ready");
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Direct tool: phone call");
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Recipient: Clinica Lopez");
     expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Tool ready: call");
     expect(screen.queryByTestId("button-appointment-channel-phone")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
@@ -389,6 +392,8 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Email");
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Direct tool: email");
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Current path: email");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
@@ -446,6 +451,8 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByRole("button", { name: "Medical" }));
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Form");
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Direct tool: booking link");
+    expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Current path: booking link");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
@@ -891,6 +898,8 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-home-service-answer-trusted"));
 
     expect(screen.getByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Current path: VYVA review");
+    expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Recipient: Trusted search");
     expect(screen.getByTestId("button-appointment-start-home-service")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
 
@@ -1095,6 +1104,16 @@ describe("ConciergeScreen action hub", () => {
     };
     apiFetchMock.mockImplementation(async (url, init) => {
       const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Saved Plumber",
+            role: "plumber",
+            phone: "+34 600 222 333",
+            preferredChannel: "phone",
+          }],
+        });
+      }
       if (target.endsWith("/api/appointments/requests")) {
         const body = JSON.parse(String(init?.body));
         expect(body.preferences.service_intake).toMatchObject({
@@ -1135,6 +1154,11 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-home-service-ready")).toHaveTextContent("Ready");
     await waitFor(() => {
+      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Tool ready");
+      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Direct tool: phone call");
+      expect(screen.getByTestId("panel-home-service-readiness")).toHaveTextContent("Recipient: Saved Plumber");
+    });
+    await waitFor(() => {
       expect(screen.getByTestId("button-appointment-start-home-service")).not.toBeDisabled();
     });
     fireEvent.click(screen.getByTestId("button-appointment-start-home-service"));
@@ -1169,9 +1193,13 @@ describe("ConciergeScreen action hub", () => {
     expect(panel).toHaveTextContent("Claim or reimbursement");
     expect(panel).toHaveTextContent("Government/admin form");
     expect(panel).toHaveTextContent("Call or email someone");
-    expect(panel).toHaveTextContent("Review path ready");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-insurance-letter")).toHaveTextContent("Tool ready");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-insurance-letter")).toHaveTextContent("Direct tool: camera or upload");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-government-form")).toHaveTextContent("Current path: camera or upload");
     expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Direct tool: email");
     expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Current path: VYVA review");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Direct tool: phone call");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-call-email")).toHaveTextContent("Review path ready");
 
     fireEvent.click(screen.getByTestId("button-insurance-admin-claim"));
 
@@ -1197,7 +1225,14 @@ describe("ConciergeScreen action hub", () => {
     expect(panel).toHaveTextContent("Document or photo");
     expect(panel).toHaveTextContent("Phone number");
     expect(panel).toHaveTextContent("Company or offer");
-    expect(panel).toHaveTextContent("Review path ready");
+    expect(screen.getByTestId("panel-scam-check-readiness-email")).toHaveTextContent("Review path ready");
+    expect(screen.getByTestId("panel-scam-check-readiness-email")).toHaveTextContent("Direct tool: email");
+    expect(screen.getByTestId("panel-scam-check-readiness-email")).toHaveTextContent("Current path: VYVA review");
+    expect(screen.getByTestId("panel-scam-check-readiness-document")).toHaveTextContent("Tool ready");
+    expect(screen.getByTestId("panel-scam-check-readiness-document")).toHaveTextContent("Direct tool: camera or upload");
+    expect(screen.getByTestId("panel-scam-check-readiness-phone")).toHaveTextContent("Direct tool: web search");
+    expect(screen.getByTestId("panel-scam-check-readiness-company")).toHaveTextContent("Tool ready");
+    expect(screen.getByTestId("panel-scam-check-readiness-company")).toHaveTextContent("Current path: web search");
 
     fireEvent.click(screen.getByTestId("button-scam-check-company"));
 
@@ -1277,7 +1312,7 @@ describe("ConciergeScreen action hub", () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url) === "/api/profile") {
         return jsonResponse({
-          savedProviders: [{ name: "Trusted Taxi", role: "taxi" }],
+          savedProviders: [{ name: "Trusted Taxi", role: "taxi", phone: "+34 600 111 222", preferredChannel: "phone" }],
           serviceReadiness: {
             hasSavedTransportProvider: true,
             hasMobilityInfo: true,
@@ -1294,6 +1329,9 @@ describe("ConciergeScreen action hub", () => {
     await waitFor(() => {
       expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Trusted Taxi");
       expect(screen.getByTestId("note-transport-mobility-readiness")).toHaveTextContent("Mobility preferences saved");
+      expect(screen.getByTestId("panel-transport-readiness")).toHaveTextContent("Tool ready");
+      expect(screen.getByTestId("panel-transport-readiness")).toHaveTextContent("Direct tool: phone call");
+      expect(screen.getByTestId("panel-transport-readiness")).toHaveTextContent("Recipient: Trusted Taxi");
     });
     expect(screen.queryByTestId("button-transport-need-wheelchair-access")).not.toBeInTheDocument();
     expect(screen.getByTestId("button-transport-find-options")).toBeDisabled();
@@ -1315,6 +1353,7 @@ describe("ConciergeScreen action hub", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("No saved provider yet");
+      expect(screen.getByTestId("panel-transport-readiness")).toHaveTextContent("Current path: VYVA review");
     });
     fireEvent.click(screen.getByTestId("button-transport-provider-setup"));
 
@@ -1349,7 +1388,12 @@ describe("ConciergeScreen action hub", () => {
     apiFetchMock.mockImplementation(async (url, init) => {
       if (String(url) === "/api/profile") {
         return jsonResponse({
-          savedProviders: [{ name: "Neighborhood Pharmacy", role: "pharmacy" }],
+          savedProviders: [{
+            name: "Neighborhood Pharmacy",
+            role: "pharmacy",
+            phone: "+34 600 333 444",
+            preferredChannel: "phone",
+          }],
           serviceReadiness: { hasSavedPharmacy: true },
         });
       }
@@ -1376,6 +1420,9 @@ describe("ConciergeScreen action hub", () => {
     await waitFor(() => {
       expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
     });
+    expect(screen.getByTestId("panel-otc-pharmacy-readiness")).toHaveTextContent("Tool ready");
+    expect(screen.getByTestId("panel-otc-pharmacy-readiness")).toHaveTextContent("Direct tool: phone call");
+    expect(screen.getByTestId("panel-otc-pharmacy-readiness")).toHaveTextContent("Recipient: Neighborhood Pharmacy");
     expect(screen.getByTestId("button-otc-pharmacy-prepare")).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("input-otc-pharmacy-item"), {
@@ -1390,7 +1437,7 @@ describe("ConciergeScreen action hub", () => {
     });
 
     expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("OTC item: Vitamins");
-    expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("Tool ready: VYVA review");
+    expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("Tool ready: call");
     expect(screen.getByTestId("button-otc-pharmacy-prepare")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-otc-pharmacy-prepare"));
 
@@ -1527,6 +1574,9 @@ describe("ConciergeScreen route prefill", () => {
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
     expect(prefill).toHaveTextContent("Review request");
     expect(prefill).toHaveTextContent("Please prepare an easy outing");
+    expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Tool ready");
+    expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Direct tool: VYVA review");
+    expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Current path: VYVA review");
 
     fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
 
@@ -1538,6 +1588,28 @@ describe("ConciergeScreen route prefill", () => {
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(String(init?.body));
     expect(body.prompt).toContain("easy outing");
+  });
+
+  it("shows readiness fallback for email-style tool-gated task handoffs", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "task",
+          message: "Please prepare an email to my insurance company about the reimbursement.",
+          source: "voice_action",
+        },
+      },
+    }]);
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Please prepare an email");
+    expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Review path ready");
+    expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Direct tool: email");
+    expect(screen.getByTestId("panel-route-prefill-readiness")).toHaveTextContent("Current path: VYVA review");
   });
 
   it("renders prepared provider phone actions as direct call links", async () => {
