@@ -898,6 +898,14 @@ describe("admin marketing router", () => {
         status: "scheduled",
         audienceExternalIds: ["audience-1"],
         channels: [{ channel: "email", contentExternalId: "content-1", scheduledAt: "2026-07-08T09:00:00.000Z" }],
+      }, {
+        id: "campaign-2",
+        name: "Template launch",
+        status: "scheduled",
+        audienceType: "b2b",
+        channel: "email",
+        template_id: "template-1",
+        scheduled_at: "2026-07-10T12:00:00.000Z",
       }],
       campaignMetrics: [{
         id: "metric-1",
@@ -1018,9 +1026,21 @@ describe("admin marketing router", () => {
     expect(table("marketing_audiences")).toHaveLength(1);
     expect(table("marketing_audience_members")).toHaveLength(2);
     expect(table("marketing_audience_members").filter((row) => row.contact_id)).toHaveLength(1);
-    expect(table("marketing_campaigns")).toHaveLength(1);
+    expect(table("marketing_campaigns")).toHaveLength(2);
+    const templateContent = table("marketing_content_assets").find((row) => row.title === "Template welcome");
+    const templateCampaign = table("marketing_campaigns").find((row) => row.name === "Template launch");
+    expect(table("marketing_campaign_channels").find((row) => row.campaign_id === templateCampaign?.id)).toMatchObject({
+      channel: "email",
+      content_asset_id: templateContent?.id,
+      scheduled_at: expect.any(Date),
+      send_capability: "enabled",
+      metadata: expect.objectContaining({
+        send_locked: false,
+        provider: "communicationDispatcher",
+      }),
+    });
     expect(table("marketing_campaign_recipients")).toHaveLength(1);
-    expect(table("marketing_campaign_recipients")[0]).toMatchObject({
+    expect(table("marketing_campaign_recipients").find((row) => row.campaign_id === table("marketing_campaigns").find((campaign) => campaign.name === "Welcome campaign")?.id)).toMatchObject({
       recipient: "hassan@example.com",
       status: "planned",
       snapshot: expect.objectContaining({ consentStatus: "opted_out" }),
@@ -1032,14 +1052,6 @@ describe("admin marketing router", () => {
       goal_type: "activation",
       goal_config: { event: "first_login" },
       exit_on_goal: false,
-    });
-    expect(table("marketing_campaign_channels")).toHaveLength(1);
-    expect(table("marketing_campaign_channels")[0]).toMatchObject({
-      send_capability: "enabled",
-      metadata: expect.objectContaining({
-        send_locked: false,
-        provider: "communicationDispatcher",
-      }),
     });
     expect(table("marketing_campaign_metrics")).toHaveLength(1);
     expect(table("marketing_campaign_metrics")[0]).toMatchObject({
@@ -1160,7 +1172,7 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 4, mediaAssets: 2, contacts: 1, audiences: 1, campaigns: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 4, mediaAssets: 2, contacts: 1, audiences: 1, campaigns: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
       imported: {
         content: 4,
         mediaAssets: 2,
@@ -1169,7 +1181,7 @@ describe("admin marketing router", () => {
         audienceMembers: 2,
         mappedAudienceMembers: 1,
         campaignRecipients: 1,
-        campaigns: 1,
+        campaigns: 2,
         campaignMetrics: 1,
         journeys: 1,
         journeyEnrollments: 1,

@@ -478,6 +478,57 @@ function lovableContactPayload(payload: Record<string, unknown>) {
   });
 }
 
+const contentReferenceKeys = [
+  "contentExternalId",
+  "content_external_id",
+  "contentId",
+  "content_id",
+  "contentAssetId",
+  "content_asset_id",
+  "templateId",
+  "template_id",
+  "emailTemplateId",
+  "email_template_id",
+  "socialPostId",
+  "social_post_id",
+  "templateRef",
+  "template_ref",
+] as const;
+
+function lovableContentReference(row: Record<string, unknown>) {
+  return textFrom(row, [...contentReferenceKeys]);
+}
+
+function contentIdForLovableReference(contentByExternalId: Map<string, string>, externalId: string) {
+  const normalized = emptyToNull(externalId);
+  if (!normalized) return null;
+  return contentByExternalId.get(normalized)
+    ?? contentByExternalId.get(`content:${normalized}`)
+    ?? contentByExternalId.get(`content_asset:${normalized}`)
+    ?? contentByExternalId.get(`saved_email_template:${normalized}`)
+    ?? contentByExternalId.get(`social_post:${normalized}`)
+    ?? contentByExternalId.get(`template:${normalized}`)
+    ?? contentByExternalId.get(`content_brief:${normalized}`)
+    ?? null;
+}
+
+function campaignChannelPayload(row: Record<string, unknown>) {
+  const channelRows = arrayFrom(row.channels);
+  if (channelRows.length) return channelRows;
+  const channel = textFrom(row, ["channel", "platform", "network"]);
+  const contentExternalId = lovableContentReference(row);
+  const scheduledAt = dateTextFrom(row, ["scheduledAt", "scheduled_at", "scheduleStartsAt", "schedule_starts_at", "startsAt", "starts_at", "publishAt", "publish_at", "sendAt", "send_at"]);
+  const hasChannelData = channel || contentExternalId || scheduledAt || textFrom(row, ["channelStatus", "channel_status"]);
+  if (!hasChannelData) return [];
+  return [{
+    channel: channel || "email",
+    contentExternalId,
+    scheduledAt,
+    status: textFrom(row, ["channelStatus", "channel_status", "status"], "draft"),
+    lovable: row,
+  }];
+}
+
 function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boolean) {
   for (const key of keys) {
     const value = row[key];
@@ -539,10 +590,11 @@ const fieldCoverageAliases = {
     ["status"],
     ["audienceType", "audience_type", "audience"],
     ["objective", "description"],
-    ["scheduleStartsAt", "schedule_starts_at", "startsAt", "starts_at"],
+    ["scheduleStartsAt", "schedule_starts_at", "startsAt", "starts_at", "scheduledAt", "scheduled_at", "publishAt", "publish_at", "sendAt", "send_at"],
     ["scheduleEndsAt", "schedule_ends_at", "endsAt", "ends_at"],
     ["timezone"],
-    ["channels"],
+    ["channels", "channel", "platform", "network"],
+    ["contentExternalId", "content_external_id", "contentId", "content_id", "contentAssetId", "content_asset_id", "templateId", "template_id", "emailTemplateId", "email_template_id", "socialPostId", "social_post_id"],
     ["metrics", "analytics", "performance"],
     ["recipients", "recipientSnapshots", "campaignRecipients", "campaign_recipients"],
     ["contactExternalIds", "contact_external_ids", "contactIds", "contact_ids"],
@@ -2458,7 +2510,7 @@ async function upsertLovableCampaign(
     status: normalizeCampaignStatus(textFrom(row, ["status"], "draft")),
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2c")),
     objective: textFrom(row, ["objective", "description"], ""),
-    schedule_starts_at: dateOrNull(dateTextFrom(row, ["scheduleStartsAt", "schedule_starts_at", "startsAt", "starts_at"])),
+    schedule_starts_at: dateOrNull(dateTextFrom(row, ["scheduleStartsAt", "schedule_starts_at", "startsAt", "starts_at", "scheduledAt", "scheduled_at", "publishAt", "publish_at", "sendAt", "send_at"])),
     schedule_ends_at: dateOrNull(dateTextFrom(row, ["scheduleEndsAt", "schedule_ends_at", "endsAt", "ends_at"])),
     timezone: textFrom(row, ["timezone"], "Europe/Madrid"),
     source: "lovable",
@@ -2472,20 +2524,20 @@ async function upsertLovableCampaign(
     .onConflictDoUpdate({ target: marketingCampaigns.lovable_external_id, set: payload })
     .returning();
 
-  const channelRows = arrayFrom(row.channels);
+  const channelRows = campaignChannelPayload(row);
   const firstChannelRow = asRecord(channelRows[0]);
-  const defaultChannel = normalizeChannel(textFrom(firstChannelRow, ["channel"], "email"));
+  const defaultChannel = normalizeChannel(textFrom(firstChannelRow, ["channel", "platform", "network"], "email"));
   const defaultScheduledAt = dateOrNull(dateTextFrom(firstChannelRow, ["scheduledAt", "scheduled_at"])) ?? campaign.schedule_starts_at ?? null;
   if (channelRows.length) {
     await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
     await db.insert(marketingCampaignChannels).values(channelRows.map((channelRaw) => {
       const channelRow = asRecord(channelRaw);
-      const contentExternalId = textFrom(channelRow, ["contentExternalId", "content_external_id", "contentId", "content_id"]);
-      const channel = normalizeChannel(textFrom(channelRow, ["channel"], "email"));
+      const contentExternalId = lovableContentReference(channelRow);
+      const channel = normalizeChannel(textFrom(channelRow, ["channel", "platform", "network"], "email"));
       return {
         campaign_id: campaign.id,
         channel,
-        content_asset_id: contentByExternalId.get(contentExternalId) ?? null,
+        content_asset_id: contentIdForLovableReference(contentByExternalId, contentExternalId),
         scheduled_at: dateOrNull(dateTextFrom(channelRow, ["scheduledAt", "scheduled_at"])),
         status: normalizeCampaignStatus(textFrom(channelRow, ["status"], payload.status)),
         send_capability: sendCapabilityForChannel(channel),
@@ -2544,14 +2596,14 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
     await db.delete(marketingJourneySteps).where(eq(marketingJourneySteps.journey_id, journey.id));
     await db.insert(marketingJourneySteps).values(steps.map((stepRaw, index) => {
       const step = asRecord(stepRaw);
-      const contentExternalId = textFrom(step, ["contentExternalId", "content_external_id", "contentId", "content_id"]);
+      const contentExternalId = lovableContentReference(step);
       const dayOffset = Number(step.dayOffset ?? step.day_offset ?? step.day ?? 0);
       const delayHours = Number(step.delayHours ?? step.delay_hours ?? (Number.isFinite(dayOffset) ? dayOffset * 24 : 0));
       return {
         journey_id: journey.id,
         step_order: Number(step.stepOrder ?? step.step_order ?? index),
         channel: normalizeChannel(textFrom(step, ["channel"], "email")),
-        content_asset_id: contentByExternalId.get(contentExternalId) ?? null,
+        content_asset_id: contentIdForLovableReference(contentByExternalId, contentExternalId),
         delay_hours: Number.isFinite(delayHours) ? delayHours : 0,
         kind: textFrom(step, ["kind", "stepKind", "step_kind", "type"], "message"),
         day_offset: Number.isFinite(dayOffset) ? dayOffset : 0,
