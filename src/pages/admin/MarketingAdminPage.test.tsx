@@ -66,6 +66,7 @@ const campaigns = [
     timezone: "Europe/Madrid",
     source: "vyva",
     lovableExternalId: null,
+    metadata: { extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" } },
     channels: [{ id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "enabled" }],
     recipientCount: 1,
     recipients: [{
@@ -112,6 +113,7 @@ const journeys = [
     goalConfig: { event: "first_login" },
     exitOnGoal: false,
     source: "lovable",
+    metadata: { lovable: { triggerWindow: "morning" } },
     steps: [{
       id: "step-1",
       stepOrder: 0,
@@ -156,6 +158,7 @@ const content = [
     mediaAssetCount: 1,
     source: "lovable",
     lovableExternalId: "lovable-content-2",
+    metadata: { extraLovableOnlyField: "kept", lovable: { tone: "partner" } },
   },
 ];
 
@@ -256,6 +259,7 @@ const contacts = [
     market: "Spain",
     lists: ["Partners"],
     lovableExternalId: "lovable-contact-2",
+    metadata: { lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" } },
   },
 ];
 
@@ -273,6 +277,7 @@ const audiences = [
     contactExternalIds: ["lovable-contact-2", "missing-contact"],
     unmappedContactExternalIds: ["missing-contact"],
     lastSyncedAt: "2026-07-05T09:00:00.000Z",
+    metadata: { lovable: { sourceList: "Partners" } },
   },
 ];
 
@@ -510,6 +515,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 media");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
+    expect(screen.getByTestId("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
@@ -718,6 +724,7 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue("Hassan Partner");
+    expect(screen.getByTestId("marketing-contact-metadata-panel")).toHaveTextContent("partner-lead");
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-name"), { target: { value: "Updated Partner" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-contact-audience"), { target: { value: "both" } });
@@ -781,6 +788,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-audience-name")).toHaveValue("Partners");
     expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("lovable-contact-2\nmissing-contact");
+    expect(screen.getByTestId("marketing-audience-metadata-panel")).toHaveTextContent("sourceList");
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-audience-name"), { target: { value: "Updated partners" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-audience-type"), { target: { value: "static" } });
@@ -857,6 +865,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
 
     expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-journey-metadata-panel")).toHaveTextContent("triggerWindow");
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });
@@ -948,6 +957,7 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-campaign-metadata-panel")).toHaveTextContent("extraCampaignField");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("12 sent");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("8");

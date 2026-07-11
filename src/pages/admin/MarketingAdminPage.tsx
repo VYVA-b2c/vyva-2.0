@@ -114,6 +114,7 @@ type Campaign = {
   timezone: string;
   source: string;
   lovableExternalId: string | null;
+  metadata?: Record<string, unknown>;
   channels: CampaignChannel[];
   recipientCount: number;
   recipients?: CampaignRecipient[];
@@ -132,6 +133,7 @@ type Journey = {
   exitOnGoal: boolean;
   source: string;
   lovableExternalId?: string | null;
+  metadata?: Record<string, unknown>;
   steps: JourneyStep[];
 };
 
@@ -168,6 +170,7 @@ type ContentAsset = {
   mediaAssetCount?: number;
   source: string;
   lovableExternalId: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 type MarketingMediaAsset = {
@@ -255,6 +258,7 @@ type MarketingContact = {
   consentStatus: ConsentStatus;
   source: string;
   channelAvailability?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   tags: string[];
   language: string | null;
   category: string | null;
@@ -277,6 +281,7 @@ type MarketingAudience = {
   contactExternalIds: string[];
   unmappedContactExternalIds: string[];
   lastSyncedAt: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 type SyncRun = {
@@ -948,6 +953,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="mb-1 block text-sm font-black text-[#4d4351]">{label}</span>
       {children}
     </label>
+  );
+}
+
+function MetadataPanel({ title, value, testId }: { title: string; value?: Record<string, unknown> | null; testId: string }) {
+  if (!value || Array.isArray(value) || Object.keys(value).length === 0) return null;
+  return (
+    <details className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid={testId}>
+      <summary className="cursor-pointer text-sm font-black text-[#241133]">{title}</summary>
+      <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-3 text-xs font-bold leading-relaxed text-[#5b4a46]">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </details>
   );
 }
 
@@ -2102,6 +2119,8 @@ export default function MarketingAdminPage() {
                         ) : null}
                       </div>
 
+                      <MetadataPanel title="Imported campaign metadata" value={editingCampaign.metadata} testId="marketing-campaign-metadata-panel" />
+
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -2427,6 +2446,8 @@ export default function MarketingAdminPage() {
                         Exit this journey when the goal is reached
                       </label>
 
+                      <MetadataPanel title="Imported journey metadata" value={editingJourney?.metadata} testId="marketing-journey-metadata-panel" />
+
                       <div className="grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-journey-steps-builder">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
@@ -2734,6 +2755,7 @@ export default function MarketingAdminPage() {
                         <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>
                         <Pill className={channelClass(selectedContent.channel)}>{channelLabel[selectedContent.channel]}</Pill>
                       </div>
+                      <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
                     </div>
                   ) : (
                     <EmptyState text="No content available." />
@@ -2900,6 +2922,7 @@ export default function MarketingAdminPage() {
                         <input className={inputClass} value={contactEditDraft.market} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, market: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-market" />
                       </Field>
                     </div>
+                    <MetadataPanel title="Imported contact metadata" value={editingContact?.metadata} testId="marketing-contact-metadata-panel" />
                     <div className="flex flex-wrap items-center gap-3">
                       <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contactSaving} data-testid="button-marketing-save-contact">
                         <Save size={16} /> {contactSaving ? "Saving..." : "Save contact"}
@@ -2991,6 +3014,7 @@ export default function MarketingAdminPage() {
                         <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.contactExternalIds} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, contactExternalIds: event.target.value }) : draft)} placeholder="contact:123&#10;contact:456" disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-contact-ids" />
                       </Field>
                     </div>
+                    <MetadataPanel title="Imported list metadata" value={editingAudience?.metadata} testId="marketing-audience-metadata-panel" />
                     <div className="flex flex-wrap items-center gap-3">
                       <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={audienceSaving} data-testid="button-marketing-save-audience">
                         <Save size={16} /> {audienceSaving ? "Saving..." : "Save list"}
