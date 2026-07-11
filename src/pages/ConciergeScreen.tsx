@@ -2665,6 +2665,184 @@ function statusLabel(status: ConciergePendingItem["status"], locale = "es"): str
   }
 }
 
+type ConciergeTimelineStepState = "done" | "active" | "upcoming" | "warning";
+
+type ConciergeTimelineStep = {
+  id: string;
+  label: string;
+  helper: string;
+  state: ConciergeTimelineStepState;
+};
+
+function missionStatusForPendingAction(item: ConciergePendingItem): AppointmentMissionState["status"] | null {
+  return isAppointmentMissionStatus(item.action_payload?.mission_status)
+    ? item.action_payload.mission_status
+    : null;
+}
+
+function timelineStepCopy(id: string, isSpanish: boolean): Omit<ConciergeTimelineStep, "id" | "state"> {
+  const copy: Record<string, { en: string; es: string; helperEn: string; helperEs: string }> = {
+    prepared: {
+      en: "Details prepared",
+      es: "Detalles preparados",
+      helperEn: "VYVA has the request.",
+      helperEs: "VYVA tiene la solicitud.",
+    },
+    "user-confirm": {
+      en: "Waiting for you",
+      es: "Esperando tu confirmacion",
+      helperEn: "Nothing is sent yet.",
+      helperEs: "Aun no se envia nada.",
+    },
+    "vyva-prepare": {
+      en: "VYVA preparing",
+      es: "VYVA preparando",
+      helperEn: "VYVA is organizing the next step.",
+      helperEs: "VYVA organiza el siguiente paso.",
+    },
+    contacting: {
+      en: "Contacting provider",
+      es: "Contactando proveedor",
+      helperEn: "Call, message, or form in progress.",
+      helperEs: "Llamada, mensaje o formulario en curso.",
+    },
+    reply: {
+      en: "Waiting for reply",
+      es: "Esperando respuesta",
+      helperEn: "Save it when they confirm.",
+      helperEs: "Guardalo cuando confirmen.",
+    },
+    save: {
+      en: "Ready to save",
+      es: "Listo para guardar",
+      helperEn: "Add confirmed time or reference.",
+      helperEs: "Anade hora o referencia confirmada.",
+    },
+    saved: {
+      en: "Saved",
+      es: "Guardado",
+      helperEn: "It appears in Scheduled Support.",
+      helperEs: "Aparece en soporte programado.",
+    },
+    attention: {
+      en: "Needs attention",
+      es: "Necesita revision",
+      helperEn: "Review before continuing.",
+      helperEs: "Revisa antes de continuar.",
+    },
+    stopped: {
+      en: "Stopped",
+      es: "Detenido",
+      helperEn: "This task will not continue.",
+      helperEs: "Esta gestion no continuara.",
+    },
+  };
+  const entry = copy[id] ?? copy.prepared;
+  return {
+    label: isSpanish ? entry.es : entry.en,
+    helper: isSpanish ? entry.helperEs : entry.helperEn,
+  };
+}
+
+function buildConciergeActionTimeline(item: ConciergePendingItem, isSpanish: boolean): ConciergeTimelineStep[] {
+  const missionStatus = missionStatusForPendingAction(item);
+  const executionChannel = getExecutionChannel(item);
+  const bookingUrl = getBookingUrl(item);
+  const formPlan = getFormAutomationPlan(item);
+  const formReady = executionChannel === "booking_url" && Boolean(bookingUrl) && (formPlan?.missingFields.length ?? 0) === 0;
+  const isVyvaTask = executionChannel === "manual" || (executionChannel === "booking_url" && !formReady);
+  const stepIds = isVyvaTask
+    ? ["prepared", "vyva-prepare", "reply", "save", "saved"]
+    : ["prepared", "user-confirm", "contacting", "reply", "save", "saved"];
+
+  let activeId = isVyvaTask ? "vyva-prepare" : "user-confirm";
+  if (item.status === "calling") activeId = "contacting";
+  if (item.status === "failed") activeId = "attention";
+  if (item.status === "cancelled") activeId = "stopped";
+
+  if (missionStatus) {
+    if (missionStatus === "awaiting_confirmation") activeId = "user-confirm";
+    if (missionStatus === "contacting_provider" || missionStatus === "form_in_progress") activeId = "contacting";
+    if (missionStatus === "awaiting_provider_reply") activeId = "reply";
+    if (missionStatus === "awaiting_user_save") activeId = "save";
+    if (missionStatus === "booked") activeId = "saved";
+    if (missionStatus === "stopped") activeId = "stopped";
+  }
+
+  if (isVyvaTask && activeId === "contacting" && !stepIds.includes(activeId)) {
+    activeId = "vyva-prepare";
+  }
+
+  if (activeId === "attention" || activeId === "stopped") {
+    return [
+      { id: "prepared", ...timelineStepCopy("prepared", isSpanish), state: "done" },
+      { id: activeId, ...timelineStepCopy(activeId, isSpanish), state: "warning" },
+    ];
+  }
+
+  const activeIndex = Math.max(0, stepIds.indexOf(activeId));
+  return stepIds.map((id, index) => ({
+    id,
+    ...timelineStepCopy(id, isSpanish),
+    state: index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming",
+  }));
+}
+
+function ConciergeActionTimeline({ steps }: { steps: ConciergeTimelineStep[] }) {
+  return (
+    <div
+      className="mt-4 rounded-[18px] border border-[#E9D5FF] bg-[#FBF8FF] p-3"
+      data-testid="panel-concierge-action-timeline"
+    >
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {steps.map((step, index) => {
+          const isDone = step.state === "done";
+          const isActive = step.state === "active";
+          const isWarning = step.state === "warning";
+          return (
+            <li
+              key={step.id}
+              data-testid={`timeline-step-${step.id}`}
+              data-state={step.state}
+              className={`flex min-h-[58px] items-start gap-3 rounded-[14px] border px-3 py-2 ${
+                isWarning
+                  ? "border-[#FCA5A5] bg-[#FEF2F2]"
+                  : isActive
+                    ? "border-[#C4B5FD] bg-white"
+                    : isDone
+                      ? "border-[#BBF7D0] bg-[#F8FFFC]"
+                      : "border-transparent bg-white/60"
+              }`}
+            >
+              <span
+                className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full font-body text-[11px] font-black ${
+                  isWarning
+                    ? "bg-[#FEE2E2] text-[#B91C1C]"
+                    : isActive
+                      ? "bg-vyva-purple text-white"
+                      : isDone
+                        ? "bg-[#ECFDF5] text-[#047857]"
+                        : "bg-[#F3F4F6] text-vyva-text-3"
+                }`}
+              >
+                {isDone ? <CircleCheck size={13} /> : index + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-body text-[13px] font-black leading-tight text-vyva-text-1">
+                  {step.label}
+                </span>
+                <span className="mt-0.5 block font-body text-[11px] font-semibold leading-snug text-vyva-text-2">
+                  {step.helper}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function getUseCaseLabel(useCase: string, locale = "es"): string {
   const es = locale.startsWith("es");
   switch (useCase) {
@@ -4719,6 +4897,7 @@ const ConciergeScreen = () => {
   const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
+  const activeActionTimeline = activeAction ? buildConciergeActionTimeline(activeAction, isSpanish) : [];
   const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";
   const activeActionOpensWhatsApp = Boolean(activeActionWhatsAppDraft && (
     activeActionPreferredHandoffChannel === "whatsapp" ||
@@ -6191,6 +6370,8 @@ const ConciergeScreen = () => {
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
               {activeAction.action_summary}
             </p>
+
+            <ConciergeActionTimeline steps={activeActionTimeline} />
 
             {activeActionIsAppointment && (
               <div
