@@ -1392,7 +1392,10 @@ describe("ConciergeScreen action hub", () => {
             name: "Neighborhood Pharmacy",
             role: "pharmacy",
             phone: "+34 600 333 444",
-            preferredChannel: "phone",
+            email: "pharmacy@example.com",
+            whatsapp: "+34 600 333 445",
+            bookingUrl: "https://pharmacy.example/order",
+            preferredChannel: "whatsapp",
           }],
           serviceReadiness: { hasSavedPharmacy: true },
         });
@@ -1402,7 +1405,14 @@ describe("ConciergeScreen action hub", () => {
         const body = JSON.parse(String(init?.body));
         expect(body.use_case).toBe("order_medicine");
         expect(body.provider_name).toBe("Neighborhood Pharmacy");
+        expect(body.provider_phone).toBe("+34 600 333 444");
         expect(body.auto_start).toBe(false);
+        expect(body.action_payload.provider_email).toBe("pharmacy@example.com");
+        expect(body.action_payload.provider_whatsapp).toBe("+34 600 333 445");
+        expect(body.action_payload.booking_url).toBe("https://pharmacy.example/order");
+        expect(body.action_payload.preferred_channel).toBe("whatsapp");
+        expect(body.action_payload.execution_channel).toBe("whatsapp");
+        expect(body.action_payload.whatsapp_message).toContain("over-the-counter pharmacy items: Vitamins");
         expect(body.action_payload.item_scope).toBe("over_the_counter_only");
         expect(body.action_payload.prescription_items_allowed).toBe(false);
         expect(body.action_payload.item_text).toBe("Vitamins");
@@ -1421,7 +1431,7 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
     });
     expect(screen.getByTestId("panel-otc-pharmacy-readiness")).toHaveTextContent("Tool ready");
-    expect(screen.getByTestId("panel-otc-pharmacy-readiness")).toHaveTextContent("Direct tool: phone call");
+    expect(screen.getByTestId("panel-otc-pharmacy-readiness")).toHaveTextContent("Direct tool: WhatsApp");
     expect(screen.getByTestId("panel-otc-pharmacy-readiness")).toHaveTextContent("Recipient: Neighborhood Pharmacy");
     expect(screen.getByTestId("button-otc-pharmacy-prepare")).toBeDisabled();
 
@@ -1437,7 +1447,7 @@ describe("ConciergeScreen action hub", () => {
     });
 
     expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("OTC item: Vitamins");
-    expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("Tool ready: call");
+    expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("Tool ready: WhatsApp");
     expect(screen.getByTestId("button-otc-pharmacy-prepare")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-otc-pharmacy-prepare"));
 
@@ -1465,6 +1475,8 @@ describe("ConciergeScreen action hub", () => {
             description: "Trusted local taxi provider.",
             providerName: "Radio Taxi",
             phone: "+34 612 345 678",
+            whatsapp: "+34 612 345 679",
+            preferredChannel: "whatsapp",
             actions: ["call_phone", "start_concierge_action"],
           }],
           disclaimers: ["Neutral", "Confirm price", "No ride is booked or requested until you confirm the next step."],
@@ -1477,6 +1489,10 @@ describe("ConciergeScreen action hub", () => {
         expect(body.auto_start).toBe(false);
         expect(body.provider_name).toBe("Radio Taxi");
         expect(body.provider_phone).toBe("+34 612 345 678");
+        expect(body.action_payload.provider_whatsapp).toBe("+34 612 345 679");
+        expect(body.action_payload.preferred_channel).toBe("whatsapp");
+        expect(body.action_payload.execution_channel).toBe("whatsapp");
+        expect(body.action_payload.whatsapp_message).toContain("Destination: Heart Clinic Madrid");
         return jsonResponse({ pendingId: "transport-1", status: "pending" });
       }
       return jsonResponse({ items: [] });
@@ -1495,9 +1511,13 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("link-transport-call-local-taxi-radio-taxi")).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Confirm first");
     expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Destination: Heart Clinic Madrid");
-    expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Tool ready: VYVA review");
+    expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Tool ready: WhatsApp");
 
-    fireEvent.click(screen.getByTestId("button-transport-prepare-local-taxi-radio-taxi"));
+    const prepareButton = screen.getByTestId("button-transport-prepare-local-taxi-radio-taxi");
+    await waitFor(() => expect(prepareButton).not.toBeDisabled());
+    await act(async () => {
+      fireEvent.click(prepareButton);
+    });
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({

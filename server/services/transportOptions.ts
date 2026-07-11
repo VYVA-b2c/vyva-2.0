@@ -43,6 +43,10 @@ export interface TransportOption {
   description: string;
   providerName?: string;
   phone?: string;
+  email?: string;
+  whatsapp?: string;
+  bookingUrl?: string;
+  preferredChannel?: string;
   url?: string;
   actions: TransportAction[];
 }
@@ -66,6 +70,10 @@ interface SavedTransportProvider {
   id: string;
   name: string;
   phone: string | null;
+  email: string | null;
+  whatsapp: string | null;
+  booking_url: string | null;
+  preferred_channel: string | null;
   address: string | null;
   maps_url: string | null;
   notes: string | null;
@@ -225,6 +233,13 @@ function rideAppsForMarket(market: TransportMarket, request: TransportOptionsReq
 }
 
 function savedProviderOption(provider: SavedTransportProvider): TransportOption {
+  const bookingUrl = provider.booking_url ?? provider.maps_url ?? undefined;
+  const actions: TransportAction[] = [];
+  if (provider.booking_url) actions.push("open_url");
+  if (provider.phone) actions.push("call_phone");
+  if (provider.whatsapp) actions.push("draft_message");
+  actions.push("start_concierge_action");
+
   return {
     id: `saved-${provider.id}`,
     kind: "saved_provider",
@@ -234,10 +249,12 @@ function savedProviderOption(provider: SavedTransportProvider): TransportOption 
       : "Saved trusted transport provider.",
     providerName: provider.name,
     phone: provider.phone ?? undefined,
-    url: provider.maps_url ?? undefined,
-    actions: provider.phone
-      ? ["call_phone", "start_concierge_action"]
-      : ["start_concierge_action"],
+    email: provider.email ?? undefined,
+    whatsapp: provider.whatsapp ?? undefined,
+    bookingUrl: provider.booking_url ?? undefined,
+    preferredChannel: provider.preferred_channel ?? undefined,
+    url: bookingUrl,
+    actions: Array.from(new Set(actions)),
   };
 }
 
@@ -282,7 +299,18 @@ async function defaultLoadProfile(userId: string): Promise<TransportProfile | nu
 async function defaultLoadSavedProviders(userId: string): Promise<SavedTransportProvider[]> {
   const result = await pool.query<SavedTransportProvider>(
     `
-      select id::text, name, phone, address, maps_url, notes, category
+      select
+        id::text,
+        name,
+        phone,
+        email,
+        whatsapp,
+        booking_url,
+        coalesce(metadata->>'preferred_channel', metadata->>'preferred_booking_method') as preferred_channel,
+        address,
+        maps_url,
+        notes,
+        category
       from user_providers
       where user_id = $1
         and is_active is true
