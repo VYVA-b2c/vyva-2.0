@@ -41,6 +41,8 @@ import {
   Home,
   AlertTriangle,
   UserRound,
+  Mail,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +81,7 @@ import {
 import {
   CONCIERGE_FLOW_REFERENCES,
   providerSetupFocusForFlow,
+  type ConciergeToolRequirement,
 } from "../../shared/conciergeFlowRegistry";
 import {
   evaluateConciergeToolReadiness,
@@ -138,6 +141,7 @@ type CoverageReadinessSummary = {
 const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote", "task"] as const;
 const OTC_PHARMACY_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.otcPharmacy;
 const TRANSPORT_BOOKING_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.transportBooking;
+const SCAM_CHECK_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.scamCheck;
 const OTC_PHARMACY_SETUP_FOCUS = providerSetupFocusForFlow(OTC_PHARMACY_FLOW_REFERENCE) ?? "pharmacy";
 const TRANSPORT_SETUP_FOCUS = providerSetupFocusForFlow(TRANSPORT_BOOKING_FLOW_REFERENCE) ?? "transport";
 
@@ -820,6 +824,55 @@ const SCHEDULE_APPOINTMENT_TYPE_KEYS = new Set<AppointmentType>([
   "government",
   "personal-care",
 ]);
+
+type ScamCheckKind = "email" | "document" | "phone" | "company";
+
+const SCAM_CHECK_OPTIONS: Array<{
+  key: ScamCheckKind;
+  en: string;
+  es: string;
+  detailEn: string;
+  detailEs: string;
+  requestedTool: ConciergeToolRequirement;
+  Icon: LucideIcon;
+}> = [
+  {
+    key: "email",
+    en: "Email or message",
+    es: "Email o mensaje",
+    detailEn: "Forward or paste it",
+    detailEs: "Reenviar o pegar",
+    requestedTool: "operator_review",
+    Icon: Mail,
+  },
+  {
+    key: "document",
+    en: "Document or photo",
+    es: "Documento o foto",
+    detailEn: "Show camera or upload",
+    detailEs: "Camara o subir",
+    requestedTool: "camera_or_upload",
+    Icon: Camera,
+  },
+  {
+    key: "phone",
+    en: "Phone number",
+    es: "Numero de telefono",
+    detailEn: "Check who it may be",
+    detailEs: "Comprobar quien puede ser",
+    requestedTool: "web_search",
+    Icon: PhoneCall,
+  },
+  {
+    key: "company",
+    en: "Company or offer",
+    es: "Empresa u oferta",
+    detailEn: "Reputation search",
+    detailEs: "Buscar reputacion",
+    requestedTool: "web_search",
+    Icon: Building2,
+  },
+];
 
 const CHAT_HISTORY_BASE = "vyva_concierge_chat";
 const CHAT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -2102,6 +2155,7 @@ const ConciergeScreen = () => {
   const [transportResult, setTransportResult] = useState<TransportOptionsResponse | null>(null);
   const [transportError, setTransportError] = useState<string | null>(null);
   const [transportNotice, setTransportNotice] = useState<string | null>(null);
+  const [scamCheckOpen, setScamCheckOpen] = useState(false);
   const [otcPharmacyOpen, setOtcPharmacyOpen] = useState(false);
   const [otcItemText, setOtcItemText] = useState("");
   const [otcFulfillmentPreference, setOtcFulfillmentPreference] = useState<"delivery" | "pickup">("delivery");
@@ -3702,6 +3756,59 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function openScamCheckAssistant() {
+    setScamCheckOpen(true);
+    setOtcPharmacyOpen(false);
+    setRoutePrefill(null);
+    closeOffersPanel();
+    window.setTimeout(() => {
+      chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }
+
+  function scamCheckReadiness(option: typeof SCAM_CHECK_OPTIONS[number]) {
+    const capabilities: Partial<Record<ConciergeToolRequirement, boolean>> = {
+      operator_review: true,
+    };
+    if (option.requestedTool !== "operator_review") {
+      capabilities[option.requestedTool] = false;
+    }
+    return evaluateConciergeToolReadiness({
+      flowReference: SCAM_CHECK_FLOW_REFERENCE,
+      requestedTool: option.requestedTool,
+      capabilities,
+    });
+  }
+
+  function scamCheckPrompt(option: typeof SCAM_CHECK_OPTIONS[number]) {
+    const common = isSpanish
+      ? "No hagas clic, no respondas, no pagues ni compartas datos. Pideme confirmacion antes de reenviar, subir, buscar o contactar."
+      : "Do not click, reply, pay, or share personal details. Ask me to confirm before forwarding, uploading, searching, or contacting anyone.";
+    if (option.key === "email") {
+      return isSpanish
+        ? `Ayudame a revisar un email o mensaje sospechoso. Pideme reenviarlo o pegar el texto, resume el riesgo y dime el siguiente paso mas seguro. ${common}`
+        : `Help me check a suspicious email or message. Ask me to forward it or paste the text, summarize the risk, and tell me the safest next step. ${common}`;
+    }
+    if (option.key === "document") {
+      return isSpanish
+        ? `Ayudame a revisar un documento, carta, factura o foto sospechosa. Pideme mostrarlo a la camara o subirlo, explica que parece arriesgado y dime el siguiente paso mas seguro. ${common}`
+        : `Help me check a suspicious document, letter, invoice, or photo. Ask me to show it to the camera or upload it, explain what looks risky, and tell me the safest next step. ${common}`;
+    }
+    if (option.key === "phone") {
+      return isSpanish
+        ? `Ayudame a revisar un numero de telefono sospechoso. Pideme el numero, comprueba lo que se pueda revisar de forma segura y dime si devolver la llamada es arriesgado. ${common}`
+        : `Help me check a suspicious phone number. Ask me for the number, verify what can be checked safely, and tell me whether calling back is risky. ${common}`;
+    }
+    return isSpanish
+      ? `Ayudame a revisar la reputacion online de una empresa, oferta, vendedor o servicio. Pideme el nombre o enlace, compara senales fiables y dime el siguiente paso mas seguro. ${common}`
+      : `Help me check a company, offer, seller, or service reputation online. Ask me for the name or link, compare reliable signals, and tell me the safest next step. ${common}`;
+  }
+
+  function handleScamCheckChoice(option: typeof SCAM_CHECK_OPTIONS[number]) {
+    prepareConciergeRequest(scamCheckPrompt(option));
+    setScamCheckOpen(false);
+  }
+
   function handleOfferAssistance(option: OfferOption) {
     const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
     const message = isSpanish
@@ -3958,6 +4065,15 @@ const ConciergeScreen = () => {
       testId: "button-concierge-fast-home-service",
     },
     {
+      id: "check-scam",
+      icon: AlertTriangle,
+      label: t("concierge.master.fastHelp.checkScam", "Check Scam"),
+      detail: t("concierge.master.fastHelp.checkScamDetail", "Message or offer"),
+      tone: { iconBg: "#FFF1F2", iconColor: "#E11D48", border: "#FECACA" },
+      onClick: openScamCheckAssistant,
+      testId: "button-concierge-fast-check-scam",
+    },
+    {
       id: "book-ride",
       icon: Car,
       label: t("concierge.master.fastHelp.bookRide", "Book Ride"),
@@ -4062,6 +4178,84 @@ const ConciergeScreen = () => {
       cards={conciergeMasterCards}
       fastHelpActions={conciergeMasterFastHelpActions}
     >
+
+      {scamCheckOpen && (
+        <section
+          className="relative z-20 order-[14] mt-4 scroll-mt-[88px] overflow-hidden rounded-[28px] border border-[#FECACA] bg-white"
+          style={{ boxShadow: "0 18px 42px rgba(225,29,72,0.10)" }}
+          data-testid="panel-scam-check"
+        >
+          <div className="bg-[#FFF1F2] p-4 lg:p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[18px] bg-white text-[#E11D48] shadow-sm">
+                <AlertTriangle size={23} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#BE123C]">
+                  {isSpanish ? "Revision segura" : "Safe check"}
+                </p>
+                <h2 className="mt-1 font-body text-[23px] font-black leading-tight text-vyva-text-1">
+                  {isSpanish ? "Comprobar una posible estafa" : "Check a possible scam"}
+                </h2>
+                <p className="mt-2 font-body text-[14px] font-bold leading-snug text-vyva-text-2">
+                  {isSpanish
+                    ? "Elige el tipo. VYVA prepara el siguiente paso y te pide confirmacion antes de actuar."
+                    : "Choose the type. VYVA prepares the next step and asks before acting."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScamCheckOpen(false)}
+                className="vyva-tap flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#BE123C]"
+                aria-label={isSpanish ? "Cerrar" : "Close"}
+                data-testid="button-scam-check-close"
+              >
+                <X size={17} />
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-4 lg:p-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {SCAM_CHECK_OPTIONS.map((option) => {
+                const Icon = option.Icon;
+                const readinessItem = toolReadinessConfirmationItem(scamCheckReadiness(option), isSpanish);
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => handleScamCheckChoice(option)}
+                    className="vyva-tap flex min-h-[112px] items-start gap-3 rounded-[22px] border border-[#FECACA] bg-[#FFFCFC] p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-white"
+                    data-testid={`button-scam-check-${option.key}`}
+                  >
+                    <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[17px] bg-white text-[#E11D48] shadow-sm">
+                      <Icon size={22} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+                        {isSpanish ? option.es : option.en}
+                      </span>
+                      <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+                        {isSpanish ? option.detailEs : option.detailEn}
+                      </span>
+                      {readinessItem ? (
+                        <span className="mt-3 inline-flex rounded-full bg-[#FFE4E6] px-3 py-1 font-body text-[11px] font-black text-[#BE123C]">
+                          {readinessItem.label}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="rounded-[20px] bg-[#F8FAFC] px-4 py-3 font-body text-[13px] font-bold leading-snug text-vyva-text-2">
+              {isSpanish
+                ? "VYVA no hara clic, no enviara dinero y no compartira datos sin tu confirmacion."
+                : "VYVA will not click links, send money, or share details without your confirmation."}
+            </p>
+          </div>
+        </section>
+      )}
 
       {otcPharmacyOpen && (
         <section
