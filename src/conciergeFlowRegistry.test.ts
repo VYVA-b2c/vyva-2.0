@@ -44,7 +44,7 @@ describe("concierge flow registry", () => {
       providerCategory: "pharmacy",
     });
     expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.scamCheck)).toMatchObject({
-      status: "planned",
+      status: "partial",
       tools: expect.arrayContaining(["camera_or_upload", "web_search"]),
     });
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.transportBooking)).toBe(true);

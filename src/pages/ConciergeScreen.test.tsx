@@ -147,9 +147,17 @@ function showBookRideFastHelp() {
 function showOtcPharmacyFastHelp() {
   screen.getByTestId("button-concierge-fast-home-service");
   act(() => {
-    vi.advanceTimersByTime(9000);
+    vi.advanceTimersByTime(18000);
   });
   return screen.getByTestId("button-concierge-fast-otc-pharmacy");
+}
+
+function showScamCheckFastHelp() {
+  screen.getByTestId("button-concierge-fast-home-service");
+  act(() => {
+    vi.advanceTimersByTime(9000);
+  });
+  return screen.getByTestId("button-concierge-fast-check-scam");
 }
 
 afterEach(() => {
@@ -1148,6 +1156,31 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Tell VYVA where to go first");
     });
   });
+
+  it("opens a scam check router and prepares a safe review request", async () => {
+    vi.useFakeTimers();
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen();
+    fireEvent.click(await showScamCheckFastHelp());
+    vi.useRealTimers();
+
+    const panel = await screen.findByTestId("panel-scam-check");
+    expect(panel).toHaveTextContent("Check a possible scam");
+    expect(panel).toHaveTextContent("Email or message");
+    expect(panel).toHaveTextContent("Document or photo");
+    expect(panel).toHaveTextContent("Phone number");
+    expect(panel).toHaveTextContent("Company or offer");
+    expect(panel).toHaveTextContent("Review path ready");
+
+    fireEvent.click(screen.getByTestId("button-scam-check-company"));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Help me check a company, offer, seller, or service reputation online");
+    expect(prefill).toHaveTextContent("Do not click, reply, pay, or share personal details");
+    expect(screen.queryByTestId("panel-scam-check")).not.toBeInTheDocument();
+  }, 60000);
 
   it("opens voice ride handoffs on the transport card with known details", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
