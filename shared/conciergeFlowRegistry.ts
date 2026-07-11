@@ -171,12 +171,12 @@ export const CONCIERGE_FLOW_REGISTRY: ConciergeFlowDefinition[] = [
     reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
     actionName: "Call, email, form, or application",
     levels: ["voice_handoff"],
-    status: "planned",
+    status: "partial",
     savedData: ["contact_channel", "document_or_media"],
     tools: ["phone_call", "email", "booking_link", "camera_or_upload", "operator_review"],
     firstQuestions: ["task_goal", "recipient_or_website", "deadline"],
     confirmationRule: "Check tool readiness first, prepare a draft/action plan, and ask before sending, calling, uploading, or submitting.",
-    nextImplementationStep: "Create a shared tool-readiness gate used by all booking and admin flows.",
+    nextImplementationStep: "Reuse the shared action-readiness panel across booking, admin, and provider handoff flows.",
   },
 ];
 

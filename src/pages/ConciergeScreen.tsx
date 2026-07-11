@@ -59,6 +59,7 @@ import {
 import VoiceHero from "@/components/VoiceHero";
 import VoiceActionFulfillmentPanel from "@/components/VoiceActionFulfillmentPanel";
 import ActionConfirmationCheckpoint from "@/components/concierge/ActionConfirmationCheckpoint";
+import ActionReadinessPanel from "@/components/concierge/ActionReadinessPanel";
 import MasterDashboardLayout, {
   type MasterDashboardCard,
   type MasterFastHelpAction,
@@ -4336,7 +4337,7 @@ const ConciergeScreen = () => {
             <div className="grid gap-3 sm:grid-cols-2">
               {INSURANCE_ADMIN_OPTIONS.map((option) => {
                 const Icon = option.Icon;
-                const readinessItem = toolReadinessConfirmationItem(insuranceAdminReadiness(option), isSpanish);
+                const readiness = insuranceAdminReadiness(option);
                 return (
                   <button
                     key={option.key}
@@ -4355,11 +4356,13 @@ const ConciergeScreen = () => {
                       <span className="mt-1 block font-body text-[13px] font-bold leading-snug text-vyva-text-2">
                         {isSpanish ? option.detailEs : option.detailEn}
                       </span>
-                      {readinessItem ? (
-                        <span className="mt-3 inline-flex rounded-full bg-[#F3E8FF] px-3 py-1 font-body text-[11px] font-black text-[#6B21A8]">
-                          {readinessItem.label}
-                        </span>
-                      ) : null}
+                      <ActionReadinessPanel
+                        readiness={readiness}
+                        desiredAction={isSpanish ? option.es : option.en}
+                        isSpanish={isSpanish}
+                        compact
+                        testId={`panel-insurance-admin-readiness-${option.key}`}
+                      />
                     </span>
                   </button>
                 );

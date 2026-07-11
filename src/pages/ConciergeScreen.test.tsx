@@ -1170,6 +1170,8 @@ describe("ConciergeScreen action hub", () => {
     expect(panel).toHaveTextContent("Government/admin form");
     expect(panel).toHaveTextContent("Call or email someone");
     expect(panel).toHaveTextContent("Review path ready");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Direct tool: email");
+    expect(screen.getByTestId("panel-insurance-admin-readiness-claim")).toHaveTextContent("Current path: VYVA review");
 
     fireEvent.click(screen.getByTestId("button-insurance-admin-claim"));
 
