@@ -274,6 +274,7 @@ type MarketingAudience = {
   lovableExternalId: string | null;
   memberCount: number;
   mappedMemberCount: number;
+  contactExternalIds: string[];
   unmappedContactExternalIds: string[];
   lastSyncedAt: string | null;
 };
@@ -397,6 +398,8 @@ type AudienceDraft = {
   rulesText: string;
   contactExternalIds: string;
 };
+
+type AudienceEditDraft = AudienceDraft;
 
 const emptySummary: MarketingSummary = {
   totals: {
@@ -696,6 +699,26 @@ function contactPayloadFromDraft(draft: ContactEditDraft) {
       phone: Boolean(draft.phoneNumber),
       whatsapp: Boolean(draft.whatsappNumber),
     },
+  };
+}
+
+function audienceEditDraftFromAudience(audience: MarketingAudience): AudienceEditDraft {
+  return {
+    name: audience.name,
+    listType: audience.listType || "dynamic",
+    description: audience.description ?? "",
+    rulesText: jsonText(audience.rules ?? {}),
+    contactExternalIds: (audience.contactExternalIds ?? []).join("\n"),
+  };
+}
+
+function audiencePayloadFromDraft(draft: AudienceEditDraft) {
+  return {
+    name: draft.name,
+    listType: draft.listType || "dynamic",
+    description: draft.description || null,
+    rules: parseRulesText(draft.rulesText),
+    contactExternalIds: splitLines(draft.contactExternalIds),
   };
 }
 
@@ -1073,6 +1096,9 @@ export default function MarketingAdminPage() {
   const [contactEditDraft, setContactEditDraft] = useState<ContactEditDraft | null>(null);
   const [contactSaving, setContactSaving] = useState(false);
   const [audienceDraft, setAudienceDraft] = useState<AudienceDraft>({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
+  const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null);
+  const [audienceEditDraft, setAudienceEditDraft] = useState<AudienceEditDraft | null>(null);
+  const [audienceSaving, setAudienceSaving] = useState(false);
   const [audienceFeedback, setAudienceFeedback] = useState("");
 
   async function refreshAll() {
@@ -1157,6 +1183,7 @@ export default function MarketingAdminPage() {
     [campaignEditDraft.contentAssetId, emailContentAssets],
   );
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
+  const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
 
   const campaignRecipientPreview = useMemo(() => {
     if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return [];
@@ -1645,8 +1672,10 @@ export default function MarketingAdminPage() {
   async function createAudience(event: FormEvent) {
     event.preventDefault();
     setAudienceFeedback("");
+    setAudienceSaving(true);
     if (!audienceDraft.name.trim()) {
       setAudienceFeedback("Audience name is required.");
+      setAudienceSaving(false);
       return;
     }
     let rules: Record<string, unknown>;
@@ -1654,23 +1683,99 @@ export default function MarketingAdminPage() {
       rules = parseRulesText(audienceDraft.rulesText);
     } catch {
       setAudienceFeedback("Rules must be valid JSON.");
+      setAudienceSaving(false);
       return;
     }
-    await api("/api/admin/marketing/audiences", {
-      method: "POST",
-      body: JSON.stringify({
-        name: audienceDraft.name,
-        listType: audienceDraft.listType || "dynamic",
-        description: audienceDraft.description || null,
-        rules,
-        contactExternalIds: splitLines(audienceDraft.contactExternalIds),
-        metadata: { created_from: "admin_rule_builder" },
-      }),
-    });
-    setAudienceDraft({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
-    setAudienceFeedback("Audience created.");
-    setMessage("Audience created.");
-    await refreshAll();
+    try {
+      await api("/api/admin/marketing/audiences", {
+        method: "POST",
+        body: JSON.stringify({
+          name: audienceDraft.name,
+          listType: audienceDraft.listType || "dynamic",
+          description: audienceDraft.description || null,
+          rules,
+          contactExternalIds: splitLines(audienceDraft.contactExternalIds),
+          metadata: { created_from: "admin_rule_builder" },
+        }),
+      });
+      setAudienceDraft({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
+      setAudienceFeedback("Audience created.");
+      setMessage("Audience created.");
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Audience could not be created.";
+      setAudienceFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setAudienceSaving(false);
+    }
+  }
+
+  function startAudienceEdit(audience: MarketingAudience) {
+    setEditingAudienceId(audience.id);
+    setAudienceEditDraft(audienceEditDraftFromAudience(audience));
+    setAudienceFeedback("");
+  }
+
+  function cancelAudienceEdit() {
+    setEditingAudienceId(null);
+    setAudienceEditDraft(null);
+    setAudienceFeedback("");
+  }
+
+  async function saveAudienceEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editingAudienceId || !audienceEditDraft) return;
+    setAudienceFeedback("");
+    if (!audienceEditDraft.name.trim()) {
+      setAudienceFeedback("Audience name is required.");
+      return;
+    }
+    let payload: ReturnType<typeof audiencePayloadFromDraft>;
+    try {
+      payload = audiencePayloadFromDraft(audienceEditDraft);
+    } catch {
+      setAudienceFeedback("Rules must be valid JSON.");
+      return;
+    }
+    setAudienceSaving(true);
+    setAudienceFeedback("Saving audience...");
+    try {
+      const result = await api<{ audience: MarketingAudience }>(`/api/admin/marketing/audiences/${editingAudienceId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      setEditingAudienceId(result.audience.id);
+      setAudienceEditDraft(audienceEditDraftFromAudience(result.audience));
+      setAudienceFeedback("Audience updated.");
+      setMessage("Audience updated.");
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Audience could not be updated.";
+      setAudienceFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setAudienceSaving(false);
+    }
+  }
+
+  async function deleteAudience(audience: MarketingAudience) {
+    if (!window.confirm(`Delete list "${audience.name}"? Contacts will stay in marketing contacts; only this list and its memberships are removed.`)) return;
+    setAudienceSaving(true);
+    setAudienceFeedback("Deleting audience...");
+    try {
+      await api(`/api/admin/marketing/audiences/${audience.id}`, { method: "DELETE" });
+      if (editingAudienceId === audience.id) cancelAudienceEdit();
+      setAudienceFeedback("Audience deleted.");
+      setMessage("Audience deleted.");
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Audience could not be deleted.";
+      setAudienceFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setAudienceSaving(false);
+    }
   }
 
   async function runLovableSync() {
@@ -2727,32 +2832,32 @@ export default function MarketingAdminPage() {
                 })} data-testid="marketing-audience-builder">
                   <div className="grid gap-3 xl:grid-cols-[1fr_180px_1fr]">
                     <Field label="Audience name">
-                      <input className={inputClass} value={audienceDraft.name} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Madrid partners" data-testid="input-marketing-audience-name" />
+                      <input className={inputClass} value={audienceDraft.name} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Madrid partners" disabled={audienceSaving} data-testid="input-marketing-audience-name" />
                     </Field>
                     <Field label="List type">
-                      <select className={inputClass} value={audienceDraft.listType} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, listType: event.target.value }))} data-testid="select-marketing-audience-type">
+                      <select className={inputClass} value={audienceDraft.listType} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, listType: event.target.value }))} disabled={audienceSaving} data-testid="select-marketing-audience-type">
                         <option value="dynamic">dynamic</option>
                         <option value="static">static</option>
                         <option value="imported">imported</option>
                       </select>
                     </Field>
                     <Field label="Description">
-                      <input className={inputClass} value={audienceDraft.description} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, description: event.target.value }))} placeholder="Who this list is for" data-testid="input-marketing-audience-description" />
+                      <input className={inputClass} value={audienceDraft.description} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, description: event.target.value }))} placeholder="Who this list is for" disabled={audienceSaving} data-testid="input-marketing-audience-description" />
                     </Field>
                   </div>
                   <div className="grid gap-3 xl:grid-cols-2">
                     <Field label="Rules JSON">
-                      <textarea className={textareaClass} value={audienceDraft.rulesText} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, rulesText: event.target.value }))} data-testid="input-marketing-audience-rules" />
+                      <textarea className={textareaClass} value={audienceDraft.rulesText} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, rulesText: event.target.value }))} disabled={audienceSaving} data-testid="input-marketing-audience-rules" />
                     </Field>
                     <Field label="Contact external IDs">
-                      <textarea className={textareaClass} value={audienceDraft.contactExternalIds} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, contactExternalIds: event.target.value }))} placeholder="contact:123, contact:456" data-testid="input-marketing-audience-contact-ids" />
+                      <textarea className={textareaClass} value={audienceDraft.contactExternalIds} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, contactExternalIds: event.target.value }))} placeholder="contact:123, contact:456" disabled={audienceSaving} data-testid="input-marketing-audience-contact-ids" />
                     </Field>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white" type="submit" data-testid="button-marketing-add-audience">
-                      <UsersRound size={16} /> Add audience
+                    <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" type="submit" disabled={audienceSaving} data-testid="button-marketing-add-audience">
+                      <UsersRound size={16} /> {audienceSaving ? "Saving..." : "Add audience"}
                     </button>
-                    {audienceFeedback ? (
+                    {audienceFeedback && !audienceEditDraft ? (
                       <p className={`rounded-xl px-4 py-3 text-sm font-bold ${audienceFeedback.includes("created") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-audience-feedback">
                         {audienceFeedback}
                       </p>
@@ -2760,6 +2865,57 @@ export default function MarketingAdminPage() {
                   </div>
                 </form>
               </SectionCard>
+              {audienceEditDraft ? (
+                <SectionCard
+                  title="List editor"
+                  subtitle={editingAudience ? `Editing ${editingAudience.name}. Members are stored as Lovable contact external IDs.` : "Edit imported or manually created marketing lists."}
+                  action={editingAudience ? <Pill className="bg-purple-50 text-purple-800">{editingAudience.source}</Pill> : null}
+                >
+                  <form className="grid gap-3" onSubmit={(event) => void saveAudienceEdit(event)} data-testid="marketing-audience-editor-form">
+                    <div className="grid gap-3 xl:grid-cols-[1fr_180px_1fr]">
+                      <Field label="List name">
+                        <input className={inputClass} value={audienceEditDraft.name} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, name: event.target.value }) : draft)} disabled={audienceSaving} data-testid="input-marketing-edit-audience-name" />
+                      </Field>
+                      <Field label="List type">
+                        <select className={inputClass} value={audienceEditDraft.listType} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, listType: event.target.value }) : draft)} disabled={audienceSaving} data-testid="select-marketing-edit-audience-type">
+                          <option value="dynamic">dynamic</option>
+                          <option value="static">static</option>
+                          <option value="imported">imported</option>
+                        </select>
+                      </Field>
+                      <Field label="Description">
+                        <input className={inputClass} value={audienceEditDraft.description} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, description: event.target.value }) : draft)} disabled={audienceSaving} data-testid="input-marketing-edit-audience-description" />
+                      </Field>
+                    </div>
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      <Field label="Rules JSON">
+                        <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.rulesText} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, rulesText: event.target.value }) : draft)} disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-rules" />
+                      </Field>
+                      <Field label="Contact external IDs">
+                        <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.contactExternalIds} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, contactExternalIds: event.target.value }) : draft)} placeholder="contact:123&#10;contact:456" disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-contact-ids" />
+                      </Field>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={audienceSaving} data-testid="button-marketing-save-audience">
+                        <Save size={16} /> {audienceSaving ? "Saving..." : "Save list"}
+                      </button>
+                      {editingAudience ? (
+                        <button type="button" onClick={() => void deleteAudience(editingAudience)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid="button-marketing-delete-editing-audience">
+                          <Trash2 size={16} /> Delete
+                        </button>
+                      ) : null}
+                      <button type="button" onClick={cancelAudienceEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid="button-marketing-cancel-audience">
+                        <X size={16} /> Close
+                      </button>
+                      {audienceFeedback ? (
+                        <p className={`rounded-xl px-4 py-3 text-sm font-bold ${audienceFeedback.toLowerCase().includes("updated") || audienceFeedback.toLowerCase().includes("deleted") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-audience-editor-feedback">
+                          {audienceFeedback}
+                        </p>
+                      ) : null}
+                    </div>
+                  </form>
+                </SectionCard>
+              ) : null}
               <SectionCard title="Audiences / lists" subtitle={`${visibleAudiences.length} visible of ${audiences.length} imported lists.`}>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-audiences-list">
                   {visibleAudiences.length === 0 ? (
@@ -2783,6 +2939,14 @@ export default function MarketingAdminPage() {
                         {unmappedCount ? (
                           <p className="mt-2 text-xs font-semibold text-[#8b5d13]">Unmapped examples: {audience.unmappedContactExternalIds.slice(0, 3).join(", ")}</p>
                         ) : null}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button type="button" onClick={() => void deleteAudience(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

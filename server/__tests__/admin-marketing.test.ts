@@ -520,6 +520,82 @@ describe("admin marketing router", () => {
     expect(table("marketing_contacts")).toHaveLength(0);
   });
 
+  it("updates and deletes marketing audiences and memberships", async () => {
+    const app = buildApp();
+    await request(app)
+      .post("/api/admin/marketing/contacts")
+      .send({
+        fullName: "Partner Lead",
+        audienceType: "b2b",
+        email: "lead@example.com",
+        lovableExternalId: "lovable-contact-1",
+      })
+      .expect(201);
+
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/audiences")
+      .send({
+        name: "Partners",
+        listType: "static",
+        description: "Imported partner list",
+        rules: { market: "Spain" },
+        contactExternalIds: ["lovable-contact-1", "missing-contact"],
+      })
+      .expect(201);
+
+    const audienceId = createResponse.body.audience.id;
+    expect(createResponse.body.audience).toMatchObject({
+      id: audienceId,
+      name: "Partners",
+      memberCount: 2,
+      mappedMemberCount: 1,
+      contactExternalIds: ["lovable-contact-1", "missing-contact"],
+      unmappedContactExternalIds: ["missing-contact"],
+    });
+
+    await request(app)
+      .patch(`/api/admin/marketing/audiences/${audienceId}`)
+      .send({
+        name: "Updated partners",
+        listType: "dynamic",
+        description: "Updated partner list",
+        rules: { market: "Madrid", vertical: "care" },
+        contactExternalIds: ["lovable-contact-1", "new-unmapped-contact"],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.audience).toMatchObject({
+          id: audienceId,
+          name: "Updated partners",
+          listType: "dynamic",
+          description: "Updated partner list",
+          rules: { market: "Madrid", vertical: "care" },
+          memberCount: 2,
+          mappedMemberCount: 1,
+          contactExternalIds: ["lovable-contact-1", "new-unmapped-contact"],
+          unmappedContactExternalIds: ["new-unmapped-contact"],
+        });
+      });
+
+    expect(table("marketing_audiences")[0]).toMatchObject({
+      name: "Updated partners",
+      list_type: "dynamic",
+      description: "Updated partner list",
+      rules: { market: "Madrid", vertical: "care" },
+    });
+    expect(table("marketing_audience_members")).toHaveLength(2);
+
+    await request(app)
+      .delete(`/api/admin/marketing/audiences/${audienceId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedAudienceId: audienceId });
+      });
+
+    expect(table("marketing_audiences")).toHaveLength(0);
+    expect(table("marketing_audience_members")).toHaveLength(0);
+  });
+
   it("updates campaign planning rows and deletes campaigns without dispatch", async () => {
     const app = buildApp();
     const createResponse = await request(app)

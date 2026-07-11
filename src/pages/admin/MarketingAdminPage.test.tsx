@@ -270,6 +270,7 @@ const audiences = [
     lovableExternalId: "lovable-audience-1",
     memberCount: 2,
     mappedMemberCount: 1,
+    contactExternalIds: ["lovable-contact-2", "missing-contact"],
     unmappedContactExternalIds: ["missing-contact"],
     lastSyncedAt: "2026-07-05T09:00:00.000Z",
   },
@@ -408,6 +409,25 @@ function contactFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
+function audienceFromRequestBody(id: string, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}"));
+  const contactExternalIds = body.contactExternalIds ?? [];
+  return {
+    id,
+    name: body.name ?? "Untitled list",
+    description: body.description ?? null,
+    listType: body.listType ?? "dynamic",
+    rules: body.rules ?? {},
+    source: "vyva",
+    lovableExternalId: null,
+    memberCount: contactExternalIds.length,
+    mappedMemberCount: contactExternalIds.filter((value: string) => value === "lovable-contact-2").length,
+    contactExternalIds,
+    unmappedContactExternalIds: contactExternalIds.filter((value: string) => value !== "lovable-contact-2"),
+    lastSyncedAt: null,
+  };
+}
+
 function renderPage(syncOverride: Partial<typeof sync> = {}) {
   const syncResponse = { ...sync, ...syncOverride };
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -439,6 +459,8 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "PATCH") return jsonResponse({ ok: true, contact: contactFromRequestBody("contact-2", init) });
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContactId: "contact-2" });
     if (path === "/api/admin/marketing/audiences" && method === "POST") return jsonResponse({ ok: true, audience: audiences[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/audiences/audience-1" && method === "PATCH") return jsonResponse({ ok: true, audience: audienceFromRequestBody("audience-1", init) });
+    if (path === "/api/admin/marketing/audiences/audience-1" && method === "DELETE") return jsonResponse({ ok: true, deletedAudienceId: "audience-1" });
     return jsonResponse({ error: `Unexpected request: ${method} ${path}` }, { status: 500 });
   });
 
@@ -727,6 +749,48 @@ describe("MarketingAdminPage", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
     });
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete contact"));
+    confirmSpy.mockRestore();
+  });
+
+  it("edits and deletes imported marketing audiences", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-audience-audience-1"));
+
+    expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-audience-name")).toHaveValue("Partners");
+    expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("lovable-contact-2\nmissing-contact");
+
+    fireEvent.change(screen.getByTestId("input-marketing-edit-audience-name"), { target: { value: "Updated partners" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-audience-type"), { target: { value: "static" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-audience-description"), { target: { value: "Updated partner list" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-audience-rules"), { target: { value: "{\"market\":\"Madrid\",\"vertical\":\"care\"}" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-audience-contact-ids"), { target: { value: "lovable-contact-2\nnew-unmapped-contact" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-audience"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/audiences/audience-1" && init?.method === "PATCH");
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      name: "Updated partners",
+      listType: "static",
+      description: "Updated partner list",
+      rules: { market: "Madrid", vertical: "care" },
+      contactExternalIds: ["lovable-contact-2", "new-unmapped-contact"],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-audience-editor-feedback")).toHaveTextContent("Audience updated.");
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-audience"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete list"));
     confirmSpy.mockRestore();
   });
 
