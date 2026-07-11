@@ -347,6 +347,7 @@ type CampaignEditDraft = {
   scheduleStartsAt: string;
   timezone: string;
   objective: string;
+  targetAudienceId: string;
   recipientFilter: string;
   snapshotRecipients: boolean;
   channels: CampaignChannelDraft[];
@@ -643,6 +644,7 @@ function emptyCampaignEditDraft(): CampaignEditDraft {
     scheduleStartsAt: "",
     timezone: "Europe/Madrid",
     objective: "",
+    targetAudienceId: "",
     recipientFilter: "",
     snapshotRecipients: false,
     channels: [newCampaignChannelDraft()],
@@ -665,6 +667,7 @@ function campaignEditDraftFromCampaign(campaign: Campaign): CampaignEditDraft {
     scheduleStartsAt,
     timezone: campaign.timezone || "Europe/Madrid",
     objective: campaign.objective,
+    targetAudienceId: "",
     recipientFilter: "",
     snapshotRecipients: false,
     channels,
@@ -677,7 +680,7 @@ function campaignChannelsWithPrimary(draft: CampaignEditDraft) {
     {
       ...first,
       channel: draft.channel,
-      contentAssetId: draft.channel === "email" ? draft.contentAssetId : "",
+      contentAssetId: first.contentAssetId || draft.contentAssetId,
       status: draft.status,
       scheduledAt: draft.scheduleStartsAt,
     },
@@ -960,6 +963,27 @@ function recipientSnapshot(contact: MarketingContact) {
     consentStatus: contact.consentStatus,
     tags: contact.tags,
     lists: contact.lists,
+  };
+}
+
+function contactMatchesAudienceList(contact: MarketingContact, audience: MarketingAudience | null) {
+  if (!audience) return true;
+  const contactExternalId = lower(contact.lovableExternalId);
+  const externalIds = new Set(audience.contactExternalIds.map((id) => lower(id)));
+  return Boolean(contactExternalId && externalIds.has(contactExternalId))
+    || contact.lists.some((list) => lower(list) === lower(audience.name));
+}
+
+function audienceSnapshot(audience: MarketingAudience | null) {
+  if (!audience) return null;
+  return {
+    id: audience.id,
+    name: audience.name,
+    listType: audience.listType,
+    source: audience.source,
+    lovableExternalId: audience.lovableExternalId,
+    memberCount: audience.memberCount,
+    mappedMemberCount: audience.mappedMemberCount,
   };
 }
 
@@ -1391,16 +1415,21 @@ export default function MarketingAdminPage() {
   );
   const editingContact = useMemo(() => contacts.find((contact) => contact.id === editingContactId) ?? null, [contacts, editingContactId]);
   const editingAudience = useMemo(() => audiences.find((audience) => audience.id === editingAudienceId) ?? null, [audiences, editingAudienceId]);
+  const selectedCampaignTargetAudience = useMemo(
+    () => audiences.find((audience) => audience.id === campaignEditDraft.targetAudienceId) ?? null,
+    [audiences, campaignEditDraft.targetAudienceId],
+  );
 
   const campaignRecipientPreview = useMemo(() => {
     if (!editingCampaignId || !campaignEditDraft.snapshotRecipients) return [];
     const filter = campaignEditDraft.recipientFilter.trim().toLowerCase();
     return contacts.filter((contact) => {
       if (!campaignAllowsContact(campaignEditDraft.audienceType, contact.audienceType)) return false;
+      if (!contactMatchesAudienceList(contact, selectedCampaignTargetAudience)) return false;
       if (!recipientForChannel(contact, campaignEditDraft.channel)) return false;
       return !filter || contactSearchText(contact).includes(filter);
     });
-  }, [campaignEditDraft, contacts, editingCampaignId]);
+  }, [campaignEditDraft, contacts, editingCampaignId, selectedCampaignTargetAudience]);
 
   async function createCampaign(event: FormEvent) {
     event.preventDefault();
@@ -1451,6 +1480,7 @@ export default function MarketingAdminPage() {
       return;
     }
     const scheduledAt = fromDateTimeLocal(campaignEditDraft.scheduleStartsAt);
+    const targetAudienceSnapshot = audienceSnapshot(selectedCampaignTargetAudience);
     const recipients = campaignEditDraft.snapshotRecipients
       ? campaignRecipientPreview.map((contact) => ({
         contactId: contact.id,
@@ -1458,7 +1488,10 @@ export default function MarketingAdminPage() {
         recipient: recipientForChannel(contact, campaignEditDraft.channel) ?? contact.id,
         status: "planned",
         scheduledAt,
-        snapshot: recipientSnapshot(contact),
+        snapshot: {
+          ...recipientSnapshot(contact),
+          ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+        },
       }))
       : undefined;
     await api(`/api/admin/marketing/campaigns/${campaignId}`, {
@@ -2565,9 +2598,32 @@ export default function MarketingAdminPage() {
                         <p className="mt-1 text-xs font-bold text-[#8b7a73]">Email recipients can be sent after saving this snapshot. WhatsApp and social channels remain locked.</p>
                         {campaignEditDraft.snapshotRecipients ? (
                           <div className="mt-3 grid gap-3">
-                            <Field label="Recipient filter">
-                              <input className={inputClass} value={campaignEditDraft.recipientFilter} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, recipientFilter: event.target.value }))} placeholder="Filter by name, company, tag, market, list..." data-testid="input-marketing-edit-campaign-recipient-filter" />
-                            </Field>
+                            <div className="grid gap-3 xl:grid-cols-[1fr_1fr]">
+                              <Field label="Target list">
+                                <select
+                                  className={inputClass}
+                                  value={campaignEditDraft.targetAudienceId}
+                                  onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, targetAudienceId: event.target.value }))}
+                                  data-testid="select-marketing-edit-campaign-target-audience"
+                                >
+                                  <option value="">All eligible contacts</option>
+                                  {audiences.map((audience) => (
+                                    <option key={audience.id} value={audience.id}>
+                                      {audience.name} ({audience.mappedMemberCount}/{audience.memberCount} mapped)
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field label="Recipient filter">
+                                <input className={inputClass} value={campaignEditDraft.recipientFilter} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, recipientFilter: event.target.value }))} placeholder="Filter by name, company, tag, market, list..." data-testid="input-marketing-edit-campaign-recipient-filter" />
+                              </Field>
+                            </div>
+                            {selectedCampaignTargetAudience ? (
+                              <div className="rounded-xl border border-purple-100 bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-target-audience-summary">
+                                <span className="text-[#241133]">{selectedCampaignTargetAudience.name}</span>
+                                {" "}is a {selectedCampaignTargetAudience.source} {selectedCampaignTargetAudience.listType} list with {selectedCampaignTargetAudience.mappedMemberCount} mapped and {selectedCampaignTargetAudience.unmappedContactExternalIds.length} unmapped contacts.
+                              </div>
+                            ) : null}
                             <div className="rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-recipient-preview">
                               <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Preview</p>
                               <p className="mt-1 text-2xl font-black text-[#241133]">{campaignRecipientPreview.length}</p>

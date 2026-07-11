@@ -1008,10 +1008,14 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-timezone"), { target: { value: "Europe/London" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-audience"), { target: { value: "both" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-channel"), { target: { value: "email" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-status"), { target: { value: "scheduled" } });
     fireEvent.click(screen.getByTestId("checkbox-marketing-edit-campaign-snapshot"));
-    fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-recipient-filter"), { target: { value: "Karim" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-target-audience"), { target: { value: "audience-1" } });
+    expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("Partners");
+    expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("1 mapped");
+    fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-recipient-filter"), { target: { value: "Hassan" } });
 
     expect(screen.getByTestId("marketing-campaign-recipient-preview")).toHaveTextContent("1");
     fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
@@ -1024,6 +1028,7 @@ describe("MarketingAdminPage", () => {
     expect(patchBody).toMatchObject({
       name: "Updated campaign",
       objective: "Updated objective",
+      audienceType: "both",
       status: "scheduled",
       timezone: "Europe/London",
       channels: [
@@ -1033,11 +1038,18 @@ describe("MarketingAdminPage", () => {
     });
     expect(patchBody.recipients).toHaveLength(1);
     expect(patchBody.recipients[0]).toMatchObject({
-      contactId: "contact-1",
+      contactId: "contact-2",
       channel: "email",
-      recipient: "karim@example.com",
+      recipient: "hassan@example.com",
       status: "planned",
-      snapshot: { fullName: "Karim Assad" },
+      snapshot: {
+        fullName: "Hassan Partner",
+        audienceList: {
+          name: "Partners",
+          source: "lovable",
+          lovableExternalId: "lovable-audience-1",
+        },
+      },
     });
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.anything());
 
