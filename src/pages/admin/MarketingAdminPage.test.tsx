@@ -66,7 +66,7 @@ const campaigns = [
     timezone: "Europe/Madrid",
     source: "vyva",
     lovableExternalId: null,
-    metadata: { extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" } },
+    metadata: { extraCampaignField: "from-lovable", lovable: { originalStatus: "queued" }, targetAudience: { lovableExternalId: "lovable-audience-1" } },
     channels: [
       { id: "channel-1", channel: "email", contentAssetId: "content-1", scheduledAt: "2026-07-06T09:00:00.000Z", status: "scheduled", sendCapability: "enabled" },
       { id: "channel-1-linkedin", channel: "linkedin", contentAssetId: "content-2", scheduledAt: "2026-07-06T10:00:00.000Z", status: "draft", sendCapability: "planning_only" },
@@ -993,6 +993,12 @@ describe("MarketingAdminPage", () => {
       name: "New draft",
       audienceType: "b2b",
       channels: [{ channel: "email", contentAssetId: "content-1" }],
+      metadata: {
+        targetAudience: {
+          name: "Partners",
+          lovableExternalId: "lovable-audience-1",
+        },
+      },
       recipients: [{
         contactId: "contact-2",
         recipient: "hassan@example.com",
@@ -1043,6 +1049,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
+    expect(screen.getByTestId("select-marketing-edit-campaign-target-audience")).toHaveValue("audience-1");
+    expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("Partners");
     expect(screen.getByText("Karim Assad")).toBeInTheDocument();
     expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-1")).toHaveTextContent("recipient-export");
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
@@ -1071,6 +1079,13 @@ describe("MarketingAdminPage", () => {
       audienceType: "both",
       status: "scheduled",
       timezone: "Europe/London",
+      metadata: {
+        extraCampaignField: "from-lovable",
+        targetAudience: {
+          name: "Partners",
+          lovableExternalId: "lovable-audience-1",
+        },
+      },
       channels: [
         { channel: "email", contentAssetId: "content-1", status: "scheduled" },
         { channel: "linkedin", contentAssetId: "content-2", status: "draft" },

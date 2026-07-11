@@ -654,6 +654,57 @@ function campaignChannelDraftFromChannel(channel: CampaignChannel, fallbackStatu
   };
 }
 
+function audienceReferencesFromRecord(value: unknown) {
+  const record = recordValue(value);
+  const refs: string[] = [];
+  for (const key of ["targetAudienceId", "audienceId", "audienceListId", "listId", "lovableAudienceId", "audienceExternalId", "audience_external_id"]) {
+    const item = record[key];
+    if (typeof item === "string" && item.trim()) refs.push(item.trim());
+  }
+  for (const key of ["audienceExternalIds", "audience_external_ids", "audienceIds", "audience_ids", "audiences", "lists", "contactLists", "contact_lists"]) {
+    const item = record[key];
+    if (Array.isArray(item)) {
+      refs.push(...item.map((entry) => typeof entry === "string" ? entry.trim() : "").filter(Boolean));
+    }
+  }
+  for (const key of ["targetAudience", "audienceList", "audience", "list"]) {
+    const nested = recordValue(record[key]);
+    for (const nestedKey of ["id", "lovableExternalId", "lovable_external_id", "externalId", "external_id", "name"]) {
+      const item = nested[nestedKey];
+      if (typeof item === "string" && item.trim()) refs.push(item.trim());
+    }
+  }
+  const list = record.list;
+  if (typeof list === "string" && list.trim()) refs.push(list.trim());
+  return Array.from(new Set(refs));
+}
+
+function campaignTargetAudience(campaign: Campaign, audiences: MarketingAudience[]) {
+  const metadata = recordValue(campaign.metadata);
+  const refs = [
+    ...audienceReferencesFromRecord(metadata),
+    ...audienceReferencesFromRecord(metadata.lovable),
+    ...(campaign.recipients ?? []).flatMap((recipient) => audienceReferencesFromRecord(recipient.snapshot)),
+  ];
+  return audiences.find((audience) => refs.some((reference) => audienceMatchesReference(audience, reference))) ?? null;
+}
+
+function campaignMetadataWithTarget(existingMetadata: unknown, targetAudience: MarketingAudience | null) {
+  const metadata = { ...recordValue(existingMetadata) };
+  for (const key of ["targetAudience", "targetAudienceId", "audienceId", "audienceListId", "listId", "lovableAudienceId", "audienceExternalId", "audience_external_id", "audienceList"]) {
+    delete metadata[key];
+  }
+  const targetAudienceSnapshot = audienceSnapshot(targetAudience);
+  return targetAudienceSnapshot
+    ? {
+        ...metadata,
+        targetAudienceId: targetAudience.id,
+        audienceExternalId: targetAudience.lovableExternalId ?? targetAudience.id,
+        targetAudience: targetAudienceSnapshot,
+      }
+    : metadata;
+}
+
 function emptyCampaignEditDraft(): CampaignEditDraft {
   return {
     name: "",
@@ -671,13 +722,14 @@ function emptyCampaignEditDraft(): CampaignEditDraft {
   };
 }
 
-function campaignEditDraftFromCampaign(campaign: Campaign): CampaignEditDraft {
+function campaignEditDraftFromCampaign(campaign: Campaign, audiences: MarketingAudience[] = []): CampaignEditDraft {
   const status = normalizeCampaignStatus(campaign.status);
   const scheduleStartsAt = toDateTimeLocal(campaign.scheduleStartsAt);
   const channels = campaign.channels.length
     ? campaign.channels.map((channel) => campaignChannelDraftFromChannel(channel, status, scheduleStartsAt))
     : [newCampaignChannelDraft("email", status, scheduleStartsAt)];
   const primaryChannel = channels[0];
+  const targetAudience = campaignTargetAudience(campaign, audiences);
   return {
     name: campaign.name,
     audienceType: campaign.audienceType,
@@ -687,7 +739,7 @@ function campaignEditDraftFromCampaign(campaign: Campaign): CampaignEditDraft {
     scheduleStartsAt,
     timezone: campaign.timezone || "Europe/Madrid",
     objective: campaign.objective,
-    targetAudienceId: "",
+    targetAudienceId: targetAudience?.id ?? "",
     recipientFilter: "",
     snapshotRecipients: false,
     channels,
@@ -1549,6 +1601,7 @@ export default function MarketingAdminPage() {
         status: campaignDraft.status,
         objective: campaignDraft.objective,
         scheduleStartsAt: scheduledAt,
+        metadata: campaignMetadataWithTarget({}, selectedCampaignDraftTargetAudience),
         channels: [{
           channel: campaignDraft.channel,
           contentAssetId: campaignDraft.contentAssetId || null,
@@ -1560,7 +1613,7 @@ export default function MarketingAdminPage() {
     });
     setCampaigns((current) => [result.campaign, ...current.filter((campaign) => campaign.id !== result.campaign.id)]);
     setEditingCampaignId(result.campaign.id);
-    setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign));
+    setCampaignEditDraft(campaignEditDraftFromCampaign(result.campaign, audiences));
     setCampaignDraft(emptyCampaignDraft());
     const recipientMessage = campaignDraft.snapshotRecipients ? ` ${recipients?.length ?? 0} recipients snapshotted.` : "";
     setMessage(`Campaign draft created.${recipientMessage}`);
@@ -1569,7 +1622,7 @@ export default function MarketingAdminPage() {
 
   function startCampaignEdit(campaign: Campaign) {
     setEditingCampaignId(campaign.id);
-    setCampaignEditDraft(campaignEditDraftFromCampaign(campaign));
+    setCampaignEditDraft(campaignEditDraftFromCampaign(campaign, audiences));
     setMessage("");
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
@@ -1617,6 +1670,7 @@ export default function MarketingAdminPage() {
         objective: campaignEditDraft.objective,
         scheduleStartsAt: scheduledAt,
         timezone: campaignEditDraft.timezone,
+        metadata: campaignMetadataWithTarget(editingCampaign?.metadata, selectedCampaignTargetAudience),
         channels: campaignChannelsPayload(campaignEditDraft),
         ...(recipients ? { recipients } : {}),
       }),
@@ -2655,6 +2709,31 @@ export default function MarketingAdminPage() {
                         <Field label="Objective">
                           <textarea className={textareaClass} value={campaignEditDraft.objective} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, objective: event.target.value }))} data-testid="input-marketing-edit-campaign-objective" />
                         </Field>
+                        <div className="grid gap-3 xl:grid-cols-[1fr_1fr]">
+                          <Field label="Target list">
+                            <select
+                              className={inputClass}
+                              value={campaignEditDraft.targetAudienceId}
+                              onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, targetAudienceId: event.target.value }))}
+                              data-testid="select-marketing-edit-campaign-target-audience"
+                            >
+                              <option value="">All eligible contacts</option>
+                              {audiences.map((audience) => (
+                                <option key={audience.id} value={audience.id}>
+                                  {audience.name} ({audience.mappedMemberCount}/{audience.memberCount} mapped)
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          {selectedCampaignTargetAudience ? (
+                            <div className="rounded-xl border border-purple-100 bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-target-audience-summary">
+                              <span className="text-[#241133]">{selectedCampaignTargetAudience.name}</span>
+                              {" "}is a {selectedCampaignTargetAudience.source} {selectedCampaignTargetAudience.listType} list with {selectedCampaignTargetAudience.mappedMemberCount} mapped and {selectedCampaignTargetAudience.unmappedContactExternalIds.length} unmapped contacts.
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#8b7a73]">No imported list selected. Recipient snapshots will use all eligible contacts.</div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-channels-editor">
@@ -2759,32 +2838,9 @@ export default function MarketingAdminPage() {
                         <p className="mt-1 text-xs font-bold text-[#8b7a73]">Email recipients can be sent after saving this snapshot. WhatsApp and social channels remain locked.</p>
                         {campaignEditDraft.snapshotRecipients ? (
                           <div className="mt-3 grid gap-3">
-                            <div className="grid gap-3 xl:grid-cols-[1fr_1fr]">
-                              <Field label="Target list">
-                                <select
-                                  className={inputClass}
-                                  value={campaignEditDraft.targetAudienceId}
-                                  onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, targetAudienceId: event.target.value }))}
-                                  data-testid="select-marketing-edit-campaign-target-audience"
-                                >
-                                  <option value="">All eligible contacts</option>
-                                  {audiences.map((audience) => (
-                                    <option key={audience.id} value={audience.id}>
-                                      {audience.name} ({audience.mappedMemberCount}/{audience.memberCount} mapped)
-                                    </option>
-                                  ))}
-                                </select>
-                              </Field>
-                              <Field label="Recipient filter">
-                                <input className={inputClass} value={campaignEditDraft.recipientFilter} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, recipientFilter: event.target.value }))} placeholder="Filter by name, company, tag, market, list..." data-testid="input-marketing-edit-campaign-recipient-filter" />
-                              </Field>
-                            </div>
-                            {selectedCampaignTargetAudience ? (
-                              <div className="rounded-xl border border-purple-100 bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-campaign-target-audience-summary">
-                                <span className="text-[#241133]">{selectedCampaignTargetAudience.name}</span>
-                                {" "}is a {selectedCampaignTargetAudience.source} {selectedCampaignTargetAudience.listType} list with {selectedCampaignTargetAudience.mappedMemberCount} mapped and {selectedCampaignTargetAudience.unmappedContactExternalIds.length} unmapped contacts.
-                              </div>
-                            ) : null}
+                            <Field label="Recipient filter">
+                              <input className={inputClass} value={campaignEditDraft.recipientFilter} onChange={(event) => setCampaignEditDraft((draft) => ({ ...draft, recipientFilter: event.target.value }))} placeholder="Filter by name, company, tag, market, list..." data-testid="input-marketing-edit-campaign-recipient-filter" />
+                            </Field>
                             <div className="rounded-xl border border-purple-100 bg-white p-3" data-testid="marketing-campaign-recipient-preview">
                               <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Preview</p>
                               <p className="mt-1 text-2xl font-black text-[#241133]">{campaignRecipientPreview.length}</p>
