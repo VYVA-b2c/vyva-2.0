@@ -819,6 +819,19 @@ function recipientSnapshotLabel(recipient: CampaignRecipient) {
   return objectValue(recipient.snapshot, "fullName") || objectValue(recipient.snapshot, "email") || recipient.recipient;
 }
 
+function sumMarketingMetrics(metrics: MarketingCampaignMetric[]): MarketingAnalyticsTotals {
+  return metrics.reduce((totals, metric) => ({
+    sent: totals.sent + metric.sent,
+    delivered: totals.delivered + metric.delivered,
+    opened: totals.opened + metric.opened,
+    clicked: totals.clicked + metric.clicked,
+    bounced: totals.bounced + metric.bounced,
+    unsubscribed: totals.unsubscribed + metric.unsubscribed,
+    replied: totals.replied + metric.replied,
+    socialEngagement: totals.socialEngagement + metric.socialEngagement,
+  }), { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0, replied: 0, socialEngagement: 0 });
+}
+
 function contactSearchText(contact: MarketingContact) {
   return [
     contact.fullName,
@@ -1864,6 +1877,10 @@ export default function MarketingAdminPage() {
   const journeyFeedbackIsError = Boolean(journeyFeedback && /fail|error|could not|required|valid json/i.test(journeyFeedback));
   const savedCampaignRecipients = editingCampaign?.recipients ?? [];
   const visibleSavedCampaignRecipients = savedCampaignRecipients.slice(0, 8);
+  const selectedCampaignMetrics = editingCampaign
+    ? campaignMetrics.filter((metric) => metric.campaignId === editingCampaign.id)
+    : [];
+  const selectedCampaignMetricTotals = sumMarketingMetrics(selectedCampaignMetrics);
 
   return (
     <main className="min-h-screen bg-[#f7f2eb] px-6 py-8 text-[#2f2135]">
@@ -2083,6 +2100,48 @@ export default function MarketingAdminPage() {
                         {editingCampaign.lovableExternalId ? (
                           <p className="mt-3 break-all rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">Lovable ID: {editingCampaign.lovableExternalId}</p>
                         ) : null}
+                      </div>
+
+                      <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-campaign-performance-panel">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-black text-[#241133]">Performance</p>
+                            <p className="text-xs font-bold text-[#8b7a73]">{selectedCampaignMetrics.length} imported metric rows linked to this campaign.</p>
+                          </div>
+                          <Pill className="bg-blue-50 text-blue-800">{selectedCampaignMetricTotals.sent} sent</Pill>
+                        </div>
+                        {selectedCampaignMetrics.length === 0 ? (
+                          <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#8b7a73]">No performance metrics imported for this campaign yet.</p>
+                        ) : (
+                          <div className="mt-3 grid gap-3">
+                            <div className="grid grid-cols-2 gap-2 text-xs font-bold text-[#7d6b65] xl:grid-cols-4">
+                              <div className="rounded-lg bg-white p-2">
+                                <p className="uppercase tracking-[0.12em]">Delivered</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.delivered}</p>
+                              </div>
+                              <div className="rounded-lg bg-white p-2">
+                                <p className="uppercase tracking-[0.12em]">Opened</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.opened}</p>
+                              </div>
+                              <div className="rounded-lg bg-white p-2">
+                                <p className="uppercase tracking-[0.12em]">Clicked</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.clicked}</p>
+                              </div>
+                              <div className="rounded-lg bg-white p-2">
+                                <p className="uppercase tracking-[0.12em]">Replies</p>
+                                <p className="mt-1 text-lg font-black text-[#241133]">{selectedCampaignMetricTotals.replied}</p>
+                              </div>
+                            </div>
+                            <div className="grid gap-2">
+                              {selectedCampaignMetrics.slice(0, 4).map((metric) => (
+                                <div key={metric.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">
+                                  <span>{formatDate(metric.metricDate)} / {metric.channel} / {metric.source}</span>
+                                  <span>{metric.delivered} delivered, {metric.clicked} clicked</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid gap-3">

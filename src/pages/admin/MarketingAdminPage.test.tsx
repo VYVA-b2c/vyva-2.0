@@ -949,6 +949,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("12 sent");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("8");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByText("Karim Assad")).toBeInTheDocument();
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
