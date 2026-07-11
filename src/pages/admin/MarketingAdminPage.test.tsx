@@ -116,6 +116,7 @@ const journeys = [
     goalConfig: { event: "first_login" },
     exitOnGoal: false,
     source: "lovable",
+    lovableExternalId: "lovable-journey-1",
     metadata: { lovable: { triggerWindow: "morning" } },
     steps: [{
       id: "step-1",
@@ -366,8 +367,9 @@ function journeyFromRequestBody(id: string, init?: RequestInit) {
     goalType: body.goalType ?? null,
     goalConfig: body.goalConfig ?? {},
     exitOnGoal: body.exitOnGoal ?? true,
-    source: "vyva",
-    lovableExternalId: null,
+    source: body.source ?? "vyva",
+    lovableExternalId: body.lovableExternalId ?? null,
+    metadata: body.metadata ?? {},
     steps: (body.steps ?? []).map((step: Record<string, unknown>, index: number) => ({
       id: `${id}-step-${index + 1}`,
       stepOrder: step.stepOrder ?? index,
@@ -461,13 +463,14 @@ function audienceFromRequestBody(id: string, init?: RequestInit) {
     description: body.description ?? null,
     listType: body.listType ?? "dynamic",
     rules: body.rules ?? {},
-    source: "vyva",
-    lovableExternalId: null,
+    source: body.source ?? "vyva",
+    lovableExternalId: body.lovableExternalId ?? null,
     memberCount: contactExternalIds.length,
     mappedMemberCount: contactExternalIds.filter((value: string) => value === "lovable-contact-2").length,
     contactExternalIds,
     unmappedContactExternalIds: contactExternalIds.filter((value: string) => value !== "lovable-contact-2"),
     lastSyncedAt: null,
+    metadata: body.metadata ?? {},
   };
 }
 
@@ -916,13 +919,16 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-audience-name")).toHaveValue("Partners");
     expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("lovable-contact-2\nmissing-contact");
-    expect(openMetadataPanel("marketing-audience-metadata-panel")).toHaveTextContent("sourceList");
+    expect(screen.getByTestId("input-marketing-edit-audience-source")).toHaveValue("lovable");
+    expect(screen.getByTestId("input-marketing-edit-audience-lovable-id")).toHaveValue("lovable-audience-1");
+    expect(screen.getByTestId("textarea-marketing-edit-audience-metadata")).toHaveValue(JSON.stringify({ lovable: { sourceList: "Partners" } }, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-audience-name"), { target: { value: "Updated partners" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-audience-type"), { target: { value: "static" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-audience-description"), { target: { value: "Updated partner list" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-audience-rules"), { target: { value: "{\"market\":\"Madrid\",\"vertical\":\"care\"}" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-audience-contact-ids"), { target: { value: "lovable-contact-2\nnew-unmapped-contact" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-audience-metadata"), { target: { value: "{\"lovable\":{\"sourceList\":\"Partners\"},\"review\":\"done\"}" } });
     fireEvent.click(screen.getByTestId("button-marketing-save-audience"));
 
     await waitFor(() => {
@@ -935,6 +941,9 @@ describe("MarketingAdminPage", () => {
       description: "Updated partner list",
       rules: { market: "Madrid", vertical: "care" },
       contactExternalIds: ["lovable-contact-2", "new-unmapped-contact"],
+      source: "lovable",
+      lovableExternalId: "lovable-audience-1",
+      metadata: { lovable: { sourceList: "Partners" }, review: "done" },
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-audience-editor-feedback")).toHaveTextContent("Audience updated.");
@@ -997,7 +1006,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("select-marketing-edit-journey-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("marketing-journey-target-audience-summary")).toHaveTextContent("Partners: 1 mapped of 2 members");
-    expect(openMetadataPanel("marketing-journey-metadata-panel")).toHaveTextContent("triggerWindow");
+    expect(screen.getByTestId("input-marketing-edit-journey-source")).toHaveValue("lovable");
+    expect(screen.getByTestId("input-marketing-edit-journey-lovable-id")).toHaveValue("lovable-journey-1");
+    expect(screen.getByTestId("textarea-marketing-edit-journey-metadata")).toHaveValue(JSON.stringify({ lovable: { triggerWindow: "morning" } }, null, 2));
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });
@@ -1007,6 +1018,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-trigger-config"), { target: { value: "{\"list\":\"partners\"}" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-goal"), { target: { value: "reply" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-goal-config"), { target: { value: "{\"withinDays\":14}" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-metadata"), { target: { value: "{\"lovable\":{\"triggerWindow\":\"morning\"},\"review\":\"done\"}" } });
     fireEvent.click(screen.getByTestId("checkbox-marketing-edit-journey-exit-on-goal"));
 
     fireEvent.click(screen.getByTestId("button-marketing-add-journey-step"));
@@ -1047,6 +1059,9 @@ describe("MarketingAdminPage", () => {
       goalType: "reply",
       goalConfig: { withinDays: 14 },
       exitOnGoal: true,
+      source: "lovable",
+      lovableExternalId: "lovable-journey-1",
+      metadata: { lovable: { triggerWindow: "morning" }, review: "done" },
     });
     expect(JSON.parse(String(patchCall?.[1]?.body)).steps).toMatchObject([
       {

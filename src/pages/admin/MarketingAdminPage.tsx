@@ -376,6 +376,9 @@ type JourneyEditDraft = {
   status: JourneyStatus;
   objective: string;
   targetAudienceId: string;
+  source: string;
+  lovableExternalId: string;
+  metadataText: string;
   triggerType: string;
   triggerConfigText: string;
   goalType: string;
@@ -465,7 +468,11 @@ type AudienceDraft = {
   contactExternalIds: string;
 };
 
-type AudienceEditDraft = AudienceDraft;
+type AudienceEditDraft = AudienceDraft & {
+  source: string;
+  lovableExternalId: string;
+  metadataText: string;
+};
 
 const emptySummary: MarketingSummary = {
   totals: {
@@ -826,6 +833,9 @@ function emptyJourneyEditDraft(): JourneyEditDraft {
     status: "draft",
     objective: "",
     targetAudienceId: "",
+    source: "vyva",
+    lovableExternalId: "",
+    metadataText: "",
     triggerType: "",
     triggerConfigText: "",
     goalType: "",
@@ -892,6 +902,9 @@ function journeyEditDraftFromJourney(journey: Journey, audiences: MarketingAudie
     status: normalizeJourneyStatus(journey.status),
     objective: journey.objective,
     targetAudienceId: targetAudience?.id ?? "",
+    source: journey.source ?? "vyva",
+    lovableExternalId: journey.lovableExternalId ?? "",
+    metadataText: jsonText(journey.metadata),
     triggerType: journey.triggerType ?? "",
     triggerConfigText: jsonText(journey.triggerConfig),
     goalType: journey.goalType ?? "",
@@ -1082,6 +1095,9 @@ function audienceEditDraftFromAudience(audience: MarketingAudience): AudienceEdi
     description: audience.description ?? "",
     rulesText: jsonText(audience.rules ?? {}),
     contactExternalIds: (audience.contactExternalIds ?? []).join("\n"),
+    source: audience.source ?? "vyva",
+    lovableExternalId: audience.lovableExternalId ?? "",
+    metadataText: jsonText(audience.metadata),
   };
 }
 
@@ -1092,6 +1108,9 @@ function audiencePayloadFromDraft(draft: AudienceEditDraft) {
     description: draft.description || null,
     rules: parseRulesText(draft.rulesText),
     contactExternalIds: splitLines(draft.contactExternalIds),
+    source: draft.source.trim() || "vyva",
+    lovableExternalId: draft.lovableExternalId.trim() || null,
+    metadata: parseJsonText(draft.metadataText, "Audience metadata"),
   };
 }
 
@@ -1103,6 +1122,9 @@ function journeyPayloadFromDraft(draft: JourneyEditDraft, targetAudience: Market
     audienceType: draft.audienceType,
     status: draft.status,
     objective: draft.objective,
+    source: draft.source.trim() || "vyva",
+    lovableExternalId: draft.lovableExternalId.trim() || null,
+    metadata: parseJsonText(draft.metadataText, "Journey metadata"),
     triggerType: draft.triggerType.trim() || null,
     triggerConfig: targetAudienceSnapshot
       ? {
@@ -3199,6 +3221,15 @@ export default function MarketingAdminPage() {
                       </Field>
 
                       <div className="grid gap-3 xl:grid-cols-2">
+                        <Field label="Source">
+                          <input className={inputClass} value={journeyEditDraft.source} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, source: event.target.value }))} disabled={journeySaving} data-testid="input-marketing-edit-journey-source" />
+                        </Field>
+                        <Field label="Lovable ID">
+                          <input className={inputClass} value={journeyEditDraft.lovableExternalId} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, lovableExternalId: event.target.value }))} disabled={journeySaving} data-testid="input-marketing-edit-journey-lovable-id" />
+                        </Field>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-2">
                         <Field label="Trigger type">
                           <input className={inputClass} value={journeyEditDraft.triggerType} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, triggerType: event.target.value }))} placeholder="signup, list_joined, date..." disabled={journeySaving} data-testid="input-marketing-edit-journey-trigger" />
                         </Field>
@@ -3225,7 +3256,9 @@ export default function MarketingAdminPage() {
                         Exit this journey when the goal is reached
                       </label>
 
-                      <MetadataPanel title="Imported journey metadata" value={editingJourney?.metadata} testId="marketing-journey-metadata-panel" />
+                      <Field label="Journey metadata JSON">
+                        <textarea className={`${textareaClass} min-h-[130px] font-mono text-xs`} value={journeyEditDraft.metadataText} onChange={(event) => setJourneyEditDraft((draft) => ({ ...draft, metadataText: event.target.value }))} placeholder="{ }" disabled={journeySaving} data-testid="textarea-marketing-edit-journey-metadata" />
+                      </Field>
 
                       <div className="grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-journey-steps-builder">
                         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3940,7 +3973,17 @@ export default function MarketingAdminPage() {
                         <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.contactExternalIds} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, contactExternalIds: event.target.value }) : draft)} placeholder="contact:123&#10;contact:456" disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-contact-ids" />
                       </Field>
                     </div>
-                    <MetadataPanel title="Imported list metadata" value={editingAudience?.metadata} testId="marketing-audience-metadata-panel" />
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      <Field label="Source">
+                        <input className={inputClass} value={audienceEditDraft.source} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, source: event.target.value }) : draft)} disabled={audienceSaving} data-testid="input-marketing-edit-audience-source" />
+                      </Field>
+                      <Field label="Lovable ID">
+                        <input className={inputClass} value={audienceEditDraft.lovableExternalId} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={audienceSaving} data-testid="input-marketing-edit-audience-lovable-id" />
+                      </Field>
+                    </div>
+                    <Field label="List metadata JSON">
+                      <textarea className={`${textareaClass} min-h-[130px] font-mono text-xs`} value={audienceEditDraft.metadataText} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, metadataText: event.target.value }) : draft)} disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-metadata" />
+                    </Field>
                     <div className="flex flex-wrap items-center gap-3">
                       <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={audienceSaving} data-testid="button-marketing-save-audience">
                         <Save size={16} /> {audienceSaving ? "Saving..." : "Save list"}
