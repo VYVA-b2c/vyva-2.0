@@ -664,9 +664,21 @@ function metadataString(value: unknown, key: string) {
   return typeof item === "string" && item.trim() ? item.trim() : "";
 }
 
-function contentOriginLabel(item: ContentAsset) {
+function contentOriginKey(item: ContentAsset) {
   const sourceType = metadataString(item.metadata, "lovable_source_type");
-  if (sourceType) return lovableContentSourceLabels[sourceType] ?? sourceType.replace(/_/g, " ");
+  if (sourceType) return sourceType;
+  return item.source || "vyva";
+}
+
+function contentSourceLabel(key: string) {
+  if (key === "vyva") return "VYVA";
+  if (key === "lovable") return "Lovable content";
+  return lovableContentSourceLabels[key] ?? key.replace(/_/g, " ");
+}
+
+function contentOriginLabel(item: ContentAsset) {
+  const sourceType = contentOriginKey(item);
+  if (sourceType) return contentSourceLabel(sourceType);
   if (item.source === "lovable") return "Lovable content";
   return item.source;
 }
@@ -1591,6 +1603,7 @@ export default function MarketingAdminPage() {
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
+  const [contentSourceFilter, setContentSourceFilter] = useState("all");
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(() => emptyCampaignDraft());
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
@@ -1663,6 +1676,16 @@ export default function MarketingAdminPage() {
   }, []);
 
   const contentTitleById = useMemo(() => new Map(content.map((item) => [item.id, item.title])), [content]);
+  const contentSourceOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of content) {
+      const key = contentOriginKey(item);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([key, count]) => ({ key, label: contentSourceLabel(key), count }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [content]);
 
   const visibleCampaigns = useMemo(() => campaigns.filter((campaign) => {
     const targetAudience = campaignTargetAudience(campaign, audiences);
@@ -1718,11 +1741,14 @@ export default function MarketingAdminPage() {
       item.metadata,
     ]);
     const matchesChannel = channelFilter === "all" || item.channel === channelFilter;
-    return contentMatchesSearch && matchesChannel;
-  }), [content, search, channelFilter]);
+    const matchesSource = contentSourceFilter === "all" || contentOriginKey(item) === contentSourceFilter;
+    return contentMatchesSearch && matchesChannel && matchesSource;
+  }), [content, search, channelFilter, contentSourceFilter]);
+
+  const visibleContentIdSet = useMemo(() => new Set(visibleContent.map((item) => item.id)), [visibleContent]);
 
   const visibleMediaAssets = useMemo(() => mediaAssets.filter((item) => {
-    return matchesSearch(search, [
+    const matchesText = matchesSearch(search, [
       item.id,
       item.contentAssetId,
       item.contentTitle,
@@ -1734,7 +1760,10 @@ export default function MarketingAdminPage() {
       item.lovableExternalId,
       item.metadata,
     ]);
-  }), [mediaAssets, search]);
+    const matchesSource = contentSourceFilter === "all"
+      || (item.contentAssetId ? visibleContentIdSet.has(item.contentAssetId) : item.source === contentSourceFilter);
+    return matchesText && matchesSource;
+  }), [mediaAssets, search, contentSourceFilter, visibleContentIdSet]);
 
   const visibleContacts = useMemo(() => contacts.filter((contact) => {
     const matchesSearch = !search || contactSearchText(contact).includes(search.toLowerCase());
@@ -1794,7 +1823,7 @@ export default function MarketingAdminPage() {
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
-  const selectedContent = useMemo(() => content.find((item) => item.id === selectedContentId) ?? visibleContent[0] ?? null, [content, selectedContentId, visibleContent]);
+  const selectedContent = useMemo(() => visibleContent.find((item) => item.id === selectedContentId) ?? visibleContent[0] ?? null, [selectedContentId, visibleContent]);
   const selectedContentMediaAssets = useMemo(() => {
     if (!selectedContent) return [];
     return mediaAssets.filter((item) => item.contentAssetId === selectedContent.id);
@@ -3656,7 +3685,26 @@ export default function MarketingAdminPage() {
                   </p>
                 ) : null}
               </SectionCard>
-              <SectionCard title="Content library" subtitle={`${visibleContent.length} visible of ${content.length} assets.`}>
+              <SectionCard
+                title="Content library"
+                subtitle={`${visibleContent.length} visible of ${content.length} assets.`}
+                action={(
+                  <select
+                    className={`${inputClass} w-[240px]`}
+                    value={contentSourceFilter}
+                    onChange={(event) => setContentSourceFilter(event.target.value)}
+                    aria-label="Content type filter"
+                    data-testid="select-marketing-content-source-filter"
+                  >
+                    <option value="all">All content types ({content.length})</option>
+                    {contentSourceOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              >
                 <div className="grid gap-3">
                   {visibleContent.length === 0 ? <EmptyState text="No content matches the filters." /> : visibleContent.map((item) => (
                     <article key={item.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">

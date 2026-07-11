@@ -649,6 +649,33 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
   });
 
+  it("filters the content library by imported Lovable source type", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    expect(screen.getByTestId("select-marketing-content-source-filter")).toHaveTextContent("Social post (1)");
+    expect(screen.getByTestId("select-marketing-content-source-filter")).toHaveTextContent("VYVA (1)");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
+
+    fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "social_post" } });
+
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
+
+    fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
+
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Partner post");
+    expect(screen.queryByTestId("marketing-content-origin-summary")).not.toBeInTheDocument();
+  });
+
   it("shows scheduled and unscheduled campaigns in the calendar and opens campaign details", async () => {
     renderPage();
 
