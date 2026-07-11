@@ -320,6 +320,7 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-appointment-provider-options")).toHaveTextContent("Clinica Lopez");
     expect(screen.getByTestId("panel-appointment-provider-options")).toHaveTextContent("Ask VYVA to handle this");
+    expect(screen.getByTestId("panel-appointment-confirmation-checkpoint")).toHaveTextContent("Tool ready: call");
     expect(screen.queryByTestId("button-appointment-channel-phone")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
@@ -1330,6 +1331,7 @@ describe("ConciergeScreen action hub", () => {
     });
 
     expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("OTC item: Vitamins");
+    expect(screen.getByTestId("panel-otc-pharmacy-confirmation")).toHaveTextContent("Tool ready: VYVA review");
     expect(screen.getByTestId("button-otc-pharmacy-prepare")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-otc-pharmacy-prepare"));
 
@@ -1387,6 +1389,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("link-transport-call-local-taxi-radio-taxi")).toHaveAttribute("href", "tel:+34612345678");
     expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Confirm first");
     expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Destination: Heart Clinic Madrid");
+    expect(screen.getByTestId("panel-transport-confirm-local-taxi-radio-taxi")).toHaveTextContent("Tool ready: VYVA review");
 
     fireEvent.click(screen.getByTestId("button-transport-prepare-local-taxi-radio-taxi"));
 
