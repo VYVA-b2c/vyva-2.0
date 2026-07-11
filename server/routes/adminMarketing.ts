@@ -715,6 +715,9 @@ function serializeContact(row: MarketingContactRow, audienceListNames: string[] 
 }
 
 function serializeAudience(row: MarketingAudienceRow, members: MarketingAudienceMemberRow[] = []) {
+  const contactExternalIds = members
+    .map((member) => member.contact_external_id)
+    .filter((value): value is string => Boolean(value));
   return {
     id: row.id,
     name: row.name,
@@ -725,6 +728,7 @@ function serializeAudience(row: MarketingAudienceRow, members: MarketingAudience
     lovableExternalId: row.lovable_external_id,
     memberCount: members.length,
     mappedMemberCount: members.filter((member) => Boolean(member.contact_id)).length,
+    contactExternalIds,
     unmappedContactExternalIds: members.filter((member) => !member.contact_id).map((member) => member.contact_external_id),
     lastSyncedAt: iso(row.last_synced_at),
     metadata: row.metadata,
