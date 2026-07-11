@@ -600,7 +600,7 @@ describe("MarketingAdminPage", () => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/lovable/run", expect.objectContaining({ method: "POST" }));
     });
     await waitFor(() => {
-      expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Lovable sync completed.");
+      expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Lovable sync completed. Imported Campaigns: 1, Contacts: 1, Content: 1, Journeys: 1.");
     });
   });
 

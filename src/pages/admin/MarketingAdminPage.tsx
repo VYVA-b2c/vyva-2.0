@@ -960,6 +960,19 @@ function syncFieldCoverageItems(summary: Record<string, unknown>) {
   }).filter((item) => item.exported > 0);
 }
 
+function syncCompletionMessage(summary?: Record<string, unknown>) {
+  if (!summary) return "Lovable sync completed.";
+  const nestedImported = syncCountItems(summary, "imported");
+  const flatImported = (Object.keys(syncCountLabels) as SyncCountKey[])
+    .map((key) => ({ key, label: syncCountLabels[key], value: numberValue(summary[key]) }))
+    .filter((item) => item.value > 0);
+  const imported = nestedImported.length ? nestedImported : flatImported;
+  if (!imported.length) return "Lovable sync completed. No import counts were reported.";
+  const visible = imported.slice(0, 6).map((item) => `${item.label}: ${item.value}`).join(", ");
+  const hiddenCount = imported.length - 6;
+  return `Lovable sync completed. Imported ${visible}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}.`;
+}
+
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(url, options);
   const body = await response.json().catch(() => null) as T | { error?: string } | null;
@@ -1883,10 +1896,11 @@ export default function MarketingAdminPage() {
     setMessage("Running Lovable sync...");
     setSyncRunning(true);
     try {
-      await api("/api/admin/marketing/sync/lovable/run", { method: "POST" });
+      const result = await api<{ summary?: Record<string, unknown> }>("/api/admin/marketing/sync/lovable/run", { method: "POST" });
+      const completionMessage = syncCompletionMessage(result.summary);
       await refreshAll();
-      setMessage("Lovable sync completed.");
-      setSyncFeedback("Lovable sync completed.");
+      setMessage(completionMessage);
+      setSyncFeedback(completionMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Lovable sync failed.";
       setMessage(errorMessage);
