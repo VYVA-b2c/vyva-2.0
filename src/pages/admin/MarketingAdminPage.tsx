@@ -1350,25 +1350,6 @@ function matchesSearch(search: string, values: unknown[]) {
   return values.map(searchableValue).join(" ").includes(query);
 }
 
-function contactDirectChannels(contact: MarketingContact) {
-  return [
-    contact.email ? `Email: ${contact.email}` : "",
-    contact.phoneNumber ? `Phone: ${contact.phoneNumber}` : "",
-    contact.whatsappNumber ? `WhatsApp: ${contact.whatsappNumber}` : "",
-  ].filter(Boolean);
-}
-
-function contactSegments(contact: MarketingContact) {
-  return [
-    contact.language ? `Lang: ${contact.language}` : "",
-    contact.category ? `Category: ${contact.category}` : "",
-    contact.vertical ? `Vertical: ${contact.vertical}` : "",
-    contact.market ? `Market: ${contact.market}` : "",
-    ...(contact.tags ?? []),
-    ...(contact.lists ?? []).map((list) => `List: ${list}`),
-  ].filter(Boolean);
-}
-
 const syncCountLabels = {
   campaigns: "Campaigns",
   contacts: "Contacts",
@@ -4535,14 +4516,21 @@ export default function MarketingAdminPage() {
               </SectionCard>
               <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
                 <div className="overflow-hidden rounded-xl border border-[#eadfd5]">
-                  <table className="w-full border-collapse text-left text-sm">
+                  <table className="min-w-[1500px] border-collapse text-left text-sm">
                     <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                       <tr>
                         <th className="px-4 py-3">Contact</th>
+                        <th className="px-4 py-3">Email</th>
+                        <th className="px-4 py-3">Phone</th>
+                        <th className="px-4 py-3">WhatsApp</th>
                         <th className="px-4 py-3">Audience</th>
-                        <th className="px-4 py-3">Details</th>
-                        <th className="px-4 py-3">Segments</th>
-                        <th className="px-4 py-3">Channels</th>
+                        <th className="px-4 py-3">Company</th>
+                        <th className="px-4 py-3">Role</th>
+                        <th className="px-4 py-3">Lang</th>
+                        <th className="px-4 py-3">Category</th>
+                        <th className="px-4 py-3">Vertical</th>
+                        <th className="px-4 py-3">Market</th>
+                        <th className="px-4 py-3">Tags / lists</th>
                         <th className="px-4 py-3">Consent</th>
                         <th className="px-4 py-3">Source</th>
                         <th className="px-4 py-3">Actions</th>
@@ -4550,34 +4538,40 @@ export default function MarketingAdminPage() {
                     </thead>
                     <tbody>
                       {visibleContacts.length === 0 ? (
-                        <tr><td colSpan={8} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
+                        <tr><td colSpan={15} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
                       ) : visibleContacts.map((contact) => {
-                        const directChannels = contactDirectChannels(contact);
-                        const segments = contactSegments(contact);
+                        const tagsAndLists = [
+                          ...(contact.tags ?? []),
+                          ...(contact.lists ?? []).map((list) => `List: ${list}`),
+                        ];
                         return (
                           <tr key={contact.id} className="border-t border-[#f0e7df] align-top">
                             <td className="px-4 py-3">
                               <p className="font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
-                              <p className="mt-1 text-xs font-semibold text-[#7d6b65]">{contact.email || contact.phoneNumber || contact.whatsappNumber || "No direct contact"}</p>
+                              {contact.profileId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p> : null}
                             </td>
+                            <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.email || "-"}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.phoneNumber || "-"}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.whatsappNumber || "-"}</td>
                             <td className="px-4 py-3 font-black">{contact.audienceType.toUpperCase()}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#7d6b65]">
-                              <p>{contact.companyName || "No company"}</p>
-                              <p>{contact.roleLabel || "No role"}</p>
-                            </td>
-                            <td className="max-w-[360px] px-4 py-3">
-                              {segments.length ? (
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.companyName || "-"}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.roleLabel || "-"}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.language || "-"}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.category || "-"}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.vertical || "-"}</td>
+                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.market || "-"}</td>
+                            <td className="max-w-[320px] px-4 py-3">
+                              {tagsAndLists.length ? (
                                 <div className="flex flex-wrap gap-1.5">
-                                  {segments.slice(0, 8).map((segment, index) => (
+                                  {tagsAndLists.slice(0, 8).map((segment, index) => (
                                     <Pill key={`${segment}-${index}`} className="bg-purple-50 text-purple-800">{segment}</Pill>
                                   ))}
-                                  {segments.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{segments.length - 8}</Pill> : null}
+                                  {tagsAndLists.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{tagsAndLists.length - 8}</Pill> : null}
                                 </div>
                               ) : (
-                                <span className="text-xs font-bold text-[#8b7a73]">No segment fields yet</span>
+                                <span className="text-xs font-bold text-[#8b7a73]">No tags or lists</span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#7d6b65]">{directChannels.join(" / ") || "No direct channel"}</td>
                             <td className="px-4 py-3"><Pill className={statusClass(contact.consentStatus)}>{contact.consentStatus}</Pill></td>
                             <td className="px-4 py-3">
                               <div className="grid gap-2">

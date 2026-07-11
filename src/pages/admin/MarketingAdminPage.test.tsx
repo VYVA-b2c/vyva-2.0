@@ -258,8 +258,8 @@ const contacts = [
     organizationId: "11111111-1111-4111-8111-111111111111",
     fullName: "Hassan Partner",
     email: "hassan@example.com",
-    phoneNumber: null,
-    whatsappNumber: null,
+    phoneNumber: "+34 983 419 300",
+    whatsappNumber: "+34 770 900 123",
     roleLabel: "Partner",
     companyName: "Moka Digital",
     consentStatus: "pending",
@@ -600,7 +600,16 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
-    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Vertical: healthcare");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("+34 983 419 300");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("+34 770 900 123");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Moka Digital");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Partner");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("en");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("lead");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("healthcare");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Spain");
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("madrid");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Lovable ID: lovable-contact-2");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Profile: profile-2");
