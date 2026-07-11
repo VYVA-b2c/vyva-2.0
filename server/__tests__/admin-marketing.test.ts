@@ -964,6 +964,17 @@ describe("admin marketing router", () => {
         ctaLabel: "Start",
         ctaUrl: "https://v2.vyva.life/start",
         extraLovableOnlyField: "kept in metadata",
+      }, {
+        id: "content:alias-content",
+        template_name: "Alias-heavy email",
+        channel: "email",
+        subject_line: "Alias subject",
+        plain_text_content: "Alias plain copy",
+        body_html: "<p>Alias HTML</p>",
+        button_label: "Book now",
+        button_url: "https://v2.vyva.life/book",
+        email_design: { sections: [{ kind: "hero" }] },
+        cover_image_url: "https://cdn.example.test/alias-cover.png",
       }],
       saved_email_templates: [{
         id: "template-1",
@@ -1109,7 +1120,7 @@ describe("admin marketing router", () => {
         Authorization: "Bearer secret",
       }),
     }));
-    expect(table("marketing_content_assets")).toHaveLength(4);
+    expect(table("marketing_content_assets")).toHaveLength(5);
     expect(table("marketing_content_assets").find((row) => row.title === "Welcome email")).toMatchObject({
       html_body: "<h1>Hello</h1>",
       design_json: { blocks: [{ type: "hero" }] },
@@ -1121,6 +1132,15 @@ describe("admin marketing router", () => {
           extraLovableOnlyField: "kept in metadata",
         }),
       },
+    });
+    expect(table("marketing_content_assets").find((row) => row.title === "Alias-heavy email")).toMatchObject({
+      subject: "Alias subject",
+      body: "Alias plain copy",
+      html_body: "<p>Alias HTML</p>",
+      design_json: { sections: [{ kind: "hero" }] },
+      media_assets: [{ url: "https://cdn.example.test/alias-cover.png", sourceField: "cover_image_url" }],
+      cta_label: "Book now",
+      cta_url: "https://v2.vyva.life/book",
     });
     expect(table("marketing_content_assets").find((row) => row.title === "Template welcome")).toMatchObject({
       channel: "email",
@@ -1143,7 +1163,7 @@ describe("admin marketing router", () => {
       lovable_external_id: "content_brief:brief-1",
       metadata: { lovable_source_type: "content_brief" },
     });
-    expect(table("marketing_media_assets")).toHaveLength(3);
+    expect(table("marketing_media_assets")).toHaveLength(4);
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/hero.png")).toMatchObject({
       original_url: "https://cdn.example.test/hero.png",
       asset_type: "image",
@@ -1156,6 +1176,10 @@ describe("admin marketing router", () => {
       lovable_external_id: "media:standalone-1",
     });
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/social.png")).toMatchObject({
+      asset_type: "unknown",
+      status: "referenced",
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/alias-cover.png")).toMatchObject({
       asset_type: "unknown",
       status: "referenced",
     });
@@ -1342,10 +1366,10 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 4, mediaAssets: 3, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 5, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
       imported: {
-        content: 4,
-        mediaAssets: 3,
+        content: 5,
+        mediaAssets: 4,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,
