@@ -29,6 +29,10 @@ describe("transport options resolver", () => {
         id: "provider-1",
         name: "Radio Taxi Familiar",
         phone: "+34 612 345 678",
+        email: "taxi@example.com",
+        whatsapp: "+34 612 345 679",
+        booking_url: "https://taxi.example/book",
+        preferred_channel: "whatsapp",
         address: "Madrid",
         maps_url: "https://maps.example/taxi",
         notes: "Trusted taxi",
@@ -47,7 +51,11 @@ describe("transport options resolver", () => {
       kind: "saved_provider",
       label: "Radio Taxi Familiar",
       phone: "+34 612 345 678",
-      actions: ["call_phone", "start_concierge_action"],
+      email: "taxi@example.com",
+      whatsapp: "+34 612 345 679",
+      bookingUrl: "https://taxi.example/book",
+      preferredChannel: "whatsapp",
+      actions: ["open_url", "call_phone", "draft_message", "start_concierge_action"],
     });
     expect(result.disclaimers.join(" ")).toContain("No ride is booked or requested");
   });
