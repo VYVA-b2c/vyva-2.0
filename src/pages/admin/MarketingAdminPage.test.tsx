@@ -251,6 +251,8 @@ const contacts = [
   {
     id: "contact-2",
     audienceType: "b2b",
+    profileId: "profile-2",
+    organizationId: "11111111-1111-4111-8111-111111111111",
     fullName: "Hassan Partner",
     email: "hassan@example.com",
     phoneNumber: null,
@@ -266,6 +268,7 @@ const contacts = [
     market: "Spain",
     lists: ["Partners"],
     lovableExternalId: "lovable-contact-2",
+    channelAvailability: { email: true, linkedin: true, whatsapp: false, source: "lovable" },
     metadata: { lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" } },
   },
 ];
@@ -426,6 +429,8 @@ function contactFromRequestBody(id: string, init?: RequestInit) {
   return {
     id,
     audienceType: body.audienceType ?? "b2b",
+    profileId: body.profileId ?? null,
+    organizationId: body.organizationId ?? null,
     fullName: body.fullName ?? "",
     email: body.email ?? null,
     phoneNumber: body.phoneNumber ?? null,
@@ -433,15 +438,16 @@ function contactFromRequestBody(id: string, init?: RequestInit) {
     roleLabel: body.roleLabel ?? null,
     companyName: body.companyName ?? null,
     consentStatus: body.consentStatus ?? "unknown",
-    source: "vyva",
+    source: body.source ?? "vyva",
     channelAvailability: body.channelAvailability ?? {},
+    metadata: body.metadata ?? {},
     tags: body.tags ?? [],
     language: body.language ?? null,
     category: body.category ?? null,
     vertical: body.vertical ?? null,
     market: body.market ?? null,
     lists: [],
-    lovableExternalId: null,
+    lovableExternalId: body.lovableExternalId ?? null,
   };
 }
 
@@ -810,7 +816,12 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue("Hassan Partner");
-    expect(openMetadataPanel("marketing-contact-metadata-panel")).toHaveTextContent("partner-lead");
+    expect(screen.getByTestId("input-marketing-edit-contact-source")).toHaveValue("lovable");
+    expect(screen.getByTestId("input-marketing-edit-contact-lovable-id")).toHaveValue("lovable-contact-2");
+    expect(screen.getByTestId("input-marketing-edit-contact-profile-id")).toHaveValue("profile-2");
+    expect(screen.getByTestId("input-marketing-edit-contact-organization-id")).toHaveValue("11111111-1111-4111-8111-111111111111");
+    expect(screen.getByTestId("textarea-marketing-edit-contact-channel-availability")).toHaveValue(JSON.stringify({ email: true, linkedin: true, whatsapp: false, source: "lovable" }, null, 2));
+    expect(screen.getByTestId("textarea-marketing-edit-contact-metadata")).toHaveValue(JSON.stringify({ lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" } }, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-name"), { target: { value: "Updated Partner" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-contact-audience"), { target: { value: "both" } });
@@ -825,6 +836,12 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-vertical"), { target: { value: "care" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-market"), { target: { value: "Madrid" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-tags"), { target: { value: "partner, priority" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-contact-channel-availability"), {
+      target: { value: JSON.stringify({ email: true, linkedin: true, whatsapp: false, source: "lovable" }, null, 2) },
+    });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-contact-metadata"), {
+      target: { value: JSON.stringify({ lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" }, notes: "edited" }, null, 2) },
+    });
     fireEvent.click(screen.getByTestId("button-marketing-save-contact"));
 
     await waitFor(() => {
@@ -834,6 +851,8 @@ describe("MarketingAdminPage", () => {
     expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
       fullName: "Updated Partner",
       audienceType: "both",
+      profileId: "profile-2",
+      organizationId: "11111111-1111-4111-8111-111111111111",
       email: "updated@example.com",
       phoneNumber: "+34 600 000 004",
       whatsappNumber: "+34 600 000 005",
@@ -844,11 +863,26 @@ describe("MarketingAdminPage", () => {
       vertical: "care",
       market: "Madrid",
       consentStatus: "opted_in",
+      source: "lovable",
+      lovableExternalId: "lovable-contact-2",
       tags: ["partner", "priority"],
       channelAvailability: {
         email: true,
         phone: true,
         whatsapp: true,
+        linkedin: true,
+        source: "lovable",
+      },
+      metadata: {
+        lovable: { persona: "partner-lead" },
+        segmentation: {
+          lifecycle: "lead",
+          language: "es",
+          category: "partner",
+          vertical: "care",
+          market: "Madrid",
+        },
+        notes: "edited",
       },
     });
     await waitFor(() => {

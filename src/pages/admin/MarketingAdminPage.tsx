@@ -270,6 +270,8 @@ type DueCampaignEmailSendResponse = {
 type MarketingContact = {
   id: string;
   audienceType: Audience;
+  profileId?: string | null;
+  organizationId?: string | null;
   fullName: string;
   email: string | null;
   phoneNumber: string | null;
@@ -441,6 +443,12 @@ type ContactDraft = {
 
 type ContactEditDraft = ContactDraft & {
   consentStatus: ConsentStatus;
+  profileId: string;
+  organizationId: string;
+  source: string;
+  lovableExternalId: string;
+  channelAvailabilityText: string;
+  metadataText: string;
 };
 
 type AudienceDraft = {
@@ -988,6 +996,8 @@ function contactEditDraftFromContact(contact: MarketingContact): ContactEditDraf
   return {
     fullName: contact.fullName,
     audienceType: contact.audienceType,
+    profileId: contact.profileId ?? "",
+    organizationId: contact.organizationId ?? "",
     email: contact.email ?? "",
     phoneNumber: contact.phoneNumber ?? "",
     whatsappNumber: contact.whatsappNumber ?? "",
@@ -999,13 +1009,22 @@ function contactEditDraftFromContact(contact: MarketingContact): ContactEditDraf
     market: contact.market ?? "",
     tags: contact.tags.join(", "),
     consentStatus: CONSENT_STATUSES.includes(contact.consentStatus) ? contact.consentStatus : "unknown",
+    source: contact.source ?? "vyva",
+    lovableExternalId: contact.lovableExternalId ?? "",
+    channelAvailabilityText: jsonText(contact.channelAvailability),
+    metadataText: jsonText(contact.metadata),
   };
 }
 
 function contactPayloadFromDraft(draft: ContactEditDraft) {
+  const existingMetadata = parseJsonText(draft.metadataText, "Contact metadata");
+  const existingSegmentation = recordValue(existingMetadata.segmentation);
+  const channelAvailability = parseJsonText(draft.channelAvailabilityText, "Channel availability");
   return {
     fullName: draft.fullName,
     audienceType: draft.audienceType,
+    profileId: draft.profileId.trim() || null,
+    organizationId: draft.organizationId.trim() || null,
     email: draft.email || null,
     phoneNumber: draft.phoneNumber || null,
     whatsappNumber: draft.whatsappNumber || null,
@@ -1016,11 +1035,24 @@ function contactPayloadFromDraft(draft: ContactEditDraft) {
     vertical: draft.vertical || null,
     market: draft.market || null,
     consentStatus: draft.consentStatus,
+    source: draft.source.trim() || "vyva",
+    lovableExternalId: draft.lovableExternalId.trim() || null,
     tags: splitTags(draft.tags),
     channelAvailability: {
+      ...channelAvailability,
       email: Boolean(draft.email),
       phone: Boolean(draft.phoneNumber),
       whatsapp: Boolean(draft.whatsappNumber),
+    },
+    metadata: {
+      ...existingMetadata,
+      segmentation: {
+        ...existingSegmentation,
+        language: draft.language || null,
+        category: draft.category || null,
+        vertical: draft.vertical || null,
+        market: draft.market || null,
+      },
     },
   };
 }
@@ -3749,7 +3781,28 @@ export default function MarketingAdminPage() {
                         <input className={inputClass} value={contactEditDraft.market} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, market: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-market" />
                       </Field>
                     </div>
-                    <MetadataPanel title="Imported contact metadata" value={editingContact?.metadata} testId="marketing-contact-metadata-panel" />
+                    <div className="grid gap-3 xl:grid-cols-4">
+                      <Field label="Source">
+                        <input className={inputClass} value={contactEditDraft.source} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, source: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-source" />
+                      </Field>
+                      <Field label="Lovable ID">
+                        <input className={inputClass} value={contactEditDraft.lovableExternalId} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-lovable-id" />
+                      </Field>
+                      <Field label="Profile ID">
+                        <input className={inputClass} value={contactEditDraft.profileId} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, profileId: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-profile-id" />
+                      </Field>
+                      <Field label="Organization ID">
+                        <input className={inputClass} value={contactEditDraft.organizationId} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, organizationId: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-organization-id" />
+                      </Field>
+                    </div>
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      <Field label="Channel availability JSON">
+                        <textarea className={textareaClass} value={contactEditDraft.channelAvailabilityText} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, channelAvailabilityText: event.target.value }) : draft)} disabled={contactSaving} data-testid="textarea-marketing-edit-contact-channel-availability" />
+                      </Field>
+                      <Field label="Metadata JSON">
+                        <textarea className={textareaClass} value={contactEditDraft.metadataText} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, metadataText: event.target.value }) : draft)} disabled={contactSaving} data-testid="textarea-marketing-edit-contact-metadata" />
+                      </Field>
+                    </div>
                     <div className="flex flex-wrap items-center gap-3">
                       <button type="submit" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={contactSaving} data-testid="button-marketing-save-contact">
                         <Save size={16} /> {contactSaving ? "Saving..." : "Save contact"}
