@@ -361,11 +361,16 @@ function journeyFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
-function renderPage(syncOverride: Partial<typeof sync> = {}) {
+function renderPage(
+  syncOverride: Partial<typeof sync> = {},
+  requestOverride?: (path: string, method: string, init?: RequestInit) => Response | undefined,
+) {
   const syncResponse = { ...sync, ...syncOverride };
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     const method = init?.method ?? "GET";
+    const overrideResponse = requestOverride?.(path, method, init);
+    if (overrideResponse) return overrideResponse;
     if (path === "/api/admin/marketing/summary") return jsonResponse(summary);
     if (path === "/api/admin/marketing/campaigns" && method === "GET") return jsonResponse({ campaigns });
     if (path === "/api/admin/marketing/journeys" && method === "GET") return jsonResponse({ journeys });
@@ -597,6 +602,63 @@ describe("MarketingAdminPage", () => {
     });
     expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("New onboarding");
     expect(screen.getByTestId("button-marketing-save-journey")).toHaveTextContent("Save journey");
+  });
+
+  it("shows inline feedback when journey create, update, or delete fails", async () => {
+    const createView = renderPage({}, (path, method) => {
+      if (path === "/api/admin/marketing/journeys" && method === "POST") {
+        return jsonResponse({ error: { fieldErrors: { name: ["Name is already used"] } } }, { status: 400 });
+      }
+      return undefined;
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-new-journey"));
+    fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Duplicate journey" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Create failed: name: Name is already used");
+    });
+    createView.unmount();
+    apiFetchMock.mockReset();
+
+    const updateView = renderPage({}, (path, method) => {
+      if (path === "/api/admin/marketing/journeys/journey-1" && method === "PATCH") {
+        return jsonResponse({ error: "Backend refused the update" }, { status: 409 });
+      }
+      return undefined;
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
+    fireEvent.click(screen.getByTestId("button-marketing-save-journey"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Update failed: Backend refused the update");
+    });
+    updateView.unmount();
+    apiFetchMock.mockReset();
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage({}, (path, method) => {
+      if (path === "/api/admin/marketing/journeys/journey-1" && method === "DELETE") {
+        return jsonResponse({ error: "Cannot delete active journey" }, { status: 409 });
+      }
+      return undefined;
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
+    fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-journey-feedback")).toHaveTextContent("Delete failed: Cannot delete active journey");
+    });
+    confirmSpy.mockRestore();
   });
 
   it("edits journey logic, steps, ordering, and deletes journey records", async () => {

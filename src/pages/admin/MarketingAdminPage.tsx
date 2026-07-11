@@ -721,6 +721,37 @@ function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function readableErrorText(value: unknown): string | null {
+  if (typeof value === "string") return value.trim() || null;
+  if (Array.isArray(value)) {
+    const parts = value.map(readableErrorText).filter(Boolean);
+    return parts.length ? parts.join("; ") : null;
+  }
+  const record = recordValue(value);
+  if (!Object.keys(record).length) return null;
+  const direct = readableErrorText(record.error)
+    ?? readableErrorText(record.message)
+    ?? readableErrorText(record.detail);
+  if (direct) return direct;
+  const formErrors = readableErrorText(record.formErrors);
+  if (formErrors) return formErrors;
+  const fieldErrors = recordValue(record.fieldErrors);
+  const fieldMessages = Object.entries(fieldErrors)
+    .map(([field, messages]) => {
+      const text = readableErrorText(messages);
+      return text ? `${field}: ${text}` : null;
+    })
+    .filter(Boolean);
+  if (fieldMessages.length) return fieldMessages.join("; ");
+  const nested = Object.entries(record)
+    .map(([field, nestedValue]) => {
+      const text = readableErrorText(nestedValue);
+      return text ? `${field}: ${text}` : null;
+    })
+    .filter(Boolean);
+  return nested.length ? nested.join("; ") : null;
+}
+
 function syncCountItems(summary: Record<string, unknown>, group: "exported" | "imported" | "skipped") {
   const source = recordValue(summary[group]);
   return (Object.keys(syncCountLabels) as SyncCountKey[])
@@ -764,7 +795,7 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(url, options);
   const body = await response.json().catch(() => null) as T | { error?: string } | null;
   if (!response.ok) {
-    throw new Error((body && typeof body === "object" && "error" in body && body.error) || "Request failed");
+    throw new Error(readableErrorText(body) || "Request failed");
   }
   return body as T;
 }
@@ -1249,11 +1280,11 @@ export default function MarketingAdminPage() {
       setJourneyFeedback("Journey name is required before saving.");
       return;
     }
+    const isNewJourney = editingJourneyId === "new";
     setJourneySaving(true);
-    setJourneyFeedback("Saving journey...");
+    setJourneyFeedback("Saving...");
     try {
       const payload = journeyPayloadFromDraft(journeyEditDraft);
-      const isNewJourney = editingJourneyId === "new";
       const result = await api<{ journey: Journey }>(
         isNewJourney ? "/api/admin/marketing/journeys" : `/api/admin/marketing/journeys/${editingJourneyId}`,
         {
@@ -1269,8 +1300,9 @@ export default function MarketingAdminPage() {
       setMessage(isNewJourney ? "Journey created." : "Journey updated.");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Journey could not be saved.";
-      setJourneyFeedback(errorMessage);
-      setMessage(errorMessage);
+      const feedback = `${isNewJourney ? "Create failed" : "Update failed"}: ${errorMessage}`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
     } finally {
       setJourneySaving(false);
     }
@@ -1288,8 +1320,9 @@ export default function MarketingAdminPage() {
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Journey could not be deleted.";
-      setJourneyFeedback(errorMessage);
-      setMessage(errorMessage);
+      const feedback = `Delete failed: ${errorMessage}`;
+      setJourneyFeedback(feedback);
+      setMessage(feedback);
     } finally {
       setJourneySaving(false);
     }
