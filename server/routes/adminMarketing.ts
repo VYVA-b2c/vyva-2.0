@@ -322,6 +322,38 @@ function arrayOrSingleton(value: unknown): unknown[] {
   return [];
 }
 
+const LOVABLE_CONTENT_SOURCE_KEY = "__vyvaLovableContentSource";
+
+const contentMediaArrayKeys = ["mediaAssets", "media_assets", "media", "images", "attachments"] as const;
+const contentMediaUrlKeys = ["imageUrl", "image_url", "assetUrl", "asset_url", "thumbnailUrl", "thumbnail_url"] as const;
+
+function withLovableContentSource(items: unknown[], sourceType: string) {
+  return items.map((item) => ({
+    ...asRecord(item),
+    [LOVABLE_CONTENT_SOURCE_KEY]: sourceType,
+  }));
+}
+
+function lovableContentPayload(payload: Record<string, unknown>) {
+  return [
+    ...withLovableContentSource(arrayFrom(payload.saved_email_templates ?? payload.savedEmailTemplates ?? payload.emailTemplates ?? payload.email_templates), "saved_email_template"),
+    ...withLovableContentSource(arrayFrom(payload.templates), "template"),
+    ...withLovableContentSource(arrayFrom(payload.content_briefs ?? payload.contentBriefs), "content_brief"),
+    ...withLovableContentSource(arrayFrom(payload.contentAssets ?? payload.content_assets ?? payload.assets), "content_asset"),
+    ...withLovableContentSource(arrayFrom(payload.content), "content"),
+    ...withLovableContentSource(arrayFrom(payload.social_posts ?? payload.socialPosts), "social_post"),
+  ];
+}
+
+function contentMediaAssetsFrom(row: Record<string, unknown>) {
+  const nestedAssets = contentMediaArrayKeys.flatMap((key) => arrayFrom(row[key]));
+  const urlAssets = contentMediaUrlKeys.map((key) => {
+    const url = emptyToNull(textFrom(row, [key]));
+    return url ? { url, sourceField: key } : null;
+  }).filter((item): item is { url: string; sourceField: string } => Boolean(item));
+  return [...nestedAssets, ...urlAssets];
+}
+
 function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boolean) {
   for (const key of keys) {
     const value = row[key];
@@ -338,17 +370,17 @@ function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boo
 const fieldCoverageAliases = {
   content: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
-    ["title", "name"],
-    ["channel"],
-    ["language", "locale"],
+    ["title", "name", "templateName", "template_name", "headline"],
+    ["channel", "platform", "network"],
+    ["language", "lang", "locale"],
     ["status"],
-    ["subject"],
-    ["body", "copy", "text"],
-    ["htmlBody", "html_body", "html", "renderedHtml", "rendered_html"],
-    ["ctaLabel", "cta_label"],
-    ["ctaUrl", "cta_url"],
-    ["designJson", "design_json", "design", "layout", "blocks"],
-    ["mediaAssets", "media_assets", "media", "images", "attachments"],
+    ["subject", "emailSubject", "email_subject"],
+    ["body", "copy", "text", "content", "contentBody", "content_body", "message", "caption", "description", "brief"],
+    ["htmlBody", "html_body", "html", "renderedHtml", "rendered_html", "htmlContent", "html_content", "templateHtml", "template_html"],
+    ["ctaLabel", "cta_label", "buttonText", "button_text"],
+    ["ctaUrl", "cta_url", "link", "url"],
+    ["designJson", "design_json", "design", "layout", "blocks", "templateJson", "template_json"],
+    ["mediaAssets", "media_assets", "media", "images", "attachments", "imageUrl", "image_url", "assetUrl", "asset_url", "thumbnailUrl", "thumbnail_url"],
     ["updatedAt", "updated_at"],
   ],
   media: [
@@ -445,7 +477,9 @@ const fieldCoverageAliases = {
 } as const;
 
 function fieldCoverageForPayload(payload: unknown[], aliasGroups: readonly (readonly string[])[]) {
-  const exportedFields = Array.from(new Set(payload.flatMap((item) => Object.keys(asRecord(item))))).sort();
+  const exportedFields = Array.from(new Set(
+    payload.flatMap((item) => Object.keys(asRecord(item)).filter((key) => key !== LOVABLE_CONTENT_SOURCE_KEY)),
+  )).sort();
   const firstClassFields = exportedFields.filter((field) => aliasGroups.some((aliases) => (aliases as readonly string[]).includes(field)));
   const metadataOnlyFields = exportedFields.filter((field) => !firstClassFields.includes(field));
   return {
@@ -1949,25 +1983,37 @@ adminMarketingRouter.get("/sync/lovable", async (req, res) => {
 
 async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string) {
   const row = asRecord(raw);
-  const externalId = normalizeLovableId(row);
+  const sourceType = textFrom(row, [LOVABLE_CONTENT_SOURCE_KEY], "content");
+  const rawExternalId = normalizeLovableId(row);
+  const externalId = rawExternalId && (sourceType === "content" || rawExternalId.includes(":"))
+    ? rawExternalId
+    : rawExternalId
+      ? `${sourceType}:${rawExternalId}`
+      : null;
   if (!externalId) return null;
-  const designJson = asRecord(row.designJson ?? row.design_json ?? row.design ?? row.layout ?? row.blocks);
-  const mediaAssets = arrayFrom(row.mediaAssets ?? row.media_assets ?? row.media ?? row.images ?? row.attachments);
+  const designJson = asRecord(row.designJson ?? row.design_json ?? row.design ?? row.layout ?? row.blocks ?? row.templateJson ?? row.template_json);
+  const mediaAssets = contentMediaAssetsFrom(row);
+  const title = textFrom(
+    row,
+    ["title", "name", "templateName", "template_name", "headline"],
+    textFrom(row, ["subject", "emailSubject", "email_subject"], sourceType === "social_post" ? "Untitled social post" : "Untitled content"),
+  );
+  const { [LOVABLE_CONTENT_SOURCE_KEY]: _sourceMarker, ...lovableMetadata } = row;
   const payload = {
-    title: textFrom(row, ["title", "name"], "Untitled content"),
-    channel: normalizeChannel(textFrom(row, ["channel"], "email")),
-    language: textFrom(row, ["language", "locale"], "en"),
+    title,
+    channel: normalizeChannel(textFrom(row, ["channel", "platform", "network"], sourceType === "social_post" ? "instagram" : "email")),
+    language: textFrom(row, ["language", "lang", "locale"], "en"),
     status: normalizeContentStatus(textFrom(row, ["status"], "draft")),
-    subject: emptyToNull(textFrom(row, ["subject"])),
-    body: textFrom(row, ["body", "copy", "text"], ""),
-    html_body: emptyToNull(textFrom(row, ["htmlBody", "html_body", "html", "renderedHtml", "rendered_html"])),
-    cta_label: emptyToNull(textFrom(row, ["ctaLabel", "cta_label"])),
-    cta_url: emptyToNull(textFrom(row, ["ctaUrl", "cta_url"])),
+    subject: emptyToNull(textFrom(row, ["subject", "emailSubject", "email_subject"])),
+    body: textFrom(row, ["body", "copy", "text", "content", "contentBody", "content_body", "message", "caption", "description", "brief"], ""),
+    html_body: emptyToNull(textFrom(row, ["htmlBody", "html_body", "html", "renderedHtml", "rendered_html", "htmlContent", "html_content", "templateHtml", "template_html"])),
+    cta_label: emptyToNull(textFrom(row, ["ctaLabel", "cta_label", "buttonText", "button_text"])),
+    cta_url: emptyToNull(textFrom(row, ["ctaUrl", "cta_url", "link", "url"])),
     design_json: designJson,
     media_assets: mediaAssets,
     source: "lovable",
     lovable_external_id: externalId,
-    metadata: { lovable: row },
+    metadata: { lovable: lovableMetadata, lovable_source_type: sourceType },
     updated_by: actorLabel,
     updated_at: now,
   };
@@ -2493,7 +2539,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Lovable sync failed with ${response.status}`));
 
     const actorLabel = actor(req);
-    const contentPayload = arrayFrom(payload.content ?? payload.contentAssets ?? payload.assets);
+    const contentPayload = lovableContentPayload(payload);
     const contactPayload = arrayFrom(payload.contacts);
     const campaignPayload = arrayFrom(payload.campaigns);
     const journeyPayload = arrayFrom(payload.journeys);
@@ -2654,7 +2700,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
 
     const nestedMediaAssetExportCount = contentPayload.reduce((count, item) => {
       const row = asRecord(item);
-      return count + arrayFrom(row.mediaAssets ?? row.media_assets ?? row.media ?? row.images ?? row.attachments).length;
+      return count + contentMediaAssetsFrom(row).length;
     }, 0);
     const exported = {
       campaigns: campaignPayload.length,
@@ -2670,7 +2716,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       content: fieldCoverageForPayload(contentPayload, fieldCoverageAliases.content),
       media: fieldCoverageForPayload(contentPayload.flatMap((item) => {
         const row = asRecord(item);
-        return arrayFrom(row.mediaAssets ?? row.media_assets ?? row.media ?? row.images ?? row.attachments);
+        return contentMediaAssetsFrom(row);
       }), fieldCoverageAliases.media),
       contacts: fieldCoverageForPayload(contactPayload, fieldCoverageAliases.contacts),
       campaigns: fieldCoverageForPayload(campaignPayload, fieldCoverageAliases.campaigns),

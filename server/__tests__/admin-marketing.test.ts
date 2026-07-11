@@ -102,7 +102,9 @@ const dbMock = vi.hoisted(() => {
       })),
       delete: vi.fn((table: unknown) => ({
         where: async () => {
-          rows.set(nameFor(table), []);
+          const name = nameFor(table);
+          if (name === "marketing_media_assets") return;
+          rows.set(name, []);
         },
       })),
     },
@@ -833,6 +835,27 @@ describe("admin marketing router", () => {
         ctaUrl: "https://v2.vyva.life/start",
         extraLovableOnlyField: "kept in metadata",
       }],
+      saved_email_templates: [{
+        id: "template-1",
+        template_name: "Template welcome",
+        email_subject: "Template subject",
+        html_content: "<p>Template body</p>",
+        button_text: "Read more",
+        link: "https://v2.vyva.life/template",
+      }],
+      social_posts: [{
+        id: "post-1",
+        headline: "Partner post",
+        platform: "linkedin",
+        caption: "Partner update copy",
+        image_url: "https://cdn.example.test/social.png",
+      }],
+      content_briefs: [{
+        id: "brief-1",
+        title: "Brief idea",
+        channel: "email",
+        brief: "Long-form planning brief",
+      }],
       contacts: [{
         id: "contact-1",
         name: "Hassan",
@@ -922,8 +945,8 @@ describe("admin marketing router", () => {
         Authorization: "Bearer secret",
       }),
     }));
-    expect(table("marketing_content_assets")).toHaveLength(1);
-    expect(table("marketing_content_assets")[0]).toMatchObject({
+    expect(table("marketing_content_assets")).toHaveLength(4);
+    expect(table("marketing_content_assets").find((row) => row.title === "Welcome email")).toMatchObject({
       html_body: "<h1>Hello</h1>",
       design_json: { blocks: [{ type: "hero" }] },
       media_assets: [{ url: "https://cdn.example.test/hero.png", type: "image" }],
@@ -935,10 +958,35 @@ describe("admin marketing router", () => {
         }),
       },
     });
-    expect(table("marketing_media_assets")).toHaveLength(1);
-    expect(table("marketing_media_assets")[0]).toMatchObject({
+    expect(table("marketing_content_assets").find((row) => row.title === "Template welcome")).toMatchObject({
+      channel: "email",
+      subject: "Template subject",
+      html_body: "<p>Template body</p>",
+      cta_label: "Read more",
+      cta_url: "https://v2.vyva.life/template",
+      lovable_external_id: "saved_email_template:template-1",
+      metadata: { lovable_source_type: "saved_email_template" },
+    });
+    expect(table("marketing_content_assets").find((row) => row.title === "Partner post")).toMatchObject({
+      channel: "linkedin",
+      body: "Partner update copy",
+      media_assets: [{ url: "https://cdn.example.test/social.png", sourceField: "image_url" }],
+      lovable_external_id: "social_post:post-1",
+      metadata: { lovable_source_type: "social_post" },
+    });
+    expect(table("marketing_content_assets").find((row) => row.title === "Brief idea")).toMatchObject({
+      body: "Long-form planning brief",
+      lovable_external_id: "content_brief:brief-1",
+      metadata: { lovable_source_type: "content_brief" },
+    });
+    expect(table("marketing_media_assets")).toHaveLength(2);
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/hero.png")).toMatchObject({
       original_url: "https://cdn.example.test/hero.png",
       asset_type: "image",
+      status: "referenced",
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/social.png")).toMatchObject({
+      asset_type: "unknown",
       status: "referenced",
     });
     expect(table("marketing_contacts")).toHaveLength(1);
@@ -1027,7 +1075,7 @@ describe("admin marketing router", () => {
       .get("/api/admin/marketing/content")
       .expect(200)
       .expect((response) => {
-        expect(response.body.content[0]).toMatchObject({
+        expect(response.body.content.find((row: { title: string }) => row.title === "Welcome email")).toMatchObject({
           title: "Welcome email",
           htmlBody: "<h1>Hello</h1>",
           hasHtml: true,
@@ -1042,7 +1090,7 @@ describe("admin marketing router", () => {
       .get("/api/admin/marketing/media")
       .expect(200)
       .expect((response) => {
-        expect(response.body.mediaAssets[0]).toMatchObject({
+        expect(response.body.mediaAssets.find((row: { originalUrl: string }) => row.originalUrl === "https://cdn.example.test/hero.png")).toMatchObject({
           originalUrl: "https://cdn.example.test/hero.png",
           assetType: "image",
           contentTitle: "Welcome email",
@@ -1091,10 +1139,10 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 1, mediaAssets: 1, contacts: 1, audiences: 1, campaigns: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 4, mediaAssets: 2, contacts: 1, audiences: 1, campaigns: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
       imported: {
-        content: 1,
-        mediaAssets: 1,
+        content: 4,
+        mediaAssets: 2,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,
