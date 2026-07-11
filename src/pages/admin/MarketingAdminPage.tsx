@@ -183,6 +183,7 @@ type MarketingMediaAsset = {
   localUrl: string | null;
   status: string;
   lovableExternalId: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 type MarketingCampaignMetric = MarketingAnalyticsTotals & {
@@ -193,6 +194,7 @@ type MarketingCampaignMetric = MarketingAnalyticsTotals & {
   metricDate: string | null;
   source: string;
   lovableExternalId: string | null;
+  metadata?: Record<string, unknown>;
 };
 
 type JourneyEnrollment = {
@@ -208,12 +210,14 @@ type JourneyEnrollment = {
   lastActivityAt: string | null;
   source: string;
   lovableExternalId: string | null;
+  metadata?: Record<string, unknown>;
   events: Array<{
     id: string;
     eventType: string;
     stepOrder: number;
     eventAt: string | null;
     channel: string | null;
+    metadata?: Record<string, unknown>;
   }>;
 };
 
@@ -2153,9 +2157,12 @@ export default function MarketingAdminPage() {
                             </div>
                             <div className="grid gap-2">
                               {selectedCampaignMetrics.slice(0, 4).map((metric) => (
-                                <div key={metric.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">
-                                  <span>{formatDate(metric.metricDate)} / {metric.channel} / {metric.source}</span>
-                                  <span>{metric.delivered} delivered, {metric.clicked} clicked</span>
+                                <div key={metric.id} className="grid gap-2 rounded-lg bg-white p-2 text-xs font-bold text-[#7d6b65]">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <span>{formatDate(metric.metricDate)} / {metric.channel} / {metric.source}</span>
+                                    <span>{metric.delivered} delivered, {metric.clicked} clicked</span>
+                                  </div>
+                                  <MetadataPanel title="Imported metric metadata" value={metric.metadata} testId={`marketing-campaign-metric-metadata-${metric.id}`} />
                                 </div>
                               ))}
                             </div>
@@ -2224,9 +2231,12 @@ export default function MarketingAdminPage() {
                         ) : (
                           <div className="mt-3 grid gap-2">
                             {visibleSavedCampaignRecipients.map((recipient) => (
-                              <div key={recipient.id} className="flex items-center justify-between gap-3 rounded-lg bg-white p-2 text-sm font-bold">
-                                <span className="truncate text-[#241133]">{recipientSnapshotLabel(recipient)}</span>
-                                <Pill className={channelClass(recipient.channel)}>{recipient.status}</Pill>
+                              <div key={recipient.id} className="grid gap-2 rounded-lg bg-white p-2 text-sm font-bold">
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="truncate text-[#241133]">{recipientSnapshotLabel(recipient)}</span>
+                                  <Pill className={channelClass(recipient.channel)}>{recipient.status}</Pill>
+                                </div>
+                                <MetadataPanel title="Saved recipient snapshot" value={recordValue(recipient.snapshot)} testId={`marketing-campaign-recipient-snapshot-${recipient.id}`} />
                               </div>
                             ))}
                             {editingCampaign.recipientCount > visibleSavedCampaignRecipients.length ? (

@@ -78,7 +78,7 @@ const campaigns = [
       recipient: "karim@example.com",
       status: "planned",
       scheduledAt: "2026-07-06T09:00:00.000Z",
-      snapshot: { fullName: "Karim Assad", email: "karim@example.com" },
+      snapshot: { fullName: "Karim Assad", email: "karim@example.com", lovableSource: "recipient-export" },
       communicationLogId: null,
       createdAt: "2026-07-05T09:00:00.000Z",
       updatedAt: "2026-07-05T09:00:00.000Z",
@@ -173,6 +173,7 @@ const mediaAssets = [
     localUrl: null,
     status: "referenced",
     lovableExternalId: "media-1",
+    metadata: { lovable: { altText: "Partner hero image" } },
   },
 ];
 
@@ -194,6 +195,7 @@ const analytics = {
     socialEngagement: 3,
     source: "lovable",
     lovableExternalId: "metric-1",
+    metadata: { lovable: { providerMetricId: "metric-provider-1" } },
   }],
 };
 
@@ -211,12 +213,14 @@ const journeyEnrollments = [
     lastActivityAt: "2026-07-05T09:30:00.000Z",
     source: "lovable",
     lovableExternalId: "enrollment-1",
+    metadata: { lovable: { cohort: "partners-july" } },
     events: [{
       id: "event-1",
       eventType: "entered",
       stepOrder: 0,
       eventAt: "2026-07-05T09:00:00.000Z",
       channel: "email",
+      metadata: { lovable: { eventSource: "automation-log" } },
     }],
   },
 ];
@@ -333,6 +337,14 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
+}
+
+function openMetadataPanel(testId: string) {
+  const panel = screen.getByTestId(testId);
+  const summary = panel.querySelector("summary");
+  if (!summary) throw new Error(`Missing metadata summary for ${testId}`);
+  fireEvent.click(summary);
+  return panel;
 }
 
 function journeyFromRequestBody(id: string, init?: RequestInit) {
@@ -515,7 +527,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 media");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
-    expect(screen.getByTestId("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
+    expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
@@ -724,7 +736,7 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-contact-name")).toHaveValue("Hassan Partner");
-    expect(screen.getByTestId("marketing-contact-metadata-panel")).toHaveTextContent("partner-lead");
+    expect(openMetadataPanel("marketing-contact-metadata-panel")).toHaveTextContent("partner-lead");
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-name"), { target: { value: "Updated Partner" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-contact-audience"), { target: { value: "both" } });
@@ -788,7 +800,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-audience-name")).toHaveValue("Partners");
     expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("lovable-contact-2\nmissing-contact");
-    expect(screen.getByTestId("marketing-audience-metadata-panel")).toHaveTextContent("sourceList");
+    expect(openMetadataPanel("marketing-audience-metadata-panel")).toHaveTextContent("sourceList");
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-audience-name"), { target: { value: "Updated partners" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-audience-type"), { target: { value: "static" } });
@@ -865,7 +877,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
 
     expect(screen.getByTestId("marketing-journey-editor-form")).toBeInTheDocument();
-    expect(screen.getByTestId("marketing-journey-metadata-panel")).toHaveTextContent("triggerWindow");
+    expect(openMetadataPanel("marketing-journey-metadata-panel")).toHaveTextContent("triggerWindow");
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });
@@ -957,12 +969,14 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
-    expect(screen.getByTestId("marketing-campaign-metadata-panel")).toHaveTextContent("extraCampaignField");
+    expect(openMetadataPanel("marketing-campaign-metadata-panel")).toHaveTextContent("extraCampaignField");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("12 sent");
+    expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("8");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByText("Karim Assad")).toBeInTheDocument();
+    expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-1")).toHaveTextContent("recipient-export");
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-timezone"), { target: { value: "Europe/London" } });
