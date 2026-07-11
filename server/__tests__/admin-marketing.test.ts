@@ -1324,9 +1324,13 @@ describe("admin marketing router", () => {
           audienceType: "b2b",
         }],
         campaign_channels: [{
-          id: "campaign-channel-1",
           campaign_id: "campaign-1",
           channel: "email",
+          template_id: "template-1",
+          scheduled_at: "2026-07-12T10:00:00.000Z",
+        }, {
+          campaign_id: "campaign-1",
+          channel: "linkedin",
           template_id: "template-1",
           scheduled_at: "2026-07-12T10:00:00.000Z",
         }],
@@ -1345,13 +1349,20 @@ describe("admin marketing router", () => {
 
     const campaign = table("marketing_campaigns").find((row) => row.name === "Separate-row campaign");
     const content = table("marketing_content_assets").find((row) => row.title === "Separate template");
-    expect(table("marketing_campaign_channels")).toHaveLength(1);
-    expect(table("marketing_campaign_channels")[0]).toMatchObject({
+    expect(table("marketing_campaign_channels")).toHaveLength(2);
+    expect(table("marketing_campaign_channels").find((row) => row.channel === "email")).toMatchObject({
       campaign_id: campaign?.id,
       channel: "email",
       content_asset_id: content?.id,
       scheduled_at: expect.any(Date),
       send_capability: "enabled",
+    });
+    expect(table("marketing_campaign_channels").find((row) => row.channel === "linkedin")).toMatchObject({
+      campaign_id: campaign?.id,
+      channel: "linkedin",
+      content_asset_id: content?.id,
+      scheduled_at: expect.any(Date),
+      send_capability: "planning_only",
     });
     expect(table("marketing_campaign_recipients")).toHaveLength(1);
     expect(table("marketing_campaign_recipients")[0]).toMatchObject({
@@ -1364,8 +1375,8 @@ describe("admin marketing router", () => {
       }),
     });
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { campaigns: 1, campaignChannels: 1, campaignRecipients: 1 },
-      imported: { campaigns: 1, campaignChannels: 1, campaignRecipients: 1 },
+      exported: { campaigns: 1, campaignChannels: 2, campaignRecipients: 1 },
+      imported: { campaigns: 1, campaignChannels: 2, campaignRecipients: 1 },
     });
   });
 });

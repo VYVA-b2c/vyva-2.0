@@ -554,20 +554,56 @@ function campaignChildCampaignExternalId(row: Record<string, unknown>) {
   ]));
 }
 
-function campaignChildMergeKey(row: Record<string, unknown>, index: number) {
+function explicitChildMergeKey(row: Record<string, unknown>) {
   return normalizeLovableId(row)
-    ?? emptyToNull(textFrom(row, ["externalKey", "external_key", "contentExternalId", "content_external_id", "contentId", "content_id", "templateId", "template_id", "emailTemplateId", "email_template_id", "socialPostId", "social_post_id", "recipient", "contactExternalId", "contact_external_id", "contactId", "contact_id"]))
-    ?? `index:${index}`;
+    ?? emptyToNull(textFrom(row, ["externalKey", "external_key"]));
 }
 
-function mergeCampaignChildRows(existingRows: unknown[], rawRows: Record<string, unknown>[]) {
+function campaignChannelMergeKey(row: Record<string, unknown>, index: number) {
+  const explicit = explicitChildMergeKey(row);
+  if (explicit) return explicit;
+  const channel = normalizeChannel(textFrom(row, ["channel", "platform", "network"], "email"));
+  const contentExternalId = lovableContentReference(row);
+  const scheduledAt = dateTextFrom(row, ["scheduledAt", "scheduled_at", "scheduleStartsAt", "schedule_starts_at", "startsAt", "starts_at", "publishAt", "publish_at", "sendAt", "send_at"]) ?? "";
+  const status = textFrom(row, ["channelStatus", "channel_status", "status"]);
+  return `channel:${channel}:${contentExternalId}:${scheduledAt}:${status}:index:${index}`;
+}
+
+function campaignRecipientMergeKey(row: Record<string, unknown>, index: number) {
+  const explicit = explicitChildMergeKey(row);
+  if (explicit) return explicit;
+  const channel = normalizeChannel(textFrom(row, ["channel"], "email"));
+  const recipientRef = emptyToNull(textFrom(row, [
+    "recipient",
+    "email",
+    "phoneNumber",
+    "phone_number",
+    "whatsappNumber",
+    "whatsapp_number",
+    "phone",
+    "whatsapp",
+    "contactExternalId",
+    "contact_external_id",
+    "contactId",
+    "contact_id",
+    "externalId",
+    "external_id",
+  ]));
+  return recipientRef ? `recipient:${channel}:${recipientRef}` : `recipient:${channel}:index:${index}`;
+}
+
+function mergeCampaignChildRows(
+  existingRows: unknown[],
+  rawRows: Record<string, unknown>[],
+  keyForRow: (row: Record<string, unknown>, index: number) => string,
+) {
   if (!rawRows.length) return existingRows;
   const merged = new Map<string, Record<string, unknown>>();
   existingRows.map(asRecord).forEach((row, index) => {
-    merged.set(campaignChildMergeKey(row, index), row);
+    merged.set(keyForRow(row, index), row);
   });
   rawRows.forEach((row, index) => {
-    merged.set(campaignChildMergeKey(row, index), row);
+    merged.set(keyForRow(row, index), row);
   });
   return Array.from(merged.values());
 }
@@ -623,8 +659,8 @@ function lovableCampaignPayload(payload: Record<string, unknown>) {
     if (!channelRows.length && !recipientRows.length) return campaign;
     return {
       ...campaign,
-      channels: mergeCampaignChildRows(arrayFrom(campaign.channels), channelRows),
-      recipients: mergeCampaignChildRows(campaignRecipientPayload(campaign), recipientRows),
+      channels: mergeCampaignChildRows(arrayFrom(campaign.channels), channelRows, campaignChannelMergeKey),
+      recipients: mergeCampaignChildRows(campaignRecipientPayload(campaign), recipientRows, campaignRecipientMergeKey),
     };
   });
 }
@@ -1207,7 +1243,9 @@ function channelSendCapabilities() {
 }
 
 function sendCapabilityForChannel(channel: string) {
-  return channel === "email" ? "enabled" : "locked";
+  if (channel === "email") return "enabled";
+  if (channel === "whatsapp") return "future_send_capable";
+  return "planning_only";
 }
 
 function sendMetadataForChannel(channel: string, metadata: Record<string, unknown>) {
