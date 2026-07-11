@@ -286,7 +286,7 @@ function campaignAudienceExternalIds(row: Record<string, unknown>) {
 }
 
 function campaignDirectContactExternalIds(row: Record<string, unknown>) {
-  const explicitRecipientIds = arrayFrom(row.recipients ?? row.recipientSnapshots ?? row.campaignRecipients ?? row.campaign_recipients).map((item) => {
+  const explicitRecipientIds = campaignRecipientPayload(row).map((item) => {
     const recipient = asRecord(item);
     return textFrom(recipient, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "id"]);
   });
@@ -474,6 +474,95 @@ function lovableContactPayload(payload: Record<string, unknown>) {
       ...contact,
       consentStatus: "opted_out",
       [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeMatches,
+    };
+  });
+}
+
+function campaignChildCampaignExternalId(row: Record<string, unknown>) {
+  return emptyToNull(textFrom(row, [
+    "campaignExternalId",
+    "campaign_external_id",
+    "campaignId",
+    "campaign_id",
+    "campaign",
+  ]));
+}
+
+function campaignChildMergeKey(row: Record<string, unknown>, index: number) {
+  return normalizeLovableId(row)
+    ?? emptyToNull(textFrom(row, ["externalKey", "external_key", "contentExternalId", "content_external_id", "contentId", "content_id", "templateId", "template_id", "emailTemplateId", "email_template_id", "socialPostId", "social_post_id", "recipient", "contactExternalId", "contact_external_id", "contactId", "contact_id"]))
+    ?? `index:${index}`;
+}
+
+function mergeCampaignChildRows(existingRows: unknown[], rawRows: Record<string, unknown>[]) {
+  if (!rawRows.length) return existingRows;
+  const merged = new Map<string, Record<string, unknown>>();
+  existingRows.map(asRecord).forEach((row, index) => {
+    merged.set(campaignChildMergeKey(row, index), row);
+  });
+  rawRows.forEach((row, index) => {
+    merged.set(campaignChildMergeKey(row, index), row);
+  });
+  return Array.from(merged.values());
+}
+
+function groupCampaignChildRows(rows: Record<string, unknown>[]) {
+  const grouped = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const campaignExternalId = campaignChildCampaignExternalId(row);
+    if (!campaignExternalId) continue;
+    const current = grouped.get(campaignExternalId) ?? [];
+    current.push(row);
+    grouped.set(campaignExternalId, current);
+  }
+  return grouped;
+}
+
+function campaignChildRowsForCampaign(grouped: Map<string, Record<string, unknown>[]>, campaignExternalId: string) {
+  return [
+    ...(grouped.get(campaignExternalId) ?? []),
+    ...(campaignExternalId.includes(":") ? grouped.get(campaignExternalId.split(":").slice(1).join(":")) ?? [] : []),
+    ...(!campaignExternalId.includes(":") ? grouped.get(`campaign:${campaignExternalId}`) ?? [] : []),
+  ];
+}
+
+function lovableCampaignChannelRows(payload: Record<string, unknown>) {
+  return arrayFrom(payload.campaign_channels ?? payload.campaignChannels ?? payload.marketing_campaign_channels).map(asRecord);
+}
+
+function lovableCampaignRecipientRows(payload: Record<string, unknown>) {
+  return arrayFrom(payload.campaign_recipients ?? payload.campaignRecipients ?? payload.recipient_snapshots ?? payload.recipientSnapshots ?? payload.marketing_campaign_recipients).map(asRecord);
+}
+
+function campaignRecipientPayload(row: Record<string, unknown>) {
+  return arrayFrom(row.recipients ?? row.recipientSnapshots ?? row.campaignRecipients ?? row.campaign_recipients);
+}
+
+function campaignRecipientSourceCount(row: Record<string, unknown>, audienceContactExternalIdsByAudienceExternalId: Map<string, string[]>) {
+  const explicitCount = campaignRecipientPayload(row).length;
+  const directCount = campaignDirectContactExternalIds(row).length;
+  const audienceCount = campaignAudienceExternalIds(row).reduce((count, audienceExternalId) => (
+    count + (audienceContactExternalIdsByAudienceExternalId.get(audienceExternalId)?.length ?? 0)
+  ), 0);
+  return Math.max(explicitCount, directCount + audienceCount);
+}
+
+function lovableCampaignPayload(payload: Record<string, unknown>) {
+  const campaignRows = arrayFrom(payload.campaigns).map(asRecord);
+  const channelsByCampaignId = groupCampaignChildRows(lovableCampaignChannelRows(payload));
+  const recipientsByCampaignId = groupCampaignChildRows(lovableCampaignRecipientRows(payload));
+  if (!channelsByCampaignId.size && !recipientsByCampaignId.size) return campaignRows;
+
+  return campaignRows.map((campaign) => {
+    const campaignExternalId = normalizeLovableId(campaign);
+    if (!campaignExternalId) return campaign;
+    const channelRows = campaignChildRowsForCampaign(channelsByCampaignId, campaignExternalId);
+    const recipientRows = campaignChildRowsForCampaign(recipientsByCampaignId, campaignExternalId);
+    if (!channelRows.length && !recipientRows.length) return campaign;
+    return {
+      ...campaign,
+      channels: mergeCampaignChildRows(arrayFrom(campaign.channels), channelRows),
+      recipients: mergeCampaignChildRows(campaignRecipientPayload(campaign), recipientRows),
     };
   });
 }
@@ -2354,7 +2443,7 @@ function lovableCampaignRecipients(
   contactRowByExternalId: Map<string, MarketingContactRow>,
   audienceContactExternalIdsByAudienceExternalId: Map<string, string[]>,
 ) {
-  const explicitRows = arrayFrom(row.recipients ?? row.recipientSnapshots ?? row.campaignRecipients ?? row.campaign_recipients);
+  const explicitRows = campaignRecipientPayload(row);
   const directContactExternalIds = campaignDirectContactExternalIds(row);
   const audienceExternalIds = campaignAudienceExternalIds(row);
   const audienceContactExternalIds = audienceExternalIds.flatMap((audienceExternalId) => audienceContactExternalIdsByAudienceExternalId.get(audienceExternalId) ?? []);
@@ -2562,6 +2651,7 @@ async function upsertLovableCampaign(
   }
   return {
     campaign,
+    channelCount: channelRows.length,
     recipientCount: recipientImport.recipientRows.length,
     unmappedRecipientExternalIds: recipientImport.unmappedContactExternalIds,
   };
@@ -2721,7 +2811,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const actorLabel = actor(req);
     const contentPayload = lovableContentPayload(payload);
     const contactPayload = lovableContactPayload(payload);
-    const campaignPayload = arrayFrom(payload.campaigns);
+    const campaignPayload = lovableCampaignPayload(payload);
     const journeyPayload = lovableJourneyPayload(payload);
     const audiencePayload = lovableAudiencePayload(payload);
     const campaignMetricPayload = arrayFrom(payload.campaignMetrics ?? payload.campaign_metrics ?? payload.analytics ?? payload.metrics);
@@ -2784,6 +2874,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     }
 
     let campaignCount = 0;
+    let campaignChannelCount = 0;
     let campaignRecipientCount = 0;
     const unmappedCampaignRecipientExternalIds: string[] = [];
     const campaignRows: MarketingCampaignRow[] = [];
@@ -2807,6 +2898,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       );
       if (!result) continue;
       campaignCount += 1;
+      campaignChannelCount += result.channelCount;
       campaignRows.push(result.campaign);
       campaignRecipientCount += result.recipientCount;
       unmappedCampaignRecipientExternalIds.push(...result.unmappedRecipientExternalIds);
@@ -2882,11 +2974,17 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       const row = asRecord(item);
       return count + contentMediaAssetsFrom(row).length;
     }, 0);
+    const campaignChannelExportCount = campaignPayload.reduce((count, item) => count + campaignChannelPayload(asRecord(item)).length, 0);
+    const campaignRecipientExportCount = campaignPayload.reduce((count, item) => (
+      count + campaignRecipientSourceCount(asRecord(item), audienceContactExternalIdsByAudienceExternalId)
+    ), 0);
     const exported = {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
       content: contentPayload.length,
       mediaAssets: nestedMediaAssetExportCount,
+      campaignChannels: campaignChannelExportCount,
+      campaignRecipients: campaignRecipientExportCount,
       campaignMetrics: allCampaignMetricPayload.length,
       journeys: journeyPayload.length,
       journeyEnrollments: allJourneyEnrollmentPayload.length,
@@ -2910,6 +3008,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       contacts: contactRows.length,
       content: contentRows.length,
       mediaAssets: mediaAssetCount,
+      campaignChannels: campaignChannelCount,
       campaignMetrics: campaignMetricCount,
       journeys: journeyCount,
       journeyEnrollments: journeyEnrollmentCount,
@@ -2930,6 +3029,8 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         contacts: exported.contacts - imported.contacts,
         content: exported.content - imported.content,
         mediaAssets: exported.mediaAssets - imported.mediaAssets,
+        campaignChannels: exported.campaignChannels - imported.campaignChannels,
+        campaignRecipients: exported.campaignRecipients - imported.campaignRecipients,
         campaignMetrics: exported.campaignMetrics - imported.campaignMetrics,
         journeys: exported.journeys - imported.journeys,
         journeyEnrollments: exported.journeyEnrollments - imported.journeyEnrollments,

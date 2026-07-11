@@ -1172,7 +1172,7 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 4, mediaAssets: 2, contacts: 1, audiences: 1, campaigns: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 4, mediaAssets: 2, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
       imported: {
         content: 4,
         mediaAssets: 2,
@@ -1180,6 +1180,7 @@ describe("admin marketing router", () => {
         audiences: 1,
         audienceMembers: 2,
         mappedAudienceMembers: 1,
+        campaignChannels: 2,
         campaignRecipients: 1,
         campaigns: 2,
         campaignMetrics: 1,
@@ -1212,6 +1213,76 @@ describe("admin marketing router", () => {
           firstClassFields: expect.arrayContaining(["journeyExternalId", "contactExternalId", "status"]),
         }),
       },
+    });
+  });
+
+  it("merges top-level Lovable campaign channel and recipient rows into campaigns", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        saved_email_templates: [{
+          id: "template-1",
+          template_name: "Separate template",
+          email_subject: "Separate subject",
+          html_content: "<p>Separate body</p>",
+        }],
+        contacts: [{
+          id: "contact-1",
+          name: "Separate Contact",
+          email: "separate@example.com",
+          audienceType: "b2b",
+          consentStatus: "opted_in",
+        }],
+        campaigns: [{
+          id: "campaign-1",
+          name: "Separate-row campaign",
+          status: "scheduled",
+          audienceType: "b2b",
+        }],
+        campaign_channels: [{
+          id: "campaign-channel-1",
+          campaign_id: "campaign-1",
+          channel: "email",
+          template_id: "template-1",
+          scheduled_at: "2026-07-12T10:00:00.000Z",
+        }],
+        campaign_recipients: [{
+          id: "campaign-recipient-1",
+          campaign_id: "campaign-1",
+          contact_id: "contact-1",
+          status: "planned",
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200);
+
+    const campaign = table("marketing_campaigns").find((row) => row.name === "Separate-row campaign");
+    const content = table("marketing_content_assets").find((row) => row.title === "Separate template");
+    expect(table("marketing_campaign_channels")).toHaveLength(1);
+    expect(table("marketing_campaign_channels")[0]).toMatchObject({
+      campaign_id: campaign?.id,
+      channel: "email",
+      content_asset_id: content?.id,
+      scheduled_at: expect.any(Date),
+      send_capability: "enabled",
+    });
+    expect(table("marketing_campaign_recipients")).toHaveLength(1);
+    expect(table("marketing_campaign_recipients")[0]).toMatchObject({
+      campaign_id: campaign?.id,
+      recipient: "separate@example.com",
+      status: "planned",
+      snapshot: expect.objectContaining({
+        contact_external_id: "contact-1",
+        campaign_external_id: "campaign-1",
+      }),
+    });
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      exported: { campaigns: 1, campaignChannels: 1, campaignRecipients: 1 },
+      imported: { campaigns: 1, campaignChannels: 1, campaignRecipients: 1 },
     });
   });
 });

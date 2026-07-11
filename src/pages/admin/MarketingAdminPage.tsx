@@ -900,6 +900,7 @@ const syncCountLabels = {
   contacts: "Contacts",
   content: "Content",
   mediaAssets: "Media assets",
+  campaignChannels: "Campaign channels",
   campaignMetrics: "Campaign metrics",
   journeys: "Journeys",
   journeyEnrollments: "Journey enrollments",
