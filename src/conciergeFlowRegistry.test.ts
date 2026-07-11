@@ -47,6 +47,10 @@ describe("concierge flow registry", () => {
       status: "partial",
       tools: expect.arrayContaining(["camera_or_upload", "web_search"]),
     });
+    expect(getConciergeFlowDefinition(CONCIERGE_FLOW_REFERENCES.insuranceAdmin)).toMatchObject({
+      status: "partial",
+      tools: expect.arrayContaining(["email", "phone_call", "camera_or_upload"]),
+    });
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.transportBooking)).toBe(true);
     expect(conciergeFlowNeedsSavedProvider(CONCIERGE_FLOW_REFERENCES.scamCheck)).toBe(false);
   });
