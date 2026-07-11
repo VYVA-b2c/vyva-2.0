@@ -324,6 +324,7 @@ function arrayOrSingleton(value: unknown): unknown[] {
 
 const LOVABLE_CONTENT_SOURCE_KEY = "__vyvaLovableContentSource";
 const LOVABLE_AUDIENCE_MEMBER_ROWS_KEY = "__vyvaLovableAudienceMemberRows";
+const LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY = "__vyvaLovableEmailUnsubscribeRows";
 
 const contentMediaArrayKeys = ["mediaAssets", "media_assets", "media", "images", "attachments"] as const;
 const contentMediaUrlKeys = ["imageUrl", "image_url", "assetUrl", "asset_url", "thumbnailUrl", "thumbnail_url"] as const;
@@ -393,6 +394,86 @@ function lovableAudiencePayload(payload: Record<string, unknown>) {
         ...memberContactExternalIds,
       ]),
       [LOVABLE_AUDIENCE_MEMBER_ROWS_KEY]: members,
+    };
+  });
+}
+
+function journeyStepJourneyExternalId(step: Record<string, unknown>) {
+  return emptyToNull(textFrom(step, [
+    "journeyExternalId",
+    "journey_external_id",
+    "journeyId",
+    "journey_id",
+    "workflowId",
+    "workflow_id",
+  ]));
+}
+
+function journeyStepMergeKey(step: Record<string, unknown>, index: number) {
+  return normalizeLovableId(step)
+    ?? emptyToNull(textFrom(step, ["stepOrder", "step_order", "order", "position"]))
+    ?? `index:${index}`;
+}
+
+function mergeJourneySteps(existingSteps: unknown[], rawSteps: Record<string, unknown>[]) {
+  if (!rawSteps.length) return existingSteps;
+  const merged = new Map<string, Record<string, unknown>>();
+  existingSteps.map(asRecord).forEach((step, index) => {
+    merged.set(journeyStepMergeKey(step, index), step);
+  });
+  rawSteps.forEach((step, index) => {
+    merged.set(journeyStepMergeKey(step, index), step);
+  });
+  return Array.from(merged.values());
+}
+
+function lovableJourneyPayload(payload: Record<string, unknown>) {
+  const journeyRows = arrayFrom(payload.journeys).map(asRecord);
+  const stepRows = arrayFrom(payload.journey_steps ?? payload.journeySteps).map(asRecord);
+  if (!stepRows.length) return journeyRows;
+
+  const stepsByJourneyId = new Map<string, Record<string, unknown>[]>();
+  for (const step of stepRows) {
+    const journeyExternalId = journeyStepJourneyExternalId(step);
+    if (!journeyExternalId) continue;
+    const current = stepsByJourneyId.get(journeyExternalId) ?? [];
+    current.push(step);
+    stepsByJourneyId.set(journeyExternalId, current);
+  }
+
+  return journeyRows.map((journey) => {
+    const journeyExternalId = normalizeLovableId(journey);
+    const rawSteps = journeyExternalId ? stepsByJourneyId.get(journeyExternalId) ?? [] : [];
+    if (!rawSteps.length) return journey;
+    return {
+      ...journey,
+      steps: mergeJourneySteps(arrayFrom(journey.steps), rawSteps),
+    };
+  });
+}
+
+function lovableContactPayload(payload: Record<string, unknown>) {
+  const contactRows = arrayFrom(payload.contacts).map(asRecord);
+  const unsubscribeRows = arrayFrom(payload.email_unsubscribes ?? payload.emailUnsubscribes).map(asRecord);
+  if (!unsubscribeRows.length) return contactRows;
+
+  const unsubscribesByEmail = new Map<string, Record<string, unknown>[]>();
+  for (const row of unsubscribeRows) {
+    const email = emptyToNull(textFrom(row, ["email", "contactEmail", "contact_email", "recipient", "emailAddress", "email_address"]))?.toLowerCase();
+    if (!email) continue;
+    const current = unsubscribesByEmail.get(email) ?? [];
+    current.push(row);
+    unsubscribesByEmail.set(email, current);
+  }
+
+  return contactRows.map((contact) => {
+    const email = emptyToNull(textFrom(contact, ["email"]))?.toLowerCase();
+    const unsubscribeMatches = email ? unsubscribesByEmail.get(email) ?? [] : [];
+    if (!unsubscribeMatches.length) return contact;
+    return {
+      ...contact,
+      consentStatus: "opted_out",
+      [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeMatches,
     };
   });
 }
@@ -2105,6 +2186,7 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   const row = asRecord(raw);
   const externalId = normalizeLovableId(row);
   if (!externalId) return null;
+  const { [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeRows, ...lovableMetadata } = row;
   const metadata = asRecord(row.metadata);
   const segmentation = asRecord(row.segmentation ?? metadata.segmentation);
   const language = nestedText(segmentation, row, metadata, ["language", "lang", "locale"]);
@@ -2141,7 +2223,8 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     lovable_external_id: externalId,
     last_synced_at: now,
     metadata: {
-      lovable: row,
+      lovable: lovableMetadata,
+      lovable_email_unsubscribe_rows: arrayFrom(unsubscribeRows),
       segmentation: { language, category, vertical, market },
     },
     updated_at: now,
@@ -2585,9 +2668,9 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
 
     const actorLabel = actor(req);
     const contentPayload = lovableContentPayload(payload);
-    const contactPayload = arrayFrom(payload.contacts);
+    const contactPayload = lovableContactPayload(payload);
     const campaignPayload = arrayFrom(payload.campaigns);
-    const journeyPayload = arrayFrom(payload.journeys);
+    const journeyPayload = lovableJourneyPayload(payload);
     const audiencePayload = lovableAudiencePayload(payload);
     const campaignMetricPayload = arrayFrom(payload.campaignMetrics ?? payload.campaign_metrics ?? payload.analytics ?? payload.metrics);
     const journeyEnrollmentPayload = arrayFrom(payload.journeyEnrollments ?? payload.journey_enrollments ?? payload.enrollments ?? payload.progress);

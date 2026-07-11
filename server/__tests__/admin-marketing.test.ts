@@ -871,6 +871,11 @@ describe("admin marketing router", () => {
         market: "Spain",
         tags: ["partner"],
       }],
+      email_unsubscribes: [{
+        id: "unsubscribe-1",
+        email: "hassan@example.com",
+        reason: "lovable_opt_out",
+      }],
       contact_lists: [{
         id: "audience-1",
         name: "Partners",
@@ -912,15 +917,17 @@ describe("admin marketing router", () => {
         goalType: "activation",
         goalConfig: { event: "first_login" },
         exitOnGoal: false,
-        steps: [{
-          channel: "email",
-          contentExternalId: "content-1",
-          kind: "message",
-          dayOffset: 3,
-          templateKind: "email_template",
-          templateRef: "content-1",
-          config: { variant: "a" },
-        }],
+      }],
+      journey_steps: [{
+        id: "journey-step-1",
+        journey_id: "journey-1",
+        channel: "email",
+        contentExternalId: "content-1",
+        kind: "message",
+        dayOffset: 3,
+        templateKind: "email_template",
+        templateRef: "content-1",
+        config: { variant: "a" },
       }],
       journeyEnrollments: [{
         id: "enrollment-1",
@@ -1003,6 +1010,10 @@ describe("admin marketing router", () => {
       category: "lead",
       vertical: "healthcare",
       market: "Spain",
+      consent_status: "opted_out",
+      metadata: {
+        lovable_email_unsubscribe_rows: [expect.objectContaining({ reason: "lovable_opt_out" })],
+      },
     });
     expect(table("marketing_audiences")).toHaveLength(1);
     expect(table("marketing_audience_members")).toHaveLength(2);
@@ -1012,6 +1023,7 @@ describe("admin marketing router", () => {
     expect(table("marketing_campaign_recipients")[0]).toMatchObject({
       recipient: "hassan@example.com",
       status: "planned",
+      snapshot: expect.objectContaining({ consentStatus: "opted_out" }),
     });
     expect(table("marketing_journeys")).toHaveLength(1);
     expect(table("marketing_journeys")[0]).toMatchObject({
@@ -1074,6 +1086,7 @@ describe("admin marketing router", () => {
           category: "lead",
           vertical: "healthcare",
           market: "Spain",
+          consentStatus: "opted_out",
           lists: ["Partners"],
           tags: ["partner"],
         });
