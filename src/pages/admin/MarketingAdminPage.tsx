@@ -4244,7 +4244,21 @@ export default function MarketingAdminPage() {
                             </td>
                             <td className="px-4 py-3 text-xs font-bold text-[#7d6b65]">{directChannels.join(" / ") || "No direct channel"}</td>
                             <td className="px-4 py-3"><Pill className={statusClass(contact.consentStatus)}>{contact.consentStatus}</Pill></td>
-                            <td className="px-4 py-3 font-bold">{contact.source}</td>
+                            <td className="px-4 py-3">
+                              <div className="grid gap-2">
+                                <p className="font-bold">{contact.source}</p>
+                                {contact.lovableExternalId ? (
+                                  <p className="break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {contact.lovableExternalId}</p>
+                                ) : null}
+                                {contact.profileId ? (
+                                  <p className="break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p>
+                                ) : null}
+                                {contact.organizationId ? (
+                                  <p className="break-all text-xs font-semibold text-[#7d6b65]">Org: {contact.organizationId}</p>
+                                ) : null}
+                                <MetadataPanel title="Imported contact data" value={contact.metadata} testId={`marketing-contact-metadata-${contact.id}`} />
+                              </div>
+                            </td>
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap gap-2">
                                 <button type="button" onClick={() => startContactEdit(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-edit-contact-${contact.id}`}>
