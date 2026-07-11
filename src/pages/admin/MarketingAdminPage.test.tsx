@@ -588,9 +588,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("https://cdn.example.test/partner.png");
+    expect(screen.getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Lovable ID: media-1");
+    expect(screen.getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Partner outreach");

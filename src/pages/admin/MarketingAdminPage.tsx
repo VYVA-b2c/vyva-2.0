@@ -650,6 +650,23 @@ function contentMediaPreviewUrls(content: ContentAsset, linkedAssets: MarketingM
   return Array.from(new Set([...embedded, ...linked].map((url) => url.trim()).filter(Boolean))).slice(0, 6);
 }
 
+function isPreviewableImageUrl(url: string) {
+  return /^data:image\//i.test(url) || /\.(png|jpe?g|gif|webp|avif|svg)(?:[?#].*)?$/i.test(url);
+}
+
+function isPreviewableVideoUrl(url: string) {
+  return /^data:video\//i.test(url) || /\.(mp4|webm|ogg|mov|m4v)(?:[?#].*)?$/i.test(url);
+}
+
+function mediaPreviewLabel(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname.split("/").filter(Boolean).pop() || parsed.hostname;
+  } catch {
+    return url;
+  }
+}
+
 const lovableContentSourceLabels: Record<string, string> = {
   content: "Content",
   content_asset: "Content asset",
@@ -1466,6 +1483,31 @@ function MetricCard({ label, value, icon: Icon }: { label: string; value: number
       <p className="mt-4 text-3xl font-black text-[#241133]">{value}</p>
       <p className="mt-1 text-sm font-bold text-[#7d6b65]">{label}</p>
     </div>
+  );
+}
+
+function MediaPreviewTile({ url, label, testId }: { url: string; label?: string; testId?: string }) {
+  const mediaLabel = label || mediaPreviewLabel(url);
+  if (isPreviewableImageUrl(url)) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-[#eadfd5] bg-white" data-testid={testId}>
+        <img src={url} alt={mediaLabel} className="h-36 w-full object-cover" loading="lazy" />
+        <span className="block truncate px-3 py-2 text-xs font-bold text-purple-700">{mediaLabel}</span>
+      </a>
+    );
+  }
+  if (isPreviewableVideoUrl(url)) {
+    return (
+      <div className="overflow-hidden rounded-xl border border-[#eadfd5] bg-white" data-testid={testId}>
+        <video src={url} controls preload="metadata" className="h-36 w-full bg-black object-cover" aria-label={mediaLabel} />
+        <a href={url} target="_blank" rel="noreferrer" className="block truncate px-3 py-2 text-xs font-bold text-purple-700">{mediaLabel}</a>
+      </div>
+    );
+  }
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="flex min-h-24 items-center rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-purple-700" data-testid={testId}>
+      <span className="break-all">{mediaLabel}</span>
+    </a>
   );
 }
 
@@ -3962,7 +4004,14 @@ export default function MarketingAdminPage() {
                           </Pill>
                         </div>
                         {selectedContentMediaPreviewUrls.length ? (
-                          <div className="mt-2 grid gap-1">
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="marketing-content-media-previews">
+                            {selectedContentMediaPreviewUrls.map((url) => (
+                              <MediaPreviewTile key={url} url={url} testId={`marketing-content-media-preview-${url}`} />
+                            ))}
+                          </div>
+                        ) : null}
+                        {selectedContentMediaPreviewUrls.length ? (
+                          <div className="mt-3 grid gap-1">
                             {selectedContentMediaPreviewUrls.map((url) => (
                               <a key={url} className="break-all text-xs font-bold text-purple-700 underline" href={url} target="_blank" rel="noreferrer">{url}</a>
                             ))}
@@ -4052,6 +4101,9 @@ export default function MarketingAdminPage() {
                         </div>
                         <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
                         {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
+                        <div className="mt-3" data-testid={`marketing-media-preview-${asset.id}`}>
+                          <MediaPreviewTile url={asset.localUrl || asset.originalUrl} label={asset.contentTitle || mediaPreviewLabel(asset.originalUrl)} />
+                        </div>
                         <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
                         {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
                         <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />
