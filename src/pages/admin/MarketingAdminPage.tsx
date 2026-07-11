@@ -413,6 +413,17 @@ type ContentEditDraft = {
   mediaAssetsText: string;
 };
 
+type MediaEditDraft = {
+  contentAssetId: string;
+  assetType: string;
+  originalUrl: string;
+  localUrl: string;
+  status: string;
+  source: string;
+  lovableExternalId: string;
+  metadataText: string;
+};
+
 type ContactDraft = {
   fullName: string;
   audienceType: Audience;
@@ -947,6 +958,32 @@ function contentPayloadFromDraft(draft: ContentEditDraft) {
   };
 }
 
+function mediaEditDraftFromAsset(asset: MarketingMediaAsset): MediaEditDraft {
+  return {
+    contentAssetId: asset.contentAssetId ?? "",
+    assetType: asset.assetType,
+    originalUrl: asset.originalUrl,
+    localUrl: asset.localUrl ?? "",
+    status: asset.status,
+    source: asset.source,
+    lovableExternalId: asset.lovableExternalId ?? "",
+    metadataText: jsonText(asset.metadata),
+  };
+}
+
+function mediaPayloadFromDraft(draft: MediaEditDraft) {
+  return {
+    contentAssetId: draft.contentAssetId || null,
+    assetType: draft.assetType.trim() || "unknown",
+    originalUrl: draft.originalUrl.trim(),
+    localUrl: draft.localUrl.trim() || null,
+    status: draft.status.trim() || "referenced",
+    source: draft.source.trim() || "vyva",
+    lovableExternalId: draft.lovableExternalId.trim() || null,
+    metadata: parseJsonText(draft.metadataText, "Media metadata"),
+  };
+}
+
 function contactEditDraftFromContact(contact: MarketingContact): ContactEditDraft {
   return {
     fullName: contact.fullName,
@@ -1424,6 +1461,10 @@ export default function MarketingAdminPage() {
   const [contentEditDraft, setContentEditDraft] = useState<ContentEditDraft | null>(null);
   const [contentSaving, setContentSaving] = useState(false);
   const [contentFeedback, setContentFeedback] = useState("");
+  const [editingMediaAssetId, setEditingMediaAssetId] = useState<string | null>(null);
+  const [mediaEditDraft, setMediaEditDraft] = useState<MediaEditDraft | null>(null);
+  const [mediaSaving, setMediaSaving] = useState(false);
+  const [mediaFeedback, setMediaFeedback] = useState("");
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
     fullName: "",
     audienceType: "b2b",
@@ -1516,6 +1557,7 @@ export default function MarketingAdminPage() {
   const editingCampaign = useMemo(() => campaigns.find((campaign) => campaign.id === editingCampaignId) ?? null, [campaigns, editingCampaignId]);
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
+  const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
   const selectedContent = useMemo(() => content.find((item) => item.id === selectedContentId) ?? visibleContent[0] ?? null, [content, selectedContentId, visibleContent]);
   const selectedContentMediaAssets = useMemo(() => {
     if (!selectedContent) return [];
@@ -2002,6 +2044,67 @@ export default function MarketingAdminPage() {
       setMessage(errorMessage);
     } finally {
       setContentSaving(false);
+    }
+  }
+
+  function startMediaEdit(asset: MarketingMediaAsset) {
+    setEditingMediaAssetId(asset.id);
+    setMediaEditDraft(mediaEditDraftFromAsset(asset));
+    setMediaFeedback("");
+  }
+
+  function cancelMediaEdit() {
+    setEditingMediaAssetId(null);
+    setMediaEditDraft(null);
+    setMediaFeedback("");
+  }
+
+  async function saveMediaEdit(event: FormEvent) {
+    event.preventDefault();
+    if (!editingMediaAssetId || !mediaEditDraft) return;
+    if (!mediaEditDraft.originalUrl.trim()) {
+      setMediaFeedback("Original URL is required before saving.");
+      return;
+    }
+    setMediaSaving(true);
+    setMediaFeedback("Saving media...");
+    try {
+      const result = await api<{ mediaAsset: MarketingMediaAsset }>(`/api/admin/marketing/media/${editingMediaAssetId}`, {
+        method: "PATCH",
+        body: JSON.stringify(mediaPayloadFromDraft(mediaEditDraft)),
+      });
+      setMediaAssets((current) => current.map((item) => item.id === result.mediaAsset.id ? result.mediaAsset : item));
+      setEditingMediaAssetId(result.mediaAsset.id);
+      setMediaEditDraft(mediaEditDraftFromAsset(result.mediaAsset));
+      setMediaFeedback("Media updated.");
+      setMessage("Marketing media updated.");
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Marketing media could not be updated.";
+      setMediaFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setMediaSaving(false);
+    }
+  }
+
+  async function deleteMediaAsset(asset: MarketingMediaAsset) {
+    if (!window.confirm(`Delete media reference "${asset.originalUrl}"? This removes the VYVA media row only; the original Lovable URL is not changed.`)) return;
+    setMediaSaving(true);
+    setMediaFeedback("Deleting media...");
+    try {
+      await api(`/api/admin/marketing/media/${asset.id}`, { method: "DELETE" });
+      if (editingMediaAssetId === asset.id) cancelMediaEdit();
+      setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
+      setMediaFeedback("Media deleted.");
+      setMessage("Marketing media deleted.");
+      await refreshAll();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Marketing media could not be deleted.";
+      setMediaFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setMediaSaving(false);
     }
   }
 
@@ -3397,6 +3500,65 @@ export default function MarketingAdminPage() {
                 </SectionCard>
 
                 <SectionCard title="Media references" subtitle={`${visibleMediaAssets.length} visible of ${mediaAssets.length} imported media rows.`}>
+                  {mediaEditDraft ? (
+                    <form className="mb-4 grid gap-3 rounded-xl border border-purple-100 bg-purple-50 p-3" onSubmit={(event) => void saveMediaEdit(event)} data-testid="marketing-media-editor-form">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-[#241133]">Media editor</p>
+                          <p className="text-xs font-bold text-[#7d6b65]">{editingMediaAsset?.originalUrl ?? "Editing imported media reference"}</p>
+                        </div>
+                        {editingMediaAsset ? <Pill className="bg-white text-purple-800">{editingMediaAsset.source}</Pill> : null}
+                      </div>
+                      <div className="grid gap-3 xl:grid-cols-[1fr_160px_160px]">
+                        <Field label="Original URL">
+                          <input className={inputClass} value={mediaEditDraft.originalUrl} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, originalUrl: event.target.value }) : draft)} disabled={mediaSaving} data-testid="input-marketing-edit-media-original-url" />
+                        </Field>
+                        <Field label="Type">
+                          <input className={inputClass} value={mediaEditDraft.assetType} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, assetType: event.target.value }) : draft)} disabled={mediaSaving} data-testid="input-marketing-edit-media-type" />
+                        </Field>
+                        <Field label="Status">
+                          <input className={inputClass} value={mediaEditDraft.status} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, status: event.target.value }) : draft)} disabled={mediaSaving} data-testid="input-marketing-edit-media-status" />
+                        </Field>
+                      </div>
+                      <div className="grid gap-3 xl:grid-cols-3">
+                        <Field label="Linked content">
+                          <select className={inputClass} value={mediaEditDraft.contentAssetId} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, contentAssetId: event.target.value }) : draft)} disabled={mediaSaving} data-testid="select-marketing-edit-media-content">
+                            <option value="">No linked content</option>
+                            {content.map((item) => (
+                              <option key={item.id} value={item.id}>{item.title}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Local URL">
+                          <input className={inputClass} value={mediaEditDraft.localUrl} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, localUrl: event.target.value }) : draft)} disabled={mediaSaving} data-testid="input-marketing-edit-media-local-url" />
+                        </Field>
+                        <Field label="Lovable ID">
+                          <input className={inputClass} value={mediaEditDraft.lovableExternalId} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, lovableExternalId: event.target.value }) : draft)} disabled={mediaSaving} data-testid="input-marketing-edit-media-lovable-id" />
+                        </Field>
+                      </div>
+                      <Field label="Metadata JSON">
+                        <textarea className={`${textareaClass} min-h-[120px] font-mono text-xs`} value={mediaEditDraft.metadataText} onChange={(event) => setMediaEditDraft((draft) => draft ? ({ ...draft, metadataText: event.target.value }) : draft)} disabled={mediaSaving} data-testid="textarea-marketing-edit-media-metadata" />
+                      </Field>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]" disabled={mediaSaving} data-testid="button-marketing-save-media">
+                          <Save size={15} /> {mediaSaving ? "Saving..." : "Save media"}
+                        </button>
+                        {editingMediaAsset ? (
+                          <button type="button" onClick={() => void deleteMediaAsset(editingMediaAsset)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={mediaSaving} data-testid="button-marketing-delete-editing-media">
+                            <Trash2 size={15} /> Delete
+                          </button>
+                        ) : null}
+                        <button type="button" onClick={cancelMediaEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid="button-marketing-cancel-media">
+                          <X size={15} /> Close
+                        </button>
+                        {mediaFeedback ? (
+                          <p className={`rounded-xl px-4 py-3 text-sm font-bold ${mediaFeedback.toLowerCase().includes("updated") || mediaFeedback.toLowerCase().includes("deleted") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-media-feedback">
+                            {mediaFeedback}
+                          </p>
+                        ) : null}
+                      </div>
+                    </form>
+                  ) : null}
                   <div className="grid gap-3" data-testid="marketing-media-assets-list">
                     {visibleMediaAssets.length === 0 ? (
                       <EmptyState text="No media references imported yet." />
@@ -3409,6 +3571,15 @@ export default function MarketingAdminPage() {
                         <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
                         <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
                         {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
+                        <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <button type="button" onClick={() => startMediaEdit(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-${asset.id}`}>
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button type="button" onClick={() => void deleteMediaAsset(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
                       </article>
                     ))}
                   </div>

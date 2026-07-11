@@ -551,6 +551,76 @@ describe("admin marketing router", () => {
     expect(table("marketing_content_assets")).toHaveLength(0);
   });
 
+  it("updates and deletes marketing media references", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Media content",
+        channel: "email",
+        body: "Body",
+      })
+      .expect(201);
+    const contentId = createResponse.body.content.id;
+    const mediaId = "00000000-0000-4000-8000-000000000099";
+    dbMock.rows.set("marketing_media_assets", [{
+      id: mediaId,
+      content_asset_id: contentId,
+      source: "lovable",
+      asset_type: "image",
+      original_url: "https://cdn.example.test/original.png",
+      local_url: null,
+      status: "referenced",
+      lovable_external_id: "media:original",
+      metadata: { lovable: { altText: "Original" } },
+      created_at: new Date("2026-07-05T10:00:00.000Z"),
+      updated_at: new Date("2026-07-05T10:00:00.000Z"),
+    }]);
+
+    await request(app)
+      .patch(`/api/admin/marketing/media/${mediaId}`)
+      .send({
+        contentAssetId: contentId,
+        assetType: "hero_image",
+        originalUrl: "https://cdn.example.test/updated.png",
+        localUrl: "/media/updated.png",
+        status: "approved",
+        lovableExternalId: "media:updated",
+        metadata: { altText: "Updated" },
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.mediaAsset).toMatchObject({
+          id: mediaId,
+          contentAssetId: contentId,
+          contentTitle: "Media content",
+          assetType: "hero_image",
+          originalUrl: "https://cdn.example.test/updated.png",
+          localUrl: "/media/updated.png",
+          status: "approved",
+          lovableExternalId: "media:updated",
+          metadata: { altText: "Updated" },
+        });
+      });
+
+    expect(table("marketing_media_assets")[0]).toMatchObject({
+      content_asset_id: contentId,
+      asset_type: "hero_image",
+      original_url: "https://cdn.example.test/updated.png",
+      local_url: "/media/updated.png",
+      status: "approved",
+      lovable_external_id: "media:updated",
+      metadata: { altText: "Updated" },
+    });
+
+    await request(app)
+      .delete(`/api/admin/marketing/media/${mediaId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedMediaAssetId: mediaId });
+      });
+  });
+
   it("updates and deletes marketing contacts", async () => {
     const app = buildApp();
     const createResponse = await request(app)

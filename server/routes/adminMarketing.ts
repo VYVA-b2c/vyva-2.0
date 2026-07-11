@@ -134,6 +134,17 @@ const contentBodySchema = z.object({
 
 const contentPatchSchema = contentBodySchema.partial();
 
+const mediaPatchSchema = z.object({
+  contentAssetId: nullableUuidSchema,
+  source: z.string().trim().min(1).max(80).optional(),
+  assetType: z.string().trim().min(1).max(80).optional(),
+  originalUrl: z.string().trim().min(1).max(1000).optional(),
+  localUrl: z.string().trim().max(1000).nullable().optional(),
+  status: z.string().trim().min(1).max(80).optional(),
+  lovableExternalId: z.string().trim().max(160).nullable().optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 const journeyStepInputSchema = z.object({
   stepOrder: z.number().int().min(0).max(1000),
   channel: channelSchema,
@@ -1933,6 +1944,51 @@ adminMarketingRouter.get("/media", async (req, res) => {
   } catch (error) {
     console.error("[admin/marketing] media load failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing media assets could not be loaded.") });
+  }
+});
+
+adminMarketingRouter.patch("/media/:mediaId", async (req, res) => {
+  const parsed = mediaPatchSchema.safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const patch: Partial<typeof marketingMediaAssets.$inferInsert> = {
+    updated_at: new Date(),
+  };
+  if (parsed.data.contentAssetId !== undefined) patch.content_asset_id = parsed.data.contentAssetId ?? null;
+  if (parsed.data.source !== undefined) patch.source = parsed.data.source;
+  if (parsed.data.assetType !== undefined) patch.asset_type = parsed.data.assetType;
+  if (parsed.data.originalUrl !== undefined) patch.original_url = parsed.data.originalUrl;
+  if (parsed.data.localUrl !== undefined) patch.local_url = emptyToNull(parsed.data.localUrl);
+  if (parsed.data.status !== undefined) patch.status = parsed.data.status;
+  if (parsed.data.lovableExternalId !== undefined) patch.lovable_external_id = emptyToNull(parsed.data.lovableExternalId);
+  if (parsed.data.metadata !== undefined) patch.metadata = parsed.data.metadata;
+  try {
+    const [asset] = await db.update(marketingMediaAssets).set(patch).where(eq(marketingMediaAssets.id, req.params.mediaId)).returning();
+    if (!asset) return res.status(404).json({ error: "Marketing media asset not found." });
+    const [content] = asset.content_asset_id
+      ? await db.select().from(marketingContentAssets).where(eq(marketingContentAssets.id, asset.content_asset_id)).limit(1)
+      : [];
+    return res.json({
+      ok: true,
+      mediaAsset: {
+        ...serializeMediaAsset(asset),
+        contentTitle: content?.title ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("[admin/marketing] media update failed", error);
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing media asset could not be updated.") });
+  }
+});
+
+adminMarketingRouter.delete("/media/:mediaId", async (req, res) => {
+  try {
+    const [asset] = await db.select().from(marketingMediaAssets).where(eq(marketingMediaAssets.id, req.params.mediaId)).limit(1);
+    if (!asset) return res.status(404).json({ error: "Marketing media asset not found." });
+    await db.delete(marketingMediaAssets).where(eq(marketingMediaAssets.id, asset.id));
+    return res.json({ ok: true, deletedMediaAssetId: asset.id });
+  } catch (error) {
+    console.error("[admin/marketing] media delete failed", error);
+    return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing media asset could not be deleted.") });
   }
 });
 

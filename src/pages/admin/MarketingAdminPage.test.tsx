@@ -405,6 +405,22 @@ function contentFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
+function mediaFromRequestBody(id: string, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}"));
+  return {
+    id,
+    contentAssetId: body.contentAssetId ?? null,
+    contentTitle: body.contentAssetId === "content-1" ? "Welcome email" : body.contentAssetId === "content-2" ? "Partner post" : null,
+    source: body.source ?? "vyva",
+    assetType: body.assetType ?? "unknown",
+    originalUrl: body.originalUrl ?? "",
+    localUrl: body.localUrl ?? null,
+    status: body.status ?? "referenced",
+    lovableExternalId: body.lovableExternalId ?? null,
+    metadata: body.metadata ?? {},
+  };
+}
+
 function contactFromRequestBody(id: string, init?: RequestInit) {
   const body = JSON.parse(String(init?.body ?? "{}"));
   return {
@@ -476,6 +492,8 @@ function renderPage(syncOverride: Partial<typeof sync> = {}) {
     if (path === "/api/admin/marketing/content" && method === "POST") return jsonResponse({ ok: true, content: contentFromRequestBody("content-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/content/content-2" && method === "PATCH") return jsonResponse({ ok: true, content: contentFromRequestBody("content-2", init) });
     if (path === "/api/admin/marketing/content/content-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContentId: "content-2" });
+    if (path === "/api/admin/marketing/media/media-1" && method === "PATCH") return jsonResponse({ ok: true, mediaAsset: mediaFromRequestBody("media-1", init) });
+    if (path === "/api/admin/marketing/media/media-1" && method === "DELETE") return jsonResponse({ ok: true, deletedMediaAssetId: "media-1" });
     if (path === "/api/admin/marketing/contacts" && method === "POST") return jsonResponse({ ok: true, contact: contacts[1] }, { status: 201 });
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "PATCH") return jsonResponse({ ok: true, contact: contactFromRequestBody("contact-2", init) });
     if (path === "/api/admin/marketing/contacts/contact-2" && method === "DELETE") return jsonResponse({ ok: true, deletedContactId: "contact-2" });
@@ -660,6 +678,53 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-content"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(confirmSpy).toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("edits and deletes imported media references", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
+    expect(openMetadataPanel("marketing-media-metadata-media-1")).toHaveTextContent("Partner hero image");
+
+    fireEvent.click(screen.getByTestId("button-marketing-edit-media-media-1"));
+    expect(screen.getByTestId("marketing-media-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-edit-media-original-url")).toHaveValue("https://cdn.example.test/partner.png");
+
+    fireEvent.change(screen.getByTestId("input-marketing-edit-media-original-url"), { target: { value: "https://cdn.example.test/partner-updated.png" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-media-type"), { target: { value: "hero_image" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-media-status"), { target: { value: "approved" } });
+    fireEvent.change(screen.getByTestId("select-marketing-edit-media-content"), { target: { value: "content-1" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-media-local-url"), { target: { value: "/media/partner-updated.png" } });
+    fireEvent.change(screen.getByTestId("input-marketing-edit-media-lovable-id"), { target: { value: "media-updated" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-media-metadata"), { target: { value: "{\"altText\":\"Updated hero\"}" } });
+    fireEvent.click(screen.getByTestId("button-marketing-save-media"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/media/media-1" && init?.method === "PATCH");
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({
+      originalUrl: "https://cdn.example.test/partner-updated.png",
+      assetType: "hero_image",
+      status: "approved",
+      contentAssetId: "content-1",
+      localUrl: "/media/partner-updated.png",
+      lovableExternalId: "media-updated",
+      metadata: { altText: "Updated hero" },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-media-feedback")).toHaveTextContent("Media updated.");
+    });
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-media"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
     });
     expect(confirmSpy).toHaveBeenCalled();
     confirmSpy.mockRestore();
