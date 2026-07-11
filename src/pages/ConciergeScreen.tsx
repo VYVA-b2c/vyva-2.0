@@ -2281,6 +2281,135 @@ function transportConfirmationItems(params: {
   return items;
 }
 
+type FinalConfirmationField = {
+  key: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: "text" | "datetime-local";
+  multiline?: boolean;
+  testId: string;
+  fullWidth?: boolean;
+};
+
+function FinalConfirmationCard({
+  title,
+  body,
+  providerName,
+  icon: Icon,
+  fields,
+  primaryLabel,
+  secondaryLabel,
+  onPrimary,
+  onSecondary,
+  primaryPending,
+  testId,
+  primaryTestId,
+  secondaryTestId,
+  isSpanish,
+}: {
+  title: string;
+  body: string;
+  providerName?: string | null;
+  icon: LucideIcon;
+  fields: FinalConfirmationField[];
+  primaryLabel: string;
+  secondaryLabel: string;
+  onPrimary: () => void;
+  onSecondary: () => void;
+  primaryPending?: boolean;
+  testId: string;
+  primaryTestId?: string;
+  secondaryTestId?: string;
+  isSpanish: boolean;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_14px_30px_rgba(13,148,136,0.10)] sm:p-5"
+      data-testid={testId}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E] shadow-sm">
+          <Icon size={19} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+            {isSpanish ? "Ultimo paso" : "Final step"}
+          </p>
+          <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+            {title}
+          </h3>
+          <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+            {body}
+          </p>
+        </div>
+      </div>
+
+      {providerName ? (
+        <div className="mt-3 rounded-[16px] border border-[#99F6E4] bg-white px-3 py-2 font-body text-[13px] font-black text-[#0F766E]">
+          {providerName}
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {fields.map((field) => {
+          const labelClassName = `block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]${
+            field.fullWidth || field.multiline ? " sm:col-span-2" : ""
+          }`;
+
+          return (
+            <label key={field.key} className={labelClassName}>
+              {field.label}
+              {field.multiline ? (
+                <textarea
+                  value={field.value}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  placeholder={field.placeholder}
+                  rows={3}
+                  className="mt-2 w-full resize-none rounded-[16px] border border-[#99F6E4] bg-white px-3 py-3 font-body text-[14px] font-semibold normal-case tracking-normal text-vyva-text-1 outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-[#14B8A6]/15"
+                  data-testid={field.testId}
+                />
+              ) : (
+                <Input
+                  type={field.type ?? "text"}
+                  value={field.value}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  placeholder={field.placeholder}
+                  className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
+                  data-testid={field.testId}
+                />
+              )}
+            </label>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+        <button
+          type="button"
+          onClick={onPrimary}
+          disabled={primaryPending}
+          className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+          data-testid={primaryTestId}
+        >
+          {primaryPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+          {primaryLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onSecondary}
+          disabled={primaryPending}
+          className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} border-[#99F6E4] text-[#0F766E]`}
+          data-testid={secondaryTestId}
+        >
+          {secondaryLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function otcPharmacyConfirmationItems(params: {
   pharmacyName: string;
   itemText: string;
@@ -5738,130 +5867,82 @@ const ConciergeScreen = () => {
                   );
                 })}
                 {transportPreparedOption ? (
-                  <div
-                    className="rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_14px_30px_rgba(13,148,136,0.10)] sm:p-5"
-                    data-testid="panel-transport-final-review"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E] shadow-sm">
-                        <Car size={19} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-                          {isSpanish ? "Ultimo paso" : "Final step"}
-                        </p>
-                        <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                          {isSpanish ? "Revisar y confirmar viaje" : "Review and confirm ride"}
-                        </h3>
-                        <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-                          {isSpanish
-                            ? "Cuando el proveedor confirme, guarda aqui hora, precio o referencia."
-                            : "When the provider confirms, save the time, price, or reference here."}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 rounded-[16px] border border-[#99F6E4] bg-white px-3 py-2 font-body text-[13px] font-black text-[#0F766E]">
-                      {transportPreparedOption.providerName || transportPreparedOption.label}
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                        {isSpanish ? "Recogida confirmada" : "Confirmed pickup"}
-                        <Input
-                          type="datetime-local"
-                          value={transportFinalForm.scheduledFor}
-                          onChange={(event) => setTransportFinalForm((current) => ({ ...current, scheduledFor: event.target.value }))}
-                          className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                          data-testid="input-transport-confirmed-time"
-                        />
-                      </label>
-                      <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                        {isSpanish ? "Precio" : "Price"}
-                        <Input
-                          value={transportFinalForm.priceEstimate}
-                          onChange={(event) => setTransportFinalForm((current) => ({ ...current, priceEstimate: event.target.value }))}
-                          placeholder={isSpanish ? "Ej. 18 EUR" : "E.g. EUR18"}
-                          className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                          data-testid="input-transport-confirmed-price"
-                        />
-                      </label>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                        {isSpanish ? "Desde" : "Pickup"}
-                        <Input
-                          value={transportFinalForm.pickup}
-                          onChange={(event) => setTransportFinalForm((current) => ({ ...current, pickup: event.target.value }))}
-                          placeholder={transportPickup.trim() || savedTransportPickupLabel}
-                          className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                          data-testid="input-transport-confirmed-pickup"
-                        />
-                      </label>
-                      <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                        {isSpanish ? "Destino" : "Destination"}
-                        <Input
-                          value={transportFinalForm.destination}
-                          onChange={(event) => setTransportFinalForm((current) => ({ ...current, destination: event.target.value }))}
-                          placeholder={transportDestination}
-                          className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                          data-testid="input-transport-confirmed-destination"
-                        />
-                      </label>
-                    </div>
-                    <label className="mt-3 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                      {isSpanish ? "Respuesta del proveedor" : "Provider reply"}
-                      <textarea
-                        value={transportFinalForm.providerReply}
-                        onChange={(event) => setTransportFinalForm((current) => ({ ...current, providerReply: event.target.value }))}
-                        placeholder={isSpanish ? "Ej. Confirmado, llega a las 09:30." : "E.g. Confirmed, arrives at 09:30."}
-                        rows={3}
-                        className="mt-2 w-full resize-none rounded-[16px] border border-[#99F6E4] bg-white px-3 py-3 font-body text-[14px] font-semibold normal-case tracking-normal text-vyva-text-1 outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-[#14B8A6]/15"
-                        data-testid="input-transport-provider-reply"
-                      />
-                    </label>
-                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                        {isSpanish ? "Referencia" : "Reference"}
-                        <Input
-                          value={transportFinalForm.bookingReference}
-                          onChange={(event) => setTransportFinalForm((current) => ({ ...current, bookingReference: event.target.value }))}
-                          placeholder={isSpanish ? "Opcional" : "Optional"}
-                          className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                          data-testid="input-transport-confirmed-reference"
-                        />
-                      </label>
-                      <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                        {isSpanish ? "Nota" : "Note"}
-                        <Input
-                          value={transportFinalForm.notes}
-                          onChange={(event) => setTransportFinalForm((current) => ({ ...current, notes: event.target.value }))}
-                          placeholder={isSpanish ? "Opcional" : "Optional"}
-                          className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                          data-testid="input-transport-confirmed-note"
-                        />
-                      </label>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-                      <button
-                        type="button"
-                        onClick={handleSaveConfirmedRide}
-                        disabled={saveTransportRideMutation.isPending}
-                        className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
-                        data-testid="button-transport-save-confirmed-ride"
-                      >
-                        {saveTransportRideMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-                        {isSpanish ? "Guardar viaje confirmado" : "Save confirmed ride"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleReviseConfirmedRide}
-                        disabled={saveTransportRideMutation.isPending}
-                        className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} border-[#99F6E4] text-[#0F766E]`}
-                        data-testid="button-transport-revise-confirmed-ride"
-                      >
-                        {isSpanish ? "Cambiar" : "Change"}
-                      </button>
-                    </div>
-                  </div>
+                  <FinalConfirmationCard
+                    title={isSpanish ? "Revisar y confirmar viaje" : "Review and confirm ride"}
+                    body={isSpanish
+                      ? "Cuando el proveedor confirme, guarda aqui hora, precio o referencia."
+                      : "When the provider confirms, save the time, price, or reference here."}
+                    providerName={transportPreparedOption.providerName || transportPreparedOption.label}
+                    icon={Car}
+                    fields={[
+                      {
+                        key: "scheduledFor",
+                        label: isSpanish ? "Recogida confirmada" : "Confirmed pickup",
+                        value: transportFinalForm.scheduledFor,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, scheduledFor: value })),
+                        type: "datetime-local",
+                        testId: "input-transport-confirmed-time",
+                      },
+                      {
+                        key: "priceEstimate",
+                        label: isSpanish ? "Precio" : "Price",
+                        value: transportFinalForm.priceEstimate,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, priceEstimate: value })),
+                        placeholder: isSpanish ? "Ej. 18 EUR" : "E.g. EUR18",
+                        testId: "input-transport-confirmed-price",
+                      },
+                      {
+                        key: "pickup",
+                        label: isSpanish ? "Desde" : "Pickup",
+                        value: transportFinalForm.pickup,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, pickup: value })),
+                        placeholder: transportPickup.trim() || savedTransportPickupLabel,
+                        testId: "input-transport-confirmed-pickup",
+                      },
+                      {
+                        key: "destination",
+                        label: isSpanish ? "Destino" : "Destination",
+                        value: transportFinalForm.destination,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, destination: value })),
+                        placeholder: transportDestination,
+                        testId: "input-transport-confirmed-destination",
+                      },
+                      {
+                        key: "providerReply",
+                        label: isSpanish ? "Respuesta del proveedor" : "Provider reply",
+                        value: transportFinalForm.providerReply,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, providerReply: value })),
+                        placeholder: isSpanish ? "Ej. Confirmado, llega a las 09:30." : "E.g. Confirmed, arrives at 09:30.",
+                        multiline: true,
+                        testId: "input-transport-provider-reply",
+                      },
+                      {
+                        key: "bookingReference",
+                        label: isSpanish ? "Referencia" : "Reference",
+                        value: transportFinalForm.bookingReference,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, bookingReference: value })),
+                        placeholder: isSpanish ? "Opcional" : "Optional",
+                        testId: "input-transport-confirmed-reference",
+                      },
+                      {
+                        key: "notes",
+                        label: isSpanish ? "Nota" : "Note",
+                        value: transportFinalForm.notes,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, notes: value })),
+                        placeholder: isSpanish ? "Opcional" : "Optional",
+                        testId: "input-transport-confirmed-note",
+                      },
+                    ]}
+                    primaryLabel={isSpanish ? "Guardar viaje confirmado" : "Save confirmed ride"}
+                    secondaryLabel={isSpanish ? "Cambiar" : "Change"}
+                    onPrimary={handleSaveConfirmedRide}
+                    onSecondary={handleReviseConfirmedRide}
+                    primaryPending={saveTransportRideMutation.isPending}
+                    testId="panel-transport-final-review"
+                    primaryTestId="button-transport-save-confirmed-ride"
+                    secondaryTestId="button-transport-revise-confirmed-ride"
+                    isSpanish={isSpanish}
+                  />
                 ) : null}
                 <p className="rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
                   {transportResult.disclaimers[2] ?? (isSpanish ? "Nada se reserva sin tu confirmacion." : "Nothing is booked without your confirmation.")}
@@ -6987,90 +7068,58 @@ const ConciergeScreen = () => {
             )}
 
             {appointmentAttemptResult && appointmentRequest && !appointmentAttemptResult.scheduled_event && (
-              <div className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_14px_30px_rgba(13,148,136,0.10)] sm:p-5" data-testid="panel-appointment-mark-booked">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E] shadow-sm">
-                    <CircleCheck size={19} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
-                      {isSpanish ? "Ultimo paso" : "Final step"}
-                    </p>
-                    <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
-                      {appointmentFinalReviewTitle}
-                    </h3>
-                    <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
-                      {appointmentFinalReviewBody}
-                    </p>
-                  </div>
-                </div>
-                <label className="mt-4 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                  {isSpanish ? "Respuesta del proveedor" : "Provider reply"}
-                  <textarea
-                    value={appointmentBookedForm.providerReply}
-                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, providerReply: event.target.value }))}
-                    placeholder={isHomeServiceAppointment
+              <FinalConfirmationCard
+                title={appointmentFinalReviewTitle}
+                body={appointmentFinalReviewBody}
+                providerName={appointmentProviderName}
+                icon={CircleCheck}
+                fields={[
+                  {
+                    key: "providerReply",
+                    label: isSpanish ? "Respuesta del proveedor" : "Provider reply",
+                    value: appointmentBookedForm.providerReply,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, providerReply: value })),
+                    placeholder: isHomeServiceAppointment
                       ? (isSpanish ? "Ej. Puede venir manana a las 10:00. Coste estimado 80 EUR." : "E.g. Can visit tomorrow at 10:00. Estimated cost EUR80.")
-                      : (isSpanish ? "Ej. Confirmado martes a las 10:00. Traer tarjeta sanitaria." : "E.g. Confirmed Tuesday at 10:00. Bring insurance card.")}
-                    rows={3}
-                    className="mt-2 w-full resize-none rounded-[16px] border border-[#99F6E4] bg-white px-3 py-3 font-body text-[14px] font-semibold normal-case tracking-normal text-vyva-text-1 outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-[#14B8A6]/15"
-                    data-testid="input-appointment-provider-reply"
-                  />
-                </label>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                    {isSpanish ? "Fecha y hora" : "Date and time"}
-                    <Input
-                      type="datetime-local"
-                      value={appointmentBookedForm.scheduledFor}
-                      onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, scheduledFor: event.target.value }))}
-                      className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                      aria-label={isSpanish ? "Fecha y hora" : "Date and time"}
-                      data-testid="input-appointment-confirmed-time"
-                    />
-                  </label>
-                  <label className="block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                    {isSpanish ? "Lugar" : "Place"}
-                    <Input
-                      value={appointmentBookedForm.location}
-                      onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, location: event.target.value }))}
-                      placeholder={appointmentProviderAddress || (isSpanish ? "Lugar" : "Location")}
-                      className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                      data-testid="input-appointment-confirmed-location"
-                    />
-                  </label>
-                </div>
-                <label className="mt-3 block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]">
-                  {isSpanish ? "Nota para VYVA" : "Note for VYVA"}
-                  <Input
-                    value={appointmentBookedForm.notes}
-                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, notes: event.target.value }))}
-                    placeholder={isSpanish ? "Opcional" : "Optional"}
-                    className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
-                    data-testid="input-appointment-confirmed-note"
-                  />
-                </label>
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-                  <button
-                    type="button"
-                    onClick={handleMarkAppointmentBooked}
-                    disabled={markAppointmentBookedMutation.isPending}
-                    className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
-                  >
-                    {markAppointmentBookedMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-                    {appointmentFinalSaveLabel}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleReviseAppointmentAfterReply}
-                    disabled={markAppointmentBookedMutation.isPending}
-                    className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} border-[#99F6E4] text-[#0F766E]`}
-                    data-testid="button-appointment-revise-after-reply"
-                  >
-                    {isSpanish ? "Cambiar" : "Change"}
-                  </button>
-                </div>
-              </div>
+                      : (isSpanish ? "Ej. Confirmado martes a las 10:00. Traer tarjeta sanitaria." : "E.g. Confirmed Tuesday at 10:00. Bring insurance card."),
+                    multiline: true,
+                    testId: "input-appointment-provider-reply",
+                  },
+                  {
+                    key: "scheduledFor",
+                    label: isSpanish ? "Fecha y hora" : "Date and time",
+                    value: appointmentBookedForm.scheduledFor,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, scheduledFor: value })),
+                    type: "datetime-local",
+                    testId: "input-appointment-confirmed-time",
+                  },
+                  {
+                    key: "location",
+                    label: isSpanish ? "Lugar" : "Place",
+                    value: appointmentBookedForm.location,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, location: value })),
+                    placeholder: appointmentProviderAddress || (isSpanish ? "Lugar" : "Location"),
+                    testId: "input-appointment-confirmed-location",
+                  },
+                  {
+                    key: "notes",
+                    label: isSpanish ? "Nota para VYVA" : "Note for VYVA",
+                    value: appointmentBookedForm.notes,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, notes: value })),
+                    placeholder: isSpanish ? "Opcional" : "Optional",
+                    testId: "input-appointment-confirmed-note",
+                    fullWidth: true,
+                  },
+                ]}
+                primaryLabel={appointmentFinalSaveLabel}
+                secondaryLabel={isSpanish ? "Cambiar" : "Change"}
+                onPrimary={handleMarkAppointmentBooked}
+                onSecondary={handleReviseAppointmentAfterReply}
+                primaryPending={markAppointmentBookedMutation.isPending}
+                testId="panel-appointment-mark-booked"
+                secondaryTestId="button-appointment-revise-after-reply"
+                isSpanish={isSpanish}
+              />
             )}
 
             {appointmentRequest && appointmentOptions.length > 0 && (
