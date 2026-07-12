@@ -2987,6 +2987,248 @@ type RightNowActionLabelsParams = {
   formMissingFields: string[];
 };
 
+type PendingActionReviewDetail = {
+  label: string;
+  value: string;
+  isMissing?: boolean;
+};
+
+type PendingActionReviewSummary = {
+  title: string;
+  eyebrow: string;
+  summary: string;
+  details: PendingActionReviewDetail[];
+  missingDetails: string[];
+};
+
+function humanizeValue(value: string): string {
+  return value.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function handoffChannelLabel(item: ConciergePendingItem, isSpanish: boolean): string {
+  const channel = getPreferredHandoffChannel(item).toLowerCase();
+  if (channel === "phone") return isSpanish ? "Llamada" : "Phone call";
+  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "email") return isSpanish ? "Email" : "Email";
+  if (channel === "booking_url") return isSpanish ? "Enlace o formulario" : "Booking link or form";
+  if (channel === "manual") return isSpanish ? "Gestion VYVA" : "VYVA handling";
+  if (item.provider_phone) return isSpanish ? "Llamada" : "Phone call";
+  if (getActionWhatsAppDraft(item)) return "WhatsApp";
+  if (getActionEmailDraft(item)) return isSpanish ? "Email" : "Email";
+  if (getBookingUrl(item)) return isSpanish ? "Enlace o formulario" : "Booking link or form";
+  return isSpanish ? "Revision VYVA" : "VYVA review";
+}
+
+function addReviewDetail(
+  details: PendingActionReviewDetail[],
+  missingDetails: string[],
+  label: string,
+  value: string,
+  missingLabel?: string,
+) {
+  const cleanValue = value.trim();
+  if (cleanValue) {
+    details.push({ label, value: cleanValue });
+    return;
+  }
+  if (missingLabel) {
+    details.push({ label, value: missingLabel, isMissing: true });
+    missingDetails.push(label);
+  }
+}
+
+function buildPendingActionReviewSummary(params: {
+  item: ConciergePendingItem;
+  isSpanish: boolean;
+  nextStepLabel: string;
+  nextStepHelper: string;
+}): PendingActionReviewSummary {
+  const { item, isSpanish, nextStepLabel, nextStepHelper } = params;
+  const payload = item.action_payload;
+  const details: PendingActionReviewDetail[] = [];
+  const missingDetails: string[] = [];
+  const missing = isSpanish ? "Falta confirmar" : "Needs confirmation";
+
+  addReviewDetail(
+    details,
+    missingDetails,
+    isSpanish ? "Siguiente paso" : "Next step",
+    nextStepLabel,
+    missing,
+  );
+  addReviewDetail(
+    details,
+    missingDetails,
+    isSpanish ? "Proveedor" : "Provider",
+    item.provider_name ?? payloadString(payload, ["provider_name", "pharmacy_name"]),
+    missing,
+  );
+  addReviewDetail(
+    details,
+    missingDetails,
+    isSpanish ? "Ruta de contacto" : "Contact route",
+    handoffChannelLabel(item, isSpanish),
+    missing,
+  );
+
+  if (item.use_case === "book_ride") {
+    addReviewDetail(details, missingDetails, isSpanish ? "Recogida" : "Pickup", payloadString(payload, ["pickup_address", "pickup"]), missing);
+    addReviewDetail(details, missingDetails, isSpanish ? "Destino" : "Destination", payloadString(payload, ["destination_address", "destination"]), missing);
+    addReviewDetail(details, missingDetails, isSpanish ? "Hora" : "Time", payloadString(payload, ["requested_time", "time"]) || (isSpanish ? "Ahora" : "Now"));
+    const mobilityNeeds = stringList(payload?.mobility_needs).join(", ");
+    const mobilitySource = payloadString(payload, ["mobility_info_source"]);
+    if (mobilityNeeds || mobilitySource === "profile") {
+      details.push({
+        label: isSpanish ? "Movilidad" : "Mobility",
+        value: mobilityNeeds || (isSpanish ? "Guardada en perfil" : "Saved in profile"),
+      });
+    }
+  } else if (item.use_case === "order_medicine") {
+    addReviewDetail(details, missingDetails, isSpanish ? "Producto" : "Item", payloadString(payload, ["item_text", "items", "item"]), missing);
+    details.push({
+      label: isSpanish ? "Alcance" : "Scope",
+      value: isSpanish ? "Solo sin receta" : "Over-the-counter only",
+    });
+    addReviewDetail(details, missingDetails, isSpanish ? "Preferencia" : "Preference", humanizeValue(payloadString(payload, ["fulfillment_preference"])) || (isSpanish ? "Entrega" : "Delivery"));
+    addReviewDetail(details, missingDetails, isSpanish ? "Hora" : "Time", payloadString(payload, ["requested_time", "time"]) || (isSpanish ? "Hoy" : "Today"));
+    addReviewDetail(details, missingDetails, isSpanish ? "Nota" : "Note", payloadString(payload, ["notes", "note"]));
+  } else if (item.use_case === "book_appointment" || isHomeServicePendingAction(item)) {
+    const isHomeService = isHomeServicePendingAction(item);
+    details.push({
+      label: isSpanish ? "Tipo" : "Type",
+      value: isHomeService ? (isSpanish ? "Servicio en casa" : "Home service") : (isSpanish ? "Cita" : "Appointment"),
+    });
+    addReviewDetail(details, missingDetails, isSpanish ? "Motivo" : "Reason", payloadString(payload, ["reason", "detail", "problem_summary", "service_needed"]), missing);
+    addReviewDetail(details, missingDetails, isSpanish ? "Hora preferida" : "Preferred time", payloadString(payload, ["requested_time", "preferred_time", "scheduled_for"]));
+    addReviewDetail(details, missingDetails, isSpanish ? "Lugar" : "Place", payloadString(payload, ["location", "address", "home_address"]));
+    addReviewDetail(details, missingDetails, isSpanish ? "Nota proveedor" : "Provider note", payloadString(payload, ["provider_notes"]));
+  } else {
+    addReviewDetail(details, missingDetails, isSpanish ? "Detalle" : "Detail", payloadString(payload, ["draft_message", "message", "body", "reason"]) || item.action_summary, missing);
+  }
+
+  return {
+    eyebrow: isSpanish ? "Revisar antes de actuar" : "Review before action",
+    title: isSpanish ? "Revisar y confirmar" : "Review & confirm",
+    summary: nextStepHelper,
+    details: details.slice(0, 8),
+    missingDetails,
+  };
+}
+
+function PendingActionReviewCard({
+  review,
+  primaryLabel,
+  onConfirm,
+  onChange,
+  onCancel,
+  confirmPending,
+  cancelPending,
+  primaryDisabled,
+  primaryIcon: PrimaryIcon,
+  confirmTestId,
+  changeTestId,
+  cancelTestId,
+  isSpanish,
+}: {
+  review: PendingActionReviewSummary;
+  primaryLabel: string;
+  onConfirm: () => void;
+  onChange: () => void;
+  onCancel: () => void;
+  confirmPending: boolean;
+  cancelPending: boolean;
+  primaryDisabled: boolean;
+  primaryIcon: LucideIcon;
+  confirmTestId: string;
+  changeTestId: string;
+  cancelTestId: string;
+  isSpanish: boolean;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F8FFFC] p-4 shadow-[0_14px_30px_rgba(13,148,136,0.10)]"
+      data-testid="panel-concierge-next-action"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#0F766E] shadow-sm">
+          <ShieldCheck size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#0F766E]">
+            {review.eyebrow}
+          </span>
+          <span className="mt-1 block font-body text-[17px] font-black leading-tight text-vyva-text-1">
+            {review.title}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {review.summary}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {review.details.map((detail) => (
+          <div
+            key={`${detail.label}-${detail.value}`}
+            className={`rounded-[15px] border px-3 py-2 ${
+              detail.isMissing
+                ? "border-[#FED7AA] bg-[#FFF7ED]"
+                : "border-[#CCFBF1] bg-white"
+            }`}
+          >
+            <p className={`font-body text-[10px] font-black uppercase tracking-[0.08em] ${
+              detail.isMissing ? "text-[#9A3412]" : "text-[#0F766E]"
+            }`}>
+              {detail.label}
+            </p>
+            <p className="mt-0.5 font-body text-[12px] font-black leading-snug text-vyva-text-1">
+              {detail.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {review.missingDetails.length > 0 ? (
+        <p className="mt-3 rounded-[14px] bg-[#FFF7ED] px-3 py-2 font-body text-[12px] font-bold leading-snug text-[#9A3412]">
+          {isSpanish ? "Completa antes de confirmar: " : "Complete before confirming: "}
+          {review.missingDetails.join(", ")}
+        </p>
+      ) : null}
+
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto_auto]">
+        <Button
+          data-testid={confirmTestId}
+          onClick={onConfirm}
+          disabled={primaryDisabled || confirmPending || cancelPending}
+          className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
+        >
+          {confirmPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <PrimaryIcon size={16} className="mr-2" />}
+          {primaryLabel}
+        </Button>
+        <Button
+          data-testid={changeTestId}
+          onClick={onChange}
+          disabled={confirmPending || cancelPending}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#99F6E4] text-[#0F766E]"
+        >
+          <PencilLine size={15} className="mr-2" />
+          {isSpanish ? "Cambiar" : "Change"}
+        </Button>
+        <Button
+          data-testid={cancelTestId}
+          onClick={onCancel}
+          disabled={confirmPending || cancelPending}
+          variant="outline"
+          className="vyva-secondary-action h-auto"
+        >
+          {isSpanish ? "Cancelar" : "Cancel"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
   const { item, isSpanish, formMissingFields } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
@@ -5353,6 +5595,71 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function handleChangePendingAction(item: ConciergePendingItem) {
+    const payload = item.action_payload;
+    const message = payloadString(payload, ["draft_message", "message", "reason", "detail"]) || item.action_summary;
+
+    setIsRightNowHidden(false);
+    setInput((current) => current.trim() ? current : message);
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
+    closeOffersPanel();
+
+    if (item.use_case === "book_ride") {
+      setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
+      clearAppointmentAssistantState();
+      setOtcPharmacyOpen(false);
+      setTransportPickup(payloadString(payload, ["pickup_address", "pickup"]) || savedTransportPickupLabel);
+      setTransportDestination(payloadString(payload, ["destination_address", "destination"]));
+      setTransportTime(payloadString(payload, ["requested_time", "time"]) || "now");
+      setTransportMobilityNeeds(stringList(payload?.mobility_needs));
+      setTransportResult(null);
+      setTransportError(null);
+      setTransportNotice(null);
+      resetTransportFinalReview();
+      setTransportDetailsOpen(true);
+    } else if (item.use_case === "order_medicine") {
+      const fulfillment = payloadString(payload, ["fulfillment_preference"]).toLowerCase();
+      setRoutePrefill(null);
+      clearAppointmentAssistantState();
+      setOtcPharmacyOpen(true);
+      setOtcNotice(null);
+      setOtcError(null);
+      resetOtcOutcomeReview();
+      setOtcItemText(payloadString(payload, ["item_text", "items", "item"]));
+      setOtcFulfillmentPreference(fulfillment.includes("pickup") || fulfillment.includes("collect") ? "pickup" : "delivery");
+      setOtcRequestedTime(payloadString(payload, ["requested_time", "time"]) || "today");
+      setOtcNotes(payloadString(payload, ["notes", "note"]));
+    } else if (item.use_case === "book_appointment" || isHomeServicePendingAction(item)) {
+      const isHomeService = isHomeServicePendingAction(item);
+      const chip = APPOINTMENT_TYPE_CHIPS.find((entry) => entry.key === (isHomeService ? "home-service" : "medical")) ?? APPOINTMENT_TYPE_CHIPS[0];
+      setRoutePrefill({ kind: "appointment", message, source: "home_quick_action" });
+      setOtcPharmacyOpen(false);
+      setAppointmentOpen(true);
+      setSelectedAppointmentChip(chip);
+      setAppointmentNote(payloadString(payload, ["reason", "detail", "problem_summary", "service_needed"]) || message);
+
+      if (isHomeService) {
+        const serviceType = normalizeHomeServiceType(payloadString(payload, ["service_type", "service_label", "service_needed"]) || message);
+        const nextAnswers: Record<string, string> = {};
+        const urgency = payloadString(payload, ["urgency", "priority"]);
+        const problem = payloadString(payload, ["problem_summary", "service_needed", "reason"]);
+        if (urgency) nextAnswers.urgency = urgency;
+        if (problem) nextAnswers.problem_summary = problem;
+        setHomeServiceIntakeOrigin("app");
+        setHomeServiceType(serviceType);
+        setHomeServiceIntakeAnswers((current) => ({ ...nextAnswers, ...current }));
+        setHomeServiceTextDrafts((current) => ({ ...nextAnswers, ...current }));
+      }
+    } else {
+      setRoutePrefill({ kind: "task", message, source: "home_quick_action" });
+      setOtcPharmacyOpen(false);
+      setAppointmentOpen(false);
+    }
+
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
   function handleCompletedSessionFollowUp(session: ConciergeCompletedSession, mode: "question" | "repeat") {
     const message = completedSessionPrompt(session, isSpanish, mode);
     setSelectedCompletedSessionId(null);
@@ -5680,6 +5987,23 @@ const ConciergeScreen = () => {
   const activeActionPrimaryLabel = activeActionLabelParams ? rightNowPrimaryActionLabel(activeActionLabelParams) : "";
   const activeActionNextStepLabel = activeActionLabelParams ? rightNowNextStepLabel(activeActionLabelParams) : "";
   const activeActionNextStepHelper = activeActionLabelParams ? rightNowNextStepHelper(activeActionLabelParams) : "";
+  const activeActionReviewSummary = activeAction && activeActionLabelParams
+    ? buildPendingActionReviewSummary({
+      item: activeAction,
+      isSpanish,
+      nextStepLabel: activeActionNextStepLabel,
+      nextStepHelper: activeActionNextStepHelper,
+    })
+    : null;
+  const activeActionPrimaryIcon: LucideIcon = activeActionOpensWhatsApp
+    ? Send
+    : activeActionOpensEmail
+      ? Mail
+      : activeActionOpensBooking
+        ? ExternalLink
+        : activeActionIsVyvaTask
+          ? Sparkles
+          : PhoneCall;
   const routePrefillHighlights = routePrefill
     ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
@@ -7224,20 +7548,38 @@ const ConciergeScreen = () => {
 
             <ConciergeActionTimeline steps={activeActionTimeline} />
 
-            <div
-              className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
-              data-testid="panel-concierge-next-action"
-            >
-              <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#047857]">
-                {isSpanish ? "Siguiente paso" : "Next step"}
-              </p>
-              <p className="mt-1 font-body text-[15px] font-black leading-tight text-vyva-text-1">
-                {activeActionNextStepLabel}
-              </p>
-              <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
-                {activeActionNextStepHelper}
-              </p>
-            </div>
+            {activeAction.status === "pending" && activeActionReviewSummary ? (
+              <PendingActionReviewCard
+                review={activeActionReviewSummary}
+                primaryLabel={activeActionPrimaryLabel}
+                primaryIcon={activeActionPrimaryIcon}
+                onConfirm={() => confirmMutation.mutate(activeAction)}
+                onChange={() => handleChangePendingAction(activeAction)}
+                onCancel={() => cancelMutation.mutate(activeAction.id)}
+                confirmPending={confirmMutation.isPending}
+                cancelPending={cancelMutation.isPending}
+                primaryDisabled={activeActionIsVyvaTask}
+                confirmTestId={`button-concierge-confirm-${activeAction.id}`}
+                changeTestId={`button-concierge-change-${activeAction.id}`}
+                cancelTestId={`button-concierge-cancel-${activeAction.id}`}
+                isSpanish={isSpanish}
+              />
+            ) : (
+              <div
+                className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
+                data-testid="panel-concierge-next-action"
+              >
+                <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#047857]">
+                  {isSpanish ? "Siguiente paso" : "Next step"}
+                </p>
+                <p className="mt-1 font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                  {activeActionNextStepLabel}
+                </p>
+                <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+                  {activeActionNextStepHelper}
+                </p>
+              </div>
+            )}
 
             {activeActionIsAppointment && (
               <div
@@ -7391,35 +7733,6 @@ const ConciergeScreen = () => {
               )}
             </div>
 
-            {activeAction.status === "pending" && (
-              <div className="mt-5 flex flex-wrap gap-2">
-                {activeActionIsVyvaTask ? (
-                  <span className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-[#F5F3FF] px-4 font-body text-[13px] font-black text-vyva-purple">
-                    <Sparkles size={15} className="mr-2" />
-                    {activeActionPrimaryLabel}
-                  </span>
-                ) : (
-                  <Button
-                    data-testid={`button-concierge-confirm-${activeAction.id}`}
-                    onClick={() => confirmMutation.mutate(activeAction)}
-                    disabled={confirmMutation.isPending || cancelMutation.isPending}
-                    className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
-                  >
-                    {activeActionOpensWhatsApp ? <Send size={16} className="mr-2" /> : activeActionOpensEmail ? <Mail size={16} className="mr-2" /> : activeActionOpensBooking ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
-                    {activeActionPrimaryLabel}
-                  </Button>
-                )}
-                <Button
-                  data-testid={`button-concierge-cancel-${activeAction.id}`}
-                  onClick={() => cancelMutation.mutate(activeAction.id)}
-                  disabled={confirmMutation.isPending || cancelMutation.isPending}
-                  variant="outline"
-                  className="vyva-secondary-action h-auto"
-                >
-                  {isSpanish ? "Cancelar" : "Cancel"}
-                </Button>
-              </div>
-            )}
           </div>
         )}
 

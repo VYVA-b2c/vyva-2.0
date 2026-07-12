@@ -2008,7 +2008,12 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("timeline-step-user-confirm")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-contacting")).toHaveAttribute("data-state", "upcoming");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review & confirm");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Provider");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Contact route");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Confirm ride call");
+    expect(screen.getByTestId("button-concierge-change-ride-1")).toHaveTextContent("Change");
+    expect(screen.getByTestId("button-concierge-cancel-ride-1")).toHaveTextContent("Cancel");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm ride call");
   });
 
