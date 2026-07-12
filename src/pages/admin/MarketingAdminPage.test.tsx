@@ -976,6 +976,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Lovable source details");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Source type");
@@ -990,6 +991,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
@@ -1283,6 +1285,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-audience-name")).toHaveValue("Partners");
     expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("lovable-contact-2\nmissing-contact");
+    expect(screen.getByTestId("marketing-edit-audience-member-picker")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-edit-audience-member-picker")).toHaveTextContent("1 imported member ID");
+    fireEvent.click(screen.getByTestId("button-marketing-remove-audience-member-contact-2"));
+    expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("missing-contact");
+    fireEvent.change(screen.getByTestId("select-marketing-edit-audience-add-contact"), { target: { value: "contact-2" } });
+    expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("missing-contact\nlovable-contact-2");
     expect(screen.getByTestId("input-marketing-edit-audience-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-audience-lovable-id")).toHaveValue("lovable-audience-1");
     expect(screen.getByTestId("textarea-marketing-edit-audience-metadata")).toHaveValue(JSON.stringify({ lovable: { sourceList: "Partners" } }, null, 2));

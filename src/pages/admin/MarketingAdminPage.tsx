@@ -640,7 +640,30 @@ function splitTags(value: string) {
 }
 
 function splitLines(value: string) {
-  return value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+  return Array.from(new Set(value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean)));
+}
+
+function contactAudienceMemberId(contact: MarketingContact) {
+  return contact.lovableExternalId || contact.id;
+}
+
+function parseAudienceMemberIds(draft: Pick<AudienceDraft, "contactExternalIds"> | null | undefined) {
+  return splitLines(draft?.contactExternalIds ?? "");
+}
+
+function updateAudienceDraftMemberIds<T extends AudienceDraft>(draft: T, ids: string[]): T {
+  return { ...draft, contactExternalIds: Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean))).join("\n") };
+}
+
+function audienceContactLabel(contact: MarketingContact) {
+  const name = contact.fullName || contact.email || contact.phoneNumber || contact.whatsappNumber || "Unnamed contact";
+  const details = [contact.email, contact.companyName, contact.roleLabel].filter(Boolean).join(" - ");
+  return details ? `${name} (${details})` : name;
+}
+
+function contactMatchesMemberIds(contact: MarketingContact, memberIds: string[]) {
+  const contactIds = [contact.id, contact.lovableExternalId].map((id) => lower(id)).filter(Boolean);
+  return memberIds.some((id) => contactIds.includes(lower(id)));
 }
 
 function groupCount<T>(items: T[], keyForItem: (item: T) => string | null | undefined) {
@@ -2366,6 +2389,24 @@ export default function MarketingAdminPage() {
       ]),
     ]);
   }), [audiences, search]);
+  const audienceDraftMemberIds = useMemo(() => parseAudienceMemberIds(audienceDraft), [audienceDraft]);
+  const audienceEditMemberIds = useMemo(() => parseAudienceMemberIds(audienceEditDraft), [audienceEditDraft]);
+  const audienceDraftMemberContacts = useMemo(
+    () => contacts.filter((contact) => contactMatchesMemberIds(contact, audienceDraftMemberIds)),
+    [contacts, audienceDraftMemberIds],
+  );
+  const audienceEditMemberContacts = useMemo(
+    () => contacts.filter((contact) => contactMatchesMemberIds(contact, audienceEditMemberIds)),
+    [contacts, audienceEditMemberIds],
+  );
+  const audienceDraftCandidateContacts = useMemo(
+    () => contacts.filter((contact) => !contactMatchesMemberIds(contact, audienceDraftMemberIds)),
+    [contacts, audienceDraftMemberIds],
+  );
+  const audienceEditCandidateContacts = useMemo(
+    () => contacts.filter((contact) => !contactMatchesMemberIds(contact, audienceEditMemberIds)),
+    [contacts, audienceEditMemberIds],
+  );
 
   const visibleJourneys = useMemo(() => journeys.filter((journey) => {
     const targetAudience = journeyTargetAudience(journey, audiences);
@@ -3271,6 +3312,32 @@ export default function MarketingAdminPage() {
     setEditingAudienceId(null);
     setAudienceEditDraft(null);
     setAudienceFeedback("");
+  }
+
+  function addAudienceDraftContact(contactId: string) {
+    const contact = contacts.find((item) => item.id === contactId);
+    if (!contact) return;
+    setAudienceDraft((draft) => updateAudienceDraftMemberIds(draft, [...parseAudienceMemberIds(draft), contactAudienceMemberId(contact)]));
+  }
+
+  function removeAudienceDraftContact(contact: MarketingContact) {
+    setAudienceDraft((draft) => updateAudienceDraftMemberIds(
+      draft,
+      parseAudienceMemberIds(draft).filter((id) => !contactMatchesMemberIds(contact, [id])),
+    ));
+  }
+
+  function addAudienceEditContact(contactId: string) {
+    const contact = contacts.find((item) => item.id === contactId);
+    if (!contact) return;
+    setAudienceEditDraft((draft) => draft ? updateAudienceDraftMemberIds(draft, [...parseAudienceMemberIds(draft), contactAudienceMemberId(contact)]) : draft);
+  }
+
+  function removeAudienceEditContact(contact: MarketingContact) {
+    setAudienceEditDraft((draft) => draft ? updateAudienceDraftMemberIds(
+      draft,
+      parseAudienceMemberIds(draft).filter((id) => !contactMatchesMemberIds(contact, [id])),
+    ) : draft);
   }
 
   async function saveAudienceEdit(event: FormEvent) {
@@ -4596,7 +4663,7 @@ export default function MarketingAdminPage() {
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
-                className={contentDrawerMode === "edit" ? "scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-purple-50/40 p-3 shadow-sm" : undefined}
+                className={contentDrawerMode === "edit" ? "fixed inset-y-4 right-4 z-[90] w-[min(980px,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -4693,7 +4760,7 @@ export default function MarketingAdminPage() {
                   data-testid="marketing-content-preview-panel"
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
-                  className={contentDrawerMode === "preview" ? "scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-purple-50/40 p-3 shadow-sm" : undefined}
+                  className={contentDrawerMode === "preview" ? "fixed inset-y-4 right-4 z-[90] w-[min(980px,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"
@@ -5228,8 +5295,36 @@ export default function MarketingAdminPage() {
                     <Field label="Rules JSON">
                       <textarea className={textareaClass} value={audienceDraft.rulesText} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, rulesText: event.target.value }))} disabled={audienceSaving} data-testid="input-marketing-audience-rules" />
                     </Field>
-                    <Field label="Contact external IDs">
-                      <textarea className={textareaClass} value={audienceDraft.contactExternalIds} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, contactExternalIds: event.target.value }))} placeholder="contact:123, contact:456" disabled={audienceSaving} data-testid="input-marketing-audience-contact-ids" />
+                    <Field label="Members">
+                      <div className="grid gap-2" data-testid="marketing-audience-member-picker">
+                        <select
+                          className={inputClass}
+                          value=""
+                          onChange={(event) => addAudienceDraftContact(event.target.value)}
+                          disabled={audienceSaving || audienceDraftCandidateContacts.length === 0}
+                          data-testid="select-marketing-audience-add-contact"
+                        >
+                          <option value="">{audienceDraftCandidateContacts.length ? "Add contact by name or email" : "All visible contacts are already listed"}</option>
+                          {audienceDraftCandidateContacts.map((contact) => (
+                            <option key={contact.id} value={contact.id}>{audienceContactLabel(contact)}</option>
+                          ))}
+                        </select>
+                        {audienceDraftMemberContacts.length ? (
+                          <div className="grid gap-2" data-testid="marketing-audience-selected-members">
+                            {audienceDraftMemberContacts.map((contact) => (
+                              <div key={contact.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+                                <span className="text-xs font-bold text-[#5b4a46]">{audienceContactLabel(contact)}</span>
+                                <button type="button" onClick={() => removeAudienceDraftContact(contact)} className="text-xs font-black text-red-700" disabled={audienceSaving}>
+                                  Remove
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="rounded-lg bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#8b7a73]">No mapped contacts selected yet.</p>
+                        )}
+                        <textarea className={`${textareaClass} min-h-[76px] font-mono text-xs`} value={audienceDraft.contactExternalIds} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, contactExternalIds: event.target.value }))} placeholder="contact:123, contact:456" disabled={audienceSaving} data-testid="input-marketing-audience-contact-ids" />
+                      </div>
                     </Field>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -5270,8 +5365,41 @@ export default function MarketingAdminPage() {
                       <Field label="Rules JSON">
                         <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.rulesText} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, rulesText: event.target.value }) : draft)} disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-rules" />
                       </Field>
-                      <Field label="Contact external IDs">
-                        <textarea className={`${textareaClass} font-mono text-xs`} value={audienceEditDraft.contactExternalIds} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, contactExternalIds: event.target.value }) : draft)} placeholder="contact:123&#10;contact:456" disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-contact-ids" />
+                      <Field label="Members">
+                        <div className="grid gap-2" data-testid="marketing-edit-audience-member-picker">
+                          <select
+                            className={inputClass}
+                            value=""
+                            onChange={(event) => addAudienceEditContact(event.target.value)}
+                            disabled={audienceSaving || audienceEditCandidateContacts.length === 0}
+                            data-testid="select-marketing-edit-audience-add-contact"
+                          >
+                            <option value="">{audienceEditCandidateContacts.length ? "Add contact by name or email" : "All visible contacts are already listed"}</option>
+                            {audienceEditCandidateContacts.map((contact) => (
+                              <option key={contact.id} value={contact.id}>{audienceContactLabel(contact)}</option>
+                            ))}
+                          </select>
+                          {audienceEditMemberContacts.length ? (
+                            <div className="grid gap-2" data-testid="marketing-edit-audience-selected-members">
+                              {audienceEditMemberContacts.map((contact) => (
+                                <div key={contact.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+                                  <span className="text-xs font-bold text-[#5b4a46]">{audienceContactLabel(contact)}</span>
+                                  <button type="button" onClick={() => removeAudienceEditContact(contact)} className="text-xs font-black text-red-700" disabled={audienceSaving} data-testid={`button-marketing-remove-audience-member-${contact.id}`}>
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="rounded-lg bg-[#fffaf4] px-3 py-2 text-xs font-bold text-[#8b7a73]">No mapped contacts selected yet.</p>
+                          )}
+                          {audienceEditMemberIds.length > audienceEditMemberContacts.length ? (
+                            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+                              {audienceEditMemberIds.length - audienceEditMemberContacts.length} imported member ID{audienceEditMemberIds.length - audienceEditMemberContacts.length === 1 ? "" : "s"} are not mapped to contacts yet and remain in the raw list below.
+                            </p>
+                          ) : null}
+                          <textarea className={`${textareaClass} min-h-[76px] font-mono text-xs`} value={audienceEditDraft.contactExternalIds} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, contactExternalIds: event.target.value }) : draft)} placeholder="contact:123&#10;contact:456" disabled={audienceSaving} data-testid="textarea-marketing-edit-audience-contact-ids" />
+                        </div>
                       </Field>
                     </div>
                     <div className="grid gap-3 xl:grid-cols-2">

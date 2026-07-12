@@ -961,7 +961,7 @@ describe("admin marketing router", () => {
 
   it("updates and deletes marketing audiences and memberships", async () => {
     const app = buildApp();
-    await request(app)
+    const contactResponse = await request(app)
       .post("/api/admin/marketing/contacts")
       .send({
         fullName: "Partner Lead",
@@ -970,6 +970,7 @@ describe("admin marketing router", () => {
         lovableExternalId: "lovable-contact-1",
       })
       .expect(201);
+    const contactId = contactResponse.body.contact.id;
 
     const createResponse = await request(app)
       .post("/api/admin/marketing/audiences")
@@ -1005,7 +1006,7 @@ describe("admin marketing router", () => {
         listType: "dynamic",
         description: "Updated partner list",
         rules: { market: "Madrid", vertical: "care" },
-        contactExternalIds: ["lovable-contact-1", "new-unmapped-contact"],
+        contactExternalIds: [contactId, "new-unmapped-contact"],
       })
       .expect(200)
       .expect((response) => {
@@ -1017,12 +1018,12 @@ describe("admin marketing router", () => {
           rules: { market: "Madrid", vertical: "care" },
           memberCount: 2,
           mappedMemberCount: 1,
-          contactExternalIds: ["lovable-contact-1", "new-unmapped-contact"],
+          contactExternalIds: [contactId, "new-unmapped-contact"],
           memberPreview: [expect.objectContaining({
             fullName: "Partner Lead",
             email: "lead@example.com",
             lovableExternalId: "lovable-contact-1",
-            contactExternalId: "lovable-contact-1",
+            contactExternalId: contactId,
           })],
           unmappedContactExternalIds: ["new-unmapped-contact"],
         });

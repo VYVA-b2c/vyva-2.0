@@ -1313,6 +1313,15 @@ function addExternalIdVariants<T>(map: Map<string, T>, externalId: string | null
   }
 }
 
+function marketingContactIdLookup(contactRows: MarketingContactRow[]) {
+  const contactByExternalId = new Map<string, string>();
+  for (const row of contactRows) {
+    contactByExternalId.set(row.id, row.id);
+    addExternalIdVariants(contactByExternalId, row.lovable_external_id, row.id, ["contact"]);
+  }
+  return contactByExternalId;
+}
+
 function jsonObjectFromLovable(value: unknown, arrayKey: string) {
   const parsed = parseJsonLike(value);
   if (Array.isArray(parsed)) return { [arrayKey]: parsed };
@@ -2766,16 +2775,19 @@ adminMarketingRouter.post("/audiences", async (req, res) => {
     }).returning();
 
     const contactRows = contactExternalIds.length ? await db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(10000) : [];
-    const contactByExternalId = new Map(contactRows.map((row) => [row.lovable_external_id ?? "", row.id]).filter(([externalId]) => externalId));
+    const contactByExternalId = marketingContactIdLookup(contactRows);
     const members = contactExternalIds.length
-      ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => ({
-        audience_id: audience.id,
-        contact_id: contactByExternalId.get(contactExternalId) ?? null,
-        contact_external_id: contactExternalId,
-        source: parsed.data.source,
-        metadata: { manual_rule_builder: true, mapped: contactByExternalId.has(contactExternalId) },
-        updated_at: now,
-      }))).returning()
+      ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => {
+        const contactId = lookupByExternalId(contactByExternalId, contactExternalId, ["contact"]) ?? null;
+        return {
+          audience_id: audience.id,
+          contact_id: contactId,
+          contact_external_id: contactExternalId,
+          source: parsed.data.source,
+          metadata: { manual_rule_builder: true, mapped: Boolean(contactId) },
+          updated_at: now,
+        };
+      })).returning()
       : [];
 
     const contactsById = new Map(contactRows.map((row) => [row.id, row]));
@@ -2811,16 +2823,19 @@ adminMarketingRouter.patch("/audiences/:audienceId", async (req, res) => {
       const contactExternalIds = uniqueTextArray(parsed.data.contactExternalIds ?? []);
       await db.delete(marketingAudienceMembers).where(eq(marketingAudienceMembers.audience_id, audience.id));
       const contactRows = contactExternalIds.length ? await db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(10000) : [];
-      const contactByExternalId = new Map(contactRows.map((row) => [row.lovable_external_id ?? "", row.id]).filter(([externalId]) => externalId));
+      const contactByExternalId = marketingContactIdLookup(contactRows);
       members = contactExternalIds.length
-        ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => ({
-          audience_id: audience.id,
-          contact_id: contactByExternalId.get(contactExternalId) ?? null,
-          contact_external_id: contactExternalId,
-          source: audience.source,
-          metadata: { manual_rule_builder: true, mapped: contactByExternalId.has(contactExternalId) },
-          updated_at: now,
-        }))).returning()
+        ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => {
+          const contactId = lookupByExternalId(contactByExternalId, contactExternalId, ["contact"]) ?? null;
+          return {
+            audience_id: audience.id,
+            contact_id: contactId,
+            contact_external_id: contactExternalId,
+            source: audience.source,
+            metadata: { manual_rule_builder: true, mapped: Boolean(contactId) },
+            updated_at: now,
+          };
+        })).returning()
         : [];
     }
     const memberContactIds = members.map((member) => member.contact_id).filter((value): value is string => Boolean(value));
