@@ -1050,6 +1050,116 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.toolGatedTask);
   });
 
+  it("shows provider search follow-through and routes saving to trusted providers", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "provider-search-active",
+            use_case: "find_provider",
+            provider_name: "VYVA review",
+            provider_phone: "+34 600 111 222",
+            action_summary: "Provider search prepared: Marbella Care Clinic.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              action_label: "Prepare contact",
+              execution_channel: "manual",
+              draft_message: [
+                "Help me prepare contact with Marbella Care Clinic.",
+                "Type: personal care.",
+                "Chosen criteria: Nearby, Good reputation, Easy access.",
+                "Available contact: +34 600 111 222.",
+                "Do not call, book, message, or share details without my confirmation.",
+              ].join("\n"),
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-provider-search-follow-through");
+    expect(panel).toHaveTextContent("Provider shortlisted");
+    expect(panel).toHaveTextContent("Marbella Care Clinic");
+    expect(panel).toHaveTextContent("Personal care");
+    expect(panel).toHaveTextContent("Nearby, Good reputation, Easy access");
+    expect(panel).toHaveTextContent("Nothing is contacted without your OK");
+
+    fireEvent.click(screen.getByTestId("button-provider-search-save-provider-provider-search-active"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Save provider from Concierge");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("personal_care");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Marbella Care Clinic");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("+34 600 111 222");
+  });
+
+  it("lets provider search users record replies or prepare another search", async () => {
+    let triggerBody: { action_payload?: { draft_message?: string }; action_summary?: string; use_case?: string } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "provider-search-active",
+            use_case: "find_provider",
+            provider_name: "VYVA review",
+            provider_phone: null,
+            action_summary: "Provider search prepared: Marbella Care Clinic.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              action_label: "Prepare contact",
+              execution_channel: "manual",
+              draft_message: [
+                "Help me prepare contact with Marbella Care Clinic.",
+                "Type: personal care.",
+                "Chosen criteria: Nearby, Good reputation.",
+                "Do not call, book, message, or share details without my confirmation.",
+              ].join("\n"),
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        triggerBody = JSON.parse(String(init?.body));
+        return jsonResponse({ pendingId: "provider-search-alt", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-search-reply-provider-search-active"));
+    expect(screen.getByTestId("panel-provider-reply-confirmed-provider-search-active")).toBeInTheDocument();
+    expect(screen.getByTestId("input-provider-reply-text-provider-search-active")).toHaveValue("");
+
+    fireEvent.click(screen.getByTestId("button-provider-search-try-another-provider-search-active"));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Provider search ready");
+    expect(prefill).toHaveTextContent("Alternative provider search prepared.");
+    expect(prefill).toHaveTextContent("Find another provider");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(triggerBody).toMatchObject({
+        use_case: "find_provider",
+        action_summary: "Alternative provider search prepared.",
+        action_payload: expect.objectContaining({
+          draft_message: expect.stringContaining("Find another option similar to Marbella Care Clinic"),
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+    expect(triggerBody?.action_payload?.draft_message).toContain("Do not contact or share details without my confirmation");
+  });
+
   it("collects plumber intake, stores app origin, and automatically searches when no saved provider exists", async () => {
     type HomeServiceRequestBody = {
       appointment_type?: string;
