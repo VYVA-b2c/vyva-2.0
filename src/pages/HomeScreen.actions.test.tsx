@@ -148,6 +148,11 @@ const labels: Record<string, string> = {
   "home.conciergeResume.step.attention": "Needs your review",
   "home.conciergeResume.step.confirm": "Waiting for your confirmation",
   "home.conciergeResume.open": "Open Right Now",
+  "home.conciergeResume.openShort": "Open",
+  "home.conciergeResume.followUp": "Follow up",
+  "home.conciergeResume.gotReply": "I got a reply",
+  "home.conciergeResume.waitingTitle": "Waiting for {{provider}}",
+  "home.conciergeResume.providerFallback": "provider",
   "home.conciergeReuse.kicker": "Useful again",
   "home.conciergeReuse.title": "Use last {{task}} again",
   "home.conciergeReuse.action": "Use template",
@@ -308,6 +313,9 @@ describe("Home fast service actions", () => {
     expect(nudge).toHaveTextContent("Needs your OK");
     expect(nudge).toHaveTextContent("Confirm your ride");
     expect(nudge).toHaveTextContent("Waiting for your confirmation");
+    expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
+    expect(screen.queryByTestId("button-home-concierge-follow-up")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("button-home-concierge-got-reply")).not.toBeInTheDocument();
 
     const fastHelp = screen.getByTestId("home-fast-help");
     expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
@@ -440,16 +448,42 @@ describe("Home fast service actions", () => {
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
     expect(nudge).toHaveTextContent("Waiting");
-    expect(nudge).toHaveTextContent("VYVA is working on your ride");
+    expect(nudge).toHaveTextContent("Waiting for Radio Taxi");
     expect(nudge).toHaveTextContent("Waiting for reply");
-    expect(nudge).toHaveTextContent("Open Right Now");
+    expect(screen.getByTestId("button-home-concierge-open")).toHaveTextContent("Open");
+    expect(screen.getByTestId("button-home-concierge-follow-up")).toHaveTextContent("Follow up");
+    expect(screen.getByTestId("button-home-concierge-got-reply")).toHaveTextContent("I got a reply");
     expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
     expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
 
-    fireEvent.click(nudge);
+    fireEvent.click(screen.getByTestId("button-home-concierge-open"));
 
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-follow-up"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: {
+        focusRightNow: true,
+        conciergeProviderAction: {
+          pendingId: "ride-1",
+          mode: "follow_up",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("button-home-concierge-got-reply"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: {
+        focusRightNow: true,
+        conciergeProviderAction: {
+          pendingId: "ride-1",
+          mode: "reply",
+        },
+      },
+    });
   });
 
   it("does not render the legacy Home chat nudge", () => {

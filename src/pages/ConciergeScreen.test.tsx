@@ -2317,6 +2317,79 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Follow-up prepared in chat.");
   });
 
+  it("honors Home provider follow-up route intent inside the existing provider panel", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-route-follow-up",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "VYVA is waiting for the taxi provider reply.",
+            action_payload: {
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        focusRightNow: true,
+        conciergeProviderAction: {
+          pendingId: "reply-route-follow-up",
+          mode: "follow_up",
+        },
+      },
+    }]);
+
+    expect(await screen.findByTestId("panel-concierge-provider-reply")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Follow-up prepared in chat.");
+    });
+  });
+
+  it("honors Home provider reply route intent by opening the reply form", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-route-confirmed",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "VYVA is waiting for the taxi provider reply.",
+            action_payload: {
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        focusRightNow: true,
+        conciergeProviderAction: {
+          pendingId: "reply-route-confirmed",
+          mode: "reply",
+        },
+      },
+    }]);
+
+    expect(await screen.findByTestId("panel-provider-reply-confirmed-reply-route-confirmed")).toBeInTheDocument();
+  });
+
   it("reopens the original ride flow when a provider is unavailable", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).endsWith("/api/concierge/actions/pending")) {

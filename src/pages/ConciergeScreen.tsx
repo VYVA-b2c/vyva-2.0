@@ -106,9 +106,15 @@ type ConciergeRoutePrefill = {
 type ConciergeLocationState = {
   conciergePrefill?: unknown;
   conciergeCompletedTemplate?: unknown;
+  conciergeProviderAction?: unknown;
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
 } | null;
+
+type ConciergeProviderRouteAction = {
+  pendingId: string;
+  mode: "follow_up" | "reply";
+};
 
 type RoutePrefillHighlight = {
   label: string;
@@ -181,6 +187,14 @@ function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | nu
     message,
     source: typeof value.source === "string" ? value.source as ConciergeRoutePrefill["source"] : undefined,
   };
+}
+
+function coerceConciergeProviderRouteAction(value: unknown): ConciergeProviderRouteAction | null {
+  if (!isRecord(value) || typeof value.pendingId !== "string") return null;
+  if (value.mode !== "follow_up" && value.mode !== "reply") return null;
+  const pendingId = value.pendingId.trim();
+  if (!pendingId) return null;
+  return { pendingId, mode: value.mode };
 }
 
 function routePayloadString(state: ConciergeLocationState, key: string) {
@@ -3962,6 +3976,7 @@ const ConciergeScreen = () => {
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
   const lastCompletedTemplateKeyRef = useRef<string | null>(null);
+  const lastProviderRouteActionKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
@@ -6422,6 +6437,43 @@ const ConciergeScreen = () => {
     setProviderReplyNotice(null);
     setProviderReplyError(null);
   }, [activeAction?.id]);
+  useEffect(() => {
+    const routeState = location.state as ConciergeLocationState;
+    const routeAction = coerceConciergeProviderRouteAction(routeState?.conciergeProviderAction);
+    if (!routeAction) {
+      if (routeState?.conciergeProviderAction) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+      return;
+    }
+
+    const targetAction = pendingActions.find((action) => action.id === routeAction.pendingId);
+    if (!targetAction) return;
+    if (activeAction?.id !== targetAction.id) {
+      setVisibleActionId(targetAction.id);
+      return;
+    }
+    if (!activeActionCanRecordProviderReply) return;
+
+    const actionKey = `${routeAction.pendingId}:${routeAction.mode}`;
+    if (lastProviderRouteActionKeyRef.current === actionKey) return;
+    lastProviderRouteActionKeyRef.current = actionKey;
+
+    if (routeAction.mode === "follow_up") {
+      handleProviderFollowUp(targetAction);
+    } else {
+      openProviderReplyMode(targetAction, "confirmed");
+    }
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [
+    activeAction?.id,
+    activeActionCanRecordProviderReply,
+    location.pathname,
+    location.search,
+    location.state,
+    navigate,
+    pendingActions,
+  ]);
   const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";
   const activeActionOpensWhatsApp = Boolean(activeActionWhatsAppDraft && (
     activeActionPreferredHandoffChannel === "whatsapp" ||
