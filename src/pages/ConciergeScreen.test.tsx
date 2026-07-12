@@ -2003,10 +2003,10 @@ describe("ConciergeScreen route prefill", () => {
 
     const callLink = await screen.findByRole("link", { name: "Call +34 612 345 678" });
     expect(callLink).toHaveAttribute("href", "tel:+34612345678");
-    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Details prepared");
-    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Waiting for you");
-    expect(screen.getByTestId("timeline-step-user-confirm")).toHaveAttribute("data-state", "active");
-    expect(screen.getByTestId("timeline-step-contacting")).toHaveAttribute("data-state", "upcoming");
+    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Follow-through");
+    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Ready for your OK");
+    expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "upcoming");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review & confirm");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Provider");
@@ -2195,7 +2195,7 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });
 
-  it("shows contacting provider as the active timeline step for started actions", async () => {
+  it("shows requested as the active follow-through step for started actions", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
         id: "ride-calling-1",
@@ -2211,10 +2211,10 @@ describe("ConciergeScreen route prefill", () => {
 
     renderScreen();
 
-    expect(await screen.findByTestId("panel-concierge-action-timeline")).toHaveTextContent("Contacting provider");
-    expect(screen.getByTestId("timeline-step-user-confirm")).toHaveAttribute("data-state", "done");
-    expect(screen.getByTestId("timeline-step-contacting")).toHaveAttribute("data-state", "active");
-    expect(screen.getByTestId("timeline-step-reply")).toHaveAttribute("data-state", "upcoming");
+    expect(await screen.findByTestId("panel-concierge-action-timeline")).toHaveTextContent("Request started");
+    expect(screen.getByTestId("timeline-step-review")).toHaveAttribute("data-state", "done");
+    expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");
   });
 
   it("renders prepared email actions as draft mail links", async () => {
@@ -2301,10 +2301,10 @@ describe("ConciergeScreen route prefill", () => {
 
     expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
     expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA is handling this");
-    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("VYVA preparing");
+    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Request started");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Add missing details");
-    expect(screen.getByTestId("timeline-step-vyva-prepare")).toHaveAttribute("data-state", "active");
-    expect(screen.getByTestId("timeline-step-reply")).toHaveAttribute("data-state", "upcoming");
+    expect(screen.getByTestId("timeline-step-requested")).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");
     expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs first: number of guests");
     expect(screen.getAllByText("Add missing details").length).toBeGreaterThan(0);
