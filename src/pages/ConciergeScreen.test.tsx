@@ -875,6 +875,51 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("Nothing is booked");
   });
 
+  it("adds provider search criteria to care option searches", async () => {
+    let searchBody: { query?: string; locale?: string } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/offers/search")) {
+        searchBody = JSON.parse(String(init?.body));
+        return jsonResponse({
+          category: "Care options",
+          decision_explanation: "Ranked by fit, trust, access, and cost clarity.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["verified local directories", "public reviews"],
+          protection_summary: {
+            title: "Protected search",
+            checkpoints: ["No contact without confirmation."],
+            notification_triggers: [],
+            action_guardrail: "VYVA asks before contacting anyone.",
+          },
+          options: [],
+          next_step: "Confirm before contacting any provider.",
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+
+    expect(screen.getByTestId("panel-provider-search-criteria")).toHaveTextContent("What matters most");
+    expect(screen.getByTestId("button-provider-criterion-nearby")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-provider-criterion-reputation")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("button-provider-criterion-accessible")).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByTestId("button-provider-criterion-clear-price"));
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    await waitFor(() => {
+      expect(searchBody?.query).toContain("compare a specialist, personal care, or residence");
+    });
+    expect(searchBody?.locale).toBe("en");
+    expect(searchBody?.query).toContain("nearby or easy to reach");
+    expect(searchBody?.query).toContain("strong reputation with verifiable reviews");
+    expect(searchBody?.query).toContain("accessible for older adults");
+    expect(searchBody?.query).toContain("clear pricing and no hidden fees");
+    expect(searchBody?.query).toContain("Do not contact or share details without confirmation");
+  });
+
   it("collects plumber intake, stores app origin, and automatically searches when no saved provider exists", async () => {
     type HomeServiceRequestBody = {
       appointment_type?: string;

@@ -782,6 +782,8 @@ type BillDocumentAnalysis = {
 type UtilityInputMethod = "upload" | "photo" | "voice" | "manual";
 type UtilityType = "electricity" | "gas" | "dual";
 type SavingsPanelView = "overview" | "utilities";
+type ProviderSearchMode = "personal-care" | "specialist" | "residence" | "care";
+type ProviderSearchCriterionKey = "nearby" | "reputation" | "accessible" | "clear-price" | "available-soon" | "coverage";
 
 interface NormalizedUtilityInput {
   country: "ES";
@@ -942,6 +944,59 @@ const OFFER_IDEA_CHIPS = [
     queryEn: "optimise bills electricity gas internet home maintenance",
   },
 ] as const;
+
+const DEFAULT_PROVIDER_SEARCH_CRITERIA: ProviderSearchCriterionKey[] = ["nearby", "reputation", "accessible"];
+
+const PROVIDER_SEARCH_CRITERIA: Array<{
+  key: ProviderSearchCriterionKey;
+  en: string;
+  es: string;
+  queryEn: string;
+  queryEs: string;
+}> = [
+  {
+    key: "nearby",
+    en: "Nearby",
+    es: "Cerca",
+    queryEn: "nearby or easy to reach",
+    queryEs: "cerca o facil de llegar",
+  },
+  {
+    key: "reputation",
+    en: "Good reputation",
+    es: "Buena reputacion",
+    queryEn: "strong reputation with verifiable reviews",
+    queryEs: "buena reputacion con opiniones verificables",
+  },
+  {
+    key: "accessible",
+    en: "Easy access",
+    es: "Acceso facil",
+    queryEn: "accessible for older adults and simple to use",
+    queryEs: "accesible para mayores y facil de usar",
+  },
+  {
+    key: "clear-price",
+    en: "Clear price",
+    es: "Precio claro",
+    queryEn: "clear pricing and no hidden fees",
+    queryEs: "precio claro y sin cargos ocultos",
+  },
+  {
+    key: "available-soon",
+    en: "Soon",
+    es: "Pronto",
+    queryEn: "available soon",
+    queryEs: "disponible pronto",
+  },
+  {
+    key: "coverage",
+    en: "Coverage",
+    es: "Cobertura",
+    queryEn: "fits public or private coverage where relevant",
+    queryEs: "compatible con cobertura publica o privada cuando aplique",
+  },
+];
 
 const UTILITY_INPUT_METHODS = [
   { key: "upload", icon: FileUp, es: "Subir factura", en: "Upload bill" },
@@ -2084,6 +2139,25 @@ function nonCnmcBillNotice(type: BillDocumentAnalysis["document_type"], es: bool
 
 function shouldOpenUtilitySavingsReview(labelEs: string): boolean {
   return ["Gastos del hogar", "Reducir gastos mensuales", "Optimizar mis facturas"].includes(labelEs);
+}
+
+function providerSearchModeLabel(mode: ProviderSearchMode | null, es: boolean): string {
+  if (mode === "personal-care") return es ? "cuidado personal" : "personal care";
+  if (mode === "specialist") return es ? "especialista" : "specialist";
+  if (mode === "residence") return es ? "residencia o centro de cuidado" : "residence or care home";
+  if (mode === "care") return es ? "opciones de cuidado" : "care options";
+  return es ? "proveedor" : "provider";
+}
+
+function buildProviderSearchQuery(query: string, criteria: ProviderSearchCriterionKey[], mode: ProviderSearchMode | null, es: boolean): string {
+  if (!mode || criteria.length === 0) return query;
+  const selected = PROVIDER_SEARCH_CRITERIA
+    .filter((item) => criteria.includes(item.key))
+    .map((item) => es ? item.queryEs : item.queryEn);
+  if (selected.length === 0) return query;
+  return es
+    ? `${query}. Prioriza para ${providerSearchModeLabel(mode, true)}: ${selected.join(", ")}. Explica proximidad, precio, reputacion y disponibilidad. No contactar ni compartir datos sin confirmacion.`
+    : `${query}. Prioritize for ${providerSearchModeLabel(mode, false)} search: ${selected.join(", ")}. Explain proximity, price, reputation, and availability. Do not contact or share details without confirmation.`;
 }
 
 function billConfidenceLabel(confidence: BillDocumentAnalysis["confidence"], es: boolean): string {
@@ -4202,6 +4276,8 @@ const ConciergeScreen = () => {
   const [offersOpen, setOffersOpen] = useState(false);
   const [savingsPanelView, setSavingsPanelView] = useState<SavingsPanelView>("overview");
   const [offersQuery, setOffersQuery] = useState("");
+  const [providerSearchMode, setProviderSearchMode] = useState<ProviderSearchMode | null>(null);
+  const [providerSearchCriteria, setProviderSearchCriteria] = useState<ProviderSearchCriterionKey[]>(DEFAULT_PROVIDER_SEARCH_CRITERIA);
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersResult, setOffersResult] = useState<OffersSearchResponse | null>(null);
   const [offersError, setOffersError] = useState<string | null>(null);
@@ -5486,6 +5562,8 @@ const ConciergeScreen = () => {
   function openSavingsPanel(query?: string) {
     setOffersOpen(true);
     setSavingsPanelView("overview");
+    setProviderSearchMode(null);
+    setProviderSearchCriteria(DEFAULT_PROVIDER_SEARCH_CRITERIA);
     setAppointmentOpen(false);
     setInsuranceAdminOpen(false);
     setScamCheckOpen(false);
@@ -5502,9 +5580,34 @@ const ConciergeScreen = () => {
     }
   }
 
+  function openProviderSearchPanel(mode: ProviderSearchMode, query: string) {
+    setOffersOpen(true);
+    setSavingsPanelView("overview");
+    setProviderSearchMode(mode);
+    setProviderSearchCriteria(DEFAULT_PROVIDER_SEARCH_CRITERIA);
+    setAppointmentOpen(false);
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
+    setOtcPharmacyOpen(false);
+    setOffersError(null);
+    setOffersResult(null);
+    setBillAnalysis(null);
+    setUtilityResult(null);
+    setObjectiveProofOpen(false);
+    setExpandedOfferScoreKey(null);
+    setOffersQuery(query);
+  }
+
+  function toggleProviderSearchCriterion(key: ProviderSearchCriterionKey) {
+    setProviderSearchCriteria((current) => current.includes(key)
+      ? current.filter((item) => item !== key)
+      : [...current, key]);
+  }
+
   function openAppointmentAssistant() {
     setAppointmentOpen(true);
     setOffersOpen(false);
+    setProviderSearchMode(null);
     setInsuranceAdminOpen(false);
     setScamCheckOpen(false);
     setOtcPharmacyOpen(false);
@@ -5816,7 +5919,8 @@ const ConciergeScreen = () => {
     setObjectiveProofOpen(false);
     setExpandedOfferScoreKey(null);
     try {
-      const result = await searchOffers(query, language, documentContext);
+      const criteriaQuery = buildProviderSearchQuery(query, providerSearchCriteria, providerSearchMode, isSpanish);
+      const result = await searchOffers(criteriaQuery, language, documentContext);
       setOffersResult(result);
     } catch {
       setOffersError(isSpanish
@@ -5829,6 +5933,8 @@ const ConciergeScreen = () => {
 
   function handleOfferChipSearch(query: string) {
     setSavingsPanelView("overview");
+    setProviderSearchMode(null);
+    setProviderSearchCriteria(DEFAULT_PROVIDER_SEARCH_CRITERIA);
     setOffersQuery(query);
     setOffersResult(null);
     setBillAnalysis(null);
@@ -5840,6 +5946,8 @@ const ConciergeScreen = () => {
 
   function openUtilitySavingsReview() {
     setSavingsPanelView("utilities");
+    setProviderSearchMode(null);
+    setProviderSearchCriteria(DEFAULT_PROVIDER_SEARCH_CRITERIA);
     setOffersResult(null);
     setOffersError(null);
     setObjectiveProofOpen(false);
@@ -5849,6 +5957,7 @@ const ConciergeScreen = () => {
   function closeOffersPanel() {
     setOffersOpen(false);
     setSavingsPanelView("overview");
+    setProviderSearchMode(null);
     setObjectiveProofOpen(false);
     setExpandedOfferScoreKey(null);
   }
@@ -6860,7 +6969,7 @@ const ConciergeScreen = () => {
         t("concierge.master.cards.personalCareChipResidence", "Find a Residence"),
       ],
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA", surface: "#FFFFFF" },
-      onClick: () => openSavingsPanel(isSpanish
+      onClick: () => openProviderSearchPanel("personal-care", isSpanish
         ? "comparar especialista, cuidado personal o residencia"
         : "compare a specialist, personal care, or residence"),
       testId: "button-concierge-card-ride",
@@ -6964,7 +7073,7 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.findSpecialist", "Find Specialist"),
       detail: t("concierge.master.fastHelp.findSpecialistDetail", "Care options"),
       tone: { iconBg: "#F5F3FF", iconColor: "#6B21A8", border: "#DDD6FE" },
-      onClick: () => openSavingsPanel(isSpanish ? "buscar especialista" : "find a specialist"),
+      onClick: () => openProviderSearchPanel("specialist", isSpanish ? "buscar especialista" : "find a specialist"),
       testId: "button-concierge-fast-find-care",
     },
     {
@@ -6973,7 +7082,7 @@ const ConciergeScreen = () => {
       label: t("concierge.master.fastHelp.findResidence", "Find Residence"),
       detail: t("concierge.master.fastHelp.findResidenceDetail", "Compare support"),
       tone: { iconBg: "#FFF1F2", iconColor: "#E74C43", border: "#FECACA" },
-      onClick: () => openSavingsPanel(isSpanish ? "comparar residencias o centros de cuidado" : "compare residences or care homes"),
+      onClick: () => openProviderSearchPanel("residence", isSpanish ? "comparar residencias o centros de cuidado" : "compare residences or care homes"),
       testId: "button-concierge-fast-find-residence",
     },
     {
@@ -9412,12 +9521,18 @@ const ConciergeScreen = () => {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-body text-[18px] font-semibold leading-tight text-vyva-text-1">
-                  {isSpanish ? "Ahorra con proteccion real" : "Save with real protection"}
+                  {providerSearchMode
+                    ? (isSpanish ? "Busca con criterios claros" : "Find with clear criteria")
+                    : (isSpanish ? "Ahorra con proteccion real" : "Save with real protection")}
                 </p>
                 <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
-                  {isSpanish
-                    ? "La IA compara, valida y espera su confirmacion antes de actuar."
-                    : "AI compares, validates, and waits for your confirmation before action."}
+                  {providerSearchMode
+                    ? (isSpanish
+                        ? "VYVA compara cercania, reputacion, precio y acceso antes de sugerir el siguiente paso."
+                        : "VYVA compares proximity, reputation, price, and access before suggesting the next step.")
+                    : (isSpanish
+                        ? "La IA compara, valida y espera su confirmacion antes de actuar."
+                        : "AI compares, validates, and waits for your confirmation before action.")}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {[
@@ -9883,6 +9998,43 @@ const ConciergeScreen = () => {
               <>
             <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(250px,0.82fr)_minmax(0,1.18fr)] lg:items-start">
               <div className="space-y-3">
+                {providerSearchMode && (
+                  <div
+                    className="rounded-[20px] border border-[#C7E9E3] bg-[#F0FDFA] p-3"
+                    data-testid="panel-provider-search-criteria"
+                  >
+                    <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-[#0F766E]">
+                      {isSpanish ? "Que importa mas" : "What matters most"}
+                    </p>
+                    <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-2">
+                      {isSpanish
+                        ? "VYVA ordena opciones por estos criterios y espera su confirmacion antes de contactar."
+                        : "VYVA ranks options by these choices and waits for your confirmation before contact."}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {PROVIDER_SEARCH_CRITERIA.map((criterion) => {
+                        const selected = providerSearchCriteria.includes(criterion.key);
+                        return (
+                          <button
+                            key={criterion.key}
+                            type="button"
+                            data-testid={`button-provider-criterion-${criterion.key}`}
+                            aria-pressed={selected}
+                            onClick={() => toggleProviderSearchCriterion(criterion.key)}
+                            className={`vyva-tap rounded-full border px-3 py-2 font-body text-[12px] font-semibold ${
+                              selected
+                                ? "border-[#0F766E] bg-[#0F766E] text-white"
+                                : "border-[#BFE7E1] bg-white text-[#0F766E]"
+                            }`}
+                          >
+                            {isSpanish ? criterion.es : criterion.en}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-[20px] bg-white/90 p-3">
                   <p className="font-body text-[12px] font-semibold uppercase tracking-[0.12em] text-vyva-purple">
                     {isSpanish ? "Empiece aqui" : "Start here"}
