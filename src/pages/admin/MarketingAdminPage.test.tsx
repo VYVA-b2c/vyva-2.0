@@ -1107,6 +1107,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
     expect(screen.getByTestId("button-marketing-delete-media-media-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-media-delete-confirmation-media-1")).toHaveTextContent("Click Confirm delete to remove this VYVA media reference.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
@@ -1230,6 +1231,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-contact-contact-2"));
     expect(screen.getByTestId("button-marketing-delete-contact-contact-2")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-contact-delete-confirmation-contact-2")).toHaveTextContent("Click Confirm delete to remove this marketing contact.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-contact-contact-2"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
@@ -1330,6 +1332,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-audience-audience-1"));
     expect(screen.getByTestId("button-marketing-delete-audience-audience-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-audience-delete-confirmation-audience-1")).toHaveTextContent("Click Confirm delete to remove this list and membership rows.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-audience-audience-1"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "DELETE" }));
@@ -1517,6 +1520,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
     expect(screen.getByTestId("button-marketing-delete-journey-journey-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-journey-delete-confirmation-journey-1")).toHaveTextContent("Click Confirm delete to remove this journey and its steps.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
 
     await waitFor(() => {

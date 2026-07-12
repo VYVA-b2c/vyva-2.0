@@ -4463,6 +4463,11 @@ export default function MarketingAdminPage() {
                               <button type="button" onClick={() => deleteJourney(journey)} disabled={journeySaving} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-delete-journey-${journey.id}`}>
                                 <Trash2 size={14} /> {confirmingJourneyDeleteId === journey.id ? "Confirm delete" : "Delete"}
                               </button>
+                              {confirmingJourneyDeleteId === journey.id ? (
+                                <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-journey-delete-confirmation-${journey.id}`}>
+                                  Click Confirm delete to remove this journey and its steps.
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -5231,6 +5236,11 @@ export default function MarketingAdminPage() {
                           <button type="button" onClick={() => void deleteMediaAsset(asset)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === asset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
                             <Trash2 size={13} /> {confirmingMediaDeleteId === asset.id ? "Confirm delete" : "Delete"}
                           </button>
+                          {confirmingMediaDeleteId === asset.id ? (
+                            <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-media-delete-confirmation-${asset.id}`}>
+                              Click Confirm delete to remove this VYVA media reference.
+                            </p>
+                          ) : null}
                         </div>
                       </article>
                     ))}
@@ -5626,6 +5636,11 @@ export default function MarketingAdminPage() {
                                     <button type="button" onClick={() => void deleteContact(contact)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContactDeleteId === contact.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contactSaving} data-testid={`button-marketing-delete-contact-${contact.id}`}>
                                       <Trash2 size={13} /> {confirmingContactDeleteId === contact.id ? "Confirm delete" : "Delete"}
                                     </button>
+                                    {confirmingContactDeleteId === contact.id ? (
+                                      <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-contact-delete-confirmation-${contact.id}`}>
+                                        Click Confirm delete to remove this marketing contact.
+                                      </p>
+                                    ) : null}
                                   </div>
                                 </td>
                               </tr>
@@ -5854,6 +5869,11 @@ export default function MarketingAdminPage() {
                               <button type="button" onClick={() => void deleteAudience(audience)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingAudienceDeleteId === audience.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
                                 <Trash2 size={13} /> {confirmingAudienceDeleteId === audience.id ? "Confirm delete" : "Delete"}
                               </button>
+                              {confirmingAudienceDeleteId === audience.id ? (
+                                <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-audience-delete-confirmation-${audience.id}`}>
+                                  Click Confirm delete to remove this list and membership rows.
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                         );
