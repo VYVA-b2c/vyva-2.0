@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CommunicationLog } from "../../shared/schema.js";
-import { buildResendEmailRequest } from "./communicationDispatcher.js";
+import { buildEmailPayload, buildResendEmailRequest } from "./communicationDispatcher.js";
 
 describe("Resend email dispatch", () => {
   it("builds the Resend payload used by appointment communications", () => {
@@ -61,6 +61,37 @@ describe("Resend email dispatch", () => {
         content_type: "image/png",
         content_id: "vyva-logo-en",
       }],
+    });
+  });
+
+  it("uses generic communication HTML metadata for marketing emails", () => {
+    const email = buildEmailPayload({
+      id: "communication-3",
+      recipient: "caregiver@example.com",
+      purpose: "marketing_campaign_email",
+      body: "Plain marketing copy",
+      metadata: {
+        subject: "July update",
+        htmlBody: "<p>Rich Lovable template</p>",
+      },
+    } as CommunicationLog);
+
+    expect(email).toEqual({
+      subject: "July update",
+      text: "Plain marketing copy",
+      html: "<p>Rich Lovable template</p>",
+    });
+
+    expect(buildResendEmailRequest(
+      { id: "communication-3", recipient: "caregiver@example.com", body: "Plain marketing copy" } as CommunicationLog,
+      email,
+      "marketing@vyva.life",
+      "reply@vyva.life",
+      null,
+    )).toMatchObject({
+      subject: "July update",
+      text: "Plain marketing copy",
+      html: "<p>Rich Lovable template</p>",
     });
   });
 });

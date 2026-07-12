@@ -328,6 +328,9 @@ describe("admin marketing router", () => {
         channel: "email",
         subject: "Welcome to VYVA",
         body: "This is the imported email body.",
+        htmlBody: "<h1>Welcome to VYVA</h1>",
+        ctaLabel: "Start",
+        ctaUrl: "https://v2.vyva.life/start",
       })
       .expect(201);
 
@@ -369,6 +372,9 @@ describe("admin marketing router", () => {
         subject: "[TEST] Welcome to VYVA",
         campaign_id: campaignResponse.body.campaign.id,
         content_asset_id: contentResponse.body.content.id,
+        htmlBody: "<h1>Welcome to VYVA</h1>",
+        ctaLabel: "Start",
+        ctaUrl: "https://v2.vyva.life/start",
         marketing_test_send: true,
       }),
     });
@@ -386,6 +392,9 @@ describe("admin marketing router", () => {
         channel: "email",
         subject: "July update",
         body: "This is the July update.",
+        htmlBody: "<p>This is the July update.</p>",
+        ctaLabel: "Read update",
+        ctaUrl: "https://v2.vyva.life/july",
       })
       .expect(201);
 
@@ -429,6 +438,9 @@ describe("admin marketing router", () => {
         subject: "July update",
         campaign_id: campaignResponse.body.campaign.id,
         content_asset_id: contentResponse.body.content.id,
+        htmlBody: "<p>This is the July update.</p>",
+        ctaLabel: "Read update",
+        ctaUrl: "https://v2.vyva.life/july",
         marketing_campaign_send: true,
       }),
     });
