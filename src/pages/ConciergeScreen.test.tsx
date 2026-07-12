@@ -2217,6 +2217,138 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("timeline-step-waiting")).toHaveAttribute("data-state", "upcoming");
   });
 
+  it("records a confirmed provider reply through the existing completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/reply-ride-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-reply-ride-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-ride-1",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "VYVA is waiting for the taxi provider reply.",
+            action_payload: {
+              pickup_address: "Saved home",
+              destination_address: "City Clinic",
+              requested_time: "tomorrow 09:00",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-provider-reply")).toHaveTextContent("Provider reply");
+    fireEvent.click(screen.getByTestId("button-provider-reply-confirmed-reply-ride-1"));
+    fireEvent.change(screen.getByTestId("input-provider-reply-time-reply-ride-1"), {
+      target: { value: "tomorrow 09:30" },
+    });
+    fireEvent.change(screen.getByTestId("input-provider-reply-reference-reply-ride-1"), {
+      target: { value: "RT-42" },
+    });
+    fireEvent.change(screen.getByTestId("input-provider-reply-text-reply-ride-1"), {
+      target: { value: "Driver will wait outside the main door." },
+    });
+    fireEvent.click(screen.getByTestId("button-provider-reply-save-reply-ride-1"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Provider confirmed: Radio Taxi. Time: tomorrow 09:30. Reference: RT-42.",
+        outcome_payload: expect.objectContaining({
+          provider_name: "Radio Taxi",
+          provider_phone: "+34 612 345 678",
+          provider_reply_status: "confirmed",
+          provider_reply: "Driver will wait outside the main door.",
+          scheduled_for: "tomorrow 09:30",
+          reference: "RT-42",
+          pickup_address: "Saved home",
+          destination_address: "City Clinic",
+          completed_from: "provider_reply_panel",
+        }),
+      });
+    });
+  });
+
+  it("reopens the original ride flow when a provider is unavailable", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-unavailable-ride",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "Taxi provider could not take the booking.",
+            action_payload: {
+              pickup_address: "Saved home",
+              destination_address: "City Clinic",
+              requested_time: "tomorrow 09:00",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-unavailable-reply-unavailable-ride"));
+
+    expect(await screen.findByTestId("panel-transport-readiness")).toHaveTextContent("Tool ready");
+    expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
+    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow 09:00");
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("You can change the provider or details.");
+  });
+
+  it("keeps provider questions inside VYVA when more information is needed", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-more-info",
+            use_case: "book_appointment",
+            provider_name: "Clinic desk",
+            provider_phone: null,
+            action_summary: "Clinic needs one more detail before confirming.",
+            action_payload: {
+              appointment_type: "medical",
+              mission_status: "awaiting_provider_reply",
+              execution_channel: "manual",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    fireEvent.click(await screen.findByTestId("button-provider-reply-more-info-reply-more-info"));
+    fireEvent.change(screen.getByTestId("input-provider-reply-question-reply-more-info"), {
+      target: { value: "Do they need fasting before the blood test?" },
+    });
+    fireEvent.click(screen.getByTestId("button-provider-reply-ask-reply-more-info"));
+
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Question added to chat.");
+  });
+
   it("renders prepared email actions as draft mail links", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
