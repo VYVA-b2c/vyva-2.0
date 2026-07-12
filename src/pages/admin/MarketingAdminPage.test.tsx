@@ -1022,6 +1022,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Deleted "Partner post".');
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
@@ -1034,8 +1036,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("b2b, partners");
     expect(screen.getByTestId("button-marketing-edit-previewed-content")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-edit-previewed-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");

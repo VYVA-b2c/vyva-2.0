@@ -3218,6 +3218,9 @@ export default function MarketingAdminPage() {
       if (typeof ref.current?.scrollIntoView === "function") {
         ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
       }
+      if (typeof ref.current?.focus === "function") {
+        ref.current.focus({ preventScroll: true });
+      }
     }, 0);
   }
 
@@ -4823,7 +4826,7 @@ export default function MarketingAdminPage() {
               >
                 <div className="grid gap-3">
                   {contentActionFeedback ? (
-                    <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentActionFeedback.includes("failed") || contentActionFeedback.includes("required") || contentActionFeedback.includes("valid JSON") || contentActionFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`} data-testid="marketing-content-action-feedback">
+                    <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentActionFeedback.includes("failed") || contentActionFeedback.includes("required") || contentActionFeedback.includes("valid JSON") || contentActionFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`} role="status" aria-live="polite" data-testid="marketing-content-action-feedback">
                       {contentActionFeedback}
                     </p>
                   ) : null}
@@ -4936,6 +4939,7 @@ export default function MarketingAdminPage() {
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
+                tabIndex={contentDrawerMode === "edit" ? -1 : undefined}
                 className={contentDrawerMode === "edit" ? "fixed inset-y-6 left-1/2 z-[100] w-[min(1040px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
               >
                 <SectionCard
@@ -5033,6 +5037,7 @@ export default function MarketingAdminPage() {
                   data-testid="marketing-content-preview-panel"
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
+                  tabIndex={contentDrawerMode === "preview" ? -1 : undefined}
                   className={contentDrawerMode === "preview" ? "fixed inset-y-6 left-1/2 z-[100] w-[min(900px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
                 >
                   <SectionCard
