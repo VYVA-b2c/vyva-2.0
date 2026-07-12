@@ -2863,6 +2863,91 @@ function completedSessionDetails(session: ConciergeCompletedSession, isSpanish: 
   return entries.filter((entry) => entry.value);
 }
 
+function completedSessionReceiptDetails(
+  session: ConciergeCompletedSession,
+  isSpanish: boolean,
+  locale = "es",
+): Array<{ label: string; value: string }> {
+  const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
+  return [
+    {
+      label: isSpanish ? "Tipo" : "Type",
+      value: completedSessionFlowLabel(session, locale),
+    },
+    {
+      label: isSpanish ? "Proveedor" : "Provider",
+      value: completedSessionProvider(session, isSpanish),
+    },
+    {
+      label: isSpanish ? "Completado" : "Completed",
+      value: completedAt,
+    },
+    ...completedSessionDetails(session, isSpanish),
+  ].filter((entry) => entry.value);
+}
+
+function completedSessionContactLink(
+  session: ConciergeCompletedSession,
+  isSpanish: boolean,
+): { href: string; label: string; external: boolean } | null {
+  const payload = session.outcome_payload;
+  const phone = payloadString(payload, ["provider_phone", "phone", "contact_phone"]);
+  const email = payloadString(payload, ["provider_email", "recipient_email", "email"]);
+  const whatsapp = payloadString(payload, ["provider_whatsapp", "whatsapp", "whatsapp_number"]);
+  const bookingUrl = payloadString(payload, ["form_automation_prefilled_url", "prefilled_url", "booking_url"]);
+
+  if (phone) {
+    return {
+      href: phoneHref(phone),
+      label: isSpanish ? "Llamar proveedor" : "Call provider",
+      external: false,
+    };
+  }
+  if (whatsapp) {
+    return {
+      href: `https://wa.me/${normalizeWhatsAppNumber(whatsapp)}`,
+      label: "WhatsApp",
+      external: true,
+    };
+  }
+  if (email && email.includes("@")) {
+    return {
+      href: `mailto:${email}`,
+      label: isSpanish ? "Email proveedor" : "Email provider",
+      external: false,
+    };
+  }
+  if (bookingUrl) {
+    return {
+      href: bookingUrl,
+      label: isSpanish ? "Abrir enlace" : "Open link",
+      external: true,
+    };
+  }
+  return null;
+}
+
+function completedSessionPrompt(
+  session: ConciergeCompletedSession,
+  isSpanish: boolean,
+  mode: "question" | "repeat",
+): string {
+  const flow = completedSessionFlowLabel(session, isSpanish ? "es" : "en");
+  const provider = completedSessionProvider(session, isSpanish);
+  const summary = session.outcome_summary || (isSpanish ? "tarea completada" : "completed task");
+  const details = completedSessionDetails(session, isSpanish)
+    .map((detail) => `${detail.label}: ${detail.value}`)
+    .join(", ");
+  if (mode === "repeat") {
+    return isSpanish
+      ? `Ayudame a repetir esta gestion: ${flow} con ${provider}. Usa esta referencia como contexto: ${summary}${details ? ` (${details})` : ""}. Antes de actuar, pideme confirmacion.`
+      : `Help me do this again: ${flow} with ${provider}. Use this as context: ${summary}${details ? ` (${details})` : ""}. Ask me to confirm before acting.`;
+  }
+  return isSpanish
+    ? `Tengo una pregunta sobre esta gestion completada: ${flow} con ${provider}. Resumen: ${summary}${details ? ` (${details})` : ""}. Ayudame a entender el siguiente paso.`
+    : `I have a question about this completed task: ${flow} with ${provider}. Summary: ${summary}${details ? ` (${details})` : ""}. Help me understand the next step.`;
+}
+
 type RightNowActionLabelsParams = {
   item: ConciergePendingItem;
   isSpanish: boolean;
@@ -3189,6 +3274,7 @@ const ConciergeScreen = () => {
   const [chatError, setChatError] = useState<string | null>(null);
   const [visibleActionId, setVisibleActionId] = useState<string | null>(null);
   const [isRightNowHidden, setIsRightNowHidden] = useState(false);
+  const [selectedCompletedSessionId, setSelectedCompletedSessionId] = useState<string | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
@@ -5221,6 +5307,12 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function handleCompletedSessionFollowUp(session: ConciergeCompletedSession, mode: "question" | "repeat") {
+    const message = completedSessionPrompt(session, isSpanish, mode);
+    setSelectedCompletedSessionId(null);
+    prepareConciergeRequest(message);
+  }
+
   function openScamCheckAssistant() {
     setScamCheckOpen(true);
     setInsuranceAdminOpen(false);
@@ -5372,6 +5464,12 @@ const ConciergeScreen = () => {
   const recentCompletedSessions = completedSessions
     .filter((session) => session.outcome === "completed" || Boolean(session.completed_at))
     .slice(0, 3);
+  const selectedCompletedSession = selectedCompletedSessionId
+    ? completedSessions.find((session) => session.id === selectedCompletedSessionId) ?? null
+    : null;
+  const selectedCompletedSessionContactLink = selectedCompletedSession
+    ? completedSessionContactLink(selectedCompletedSession, isSpanish)
+    : null;
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
@@ -7195,9 +7293,11 @@ const ConciergeScreen = () => {
                 const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
 
                 return (
-                  <article
+                  <button
                     key={session.id}
-                    className="rounded-[18px] border border-[#D1FAE5] bg-white px-3 py-2.5"
+                    type="button"
+                    onClick={() => setSelectedCompletedSessionId(session.id)}
+                    className="vyva-tap rounded-[18px] border border-[#D1FAE5] bg-white px-3 py-2.5 text-left transition hover:border-[#86EFAC] hover:bg-[#FEFFFE]"
                     data-testid={`card-concierge-completed-${session.id}`}
                   >
                     <div className="flex items-start gap-3">
@@ -7235,32 +7335,91 @@ const ConciergeScreen = () => {
                           </div>
                         )}
 
-                        {details.length > 2 && (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer font-body text-[12px] font-black text-[#047857]">
-                              {isSpanish ? "Ver detalles" : "View details"}
-                            </summary>
-                            <div className="mt-1 grid gap-1">
-                              {details.slice(2).map((detail) => (
-                                <p
-                                  key={`${session.id}-extra-${detail.label}`}
-                                  className="font-body text-[11px] font-bold text-vyva-text-2"
-                                >
-                                  {detail.label}: {detail.value}
-                                </p>
-                              ))}
-                            </div>
-                          </details>
-                        )}
+                        <span className="mt-2 inline-flex font-body text-[12px] font-black text-[#047857]">
+                          {isSpanish ? "Ver recibo" : "View receipt"}
+                        </span>
                       </div>
                     </div>
-                  </article>
+                  </button>
                 );
               })}
             </div>
           </div>
         ) : null}
       </section>
+
+      {selectedCompletedSession && (
+        <PurpleModal
+          Icon={CircleCheck}
+          kicker={isSpanish ? "Recibo" : "Receipt"}
+          title={completedSessionFlowLabel(selectedCompletedSession, locale)}
+          subtitle={selectedCompletedSession.outcome_summary || (isSpanish ? "Tarea completada por VYVA." : "Task completed by VYVA.")}
+          titleId="concierge-completed-receipt-title"
+          onClose={() => setSelectedCompletedSessionId(null)}
+          closeLabel={isSpanish ? "Cerrar" : "Close"}
+          panelTestId="panel-concierge-completed-receipt"
+          modalTestId="modal-concierge-completed-receipt"
+          size="narrow"
+        >
+          <div className="rounded-[22px] border border-[#BBF7D0] bg-[#F8FFFC] p-4">
+            <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#047857]">
+              {isSpanish ? "Que hizo VYVA" : "What VYVA did"}
+            </p>
+            <p className="mt-2 font-body text-[15px] font-bold leading-relaxed text-vyva-text-1">
+              {selectedCompletedSession.outcome_summary || (isSpanish ? "VYVA completo esta gestion." : "VYVA completed this task.")}
+            </p>
+          </div>
+
+          <div className="mt-3 grid gap-2" data-testid="list-concierge-completed-receipt-details">
+            {completedSessionReceiptDetails(selectedCompletedSession, isSpanish, locale).map((detail) => (
+              <div
+                key={`${selectedCompletedSession.id}-${detail.label}`}
+                className="flex items-start justify-between gap-3 rounded-[16px] border border-vyva-border bg-white px-3 py-2.5"
+              >
+                <span className="font-body text-[12px] font-black uppercase tracking-[0.08em] text-vyva-text-3">
+                  {detail.label}
+                </span>
+                <span className="text-right font-body text-[13px] font-black leading-snug text-vyva-text-1">
+                  {detail.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-2">
+            <button
+              type="button"
+              onClick={() => handleCompletedSessionFollowUp(selectedCompletedSession, "question")}
+              className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+              data-testid="button-concierge-receipt-ask"
+            >
+              <Sparkles size={16} className="mr-2" />
+              {isSpanish ? "Preguntar a VYVA" : "Ask VYVA"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCompletedSessionFollowUp(selectedCompletedSession, "repeat")}
+              className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
+              data-testid="button-concierge-receipt-repeat"
+            >
+              <PackageCheck size={16} className="mr-2" />
+              {isSpanish ? "Hacerlo otra vez" : "Do again"}
+            </button>
+            {selectedCompletedSessionContactLink && (
+              <a
+                href={selectedCompletedSessionContactLink.href}
+                target={selectedCompletedSessionContactLink.external ? "_blank" : undefined}
+                rel={selectedCompletedSessionContactLink.external ? "noopener noreferrer" : undefined}
+                className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} text-center`}
+                data-testid="link-concierge-receipt-contact"
+              >
+                <ExternalLink size={16} className="mr-2" />
+                {selectedCompletedSessionContactLink.label}
+              </a>
+            )}
+          </div>
+        </PurpleModal>
+      )}
 
       <section className="order-[10] mt-[22px] flex flex-col" data-testid="concierge-guided-hub">
         {appointmentOpen && (
