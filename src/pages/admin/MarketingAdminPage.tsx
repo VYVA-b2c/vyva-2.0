@@ -2660,6 +2660,18 @@ export default function MarketingAdminPage() {
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
   const latestSyncRun = syncState.runs[0] ?? null;
+  const missingLovableReferenceContent = useMemo(
+    () => content.filter((item) => contentOriginKey(item) === "missing_lovable_reference"),
+    [content],
+  );
+  const missingLovableReferenceCount = useMemo(() => {
+    if (!latestSyncRun) return missingLovableReferenceContent.length;
+    return Math.max(
+      missingLovableReferenceContent.length,
+      syncCountValue(latestSyncRun.summary, "imported", "missingContentReferences"),
+      numberValue(recordValue(latestSyncRun.summary.contentSourceCounts).missing_lovable_reference),
+    );
+  }, [latestSyncRun, missingLovableReferenceContent.length]);
 
   useEffect(() => {
     if (!selectedContentId || visibleContentIdSet.has(selectedContentId)) return;
@@ -4761,6 +4773,49 @@ export default function MarketingAdminPage() {
                 focusKeys={["content", "mediaAssets", "campaigns", "campaignChannels", "journeys"]}
                 onOpenSettings={() => setActiveTab("settings")}
               />
+              {missingLovableReferenceCount > 0 ? (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm" data-testid="marketing-missing-content-reference-panel">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="max-w-4xl">
+                      <p className="text-sm font-black uppercase tracking-[0.12em] text-amber-900">Needs Lovable content</p>
+                      <h3 className="mt-1 font-serif text-2xl text-[#241133]">Lovable referenced content that was not exported.</h3>
+                      <p className="mt-2 text-sm font-bold leading-relaxed text-[#6f5f59]">
+                        {missingLovableReferenceCount} campaign or journey content reference{missingLovableReferenceCount === 1 ? "" : "s"} arrived without the real body, HTML, design, or media. VYVA kept placeholder records so campaign and journey links do not break, but these need the matching Lovable export data or a replacement content asset here.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-700 px-4 text-sm font-black text-white"
+                      onClick={() => {
+                        setSearch("");
+                        setChannelFilter("all");
+                        setContentSourceFilter("missing_lovable_reference");
+                        setContentActionFeedback("Showing Lovable content placeholders that still need real copy/design.");
+                      }}
+                      data-testid="button-marketing-show-missing-content"
+                    >
+                      <Search size={15} /> Show placeholders
+                    </button>
+                  </div>
+                  {missingLovableReferenceContent.length ? (
+                    <div className="mt-4 grid gap-2">
+                      {missingLovableReferenceContent.slice(0, 5).map((item) => (
+                        <div key={item.id} className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#5b4a46]">
+                          <span className="font-black text-[#241133]">{item.title}</span>
+                          {item.lovableExternalId ? <span className="ml-2 break-all text-xs text-[#8b7a73]">Lovable ID: {item.lovableExternalId}</span> : null}
+                        </div>
+                      ))}
+                      {missingLovableReferenceContent.length > 5 ? (
+                        <p className="text-xs font-black text-amber-900">+{missingLovableReferenceContent.length - 5} more placeholder{missingLovableReferenceContent.length - 5 === 1 ? "" : "s"} in the content library.</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-[#6f5f59]">
+                      Sync reported missing references, but no placeholder rows are loaded in this view yet. Run the one-way sync again after Lovable exports the referenced content bodies.
+                    </p>
+                  )}
+                </div>
+              ) : null}
 
               <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references.">
                 <form className="grid gap-3" onSubmit={(event) => createContent(event).catch((error) => setMessage(error.message))} data-testid="marketing-content-draft-form">

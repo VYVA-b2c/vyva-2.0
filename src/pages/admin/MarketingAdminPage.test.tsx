@@ -362,9 +362,9 @@ const sync = {
     completedAt: "2026-07-05T09:01:00.000Z",
     summary: {
       exported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, audiences: 1 },
-      imported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1 },
+      imported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1, missingContentReferences: 1 },
       skipped: {},
-      contentSourceCounts: { saved_email_template: 1, social_post: 1 },
+      contentSourceCounts: { saved_email_template: 1, social_post: 1, missing_lovable_reference: 1 },
       unmapped: {
         audienceContactExternalIdCount: 1,
         audienceContactExternalIds: ["missing-contact"],
@@ -679,6 +679,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
     expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Saved email template: 1");
     expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Social post: 1");
+    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Missing Lovable reference: 1");
+    expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("Lovable referenced content that was not exported.");
+    expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("1 campaign or journey content reference");
+    fireEvent.click(screen.getByTestId("button-marketing-show-missing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Lovable content placeholders");
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Content is loaded, but hidden by filters.");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-content-filters"));
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Content");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Type");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Design/media");
