@@ -885,6 +885,62 @@ function lovableExportSummary(payload: Record<string, unknown>) {
   };
 }
 
+function previewSampleValue(value: unknown, depth = 0): unknown {
+  const parsed = parseJsonLike(value);
+  if (typeof parsed === "string") {
+    const trimmed = parsed.trim();
+    return trimmed.length > 700 ? `${trimmed.slice(0, 700)}...` : trimmed;
+  }
+  if (typeof parsed === "number" || typeof parsed === "boolean" || parsed === null || parsed === undefined) return parsed ?? null;
+  if (Array.isArray(parsed)) {
+    const items = parsed.slice(0, 4).map((item) => previewSampleValue(item, depth + 1));
+    return parsed.length > 4 ? [...items, `+${parsed.length - 4} more`] : items;
+  }
+  if (typeof parsed !== "object") return String(parsed);
+  const row = asRecord(parsed);
+  if (depth >= 4) return { keys: Object.keys(row).slice(0, 16) };
+  const entries = Object.entries(row).slice(0, 18).map(([key, nested]) => [key, previewSampleValue(nested, depth + 1)] as const);
+  const sample = Object.fromEntries(entries);
+  const remaining = Object.keys(row).length - entries.length;
+  return remaining > 0 ? { ...sample, __truncatedKeys: remaining } : sample;
+}
+
+function previewSampleRows(rows: unknown[], limit = 3) {
+  return rows.slice(0, limit).map((row) => previewSampleValue(row));
+}
+
+function topLevelArraySamples(payload: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(payload)
+      .filter(([, value]) => Array.isArray(value) && value.length > 0)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => [key, previewSampleRows(value as unknown[], 2)]),
+  );
+}
+
+function lovableExportSamples(payload: Record<string, unknown>) {
+  const contentPayload = lovableContentPayload(payload);
+  const standaloneMediaPayload = lovableMediaPayload(payload);
+  const contactPayload = lovableContactPayload(payload);
+  const campaignPayload = lovableCampaignPayload(payload);
+  const journeyPayload = lovableJourneyPayload(payload);
+  const audiencePayload = lovableAudiencePayload(payload);
+  const campaignMetricPayload = arrayFrom(payload.campaignMetrics ?? payload.campaign_metrics ?? payload.analytics ?? payload.metrics);
+  const journeyEnrollmentPayload = lovableJourneyEnrollmentPayload(payload);
+  const journeyStepEventPayload = lovableJourneyStepEventPayload(payload);
+  return Object.fromEntries(Object.entries({
+    content: previewSampleRows(contentPayload),
+    media: previewSampleRows([...contentPayload.flatMap((item) => contentMediaAssetsFrom(asRecord(item))), ...standaloneMediaPayload]),
+    contacts: previewSampleRows(contactPayload),
+    campaigns: previewSampleRows(campaignPayload),
+    campaignMetrics: previewSampleRows(campaignMetricPayload),
+    journeys: previewSampleRows(journeyPayload),
+    journeyEnrollments: previewSampleRows(journeyEnrollmentPayload),
+    journeyStepEvents: previewSampleRows([...journeyEnrollmentPayload.flatMap((item) => journeyEnrollmentEventPayload(asRecord(item))), ...journeyStepEventPayload]),
+    audiences: previewSampleRows(audiencePayload),
+  }).filter(([, rows]) => rows.length > 0));
+}
+
 function lovableCampaignPayload(payload: Record<string, unknown>) {
   const campaignRows = arrayFrom(payload.campaigns).map(asRecord);
   const channelsByCampaignId = groupCampaignChildRows(lovableCampaignChannelRows(payload));
@@ -2796,6 +2852,8 @@ adminMarketingRouter.get("/sync/lovable/preview", async (req, res) => {
       exportedAt: textFrom(payload, ["exportedAt", "exported_at", "updatedAt", "updated_at"]),
       topLevelKeys: Object.keys(payload).sort(),
       summary,
+      samples: lovableExportSamples(payload),
+      rawArraySamples: topLevelArraySamples(payload),
     });
   } catch (error) {
     console.error("[admin/marketing] lovable export preview failed", error);

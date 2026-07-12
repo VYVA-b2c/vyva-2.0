@@ -295,6 +295,20 @@ describe("admin marketing router", () => {
           },
         });
         expect(response.body.summary.fieldCoverage.content.firstClassFields).toEqual(expect.arrayContaining(["id", "template_name", "html_content"]));
+        expect(response.body.samples.content[0]).toMatchObject({
+          id: "template-1",
+          template_name: "Welcome",
+          html_content: "<p>Hello</p>",
+        });
+        expect(response.body.samples.media[0]).toMatchObject({
+          url: "https://cdn.example.test/post.png",
+          sourceField: "image_url",
+        });
+        expect(response.body.rawArraySamples.social_posts[0]).toMatchObject({
+          id: "post-1",
+          platform: "linkedin",
+          caption: "Partner update",
+        });
       });
 
     expect(fetchMock).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", expect.objectContaining({

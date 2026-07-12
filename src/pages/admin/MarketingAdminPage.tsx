@@ -337,6 +337,8 @@ type LovableExportPreview = {
   exportedAt: string | null;
   topLevelKeys: string[];
   summary: Record<string, unknown>;
+  samples?: Record<string, unknown[]>;
+  rawArraySamples?: Record<string, unknown[]>;
 };
 
 type SyncState = {
@@ -4954,6 +4956,12 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
     .map(([key, value]) => ({ key, value: numberValue(value) }))
     .filter((item) => item.value > 0);
   const fieldCoverage = syncFieldCoverageItems(preview.summary);
+  const sampleRows = Object.fromEntries(
+    Object.entries(recordValue(preview.samples)).filter(([, value]) => Array.isArray(value) && value.length > 0),
+  );
+  const rawArraySamples = Object.fromEntries(
+    Object.entries(recordValue(preview.rawArraySamples)).filter(([, value]) => Array.isArray(value) && value.length > 0),
+  );
 
   return (
     <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs font-bold text-blue-950" data-testid="marketing-export-preview">
@@ -5001,6 +5009,8 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
           </div>
         </div>
       ) : null}
+      <MetadataPanel title="Recognized sample rows from Lovable" value={sampleRows} testId="marketing-export-preview-samples" />
+      <MetadataPanel title="Raw top-level Lovable array samples" value={rawArraySamples} testId="marketing-export-preview-raw-samples" />
     </div>
   );
 }

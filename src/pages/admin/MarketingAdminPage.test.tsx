@@ -372,6 +372,15 @@ const exportPreview = {
       },
     },
   },
+  samples: {
+    content: [{ id: "template-1", template_name: "Welcome", html_content: "<p>Hello</p>" }],
+    contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com" }],
+    media: [{ url: "https://cdn.example.test/post.png", sourceField: "image_url" }],
+  },
+  rawArraySamples: {
+    saved_email_templates: [{ id: "template-1", template_name: "Welcome", html_content: "<p>Hello</p>" }],
+    social_posts: [{ id: "post-1", platform: "linkedin", caption: "Partner update" }],
+  },
 };
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -823,6 +832,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("saved_email_template: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("social_post: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Top-level export keys");
+    expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("Recognized sample rows");
+    expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("template_name");
+    expect(screen.getByTestId("marketing-export-preview-raw-samples")).toHaveTextContent("social_posts");
   });
 
   it("creates rich marketing content drafts", async () => {
