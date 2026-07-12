@@ -617,6 +617,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Lovable ID: lovable-contact-2");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Profile: profile-2");
     expect(openMetadataPanel("marketing-contact-metadata-contact-2")).toHaveTextContent("partner-lead");
+    expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Contacts (2)");
+    expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Lists (1)");
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
@@ -662,6 +665,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "lovable-audience-1" } });
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
   });
 
@@ -922,6 +926,7 @@ describe("MarketingAdminPage", () => {
       expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Marketing contact created.");
     });
 
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     fireEvent.change(screen.getByTestId("input-marketing-audience-name"), { target: { value: "Madrid partners" } });
     fireEvent.change(screen.getByTestId("input-marketing-audience-description"), { target: { value: "Partners in Spain" } });
     fireEvent.change(screen.getByTestId("input-marketing-audience-rules"), { target: { value: "{\"market\":\"Spain\",\"vertical\":\"health\"}" } });
@@ -1038,6 +1043,7 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
     fireEvent.click(screen.getByTestId("button-marketing-edit-audience-audience-1"));
 
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();

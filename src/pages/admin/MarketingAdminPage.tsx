@@ -39,6 +39,7 @@ const CONSENT_STATUSES = ["unknown", "pending", "opted_in", "opted_out"] as cons
 type Channel = typeof CHANNELS[number];
 type Audience = typeof AUDIENCES[number];
 type Tab = typeof TABS[number];
+type ContactView = "contacts" | "lists";
 type CampaignStatus = typeof CAMPAIGN_STATUSES[number];
 type JourneyStatus = typeof JOURNEY_STATUSES[number];
 type ContentStatus = typeof CONTENT_STATUSES[number];
@@ -1668,6 +1669,7 @@ const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg
 
 export default function MarketingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [contactView, setContactView] = useState<ContactView>("contacts");
   const [summary, setSummary] = useState<MarketingSummary>(emptySummary);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [journeys, setJourneys] = useState<Journey[]>([]);
@@ -4244,11 +4246,32 @@ export default function MarketingAdminPage() {
 
           {activeTab === "contacts" && (
             <div className="grid gap-4" data-testid="marketing-contacts-tab">
-              <SectionCard title="Contact draft" subtitle="Create B2B contacts or planning records before sync/cutover.">
-                <form className="grid gap-3" onSubmit={(event) => createContact(event).catch((error) => {
-                  setContactFeedback(error.message);
-                  setMessage(error.message);
-                })}>
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#eadfd5] bg-white p-2 shadow-sm" data-testid="marketing-contacts-view-switcher">
+                <button
+                  type="button"
+                  onClick={() => setContactView("contacts")}
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-black ${contactView === "contacts" ? "bg-purple-700 text-white" : "text-[#4b394f] hover:bg-purple-50"}`}
+                  data-testid="button-marketing-contacts-view"
+                >
+                  <UsersRound size={15} /> Contacts ({contacts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContactView("lists")}
+                  className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-black ${contactView === "lists" ? "bg-purple-700 text-white" : "text-[#4b394f] hover:bg-purple-50"}`}
+                  data-testid="button-marketing-lists-view"
+                >
+                  <UsersRound size={15} /> Lists ({audiences.length})
+                </button>
+              </div>
+
+              {contactView === "contacts" ? (
+                <>
+                  <SectionCard title="Contact draft" subtitle="Create B2B contacts or planning records before sync/cutover.">
+                    <form className="grid gap-3" onSubmit={(event) => createContact(event).catch((error) => {
+                      setContactFeedback(error.message);
+                      setMessage(error.message);
+                    })}>
                   <div className="grid gap-3 xl:grid-cols-[1.3fr_160px_1fr_1fr]">
                     <Field label="Name">
                       <input className={inputClass} value={contactDraft.fullName} onChange={(event) => setContactDraft((draft) => ({ ...draft, fullName: event.target.value }))} placeholder="Contact name" disabled={contactSaving} data-testid="input-marketing-contact-name" />
@@ -4301,15 +4324,15 @@ export default function MarketingAdminPage() {
                       {contactFeedback}
                     </p>
                   ) : null}
-                </form>
-              </SectionCard>
-              {contactEditDraft ? (
-                <SectionCard
-                  title="Contact editor"
-                  subtitle={editingContact ? `Editing ${editingContact.fullName || editingContact.email || editingContact.phoneNumber || "Unnamed contact"}.` : "Edit imported or manually created marketing contact data."}
-                  action={editingContact ? <Pill className={statusClass(editingContact.source)}>{editingContact.source}</Pill> : null}
-                >
-                  <form className="grid gap-3" onSubmit={(event) => void saveContactEdit(event)} data-testid="marketing-contact-editor-form">
+                    </form>
+                  </SectionCard>
+                  {contactEditDraft ? (
+                    <SectionCard
+                      title="Contact editor"
+                      subtitle={editingContact ? `Editing ${editingContact.fullName || editingContact.email || editingContact.phoneNumber || "Unnamed contact"}.` : "Edit imported or manually created marketing contact data."}
+                      action={editingContact ? <Pill className={statusClass(editingContact.source)}>{editingContact.source}</Pill> : null}
+                    >
+                      <form className="grid gap-3" onSubmit={(event) => void saveContactEdit(event)} data-testid="marketing-contact-editor-form">
                     <div className="grid gap-3 xl:grid-cols-[1.2fr_160px_180px]">
                       <Field label="Name">
                         <input className={inputClass} value={contactEditDraft.fullName} onChange={(event) => setContactEditDraft((draft) => draft ? ({ ...draft, fullName: event.target.value }) : draft)} disabled={contactSaving} data-testid="input-marketing-edit-contact-name" />
@@ -4401,14 +4424,108 @@ export default function MarketingAdminPage() {
                         </p>
                       ) : null}
                     </div>
-                  </form>
-                </SectionCard>
-              ) : null}
-              <SectionCard title="Audience rule builder" subtitle="Store reusable list rules and optional Lovable contact external IDs.">
-                <form className="grid gap-3" onSubmit={(event) => createAudience(event).catch((error) => {
-                  setAudienceFeedback(error.message);
-                  setMessage(error.message);
-                })} data-testid="marketing-audience-builder">
+                      </form>
+                    </SectionCard>
+                  ) : null}
+                  <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
+                    <div className="overflow-hidden rounded-xl border border-[#eadfd5]">
+                      <table className="min-w-[1500px] border-collapse text-left text-sm">
+                        <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                          <tr>
+                            <th className="px-4 py-3">Contact</th>
+                            <th className="px-4 py-3">Email</th>
+                            <th className="px-4 py-3">Phone</th>
+                            <th className="px-4 py-3">WhatsApp</th>
+                            <th className="px-4 py-3">Audience</th>
+                            <th className="px-4 py-3">Company</th>
+                            <th className="px-4 py-3">Role</th>
+                            <th className="px-4 py-3">Lang</th>
+                            <th className="px-4 py-3">Category</th>
+                            <th className="px-4 py-3">Vertical</th>
+                            <th className="px-4 py-3">Market</th>
+                            <th className="px-4 py-3">Tags / lists</th>
+                            <th className="px-4 py-3">Consent</th>
+                            <th className="px-4 py-3">Source</th>
+                            <th className="px-4 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleContacts.length === 0 ? (
+                            <tr><td colSpan={15} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
+                          ) : visibleContacts.map((contact) => {
+                            const tagsAndLists = [
+                              ...(contact.tags ?? []),
+                              ...(contact.lists ?? []).map((list) => `List: ${list}`),
+                            ];
+                            return (
+                              <tr key={contact.id} className="border-t border-[#f0e7df] align-top">
+                                <td className="px-4 py-3">
+                                  <p className="font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
+                                  {contact.profileId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p> : null}
+                                </td>
+                                <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.email || "-"}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.phoneNumber || "-"}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.whatsappNumber || "-"}</td>
+                                <td className="px-4 py-3 font-black">{contact.audienceType.toUpperCase()}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.companyName || "-"}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.roleLabel || "-"}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.language || "-"}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.category || "-"}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.vertical || "-"}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.market || "-"}</td>
+                                <td className="max-w-[320px] px-4 py-3">
+                                  {tagsAndLists.length ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {tagsAndLists.slice(0, 8).map((segment, index) => (
+                                        <Pill key={`${segment}-${index}`} className="bg-purple-50 text-purple-800">{segment}</Pill>
+                                      ))}
+                                      {tagsAndLists.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{tagsAndLists.length - 8}</Pill> : null}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs font-bold text-[#8b7a73]">No tags or lists</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3"><Pill className={statusClass(contact.consentStatus)}>{contact.consentStatus}</Pill></td>
+                                <td className="px-4 py-3">
+                                  <div className="grid gap-2">
+                                    <p className="font-bold">{contact.source}</p>
+                                    {contact.lovableExternalId ? (
+                                      <p className="break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {contact.lovableExternalId}</p>
+                                    ) : null}
+                                    {contact.profileId ? (
+                                      <p className="break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p>
+                                    ) : null}
+                                    {contact.organizationId ? (
+                                      <p className="break-all text-xs font-semibold text-[#7d6b65]">Org: {contact.organizationId}</p>
+                                    ) : null}
+                                    <MetadataPanel title="Imported contact data" value={contact.metadata} testId={`marketing-contact-metadata-${contact.id}`} />
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex flex-wrap gap-2">
+                                    <button type="button" onClick={() => startContactEdit(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-edit-contact-${contact.id}`}>
+                                      <Pencil size={13} /> Edit
+                                    </button>
+                                    <button type="button" onClick={() => void deleteContact(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contactSaving} data-testid={`button-marketing-delete-contact-${contact.id}`}>
+                                      <Trash2 size={13} /> Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </SectionCard>
+                </>
+              ) : (
+                <>
+                  <SectionCard title="List builder" subtitle="Store reusable Lovable-style lists with optional rules and contact external IDs.">
+                    <form className="grid gap-3" onSubmit={(event) => createAudience(event).catch((error) => {
+                      setAudienceFeedback(error.message);
+                      setMessage(error.message);
+                    })} data-testid="marketing-audience-builder">
                   <div className="grid gap-3 xl:grid-cols-[1fr_180px_1fr]">
                     <Field label="Audience name">
                       <input className={inputClass} value={audienceDraft.name} onChange={(event) => setAudienceDraft((draft) => ({ ...draft, name: event.target.value }))} placeholder="Madrid partners" disabled={audienceSaving} data-testid="input-marketing-audience-name" />
@@ -4438,19 +4555,19 @@ export default function MarketingAdminPage() {
                     </button>
                     {audienceFeedback && !audienceEditDraft ? (
                       <p className={`rounded-xl px-4 py-3 text-sm font-bold ${audienceFeedback.includes("created") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-audience-feedback">
-                        {audienceFeedback}
-                      </p>
-                    ) : null}
-                  </div>
-                </form>
-              </SectionCard>
-              {audienceEditDraft ? (
-                <SectionCard
-                  title="List editor"
-                  subtitle={editingAudience ? `Editing ${editingAudience.name}. Members are stored as Lovable contact external IDs.` : "Edit imported or manually created marketing lists."}
-                  action={editingAudience ? <Pill className="bg-purple-50 text-purple-800">{editingAudience.source}</Pill> : null}
-                >
-                  <form className="grid gap-3" onSubmit={(event) => void saveAudienceEdit(event)} data-testid="marketing-audience-editor-form">
+                      {audienceFeedback}
+                    </p>
+                  ) : null}
+                </div>
+                    </form>
+                  </SectionCard>
+                  {audienceEditDraft ? (
+                    <SectionCard
+                      title="List editor"
+                      subtitle={editingAudience ? `Editing ${editingAudience.name}. Members are stored as Lovable contact external IDs.` : "Edit imported or manually created marketing lists."}
+                      action={editingAudience ? <Pill className="bg-purple-50 text-purple-800">{editingAudience.source}</Pill> : null}
+                    >
+                      <form className="grid gap-3" onSubmit={(event) => void saveAudienceEdit(event)} data-testid="marketing-audience-editor-form">
                     <div className="grid gap-3 xl:grid-cols-[1fr_180px_1fr]">
                       <Field label="List name">
                         <input className={inputClass} value={audienceEditDraft.name} onChange={(event) => setAudienceEditDraft((draft) => draft ? ({ ...draft, name: event.target.value }) : draft)} disabled={audienceSaving} data-testid="input-marketing-edit-audience-name" />
@@ -4503,136 +4620,47 @@ export default function MarketingAdminPage() {
                         </p>
                       ) : null}
                     </div>
-                  </form>
-                </SectionCard>
-              ) : null}
-              <SectionCard title="Audiences / lists" subtitle={`${visibleAudiences.length} visible of ${audiences.length} imported lists.`}>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-audiences-list">
-                  {visibleAudiences.length === 0 ? (
-                    <EmptyState text="No imported lists match the filters." />
-                  ) : visibleAudiences.map((audience) => {
-                    const unmappedCount = audience.unmappedContactExternalIds.length;
-                    return (
-                      <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-black">{audience.name}</p>
-                            <p className="mt-1 text-xs font-bold text-[#7d6b65]">{audience.description || `${audience.listType} list`}</p>
-                          </div>
-                          <Pill className="bg-purple-50 text-purple-800">{audience.source}</Pill>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          <Pill className="bg-blue-50 text-blue-800">{audience.memberCount} members</Pill>
-                          <Pill className="bg-emerald-50 text-emerald-800">{audience.mappedMemberCount} mapped</Pill>
-                          {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">{unmappedCount} unmapped</Pill> : null}
-                        </div>
-                        {unmappedCount ? (
-                          <p className="mt-2 text-xs font-semibold text-[#8b5d13]">Unmapped examples: {audience.unmappedContactExternalIds.slice(0, 3).join(", ")}</p>
-                        ) : null}
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
-                            <Pencil size={13} /> Edit
-                          </button>
-                          <button type="button" onClick={() => void deleteAudience(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
-                            <Trash2 size={13} /> Delete
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </SectionCard>
-              <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
-                <div className="overflow-hidden rounded-xl border border-[#eadfd5]">
-                  <table className="min-w-[1500px] border-collapse text-left text-sm">
-                    <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
-                      <tr>
-                        <th className="px-4 py-3">Contact</th>
-                        <th className="px-4 py-3">Email</th>
-                        <th className="px-4 py-3">Phone</th>
-                        <th className="px-4 py-3">WhatsApp</th>
-                        <th className="px-4 py-3">Audience</th>
-                        <th className="px-4 py-3">Company</th>
-                        <th className="px-4 py-3">Role</th>
-                        <th className="px-4 py-3">Lang</th>
-                        <th className="px-4 py-3">Category</th>
-                        <th className="px-4 py-3">Vertical</th>
-                        <th className="px-4 py-3">Market</th>
-                        <th className="px-4 py-3">Tags / lists</th>
-                        <th className="px-4 py-3">Consent</th>
-                        <th className="px-4 py-3">Source</th>
-                        <th className="px-4 py-3">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleContacts.length === 0 ? (
-                        <tr><td colSpan={15} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
-                      ) : visibleContacts.map((contact) => {
-                        const tagsAndLists = [
-                          ...(contact.tags ?? []),
-                          ...(contact.lists ?? []).map((list) => `List: ${list}`),
-                        ];
+                      </form>
+                    </SectionCard>
+                  ) : null}
+                  <SectionCard title="Lists" subtitle={`${visibleAudiences.length} visible of ${audiences.length} imported lists.`}>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="marketing-audiences-list">
+                      {visibleAudiences.length === 0 ? (
+                        <EmptyState text="No imported lists match the filters." />
+                      ) : visibleAudiences.map((audience) => {
+                        const unmappedCount = audience.unmappedContactExternalIds.length;
                         return (
-                          <tr key={contact.id} className="border-t border-[#f0e7df] align-top">
-                            <td className="px-4 py-3">
-                              <p className="font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
-                              {contact.profileId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p> : null}
-                            </td>
-                            <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.email || "-"}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.phoneNumber || "-"}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.whatsappNumber || "-"}</td>
-                            <td className="px-4 py-3 font-black">{contact.audienceType.toUpperCase()}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.companyName || "-"}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.roleLabel || "-"}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.language || "-"}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.category || "-"}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.vertical || "-"}</td>
-                            <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.market || "-"}</td>
-                            <td className="max-w-[320px] px-4 py-3">
-                              {tagsAndLists.length ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {tagsAndLists.slice(0, 8).map((segment, index) => (
-                                    <Pill key={`${segment}-${index}`} className="bg-purple-50 text-purple-800">{segment}</Pill>
-                                  ))}
-                                  {tagsAndLists.length > 8 ? <Pill className="bg-[#f5eee8] text-[#7d6b65]">+{tagsAndLists.length - 8}</Pill> : null}
-                                </div>
-                              ) : (
-                                <span className="text-xs font-bold text-[#8b7a73]">No tags or lists</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3"><Pill className={statusClass(contact.consentStatus)}>{contact.consentStatus}</Pill></td>
-                            <td className="px-4 py-3">
-                              <div className="grid gap-2">
-                                <p className="font-bold">{contact.source}</p>
-                                {contact.lovableExternalId ? (
-                                  <p className="break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {contact.lovableExternalId}</p>
-                                ) : null}
-                                {contact.profileId ? (
-                                  <p className="break-all text-xs font-semibold text-[#7d6b65]">Profile: {contact.profileId}</p>
-                                ) : null}
-                                {contact.organizationId ? (
-                                  <p className="break-all text-xs font-semibold text-[#7d6b65]">Org: {contact.organizationId}</p>
-                                ) : null}
-                                <MetadataPanel title="Imported contact data" value={contact.metadata} testId={`marketing-contact-metadata-${contact.id}`} />
+                          <div key={audience.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-black">{audience.name}</p>
+                                <p className="mt-1 text-xs font-bold text-[#7d6b65]">{audience.description || `${audience.listType} list`}</p>
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-2">
-                                <button type="button" onClick={() => startContactEdit(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-edit-contact-${contact.id}`}>
-                                  <Pencil size={13} /> Edit
-                                </button>
-                                <button type="button" onClick={() => void deleteContact(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contactSaving} data-testid={`button-marketing-delete-contact-${contact.id}`}>
-                                  <Trash2 size={13} /> Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
+                              <Pill className="bg-purple-50 text-purple-800">{audience.source}</Pill>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              <Pill className="bg-blue-50 text-blue-800">{audience.memberCount} members</Pill>
+                              <Pill className="bg-emerald-50 text-emerald-800">{audience.mappedMemberCount} mapped</Pill>
+                              {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">{unmappedCount} unmapped</Pill> : null}
+                            </div>
+                            {unmappedCount ? (
+                              <p className="mt-2 text-xs font-semibold text-[#8b5d13]">Unmapped examples: {audience.unmappedContactExternalIds.slice(0, 3).join(", ")}</p>
+                            ) : null}
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
+                                <Pencil size={13} /> Edit
+                              </button>
+                              <button type="button" onClick={() => void deleteAudience(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                          </div>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
-              </SectionCard>
+                    </div>
+                  </SectionCard>
+                </>
+              )}
             </div>
           )}
 
