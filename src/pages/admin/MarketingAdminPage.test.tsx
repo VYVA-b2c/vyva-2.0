@@ -690,8 +690,8 @@ describe("MarketingAdminPage", () => {
     expect(contentCoverage).toHaveTextContent("Mapped first-class: body, channel, id, status, subject, title");
     expect(contentCoverage).toHaveTextContent("All exported: body, channel, extraLovableOnlyField, id, status, subject, title");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
-    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_URL or LOVABLE_MARKETING_API_URL");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY");
+    expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
   });
 
   it("searches imported Lovable IDs, metadata, media, lists, and journey steps", async () => {

@@ -2939,7 +2939,7 @@ export default function MarketingAdminPage() {
   }
 
   const syncBlockedReason = !syncState.configured
-    ? "Set VYVA_MARKETING_EXPORT_URL or LOVABLE_MARKETING_API_URL, plus VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY, before running a sync."
+    ? "Set VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY before running a sync. The default Lovable export endpoint is already built in, and can be overridden with VYVA_MARKETING_EXPORT_URL."
     : syncState.canRunSync === false
       ? `Only the super admin${syncState.requiredRunnerEmail ? ` (${syncState.requiredRunnerEmail})` : ""} can run Lovable sync.`
       : "";
@@ -4861,7 +4861,7 @@ export default function MarketingAdminPage() {
                   <div className="rounded-xl bg-[#fffaf4] p-4">
                     <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
                     <p className="font-black">{syncState.mode}</p>
-                    <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Set VYVA_MARKETING_EXPORT_URL or LOVABLE_MARKETING_API_URL"}</p>
+                    <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Default Lovable export endpoint"}</p>
                     <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-black text-[#2f2135]">Scheduled email automation</p>
