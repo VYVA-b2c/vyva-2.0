@@ -255,6 +255,26 @@
       "action": "Demander a VYVA",
       "aria": "Demander a VYVA par ou commencer"
     },
+    "conciergeResume": {
+      "kicker": "Maintenant",
+      "titlePrefix": "VYVA s'occupe de votre",
+      "task": {
+        "ride": "trajet",
+        "appointment": "rendez-vous",
+        "pharmacy": "demande pharmacie",
+        "homeService": "service a domicile",
+        "default": "demande"
+      },
+      "step": {
+        "contacting": "Contact du prestataire",
+        "waiting": "En attente de reponse",
+        "form": "Preparation du formulaire",
+        "save": "Pret a enregistrer",
+        "attention": "A revoir",
+        "confirm": "En attente de votre confirmation"
+      },
+      "open": "Ouvrir maintenant"
+    },
     "fastHelp": {
       "kicker": "Aide rapide",
       "title": "Que voulez-vous que VYVA fasse?",

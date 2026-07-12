@@ -375,6 +375,26 @@
       "action": "Preguntar a VYVA",
       "aria": "Preguntar a VYVA por donde empezar"
     },
+    "conciergeResume": {
+      "kicker": "Ahora",
+      "titlePrefix": "VYVA trabaja en tu",
+      "task": {
+        "ride": "transporte",
+        "appointment": "cita",
+        "pharmacy": "solicitud de farmacia",
+        "homeService": "servicio en casa",
+        "default": "solicitud"
+      },
+      "step": {
+        "contacting": "Contactando proveedor",
+        "waiting": "Esperando respuesta",
+        "form": "Preparando formulario",
+        "save": "Listo para guardar",
+        "attention": "Necesita tu revision",
+        "confirm": "Esperando tu confirmacion"
+      },
+      "open": "Abrir ahora"
+    },
     "fastHelp": {
       "kicker": "Ayuda rapida",
       "title": "Que quieres que haga VYVA?",
