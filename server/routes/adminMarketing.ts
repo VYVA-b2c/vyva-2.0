@@ -1199,6 +1199,54 @@ function contentDesignJson(row: Record<string, unknown>) {
   return {};
 }
 
+const designTextKeys = new Set([
+  "body",
+  "buttonText",
+  "button_text",
+  "caption",
+  "content",
+  "copy",
+  "description",
+  "headline",
+  "heading",
+  "label",
+  "message",
+  "plainText",
+  "plain_text",
+  "preheader",
+  "previewText",
+  "preview_text",
+  "subtitle",
+  "subject",
+  "text",
+  "title",
+  "value",
+]);
+
+function isUsefulDesignText(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length < 3) return false;
+  if (/^https?:\/\//i.test(trimmed)) return false;
+  if (/^[#._a-z0-9-]+$/i.test(trimmed) && !trimmed.includes(" ")) return false;
+  return true;
+}
+
+function collectDesignText(value: unknown, parentKey = "", seen = new Set<unknown>()): string[] {
+  const parsed = parseJsonLike(value);
+  if (typeof parsed === "string") {
+    return designTextKeys.has(parentKey) && isUsefulDesignText(parsed) ? [parsed.trim()] : [];
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  if (seen.has(parsed)) return [];
+  seen.add(parsed);
+  if (Array.isArray(parsed)) return parsed.flatMap((item) => collectDesignText(item, parentKey, seen));
+  return Object.entries(parsed as Record<string, unknown>).flatMap(([key, nested]) => collectDesignText(nested, key, seen));
+}
+
+function contentBodyFromDesign(designJson: Record<string, unknown>) {
+  return uniqueTextArray(collectDesignText(designJson)).slice(0, 12).join("\n\n");
+}
+
 function iso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
@@ -2750,6 +2798,8 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   if (!externalId) return null;
   const designJson = contentDesignJson(row);
   const mediaAssets = contentMediaAssetsFrom(row);
+  const explicitBody = textFrom(row, [...contentBodyKeys], "");
+  const designBody = contentBodyFromDesign(designJson);
   const title = textFrom(
     row,
     [...contentTitleKeys],
@@ -2762,7 +2812,7 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
     language: textFrom(row, ["language", "lang", "locale"], "en"),
     status: normalizeContentStatus(textFrom(row, ["status"], "draft")),
     subject: emptyToNull(textFrom(row, [...contentSubjectKeys])),
-    body: textFrom(row, [...contentBodyKeys], ""),
+    body: explicitBody || designBody,
     html_body: emptyToNull(textFrom(row, [...contentHtmlKeys])),
     cta_label: emptyToNull(textFrom(row, [...contentCtaLabelKeys])),
     cta_url: emptyToNull(textFrom(row, [...contentCtaUrlKeys])),

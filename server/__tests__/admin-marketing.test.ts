@@ -1149,7 +1149,7 @@ describe("admin marketing router", () => {
         id: "brief-1",
         title: "Brief idea",
         channel: "email",
-        brief: "Long-form planning brief",
+        sections: JSON.stringify([{ text: "Long-form planning brief" }]),
       }],
       contacts: [{
         id: "contact:contact-1",
@@ -1316,6 +1316,7 @@ describe("admin marketing router", () => {
     });
     expect(table("marketing_content_assets").find((row) => row.title === "Brief idea")).toMatchObject({
       body: "Long-form planning brief",
+      design_json: { sections: [{ text: "Long-form planning brief" }] },
       lovable_external_id: "content_brief:brief-1",
       metadata: { lovable_source_type: "content_brief" },
     });
