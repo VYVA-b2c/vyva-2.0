@@ -220,7 +220,10 @@ export default function SettingsHome() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast({ title: t("settings.home.rows.downloadDataStarted", "Your data export is downloading") });
+      toast({
+        title: t("settings.home.rows.downloadDataStarted", "Your data export is downloading"),
+        description: t("settings.home.rows.downloadDataStartedDesc", "VYVA started downloading your profile export."),
+      });
     } catch (err) {
       toast({
         title: t("settings.home.rows.downloadDataError", "Could not download your data"),

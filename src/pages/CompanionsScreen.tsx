@@ -1090,7 +1090,11 @@ const CompanionsScreen = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companions/suggestions"] });
     },
     onError: () => {
-      toast({ title: t("companions.errors.saveInterestsFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.saveInterestsFailed"),
+        description: t("companions.errors.saveInterestsFailedDesc", "Your companion interests were not saved. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -1108,11 +1112,18 @@ const CompanionsScreen = () => {
       setConnecting(null);
       queryClient.invalidateQueries({ queryKey: ["/api/companions/suggestions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/companions/connections"] });
-      toast({ title: t("companions.connection.requestSent") });
+      toast({
+        title: t("companions.connection.requestSent"),
+        description: t("companions.connection.requestSentDesc", "Your companion request was sent."),
+      });
     },
     onError: () => {
       setConnecting(null);
-      toast({ title: t("companions.errors.connectFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.connectFailed"),
+        description: t("companions.errors.connectFailedDesc", "Your companion request was not sent. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -1132,7 +1143,11 @@ const CompanionsScreen = () => {
     },
     onError: () => {
       setResponding(null);
-      toast({ title: t("companions.errors.respondFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.respondFailed"),
+        description: t("companions.errors.respondFailedDesc", "Your companion response was not saved. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -1152,7 +1167,11 @@ const CompanionsScreen = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/companions/suggestions"] });
     },
     onError: () => {
-      toast({ title: t("companions.errors.activateFailed"), variant: "destructive" });
+      toast({
+        title: t("companions.errors.activateFailed"),
+        description: t("companions.errors.activateFailedDesc", "Companion matching was not turned on. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 

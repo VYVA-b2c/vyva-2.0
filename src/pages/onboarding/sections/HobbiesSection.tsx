@@ -12,6 +12,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import SpeakItOverlay from "@/components/onboarding/SpeakItOverlay";
+import { useTranslation } from "react-i18next";
 import {
   Plus,
   Dumbbell,
@@ -259,6 +260,7 @@ type HobbiesPayload = {
 export default function HobbiesSection() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const [selected, setSelected] = useState<string[]>([]);
   const [followUps, setFollowUps] = useState<Record<string, string>>({});
@@ -384,7 +386,10 @@ export default function HobbiesSection() {
     const alreadySelected = matches.filter((h) => selected.includes(h));
     const newMatches = matches.filter((h) => !selected.includes(h));
     if (newMatches.length === 0 && alreadySelected.length > 0) {
-      toast({ title: "Those hobbies are already selected" });
+      toast({
+        title: t("onboarding.toast.hobbiesAlreadySaved.title", "Hobbies already saved"),
+        description: t("onboarding.toast.hobbiesAlreadySaved.description", "Everything you said is already selected."),
+      });
       return;
     }
     setSpeakItMatches(newMatches.length > 0 ? newMatches : matches);
@@ -395,7 +400,13 @@ export default function HobbiesSection() {
     setSelected(updated);
     setSpeakItMatches([]);
     scheduleAutoSave();
-    toast({ title: `${speakItMatches.length} ${speakItMatches.length === 1 ? "hobby" : "hobbies"} added` });
+    toast({
+      title: t("onboarding.toast.hobbiesUpdated.title", "Hobbies updated"),
+      description: t("onboarding.toast.hobbiesUpdated.description", {
+        count: speakItMatches.length,
+        defaultValue: "{{count}} hobby was added to your profile.",
+      }),
+    });
   };
 
   const addCustom = (raw: string) => {
