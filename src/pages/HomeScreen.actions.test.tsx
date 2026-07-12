@@ -315,6 +315,42 @@ describe("Home fast service actions", () => {
     expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
   });
 
+  it("labels home-service appointment tasks as home service on Home", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "service-1",
+              use_case: "book_appointment",
+              status: "pending",
+              provider_name: "Saved Plumber",
+              action_summary: "VYVA is preparing a plumber visit.",
+              action_payload: {
+                appointment_type: "home-service",
+                mission_status: "awaiting_user_save",
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-concierge-resume");
+    expect(nudge).toHaveTextContent("Confirm your home service");
+    expect(nudge).toHaveTextContent("Ready to save");
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check home service");
+  });
+
   it("surfaces an in-progress Concierge task and opens Right Now", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;

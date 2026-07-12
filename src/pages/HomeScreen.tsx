@@ -266,15 +266,34 @@ function conciergeHomeStatus(item: ConciergePendingHomeItem) {
   return (item.status ?? "").toLowerCase();
 }
 
-function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+function conciergeHomeTaskKind(item: ConciergePendingHomeItem) {
+  const appointmentType = typeof item.action_payload?.appointment_type === "string"
+    ? item.action_payload.appointment_type
+    : "";
+  if (appointmentType === "home-service") return "homeService";
   switch (item.use_case) {
     case "book_ride":
-      return t("home.conciergeResume.task.ride", "ride");
+      return "ride";
     case "book_appointment":
-      return t("home.conciergeResume.task.appointment", "appointment");
+      return "appointment";
     case "order_medicine":
-      return t("home.conciergeResume.task.pharmacy", "pharmacy request");
+      return "pharmacy";
     case "home_service":
+      return "homeService";
+    default:
+      return "default";
+  }
+}
+
+function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  switch (conciergeHomeTaskKind(item)) {
+    case "ride":
+      return t("home.conciergeResume.task.ride", "ride");
+    case "appointment":
+      return t("home.conciergeResume.task.appointment", "appointment");
+    case "pharmacy":
+      return t("home.conciergeResume.task.pharmacy", "pharmacy request");
+    case "homeService":
       return t("home.conciergeResume.task.homeService", "home service");
     default:
       return t("home.conciergeResume.task.default", "request");
@@ -322,14 +341,14 @@ function conciergeHomeTitlePrefix(item: ConciergePendingHomeItem, t: HomeTransla
 }
 
 function conciergeHomeFastStatusLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
-  switch (item.use_case) {
-    case "book_ride":
+  switch (conciergeHomeTaskKind(item)) {
+    case "ride":
       return t("home.conciergeResume.fastStatus.ride", "Check ride status");
-    case "book_appointment":
+    case "appointment":
       return t("home.conciergeResume.fastStatus.appointment", "Check appointment");
-    case "order_medicine":
+    case "pharmacy":
       return t("home.conciergeResume.fastStatus.pharmacy", "Check pharmacy request");
-    case "home_service":
+    case "homeService":
       return t("home.conciergeResume.fastStatus.homeService", "Check home service");
     default:
       return t("home.conciergeResume.fastStatus.default", "Check request");

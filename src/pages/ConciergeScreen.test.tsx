@@ -1847,7 +1847,7 @@ describe("ConciergeScreen action hub", () => {
         method: "POST",
       }));
     });
-    expect(await screen.findByText("Ride saved in Scheduled Support.")).toBeVisible();
+    expect(await screen.findByText("Ride saved in Scheduled Support. The task is closed.")).toBeVisible();
   });
 });
 
@@ -1980,6 +1980,33 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Confirm ride call");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm ride call");
+  });
+
+  it("labels home-service appointment tasks by their service flow", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "service-save-1",
+        use_case: "book_appointment",
+        provider_name: "Saved Plumber",
+        provider_phone: null,
+        action_summary: "Provider replied with a time for the plumber visit.",
+        action_payload: {
+          appointment_type: "home-service",
+          mission_status: "awaiting_user_save",
+          execution_channel: "manual",
+        },
+        status: "pending",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("section-concierge-active-task")).toHaveTextContent("Home service");
+    });
+    expect(screen.getByTestId("section-concierge-active-task")).toHaveTextContent("Saved Plumber");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Save confirmed service");
   });
 
   it("shows contacting provider as the active timeline step for started actions", async () => {
