@@ -1853,6 +1853,76 @@ describe("admin marketing router", () => {
     });
   });
 
+  it("imports Lovable unsubscribe-only emails and blocks campaign sends to them", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        email_unsubscribes: [{
+          id: "unsubscribe-only-1",
+          email: "suppressed@example.com",
+          reason: "manual_opt_out",
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app)
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200);
+
+    expect(table("marketing_contacts")).toHaveLength(1);
+    expect(table("marketing_contacts")[0]).toMatchObject({
+      full_name: "suppressed@example.com",
+      email: "suppressed@example.com",
+      audience_type: "both",
+      consent_status: "opted_out",
+      tags: ["lovable_unsubscribe"],
+      metadata: expect.objectContaining({
+        lovable_email_unsubscribe_rows: [expect.objectContaining({ reason: "manual_opt_out" })],
+      }),
+    });
+
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Suppression test",
+        channel: "email",
+        subject: "Should not send",
+        body: "This should be blocked.",
+      })
+      .expect(201);
+
+    const campaignResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Suppression campaign",
+        status: "scheduled",
+        channels: [{ channel: "email", contentAssetId: contentResponse.body.content.id, status: "scheduled" }],
+        recipients: [{
+          channel: "email",
+          recipient: "suppressed@example.com",
+          status: "planned",
+          snapshot: { consentStatus: "opted_in" },
+        }],
+      })
+      .expect(201);
+
+    await request(app)
+      .post(`/api/admin/marketing/campaigns/${campaignResponse.body.campaign.id}/send-email`)
+      .expect(400)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          error: "No eligible unsent email recipients are available for this campaign.",
+          skippedCount: 1,
+          skipped: [expect.objectContaining({ recipient: "suppressed@example.com", reason: "opted_out" })],
+        });
+      });
+
+    expect(table("communications_log")).toHaveLength(0);
+    expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
+  });
+
   it("merges top-level Lovable campaign channel and recipient rows into campaigns", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");

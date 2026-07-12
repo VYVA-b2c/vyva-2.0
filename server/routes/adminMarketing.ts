@@ -775,8 +775,10 @@ function lovableContactPayload(payload: Record<string, unknown>) {
     unsubscribesByEmail.set(email, current);
   }
 
-  return contactRows.map((contact) => {
+  const contactEmails = new Set<string>();
+  const contactsWithUnsubscribes = contactRows.map((contact) => {
     const email = emptyToNull(contactText(contact, ["email", "emailAddress", "email_address"]))?.toLowerCase();
+    if (email) contactEmails.add(email);
     const unsubscribeMatches = email ? unsubscribesByEmail.get(email) ?? [] : [];
     if (!unsubscribeMatches.length) return contact;
     return {
@@ -785,6 +787,24 @@ function lovableContactPayload(payload: Record<string, unknown>) {
       [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeMatches,
     };
   });
+  const suppressionOnlyContacts = unsubscribeRows.flatMap((row) => {
+    const email = emptyToNull(textFrom(row, ["email", "contactEmail", "contact_email", "recipient", "emailAddress", "email_address"]))?.toLowerCase();
+    if (!email || contactEmails.has(email)) return [];
+    contactEmails.add(email);
+    return [{
+      id: normalizeLovableId(row) ?? `unsubscribe:${email}`,
+      fullName: textFrom(row, ["name", "fullName", "full_name", "contactName", "contact_name"], email),
+      email,
+      audienceType: "both",
+      consentStatus: "opted_out",
+      channelAvailability: { email: true },
+      tags: ["lovable_unsubscribe"],
+      metadata: { lovable_unsubscribe: row },
+      [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: [row],
+    }];
+  });
+
+  return [...contactsWithUnsubscribes, ...suppressionOnlyContacts];
 }
 
 function campaignChildCampaignExternalId(row: Record<string, unknown>) {
@@ -2128,19 +2148,35 @@ export async function sendMarketingCampaignEmail(campaignId: string, actorLabel:
   if (!emailRecipients.length) return { statusCode: 400, body: { error: "Snapshot email recipients before sending this campaign." } };
 
   const contactIds = Array.from(new Set(emailRecipients.map((row) => row.contact_id).filter(Boolean))) as string[];
+  const recipientEmails = Array.from(new Set(emailRecipients.map((row) => row.recipient.trim().toLowerCase()).filter(Boolean)));
   const contactRows = contactIds.length
     ? await db.select().from(marketingContacts).where(inArray(marketingContacts.id, contactIds))
     : [];
+  const emailContactRows = recipientEmails.length
+    ? await db.select().from(marketingContacts).where(inArray(marketingContacts.email, recipientEmails))
+    : [];
   const contactsById = new Map(contactRows.map((row) => [row.id, row]));
+  const contactsByEmail = new Map<string, MarketingContactRow>();
+  for (const row of emailContactRows) {
+    const email = row.email?.trim().toLowerCase();
+    if (!email) continue;
+    const existing = contactsByEmail.get(email);
+    if (!existing || row.consent_status === "opted_out") contactsByEmail.set(email, row);
+  }
   const seenRecipients = new Set<string>();
   const sendableRecipients: MarketingCampaignRecipientRow[] = [];
   const skipped: Array<{ id: string; recipient: string; reason: string }> = [];
 
   for (const recipientRow of emailRecipients) {
     const normalizedRecipient = recipientRow.recipient.trim().toLowerCase();
-    const contact = recipientRow.contact_id ? contactsById.get(recipientRow.contact_id) : null;
+    const linkedContact = recipientRow.contact_id ? contactsById.get(recipientRow.contact_id) : null;
+    const emailContact = contactsByEmail.get(normalizedRecipient) ?? null;
     const snapshot = asRecord(recipientRow.snapshot);
-    const consentStatus = String(contact?.consent_status ?? snapshot.consentStatus ?? "").toLowerCase();
+    const consentStatus = String(
+      emailContact?.consent_status === "opted_out"
+        ? "opted_out"
+        : linkedContact?.consent_status ?? emailContact?.consent_status ?? snapshot.consentStatus ?? "",
+    ).toLowerCase();
     if (recipientRow.status === "sent") {
       skipped.push({ id: recipientRow.id, recipient: recipientRow.recipient, reason: "already_sent" });
       continue;
