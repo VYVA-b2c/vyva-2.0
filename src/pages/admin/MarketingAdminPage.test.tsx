@@ -636,6 +636,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Campaign recipients: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Unmapped campaign recipients: 1");
+    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Content");
+    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("complete");
+    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Lovable 2 / VYVA 2");
+    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Mapped members");
+    expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("derived");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 6 of 7 fields mapped first-class");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     const contentCoverage = openMetadataPanel("marketing-sync-field-coverage-sync-1-content");

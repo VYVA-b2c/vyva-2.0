@@ -1411,6 +1411,26 @@ function syncCountValue(summary: Record<string, unknown>, group: "exported" | "i
   return numberValue(recordValue(summary[group])[key]);
 }
 
+function syncParityItems(summary: Record<string, unknown>) {
+  return (Object.keys(syncCountLabels) as SyncCountKey[])
+    .map((key) => {
+      const exported = syncCountValue(summary, "exported", key);
+      const imported = syncCountValue(summary, "imported", key);
+      const skipped = syncCountValue(summary, "skipped", key);
+      const missing = Math.max(exported - imported - skipped, 0);
+      return {
+        key,
+        label: syncCountLabels[key],
+        exported,
+        imported,
+        skipped,
+        missing,
+        status: exported === 0 && imported > 0 ? "derived" : exported === 0 ? "empty" : missing > 0 ? "missing" : skipped > 0 ? "review" : "complete",
+      };
+    })
+    .filter((item) => item.exported > 0 || item.imported > 0 || item.skipped > 0);
+}
+
 function syncUnmappedCount(summary: Record<string, unknown>) {
   return numberValue(recordValue(summary.unmapped).audienceContactExternalIdCount);
 }
@@ -1616,13 +1636,46 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   const exported = syncCountItems(run.summary, "exported");
   const imported = syncCountItems(run.summary, "imported");
   const skipped = syncCountItems(run.summary, "skipped");
+  const parity = syncParityItems(run.summary);
   const unmappedCount = syncUnmappedCount(run.summary);
   const unmappedCampaignRecipientCount = syncUnmappedCampaignRecipientCount(run.summary);
   const unmappedSample = syncUnmappedSample(run.summary);
   const fieldCoverage = syncFieldCoverageItems(run.summary);
-  if (!exported.length && !imported.length && !skipped.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length) return null;
+  if (!exported.length && !imported.length && !skipped.length && !parity.length && !unmappedCount && !unmappedCampaignRecipientCount && !fieldCoverage.length) return null;
   return (
     <div className="mt-3 grid gap-2 rounded-xl bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid={`marketing-sync-diagnostics-${run.id}`}>
+      {parity.length ? (
+        <div data-testid={`marketing-sync-parity-${run.id}`}>
+          <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Parity checklist</p>
+          <div className="mt-1 grid gap-1.5 sm:grid-cols-2">
+            {parity.map((item) => {
+              const className = item.status === "missing"
+                ? "border-red-100 bg-red-50 text-red-800"
+                : item.status === "review"
+                  ? "border-amber-100 bg-amber-50 text-amber-800"
+                  : item.status === "derived"
+                    ? "border-blue-100 bg-blue-50 text-blue-800"
+                    : "border-emerald-100 bg-emerald-50 text-emerald-800";
+              const detail = item.status === "missing"
+                ? `${item.missing} missing`
+                : item.status === "review"
+                  ? `${item.skipped} skipped`
+                  : item.status === "derived"
+                    ? "derived"
+                    : "complete";
+              return (
+                <div key={item.key} className={`rounded-lg border px-3 py-2 ${className}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black">{item.label}</span>
+                    <span>{detail}</span>
+                  </div>
+                  <p className="mt-1 font-semibold">Lovable {item.exported} / VYVA {item.imported}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       {exported.length ? (
         <div>
           <p className="uppercase tracking-[0.12em] text-[#8b7a73]">Exported by Lovable</p>
