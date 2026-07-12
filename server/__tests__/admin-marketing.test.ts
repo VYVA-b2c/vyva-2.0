@@ -1814,6 +1814,66 @@ describe("admin marketing router", () => {
     });
   });
 
+  it("creates visible content placeholders for Lovable journey step references that are not exported", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        journeys: [{
+          id: "journey:missing-step-content",
+          name: "Missing step content journey",
+          status: "draft",
+          audienceType: "b2c",
+          steps: [{
+            id: "journey_step:missing-step",
+            stepOrder: 0,
+            channel: "email",
+            templateRef: "saved_email_template:missing-template",
+            status: "draft",
+          }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+
+    const placeholder = table("marketing_content_assets").find((row) => row.lovable_external_id === "saved_email_template:missing-template");
+    expect(placeholder).toMatchObject({
+      title: "Missing Lovable email template: saved_email_template:missing-template",
+      channel: "email",
+      status: "draft",
+      body: expect.stringContaining("Lovable referenced saved_email_template:missing-template"),
+      design_json: expect.objectContaining({
+        missing_lovable_reference: true,
+        external_id: "saved_email_template:missing-template",
+      }),
+      metadata: expect.objectContaining({
+        lovable_missing_reference: true,
+        lovable_source_type: "missing_lovable_reference",
+        referenced_source_type: "saved_email_template",
+        context: "journey_step",
+        journey_external_id: "journey:missing-step-content",
+      }),
+    });
+
+    const journey = table("marketing_journeys").find((row) => row.name === "Missing step content journey");
+    expect(table("marketing_journey_steps").find((row) => row.journey_id === journey?.id)).toMatchObject({
+      channel: "email",
+      template_ref: "saved_email_template:missing-template",
+      content_asset_id: placeholder?.id,
+    });
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      imported: {
+        journeys: 1,
+        missingContentReferences: 1,
+      },
+      contentSourceCounts: {
+        missing_lovable_reference: 1,
+      },
+    });
+  });
+
   it("uses imported Lovable HTML-only email templates as readable/sendable content", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
