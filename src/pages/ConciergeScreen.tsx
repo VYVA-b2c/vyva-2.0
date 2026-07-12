@@ -2152,6 +2152,15 @@ function appointmentPreferredChannel(option: AppointmentProviderOption | null | 
   return available.find((channel) => channel !== "manual") ?? available[0] ?? null;
 }
 
+function estimateFromHomeServiceReply(...values: Array<string | null | undefined>): string | null {
+  const text = values
+    .map((value) => value?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ");
+  const match = text.match(/(?:EUR|€|\$|£)\s?\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?\s?(?:EUR|€|\$|£)/i);
+  return match?.[0]?.trim() || null;
+}
+
 function appointmentConfirmationItems(params: {
   providerName: string;
   providerTrustNote: string;
@@ -3713,10 +3722,16 @@ const ConciergeScreen = () => {
       const hadPendingTask = Boolean(pendingId);
       let taskClosed = false;
       if (pendingId && appointmentRequest) {
+        const isHomeServiceOutcome = appointmentRequest.appointment_type === "home-service";
+        const providerReply = appointmentBookedForm.providerReply.trim();
+        const notes = appointmentBookedForm.notes.trim();
+        const homeServiceEstimate = isHomeServiceOutcome
+          ? estimateFromHomeServiceReply(providerReply, notes)
+          : null;
         try {
           await completePendingConciergeAction({
             pendingId,
-            outcomeSummary: isHomeServiceAppointment
+            outcomeSummary: isHomeServiceOutcome
               ? `Home service visit confirmed with ${appointmentProviderName}.`
               : `Medical appointment confirmed with ${appointmentProviderName}.`,
             outcomePayload: {
@@ -3727,10 +3742,19 @@ const ConciergeScreen = () => {
               selected_channel: appointmentRequest.selected_channel ?? selectedAppointmentActionChannel,
               scheduled_for: appointmentBookedForm.scheduledFor,
               location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || null,
-              provider_reply: appointmentBookedForm.providerReply.trim() || null,
+              provider_reply: providerReply || null,
               reference: appointmentBookedForm.reference.trim() || null,
-              notes: appointmentBookedForm.notes.trim() || null,
+              notes: notes || null,
               coverage_info_saved: appointmentRequest.appointment_type === "medical" ? hasAppointmentCoverageInfo : null,
+              ...(isHomeServiceOutcome ? {
+                service_type: homeServiceType ?? null,
+                service_label: homeServiceNeededLabel || (homeServiceType ? homeServiceTypeLabel(homeServiceType, locale) : null),
+                urgency: homeServiceIntakeAnswers.urgency ?? null,
+                criteria: homeServiceIntakeAnswers.criteria ?? null,
+                safety_flags: homeServiceSafetyFlags,
+                estimated_cost: homeServiceEstimate,
+                home_access_or_safety_notes: homeServiceIntakeAnswers.access_notes ?? null,
+              } : {}),
               scheduled_event_id: typeof result.scheduled_event === "object" && result.scheduled_event && "id" in result.scheduled_event
                 ? String(result.scheduled_event.id)
                 : null,
