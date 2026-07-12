@@ -923,6 +923,12 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
 
+    fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Deleted "Partner post".');
+
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
