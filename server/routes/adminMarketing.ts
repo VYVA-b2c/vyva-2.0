@@ -752,6 +752,19 @@ function lovableJourneyStepEventPayload(payload: Record<string, unknown>) {
   );
 }
 
+function journeyStepHasPresetTranslations(raw: unknown) {
+  const step = asRecord(raw);
+  const config = jsonRecordFromLovable(step.config);
+  const translations = jsonRecordFromLovable(config.translations);
+  return Object.values(translations).some((value) => Object.keys(asRecord(value)).length > 0);
+}
+
+function journeyStepPresetContentExportCount(journeyPayload: unknown[]) {
+  return journeyPayload.reduce((count, item) => (
+    count + arrayFrom(asRecord(item).steps).filter(journeyStepHasPresetTranslations).length
+  ), 0);
+}
+
 function journeyEnrollmentEventPayload(row: Record<string, unknown>) {
   return [
     ...arrayFrom(row.events),
@@ -936,17 +949,22 @@ function lovableExportSummary(payload: Record<string, unknown>) {
     count + campaignRecipientSourceCount(asRecord(item), audienceContactExternalIdsByAudienceExternalId)
   ), 0);
   const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => count + journeyEnrollmentEventPayload(asRecord(item)).length, 0);
+  const journeyStepPresetExportCount = journeyStepPresetContentExportCount(journeyPayload);
   const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
     const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
     counts[sourceType] = (counts[sourceType] ?? 0) + 1;
     return counts;
   }, {});
+  if (journeyStepPresetExportCount) {
+    contentSourceCounts.journey_step_preset = journeyStepPresetExportCount;
+  }
 
   return {
     exported: {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
       content: contentPayload.length,
+      journeyStepPresetContent: journeyStepPresetExportCount,
       mediaAssets: mediaAssetExportCount,
       campaignChannels: campaignChannelExportCount,
       campaignRecipients: campaignRecipientExportCount,
@@ -4026,15 +4044,20 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => (
       count + journeyEnrollmentEventPayload(asRecord(item)).length
     ), 0);
+    const journeyStepPresetExportCount = journeyStepPresetContentExportCount(journeyPayload);
     const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
       const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
       counts[sourceType] = (counts[sourceType] ?? 0) + 1;
       return counts;
     }, {});
+    if (journeyStepPresetExportCount || journeyStepPresetContentCount) {
+      contentSourceCounts.journey_step_preset = Math.max(journeyStepPresetExportCount, journeyStepPresetContentCount);
+    }
     const exported = {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
       content: contentPayload.length,
+      journeyStepPresetContent: journeyStepPresetExportCount,
       mediaAssets: mediaAssetExportCount,
       campaignChannels: campaignChannelExportCount,
       campaignRecipients: campaignRecipientExportCount,
@@ -4087,6 +4110,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         campaigns: exported.campaigns - imported.campaigns,
         contacts: exported.contacts - imported.contacts,
         content: exported.content - imported.content,
+        journeyStepPresetContent: exported.journeyStepPresetContent - imported.journeyStepPresetContent,
         mediaAssets: exported.mediaAssets - imported.mediaAssets,
         campaignChannels: exported.campaignChannels - imported.campaignChannels,
         campaignRecipients: exported.campaignRecipients - imported.campaignRecipients,

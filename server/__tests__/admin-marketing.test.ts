@@ -1710,7 +1710,7 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 5, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
+      exported: { content: 5, journeyStepPresetContent: 1, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
       imported: {
         content: 5,
         journeyStepPresetContent: 1,
@@ -1726,6 +1726,9 @@ describe("admin marketing router", () => {
         journeys: 1,
         journeyEnrollments: 1,
         journeyStepEvents: 2,
+      },
+      contentSourceCounts: {
+        journey_step_preset: 1,
       },
       unmapped: {
         audienceContactExternalIdCount: 1,
