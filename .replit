@@ -8,7 +8,7 @@ channel = "stable-25_05"
 [deployment]
 deploymentTarget = "autoscale"
 ignoreDatabaseMigrations = true
-run = "npm run db:health-insights && npm run db:lifecycle-contact-cleanup && NODE_ENV=production node ./server-dist/index.cjs"
+run = "npm run build:server && npm run db:health-insights && npm run db:lifecycle-contact-cleanup && NODE_ENV=production node ./server-dist/index.cjs"
 build = ["npm", "run", "build"]
 
 [workflows]
