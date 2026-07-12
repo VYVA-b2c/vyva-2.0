@@ -2149,6 +2149,30 @@ function providerSearchModeLabel(mode: ProviderSearchMode | null, es: boolean): 
   return es ? "proveedor" : "provider";
 }
 
+function providerSearchSetupFocus(mode: ProviderSearchMode | null): string {
+  if (mode === "specialist") return "doctor_clinic";
+  if (mode === "residence" || mode === "personal-care" || mode === "care") return "personal_care";
+  return "other";
+}
+
+function providerCriterionLabels(criteria: ProviderSearchCriterionKey[], es: boolean): string[] {
+  return PROVIDER_SEARCH_CRITERIA
+    .filter((item) => criteria.includes(item.key))
+    .map((item) => es ? item.es : item.en);
+}
+
+function providerResultBadges(option: OfferOption, criteria: ProviderSearchCriterionKey[], es: boolean): string[] {
+  const selected = providerCriterionLabels(criteria, es);
+  const score = option.score_breakdown;
+  const scoreBadges = [
+    score?.distance != null && score.distance >= 70 ? (es ? "Cerca" : "Nearby") : null,
+    score?.trust != null && score.trust >= 70 ? (es ? "Confiable" : "Trusted") : null,
+    score?.price_value != null && score.price_value >= 70 ? (es ? "Precio claro" : "Clear price") : null,
+    score?.simplicity != null && score.simplicity >= 70 ? (es ? "Facil" : "Easy") : null,
+  ].filter(Boolean) as string[];
+  return Array.from(new Set([...selected.slice(0, 4), ...scoreBadges])).slice(0, 5);
+}
+
 function buildProviderSearchQuery(query: string, criteria: ProviderSearchCriterionKey[], mode: ProviderSearchMode | null, es: boolean): string {
   if (!mode || criteria.length === 0) return query;
   const selected = PROVIDER_SEARCH_CRITERIA
@@ -6669,6 +6693,81 @@ const ConciergeScreen = () => {
     prepareConciergeRequest(message);
   }
 
+  function handleProviderSearchAssistance(option: OfferOption) {
+    const contact = option.phone || option.website || option.maps_url || (isSpanish ? "sin contacto publicado" : "no published contact");
+    const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish).join(", ");
+    const message = isSpanish
+      ? [
+        `Ayudame a preparar el contacto con ${option.name}.`,
+        `Tipo: ${providerSearchModeLabel(providerSearchMode, true)}.`,
+        `Criterios elegidos: ${criteria || "seguridad y ajuste"}.`,
+        `Por que encaja: ${option.why_good_option || option.trust_note || option.what_it_offers}.`,
+        `Disponibilidad o distancia: ${option.distance_or_availability}.`,
+        `Precio o ventaja: ${option.price_or_advantage}.`,
+        `Contacto disponible: ${contact}.`,
+        "Prepara un resumen claro y una pregunta para confirmar. No llames, reserves, envies mensajes ni compartas datos sin mi confirmacion.",
+      ].join("\n")
+      : [
+        `Help me prepare contact with ${option.name}.`,
+        `Type: ${providerSearchModeLabel(providerSearchMode, false)}.`,
+        `Chosen criteria: ${criteria || "safety and fit"}.`,
+        `Why it fits: ${option.why_good_option || option.trust_note || option.what_it_offers}.`,
+        `Availability or distance: ${option.distance_or_availability}.`,
+        `Price or advantage: ${option.price_or_advantage}.`,
+        `Available contact: ${contact}.`,
+        "Prepare a clear summary and ask me to confirm. Do not call, book, message, or share details without my confirmation.",
+      ].join("\n");
+    prepareConciergeRequest(message, {
+      flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Preparar contacto" : "Prepare contact",
+      summary: isSpanish
+        ? `Busqueda de proveedor preparada: ${option.name}.`
+        : `Provider search prepared: ${option.name}.`,
+      useCase: "find_provider",
+    });
+  }
+
+  function handleProviderManualSearch() {
+    const criteria = providerCriterionLabels(providerSearchCriteria, isSpanish).join(", ");
+    const message = isSpanish
+      ? [
+        `Ayudame a buscar manualmente ${providerSearchModeLabel(providerSearchMode, true)}.`,
+        `Busqueda: ${offersQuery.trim() || providerSearchModeLabel(providerSearchMode, true)}.`,
+        `Criterios: ${criteria || "cercania, reputacion, acceso y precio claro"}.`,
+        "Prepara opciones verificables y explicalas. No contactes ni compartas datos sin mi confirmacion.",
+      ].join("\n")
+      : [
+        `Help me manually search for ${providerSearchModeLabel(providerSearchMode, false)}.`,
+        `Search: ${offersQuery.trim() || providerSearchModeLabel(providerSearchMode, false)}.`,
+        `Criteria: ${criteria || "proximity, reputation, access, and clear price"}.`,
+        "Prepare verifiable options and explain them. Do not contact or share details without my confirmation.",
+      ].join("\n");
+    prepareConciergeRequest(message, {
+      flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+      requestedTool: "operator_review",
+      actionLabel: isSpanish ? "Buscar manualmente" : "Manual search",
+      summary: isSpanish
+        ? "Busqueda de proveedor preparada para revision."
+        : "Provider search prepared for review.",
+      useCase: "find_provider",
+    });
+  }
+
+  function openProviderSearchSetup() {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: providerSearchSetupFocus(providerSearchMode),
+        setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        setupReason: "Add a trusted provider",
+        notice: isSpanish
+          ? "Guarda un proveedor de confianza para que VYVA pueda usarlo primero."
+          : "Save a trusted provider so VYVA can use it first.",
+      },
+    });
+  }
+
   function handleOfferWatch(option: OfferOption) {
     const message = isSpanish
       ? [
@@ -10273,6 +10372,29 @@ const ConciergeScreen = () => {
                             ? "No hay suficientes opciones verificables ahora mismo."
                             : "There are not enough verifiable options right now.")}
                         </p>
+                        {providerSearchMode && (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <Button
+                              type="button"
+                              onClick={handleProviderManualSearch}
+                              className="h-[44px] rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold hover:bg-vyva-purple/90"
+                              data-testid="button-provider-search-manual"
+                            >
+                              <Search size={15} className="mr-2" />
+                              {isSpanish ? "Que VYVA busque" : "Ask VYVA to search"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={openProviderSearchSetup}
+                              className="h-[44px] rounded-full border-[#BFE7E1] bg-[#F0FDFA] px-4 font-body text-[13px] font-bold text-[#0F766E]"
+                              data-testid="button-provider-search-setup"
+                            >
+                              <PencilLine size={15} className="mr-2" />
+                              {isSpanish ? "Guardar proveedor" : "Set up trusted provider"}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       offersResult.options.map((option) => {
@@ -10287,6 +10409,9 @@ const ConciergeScreen = () => {
                             : (isSpanish ? "Pedir ayuda a VYVA" : "Ask VYVA to help");
                         const PrimaryIcon = offerPhoneHref ? PhoneCall : offerUrl ? ExternalLink : Send;
                         const overallScore = clampScore(option.score);
+                        const providerBadges = providerSearchMode
+                          ? providerResultBadges(option, providerSearchCriteria, isSpanish)
+                          : [];
 
                         return (
                           <div key={`${option.label}-${option.name}`} className="rounded-[20px] border border-vyva-border bg-white p-4">
@@ -10311,9 +10436,34 @@ const ConciergeScreen = () => {
                                 </span>
                               </span>
                             </div>
+                            {providerBadges.length > 0 && (
+                              <div className="mt-3 flex flex-wrap gap-2" data-testid={`panel-provider-result-badges-${optionKey}`}>
+                                {providerBadges.map((badge) => (
+                                  <span
+                                    key={badge}
+                                    className="inline-flex min-h-[30px] items-center rounded-full bg-[#F0FDFA] px-3 font-body text-[12px] font-semibold text-[#0F766E]"
+                                  >
+                                    {badge}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             <p className="mt-3 rounded-[14px] bg-[#F5F3FF] px-3 py-2 font-body text-[13px] leading-relaxed text-vyva-text-1">
                               {option.price_or_advantage || option.what_it_offers}
                             </p>
+                            {providerSearchMode && (
+                              <div className="mt-2 rounded-[14px] border border-[#C7E9E3] bg-[#F0FDFA] px-3 py-2" data-testid={`panel-provider-result-fit-${optionKey}`}>
+                                <p className="font-body text-[11px] font-semibold uppercase tracking-[0.12em] text-[#0F766E]">
+                                  {isSpanish ? "Por que encaja" : "Why this fits"}
+                                </p>
+                                <p className="mt-1 font-body text-[13px] leading-relaxed text-vyva-text-1">
+                                  {option.why_good_option || option.trust_note || option.what_it_offers}
+                                </p>
+                                <p className="mt-1 font-body text-[12px] leading-relaxed text-vyva-text-2">
+                                  {option.distance_or_availability}
+                                </p>
+                              </div>
+                            )}
                             <p className="mt-2 font-body text-[12px] leading-relaxed text-vyva-text-2">
                               {option.trust_note}
                             </p>
@@ -10354,7 +10504,17 @@ const ConciergeScreen = () => {
                               </div>
                             )}
                             <div className="mt-3 flex flex-wrap gap-2">
-                              {offerPhoneHref || offerUrl ? (
+                              {providerSearchMode ? (
+                                <Button
+                                  type="button"
+                                  onClick={() => handleProviderSearchAssistance(option)}
+                                  className="h-[44px] rounded-full bg-vyva-purple px-4 font-body text-[13px] font-bold hover:bg-vyva-purple/90"
+                                  data-testid={`button-provider-prepare-contact-${optionKey}`}
+                                >
+                                  <Send size={15} className="mr-2" />
+                                  {isSpanish ? "Preparar contacto" : "Ask VYVA to prepare contact"}
+                                </Button>
+                              ) : offerPhoneHref || offerUrl ? (
                                 <a
                                   href={offerPhoneHref || offerUrl}
                                   target={offerUrl ? "_blank" : undefined}
@@ -10374,7 +10534,7 @@ const ConciergeScreen = () => {
                                   {primaryLabel}
                                 </Button>
                               )}
-                              {(offerPhoneHref || offerUrl) && (
+                              {!providerSearchMode && (offerPhoneHref || offerUrl) && (
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -10384,15 +10544,17 @@ const ConciergeScreen = () => {
                                   {isSpanish ? "Que VYVA ayude" : "Let VYVA help"}
                                 </Button>
                               )}
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleOfferWatch(option)}
-                                className="h-[40px] rounded-full border-[#BBF7D0] bg-[#F0FDF4] px-4 font-body text-[13px] font-bold text-[#0A7C4E]"
-                              >
-                                <BellRing size={15} className="mr-2" />
-                                {isSpanish ? "Vigilar cambios" : "Watch changes"}
-                              </Button>
+                              {!providerSearchMode && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => handleOfferWatch(option)}
+                                  className="h-[40px] rounded-full border-[#BBF7D0] bg-[#F0FDF4] px-4 font-body text-[13px] font-bold text-[#0A7C4E]"
+                                >
+                                  <BellRing size={15} className="mr-2" />
+                                  {isSpanish ? "Vigilar cambios" : "Watch changes"}
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
