@@ -139,7 +139,7 @@ function metadataString(metadata: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function buildEmailPayload(item: Communication): EmailPayload {
+export function buildEmailPayload(item: Communication): EmailPayload {
   const metadata = metadataRecord(item.metadata);
   const subject = metadataString(metadata, "subject") ?? "Join VYVA";
 
@@ -154,6 +154,12 @@ function buildEmailPayload(item: Communication): EmailPayload {
   return {
     subject,
     text: item.body ?? "",
+    ...(() => {
+      const html = metadataString(metadata, "html")
+        ?? metadataString(metadata, "htmlBody")
+        ?? metadataString(metadata, "html_body");
+      return html ? { html } : {};
+    })(),
   };
 }
 

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const dbMock = vi.hoisted(() => {
   let idCounter = 1;
   const rows = new Map<string, Record<string, unknown>[]>();
+  const missingTables = new Set<string>();
   let tableName: ((table: unknown) => string) | null = null;
 
   function nameFor(table: unknown) {
@@ -34,6 +35,11 @@ const dbMock = vi.hoisted(() => {
 
   function tableRows(table: unknown) {
     const name = nameFor(table);
+    if (missingTables.has(name)) {
+      const error = new Error(`relation "${name}" does not exist`) as Error & { code: string };
+      error.code = "42P01";
+      throw error;
+    }
     const existing = rows.get(name) ?? [];
     rows.set(name, existing);
     return existing;
@@ -47,6 +53,10 @@ const dbMock = vi.hoisted(() => {
     reset() {
       idCounter = 1;
       rows.clear();
+      missingTables.clear();
+    },
+    setMissingTable(name: string) {
+      missingTables.add(name);
     },
     db: {
       select: vi.fn(() => ({
@@ -102,7 +112,9 @@ const dbMock = vi.hoisted(() => {
       })),
       delete: vi.fn((table: unknown) => ({
         where: async () => {
-          rows.set(nameFor(table), []);
+          const name = nameFor(table);
+          if (name === "marketing_media_assets") return;
+          rows.set(name, []);
         },
       })),
     },
@@ -126,6 +138,7 @@ const dispatchMock = vi.hoisted(() => ({
 vi.mock("../services/communicationDispatcher.js", () => dispatchMock);
 
 import { adminMarketingRouter } from "../routes/adminMarketing.js";
+import { runMarketingEmailSchedulerOnce } from "../services/marketingEmailScheduler.js";
 
 function buildApp(email = "admin@example.com") {
   const app = express();
@@ -190,12 +203,21 @@ describe("admin marketing router", () => {
       .expect((response) => {
         expect(response.body.error).toBe("Only the super admin can send marketing campaign emails.");
       });
+    await request(buildApp("ops@example.com"))
+      .post("/api/admin/marketing/campaigns/send-due-email")
+      .expect(403)
+      .expect((response) => {
+        expect(response.body.error).toBe("Only the super admin can send due scheduled marketing emails.");
+      });
     expect(dispatchMock.dispatchCommunicationsByIds).not.toHaveBeenCalled();
   });
 
   it("reports whether the current admin can run Lovable sync", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
-    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
+    vi.stubEnv("MARKETING_EMAIL_SCHEDULER_ENABLED", "true");
+    vi.stubEnv("MARKETING_EMAIL_SCHEDULER_INTERVAL_MINUTES", "7");
+    vi.stubEnv("MARKETING_EMAIL_SCHEDULER_INITIAL_DELAY_SECONDS", "12");
 
     await request(buildApp("ops@example.com"))
       .get("/api/admin/marketing/sync/lovable")
@@ -206,6 +228,12 @@ describe("admin marketing router", () => {
           canRunSync: false,
           realSendingLocked: false,
           requiredRunnerEmail: "karim.assad@mokadigital.net",
+        });
+        expect(response.body.emailScheduler).toMatchObject({
+          enabled: true,
+          intervalMinutes: 7,
+          initialDelaySeconds: 12,
+          actor: "marketing-email-scheduler",
         });
         expect(response.body.lockedSendCapabilities).toContainEqual(expect.objectContaining({
           channel: "email",
@@ -224,6 +252,121 @@ describe("admin marketing router", () => {
           requiredRunnerEmail: "karim.assad@mokadigital.net",
         });
       });
+  });
+
+  it("previews the Lovable export without creating sync or marketing rows", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        exportedAt: "2026-07-05T12:00:00.000Z",
+        dataset: "live",
+        saved_email_templates: [{ id: "template-1", template_name: "Welcome", html_content: "<p>Hello</p>" }],
+        social_posts: [{ id: "post-1", platform: "linkedin", caption: "Partner update", image_url: "https://cdn.example.test/post.png" }],
+        contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com" }],
+        campaigns: [{ id: "campaign-1", name: "Launch", channels: [{ channel: "email", template_id: "template-1" }] }],
+        journeys: [{ id: "journey-1", name: "Nurture" }],
+        journey_step_events: [{ id: "event-1", enrollmentExternalId: "enrollment-1", eventType: "entered", channel: "email" }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .get("/api/admin/marketing/sync/lovable/preview")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          dataset: "live",
+          exportedAt: "2026-07-05T12:00:00.000Z",
+          summary: {
+            exported: {
+              content: 2,
+              mediaAssets: 1,
+              contacts: 1,
+              campaigns: 1,
+              campaignChannels: 1,
+              journeys: 1,
+              journeyStepEvents: 1,
+            },
+            contentSourceCounts: {
+              saved_email_template: 1,
+              social_post: 1,
+            },
+          },
+        });
+        expect(response.body.summary.fieldCoverage.content.firstClassFields).toEqual(expect.arrayContaining(["id", "template_name", "html_content"]));
+        expect(response.body.samples.content[0]).toMatchObject({
+          id: "template-1",
+          template_name: "Welcome",
+          html_content: "<p>Hello</p>",
+        });
+        expect(response.body.samples.media[0]).toMatchObject({
+          url: "https://cdn.example.test/post.png",
+          sourceField: "image_url",
+        });
+        expect(response.body.rawArraySamples.social_posts[0]).toMatchObject({
+          id: "post-1",
+          platform: "linkedin",
+          caption: "Partner update",
+        });
+      });
+
+    expect(fetchMock).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer secret" }),
+    }));
+    expect(table("marketing_sync_runs")).toHaveLength(0);
+    expect(table("marketing_content_assets")).toHaveLength(0);
+    fetchMock.mockRestore();
+  });
+
+  it("accepts VYVA export URL and token aliases for Lovable sync", async () => {
+    vi.stubEnv("VYVA_MARKETING_EXPORT_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "alias-secret");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        content: [],
+        contacts: [],
+        campaigns: [],
+        journeys: [],
+        audiences: [],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .get("/api/admin/marketing/sync/lovable")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          configured: true,
+          canRunSync: true,
+          apiUrl: "https://lovable.example.test",
+        });
+      });
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.ok).toBe(true);
+      });
+
+    expect(fetchSpy).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", {
+      headers: {
+        Authorization: "Bearer alias-secret",
+        Accept: "application/json",
+      },
+    });
+  });
+
+  it("surfaces missing marketing migration tables with an actionable message", async () => {
+    dbMock.setMissingTable("marketing_media_assets");
+
+    const response = await request(buildApp())
+      .get("/api/admin/marketing/media")
+      .expect(500);
+
+    expect(response.body.error).toContain('Missing table "marketing_media_assets"');
+    expect(response.body.error).toContain("0064_marketing_parity_completion.sql");
   });
 
   it("creates scheduled campaign snapshots without communication dispatch rows", async () => {
@@ -260,6 +403,9 @@ describe("admin marketing router", () => {
         channel: "email",
         subject: "Welcome to VYVA",
         body: "This is the imported email body.",
+        htmlBody: "<h1>Welcome to VYVA</h1>",
+        ctaLabel: "Start",
+        ctaUrl: "https://v2.vyva.life/start",
       })
       .expect(201);
 
@@ -301,6 +447,9 @@ describe("admin marketing router", () => {
         subject: "[TEST] Welcome to VYVA",
         campaign_id: campaignResponse.body.campaign.id,
         content_asset_id: contentResponse.body.content.id,
+        htmlBody: "<h1>Welcome to VYVA</h1>",
+        ctaLabel: "Start",
+        ctaUrl: "https://v2.vyva.life/start",
         marketing_test_send: true,
       }),
     });
@@ -318,6 +467,9 @@ describe("admin marketing router", () => {
         channel: "email",
         subject: "July update",
         body: "This is the July update.",
+        htmlBody: "<p>This is the July update.</p>",
+        ctaLabel: "Read update",
+        ctaUrl: "https://v2.vyva.life/july",
       })
       .expect(201);
 
@@ -361,6 +513,9 @@ describe("admin marketing router", () => {
         subject: "July update",
         campaign_id: campaignResponse.body.campaign.id,
         content_asset_id: contentResponse.body.content.id,
+        htmlBody: "<p>This is the July update.</p>",
+        ctaLabel: "Read update",
+        ctaUrl: "https://v2.vyva.life/july",
         marketing_campaign_send: true,
       }),
     });
@@ -371,6 +526,454 @@ describe("admin marketing router", () => {
     expect(table("marketing_campaigns")[0]).toMatchObject({ status: "published" });
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledWith([table("communications_log")[0].id]);
+  });
+
+  it("runs due scheduled email campaigns without sending future campaigns", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Due newsletter",
+        channel: "email",
+        subject: "Due update",
+        body: "This should go now.",
+      })
+      .expect(201);
+    const dueAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const futureAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    const dueCampaignResponse = await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Due campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: dueAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: dueAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "due@example.com", status: "planned", scheduledAt: dueAt, snapshot: { fullName: "Due Contact", consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Future campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: futureAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: futureAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "future@example.com", status: "planned", scheduledAt: futureAt, snapshot: { fullName: "Future Contact", consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns/send-due-email")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          dueCount: 1,
+          sentCount: 1,
+          failedCount: 0,
+          skippedCount: 0,
+          results: [{
+            campaignId: dueCampaignResponse.body.campaign.id,
+            campaignName: "Due campaign",
+            ok: true,
+            sentCount: 1,
+          }],
+        });
+      });
+
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      recipient: "due@example.com",
+      purpose: "marketing_campaign_email",
+    });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "due@example.com")).toMatchObject({ status: "sent" });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "future@example.com")).toMatchObject({ status: "planned" });
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the background scheduler send due email campaigns through the same dispatcher path", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Automated newsletter",
+        channel: "email",
+        subject: "Automation update",
+        body: "This should be sent by the scheduler.",
+      })
+      .expect(201);
+    const dueAt = "2026-07-05T09:00:00.000Z";
+    const futureAt = "2026-07-05T12:00:00.000Z";
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Scheduler due campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: dueAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: dueAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "due-scheduler@example.com", status: "planned", scheduledAt: dueAt, snapshot: { consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Scheduler future campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: futureAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: futureAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "future-scheduler@example.com", status: "planned", scheduledAt: futureAt, snapshot: { consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    const result = await runMarketingEmailSchedulerOnce(new Date("2026-07-05T10:00:00.000Z"));
+
+    expect(result).toMatchObject({
+      skipped: false,
+      result: {
+        ok: true,
+        dueCount: 1,
+        sentCount: 1,
+        failedCount: 0,
+      },
+    });
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      recipient: "due-scheduler@example.com",
+      purpose: "marketing_campaign_email",
+      metadata: expect.objectContaining({ initiated_by: "marketing-email-scheduler" }),
+    });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "due-scheduler@example.com")).toMatchObject({ status: "sent" });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "future-scheduler@example.com")).toMatchObject({ status: "planned" });
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates and deletes marketing content assets", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Draft content",
+        channel: "email",
+        subject: "Draft",
+        body: "Original body",
+      })
+      .expect(201);
+
+    const contentId = createResponse.body.content.id;
+    await request(app)
+      .patch(`/api/admin/marketing/content/${contentId}`)
+      .send({
+        title: "Updated content",
+        channel: "instagram",
+        language: "es",
+        status: "approved",
+        subject: "Updated subject",
+        body: "Updated body",
+        htmlBody: "<p>Updated</p>",
+        ctaLabel: "Open",
+        ctaUrl: "https://v2.vyva.life/open",
+        designJson: { blocks: [{ type: "text" }] },
+        mediaAssets: [{ url: "https://cdn.example.test/content.png" }],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.content).toMatchObject({
+          id: contentId,
+          title: "Updated content",
+          channel: "instagram",
+          language: "es",
+          status: "approved",
+          subject: "Updated subject",
+          htmlBody: "<p>Updated</p>",
+          ctaLabel: "Open",
+          ctaUrl: "https://v2.vyva.life/open",
+          mediaAssetCount: 1,
+        });
+      });
+
+    expect(table("marketing_content_assets")[0]).toMatchObject({
+      title: "Updated content",
+      channel: "instagram",
+      language: "es",
+      status: "approved",
+      subject: "Updated subject",
+      body: "Updated body",
+      html_body: "<p>Updated</p>",
+      cta_label: "Open",
+      cta_url: "https://v2.vyva.life/open",
+      design_json: { blocks: [{ type: "text" }] },
+      media_assets: [{ url: "https://cdn.example.test/content.png" }],
+    });
+
+    await request(app)
+      .delete(`/api/admin/marketing/content/${contentId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedContentId: contentId });
+      });
+
+    expect(table("marketing_content_assets")).toHaveLength(0);
+  });
+
+  it("updates and deletes marketing media references", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Media content",
+        channel: "email",
+        body: "Body",
+      })
+      .expect(201);
+    const contentId = createResponse.body.content.id;
+    const mediaId = "00000000-0000-4000-8000-000000000099";
+    dbMock.rows.set("marketing_media_assets", [{
+      id: mediaId,
+      content_asset_id: contentId,
+      source: "lovable",
+      asset_type: "image",
+      original_url: "https://cdn.example.test/original.png",
+      local_url: null,
+      status: "referenced",
+      lovable_external_id: "media:original",
+      metadata: { lovable: { altText: "Original" } },
+      created_at: new Date("2026-07-05T10:00:00.000Z"),
+      updated_at: new Date("2026-07-05T10:00:00.000Z"),
+    }]);
+
+    await request(app)
+      .patch(`/api/admin/marketing/media/${mediaId}`)
+      .send({
+        contentAssetId: contentId,
+        assetType: "hero_image",
+        originalUrl: "https://cdn.example.test/updated.png",
+        localUrl: "/media/updated.png",
+        status: "approved",
+        lovableExternalId: "media:updated",
+        metadata: { altText: "Updated" },
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.mediaAsset).toMatchObject({
+          id: mediaId,
+          contentAssetId: contentId,
+          contentTitle: "Media content",
+          assetType: "hero_image",
+          originalUrl: "https://cdn.example.test/updated.png",
+          localUrl: "/media/updated.png",
+          status: "approved",
+          lovableExternalId: "media:updated",
+          metadata: { altText: "Updated" },
+        });
+      });
+
+    expect(table("marketing_media_assets")[0]).toMatchObject({
+      content_asset_id: contentId,
+      asset_type: "hero_image",
+      original_url: "https://cdn.example.test/updated.png",
+      local_url: "/media/updated.png",
+      status: "approved",
+      lovable_external_id: "media:updated",
+      metadata: { altText: "Updated" },
+    });
+
+    await request(app)
+      .delete(`/api/admin/marketing/media/${mediaId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedMediaAssetId: mediaId });
+      });
+  });
+
+  it("updates and deletes marketing contacts", async () => {
+    const app = buildApp();
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/contacts")
+      .send({
+        fullName: "Partner Lead",
+        audienceType: "b2b",
+        email: "lead@example.com",
+        phoneNumber: "+34 600 000 001",
+        tags: ["partner"],
+      })
+      .expect(201);
+
+    const contactId = createResponse.body.contact.id;
+    await request(app)
+      .patch(`/api/admin/marketing/contacts/${contactId}`)
+      .send({
+        fullName: "Updated Partner Lead",
+        audienceType: "both",
+        email: "updated@example.com",
+        phoneNumber: "+34 600 000 004",
+        whatsappNumber: "+34 600 000 005",
+        roleLabel: "Growth lead",
+        companyName: "Updated Org",
+        language: "es",
+        category: "partner",
+        vertical: "care",
+        market: "Madrid",
+        consentStatus: "opted_in",
+        tags: ["partner", "priority"],
+        channelAvailability: { email: true, phone: true, whatsapp: true },
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.contact).toMatchObject({
+          id: contactId,
+          fullName: "Updated Partner Lead",
+          audienceType: "both",
+          email: "updated@example.com",
+          phoneNumber: "+34 600 000 004",
+          whatsappNumber: "+34 600 000 005",
+          roleLabel: "Growth lead",
+          companyName: "Updated Org",
+          language: "es",
+          category: "partner",
+          vertical: "care",
+          market: "Madrid",
+          consentStatus: "opted_in",
+          tags: ["partner", "priority"],
+        });
+      });
+
+    expect(table("marketing_contacts")[0]).toMatchObject({
+      full_name: "Updated Partner Lead",
+      audience_type: "both",
+      email: "updated@example.com",
+      phone_number: "+34 600 000 004",
+      whatsapp_number: "+34 600 000 005",
+      role_label: "Growth lead",
+      company_name: "Updated Org",
+      language: "es",
+      category: "partner",
+      vertical: "care",
+      market: "Madrid",
+      consent_status: "opted_in",
+      tags: ["partner", "priority"],
+      channel_availability: { email: true, phone: true, whatsapp: true },
+    });
+
+    await request(app)
+      .delete(`/api/admin/marketing/contacts/${contactId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedContactId: contactId });
+      });
+
+    expect(table("marketing_contacts")).toHaveLength(0);
+  });
+
+  it("updates and deletes marketing audiences and memberships", async () => {
+    const app = buildApp();
+    await request(app)
+      .post("/api/admin/marketing/contacts")
+      .send({
+        fullName: "Partner Lead",
+        audienceType: "b2b",
+        email: "lead@example.com",
+        lovableExternalId: "lovable-contact-1",
+      })
+      .expect(201);
+
+    const createResponse = await request(app)
+      .post("/api/admin/marketing/audiences")
+      .send({
+        name: "Partners",
+        listType: "static",
+        description: "Imported partner list",
+        rules: { market: "Spain" },
+        contactExternalIds: ["lovable-contact-1", "missing-contact"],
+      })
+      .expect(201);
+
+    const audienceId = createResponse.body.audience.id;
+    expect(createResponse.body.audience).toMatchObject({
+      id: audienceId,
+      name: "Partners",
+      memberCount: 2,
+      mappedMemberCount: 1,
+      contactExternalIds: ["lovable-contact-1", "missing-contact"],
+      unmappedContactExternalIds: ["missing-contact"],
+    });
+
+    await request(app)
+      .patch(`/api/admin/marketing/audiences/${audienceId}`)
+      .send({
+        name: "Updated partners",
+        listType: "dynamic",
+        description: "Updated partner list",
+        rules: { market: "Madrid", vertical: "care" },
+        contactExternalIds: ["lovable-contact-1", "new-unmapped-contact"],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.audience).toMatchObject({
+          id: audienceId,
+          name: "Updated partners",
+          listType: "dynamic",
+          description: "Updated partner list",
+          rules: { market: "Madrid", vertical: "care" },
+          memberCount: 2,
+          mappedMemberCount: 1,
+          contactExternalIds: ["lovable-contact-1", "new-unmapped-contact"],
+          unmappedContactExternalIds: ["new-unmapped-contact"],
+        });
+      });
+
+    expect(table("marketing_audiences")[0]).toMatchObject({
+      name: "Updated partners",
+      list_type: "dynamic",
+      description: "Updated partner list",
+      rules: { market: "Madrid", vertical: "care" },
+    });
+    expect(table("marketing_audience_members")).toHaveLength(2);
+
+    await request(app)
+      .delete(`/api/admin/marketing/audiences/${audienceId}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, deletedAudienceId: audienceId });
+      });
+
+    expect(table("marketing_audiences")).toHaveLength(0);
+    expect(table("marketing_audience_members")).toHaveLength(0);
   });
 
   it("updates campaign planning rows and deletes campaigns without dispatch", async () => {
@@ -511,24 +1114,65 @@ describe("admin marketing router", () => {
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
     const lovablePayload = {
       content: [{
-        id: "content-1",
+        id: "content:content-1",
         title: "Welcome email",
         channel: "email",
         subject: "Welcome",
         body: "Hello",
         htmlBody: "<h1>Hello</h1>",
-        designJson: { blocks: [{ type: "hero" }] },
-        mediaAssets: [{ url: "https://cdn.example.test/hero.png", type: "image" }],
+        blocks: JSON.stringify([{ type: "hero" }]),
+        mediaAssets: JSON.stringify([{ url: "https://cdn.example.test/hero.png", type: "image" }]),
         ctaLabel: "Start",
         ctaUrl: "https://v2.vyva.life/start",
         extraLovableOnlyField: "kept in metadata",
+      }, {
+        id: "content:alias-content",
+        template_name: "Alias-heavy email",
+        channel: "email",
+        subject_line: "Alias subject",
+        plain_text_content: "Alias plain copy",
+        body_html: "<p>Alias HTML</p>",
+        button_label: "Book now",
+        button_url: "https://v2.vyva.life/book",
+        email_design: JSON.stringify({ sections: [{ kind: "hero" }] }),
+        cover_image_url: "https://cdn.example.test/alias-cover.png",
+      }],
+      saved_email_templates: [{
+        id: "template-1",
+        template_name: "Template welcome",
+        email_subject: "Template subject",
+        html_content: "<p>Template body</p>",
+        button_text: "Read more",
+        link: "https://v2.vyva.life/template",
+      }],
+      social_posts: [{
+        id: "post-1",
+        headline: "Partner post",
+        platform: "linkedin",
+        caption: JSON.stringify({ blocks: [{ text: "Partner update copy" }] }),
+        image_url: "https://cdn.example.test/social.png",
+      }],
+      media_assets: [{
+        id: "media:standalone-1",
+        content_external_id: "content-1",
+        original_url: "https://cdn.example.test/standalone.png",
+        asset_type: "image",
+        status: "referenced",
+      }],
+      content_briefs: [{
+        id: "brief-1",
+        title: "Brief idea",
+        channel: "email",
+        sections: JSON.stringify([{ text: "Long-form planning brief" }]),
       }],
       contacts: [{
-        id: "contact-1",
-        name: "Hassan",
-        email: "hassan@example.com",
-        phoneNumber: "+34 600 000 001",
-        whatsappNumber: "+34 600 000 002",
+        id: "contact:contact-1",
+        profile: {
+          firstName: "Hassan",
+          emailAddress: "hassan@example.com",
+          phoneNumber: "+34 600 000 001",
+          whatsappNumber: "+34 600 000 002",
+        },
         audienceType: "b2b",
         roleLabel: "Partner",
         companyName: "Moka",
@@ -538,20 +1182,43 @@ describe("admin marketing router", () => {
         market: "Spain",
         tags: ["partner"],
       }],
-      audiences: [{
-        id: "audience-1",
+      email_unsubscribes: [{
+        id: "unsubscribe-1",
+        email: "hassan@example.com",
+        reason: "lovable_opt_out",
+      }],
+      contact_lists: [{
+        id: "audience:audience-1",
         name: "Partners",
         description: "Partner mailing list",
         listType: "static",
-        rules: { market: "Spain" },
-        contactExternalIds: ["contact-1", "missing-contact"],
+        rules: JSON.stringify({ market: "Spain" }),
+      }],
+      contact_list_members: [{
+        id: "list-member-1",
+        list_id: "audience-1",
+        contact_id: "contact-1",
+      }, {
+        id: "list-member-2",
+        list_id: "audience-1",
+        contact_id: "missing-contact",
       }],
       campaigns: [{
-        id: "campaign-1",
+        id: "campaign:campaign-1",
         name: "Welcome campaign",
         status: "scheduled",
+        scheduleStartsAt: "2026-07-08T09:00:00.000Z",
+        scheduleEndsAt: "2026-07-08T11:00:00.000Z",
         audienceExternalIds: ["audience-1"],
         channels: [{ channel: "email", contentExternalId: "content-1", scheduledAt: "2026-07-08T09:00:00.000Z" }],
+      }, {
+        id: "campaign-2",
+        name: "Template launch",
+        status: "scheduled",
+        audienceType: "b2b",
+        channel: "email",
+        template_id: "template-1",
+        scheduled_at: "2026-07-10T12:00:00.000Z",
       }],
       campaignMetrics: [{
         id: "metric-1",
@@ -564,22 +1231,24 @@ describe("admin marketing router", () => {
         clicked: 3,
       }],
       journeys: [{
-        id: "journey-1",
+        id: "journey:journey-1",
         name: "Nurture",
         triggerType: "signup",
-        triggerConfig: { source: "campaign" },
+        triggerConfig: JSON.stringify({ source: "campaign" }),
         goalType: "activation",
-        goalConfig: { event: "first_login" },
+        goalConfig: JSON.stringify({ event: "first_login" }),
         exitOnGoal: false,
-        steps: [{
-          channel: "email",
-          contentExternalId: "content-1",
-          kind: "message",
-          dayOffset: 3,
-          templateKind: "email_template",
-          templateRef: "content-1",
-          config: { variant: "a" },
-        }],
+      }],
+      journey_steps: [{
+        id: "journey-step-1",
+        journey_id: "journey-1",
+        channel: "email",
+        contentExternalId: "content-1",
+        kind: "message",
+        dayOffset: 3,
+        templateKind: "email_template",
+        templateRef: "content-1",
+        config: JSON.stringify({ variant: "a" }),
       }],
       journeyEnrollments: [{
         id: "enrollment-1",
@@ -595,6 +1264,15 @@ describe("admin marketing router", () => {
           channel: "email",
           eventAt: "2026-07-08T08:00:00.000Z",
         }],
+      }],
+      journey_step_events: [{
+        id: "event-2",
+        enrollmentExternalId: "enrollment-1",
+        stepOrder: 0,
+        eventType: "sent",
+        channel: "email",
+        eventAt: "2026-07-08T09:00:00.000Z",
+        eventSource: "automation-log",
       }],
       cursor: "cursor-1",
     };
@@ -612,8 +1290,8 @@ describe("admin marketing router", () => {
         Authorization: "Bearer secret",
       }),
     }));
-    expect(table("marketing_content_assets")).toHaveLength(1);
-    expect(table("marketing_content_assets")[0]).toMatchObject({
+    expect(table("marketing_content_assets")).toHaveLength(5);
+    expect(table("marketing_content_assets").find((row) => row.title === "Welcome email")).toMatchObject({
       html_body: "<h1>Hello</h1>",
       design_json: { blocks: [{ type: "hero" }] },
       media_assets: [{ url: "https://cdn.example.test/hero.png", type: "image" }],
@@ -625,27 +1303,102 @@ describe("admin marketing router", () => {
         }),
       },
     });
-    expect(table("marketing_media_assets")).toHaveLength(1);
-    expect(table("marketing_media_assets")[0]).toMatchObject({
+    expect(table("marketing_content_assets").find((row) => row.title === "Alias-heavy email")).toMatchObject({
+      subject: "Alias subject",
+      body: "Alias plain copy",
+      html_body: "<p>Alias HTML</p>",
+      design_json: { sections: [{ kind: "hero" }] },
+      media_assets: [{ url: "https://cdn.example.test/alias-cover.png", sourceField: "cover_image_url" }],
+      cta_label: "Book now",
+      cta_url: "https://v2.vyva.life/book",
+    });
+    expect(table("marketing_content_assets").find((row) => row.title === "Template welcome")).toMatchObject({
+      channel: "email",
+      subject: "Template subject",
+      body: "Template body",
+      html_body: "<p>Template body</p>",
+      cta_label: "Read more",
+      cta_url: "https://v2.vyva.life/template",
+      lovable_external_id: "saved_email_template:template-1",
+      metadata: { lovable_source_type: "saved_email_template" },
+    });
+    expect(table("marketing_content_assets").find((row) => row.title === "Partner post")).toMatchObject({
+      channel: "linkedin",
+      body: "Partner update copy",
+      design_json: { blocks: [{ text: "Partner update copy" }] },
+      media_assets: [{ url: "https://cdn.example.test/social.png", sourceField: "image_url" }],
+      lovable_external_id: "social_post:post-1",
+      metadata: { lovable_source_type: "social_post" },
+    });
+    expect(table("marketing_content_assets").find((row) => row.title === "Brief idea")).toMatchObject({
+      body: "Long-form planning brief",
+      design_json: { sections: [{ text: "Long-form planning brief" }] },
+      lovable_external_id: "content_brief:brief-1",
+      metadata: { lovable_source_type: "content_brief" },
+    });
+    expect(table("marketing_media_assets")).toHaveLength(4);
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/hero.png")).toMatchObject({
       original_url: "https://cdn.example.test/hero.png",
       asset_type: "image",
       status: "referenced",
     });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/standalone.png")).toMatchObject({
+      content_asset_id: table("marketing_content_assets").find((row) => row.title === "Welcome email")?.id,
+      asset_type: "image",
+      status: "referenced",
+      lovable_external_id: "media:standalone-1",
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/social.png")).toMatchObject({
+      asset_type: "unknown",
+      status: "referenced",
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/alias-cover.png")).toMatchObject({
+      asset_type: "unknown",
+      status: "referenced",
+    });
     expect(table("marketing_contacts")).toHaveLength(1);
     expect(table("marketing_contacts")[0]).toMatchObject({
+      full_name: "Hassan",
+      email: "hassan@example.com",
+      phone_number: "+34 600 000 001",
+      whatsapp_number: "+34 600 000 002",
       language: "en",
       category: "lead",
       vertical: "healthcare",
       market: "Spain",
+      consent_status: "opted_out",
+      metadata: {
+        lovable_email_unsubscribe_rows: [expect.objectContaining({ reason: "lovable_opt_out" })],
+      },
     });
     expect(table("marketing_audiences")).toHaveLength(1);
+    expect(table("marketing_audiences")[0]).toMatchObject({
+      rules: { market: "Spain" },
+    });
     expect(table("marketing_audience_members")).toHaveLength(2);
     expect(table("marketing_audience_members").filter((row) => row.contact_id)).toHaveLength(1);
-    expect(table("marketing_campaigns")).toHaveLength(1);
+    expect(table("marketing_campaigns")).toHaveLength(2);
+    expect(table("marketing_campaigns").find((row) => row.name === "Welcome campaign")).toMatchObject({
+      schedule_starts_at: new Date("2026-07-08T09:00:00.000Z"),
+      schedule_ends_at: new Date("2026-07-08T11:00:00.000Z"),
+    });
+    const templateContent = table("marketing_content_assets").find((row) => row.title === "Template welcome");
+    const templateCampaign = table("marketing_campaigns").find((row) => row.name === "Template launch");
+    expect(table("marketing_campaign_channels").find((row) => row.campaign_id === templateCampaign?.id)).toMatchObject({
+      channel: "email",
+      content_asset_id: templateContent?.id,
+      scheduled_at: expect.any(Date),
+      send_capability: "enabled",
+      metadata: expect.objectContaining({
+        send_locked: false,
+        provider: "communicationDispatcher",
+      }),
+    });
     expect(table("marketing_campaign_recipients")).toHaveLength(1);
-    expect(table("marketing_campaign_recipients")[0]).toMatchObject({
+    expect(table("marketing_campaign_recipients").find((row) => row.campaign_id === table("marketing_campaigns").find((campaign) => campaign.name === "Welcome campaign")?.id)).toMatchObject({
       recipient: "hassan@example.com",
       status: "planned",
+      snapshot: expect.objectContaining({ consentStatus: "opted_out" }),
     });
     expect(table("marketing_journeys")).toHaveLength(1);
     expect(table("marketing_journeys")[0]).toMatchObject({
@@ -654,14 +1407,6 @@ describe("admin marketing router", () => {
       goal_type: "activation",
       goal_config: { event: "first_login" },
       exit_on_goal: false,
-    });
-    expect(table("marketing_campaign_channels")).toHaveLength(1);
-    expect(table("marketing_campaign_channels")[0]).toMatchObject({
-      send_capability: "enabled",
-      metadata: expect.objectContaining({
-        send_locked: false,
-        provider: "communicationDispatcher",
-      }),
     });
     expect(table("marketing_campaign_metrics")).toHaveLength(1);
     expect(table("marketing_campaign_metrics")[0]).toMatchObject({
@@ -685,11 +1430,19 @@ describe("admin marketing router", () => {
       status: "active",
       current_step_order: 0,
     });
-    expect(table("marketing_journey_step_events")).toHaveLength(1);
-    expect(table("marketing_journey_step_events")[0]).toMatchObject({
+    expect(table("marketing_journey_step_events")).toHaveLength(2);
+    expect(table("marketing_journey_step_events").find((row) => row.event_type === "entered")).toMatchObject({
       event_type: "entered",
       step_order: 0,
       channel: "email",
+    });
+    expect(table("marketing_journey_step_events").find((row) => row.event_type === "sent")).toMatchObject({
+      event_type: "sent",
+      step_order: 0,
+      channel: "email",
+      metadata: expect.objectContaining({
+        enrollment_external_id: "enrollment-1",
+      }),
     });
     expect(table("marketing_sync_runs")).toHaveLength(2);
 
@@ -708,8 +1461,19 @@ describe("admin marketing router", () => {
           category: "lead",
           vertical: "healthcare",
           market: "Spain",
+          consentStatus: "opted_out",
           lists: ["Partners"],
           tags: ["partner"],
+        });
+      });
+
+    await request(app)
+      .get("/api/admin/marketing/campaigns")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.campaigns.find((row: { name: string }) => row.name === "Welcome campaign")).toMatchObject({
+          scheduleStartsAt: "2026-07-08T09:00:00.000Z",
+          scheduleEndsAt: "2026-07-08T11:00:00.000Z",
         });
       });
 
@@ -717,7 +1481,7 @@ describe("admin marketing router", () => {
       .get("/api/admin/marketing/content")
       .expect(200)
       .expect((response) => {
-        expect(response.body.content[0]).toMatchObject({
+        expect(response.body.content.find((row: { title: string }) => row.title === "Welcome email")).toMatchObject({
           title: "Welcome email",
           htmlBody: "<h1>Hello</h1>",
           hasHtml: true,
@@ -732,8 +1496,13 @@ describe("admin marketing router", () => {
       .get("/api/admin/marketing/media")
       .expect(200)
       .expect((response) => {
-        expect(response.body.mediaAssets[0]).toMatchObject({
+        expect(response.body.mediaAssets.find((row: { originalUrl: string }) => row.originalUrl === "https://cdn.example.test/hero.png")).toMatchObject({
           originalUrl: "https://cdn.example.test/hero.png",
+          assetType: "image",
+          contentTitle: "Welcome email",
+        });
+        expect(response.body.mediaAssets.find((row: { originalUrl: string }) => row.originalUrl === "https://cdn.example.test/standalone.png")).toMatchObject({
+          originalUrl: "https://cdn.example.test/standalone.png",
           assetType: "image",
           contentTitle: "Welcome email",
         });
@@ -763,8 +1532,11 @@ describe("admin marketing router", () => {
           journeyName: "Nurture",
           contactExternalId: "contact-1",
           status: "active",
-          events: [expect.objectContaining({ eventType: "entered" })],
         });
+        expect(response.body.enrollments[0].events).toEqual(expect.arrayContaining([
+          expect.objectContaining({ eventType: "sent" }),
+          expect.objectContaining({ eventType: "entered" }),
+        ]));
       });
 
     await request(app)
@@ -781,20 +1553,21 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 1, mediaAssets: 1, contacts: 1, audiences: 1, campaigns: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 5, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
       imported: {
-        content: 1,
-        mediaAssets: 1,
+        content: 5,
+        mediaAssets: 4,
         contacts: 1,
         audiences: 1,
         audienceMembers: 2,
         mappedAudienceMembers: 1,
+        campaignChannels: 2,
         campaignRecipients: 1,
-        campaigns: 1,
+        campaigns: 2,
         campaignMetrics: 1,
         journeys: 1,
         journeyEnrollments: 1,
-        journeyStepEvents: 1,
+        journeyStepEvents: 2,
       },
       unmapped: {
         audienceContactExternalIdCount: 1,
@@ -820,7 +1593,223 @@ describe("admin marketing router", () => {
         journeyEnrollments: expect.objectContaining({
           firstClassFields: expect.arrayContaining(["journeyExternalId", "contactExternalId", "status"]),
         }),
+        journeyStepEvents: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["enrollmentExternalId", "eventType", "channel"]),
+        }),
       },
+    });
+  });
+
+  it("uses imported Lovable HTML-only email templates as readable/sendable content", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        saved_email_templates: [{
+          id: "template-html-only",
+          template_name: "HTML only template",
+          email_subject: "HTML only subject",
+          html_content: "<h1>Hello &amp; welcome</h1><p>Start your VYVA journey.</p>",
+        }],
+        contacts: [{
+          id: "contact-html-only",
+          name: "HTML Contact",
+          email: "html-contact@example.com",
+          consentStatus: "opted_in",
+        }],
+        campaigns: [{
+          id: "campaign-html-only",
+          name: "HTML only campaign",
+          status: "scheduled",
+          channels: [{ channel: "email", template_id: "template-html-only", status: "scheduled" }],
+          recipients: [{ id: "recipient-html-only", contact_id: "contact-html-only", channel: "email", recipient: "html-contact@example.com", status: "planned" }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+
+    const content = table("marketing_content_assets").find((row) => row.title === "HTML only template");
+    expect(content).toMatchObject({
+      body: "Hello & welcome\nStart your VYVA journey.",
+      html_body: "<h1>Hello &amp; welcome</h1><p>Start your VYVA journey.</p>",
+    });
+
+    const campaign = table("marketing_campaigns").find((row) => row.name === "HTML only campaign");
+    await request(app)
+      .post(`/api/admin/marketing/campaigns/${campaign?.id}/send-email`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, sentCount: 1, failedCount: 0 });
+      });
+
+    expect(table("communications_log")[0]).toMatchObject({
+      recipient: "html-contact@example.com",
+      purpose: "marketing_campaign_email",
+      body: "Hello & welcome\nStart your VYVA journey.",
+      metadata: expect.objectContaining({
+        subject: "HTML only subject",
+        htmlBody: "<h1>Hello &amp; welcome</h1><p>Start your VYVA journey.</p>",
+      }),
+    });
+  });
+
+  it("maps Lovable CRM-style contact aliases and unsubscribe aliases into first-class contact fields", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        contacts: [{
+          id: "contact-1",
+          first_name: "Maria",
+          last_name: "Garcia",
+          email_address: "maria@example.com",
+          mobile_number: "+34 600 000 010",
+          whats_app_number: "+34 600 000 011",
+          job_title: "Partnership lead",
+          organization_name: "Madrid Health",
+          preferred_language: "es",
+          contactCategory: "partner",
+          industry: "healthcare",
+          country: "Spain",
+          subscription_status: "subscribed",
+          tags: "warm, madrid; public",
+        }],
+        email_unsubscribes: [{
+          id: "unsubscribe-1",
+          email_address: "maria@example.com",
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app)
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200);
+
+    expect(table("marketing_contacts")).toHaveLength(1);
+    expect(table("marketing_contacts")[0]).toMatchObject({
+      full_name: "Maria Garcia",
+      email: "maria@example.com",
+      phone_number: "+34 600 000 010",
+      whatsapp_number: "+34 600 000 011",
+      role_label: "Partnership lead",
+      company_name: "Madrid Health",
+      language: "es",
+      category: "partner",
+      vertical: "healthcare",
+      market: "Spain",
+      consent_status: "opted_out",
+      tags: ["warm", "madrid", "public"],
+    });
+
+    await request(app)
+      .get("/api/admin/marketing/contacts")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.contacts[0]).toMatchObject({
+          fullName: "Maria Garcia",
+          email: "maria@example.com",
+          phoneNumber: "+34 600 000 010",
+          whatsappNumber: "+34 600 000 011",
+          roleLabel: "Partnership lead",
+          companyName: "Madrid Health",
+          language: "es",
+          consentStatus: "opted_out",
+          tags: ["warm", "madrid", "public"],
+        });
+      });
+
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      exported: { contacts: 1 },
+      imported: { contacts: 1 },
+      fieldCoverage: {
+        contacts: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["first_name", "last_name", "email_address", "mobile_number", "organization_name", "preferred_language"]),
+        }),
+      },
+    });
+  });
+
+  it("merges top-level Lovable campaign channel and recipient rows into campaigns", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        saved_email_templates: [{
+          id: "template-1",
+          template_name: "Separate template",
+          email_subject: "Separate subject",
+          html_content: "<p>Separate body</p>",
+        }],
+        contacts: [{
+          id: "contact-1",
+          name: "Separate Contact",
+          email: "separate@example.com",
+          audienceType: "b2b",
+          consentStatus: "opted_in",
+        }],
+        campaigns: [{
+          id: "campaign-1",
+          name: "Separate-row campaign",
+          status: "scheduled",
+          audienceType: "b2b",
+        }],
+        campaign_channels: [{
+          campaign_id: "campaign-1",
+          channel: "email",
+          template_id: "template-1",
+          scheduled_at: "2026-07-12T10:00:00.000Z",
+        }, {
+          campaign_id: "campaign-1",
+          channel: "linkedin",
+          template_id: "template-1",
+          scheduled_at: "2026-07-12T10:00:00.000Z",
+        }],
+        campaign_recipients: [{
+          id: "campaign-recipient-1",
+          campaign_id: "campaign-1",
+          contact_id: "contact-1",
+          status: "planned",
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200);
+
+    const campaign = table("marketing_campaigns").find((row) => row.name === "Separate-row campaign");
+    const content = table("marketing_content_assets").find((row) => row.title === "Separate template");
+    expect(table("marketing_campaign_channels")).toHaveLength(2);
+    expect(table("marketing_campaign_channels").find((row) => row.channel === "email")).toMatchObject({
+      campaign_id: campaign?.id,
+      channel: "email",
+      content_asset_id: content?.id,
+      scheduled_at: expect.any(Date),
+      send_capability: "enabled",
+    });
+    expect(table("marketing_campaign_channels").find((row) => row.channel === "linkedin")).toMatchObject({
+      campaign_id: campaign?.id,
+      channel: "linkedin",
+      content_asset_id: content?.id,
+      scheduled_at: expect.any(Date),
+      send_capability: "planning_only",
+    });
+    expect(table("marketing_campaign_recipients")).toHaveLength(1);
+    expect(table("marketing_campaign_recipients")[0]).toMatchObject({
+      campaign_id: campaign?.id,
+      recipient: "separate@example.com",
+      status: "planned",
+      snapshot: expect.objectContaining({
+        contact_external_id: "contact-1",
+        campaign_external_id: "campaign-1",
+      }),
+    });
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      exported: { campaigns: 1, campaignChannels: 2, campaignRecipients: 1 },
+      imported: { campaigns: 1, campaignChannels: 2, campaignRecipients: 1 },
     });
   });
 });
