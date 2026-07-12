@@ -2039,6 +2039,7 @@ describe("ConciergeScreen route prefill", () => {
               completed_at: "2026-08-04T09:30:00.000Z",
               outcome_payload: {
                 flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+                provider_phone: "+34 612 345 678",
                 price_estimate: "EUR18",
                 booking_reference: "RT-123",
               },
@@ -2099,6 +2100,20 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("card-concierge-completed-session-otc")).toHaveTextContent("OTC pharmacy");
     expect(screen.getByTestId("card-concierge-completed-session-home")).toHaveTextContent("Home service");
     expect(screen.queryByTestId("card-concierge-completed-session-hidden")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-ride"));
+    const receipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    expect(receipt).toHaveTextContent("Receipt");
+    expect(receipt).toHaveTextContent("Ride saved with Radio Taxi.");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("Reference");
+    expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("RT-123");
+    expect(within(receipt).getByTestId("link-concierge-receipt-contact")).toHaveAttribute("href", "tel:+34612345678");
+
+    fireEvent.click(within(receipt).getByTestId("button-concierge-receipt-repeat"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("modal-concierge-completed-receipt")).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Help me do this again");
   });
 
   it("shows contacting provider as the active timeline step for started actions", async () => {
