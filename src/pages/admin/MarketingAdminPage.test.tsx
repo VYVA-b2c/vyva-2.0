@@ -768,6 +768,46 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("creates rich marketing content drafts", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.change(screen.getByTestId("input-marketing-content-title"), { target: { value: "Rich content draft" } });
+    fireEvent.change(screen.getByTestId("select-marketing-content-channel"), { target: { value: "linkedin" } });
+    fireEvent.change(screen.getByTestId("select-marketing-content-status"), { target: { value: "review" } });
+    fireEvent.change(screen.getByTestId("input-marketing-content-language"), { target: { value: "es" } });
+    fireEvent.change(screen.getByTestId("input-marketing-content-subject"), { target: { value: "Subject line" } });
+    fireEvent.change(screen.getByTestId("input-marketing-content-cta-label"), { target: { value: "Open" } });
+    fireEvent.change(screen.getByTestId("input-marketing-content-cta-url"), { target: { value: "https://v2.vyva.life/open" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-content-body"), { target: { value: "Plain copy" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-content-html"), { target: { value: "<p>HTML copy</p>" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-content-design-json"), { target: { value: "{\"blocks\":[{\"type\":\"hero\"}]}" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-content-media-assets"), { target: { value: "[{\"url\":\"https://cdn.example.test/rich.png\"}]" } });
+    fireEvent.click(screen.getByTestId("button-marketing-add-content"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    const postCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    expect(JSON.parse(String(postCall?.[1]?.body))).toMatchObject({
+      title: "Rich content draft",
+      channel: "linkedin",
+      status: "review",
+      language: "es",
+      subject: "Subject line",
+      body: "Plain copy",
+      htmlBody: "<p>HTML copy</p>",
+      ctaLabel: "Open",
+      ctaUrl: "https://v2.vyva.life/open",
+      designJson: { blocks: [{ type: "hero" }] },
+      mediaAssets: [{ url: "https://cdn.example.test/rich.png" }],
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Content draft created.");
+    });
+  });
+
   it("edits and deletes imported content assets", async () => {
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
