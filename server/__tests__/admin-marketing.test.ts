@@ -358,6 +358,41 @@ describe("admin marketing router", () => {
     });
   });
 
+  it("uses the VYVA Lovable export endpoint by default when only the token is configured", async () => {
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "default-url-secret");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        content: [],
+        contacts: [],
+        campaigns: [],
+        journeys: [],
+        audiences: [],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .get("/api/admin/marketing/sync/lovable")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          configured: true,
+          canRunSync: true,
+          apiUrl: "https://hecijzbvpxeagcapxwwn.supabase.co",
+        });
+      });
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .post("/api/admin/marketing/sync/lovable/run")
+      .expect(200);
+
+    expect(fetchSpy).toHaveBeenCalledWith("https://hecijzbvpxeagcapxwwn.supabase.co/functions/v1/marketing-export", {
+      headers: {
+        Authorization: "Bearer default-url-secret",
+        Accept: "application/json",
+      },
+    });
+  });
+
   it("surfaces missing marketing migration tables with an actionable message", async () => {
     dbMock.setMissingTable("marketing_media_assets");
 

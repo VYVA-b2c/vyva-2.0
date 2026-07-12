@@ -38,6 +38,7 @@ import {
 export const adminMarketingRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
+const DEFAULT_LOVABLE_MARKETING_EXPORT_URL = "https://hecijzbvpxeagcapxwwn.supabase.co/functions/v1/marketing-export";
 
 function marketingSchemaErrorMessage(error: unknown, fallback: string) {
   const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
@@ -247,7 +248,7 @@ function envValue(...keys: string[]) {
 }
 
 function lovableMarketingApiUrl() {
-  return envValue("LOVABLE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL");
+  return envValue("LOVABLE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL") || DEFAULT_LOVABLE_MARKETING_EXPORT_URL;
 }
 
 function lovableMarketingApiKey() {
