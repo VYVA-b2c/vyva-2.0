@@ -435,10 +435,17 @@ export default function AccountSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      toast({ title: t("settings.account.photoUpdated", "Photo updated") });
+      toast({
+        title: t("settings.account.photoUpdated", "Photo updated"),
+        description: t("settings.account.photoUpdatedDesc", "Your profile photo was saved."),
+      });
     },
     onError: () => {
-      toast({ title: t("settings.account.photoError", "Could not update photo"), variant: "destructive" });
+      toast({
+        title: t("settings.account.photoError", "Could not update photo"),
+        description: t("settings.account.photoErrorDesc", "Your profile photo was not saved. Please try another image."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -456,7 +463,11 @@ export default function AccountSettings() {
       const dataUrl = await compressAvatarFile(file);
       avatarMutation.mutate(dataUrl);
     } catch {
-      toast({ title: t("settings.account.photoError", "Could not update photo"), variant: "destructive" });
+      toast({
+        title: t("settings.account.photoError", "Could not update photo"),
+        description: t("settings.account.photoErrorDesc", "Your profile photo was not saved. Please try another image."),
+        variant: "destructive",
+      });
     } finally {
       e.target.value = "";
     }
@@ -473,6 +484,7 @@ export default function AccountSettings() {
     if (Object.keys(nextErrors).length > 0) {
       toast({
         title: accountCopy.requiredFieldsMissing,
+        description: t("settings.account.requiredFieldsMissingDesc", "Please fill the highlighted profile details before saving."),
         variant: "destructive",
       });
       return;
@@ -521,7 +533,10 @@ export default function AccountSettings() {
     }
 
     setSaving(false);
-    toast({ title: accountCopy.saved });
+    toast({
+      title: accountCopy.saved,
+      description: t("settings.account.savedDesc", "Your account details were saved."),
+    });
   };
 
   return (

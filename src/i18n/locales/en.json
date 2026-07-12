@@ -335,15 +335,15 @@
     },
     "quickTiles": {
       "health": {
-        "label": "Health",
+        "label": "My Health",
         "hint": "Check status"
       },
       "cognitive": {
-        "label": "Cognitive",
-        "hint": "Quick exercise"
+        "label": "My Mind",
+        "hint": "Memory and focus"
       },
       "social": {
-        "label": "Community",
+        "label": "My Community",
         "hint": "Chat a while"
       },
       "concierge": {
@@ -354,21 +354,27 @@
     "voiceCards": {
       "helper": "Tap a card or use the microphone to go straight there.",
       "health": {
-        "title": "My health",
+        "title": "My Health",
+        "mobileTitle": "My Health",
+        "mobileSubtitle": "Symptoms and care",
         "subtitle": "Symptoms, meds and wellbeing",
         "bubble": "I'm here to help you feel better every day.",
         "micLabel": "Talk about my health",
         "openLabel": "Open wellbeing"
       },
       "cognitive": {
-        "title": "Activities",
-        "subtitle": "Events, classes and gentle plans",
+        "title": "My Mind",
+        "mobileTitle": "My Mind",
+        "mobileSubtitle": "Memory and focus",
+        "subtitle": "Memory, focus and senses",
         "bubble": "I can find safe things to do that fit your interests.",
         "micLabel": "Find activities",
         "openLabel": "Open activities"
       },
       "social": {
         "title": "My Community",
+        "mobileTitle": "My Community",
+        "mobileSubtitle": "Rooms and chats",
         "subtitle": "Rooms, chats and shared moments",
         "bubble": "I love listening. You always have someone here.",
         "micLabel": "Talk to VYVA",
@@ -376,6 +382,8 @@
       },
       "concierge": {
         "title": "My Concierge",
+        "mobileTitle": "My Concierge",
+        "mobileSubtitle": "Help and errands",
         "subtitle": "Bookings, errands and support",
         "bubble": "Let me handle it. I take care of the difficult bits.",
         "micLabel": "Ask for help by voice",
@@ -384,22 +392,7 @@
     },
     "fastHelp": {
       "kicker": "Fast help",
-      "title": "What would you like VYVA to do?",
-      "doctor": {
-        "label": "Talk to a real doctor now",
-        "sub": "Get live medical help."
-      },
-      "appointment": {
-        "label": "Schedule an appointment",
-        "sub": "Let VYVA arrange it with you."
-      },
-      "ride": {
-        "label": "Book my transport",
-        "sub": "Let VYVA arrange your ride."
-      },
-      "doctorContext": "Home quick doctor help request. Ask what is happening and help prepare a safe next step.",
-      "appointmentPrefill": "Please help me schedule an appointment. Ask what kind of appointment I need and do not book anything without my confirmation.",
-      "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, and do not book anything without my confirmation."
+      "title": "What would you like VYVA to do?"
     },
     "whatNow": "or explore a topic"
   },
@@ -583,6 +576,7 @@
         "downloadDataSub": "Get a copy of everything VYVA holds about you",
         "downloadDataPreparing": "Preparing your data...",
         "downloadDataStarted": "Your data export is downloading",
+        "downloadDataStartedDesc": "VYVA started downloading your profile export.",
         "downloadDataError": "Could not download your data",
         "planBilling": "Plan & billing",
         "planBillingSub": "Free trial · 14 days remaining",
@@ -622,6 +616,7 @@
       "saving": "Saving...",
       "savePreferences": "Save preferences",
       "saved": "Preferences saved",
+      "savedDesc": "Your notification preferences were updated.",
       "saveError": "Could not save preferences",
       "loadError": "Could not load preferences",
       "supportMode": "Support mode",
@@ -645,7 +640,9 @@
       "locationSub": "Real-time location when active",
       "conversationsLabel": "Conversation summaries",
       "conversationsSub": "Daily highlights from your chats",
-      "gdprFooter": "Changes are saved automatically. Protected under GDPR."
+      "gdprFooter": "Changes are saved automatically. Protected under GDPR.",
+      "brainCoachAccessUpdated": "Brain Coach access updated",
+      "brainCoachAccessUpdatedDesc": "This care team member's Brain Coach permissions were saved."
     },
     "account": {
       "title": "My account",
@@ -691,8 +688,14 @@
       "lastNameRequired": "Last name is required.",
       "phoneRequired": "Phone number is required.",
       "requiredFieldsMissing": "Please complete the required fields.",
+      "requiredFieldsMissingDesc": "Please fill the highlighted profile details before saving.",
       "saved": "Account details saved",
+      "savedDesc": "Your account details were saved.",
       "saveError": "Could not save account details",
+      "photoUpdated": "Photo updated",
+      "photoUpdatedDesc": "Your profile photo was saved.",
+      "photoError": "Could not update photo",
+      "photoErrorDesc": "Your profile photo was not saved. Please try another image.",
       "defaultName": "Maria"
     }
   },
@@ -1178,19 +1181,24 @@
     "added": "Added",
     "confirm": "Confirm",
     "allTaken": "All doses taken!",
+    "takenToastTitle": "Good job",
+    "takenToastDescription": "{{medicine}} was taken.",
+    "allTakenToastDescription": "All of today's doses are already marked as taken.",
     "noMedsTitle": "No medications added yet",
     "noMedsSub": "Use the button below to add your medications by voice",
     "noMedsScheduled": "No medications scheduled for today",
     "quickAccess": "Medication",
     "primary": {
-      "reminders": "Reminders",
+      "reminders": "My Reminders",
       "remindersSub": "Review today's schedule and add medication reminders.",
-      "refills": "Refills",
+      "refills": "My Refills",
       "refillsSub": "Prepare repeat prescriptions or delivery.",
-      "interactions": "Interactions",
+      "interactions": "Stay Safe",
       "interactionsSub": "Check medicines and supplements.",
       "adherence": "Adherence",
-      "adherenceSub": "See progress and missed doses."
+      "adherenceSub": "See progress and missed doses.",
+      "homeRemedies": "Home Remedies",
+      "homeRemediesSub": "Check natural and alternative options."
     },
     "canHelpWith": "I can help you with",
     "fastHelpKicker": "Fast help",
@@ -1199,7 +1207,7 @@
     "medicationInfo": "Medication Info",
     "refillReminder": "Refill Reminder",
     "refillReminderSub": "Set up a reminder for your next refill",
-    "interactions": "Interactions",
+    "interactions": "Stay Safe",
     "interactionsSub": "Add your medications to check for interactions",
     "interactionsSubWithMeds_one": "{{count}} medication on your list",
     "interactionsSubWithMeds_other": "{{count}} medications on your list",
@@ -1207,6 +1215,30 @@
     "toastAdded": "Medication added",
     "toastAddedDesc": "{{name}} has been added to your list.",
     "toastAddedDefault": "Your medication has been added.",
+    "editSuccess": "Medication updated",
+    "editSuccessDesc": "Your medication details were saved.",
+    "editError": "Could not update medication",
+    "editErrorDesc": "Your medication details were not saved. Please try again.",
+    "deleteSuccess": "Medication removed",
+    "deleteSuccessDesc": "This medicine was removed from your list.",
+    "deleteError": "Could not remove medication",
+    "deleteErrorDesc": "This medicine was not removed from your list. Please try again.",
+    "safety": {
+      "analyseSuccess": "Safety check updated",
+      "analyseSuccessDesc": "VYVA reviewed your medicine signals.",
+      "analyseError": "Could not analyse medication safety",
+      "analyseErrorDesc": "VYVA could not review your medicine signals right now.",
+      "sharedSuccess": "Case shared with caregiver",
+      "sharedSuccessDesc": "The medication safety case was shared with your caregiver.",
+      "saveSuccess": "Safety case saved",
+      "saveSuccessDesc": "The medication safety case was saved for review.",
+      "saveError": "Could not save safety case",
+      "saveErrorDesc": "The medication safety case was not saved. Please try again.",
+      "exportSuccess": "Audit-ready packet created",
+      "exportSuccessDesc": "The medication safety packet is ready to copy or share.",
+      "exportError": "Could not export safety case",
+      "exportErrorDesc": "The medication safety packet was not created. Please try again."
+    },
     "assistant": {
       "interactions": {
         "label": "Check Interactions",
@@ -1215,9 +1247,9 @@
         "prompt": "I take the following medications: {{medNames}}. Please check for any known interactions between these medications and let me know if anything I should discuss with my doctor or pharmacist."
       },
       "naturalMedicine": {
-        "label": "Natural Options",
+        "label": "Home Remedies",
         "sub": "Check herbal and supplement fit",
-        "sheetTitle": "Natural Options",
+        "sheetTitle": "Home Remedies",
         "prompt": "I take the following medications: {{medNames}}. Can you share information about herbal remedies, natural supplements, or plant-based wellness options that might complement my health? Please also let me know if any common natural remedies could interact with my current medications, so I can stay safe."
       },
       "order": {
@@ -1247,9 +1279,9 @@
         "prompt": "I take the following medications: {{medNames}}. Can you give me a friendly summary of any recent research or news about these medications? I'd like to stay informed about advances that might be relevant to my health."
       },
       "sideEffects": {
-        "label": "Side Effect Check",
+        "label": "Side Effects",
         "sub": "Talk through symptoms to watch",
-        "sheetTitle": "Side Effect Check",
+        "sheetTitle": "Side Effects",
         "prompt": "I take the following medications: {{medNames}}. Please help me think through possible side effects, symptoms to monitor, and what I should ask my doctor or pharmacist. If anything sounds urgent, tell me to seek medical help."
       }
     },
@@ -1344,7 +1376,9 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
-    }
+    },
+    "confirmDoseError": "Could not confirm dose",
+    "confirmDoseErrorDesc": "The dose was not marked as taken. Please try again."
   },
   "brain": {
     "voiceSource": "VYVA is your brain coach",
@@ -1424,6 +1458,36 @@
     }
   },
   "onboarding": {
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Allergens already saved",
+        "description": "Everything you said is already on your allergy list."
+      },
+      "allergyListUpdated": {
+        "title": "Allergy list updated",
+        "description_one": "{{count}} allergen was added to your profile.",
+        "description_other": "{{count}} allergens were added to your profile."
+      },
+      "healthConditionsUpdated": {
+        "title": "Health conditions updated",
+        "description_one": "{{count}} condition was added to your profile.",
+        "description_other": "{{count}} conditions were added to your profile."
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Hobbies already saved",
+        "description": "Everything you said is already selected."
+      },
+      "hobbiesUpdated": {
+        "title": "Hobbies updated",
+        "description_one": "{{count}} hobby was added to your profile.",
+        "description_other": "{{count}} hobbies were added to your profile."
+      },
+      "providerUpdated": {
+        "title": "Provider updated",
+        "fallbackName": "This provider",
+        "description": "{{name}} was saved to your trusted providers."
+      }
+    },
     "careTeam": {
       "roles": {
         "familyMember": "Family member",
@@ -1662,7 +1726,8 @@
       "accepted": "Connected",
       "accept": "Accept",
       "decline": "Decline",
-      "requestSent": "Connection request sent!"
+      "requestSent": "Connection request sent",
+      "requestSentDesc": "Your companion request was sent."
     },
     "noConnections": "No companions yet — check the Suggestions tab!",
     "activityTile": "Connect with others",
@@ -1671,9 +1736,13 @@
     "sayHelloPrompt": "Say hello to {{name}}!",
     "errors": {
       "saveInterestsFailed": "Could not save your interests",
+      "saveInterestsFailedDesc": "Your companion interests were not saved. Please try again.",
       "connectFailed": "Could not send connection request",
+      "connectFailedDesc": "Your companion request was not sent. Please try again.",
       "respondFailed": "Could not update connection",
-      "activateFailed": "Could not activate community. Please try again."
+      "respondFailedDesc": "Your companion response was not saved. Please try again.",
+      "activateFailed": "Could not activate community. Please try again.",
+      "activateFailedDesc": "Companion matching was not turned on. Please try again."
     },
     "profile": {
       "valuesTitle": "What matters to you",
@@ -1748,77 +1817,35 @@
     },
     "primaryCards": {
       "service": {
-        "label": "Find help",
-        "mobile": "Help",
-        "sub": "Repairs, cleaning, care",
-        "mobileSub": "Repairs and care"
+        "label": "Home Care",
+        "mobile": "Home Care",
+        "sub": "Plumber, electrician, cleaning",
+        "mobileSub": "Repairs and cleaning"
       },
       "ride": {
-        "label": "Book ride",
-        "mobile": "Ride",
-        "sub": "Taxi, transport, home",
-        "mobileSub": "Taxi or ride"
+        "label": "Personal Care",
+        "mobile": "Personal Care",
+        "sub": "Find a Specialist, Find a Residence",
+        "mobileSub": "Specialist or residence"
       },
       "delivery": {
-        "label": "Order food",
-        "mobile": "Order",
-        "sub": "Food, pharmacy, needs",
-        "mobileSub": "Food and needs"
+        "label": "Order In",
+        "mobile": "Order In",
+        "sub": "Groceries, household, prepared meals",
+        "mobileSub": "Groceries and meals"
       },
       "appointment": {
-        "label": "Book visit",
-        "mobile": "Schedule",
-        "sub": "Doctor, salon, office, dining",
-        "mobileSub": "Doctor, salon, office"
+        "label": "Book Now",
+        "mobile": "Book Now",
+        "sub": "Medical, government, ride",
+        "mobileSub": "Medical, government, ride"
       }
-    },
-    "quickPrompts": {
-      "findBestDeals": "Find the best deals",
-      "bookTrip": "Book a trip",
-      "researchCompany": "Research a company"
     },
     "fastHelp": {
       "kicker": "Fast help",
       "title": "What do you need now?",
       "doctorContext": "Concierge doctor help request. Ask what is happening and help prepare a safe next step.",
-      "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation.",
-      "actions": {
-        "legal-advice": {
-          "label": "Get legal advice",
-          "sub": "Understand options before acting",
-          "mobileSub": "Know your options"
-        },
-        "trip": {
-          "label": "Plan me a trip",
-          "sub": "Routes, timing, visits, reminders",
-          "mobileSub": "Routes and reminders"
-        },
-        "care": {
-          "label": "Find the best care for me",
-          "sub": "Compare safe care and support",
-          "mobileSub": "Care and support"
-        },
-        "form": {
-          "label": "Fill a form",
-          "sub": "Prepare answers, stop before submit",
-          "mobileSub": "Prepare answers"
-        },
-        "research": {
-          "label": "Research a topic",
-          "sub": "Summarize sources and next steps",
-          "mobileSub": "Sources and steps"
-        },
-        "best-deal": {
-          "label": "Find the best deal",
-          "sub": "Compare price, trust, and fit",
-          "mobileSub": "Compare options"
-        },
-        "age-at-home": {
-          "label": "Age in grace at home",
-          "sub": "Plan safer home support",
-          "mobileSub": "Safer home support"
-        }
-      }
+      "ridePrefill": "Please help me arrange safe transport. Ask for destination and timing, prepare clear options, and do not book anything without my confirmation."
     },
     "moreHelp": {
       "kicker": "More Concierge help",
@@ -1836,10 +1863,6 @@
         "message": {
           "label": "Send a Message",
           "sub": "Draft, review, confirm"
-        },
-        "offer": {
-          "label": "Check an Offer",
-          "sub": "Price, trust, conditions"
         }
       }
     },

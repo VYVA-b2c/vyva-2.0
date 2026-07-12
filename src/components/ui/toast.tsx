@@ -29,13 +29,15 @@ const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-[18px] border p-5 pr-8 shadow-[0_16px_40px_rgba(47,33,53,0.18)] transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-y-[var(--radix-toast-swipe-end-y)] data-[swipe=move]:translate-y-[var(--radix-toast-swipe-move-y)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-bottom-full data-[state=open]:slide-in-from-bottom-full",
+  "group pointer-events-auto relative flex w-full items-center justify-between overflow-hidden rounded-[24px] border px-5 py-4 pr-12 shadow-[0_22px_58px_rgba(47,33,53,0.20)] ring-1 ring-white/80 backdrop-blur transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-y-[var(--radix-toast-swipe-end-y)] data-[swipe=move]:translate-y-[var(--radix-toast-swipe-move-y)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-bottom-full data-[state=open]:slide-in-from-bottom-full",
   {
     variants: {
       variant: {
-        default: "border-vyva-border bg-white text-vyva-text-1",
-        guidance: "border-2 border-vyva-purple/45 bg-white text-vyva-text-1 shadow-[0_24px_70px_rgba(47,33,53,0.30)]",
-        destructive: "destructive group border-destructive bg-destructive text-destructive-foreground",
+        default: "border-emerald-200 bg-[linear-gradient(135deg,#ffffff_0%,#f0fdf4_100%)] text-vyva-text-1",
+        success: "border-emerald-200 bg-[linear-gradient(135deg,#ffffff_0%,#f0fdf4_100%)] text-vyva-text-1",
+        info: "border-[#DED2FF] bg-[linear-gradient(135deg,#ffffff_0%,#F8F5FF_100%)] text-vyva-text-1",
+        guidance: "border-2 border-vyva-purple/45 bg-[linear-gradient(135deg,#ffffff_0%,#F8F5FF_100%)] text-vyva-text-1 shadow-[0_24px_70px_rgba(47,33,53,0.30)]",
+        destructive: "destructive group border-red-200 bg-[linear-gradient(135deg,#ffffff_0%,#fff1f2_100%)] text-vyva-text-1",
       },
     },
     defaultVariants: {
@@ -74,7 +76,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 p-1 text-foreground/70 opacity-80 shadow-sm transition-opacity group-hover:opacity-100 group-[.destructive]:text-red-300 hover:text-foreground group-[.destructive]:hover:text-red-50 focus:opacity-100 focus:outline-none focus:ring-2 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600",
+      "absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/90 p-1 text-vyva-text-2 opacity-85 shadow-sm transition hover:scale-[1.02] hover:text-vyva-text-1 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-vyva-purple/30",
       className,
     )}
     toast-close=""
@@ -89,7 +91,7 @@ const ToastTitle = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Title>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
 >(({ className, ...props }, ref) => (
-  <ToastPrimitives.Title ref={ref} className={cn("text-sm font-semibold", className)} {...props} />
+  <ToastPrimitives.Title ref={ref} className={cn("font-body text-[16px] font-black leading-tight text-vyva-text-1", className)} {...props} />
 ));
 ToastTitle.displayName = ToastPrimitives.Title.displayName;
 
@@ -97,7 +99,7 @@ const ToastDescription = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Description>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Description>
 >(({ className, ...props }, ref) => (
-  <ToastPrimitives.Description ref={ref} className={cn("text-sm opacity-90", className)} {...props} />
+  <ToastPrimitives.Description ref={ref} className={cn("font-body text-[15px] font-semibold leading-snug text-vyva-text-2 opacity-100", className)} {...props} />
 ));
 ToastDescription.displayName = ToastPrimitives.Description.displayName;
 

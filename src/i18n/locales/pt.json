@@ -223,20 +223,26 @@
       "helper": "Toque num cartão ou use o microfone para ir direto.",
       "health": {
         "title": "Saúde",
+        "mobileTitle": "Minha saude",
+        "mobileSubtitle": "Sintomas e cuidado",
         "subtitle": "Bem-estar diário",
         "bubble": "Estou aqui para ajudar a sentir-se melhor todos os dias.",
         "micLabel": "Falar da minha saúde",
         "openLabel": "Abrir bem-estar"
       },
       "cognitive": {
-        "title": "Mente",
-        "subtitle": "Foco e calma",
-        "bubble": "Um momento comigo mantém a sua mente ativa.",
-        "micLabel": "Começar exercício mental",
-        "openLabel": "Abrir mente ativa"
+        "title": "Atividades",
+        "mobileTitle": "Minha mente",
+        "mobileSubtitle": "Memoria e foco",
+        "subtitle": "Eventos, aulas e planos tranquilos",
+        "bubble": "Posso encontrar atividades seguras que combinem com os seus interesses.",
+        "micLabel": "Encontrar atividades",
+        "openLabel": "Abrir atividades"
       },
       "social": {
         "title": "Comunidade",
+        "mobileTitle": "Minha comunidade",
+        "mobileSubtitle": "Salas e conversas",
         "subtitle": "Salas e chats",
         "bubble": "Gosto de o ouvir. Aqui tem sempre alguém.",
         "micLabel": "Falar com VYVA",
@@ -244,6 +250,8 @@
       },
       "concierge": {
         "title": "Concierge",
+        "mobileTitle": "Meu concierge",
+        "mobileSubtitle": "Ajuda e recados",
         "subtitle": "Ajuda diária",
         "bubble": "Deixe comigo. Eu trato do mais difícil.",
         "micLabel": "Pedir ajuda por voz",
@@ -478,7 +486,8 @@
         "appVersion": "Versão do aplicativo",
         "signOut": "Sair",
         "deleteAccount": "Excluir minha conta e todos os dados",
-        "deleteAccountSub": "Permanente — não pode ser desfeito"
+        "deleteAccountSub": "Permanente — não pode ser desfeito",
+        "downloadDataStartedDesc": "A VYVA come?ou a transferir a exporta??o do seu perfil."
       }
     },
     "notifications": {
@@ -509,7 +518,8 @@
       "supportModeAi": "Com IA",
       "supportModeAiSub": "A VYVA gere automaticamente check-ins e lembretes de rotina.",
       "supportModeHuman": "Com apoio humano",
-      "supportModeHumanSub": "Uma pessoa gere o contacto enquanto a VYVA mantém o plano claro."
+      "supportModeHumanSub": "Uma pessoa gere o contacto enquanto a VYVA mantém o plano claro.",
+      "savedDesc": "As suas prefer?ncias de notifica??o foram atualizadas."
     },
     "privacy": {
       "title": "Privacidade e consentimento",
@@ -525,7 +535,9 @@
       "locationSub": "Localização em tempo real quando ativo",
       "conversationsLabel": "Resumos de conversas",
       "conversationsSub": "Destaques diários dos seus chats",
-      "gdprFooter": "As alterações são salvas automaticamente. Protegido pelo RGPD."
+      "gdprFooter": "As alterações são salvas automaticamente. Protegido pelo RGPD.",
+      "brainCoachAccessUpdated": "Acesso ao Brain Coach atualizado",
+      "brainCoachAccessUpdatedDesc": "As permiss?es de Brain Coach deste membro da equipa de cuidados foram guardadas."
     },
     "account": {
       "title": "Minha conta",
@@ -573,7 +585,13 @@
       "requiredFieldsMissing": "Preencha os campos obrigatorios.",
       "saved": "Dados da conta guardados",
       "saveError": "Nao foi possivel guardar os dados da conta",
-      "defaultName": "Maria"
+      "defaultName": "Maria",
+      "requiredFieldsMissingDesc": "Preencha os dados destacados do perfil antes de guardar.",
+      "savedDesc": "Os dados da sua conta foram guardados.",
+      "photoUpdated": "Foto atualizada",
+      "photoUpdatedDesc": "A sua foto de perfil foi guardada.",
+      "photoError": "N?o foi poss?vel atualizar a foto",
+      "photoErrorDesc": "A sua foto de perfil n?o foi guardada. Tente outra imagem."
     }
   },
   "health": {
@@ -1058,7 +1076,9 @@
       "interactions": "Interacoes",
       "interactionsSub": "Verifique medicamentos e suplementos.",
       "adherence": "Adesao",
-      "adherenceSub": "Veja progresso e doses esquecidas."
+      "adherenceSub": "Veja progresso e doses esquecidas.",
+      "homeRemedies": "Remedios caseiros",
+      "homeRemediesSub": "Verificar opcoes naturais e alternativas."
     },
     "canHelpWith": "Posso ajudar com",
     "fastHelpKicker": "Ajuda rapida",
@@ -1224,7 +1244,36 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
-    }
+    },
+    "takenToastTitle": "Bom trabalho",
+    "takenToastDescription": "{{medicine}} foi marcado como tomado.",
+    "allTakenToastDescription": "Todas as doses de hoje j? est?o marcadas como tomadas.",
+    "editSuccess": "Medicamento atualizado",
+    "editSuccessDesc": "Os dados do medicamento foram guardados.",
+    "editError": "N?o foi poss?vel atualizar o medicamento",
+    "editErrorDesc": "Os dados do medicamento n?o foram guardados. Tente novamente.",
+    "deleteSuccess": "Medicamento removido",
+    "deleteSuccessDesc": "Este medicamento foi removido da sua lista.",
+    "deleteError": "N?o foi poss?vel remover o medicamento",
+    "deleteErrorDesc": "Este medicamento n?o foi removido da sua lista. Tente novamente.",
+    "safety": {
+      "analyseSuccess": "Verifica??o de seguran?a atualizada",
+      "analyseSuccessDesc": "A VYVA reviu os sinais dos seus medicamentos.",
+      "analyseError": "N?o foi poss?vel analisar a seguran?a dos medicamentos",
+      "analyseErrorDesc": "A VYVA n?o conseguiu rever os sinais dos seus medicamentos neste momento.",
+      "sharedSuccess": "Caso partilhado com o cuidador",
+      "sharedSuccessDesc": "O caso de seguran?a do medicamento foi partilhado com o seu cuidador.",
+      "saveSuccess": "Caso de seguran?a guardado",
+      "saveSuccessDesc": "O caso de seguran?a do medicamento foi guardado para revis?o.",
+      "saveError": "N?o foi poss?vel guardar o caso de seguran?a",
+      "saveErrorDesc": "O caso de seguran?a do medicamento n?o foi guardado. Tente novamente.",
+      "exportSuccess": "Pacote pronto para auditoria criado",
+      "exportSuccessDesc": "O pacote de seguran?a do medicamento est? pronto para copiar ou partilhar.",
+      "exportError": "N?o foi poss?vel exportar o caso de seguran?a",
+      "exportErrorDesc": "O pacote de seguran?a do medicamento n?o foi criado. Tente novamente."
+    },
+    "confirmDoseError": "N?o foi poss?vel confirmar a dose",
+    "confirmDoseErrorDesc": "A dose n?o foi marcada como tomada. Tente novamente."
   },
   "brain": {
     "voiceSource": "VYVA é o seu treinador mental",
@@ -1472,6 +1521,36 @@
       "title": "Em breve",
       "subtitle": "Esta secção estará disponível em breve.",
       "back": "Voltar ao perfil"
+    },
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Alerg?nios j? guardados",
+        "description": "Tudo o que disse j? est? na sua lista de alergias."
+      },
+      "allergyListUpdated": {
+        "title": "Lista de alergias atualizada",
+        "description_one": "{{count}} alerg?nio foi adicionado ao seu perfil.",
+        "description_other": "{{count}} alerg?nios foram adicionados ao seu perfil."
+      },
+      "healthConditionsUpdated": {
+        "title": "Condi??es de sa?de atualizadas",
+        "description_one": "{{count}} condi??o foi adicionada ao seu perfil.",
+        "description_other": "{{count}} condi??es foram adicionadas ao seu perfil."
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Interesses j? guardados",
+        "description": "Tudo o que disse j? est? selecionado."
+      },
+      "hobbiesUpdated": {
+        "title": "Interesses atualizados",
+        "description_one": "{{count}} interesse foi adicionado ao seu perfil.",
+        "description_other": "{{count}} interesses foram adicionados ao seu perfil."
+      },
+      "providerUpdated": {
+        "title": "Fornecedor atualizado",
+        "fallbackName": "Este fornecedor",
+        "description": "{{name}} foi guardado nos seus fornecedores de confian?a."
+      }
     }
   },
   "weather": {
@@ -1542,7 +1621,8 @@
       "accepted": "Conectado",
       "accept": "Aceitar",
       "decline": "Recusar",
-      "requestSent": "Pedido de ligação enviado!"
+      "requestSent": "Pedido de liga??o enviado",
+      "requestSentDesc": "O seu pedido de companhia foi enviado."
     },
     "noConnections": "Ainda sem companheiros — veja a aba Sugestões!",
     "activityTile": "Conectar com outros",
@@ -1553,7 +1633,11 @@
       "saveInterestsFailed": "Não foi possível guardar os interesses",
       "connectFailed": "Não foi possível enviar o pedido",
       "respondFailed": "Não foi possível atualizar a ligação",
-      "activateFailed": "Não foi possível ativar a comunidade. Por favor, tente novamente."
+      "activateFailed": "Não foi possível ativar a comunidade. Por favor, tente novamente.",
+      "saveInterestsFailedDesc": "Os seus interesses de companhia n?o foram guardados. Tente novamente.",
+      "connectFailedDesc": "O seu pedido de companhia n?o foi enviado. Tente novamente.",
+      "respondFailedDesc": "A sua resposta de companhia n?o foi guardada. Tente novamente.",
+      "activateFailedDesc": "A procura de companhia n?o foi ativada. Tente novamente."
     },
     "profile": {
       "valuesTitle": "O que é importante para si",
@@ -1656,6 +1740,20 @@
         "mobileSub": "Medico, salao, servico"
       }
     },
+    "standalone": {
+      "kicker": "Ajuda separada",
+      "title": "Documentos e formularios",
+      "cards": {
+        "form": {
+          "label": "Ajuda formularios",
+          "sub": "Preencher, rever, confirmar"
+        },
+        "paperwork": {
+          "label": "Ajuda papelada",
+          "sub": "Cartas, documentos, faturas"
+        }
+      }
+    },
     "quickPrompts": {
       "findBestDeals": "Encontrar as melhores ofertas",
       "bookTrip": "Reservar uma viagem",
@@ -1678,6 +1776,64 @@
         "ride": {
           "label": "Reservar viagem",
           "sub": "Organizar transporte seguro"
+        },
+        "legal-advice": {
+          "label": "Obter aconselhamento juridico",
+          "sub": "Compreender opcoes antes de agir",
+          "mobileSub": "Conhecer opcoes"
+        },
+        "trip": {
+          "label": "Planear uma viagem",
+          "sub": "Rotas, horarios, visitas, lembretes",
+          "mobileSub": "Rotas e lembretes"
+        },
+        "care": {
+          "label": "Encontrar o melhor cuidado",
+          "sub": "Comparar apoio e cuidado seguros",
+          "mobileSub": "Cuidado e apoio"
+        },
+        "form": {
+          "label": "Preencher formulario",
+          "sub": "Preparar respostas, parar antes de enviar",
+          "mobileSub": "Preparar respostas"
+        },
+        "research": {
+          "label": "Pesquisar um tema",
+          "sub": "Resumir fontes e proximos passos",
+          "mobileSub": "Fontes e passos"
+        },
+        "best-deal": {
+          "label": "Encontrar a melhor oferta",
+          "sub": "Comparar preco, confianca e ajuste",
+          "mobileSub": "Comparar opcoes"
+        },
+        "age-at-home": {
+          "label": "Envelhecer bem em casa",
+          "sub": "Planear apoio domestico mais seguro",
+          "mobileSub": "Apoio em casa seguro"
+        }
+      }
+    },
+    "moreHelp": {
+      "kicker": "Mais ajuda Concierge",
+      "title": "Outras coisas que a VYVA pode preparar",
+      "titleMobile": "Outras tarefas",
+      "actions": {
+        "compare-save": {
+          "label": "Comparar e poupar",
+          "sub": "Contas, ofertas, planos"
+        },
+        "paperwork": {
+          "label": "Ajuda com documentos",
+          "sub": "Formularios, cartas, documentos"
+        },
+        "message": {
+          "label": "Enviar mensagem",
+          "sub": "Redigir, rever, confirmar"
+        },
+        "offer": {
+          "label": "Verificar uma oferta",
+          "sub": "Preco, confianca, condicoes"
         }
       }
     },

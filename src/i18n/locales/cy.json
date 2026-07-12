@@ -193,11 +193,11 @@
         "openLabel": "Open wellbeing"
       },
       "cognitive": {
-        "title": "I wake up my mind",
-        "subtitle": "Focus, memory and calm",
-        "bubble": "A little time with me keeps your mind active.",
-        "micLabel": "Start a mental exercise",
-        "openLabel": "Open agile mind"
+        "title": "Activities",
+        "subtitle": "Events, classes and gentle plans",
+        "bubble": "I can find safe things to do that fit your interests.",
+        "micLabel": "Find activities",
+        "openLabel": "Open activities"
       },
       "social": {
         "title": "My Community",
@@ -409,7 +409,8 @@
         "appVersion": "Fersiwn yr ap",
         "signOut": "Allgofnodi",
         "deleteAccount": "Dileu fy nghyfrif a phob data",
-        "deleteAccountSub": "Parhaol — ni ellir dadwneud"
+        "deleteAccountSub": "Parhaol — ni ellir dadwneud",
+        "downloadDataStartedDesc": "Dechreuodd VYVA lawrlwytho allforiad eich proffil."
       }
     },
     "notifications": {
@@ -428,7 +429,8 @@
       "maxWhatsapp": "Uchaf WhatsApp/dydd",
       "noLimit": "Dim terfyn",
       "saving": "Yn cadw...",
-      "savePreferences": "Cadw dewisiadau"
+      "savePreferences": "Cadw dewisiadau",
+      "savedDesc": "Diweddarwyd eich dewisiadau hysbysu."
     },
     "privacy": {
       "title": "Preifatrwydd a chydsyniad",
@@ -444,7 +446,9 @@
       "locationSub": "Lleoliad amser real pan fo'n weithredol",
       "conversationsLabel": "Crynodebau sgwrs",
       "conversationsSub": "Uchafbwyntiau dyddiol o'ch sgyrsiau",
-      "gdprFooter": "Caiff newidiadau eu cadw'n awtomatig. Wedi'i amddiffyn o dan y GDPR."
+      "gdprFooter": "Caiff newidiadau eu cadw'n awtomatig. Wedi'i amddiffyn o dan y GDPR.",
+      "brainCoachAccessUpdated": "Diweddarwyd mynediad Brain Coach",
+      "brainCoachAccessUpdatedDesc": "Cadwyd caniatadau Brain Coach yr aelod hwn o?r t?m gofal."
     },
     "account": {
       "title": "Fy nghyfrif",
@@ -478,7 +482,13 @@
       "langCy": "Cymraeg",
       "tzMadrid": "Sbaen (Madrid)",
       "tzBerlin": "Yr Almaen (Berlin)",
-      "tzLondon": "Y DU (Llundain)"
+      "tzLondon": "Y DU (Llundain)",
+      "requiredFieldsMissingDesc": "Llenwch fanylion y proffil sydd wedi?u hamlygu cyn cadw.",
+      "savedDesc": "Cadwyd manylion eich cyfrif.",
+      "photoUpdated": "Diweddarwyd y llun",
+      "photoUpdatedDesc": "Cadwyd eich llun proffil.",
+      "photoError": "Nid oedd modd diweddaru?r llun",
+      "photoErrorDesc": "Ni chafodd eich llun proffil ei gadw. Rhowch gynnig ar ddelwedd arall."
     }
   },
   "health": {
@@ -792,38 +802,38 @@
     "adherence": {
       "title": "Adherence Report",
       "backToMeds": "Back to Medications",
-        "overallStats": "Overall Adherence",
-        "overviewTitle": "Cipolwg ar yr wythnos",
-        "overviewAllTaken": "Rydych ar y trywydd iawn",
-        "overviewAllTakenSub": "Cafodd eich holl feddyginiaethau presennol eu cwmpasu yr wythnos hon.",
-        "overviewSomeMissed": "Mae ychydig o ddosau angen sylw",
-        "overviewSomeMissedSub": "Mae {{count}} meddyginiaeth yn dal i ddangos dosau a fethwyd yr wythnos hon.",
-        "overviewManyMissed": "Gadewch i ni fynd yn ôl i'r rhythm",
-        "overviewManyMissedSub": "Mae {{count}} meddyginiaeth yn dal i ddangos dosau a fethwyd yr wythnos hon.",
-        "statOnTrack": "Ar y trywydd",
-        "statNeedsAttention": "Angen sylw",
-        "statBestStreak": "Y rhediad gorau",
-        "todayTitle": "Heddiw",
-        "todayNeedsAttention": "Mae {{count}} meddyginiaeth yn dal angen sylw heddiw.",
-        "todayAllCovered": "Mae popeth a drefnwyd ar gyfer heddiw wedi'i gwblhau.",
-        "todayDone": "{{count}} wedi'u gwneud",
-        "todayLeft": "{{count}} ar ôl",
-        "attentionTitle": "Angen sylw",
-        "attentionSubtitle": "Yr wythnos hon, cadwch lygad ar {{names}}.",
-        "insightsTitle": "Syniadau defnyddiol",
-        "insightNextStepTitle": "Y cam gorau nesaf",
-        "insightNextStepSingle": "Mae {{name}} yn dal angen dos heddiw.",
-        "insightNextStepMultiple": "Mae {{count}} meddyginiaeth yn dal angen dosau heddiw.",
-        "insightNextStepReview": "Edrychwch ar {{name}} yn gyntaf, gan mai dyna sy'n gyrru'r dosau a fethwyd yr wythnos hon.",
-        "insightNextStepClear": "Does dim angen gweithredu ar unwaith ar hyn o bryd.",
-        "insightHabitTitle": "Yr arfer cryfaf",
-        "insightHabitBody": "{{name}} yw eich patrwm gorau hyd yma gyda {{streak}} diwrnod yn olynol.",
-        "insightHabitBodyNoStreak": "{{name}} yw eich meddyginiaeth fwyaf cyson ar hyn o bryd.",
-        "insightHabitBodyEmpty": "Wrth i fwy o ddata ddod i mewn, bydd VYVA yn dangos eich arfer cryfaf yma.",
-        "insightFocusTitle": "Ffocws yr wythnos",
-        "insightFocusBody": "Mae'n werth edrych ar {{name}} yn gyntaf oherwydd bod ganddo {{count}} dos a fethwyd yr wythnos hon.",
-        "insightFocusBodyClear": "Mae popeth yn edrych yn sefydlog yr wythnos hon.",
-        "thisWeek": "This week",
+      "overallStats": "Overall Adherence",
+      "overviewTitle": "Cipolwg ar yr wythnos",
+      "overviewAllTaken": "Rydych ar y trywydd iawn",
+      "overviewAllTakenSub": "Cafodd eich holl feddyginiaethau presennol eu cwmpasu yr wythnos hon.",
+      "overviewSomeMissed": "Mae ychydig o ddosau angen sylw",
+      "overviewSomeMissedSub": "Mae {{count}} meddyginiaeth yn dal i ddangos dosau a fethwyd yr wythnos hon.",
+      "overviewManyMissed": "Gadewch i ni fynd yn ôl i'r rhythm",
+      "overviewManyMissedSub": "Mae {{count}} meddyginiaeth yn dal i ddangos dosau a fethwyd yr wythnos hon.",
+      "statOnTrack": "Ar y trywydd",
+      "statNeedsAttention": "Angen sylw",
+      "statBestStreak": "Y rhediad gorau",
+      "todayTitle": "Heddiw",
+      "todayNeedsAttention": "Mae {{count}} meddyginiaeth yn dal angen sylw heddiw.",
+      "todayAllCovered": "Mae popeth a drefnwyd ar gyfer heddiw wedi'i gwblhau.",
+      "todayDone": "{{count}} wedi'u gwneud",
+      "todayLeft": "{{count}} ar ôl",
+      "attentionTitle": "Angen sylw",
+      "attentionSubtitle": "Yr wythnos hon, cadwch lygad ar {{names}}.",
+      "insightsTitle": "Syniadau defnyddiol",
+      "insightNextStepTitle": "Y cam gorau nesaf",
+      "insightNextStepSingle": "Mae {{name}} yn dal angen dos heddiw.",
+      "insightNextStepMultiple": "Mae {{count}} meddyginiaeth yn dal angen dosau heddiw.",
+      "insightNextStepReview": "Edrychwch ar {{name}} yn gyntaf, gan mai dyna sy'n gyrru'r dosau a fethwyd yr wythnos hon.",
+      "insightNextStepClear": "Does dim angen gweithredu ar unwaith ar hyn o bryd.",
+      "insightHabitTitle": "Yr arfer cryfaf",
+      "insightHabitBody": "{{name}} yw eich patrwm gorau hyd yma gyda {{streak}} diwrnod yn olynol.",
+      "insightHabitBodyNoStreak": "{{name}} yw eich meddyginiaeth fwyaf cyson ar hyn o bryd.",
+      "insightHabitBodyEmpty": "Wrth i fwy o ddata ddod i mewn, bydd VYVA yn dangos eich arfer cryfaf yma.",
+      "insightFocusTitle": "Ffocws yr wythnos",
+      "insightFocusBody": "Mae'n werth edrych ar {{name}} yn gyntaf oherwydd bod ganddo {{count}} dos a fethwyd yr wythnos hon.",
+      "insightFocusBodyClear": "Mae popeth yn edrych yn sefydlog yr wythnos hon.",
+      "thisWeek": "This week",
       "last30Days": "Last 30 days",
       "perMedication": "Per Medication",
       "taken": "taken",
@@ -849,23 +859,52 @@
       "authTitle": "Mewngofnodwch i weld yr adroddiad hwn",
       "authSub": "Mae cadw at feddyginiaeth yn breifat. Mewngofnodwch i weld eich adroddiad.",
       "signIn": "Mewngofnodi",
-        "shareButton": "Share with care team",
-        "shareTitle": "Medication Adherence Report",
-        "shareShared": "Shared",
-        "shareSharedDesc": "Your adherence summary was shared.",
-        "shareCopied": "Report copied!",
-        "shareCopiedDesc": "Your adherence summary has been copied to the clipboard.",
-        "shareFormat": "Medication Adherence Report\n\nThis week: {{week}}%\nLast 30 days: {{month}}%\nAttention: {{attention}}\n\nPer medication:\n{{meds}}\n\nGenerated by VYVA",
-        "shareAllOnTrack": "All current medications are on track this week.",
-        "shareNeedsAttention": "{{count}} medication needs attention this week: {{names}}.",
-        "shareFormatMed": "{{name}} ({{dosage}}): {{taken}}/{{scheduled}} doses taken this week, {{streak}}-day streak",
-        "shareFooter": "Generated by VYVA",
-        "loadingTitle": "Loading your report…",
+      "shareButton": "Share with care team",
+      "shareTitle": "Medication Adherence Report",
+      "shareShared": "Shared",
+      "shareSharedDesc": "Your adherence summary was shared.",
+      "shareCopied": "Report copied!",
+      "shareCopiedDesc": "Your adherence summary has been copied to the clipboard.",
+      "shareFormat": "Medication Adherence Report\n\nThis week: {{week}}%\nLast 30 days: {{month}}%\nAttention: {{attention}}\n\nPer medication:\n{{meds}}\n\nGenerated by VYVA",
+      "shareAllOnTrack": "All current medications are on track this week.",
+      "shareNeedsAttention": "{{count}} medication needs attention this week: {{names}}.",
+      "shareFormatMed": "{{name}} ({{dosage}}): {{taken}}/{{scheduled}} doses taken this week, {{streak}}-day streak",
+      "shareFooter": "Generated by VYVA",
+      "loadingTitle": "Loading your report…",
       "errorTitle": "Could not load report",
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
-    }
+    },
+    "takenToastTitle": "Da iawn",
+    "takenToastDescription": "Mae {{medicine}} wedi?i farcio fel wedi?i gymryd.",
+    "allTakenToastDescription": "Mae pob dos heddiw eisoes wedi?i farcio fel wedi?i gymryd.",
+    "editSuccess": "Diweddarwyd y feddyginiaeth",
+    "editSuccessDesc": "Cadwyd manylion eich meddyginiaeth.",
+    "editError": "Nid oedd modd diweddaru?r feddyginiaeth",
+    "editErrorDesc": "Ni chafodd manylion eich meddyginiaeth eu cadw. Rhowch gynnig arall arni.",
+    "deleteSuccess": "Tynnwyd y feddyginiaeth",
+    "deleteSuccessDesc": "Tynnwyd y feddyginiaeth hon o?ch rhestr.",
+    "deleteError": "Nid oedd modd tynnu?r feddyginiaeth",
+    "deleteErrorDesc": "Ni thynnwyd y feddyginiaeth hon o?ch rhestr. Rhowch gynnig arall arni.",
+    "safety": {
+      "analyseSuccess": "Diweddarwyd y gwiriad diogelwch",
+      "analyseSuccessDesc": "Adolygodd VYVA eich signalau meddyginiaeth.",
+      "analyseError": "Nid oedd modd dadansoddi diogelwch meddyginiaeth",
+      "analyseErrorDesc": "Ni allodd VYVA adolygu eich signalau meddyginiaeth ar hyn o bryd.",
+      "sharedSuccess": "Rhannwyd yr achos gyda gofalwr",
+      "sharedSuccessDesc": "Rhannwyd achos diogelwch y feddyginiaeth gyda?ch gofalwr.",
+      "saveSuccess": "Cadwyd yr achos diogelwch",
+      "saveSuccessDesc": "Cadwyd achos diogelwch y feddyginiaeth i?w adolygu.",
+      "saveError": "Nid oedd modd cadw?r achos diogelwch",
+      "saveErrorDesc": "Ni chafodd achos diogelwch y feddyginiaeth ei gadw. Rhowch gynnig arall arni.",
+      "exportSuccess": "Cr?wyd pecyn parod i?w archwilio",
+      "exportSuccessDesc": "Mae pecyn diogelwch y feddyginiaeth yn barod i?w gop?o neu ei rannu.",
+      "exportError": "Nid oedd modd allforio?r achos diogelwch",
+      "exportErrorDesc": "Ni chafodd pecyn diogelwch y feddyginiaeth ei greu. Rhowch gynnig arall arni."
+    },
+    "confirmDoseError": "Nid oedd modd cadarnhau?r dos",
+    "confirmDoseErrorDesc": "Ni chafodd y dos ei farcio fel wedi?i gymryd. Rhowch gynnig arall arni."
   },
   "brain": {
     "voiceSource": "VYVA yw eich hyfforddwr ymennydd",
@@ -1100,6 +1139,36 @@
       "saving": "Yn cadw…",
       "continue": "Parhau",
       "placeholderName": "e.e. Sian Williams"
+    },
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Alergenau eisoes wedi?u cadw",
+        "description": "Mae popeth a ddywedoch eisoes ar eich rhestr alergeddau."
+      },
+      "allergyListUpdated": {
+        "title": "Diweddarwyd y rhestr alergeddau",
+        "description_one": "Ychwanegwyd {{count}} alergen at eich proffil.",
+        "description_other": "Ychwanegwyd {{count}} alergen at eich proffil."
+      },
+      "healthConditionsUpdated": {
+        "title": "Diweddarwyd cyflyrau iechyd",
+        "description_one": "Ychwanegwyd {{count}} cyflwr at eich proffil.",
+        "description_other": "Ychwanegwyd {{count}} cyflwr at eich proffil."
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Diddordebau eisoes wedi?u cadw",
+        "description": "Mae popeth a ddywedoch eisoes wedi?i ddewis."
+      },
+      "hobbiesUpdated": {
+        "title": "Diweddarwyd diddordebau",
+        "description_one": "Ychwanegwyd {{count}} diddordeb at eich proffil.",
+        "description_other": "Ychwanegwyd {{count}} diddordeb at eich proffil."
+      },
+      "providerUpdated": {
+        "title": "Diweddarwyd y darparwr",
+        "fallbackName": "Y darparwr hwn",
+        "description": "Cadwyd {{name}} yn eich darparwyr dibynadwy."
+      }
     }
   },
   "weather": {
@@ -1170,7 +1239,8 @@
       "accepted": "Wedi cysylltu",
       "accept": "Derbyn",
       "decline": "Gwrthod",
-      "requestSent": "Cais cysylltu anfonwyd!"
+      "requestSent": "Anfonwyd cais cysylltu",
+      "requestSentDesc": "Anfonwyd eich cais am gwmni."
     },
     "noConnections": "Dim cymdeithas eto — gwiriwch yr adran Awgrymiadau!",
     "activityTile": "Dod o hyd i ddêt chwarae",
@@ -1181,7 +1251,11 @@
       "saveInterestsFailed": "Nid oedd modd cadw eich diddordebau",
       "connectFailed": "Nid oedd modd anfon y cais",
       "respondFailed": "Nid oedd modd diweddaru'r cysylltiad",
-      "activateFailed": "Nid oedd modd actifadu'r gymuned. Rhowch gynnig arall arni."
+      "activateFailed": "Nid oedd modd actifadu'r gymuned. Rhowch gynnig arall arni.",
+      "saveInterestsFailedDesc": "Ni chadwyd eich diddordebau cwmni. Rhowch gynnig arall arni.",
+      "connectFailedDesc": "Ni anfonwyd eich cais am gwmni. Rhowch gynnig arall arni.",
+      "respondFailedDesc": "Ni chadwyd eich ymateb cwmni. Rhowch gynnig arall arni.",
+      "activateFailedDesc": "Ni chafodd chwilio am gwmni ei droi ymlaen. Rhowch gynnig arall arni."
     },
     "profile": {
       "valuesTitle": "Beth sy'n bwysig i chi",

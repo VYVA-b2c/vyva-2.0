@@ -343,6 +343,8 @@
       "helper": "Toca una tarjeta o usa el micrófono para ir directo.",
       "health": {
         "title": "Mi salud",
+        "mobileTitle": "Mi salud",
+        "mobileSubtitle": "Sintomas y cuidado",
         "subtitle": "Síntomas, medicación y bienestar",
         "bubble": "Estoy aquí para ayudarte a sentirte mejor cada día.",
         "micLabel": "Hablar de mi salud",
@@ -350,6 +352,8 @@
       },
       "cognitive": {
         "title": "Actividades",
+        "mobileTitle": "Mi mente",
+        "mobileSubtitle": "Memoria y enfoque",
         "subtitle": "Eventos, clases y planes tranquilos",
         "bubble": "Puedo encontrar planes seguros que encajen contigo.",
         "micLabel": "Buscar actividades",
@@ -357,6 +361,8 @@
       },
       "social": {
         "title": "Mi comunidad",
+        "mobileTitle": "Mi comunidad",
+        "mobileSubtitle": "Salas y chats",
         "subtitle": "Salas, chats y momentos compartidos",
         "bubble": "Me encanta escucharte. Aquí siempre tienes con quién hablar.",
         "micLabel": "Hablar con VYVA",
@@ -364,6 +370,8 @@
       },
       "concierge": {
         "title": "Mi conserje",
+        "mobileTitle": "Mi conserje",
+        "mobileSubtitle": "Ayuda y gestiones",
         "subtitle": "Reservas, gestiones y apoyo",
         "bubble": "Déjame encargarme. Yo me ocupo de lo difícil.",
         "micLabel": "Pedir ayuda por voz",
@@ -583,6 +591,7 @@
         "downloadDataSub": "Obtén una copia de todo lo que VYVA tiene sobre ti",
         "downloadDataPreparing": "Preparando tus datos...",
         "downloadDataStarted": "Tu exportación de datos se está descargando",
+        "downloadDataStartedDesc": "VYVA ha empezado a descargar la exportaci?n de tu perfil.",
         "downloadDataError": "No se pudieron descargar tus datos",
         "planBilling": "Plan y facturación",
         "planBillingSub": "Prueba gratuita · 14 días restantes",
@@ -622,6 +631,7 @@
       "saving": "Guardando...",
       "savePreferences": "Guardar preferencias",
       "saved": "Preferencias guardadas",
+      "savedDesc": "Tus preferencias de notificaci?n se han actualizado.",
       "saveError": "No se pudieron guardar las preferencias",
       "loadError": "No se pudieron cargar las preferencias",
       "supportMode": "Modo de apoyo",
@@ -645,7 +655,9 @@
       "locationSub": "Ubicación en tiempo real cuando está activo",
       "conversationsLabel": "Resúmenes de conversaciones",
       "conversationsSub": "Aspectos destacados diarios de tus chats",
-      "gdprFooter": "Los cambios se guardan automáticamente. Protegido por el RGPD."
+      "gdprFooter": "Los cambios se guardan automáticamente. Protegido por el RGPD.",
+      "brainCoachAccessUpdated": "Acceso a Brain Coach actualizado",
+      "brainCoachAccessUpdatedDesc": "Los permisos de Brain Coach de este miembro del equipo de cuidado se han guardado."
     },
     "account": {
       "title": "Mi cuenta",
@@ -691,8 +703,14 @@
       "lastNameRequired": "Los apellidos son obligatorios.",
       "phoneRequired": "El numero de telefono es obligatorio.",
       "requiredFieldsMissing": "Completa los campos obligatorios.",
+      "requiredFieldsMissingDesc": "Completa los datos resaltados del perfil antes de guardar.",
       "saved": "Datos de la cuenta guardados",
+      "savedDesc": "Los datos de tu cuenta se han guardado.",
       "saveError": "No se pudieron guardar los datos de la cuenta",
+      "photoUpdated": "Foto actualizada",
+      "photoUpdatedDesc": "Tu foto de perfil se ha guardado.",
+      "photoError": "No se pudo actualizar la foto",
+      "photoErrorDesc": "Tu foto de perfil no se ha guardado. Prueba con otra imagen.",
       "defaultName": "Maria"
     }
   },
@@ -1178,7 +1196,9 @@
       "interactions": "Interacciones",
       "interactionsSub": "Revisa medicinas y suplementos.",
       "adherence": "Cumplimiento",
-      "adherenceSub": "Ve progreso y dosis omitidas."
+      "adherenceSub": "Ve progreso y dosis omitidas.",
+      "homeRemedies": "Remedios caseros",
+      "homeRemediesSub": "Revisar opciones naturales y alternativas."
     },
     "canHelpWith": "Te puedo ayudar con",
     "fastHelpKicker": "Ayuda rapida",
@@ -1191,6 +1211,9 @@
     "added": "Añadido",
     "confirm": "Confirmar",
     "allTaken": "¡Todas las dosis tomadas!",
+    "takenToastTitle": "Buen trabajo",
+    "takenToastDescription": "{{medicine}} fue marcado como tomado.",
+    "allTakenToastDescription": "Todas las dosis de hoy ya est?n marcadas como tomadas.",
     "noMedsTitle": "Aún no hay medicamentos añadidos",
     "noMedsSub": "Usa el botón de abajo para añadir tus medicamentos por voz",
     "noMedsScheduled": "No hay medicamentos programados para hoy",
@@ -1207,6 +1230,30 @@
     "toastAdded": "Medicamento añadido",
     "toastAddedDesc": "{{name}} ha sido añadido a tu lista.",
     "toastAddedDefault": "Tu medicamento ha sido añadido.",
+    "editSuccess": "Medicamento actualizado",
+    "editSuccessDesc": "Los datos del medicamento se han guardado.",
+    "editError": "No se pudo actualizar el medicamento",
+    "editErrorDesc": "Los datos del medicamento no se guardaron. Int?ntalo de nuevo.",
+    "deleteSuccess": "Medicamento eliminado",
+    "deleteSuccessDesc": "Este medicamento se elimin? de tu lista.",
+    "deleteError": "No se pudo eliminar el medicamento",
+    "deleteErrorDesc": "Este medicamento no se elimin? de tu lista. Int?ntalo de nuevo.",
+    "safety": {
+      "analyseSuccess": "Revisi?n de seguridad actualizada",
+      "analyseSuccessDesc": "VYVA revis? las se?ales de tus medicamentos.",
+      "analyseError": "No se pudo analizar la seguridad de los medicamentos",
+      "analyseErrorDesc": "VYVA no pudo revisar tus se?ales de medicamentos ahora mismo.",
+      "sharedSuccess": "Caso compartido con el cuidador",
+      "sharedSuccessDesc": "El caso de seguridad del medicamento se comparti? con tu cuidador.",
+      "saveSuccess": "Caso de seguridad guardado",
+      "saveSuccessDesc": "El caso de seguridad del medicamento se guard? para revisi?n.",
+      "saveError": "No se pudo guardar el caso de seguridad",
+      "saveErrorDesc": "El caso de seguridad del medicamento no se guard?. Int?ntalo de nuevo.",
+      "exportSuccess": "Paquete listo para auditor?a creado",
+      "exportSuccessDesc": "El paquete de seguridad del medicamento est? listo para copiar o compartir.",
+      "exportError": "No se pudo exportar el caso de seguridad",
+      "exportErrorDesc": "El paquete de seguridad del medicamento no se cre?. Int?ntalo de nuevo."
+    },
     "assistant": {
       "interactions": {
         "label": "Verificar interacciones",
@@ -1344,7 +1391,9 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
-    }
+    },
+    "confirmDoseError": "No se pudo confirmar la dosis",
+    "confirmDoseErrorDesc": "La dosis no se marc? como tomada. Int?ntalo de nuevo."
   },
   "brain": {
     "voiceSource": "VYVA es tu entrenador mental",
@@ -1424,6 +1473,36 @@
     }
   },
   "onboarding": {
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Al?rgenos ya guardados",
+        "description": "Todo lo que dijiste ya est? en tu lista de alergias."
+      },
+      "allergyListUpdated": {
+        "title": "Lista de alergias actualizada",
+        "description_one": "{{count}} al?rgeno se a?adi? a tu perfil.",
+        "description_other": "{{count}} al?rgenos se a?adieron a tu perfil."
+      },
+      "healthConditionsUpdated": {
+        "title": "Condiciones de salud actualizadas",
+        "description_one": "{{count}} condici?n se a?adi? a tu perfil.",
+        "description_other": "{{count}} condiciones se a?adieron a tu perfil."
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Aficiones ya guardadas",
+        "description": "Todo lo que dijiste ya est? seleccionado."
+      },
+      "hobbiesUpdated": {
+        "title": "Aficiones actualizadas",
+        "description_one": "{{count}} afici?n se a?adi? a tu perfil.",
+        "description_other": "{{count}} aficiones se a?adieron a tu perfil."
+      },
+      "providerUpdated": {
+        "title": "Proveedor actualizado",
+        "fallbackName": "Este proveedor",
+        "description": "{{name}} se guard? en tus proveedores de confianza."
+      }
+    },
     "careTeam": {
       "roles": {
         "familyMember": "Familiar",
@@ -1662,7 +1741,8 @@
       "accepted": "Conectado",
       "accept": "Aceptar",
       "decline": "Rechazar",
-      "requestSent": "¡Solicitud de conexión enviada!"
+      "requestSent": "Solicitud de conexi?n enviada",
+      "requestSentDesc": "Tu solicitud de compa??a fue enviada."
     },
     "noConnections": "Aún no tienes compañeros — ¡consulta la pestaña de Sugerencias!",
     "activityTile": "Conecta con otros",
@@ -1671,9 +1751,13 @@
     "sayHelloPrompt": "¡Saluda a {{name}}!",
     "errors": {
       "saveInterestsFailed": "No se pudieron guardar tus intereses",
+      "saveInterestsFailedDesc": "Tus intereses para compa??a no se guardaron. Int?ntalo de nuevo.",
       "connectFailed": "No se pudo enviar la solicitud",
+      "connectFailedDesc": "Tu solicitud de compa??a no se envi?. Int?ntalo de nuevo.",
       "respondFailed": "No se pudo actualizar la conexión",
-      "activateFailed": "No se pudo activar la comunidad. Inténtalo de nuevo."
+      "respondFailedDesc": "Tu respuesta de compa??a no se guard?. Int?ntalo de nuevo.",
+      "activateFailed": "No se pudo activar la comunidad. Inténtalo de nuevo.",
+      "activateFailedDesc": "La b?squeda de compa??a no se activ?. Int?ntalo de nuevo."
     },
     "profile": {
       "valuesTitle": "Lo que te importa",
@@ -1770,6 +1854,20 @@
         "mobile": "Cita",
         "sub": "Medico, peluqueria, tramite, restaurante",
         "mobileSub": "Medico, salon, tramite"
+      }
+    },
+    "standalone": {
+      "kicker": "Ayuda aparte",
+      "title": "Documentos y formularios",
+      "cards": {
+        "form": {
+          "label": "Ayuda formularios",
+          "sub": "Rellenar, revisar, confirmar"
+        },
+        "paperwork": {
+          "label": "Ayuda papeleo",
+          "sub": "Cartas, documentos, facturas"
+        }
       }
     },
     "quickPrompts": {

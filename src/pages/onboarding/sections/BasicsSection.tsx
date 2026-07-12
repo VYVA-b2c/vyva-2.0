@@ -16,6 +16,7 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import { useToast } from "@/hooks/use-toast";
 import { friendlyError } from "@/lib/apiError";
 import { LANGUAGES } from "@/i18n/languages";
+import { useTranslation } from "react-i18next";
 import {
   buildOnboardingIdentityPayload,
   compressAvatarFile,
@@ -134,6 +135,7 @@ export default function BasicsSection() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const [form, setForm] = useState<BasicsForm>(() => ({
     ...createEmptyIdentityForm(),
@@ -238,7 +240,11 @@ export default function BasicsSection() {
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding/state"] });
     },
     onError: () => {
-      toast({ title: "Could not update photo", variant: "destructive" });
+      toast({
+        title: t("settings.account.photoError", "Could not update photo"),
+        description: t("settings.account.photoErrorDesc", "Your profile photo was not saved. Please try another image."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -274,7 +280,11 @@ export default function BasicsSection() {
       const dataUrl = await compressAvatarFile(file);
       avatarMutation.mutate(dataUrl);
     } catch {
-      toast({ title: "Could not update photo", variant: "destructive" });
+      toast({
+        title: t("settings.account.photoError", "Could not update photo"),
+        description: t("settings.account.photoErrorDesc", "Your profile photo was not saved. Please try another image."),
+        variant: "destructive",
+      });
     } finally {
       e.target.value = "";
     }

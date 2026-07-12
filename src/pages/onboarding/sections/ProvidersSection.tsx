@@ -21,6 +21,7 @@ import { MerchantDetailSheet, ProviderDetails } from "@/components/onboarding/Me
 import { useQuery } from "@tanstack/react-query";
 import { queryClient, apiFetch } from "@/lib/queryClient";
 import { friendlyError } from "@/lib/apiError";
+import { useTranslation } from "react-i18next";
 
 interface ProviderCategory {
   id: string;
@@ -272,6 +273,7 @@ async function saveProvidersToServer(entries: ProviderEntry[]): Promise<Response
 const ProvidersSection = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const [activeCategory, setActiveCategory] = useState<string>(PROVIDER_CATEGORIES[0].id);
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
@@ -494,7 +496,13 @@ const ProvidersSection = () => {
     try {
       res = await saveProvidersToServer(updatedList);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast({ title: "Provider updated" });
+      toast({
+        title: t("onboarding.toast.providerUpdated.title", "Provider updated"),
+        description: t("onboarding.toast.providerUpdated.description", {
+          name: entry.name || t("onboarding.toast.providerUpdated.fallbackName", "This provider"),
+          defaultValue: "{{name}} was saved to your trusted providers.",
+        }),
+      });
     } catch (err) {
       setProviders(providers);
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);
