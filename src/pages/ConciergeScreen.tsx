@@ -383,6 +383,17 @@ interface ConciergePendingItem {
   expires_at?: string | null;
 }
 
+interface ConciergeCompletedSession {
+  id: string;
+  pending_id: string | null;
+  use_case: string;
+  provider_name: string | null;
+  outcome: string | null;
+  outcome_payload: Record<string, unknown> | null;
+  outcome_summary: string | null;
+  completed_at: string | null;
+}
+
 type ConciergeEmailDraft = {
   address: string;
   subject: string;
@@ -1236,6 +1247,13 @@ async function fetchPendingActions(): Promise<ConciergePendingItem[]> {
   const res = await apiFetch("/api/concierge/actions/pending");
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   const data = (await res.json()) as ConciergeActionListResponse<ConciergePendingItem>;
+  return data.items ?? [];
+}
+
+async function fetchCompletedConciergeSessions(): Promise<ConciergeCompletedSession[]> {
+  const res = await apiFetch("/api/concierge/actions/sessions");
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  const data = (await res.json()) as ConciergeActionListResponse<ConciergeCompletedSession>;
   return data.items ?? [];
 }
 
@@ -2785,6 +2803,66 @@ function isHomeServicePendingAction(item: ConciergePendingItem): boolean {
   return item.use_case === "home_service" || item.action_payload?.appointment_type === "home-service";
 }
 
+function isHomeServiceCompletedSession(session: ConciergeCompletedSession): boolean {
+  return session.use_case === "home_service" || session.outcome_payload?.appointment_type === "home-service";
+}
+
+function completedSessionFlowLabel(session: ConciergeCompletedSession, locale = "es"): string {
+  const es = locale.startsWith("es");
+  const flowReference = payloadString(session.outcome_payload, ["flow_reference"]);
+  if (isHomeServiceCompletedSession(session)) return es ? "Servicio en casa" : "Home service";
+  if (session.use_case === "book_ride" || flowReference === TRANSPORT_BOOKING_FLOW_REFERENCE) return es ? "Viaje" : "Ride";
+  if (session.use_case === "order_medicine" || flowReference === OTC_PHARMACY_FLOW_REFERENCE) return es ? "Farmacia OTC" : "OTC pharmacy";
+  if (session.use_case === "book_appointment" || flowReference === MEDICAL_APPOINTMENT_FLOW_REFERENCE) return es ? "Cita" : "Appointment";
+  return getUseCaseLabel(session.use_case, locale);
+}
+
+function completedSessionProvider(session: ConciergeCompletedSession, isSpanish: boolean): string {
+  return session.provider_name?.trim()
+    || payloadString(session.outcome_payload, ["provider_name", "pharmacy_name"])
+    || (isSpanish ? "VYVA" : "VYVA");
+}
+
+function formatConciergeCompletedAt(value: string | null | undefined, locale = "es"): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const dateLocale = locale.startsWith("es") ? "es-ES" : "en-GB";
+  return new Intl.DateTimeFormat(dateLocale, {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function completedSessionDetails(session: ConciergeCompletedSession, isSpanish: boolean): Array<{ label: string; value: string }> {
+  const payload = session.outcome_payload;
+  const entries = [
+    {
+      label: isSpanish ? "Hora" : "Time",
+      value: payloadString(payload, ["scheduled_for", "requested_time"]),
+    },
+    {
+      label: isSpanish ? "Coste" : "Cost",
+      value: payloadString(payload, ["price_estimate", "cost_estimate", "estimated_cost"]),
+    },
+    {
+      label: isSpanish ? "Referencia" : "Reference",
+      value: payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]),
+    },
+    {
+      label: isSpanish ? "Estado" : "Status",
+      value: payloadString(payload, ["availability", "fulfillment_note"]),
+    },
+    {
+      label: isSpanish ? "Lugar" : "Place",
+      value: payloadString(payload, ["location", "destination_address", "pickup_address"]),
+    },
+  ];
+  return entries.filter((entry) => entry.value);
+}
+
 type RightNowActionLabelsParams = {
   item: ConciergePendingItem;
   isSpanish: boolean;
@@ -3313,6 +3391,12 @@ const ConciergeScreen = () => {
     queryKey: ["/api/concierge/actions/pending"],
     queryFn: fetchPendingActions,
     refetchInterval: 8000,
+  });
+
+  const { data: completedSessions = [], isLoading: completedSessionsLoading } = useQuery({
+    queryKey: ["/api/concierge/actions/sessions"],
+    queryFn: fetchCompletedConciergeSessions,
+    staleTime: 30 * 1000,
   });
 
   const { data: conciergeProfile = null } = useQuery<ConciergeProfileSummary | null>({
@@ -5285,6 +5369,9 @@ const ConciergeScreen = () => {
   const activeAction = pendingActions.find((action) => action.id === visibleActionId) ?? pendingActions[0];
   const queuedActions = activeAction ? pendingActions.filter((action) => action.id !== activeAction.id) : [];
   const queuedActionCount = queuedActions.length;
+  const recentCompletedSessions = completedSessions
+    .filter((session) => session.outcome === "completed" || Boolean(session.completed_at))
+    .slice(0, 3);
   const priorityOfferIdeas = OFFER_IDEA_CHIPS.slice(0, 3);
   const activeActionPhoneHref = phoneHref(activeAction?.provider_phone);
   const activeActionBookingUrl = activeAction ? getBookingUrl(activeAction) : "";
@@ -7082,6 +7169,97 @@ const ConciergeScreen = () => {
             )}
           </div>
         )}
+
+        {completedSessionsLoading ? (
+          <div className="mt-3 flex items-center gap-2 rounded-[18px] border border-[#E9D5FF] bg-white px-3 py-2 font-body text-[12px] font-bold text-vyva-text-2">
+            <Loader2 size={14} className="animate-spin text-vyva-purple" />
+            {isSpanish ? "Cargando tareas completadas..." : "Loading completed tasks..."}
+          </div>
+        ) : recentCompletedSessions.length > 0 ? (
+          <div
+            className="mt-4 rounded-[22px] border border-[#BBF7D0] bg-[#F8FFFC] p-3"
+            data-testid="section-concierge-completed-history"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-body text-[12px] font-black uppercase tracking-[0.12em] text-[#047857]">
+                {isSpanish ? "Hecho recientemente" : "Done recently"}
+              </p>
+              <span className="rounded-full bg-white px-2.5 py-1 font-body text-[11px] font-black text-[#047857]">
+                {recentCompletedSessions.length}
+              </span>
+            </div>
+
+            <div className="mt-3 grid gap-2">
+              {recentCompletedSessions.map((session) => {
+                const details = completedSessionDetails(session, isSpanish);
+                const completedAt = formatConciergeCompletedAt(session.completed_at, locale);
+
+                return (
+                  <article
+                    key={session.id}
+                    className="rounded-[18px] border border-[#D1FAE5] bg-white px-3 py-2.5"
+                    data-testid={`card-concierge-completed-${session.id}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF5] text-[#047857]">
+                        <CircleCheck size={16} aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-[#ECFDF5] px-2 py-0.5 font-body text-[10px] font-black uppercase tracking-[0.08em] text-[#047857]">
+                            {completedSessionFlowLabel(session, locale)}
+                          </span>
+                          {completedAt && (
+                            <span className="font-body text-[11px] font-bold text-vyva-text-3">
+                              {completedAt}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 truncate font-body text-[14px] font-black text-vyva-text-1">
+                          {completedSessionProvider(session, isSpanish)}
+                        </p>
+                        <p className="mt-0.5 font-body text-[12px] font-semibold leading-snug text-vyva-text-2">
+                          {session.outcome_summary || (isSpanish ? "Tarea completada por VYVA." : "Task completed by VYVA.")}
+                        </p>
+
+                        {details.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {details.slice(0, 2).map((detail) => (
+                              <span
+                                key={`${session.id}-${detail.label}`}
+                                className="rounded-full bg-[#FFFCF8] px-2 py-1 font-body text-[11px] font-black text-vyva-text-2"
+                              >
+                                {detail.label}: {detail.value}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {details.length > 2 && (
+                          <details className="mt-2">
+                            <summary className="cursor-pointer font-body text-[12px] font-black text-[#047857]">
+                              {isSpanish ? "Ver detalles" : "View details"}
+                            </summary>
+                            <div className="mt-1 grid gap-1">
+                              {details.slice(2).map((detail) => (
+                                <p
+                                  key={`${session.id}-extra-${detail.label}`}
+                                  className="font-body text-[11px] font-bold text-vyva-text-2"
+                                >
+                                  {detail.label}: {detail.value}
+                                </p>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="order-[10] mt-[22px] flex flex-col" data-testid="concierge-guided-hub">

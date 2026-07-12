@@ -2009,6 +2009,98 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Save confirmed service");
   });
 
+  it("shows recent completed concierge sessions without replacing the active task", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "ride-1",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "Taxi option prepared.",
+            action_payload: null,
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      if (target.endsWith("/api/concierge/actions/sessions")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "session-ride",
+              pending_id: "old-ride",
+              use_case: "book_ride",
+              provider_name: "Radio Taxi",
+              outcome: "completed",
+              outcome_summary: "Ride saved with Radio Taxi.",
+              completed_at: "2026-08-04T09:30:00.000Z",
+              outcome_payload: {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
+                price_estimate: "EUR18",
+                booking_reference: "RT-123",
+              },
+            },
+            {
+              id: "session-otc",
+              pending_id: "old-otc",
+              use_case: "order_medicine",
+              provider_name: "Neighborhood Pharmacy",
+              outcome: "completed",
+              outcome_summary: "OTC pharmacy request saved.",
+              completed_at: "2026-08-03T17:00:00.000Z",
+              outcome_payload: {
+                flow_reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+                cost_estimate: "EUR12",
+                pharmacy_reference: "PH-22",
+              },
+            },
+            {
+              id: "session-home",
+              pending_id: "old-home",
+              use_case: "book_appointment",
+              provider_name: "Saved Plumber",
+              outcome: "completed",
+              outcome_summary: "Home service visit confirmed.",
+              completed_at: "2026-08-02T10:00:00.000Z",
+              outcome_payload: {
+                appointment_type: "home-service",
+                estimated_cost: "EUR80",
+                location: "Home kitchen",
+              },
+            },
+            {
+              id: "session-hidden",
+              pending_id: "old-extra",
+              use_case: "book_appointment",
+              provider_name: "Extra Clinic",
+              outcome: "completed",
+              outcome_summary: "Should not show in the compact list.",
+              completed_at: "2026-08-01T10:00:00.000Z",
+              outcome_payload: {},
+            },
+          ],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("section-concierge-completed-history")).toHaveTextContent("Done recently");
+    });
+    expect(screen.getByTestId("section-concierge-active-task")).toHaveTextContent("Taxi option prepared.");
+    expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Ride");
+    expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Radio Taxi");
+    expect(screen.getByTestId("card-concierge-completed-session-ride")).toHaveTextContent("Cost: EUR18");
+    expect(screen.getByTestId("card-concierge-completed-session-otc")).toHaveTextContent("OTC pharmacy");
+    expect(screen.getByTestId("card-concierge-completed-session-home")).toHaveTextContent("Home service");
+    expect(screen.queryByTestId("card-concierge-completed-session-hidden")).not.toBeInTheDocument();
+  });
+
   it("shows contacting provider as the active timeline step for started actions", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({
       items: [{
