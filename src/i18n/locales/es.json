@@ -377,13 +377,25 @@
     },
     "conciergeResume": {
       "kicker": "Ahora",
+      "kickerConfirm": "Necesita tu OK",
+      "kickerReview": "Revisar",
+      "kickerWaiting": "Esperando",
       "titlePrefix": "VYVA trabaja en tu",
+      "titleConfirmPrefix": "Confirma tu",
+      "titleReviewPrefix": "Revisa tu",
       "task": {
         "ride": "transporte",
         "appointment": "cita",
         "pharmacy": "solicitud de farmacia",
         "homeService": "servicio en casa",
         "default": "solicitud"
+      },
+      "fastStatus": {
+        "ride": "Ver transporte",
+        "appointment": "Ver cita",
+        "pharmacy": "Ver farmacia",
+        "homeService": "Ver servicio",
+        "default": "Ver solicitud"
       },
       "step": {
         "contacting": "Contactando proveedor",

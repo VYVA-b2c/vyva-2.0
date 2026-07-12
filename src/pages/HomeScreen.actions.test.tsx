@@ -125,12 +125,22 @@ const labels: Record<string, string> = {
   "home.nudge.action": "Ask VYVA",
   "home.nudge.aria": "Ask VYVA where to start",
   "home.conciergeResume.kicker": "Right now",
+  "home.conciergeResume.kickerConfirm": "Needs your OK",
+  "home.conciergeResume.kickerReview": "Needs review",
+  "home.conciergeResume.kickerWaiting": "Waiting",
   "home.conciergeResume.titlePrefix": "VYVA is working on your",
+  "home.conciergeResume.titleConfirmPrefix": "Confirm your",
+  "home.conciergeResume.titleReviewPrefix": "Review your",
   "home.conciergeResume.task.ride": "ride",
   "home.conciergeResume.task.appointment": "appointment",
   "home.conciergeResume.task.pharmacy": "pharmacy request",
   "home.conciergeResume.task.homeService": "home service",
   "home.conciergeResume.task.default": "request",
+  "home.conciergeResume.fastStatus.ride": "Check ride status",
+  "home.conciergeResume.fastStatus.appointment": "Check appointment",
+  "home.conciergeResume.fastStatus.pharmacy": "Check pharmacy request",
+  "home.conciergeResume.fastStatus.homeService": "Check home service",
+  "home.conciergeResume.fastStatus.default": "Check request",
   "home.conciergeResume.step.contacting": "Contacting provider",
   "home.conciergeResume.step.waiting": "Waiting for reply",
   "home.conciergeResume.step.form": "Preparing form",
@@ -263,7 +273,49 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("2 tasks");
   });
 
-  it("surfaces an active Concierge task and opens Right Now", () => {
+  it("surfaces a pending Concierge task until the user confirms it", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "ride-1",
+              use_case: "book_ride",
+              status: "pending",
+              provider_name: "Radio Taxi",
+              action_summary: "Ready to confirm.",
+              action_payload: null,
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-concierge-resume");
+    expect(nudge).toHaveTextContent("Needs your OK");
+    expect(nudge).toHaveTextContent("Confirm your ride");
+    expect(nudge).toHaveTextContent("Waiting for your confirmation");
+
+    const fastHelp = screen.getByTestId("home-fast-help");
+    expect(within(fastHelp).getAllByRole("button")).toHaveLength(3);
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Waiting for your confirmation");
+
+    fireEvent.click(screen.getByTestId("button-home-fast-concierge-status"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
+  });
+
+  it("surfaces an in-progress Concierge task and opens Right Now", () => {
     queryMock.mockImplementation((queryKey: unknown[]) => {
       const [key] = queryKey;
       if (key === "/api/weather") {
@@ -278,7 +330,7 @@ describe("Home fast service actions", () => {
               status: "calling",
               provider_name: "Radio Taxi",
               action_summary: "VYVA is contacting Radio Taxi.",
-              action_payload: null,
+              action_payload: { mission_status: "awaiting_provider_reply" },
             }],
           },
           isError: false,
@@ -291,10 +343,13 @@ describe("Home fast service actions", () => {
     render(<HomeScreen />);
 
     const nudge = screen.getByTestId("card-home-concierge-resume");
-    expect(nudge).toHaveTextContent("Right now");
+    expect(nudge).toHaveTextContent("Waiting");
     expect(nudge).toHaveTextContent("VYVA is working on your ride");
-    expect(nudge).toHaveTextContent("Contacting provider");
+    expect(nudge).toHaveTextContent("Waiting for reply");
     expect(nudge).toHaveTextContent("Open Right Now");
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check ride status");
+    expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
+    expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
 
     fireEvent.click(nudge);
 

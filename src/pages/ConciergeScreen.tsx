@@ -571,6 +571,25 @@ type TransportPreparedResponse = { pendingId?: string; status?: string; message?
 
 type ConciergeActionListResponse<T> = { items?: T[] };
 
+async function completePendingConciergeAction(params: {
+  pendingId: string;
+  outcomeSummary: string;
+  outcomePayload: Record<string, unknown>;
+}) {
+  const res = await apiFetch(`/api/concierge/actions/${params.pendingId}/complete`, {
+    method: "POST",
+    body: JSON.stringify({
+      outcome_summary: params.outcomeSummary,
+      outcome_payload: params.outcomePayload,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not complete concierge action");
+  }
+  return await res.json() as { ok: true; status: "completed"; sessionId?: string | null };
+}
+
 interface OfferScoreBreakdown {
   distance: number;
   price_value: number;
@@ -1495,7 +1514,7 @@ async function saveConfirmedRide(params: {
   priceEstimate: string;
   bookingReference: string;
   notes: string;
-}): Promise<{ event?: unknown }> {
+}): Promise<{ event?: unknown; completion?: unknown }> {
   const scheduledDate = new Date(params.scheduledFor);
   const providerName = params.option.providerName || params.option.label;
   const description = [
@@ -1545,7 +1564,25 @@ async function saveConfirmedRide(params: {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Could not save confirmed ride");
   }
-  return await res.json() as { event?: unknown };
+  const saved = await res.json() as { event?: unknown };
+  if (!params.pendingId) return saved;
+
+  const completion = await completePendingConciergeAction({
+    pendingId: params.pendingId,
+    outcomeSummary: `Ride saved with ${providerName}.`,
+    outcomePayload: {
+      flow_reference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+      scheduled_for: scheduledDate.toISOString(),
+      provider_name: providerName,
+      provider_reply: params.providerReply.trim(),
+      price_estimate: params.priceEstimate.trim(),
+      booking_reference: params.bookingReference.trim(),
+      pickup_address: params.pickupAddress.trim(),
+      destination_address: params.destinationAddress.trim(),
+      requested_time: params.requestedTime.trim() || "now",
+    },
+  });
+  return { ...saved, completion };
 }
 
 async function prepareOtcPharmacyConciergeAction(params: {
@@ -2666,6 +2703,96 @@ function statusLabel(status: ConciergePendingItem["status"], locale = "es"): str
   }
 }
 
+type RightNowActionLabelsParams = {
+  item: ConciergePendingItem;
+  isSpanish: boolean;
+  opensWhatsApp: boolean;
+  opensEmail: boolean;
+  opensBooking: boolean;
+  canOpenForm: boolean;
+  isVyvaTask: boolean;
+  formMissingFields: string[];
+};
+
+function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
+  const { item, isSpanish, formMissingFields } = params;
+  const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
+  if (formMissingFields.length > 0) return isSpanish ? "Anadir datos que faltan" : "Add missing details";
+  if (missionStatus.includes("awaiting_provider")) return isSpanish ? "Esperar respuesta" : "Wait for provider reply";
+  if (missionStatus.includes("form")) return isSpanish ? "VYVA prepara el formulario" : "VYVA is preparing the form";
+  if (item.use_case === "order_medicine") return isSpanish ? "VYVA prepara el pedido OTC" : "VYVA is preparing the OTC request";
+  return isSpanish ? "VYVA lo esta preparando" : "VYVA is preparing this";
+}
+
+function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string {
+  const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, canOpenForm, isVyvaTask, formMissingFields } = params;
+  if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
+
+  if (item.use_case === "book_ride") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar mensaje del viaje" : "Confirm ride message";
+    if (opensBooking) return isSpanish ? "Abrir reserva del viaje" : "Open ride booking";
+    return isSpanish ? "Confirmar llamada del viaje" : "Confirm ride call";
+  }
+
+  if (item.use_case === "book_appointment") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar mensaje de cita" : "Confirm appointment message";
+    if (opensBooking) return canOpenForm
+      ? (isSpanish ? "Abrir formulario de cita" : "Open appointment form")
+      : (isSpanish ? "Abrir reserva de cita" : "Open appointment booking");
+    return isSpanish ? "Confirmar llamada de cita" : "Confirm appointment call";
+  }
+
+  if (item.use_case === "order_medicine") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar pedido OTC" : "Confirm OTC request";
+    if (opensBooking) return isSpanish ? "Abrir pedido de farmacia" : "Open pharmacy request";
+    return isSpanish ? "Confirmar llamada a farmacia" : "Confirm pharmacy call";
+  }
+
+  if (item.use_case === "home_service") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Revisar solicitud de presupuesto" : "Review quote request";
+    if (opensBooking) return isSpanish ? "Abrir solicitud de servicio" : "Open service request";
+    return isSpanish ? "Confirmar llamada de servicio" : "Confirm service call";
+  }
+
+  if (opensWhatsApp) return isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft";
+  if (opensEmail) return isSpanish ? "Abrir email" : "Open email draft";
+  if (opensBooking) return canOpenForm
+    ? (isSpanish ? "Abrir formulario" : "Open form")
+    : (isSpanish ? "Abrir reserva" : "Open booking");
+  return isSpanish ? "Confirmar y llamar" : "Confirm and call";
+}
+
+function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
+  const { item, isSpanish } = params;
+  const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
+  if (item.status === "calling") {
+    if (item.use_case === "book_appointment") return isSpanish ? "Escuchar, silenciar o detener" : "Listen, mute, or stop";
+    return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
+  }
+  if (item.status === "failed") return isSpanish ? "Revisar y elegir siguiente paso" : "Review and choose next step";
+  if (missionStatus.includes("awaiting_user_save") || missionStatus.includes("booked")) {
+    if (item.use_case === "book_ride") return isSpanish ? "Guardar viaje confirmado" : "Save confirmed ride";
+    if (item.use_case === "book_appointment") return isSpanish ? "Guardar cita confirmada" : "Save confirmed appointment";
+    return isSpanish ? "Guardar confirmacion" : "Save confirmation";
+  }
+  if (missionStatus.includes("awaiting_provider")) return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
+  return rightNowPrimaryActionLabel(params);
+}
+
+function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
+  const { item, isSpanish, isVyvaTask } = params;
+  if (item.status === "calling") {
+    return isSpanish ? "Puedes volver mas tarde; la tarea seguira aqui." : "You can come back later; this task stays here.";
+  }
+  if (item.status === "failed") {
+    return isSpanish ? "Nada se envia hasta que lo confirmes." : "Nothing is sent until you confirm.";
+  }
+  if (isVyvaTask) {
+    return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
+  }
+  return isSpanish ? "Tu confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.";
+}
+
 type ConciergeTimelineStepState = "done" | "active" | "upcoming" | "warning";
 
 type ConciergeTimelineStep = {
@@ -3119,6 +3246,20 @@ const ConciergeScreen = () => {
   const hasSavedTransportMobilityInfo = Boolean(conciergeProfile?.serviceReadiness?.hasMobilityInfo);
   const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
   const hasTransportDestination = transportDestination.trim().length > 0;
+  const canFindTransportOptions = hasSavedTransportProvider && hasTransportDestination;
+  const openTransportProviderSetup = useCallback(() => {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: TRANSPORT_SETUP_FOCUS,
+        setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
+        setupReason: "Add a saved transport provider",
+        notice: isSpanish
+          ? "Guarda un taxi o transporte preferido para usarlo primero."
+          : "Save a preferred taxi or transport provider to check first.",
+      },
+    });
+  }, [isSpanish, navigate]);
   const canPrepareOtcPharmacy = hasSavedPharmacy && otcItemText.trim().length > 0;
   const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
   const appointmentFlowReference = appointmentIntentType === "home-service"
@@ -3577,8 +3718,12 @@ const ConciergeScreen = () => {
     onSuccess: async () => {
       setTransportNotice(isSpanish ? "Viaje guardado en Scheduled Support." : "Ride saved in Scheduled Support.");
       resetTransportFinalReview();
-      await queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
     },
     onError: (error) => {
       setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el viaje." : "I could not save the ride."));
@@ -4944,6 +5089,19 @@ const ConciergeScreen = () => {
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
+  const activeActionLabelParams = activeAction ? {
+    item: activeAction,
+    isSpanish,
+    opensWhatsApp: activeActionOpensWhatsApp,
+    opensEmail: activeActionOpensEmail,
+    opensBooking: activeActionOpensBooking,
+    canOpenForm: activeActionCanOpenForm,
+    isVyvaTask: activeActionIsVyvaTask,
+    formMissingFields: activeActionFormMissingFields,
+  } : null;
+  const activeActionPrimaryLabel = activeActionLabelParams ? rightNowPrimaryActionLabel(activeActionLabelParams) : "";
+  const activeActionNextStepLabel = activeActionLabelParams ? rightNowNextStepLabel(activeActionLabelParams) : "";
+  const activeActionNextStepHelper = activeActionLabelParams ? rightNowNextStepHelper(activeActionLabelParams) : "";
   const routePrefillHighlights = routePrefill
     ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
@@ -5733,24 +5891,14 @@ const ConciergeScreen = () => {
                             ? (isSpanish ? `Primero: ${savedTransportProvider}.` : `Saved provider first: ${savedTransportProvider}.`)
                             : (isSpanish ? "Primero revisamos tu proveedor guardado." : "Saved provider is checked first.")
                         )
-                        : (isSpanish ? "Sin proveedor guardado: VYVA compara opciones seguras." : "No saved provider yet: VYVA compares safe options.")}
+                        : (isSpanish ? "Sin proveedor guardado. Guarda un transporte de confianza para activar reservas." : "No saved provider yet. Save a trusted transport provider to activate ride help.")}
                     </p>
                   </div>
                   {!hasSavedTransportProvider ? (
                     <button
                       type="button"
                       data-testid="button-transport-provider-setup"
-                      onClick={() => navigate("/onboarding/profile/providers", {
-                        state: {
-                          returnTo: "/concierge",
-                          setupFocus: TRANSPORT_SETUP_FOCUS,
-                          setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
-                          setupReason: "Add a saved transport provider",
-                          notice: isSpanish
-                            ? "Guarda un taxi o transporte preferido para usarlo primero."
-                            : "Save a preferred taxi or transport provider to check first.",
-                        },
-                      })}
+                      onClick={openTransportProviderSetup}
                       className="ml-auto flex-shrink-0 rounded-full border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-1.5 font-body text-[12px] font-black text-[#047857]"
                     >
                       {isSpanish ? "Guardar" : "Save"}
@@ -5915,13 +6063,23 @@ const ConciergeScreen = () => {
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <button
                     type="button"
-                    onClick={() => transportOptionsMutation.mutate()}
-                    disabled={transportOptionsMutation.isPending || !hasTransportDestination}
+                    onClick={() => {
+                      if (!hasSavedTransportProvider) {
+                        openTransportProviderSetup();
+                        return;
+                      }
+                      transportOptionsMutation.mutate();
+                    }}
+                    disabled={transportOptionsMutation.isPending || (hasSavedTransportProvider && !canFindTransportOptions)}
                     data-testid="button-transport-find-options"
                     className="vyva-tap inline-flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(4,120,87,0.22)] disabled:opacity-60"
                   >
-                    {transportOptionsMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-                    {isSpanish ? "Comparar viajes seguros" : "Compare safe rides"}
+                    {transportOptionsMutation.isPending
+                      ? <Loader2 size={18} className="animate-spin" />
+                      : hasSavedTransportProvider ? <Search size={18} /> : <ShieldCheck size={18} />}
+                    {!hasSavedTransportProvider
+                      ? (isSpanish ? "Anadir transporte" : "Add transport provider")
+                      : (isSpanish ? "Comparar viajes seguros" : "Compare safe rides")}
                   </button>
                   <button
                     type="button"
@@ -5937,8 +6095,10 @@ const ConciergeScreen = () => {
                 </div>
                 {!transportResult ? (
                   <p className="mt-3 rounded-full bg-[#ECFDF5] px-4 py-2 text-center font-body text-[12px] font-black text-[#047857]">
-                    {!hasTransportDestination
-                      ? (isSpanish ? "Primero dime a donde ir." : "Tell VYVA where to go first.")
+                    {!hasSavedTransportProvider
+                      ? (isSpanish ? "Guarda un proveedor primero. Nada se contacta sin confirmar." : "Save a provider first. Nothing is contacted without confirmation.")
+                      : !hasTransportDestination
+                        ? (isSpanish ? "Primero dime a donde ir." : "Tell VYVA where to go first.")
                       : (isSpanish ? "Nada se reserva ni se contacta sin tu confirmacion." : "Nothing is booked or requested without your confirmation.")}
                   </p>
                 ) : null}
@@ -6385,6 +6545,21 @@ const ConciergeScreen = () => {
 
             <ConciergeActionTimeline steps={activeActionTimeline} />
 
+            <div
+              className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
+              data-testid="panel-concierge-next-action"
+            >
+              <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#047857]">
+                {isSpanish ? "Siguiente paso" : "Next step"}
+              </p>
+              <p className="mt-1 font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                {activeActionNextStepLabel}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+                {activeActionNextStepHelper}
+              </p>
+            </div>
+
             {activeActionIsAppointment && (
               <div
                 className="mt-3 rounded-[18px] border border-[#D8B4FE] bg-[#F5F3FF] px-3 py-2"
@@ -6542,7 +6717,7 @@ const ConciergeScreen = () => {
                 {activeActionIsVyvaTask ? (
                   <span className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-[#F5F3FF] px-4 font-body text-[13px] font-black text-vyva-purple">
                     <Sparkles size={15} className="mr-2" />
-                    {isSpanish ? "VYVA lo esta gestionando" : "VYVA is handling it"}
+                    {activeActionPrimaryLabel}
                   </span>
                 ) : (
                   <Button
@@ -6552,15 +6727,7 @@ const ConciergeScreen = () => {
                     className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
                   >
                     {activeActionOpensWhatsApp ? <Send size={16} className="mr-2" /> : activeActionOpensEmail ? <Mail size={16} className="mr-2" /> : activeActionOpensBooking ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
-                    {activeActionOpensWhatsApp
-                      ? (isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft")
-                      : activeActionOpensEmail
-                      ? (isSpanish ? "Abrir email" : "Open email draft")
-                      : activeActionOpensBooking
-                      ? activeActionCanOpenForm
-                        ? (isSpanish ? "Abrir formulario" : "Open form")
-                        : (isSpanish ? "Abrir reserva" : "Open booking")
-                      : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
+                    {activeActionPrimaryLabel}
                   </Button>
                 )}
                 <Button

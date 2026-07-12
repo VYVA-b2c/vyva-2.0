@@ -377,13 +377,25 @@
     },
     "conciergeResume": {
       "kicker": "Adesso",
+      "kickerConfirm": "Serve il tuo OK",
+      "kickerReview": "Da rivedere",
+      "kickerWaiting": "In attesa",
       "titlePrefix": "VYVA sta lavorando su",
+      "titleConfirmPrefix": "Conferma",
+      "titleReviewPrefix": "Rivedi",
       "task": {
         "ride": "trasporto",
         "appointment": "appuntamento",
         "pharmacy": "richiesta farmacia",
         "homeService": "servizio a casa",
         "default": "richiesta"
+      },
+      "fastStatus": {
+        "ride": "Controlla trasporto",
+        "appointment": "Controlla appuntamento",
+        "pharmacy": "Controlla farmacia",
+        "homeService": "Controlla servizio",
+        "default": "Controlla richiesta"
       },
       "step": {
         "contacting": "Contatto del fornitore",

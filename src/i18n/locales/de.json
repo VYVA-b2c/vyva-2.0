@@ -257,13 +257,25 @@
     },
     "conciergeResume": {
       "kicker": "Jetzt",
+      "kickerConfirm": "Braucht dein OK",
+      "kickerReview": "Pruefen",
+      "kickerWaiting": "Warten",
       "titlePrefix": "VYVA arbeitet an deinem",
+      "titleConfirmPrefix": "Bestaetige deinen",
+      "titleReviewPrefix": "Pruefe deinen",
       "task": {
         "ride": "Transport",
         "appointment": "Termin",
         "pharmacy": "Apothekenanfrage",
         "homeService": "Hausdienst",
         "default": "Anliegen"
+      },
+      "fastStatus": {
+        "ride": "Transportstatus",
+        "appointment": "Termin pruefen",
+        "pharmacy": "Apotheke pruefen",
+        "homeService": "Hausdienst pruefen",
+        "default": "Anliegen pruefen"
       },
       "step": {
         "contacting": "Anbieter kontaktieren",
