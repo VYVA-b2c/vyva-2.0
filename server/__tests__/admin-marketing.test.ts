@@ -1135,7 +1135,7 @@ describe("admin marketing router", () => {
         id: "post-1",
         headline: "Partner post",
         platform: "linkedin",
-        caption: "Partner update copy",
+        caption: JSON.stringify({ blocks: [{ text: "Partner update copy" }] }),
         image_url: "https://cdn.example.test/social.png",
       }],
       media_assets: [{
@@ -1310,6 +1310,7 @@ describe("admin marketing router", () => {
     expect(table("marketing_content_assets").find((row) => row.title === "Partner post")).toMatchObject({
       channel: "linkedin",
       body: "Partner update copy",
+      design_json: { blocks: [{ text: "Partner update copy" }] },
       media_assets: [{ url: "https://cdn.example.test/social.png", sourceField: "image_url" }],
       lovable_external_id: "social_post:post-1",
       metadata: { lovable_source_type: "social_post" },

@@ -1191,6 +1191,7 @@ function contentDesignJson(row: Record<string, unknown>) {
     [row.builder_json, "builder_json"],
     [row.templateJson, "templateJson"],
     [row.template_json, "template_json"],
+    ...contentBodyKeys.map((key) => [row[key], key] as [unknown, string]),
   ];
   for (const [value, key] of candidates) {
     const object = jsonObjectFromLovable(value, key);
@@ -1245,6 +1246,22 @@ function collectDesignText(value: unknown, parentKey = "", seen = new Set<unknow
 
 function contentBodyFromDesign(designJson: Record<string, unknown>) {
   return uniqueTextArray(collectDesignText(designJson)).slice(0, 12).join("\n\n");
+}
+
+function contentBodyFromRow(row: Record<string, unknown>) {
+  for (const key of contentBodyKeys) {
+    const value = row[key];
+    if (typeof value === "string" && value.trim()) {
+      const parsed = parseJsonLike(value);
+      if (typeof parsed === "string") return parsed.trim();
+      const extracted = uniqueTextArray(collectDesignText(parsed, key)).slice(0, 12).join("\n\n");
+      if (extracted) return extracted;
+      continue;
+    }
+    const extracted = uniqueTextArray(collectDesignText(value, key)).slice(0, 12).join("\n\n");
+    if (extracted) return extracted;
+  }
+  return "";
 }
 
 function iso(value: Date | null | undefined) {
@@ -2798,7 +2815,7 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   if (!externalId) return null;
   const designJson = contentDesignJson(row);
   const mediaAssets = contentMediaAssetsFrom(row);
-  const explicitBody = textFrom(row, [...contentBodyKeys], "");
+  const explicitBody = contentBodyFromRow(row);
   const designBody = contentBodyFromDesign(designJson);
   const title = textFrom(
     row,
