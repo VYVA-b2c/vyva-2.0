@@ -4024,6 +4024,7 @@ export default function MarketingAdminPage() {
                 <SectionCard title="Campaign list" subtitle={`${visibleCampaigns.length} visible of ${campaigns.length} campaigns. Click a campaign to open full details.`}>
                   <CampaignTable
                     campaigns={visibleCampaigns}
+                    contentTitleById={contentTitleById}
                     activeCampaignId={editingCampaignId}
                     onEdit={startCampaignEdit}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
@@ -5363,6 +5364,7 @@ export default function MarketingAdminPage() {
               <SectionCard title="Scheduled campaign details" subtitle="Table view for scheduled records.">
                 <CampaignTable
                   campaigns={visibleCampaigns.filter((campaign) => campaign.scheduleStartsAt || campaign.status === "scheduled")}
+                  contentTitleById={contentTitleById}
                   activeCampaignId={editingCampaignId}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
@@ -6150,7 +6152,23 @@ function EmptyState({ text }: { text: string }) {
   return <p className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4 text-center text-sm font-bold text-[#8b7a73]">{text}</p>;
 }
 
-function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsDisabled = false, confirmingDeleteId = null }: { campaigns: Campaign[]; activeCampaignId?: string | null; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void; actionsDisabled?: boolean; confirmingDeleteId?: string | null }) {
+function CampaignTable({
+  campaigns,
+  contentTitleById = new Map<string, string>(),
+  activeCampaignId,
+  onEdit,
+  onDelete,
+  actionsDisabled = false,
+  confirmingDeleteId = null,
+}: {
+  campaigns: Campaign[];
+  contentTitleById?: ReadonlyMap<string, string>;
+  activeCampaignId?: string | null;
+  onEdit?: (campaign: Campaign) => void;
+  onDelete?: (campaign: Campaign) => void;
+  actionsDisabled?: boolean;
+  confirmingDeleteId?: string | null;
+}) {
   const showActions = Boolean(onEdit || onDelete);
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
@@ -6194,10 +6212,19 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
               </td>
               <td className="px-4 py-3 font-black">{campaign.audienceType.toUpperCase()}</td>
               <td className="px-4 py-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => (
-                    <Pill key={item.id} className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                  ))}
+                <div className="grid gap-1.5">
+                  {campaign.channels.length === 0 ? <span className="text-xs font-bold text-[#8b7a73]">No channels</span> : campaign.channels.map((item) => {
+                    const contentTitle = item.contentAssetId ? contentTitleById.get(item.contentAssetId) : "";
+                    const contentLabel = contentTitle || (item.contentAssetId ? `Missing content: ${item.contentAssetId}` : "No content linked");
+                    return (
+                      <div key={item.id} className="flex flex-wrap items-center gap-1.5" data-testid={`marketing-campaign-channel-link-${item.id}`}>
+                        <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
+                        <span className={`max-w-[260px] truncate text-xs font-black ${contentTitle ? "text-[#5b4a46]" : item.contentAssetId ? "text-amber-800" : "text-[#8b7a73]"}`}>
+                          {contentLabel}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </td>
               <td className="px-4 py-3 font-bold text-[#7d6b65]">
