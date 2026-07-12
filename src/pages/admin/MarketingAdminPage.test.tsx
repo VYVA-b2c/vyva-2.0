@@ -674,6 +674,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveClass("overflow-x-auto");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("hassan@example.com");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("+34 983 419 300");

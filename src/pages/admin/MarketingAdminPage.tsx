@@ -3395,7 +3395,7 @@ export default function MarketingAdminPage() {
                 {campaignMetrics.length === 0 ? (
                   <EmptyState text="No campaign analytics imported yet." />
                 ) : (
-                  <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
+                  <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-analytics-table">
                     <table className="w-full border-collapse text-left text-sm">
                       <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                         <tr>
@@ -4369,7 +4369,7 @@ export default function MarketingAdminPage() {
                       ) : null}
                     </div>
                   ) : (
-                    <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
+                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
                       <table className="min-w-[1180px] border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
@@ -4961,7 +4961,7 @@ export default function MarketingAdminPage() {
                     </SectionCard>
                   ) : null}
                   <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
-                    <div className="overflow-hidden rounded-xl border border-[#eadfd5]">
+                    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-contacts-table">
                       <table className="min-w-[1500px] border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
@@ -5386,7 +5386,7 @@ function EmptyState({ text }: { text: string }) {
 function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsDisabled = false }: { campaigns: Campaign[]; activeCampaignId?: string | null; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void; actionsDisabled?: boolean }) {
   const showActions = Boolean(onEdit || onDelete);
   return (
-    <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
+    <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
           <tr>
