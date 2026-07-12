@@ -1295,6 +1295,11 @@ function normalizeAudience(value: string) {
   return "b2c";
 }
 
+function audienceMatchesTarget(rowAudience: string, targetAudience: string) {
+  if (targetAudience === "both") return true;
+  return rowAudience === targetAudience || rowAudience === "both";
+}
+
 function normalizeCampaignStatus(value: string) {
   const normalized = value.trim().toLowerCase();
   if ((campaignStatuses as readonly string[]).includes(normalized)) return normalized as typeof campaignStatuses[number];
@@ -1926,8 +1931,8 @@ adminMarketingRouter.get("/summary", async (_req, res) => {
       })),
       byAudience: audienceTypes.map((audienceType) => ({
         audienceType,
-        campaigns: bundle.campaignRows.filter((row) => row.audience_type === audienceType).length,
-        contacts: contactRows.filter((row) => row.audience_type === audienceType).length,
+        campaigns: bundle.campaignRows.filter((row) => audienceMatchesTarget(row.audience_type, audienceType)).length,
+        contacts: contactRows.filter((row) => audienceMatchesTarget(row.audience_type, audienceType)).length,
       })),
       lockedSendCapabilities: channelSendCapabilities(),
       emailScheduler: marketingEmailSchedulerStatus(),

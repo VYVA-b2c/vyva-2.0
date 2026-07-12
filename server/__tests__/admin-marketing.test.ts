@@ -271,6 +271,31 @@ describe("admin marketing router", () => {
       });
   });
 
+  it("counts combined-audience contacts and campaigns in the eligible marketing summary buckets", async () => {
+    dbMock.rows.set("marketing_campaigns", [
+      { id: "campaign-b2c", name: "B2C", status: "draft", audience_type: "b2c", schedule_starts_at: null, updated_at: new Date("2026-07-05T10:00:00.000Z") },
+      { id: "campaign-b2b", name: "B2B", status: "draft", audience_type: "b2b", schedule_starts_at: null, updated_at: new Date("2026-07-05T10:00:00.000Z") },
+      { id: "campaign-both", name: "Both", status: "draft", audience_type: "both", schedule_starts_at: null, updated_at: new Date("2026-07-05T10:00:00.000Z") },
+    ]);
+    dbMock.rows.set("marketing_contacts", [
+      { id: "contact-b2c", full_name: "B2C", audience_type: "b2c", updated_at: new Date("2026-07-05T10:00:00.000Z") },
+      { id: "contact-b2b", full_name: "B2B", audience_type: "b2b", updated_at: new Date("2026-07-05T10:00:00.000Z") },
+      { id: "contact-both-1", full_name: "Both 1", audience_type: "both", updated_at: new Date("2026-07-05T10:00:00.000Z") },
+      { id: "contact-both-2", full_name: "Both 2", audience_type: "both", updated_at: new Date("2026-07-05T10:00:00.000Z") },
+    ]);
+
+    await request(buildApp())
+      .get("/api/admin/marketing/summary")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.byAudience).toEqual([
+          { audienceType: "b2c", campaigns: 2, contacts: 3 },
+          { audienceType: "b2b", campaigns: 2, contacts: 3 },
+          { audienceType: "both", campaigns: 3, contacts: 4 },
+        ]);
+      });
+  });
+
   it("previews the Lovable export without creating sync or marketing rows", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
