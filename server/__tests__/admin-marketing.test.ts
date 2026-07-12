@@ -1106,8 +1106,8 @@ describe("admin marketing router", () => {
         subject: "Welcome",
         body: "Hello",
         htmlBody: "<h1>Hello</h1>",
-        blocks: [{ type: "hero" }],
-        mediaAssets: [{ url: "https://cdn.example.test/hero.png", type: "image" }],
+        blocks: JSON.stringify([{ type: "hero" }]),
+        mediaAssets: JSON.stringify([{ url: "https://cdn.example.test/hero.png", type: "image" }]),
         ctaLabel: "Start",
         ctaUrl: "https://v2.vyva.life/start",
         extraLovableOnlyField: "kept in metadata",
@@ -1120,7 +1120,7 @@ describe("admin marketing router", () => {
         body_html: "<p>Alias HTML</p>",
         button_label: "Book now",
         button_url: "https://v2.vyva.life/book",
-        email_design: { sections: [{ kind: "hero" }] },
+        email_design: JSON.stringify({ sections: [{ kind: "hero" }] }),
         cover_image_url: "https://cdn.example.test/alias-cover.png",
       }],
       saved_email_templates: [{
@@ -1178,7 +1178,7 @@ describe("admin marketing router", () => {
         name: "Partners",
         description: "Partner mailing list",
         listType: "static",
-        rules: { market: "Spain" },
+        rules: JSON.stringify({ market: "Spain" }),
       }],
       contact_list_members: [{
         id: "list-member-1",
@@ -1220,9 +1220,9 @@ describe("admin marketing router", () => {
         id: "journey:journey-1",
         name: "Nurture",
         triggerType: "signup",
-        triggerConfig: { source: "campaign" },
+        triggerConfig: JSON.stringify({ source: "campaign" }),
         goalType: "activation",
-        goalConfig: { event: "first_login" },
+        goalConfig: JSON.stringify({ event: "first_login" }),
         exitOnGoal: false,
       }],
       journey_steps: [{
@@ -1234,7 +1234,7 @@ describe("admin marketing router", () => {
         dayOffset: 3,
         templateKind: "email_template",
         templateRef: "content-1",
-        config: { variant: "a" },
+        config: JSON.stringify({ variant: "a" }),
       }],
       journeyEnrollments: [{
         id: "enrollment-1",
@@ -1355,6 +1355,9 @@ describe("admin marketing router", () => {
       },
     });
     expect(table("marketing_audiences")).toHaveLength(1);
+    expect(table("marketing_audiences")[0]).toMatchObject({
+      rules: { market: "Spain" },
+    });
     expect(table("marketing_audience_members")).toHaveLength(2);
     expect(table("marketing_audience_members").filter((row) => row.contact_id)).toHaveLength(1);
     expect(table("marketing_campaigns")).toHaveLength(2);

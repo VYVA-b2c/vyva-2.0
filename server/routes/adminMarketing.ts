@@ -279,6 +279,19 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function parseJsonLike(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function jsonRecordFromLovable(value: unknown) {
+  return asRecord(parseJsonLike(value));
+}
+
 function textFrom(row: Record<string, unknown>, keys: string[], fallback = "") {
   for (const key of keys) {
     const value = row[key];
@@ -336,7 +349,7 @@ function splitTextList(value: unknown) {
 }
 
 function contactFieldSources(row: Record<string, unknown>) {
-  const metadata = asRecord(row.metadata);
+  const metadata = jsonRecordFromLovable(row.metadata);
   return [
     row,
     asRecord(row.contact),
@@ -428,7 +441,8 @@ function dateTextFrom(row: Record<string, unknown>, keys: string[]) {
 }
 
 function arrayFrom(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+  const parsed = parseJsonLike(value);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function arrayOrSingleton(value: unknown): unknown[] {
@@ -1156,8 +1170,9 @@ function addExternalIdVariants<T>(map: Map<string, T>, externalId: string | null
 }
 
 function jsonObjectFromLovable(value: unknown, arrayKey: string) {
-  if (Array.isArray(value)) return { [arrayKey]: value };
-  return asRecord(value);
+  const parsed = parseJsonLike(value);
+  if (Array.isArray(parsed)) return { [arrayKey]: parsed };
+  return asRecord(parsed);
 }
 
 function contentDesignJson(row: Record<string, unknown>) {
@@ -2844,8 +2859,8 @@ async function upsertLovableContact(raw: unknown, now: Date) {
   const externalId = normalizeLovableId(row);
   if (!externalId) return null;
   const { [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeRows, ...lovableMetadata } = row;
-  const metadata = asRecord(row.metadata);
-  const segmentation = asRecord(row.segmentation ?? metadata.segmentation);
+  const metadata = jsonRecordFromLovable(row.metadata);
+  const segmentation = jsonRecordFromLovable(row.segmentation ?? metadata.segmentation);
   const contactSources = contactFieldSources(row);
   const language = emptyToNull(textFromSources([segmentation, ...contactSources], ["language", "lang", "locale", "preferredLanguage", "preferred_language"]));
   const category = emptyToNull(textFromSources([segmentation, ...contactSources], ["category", "contactCategory", "contact_category"]));
@@ -2859,7 +2874,7 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     email: Boolean(email),
     phone: Boolean(phoneNumber),
     whatsapp: Boolean(whatsappNumber),
-    ...asRecord(row.channelAvailability ?? row.channel_availability),
+    ...jsonRecordFromLovable(row.channelAvailability ?? row.channel_availability),
   };
   const payload = {
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2b")),
@@ -2908,7 +2923,7 @@ async function upsertLovableAudience(raw: unknown, now: Date, actorLabel: string
     name: textFrom(row, ["name", "title"], "Untitled audience"),
     description: emptyToNull(textFrom(row, ["description"])),
     list_type: textFrom(row, ["listType", "list_type", "type"], "static"),
-    rules: asRecord(row.rules ?? row.ruleConfig ?? row.rule_config ?? row.filters),
+    rules: jsonRecordFromLovable(row.rules ?? row.ruleConfig ?? row.rule_config ?? row.filters),
     source: "lovable",
     lovable_external_id: externalId,
     metadata: {
@@ -3189,9 +3204,9 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2c")),
     objective: textFrom(row, ["objective", "description"], ""),
     trigger_type: emptyToNull(textFrom(row, ["triggerType", "trigger_type"])),
-    trigger_config: asRecord(row.triggerConfig ?? row.trigger_config),
+    trigger_config: jsonRecordFromLovable(row.triggerConfig ?? row.trigger_config),
     goal_type: emptyToNull(textFrom(row, ["goalType", "goal_type"])),
-    goal_config: asRecord(row.goalConfig ?? row.goal_config),
+    goal_config: jsonRecordFromLovable(row.goalConfig ?? row.goal_config),
     exit_on_goal: booleanFrom(row, ["exitOnGoal", "exit_on_goal"], true),
     source: "lovable",
     lovable_external_id: externalId,
@@ -3221,7 +3236,7 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
         day_offset: Number.isFinite(dayOffset) ? dayOffset : 0,
         template_kind: emptyToNull(textFrom(step, ["templateKind", "template_kind"])),
         template_ref: emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"])) ?? (contentExternalId || null),
-        config: asRecord(step.config),
+        config: jsonRecordFromLovable(step.config),
         status: normalizeJourneyStatus(textFrom(step, ["status"], "draft")),
         metadata: { lovable: step },
         updated_at: now,
