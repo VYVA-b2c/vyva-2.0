@@ -7,6 +7,7 @@ import { requireEntitlement } from "../middleware/entitlements.js";
 import {
   CONCIERGE_USE_CASES,
   cancelPendingConciergeAction,
+  completePendingConciergeAction,
   startPendingConciergeAction,
   triggerConciergeAction,
   type ConciergeUseCase,
@@ -37,6 +38,11 @@ const triggerSchema = z.object({
     .optional()
     .default("user_request"),
   auto_start: z.boolean().optional().default(true),
+});
+
+const completeSchema = z.object({
+  outcome_summary: z.string().trim().max(500).optional().nullable(),
+  outcome_payload: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
 router.use(authMiddleware, requireUser, requireEntitlement("concierge"));
@@ -95,6 +101,27 @@ router.post("/:id/cancel", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[concierge/actions POST /:id/cancel]", err);
     return res.status(400).json({ error: (err as Error).message || "Failed to cancel concierge action" });
+  }
+});
+
+router.post("/:id/complete", async (req: Request, res: Response) => {
+  const userId = resolveUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+  const parsed = completeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  try {
+    const result = await completePendingConciergeAction(req.params.id, userId, {
+      outcomeSummary: parsed.data.outcome_summary,
+      outcomePayload: parsed.data.outcome_payload,
+    });
+    return res.json(result);
+  } catch (err) {
+    console.error("[concierge/actions POST /:id/complete]", err);
+    return res.status(400).json({ error: (err as Error).message || "Failed to complete concierge action" });
   }
 });
 

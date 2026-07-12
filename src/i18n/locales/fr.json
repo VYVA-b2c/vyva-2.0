@@ -257,13 +257,25 @@
     },
     "conciergeResume": {
       "kicker": "Maintenant",
+      "kickerConfirm": "Votre accord",
+      "kickerReview": "A revoir",
+      "kickerWaiting": "En attente",
       "titlePrefix": "VYVA s'occupe de votre",
+      "titleConfirmPrefix": "Confirmez votre",
+      "titleReviewPrefix": "Verifiez votre",
       "task": {
         "ride": "trajet",
         "appointment": "rendez-vous",
         "pharmacy": "demande pharmacie",
         "homeService": "service a domicile",
         "default": "demande"
+      },
+      "fastStatus": {
+        "ride": "Voir le trajet",
+        "appointment": "Voir le rendez-vous",
+        "pharmacy": "Voir la pharmacie",
+        "homeService": "Voir le service",
+        "default": "Voir la demande"
       },
       "step": {
         "contacting": "Contact du prestataire",

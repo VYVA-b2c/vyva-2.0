@@ -389,13 +389,25 @@
     },
     "conciergeResume": {
       "kicker": "Right now",
+      "kickerConfirm": "Needs your OK",
+      "kickerReview": "Needs review",
+      "kickerWaiting": "Waiting",
       "titlePrefix": "VYVA is working on your",
+      "titleConfirmPrefix": "Confirm your",
+      "titleReviewPrefix": "Review your",
       "task": {
         "ride": "ride",
         "appointment": "appointment",
         "pharmacy": "pharmacy request",
         "homeService": "home service",
         "default": "request"
+      },
+      "fastStatus": {
+        "ride": "Check ride status",
+        "appointment": "Check appointment",
+        "pharmacy": "Check pharmacy request",
+        "homeService": "Check home service",
+        "default": "Check request"
       },
       "step": {
         "contacting": "Contacting provider",

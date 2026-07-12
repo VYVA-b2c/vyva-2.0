@@ -70,6 +70,12 @@ export interface TriggerResult {
   message: string;
 }
 
+export interface CompleteResult {
+  ok: true;
+  status: "completed";
+  sessionId: string | null;
+}
+
 type OutboundResponse = {
   success?: boolean;
   message?: string;
@@ -262,7 +268,7 @@ async function insertPending(input: ConciergeTriggerInput, language: string): Pr
   return result.rows[0]!;
 }
 
-async function updatePendingStatus(pendingId: string, status: "calling" | "failed" | "cancelled") {
+async function updatePendingStatus(pendingId: string, status: "calling" | "completed" | "failed" | "cancelled") {
   await pool.query(
     `
       update concierge_pending
@@ -415,4 +421,92 @@ export async function cancelPendingConciergeAction(pendingId: string, userId: st
   }
 
   await updatePendingStatus(pendingId, "cancelled");
+}
+
+export async function completePendingConciergeAction(
+  pendingId: string,
+  userId: string,
+  input: { outcomeSummary?: string | null; outcomePayload?: Record<string, unknown> | null } = {},
+): Promise<CompleteResult> {
+  const pending = await loadPendingById(pendingId);
+  if (!pending) {
+    throw new Error("Concierge action not found.");
+  }
+  if (pending.user_id !== userId) {
+    throw new Error("You do not have access to this concierge action.");
+  }
+
+  if (pending.status === "completed") {
+    const existing = await pool.query<{ id: string }>(
+      `
+        select id
+        from concierge_sessions
+        where pending_id = $1::uuid
+          and outcome = 'completed'
+        order by completed_at desc nulls last
+        limit 1
+      `,
+      [pendingId],
+    );
+    return { ok: true, status: "completed", sessionId: existing.rows[0]?.id ?? null };
+  }
+
+  if (pending.status === "failed" || pending.status === "cancelled") {
+    throw new Error(`Concierge action cannot be completed from status "${pending.status}".`);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const inserted = await client.query<{ id: string }>(
+      `
+        insert into concierge_sessions (
+          user_id,
+          pending_id,
+          use_case,
+          provider_id,
+          provider_name,
+          provider_phone,
+          found_externally,
+          action_summary,
+          action_payload,
+          outcome,
+          outcome_payload,
+          outcome_summary,
+          completed_at
+        )
+        values ($1, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, $9::jsonb, 'completed', $10::jsonb, $11, now())
+        returning id
+      `,
+      [
+        pending.user_id,
+        pending.id,
+        pending.use_case,
+        pending.provider_id,
+        pending.provider_name,
+        pending.provider_phone,
+        pending.found_externally,
+        pending.action_summary,
+        JSON.stringify(pending.action_payload ?? {}),
+        JSON.stringify(input.outcomePayload ?? {}),
+        input.outcomeSummary?.trim() || pending.action_summary || null,
+      ],
+    );
+
+    await client.query(
+      `
+        update concierge_pending
+        set status = 'completed', updated_at = now()
+        where id = $1::uuid
+      `,
+      [pendingId],
+    );
+    await client.query("commit");
+    return { ok: true, status: "completed", sessionId: inserted.rows[0]?.id ?? null };
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
