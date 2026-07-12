@@ -135,11 +135,15 @@ const labels: Record<string, string> = {
   "home.conciergeResume.task.appointment": "appointment",
   "home.conciergeResume.task.pharmacy": "pharmacy request",
   "home.conciergeResume.task.homeService": "home service",
+  "home.conciergeResume.task.admin": "admin task",
+  "home.conciergeResume.task.safety": "safety check",
   "home.conciergeResume.task.default": "request",
   "home.conciergeResume.fastStatus.ride": "Check ride status",
   "home.conciergeResume.fastStatus.appointment": "Check appointment",
   "home.conciergeResume.fastStatus.pharmacy": "Check pharmacy request",
   "home.conciergeResume.fastStatus.homeService": "Check home service",
+  "home.conciergeResume.fastStatus.admin": "Check admin task",
+  "home.conciergeResume.fastStatus.safety": "Check safety review",
   "home.conciergeResume.fastStatus.default": "Check request",
   "home.conciergeResume.step.contacting": "Contacting provider",
   "home.conciergeResume.step.waiting": "Waiting for reply",
@@ -361,6 +365,56 @@ describe("Home fast service actions", () => {
     expect(nudge).toHaveTextContent("Confirm your home service");
     expect(nudge).toHaveTextContent("Ready to save");
     expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check home service");
+  });
+
+  it("labels admin and safety concierge tasks instead of generic requests", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "admin-1",
+              use_case: "admin_task",
+              status: "pending",
+              provider_name: "VYVA review",
+              action_summary: "Paperwork task prepared.",
+              action_payload: { flow_reference: "FLOW_INSURANCE_ADMIN", execution_channel: "manual" },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      if (key === "/api/concierge/actions/sessions") {
+        return {
+          data: {
+            items: [{
+              id: "scam-session-1",
+              pending_id: "scam-1",
+              use_case: "scam_check",
+              provider_name: "VYVA review",
+              outcome: "completed",
+              outcome_summary: "Safety review completed.",
+              completed_at: "2026-08-04T09:30:00.000Z",
+              outcome_payload: { flow_reference: "FLOW_SCAM_CHECK" },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    expect(screen.getByTestId("card-home-concierge-resume")).toHaveTextContent("Confirm your admin task");
+    expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check admin task");
+    expect(screen.getByTestId("card-home-concierge-reuse")).toHaveTextContent("Use last safety check again");
   });
 
   it("surfaces completed Concierge tasks as reusable templates from Home", () => {

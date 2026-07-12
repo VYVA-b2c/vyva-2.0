@@ -1367,7 +1367,30 @@ describe("ConciergeScreen action hub", () => {
   });
 
   it("opens an insurance admin router and prepares a claim review request", async () => {
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.use_case).toBe("admin_task");
+        expect(body.auto_start).toBe(false);
+        expect(body.provider_name).toBe("VYVA review");
+        expect(body.action_summary).toBe("Paperwork task prepared: Claim or reimbursement.");
+        expect(body.action_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+          requested_tool: "email",
+          active_tool: "operator_review",
+          readiness_status: "manual_review",
+          execution_channel: "manual",
+          action_label: "Claim or reimbursement",
+          confirmation_required_before_action: true,
+          review_fallback: true,
+          no_external_action_without_confirmation: true,
+        });
+        expect(body.action_payload.draft_message).toContain("Help me prepare a claim or reimbursement");
+        return jsonResponse({ pendingId: "admin-task-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
 
     renderScreen();
     fireEvent.click(await screen.findByTestId("button-concierge-fast-fill-form"));
@@ -1389,16 +1412,49 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-insurance-admin-claim"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Paperwork task ready");
     expect(prefill).toHaveTextContent("Help me prepare a claim or reimbursement");
     expect(prefill).toHaveTextContent("Prepare a draft for review");
+    expect(prefill).toHaveTextContent("Add to Right now");
     expect(prefill).toHaveTextContent("Nothing is booked or requested without your confirmation");
     expect(screen.queryByTestId("panel-insurance-admin")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   }, 60000);
 
   it("opens a scam check router and prepares a safe review request", async () => {
     vi.useFakeTimers();
-    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.use_case).toBe("scam_check");
+        expect(body.auto_start).toBe(false);
+        expect(body.provider_name).toBe("VYVA review");
+        expect(body.action_summary).toBe("Safe check prepared: Company or offer.");
+        expect(body.action_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.scamCheck,
+          requested_tool: "web_search",
+          active_tool: "web_search",
+          readiness_status: "ready",
+          execution_channel: "manual",
+          action_label: "Company or offer",
+          confirmation_required_before_action: true,
+          review_fallback: false,
+          no_external_action_without_confirmation: true,
+        });
+        expect(body.action_payload.draft_message).toContain("Help me check a company, offer, seller, or service reputation online");
+        return jsonResponse({ pendingId: "scam-check-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
 
     renderScreen();
     fireEvent.click(await showScamCheckFastHelp());
@@ -1422,10 +1478,20 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(screen.getByTestId("button-scam-check-company"));
 
     const prefill = await screen.findByTestId("panel-concierge-route-prefill");
-    expect(prefill).toHaveTextContent("Review request");
+    expect(prefill).toHaveTextContent("Safe check ready");
     expect(prefill).toHaveTextContent("Help me check a company, offer, seller, or service reputation online");
     expect(prefill).toHaveTextContent("Do not click, reply, pay, or share personal details");
+    expect(prefill).toHaveTextContent("Add to Right now");
     expect(screen.queryByTestId("panel-scam-check")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   }, 60000);
 
   it("opens voice ride handoffs on the transport card with known details", async () => {

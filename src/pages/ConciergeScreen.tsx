@@ -83,6 +83,7 @@ import {
 import {
   CONCIERGE_FLOW_REFERENCES,
   providerSetupFocusForFlow,
+  type ConciergeFlowReference,
   type ConciergeToolRequirement,
 } from "../../shared/conciergeFlowRegistry";
 import {
@@ -100,6 +101,11 @@ interface ChatMessage {
 type ConciergeRoutePrefill = {
   kind: "ride" | "appointment" | "home_care_quote" | "task";
   message: string;
+  flowReference?: ConciergeFlowReference;
+  requestedTool?: ConciergeToolRequirement;
+  actionLabel?: string;
+  summary?: string;
+  useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers";
   source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
 };
 
@@ -166,6 +172,16 @@ const INSURANCE_ADMIN_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
 const OTC_PHARMACY_SETUP_FOCUS = providerSetupFocusForFlow(OTC_PHARMACY_FLOW_REFERENCE) ?? "pharmacy";
 const TRANSPORT_SETUP_FOCUS = providerSetupFocusForFlow(TRANSPORT_BOOKING_FLOW_REFERENCE) ?? "transport";
 const MEDICAL_APPOINTMENT_SETUP_FOCUS = providerSetupFocusForFlow(MEDICAL_APPOINTMENT_FLOW_REFERENCE) ?? "doctor_clinic";
+const CONCIERGE_TOOL_REQUIREMENTS: ConciergeToolRequirement[] = [
+  "phone_call",
+  "email",
+  "whatsapp",
+  "booking_link",
+  "camera_or_upload",
+  "web_search",
+  "operator_review",
+];
+const CONCIERGE_PREPARED_USE_CASES = ["scam_check", "admin_task", "paperwork", "send_message", "find_offers"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -173,6 +189,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isConciergeRoutePrefillKind(value: unknown): value is ConciergeRoutePrefill["kind"] {
   return typeof value === "string" && CONCIERGE_ROUTE_PREFILL_KINDS.includes(value as ConciergeRoutePrefill["kind"]);
+}
+
+function isConciergeFlowReference(value: unknown): value is ConciergeFlowReference {
+  return typeof value === "string" && Object.values(CONCIERGE_FLOW_REFERENCES).includes(value as ConciergeFlowReference);
+}
+
+function isConciergeToolRequirement(value: unknown): value is ConciergeToolRequirement {
+  return typeof value === "string" && CONCIERGE_TOOL_REQUIREMENTS.includes(value as ConciergeToolRequirement);
+}
+
+function isConciergePreparedUseCase(value: unknown): value is ConciergeRoutePrefill["useCase"] {
+  return typeof value === "string" && CONCIERGE_PREPARED_USE_CASES.includes(value as typeof CONCIERGE_PREPARED_USE_CASES[number]);
 }
 
 function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | null {
@@ -185,6 +213,11 @@ function coerceConciergeRoutePrefill(value: unknown): ConciergeRoutePrefill | nu
   return {
     kind: value.kind,
     message,
+    flowReference: isConciergeFlowReference(value.flowReference) ? value.flowReference : undefined,
+    requestedTool: isConciergeToolRequirement(value.requestedTool) ? value.requestedTool : undefined,
+    actionLabel: typeof value.actionLabel === "string" && value.actionLabel.trim() ? value.actionLabel.trim() : undefined,
+    summary: typeof value.summary === "string" && value.summary.trim() ? value.summary.trim() : undefined,
+    useCase: isConciergePreparedUseCase(value.useCase) ? value.useCase : undefined,
     source: typeof value.source === "string" ? value.source as ConciergeRoutePrefill["source"] : undefined,
   };
 }
@@ -344,10 +377,10 @@ function toolGatedRequirementFromMessage(message: string): ConciergeToolRequirem
   return "operator_review";
 }
 
-function routePrefillTaskReadiness(message: string): ConciergeToolReadinessResult {
-  const requestedTool = toolGatedRequirementFromMessage(message);
+function routePrefillTaskReadiness(prefill: ConciergeRoutePrefill): ConciergeToolReadinessResult {
+  const requestedTool = prefill.requestedTool ?? toolGatedRequirementFromMessage(prefill.message);
   return evaluateConciergeToolReadiness({
-    flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+    flowReference: prefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.toolGatedTask,
     requestedTool,
     capabilities: {
       operator_review: true,
@@ -362,7 +395,8 @@ function routePrefillTaskReadiness(message: string): ConciergeToolReadinessResul
   });
 }
 
-function routePrefillTaskActionLabel(tool: ConciergeToolRequirement, isSpanish: boolean): string {
+function routePrefillTaskActionLabel(tool: ConciergeToolRequirement, isSpanish: boolean, actionLabel?: string): string {
+  if (actionLabel?.trim()) return actionLabel.trim();
   switch (tool) {
     case "phone_call":
       return isSpanish ? "Preparar llamada" : "Prepare call";
@@ -379,6 +413,31 @@ function routePrefillTaskActionLabel(tool: ConciergeToolRequirement, isSpanish: 
     default:
       return isSpanish ? "Preparar solicitud" : "Prepare request";
   }
+}
+
+function routePrefillTaskTitle(prefill: ConciergeRoutePrefill, isSpanish: boolean): string {
+  if (prefill.flowReference === SCAM_CHECK_FLOW_REFERENCE) {
+    return isSpanish ? "Revision segura preparada" : "Safe check ready";
+  }
+  if (prefill.flowReference === INSURANCE_ADMIN_FLOW_REFERENCE) {
+    return isSpanish ? "Gestion preparada" : "Paperwork task ready";
+  }
+  return isSpanish ? "Revisa la solicitud" : "Review request";
+}
+
+function routePrefillTaskDetail(prefill: ConciergeRoutePrefill, isSpanish: boolean): string {
+  if (prefill.summary?.trim()) return prefill.summary.trim();
+  if (prefill.flowReference === SCAM_CHECK_FLOW_REFERENCE) {
+    return isSpanish
+      ? "VYVA prepara una revision sin hacer clic ni compartir datos."
+      : "VYVA prepares a safe review without clicking or sharing details.";
+  }
+  if (prefill.flowReference === INSURANCE_ADMIN_FLOW_REFERENCE) {
+    return isSpanish
+      ? "VYVA organiza el documento, destinatario y proximo paso."
+      : "VYVA organizes the document, recipient, and next step.";
+  }
+  return isSpanish ? "Comprueba los detalles antes de enviarlos." : "Check the details before sending.";
 }
 
 interface StoredChatHistory {
@@ -615,6 +674,7 @@ interface TransportOptionsResponse {
 
 type TransportPreparedResponse = { pendingId?: string; status?: string; message?: string };
 type OtcPreparedResponse = { pendingId?: string; status?: string; message?: string };
+type PreparedTaskResponse = { pendingId?: string; status?: string; message?: string };
 
 type ConciergeActionListResponse<T> = { items?: T[] };
 
@@ -1717,6 +1777,49 @@ async function prepareOtcPharmacyConciergeAction(params: {
     throw new Error(data?.error ?? "Could not prepare OTC pharmacy request");
   }
   return await res.json() as OtcPreparedResponse;
+}
+
+async function prepareToolGatedConciergeTask(params: {
+  prefill: ConciergeRoutePrefill;
+  readiness: ConciergeToolReadinessResult;
+  locale: string;
+}) {
+  const actionLabel = params.prefill.actionLabel?.trim() || routePrefillTaskActionLabel(
+    params.readiness.requestedTool,
+    params.locale.startsWith("es"),
+  );
+  const summary = params.prefill.summary?.trim() || `${actionLabel} prepared for VYVA review.`;
+  const res = await apiFetch("/api/concierge/actions/trigger", {
+    method: "POST",
+    body: JSON.stringify({
+      use_case: params.prefill.useCase ?? "paperwork",
+      provider_name: "VYVA review",
+      provider_phone: null,
+      found_externally: false,
+      action_summary: summary,
+      action_payload: {
+        flow_reference: params.prefill.flowReference ?? CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        requested_tool: params.readiness.requestedTool,
+        active_tool: params.readiness.activeTool,
+        readiness_status: params.readiness.status,
+        execution_channel: "manual",
+        action_label: actionLabel,
+        draft_message: params.prefill.message,
+        source: params.prefill.source ?? "user_request",
+        confirmation_required_before_action: true,
+        review_fallback: params.readiness.activeTool === "operator_review",
+        no_external_action_without_confirmation: true,
+      },
+      language: params.locale,
+      trigger_source: "user_request",
+      auto_start: false,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not prepare concierge task");
+  }
+  return await res.json() as PreparedTaskResponse;
 }
 
 async function saveCompletedOtcPharmacyRequest(params: {
@@ -3913,6 +4016,14 @@ function getUseCaseLabel(useCase: string, locale = "es"): string {
       return es ? "Medicacion" : "Medicine";
     case "book_appointment":
       return es ? "Cita medica" : "Appointment";
+    case "admin_task":
+      return es ? "Gestion administrativa" : "Admin task";
+    case "scam_check":
+      return es ? "Revision de seguridad" : "Scam check";
+    case "paperwork":
+      return es ? "Papeleo" : "Paperwork";
+    case "send_message":
+      return es ? "Mensaje" : "Message";
     default:
       return useCase.replace(/_/g, " ");
   }
@@ -4018,6 +4129,7 @@ const ConciergeScreen = () => {
     notes: "",
   });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
+  const [routePrefillError, setRoutePrefillError] = useState<string | null>(null);
   const [transportPickup, setTransportPickup] = useState("");
   const [transportDestination, setTransportDestination] = useState("");
   const [transportTime, setTransportTime] = useState("now");
@@ -4877,6 +4989,28 @@ const ConciergeScreen = () => {
     },
   });
 
+  const prepareToolGatedTaskMutation = useMutation({
+    mutationFn: (prefill: ConciergeRoutePrefill) => {
+      const readiness = routePrefillTaskReadiness(prefill);
+      return prepareToolGatedConciergeTask({
+        prefill,
+        readiness,
+        locale,
+      });
+    },
+    onMutate: () => {
+      setRoutePrefillError(null);
+    },
+    onSuccess: async () => {
+      setRoutePrefill(null);
+      setIsRightNowHidden(false);
+      await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+    },
+    onError: (error) => {
+      setRoutePrefillError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la tarea." : "I could not prepare the task."));
+    },
+  });
+
   const isMedicalAppointmentIntent = appointmentIntentType === "medical";
   const shouldShowCoverageReadiness = isMedicalAppointmentIntent && !hasAppointmentCoverageInfo;
   const canSaveCoverageReadiness = coverageType !== "unknown"
@@ -5304,6 +5438,10 @@ const ConciergeScreen = () => {
   function sendPrefillToConcierge() {
     const text = routePrefill?.message.trim() || input.trim();
     if (!text || chatLoading) return;
+    if (routePrefill?.kind === "task" && routePrefill.useCase) {
+      prepareToolGatedTaskMutation.mutate(routePrefill);
+      return;
+    }
     if (routePrefill?.kind === "appointment") {
       const chip = APPOINTMENT_TYPE_CHIPS[0];
       setSelectedAppointmentChip(chip);
@@ -6031,8 +6169,9 @@ const ConciergeScreen = () => {
     chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function prepareConciergeRequest(message: string) {
-    setRoutePrefill({ kind: "task", message });
+  function prepareConciergeRequest(message: string, options: Omit<Partial<ConciergeRoutePrefill>, "kind" | "message"> = {}) {
+    setRoutePrefill({ kind: "task", message, ...options });
+    setRoutePrefillError(null);
     setInput(message);
     setInsuranceAdminOpen(false);
     setScamCheckOpen(false);
@@ -6318,7 +6457,15 @@ const ConciergeScreen = () => {
   }
 
   function handleScamCheckChoice(option: typeof SCAM_CHECK_OPTIONS[number]) {
-    prepareConciergeRequest(scamCheckPrompt(option));
+    prepareConciergeRequest(scamCheckPrompt(option), {
+      flowReference: SCAM_CHECK_FLOW_REFERENCE,
+      requestedTool: option.requestedTool,
+      actionLabel: isSpanish ? option.es : option.en,
+      summary: isSpanish
+        ? `Revision segura: ${option.es}.`
+        : `Safe check prepared: ${option.en}.`,
+      useCase: "scam_check",
+    });
     setScamCheckOpen(false);
   }
 
@@ -6373,7 +6520,15 @@ const ConciergeScreen = () => {
   }
 
   function handleInsuranceAdminChoice(option: typeof INSURANCE_ADMIN_OPTIONS[number]) {
-    prepareConciergeRequest(insuranceAdminPrompt(option));
+    prepareConciergeRequest(insuranceAdminPrompt(option), {
+      flowReference: INSURANCE_ADMIN_FLOW_REFERENCE,
+      requestedTool: option.requestedTool,
+      actionLabel: isSpanish ? option.es : option.en,
+      summary: isSpanish
+        ? `Gestion preparada: ${option.es}.`
+        : `Paperwork task prepared: ${option.en}.`,
+      useCase: "admin_task",
+    });
     setInsuranceAdminOpen(false);
   }
 
@@ -6542,31 +6697,41 @@ const ConciergeScreen = () => {
     ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
   const routePrefillReadiness = routePrefill?.kind === "task"
-    ? routePrefillTaskReadiness(routePrefill.message)
+    ? routePrefillTaskReadiness(routePrefill)
     : null;
   const routePrefillMeta = routePrefill
     ? {
-        Icon: routePrefill.kind === "ride" ? Car : routePrefill.kind === "appointment" ? Calendar : PencilLine,
+        Icon: routePrefill.kind === "ride"
+          ? Car
+          : routePrefill.kind === "appointment"
+            ? Calendar
+            : routePrefill.flowReference === SCAM_CHECK_FLOW_REFERENCE
+              ? ShieldCheck
+              : routePrefill.flowReference === INSURANCE_ADMIN_FLOW_REFERENCE
+                ? FileText
+                : PencilLine,
         title: routePrefill.kind === "ride"
           ? (isSpanish ? "Opciones de transporte" : "Transport options")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Solicitud de cita preparada" : "Appointment request ready")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Presupuesto de apoyo preparado" : "Support quote ready")
-              : (isSpanish ? "Revisa la solicitud" : "Review request"),
+              : routePrefillTaskTitle(routePrefill, isSpanish),
         detail: routePrefill.kind === "ride"
           ? (isSpanish ? "Compara formas seguras. Confirmas primero." : "Compare safe ways. You confirm first.")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "VYVA prepara el motivo, proveedor y horario antes de confirmar." : "VYVA prepares the reason, provider, and timing before confirming.")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "VYVA puede solicitar una ayuda en casa o compania con confirmacion previa." : "VYVA can request home support or companionship with confirmation first.")
-              : (isSpanish ? "Comprueba los detalles antes de enviarlos." : "Check the details before sending."),
+              : routePrefillTaskDetail(routePrefill, isSpanish),
         primaryLabel: routePrefill.kind === "ride"
           ? (isSpanish ? "Buscar transporte" : "Find ride options")
           : routePrefill.kind === "appointment"
             ? (isSpanish ? "Iniciar solicitud" : "Start appointment request")
             : routePrefill.kind === "home_care_quote"
               ? (isSpanish ? "Pedir presupuesto" : "Request quote")
+              : routePrefill.useCase
+                ? (isSpanish ? "Anadir a Ahora mismo" : "Add to Right now")
               : (isSpanish ? "Enviar a Concierge" : "Send to Concierge"),
         secondaryLabel: routePrefill.kind === "appointment"
           ? (isSpanish ? "Anadir detalles" : "Add details")
@@ -7852,19 +8017,27 @@ const ConciergeScreen = () => {
             kicker={isSpanish ? "Revisar primero" : "Review first"}
             title={routePrefillMeta.title}
             subtitle={routePrefillMeta.detail}
-            onClose={() => setRoutePrefill(null)}
+            onClose={() => {
+              setRoutePrefill(null);
+              setRoutePrefillError(null);
+            }}
             closeLabel={isSpanish ? "Cerrar" : "Close"}
           />
           <div className="p-4">
             {routePrefillReadiness ? (
               <ActionReadinessPanel
                 readiness={routePrefillReadiness}
-                desiredAction={routePrefillTaskActionLabel(routePrefillReadiness.requestedTool, isSpanish)}
+                desiredAction={routePrefillTaskActionLabel(routePrefillReadiness.requestedTool, isSpanish, routePrefill.actionLabel)}
                 recipient={isSpanish ? "Antes de actuar" : "Before action"}
                 isSpanish={isSpanish}
                 compact
                 testId="panel-route-prefill-readiness"
               />
+            ) : null}
+            {routePrefillError ? (
+              <p className="mb-3 rounded-[16px] bg-[#FEF2F2] px-3 py-2 font-body text-[13px] font-black leading-snug text-[#B91C1C]" data-testid="error-route-prefill">
+                {routePrefillError}
+              </p>
             ) : null}
             <div className="rounded-[22px] border border-[#E9D5FF] bg-[#FBF8FF] p-3">
               <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-vyva-text-3">
@@ -7887,11 +8060,11 @@ const ConciergeScreen = () => {
               <button
                 type="button"
                 onClick={sendPrefillToConcierge}
-                disabled={chatLoading}
+                disabled={chatLoading || prepareToolGatedTaskMutation.isPending}
                 data-testid="button-concierge-prefill-send"
                 className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full bg-vyva-purple px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(107,33,168,0.22)] disabled:opacity-60"
               >
-                {chatLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                {chatLoading || prepareToolGatedTaskMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                 {routePrefillMeta.primaryLabel}
               </button>
               <button
@@ -7903,6 +8076,7 @@ const ConciergeScreen = () => {
                   }
                   setInput(routePrefill.message);
                   setRoutePrefill(null);
+                  setRoutePrefillError(null);
                 }}
                 className="vyva-tap inline-flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-full border border-[#D8B4FE] bg-white px-5 font-body text-[17px] font-black text-vyva-purple"
               >
