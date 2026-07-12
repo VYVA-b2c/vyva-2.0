@@ -656,6 +656,31 @@ function lovableJourneyPayload(payload: Record<string, unknown>) {
   });
 }
 
+function lovableJourneyEnrollmentPayload(payload: Record<string, unknown>) {
+  return arrayFrom(payload.journeyEnrollments ?? payload.journey_enrollments ?? payload.enrollments ?? payload.progress);
+}
+
+function lovableJourneyStepEventPayload(payload: Record<string, unknown>) {
+  return arrayFrom(
+    payload.journeyStepEvents
+      ?? payload.journey_step_events
+      ?? payload.stepEvents
+      ?? payload.step_events
+      ?? payload.journeyEvents
+      ?? payload.journey_events
+      ?? payload.marketing_journey_step_events,
+  );
+}
+
+function journeyEnrollmentEventPayload(row: Record<string, unknown>) {
+  return [
+    ...arrayFrom(row.events),
+    ...arrayFrom(row.stepEvents),
+    ...arrayFrom(row.step_events),
+    ...arrayFrom(row.history),
+  ];
+}
+
 function lovableContactPayload(payload: Record<string, unknown>) {
   const contactRows = arrayFrom(payload.contacts).map(asRecord);
   const unsubscribeRows = arrayFrom(payload.email_unsubscribes ?? payload.emailUnsubscribes).map(asRecord);
@@ -791,7 +816,8 @@ function lovableExportSummary(payload: Record<string, unknown>) {
   const journeyPayload = lovableJourneyPayload(payload);
   const audiencePayload = lovableAudiencePayload(payload);
   const campaignMetricPayload = arrayFrom(payload.campaignMetrics ?? payload.campaign_metrics ?? payload.analytics ?? payload.metrics);
-  const journeyEnrollmentPayload = arrayFrom(payload.journeyEnrollments ?? payload.journey_enrollments ?? payload.enrollments ?? payload.progress);
+  const journeyEnrollmentPayload = lovableJourneyEnrollmentPayload(payload);
+  const journeyStepEventPayload = lovableJourneyStepEventPayload(payload);
   const audienceContactExternalIdsByAudienceExternalId = new Map<string, string[]>();
 
   for (const item of audiencePayload) {
@@ -809,6 +835,7 @@ function lovableExportSummary(payload: Record<string, unknown>) {
   const campaignRecipientExportCount = campaignPayload.reduce((count, item) => (
     count + campaignRecipientSourceCount(asRecord(item), audienceContactExternalIdsByAudienceExternalId)
   ), 0);
+  const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => count + journeyEnrollmentEventPayload(asRecord(item)).length, 0);
   const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
     const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
     counts[sourceType] = (counts[sourceType] ?? 0) + 1;
@@ -826,6 +853,7 @@ function lovableExportSummary(payload: Record<string, unknown>) {
       campaignMetrics: campaignMetricPayload.length,
       journeys: journeyPayload.length,
       journeyEnrollments: journeyEnrollmentPayload.length,
+      journeyStepEvents: nestedJourneyStepEventExportCount + journeyStepEventPayload.length,
       audiences: audiencePayload.length,
     },
     contentSourceCounts,
@@ -837,6 +865,7 @@ function lovableExportSummary(payload: Record<string, unknown>) {
       campaignMetrics: fieldCoverageForPayload(campaignMetricPayload, fieldCoverageAliases.campaignMetrics),
       journeys: fieldCoverageForPayload(journeyPayload, fieldCoverageAliases.journeys),
       journeyEnrollments: fieldCoverageForPayload(journeyEnrollmentPayload, fieldCoverageAliases.journeyEnrollments),
+      journeyStepEvents: fieldCoverageForPayload([...journeyEnrollmentPayload.flatMap((item) => journeyEnrollmentEventPayload(asRecord(item))), ...journeyStepEventPayload], fieldCoverageAliases.journeyStepEvents),
       audiences: fieldCoverageForPayload(audiencePayload, fieldCoverageAliases.audiences),
     },
   };
@@ -1016,6 +1045,16 @@ const fieldCoverageAliases = {
     ["exitedAt", "exited_at"],
     ["lastActivityAt", "last_activity_at"],
     ["events", "stepEvents", "step_events", "history"],
+  ],
+  journeyStepEvents: [
+    ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["enrollmentExternalId", "enrollment_external_id", "journeyEnrollmentId", "journey_enrollment_id", "enrollmentId", "enrollment_id"],
+    ["journeyExternalId", "journey_external_id", "journeyId", "journey_id"],
+    ["contactExternalId", "contact_external_id", "contactId", "contact_id"],
+    ["stepOrder", "step_order", "order"],
+    ["eventType", "event_type", "type", "status"],
+    ["eventAt", "event_at", "createdAt", "created_at", "updatedAt", "updated_at"],
+    ["channel"],
   ],
   audiences: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
@@ -3229,12 +3268,7 @@ async function upsertLovableJourneyEnrollment(
     .onConflictDoUpdate({ target: marketingJourneyEnrollments.lovable_external_id, set: payload })
     .returning();
 
-  const eventPayload = [
-    ...arrayFrom(row.events),
-    ...arrayFrom(row.stepEvents),
-    ...arrayFrom(row.step_events),
-    ...arrayFrom(row.history),
-  ];
+  const eventPayload = journeyEnrollmentEventPayload(row);
   await db.delete(marketingJourneyStepEvents).where(and(
     eq(marketingJourneyStepEvents.enrollment_id, enrollment.id),
     eq(marketingJourneyStepEvents.source, "lovable"),
@@ -3262,6 +3296,62 @@ async function upsertLovableJourneyEnrollment(
   });
   await db.insert(marketingJourneyStepEvents).values(eventRows);
   return { enrollment, eventCount: eventRows.length };
+}
+
+async function upsertLovableJourneyStepEvent(
+  raw: unknown,
+  now: Date,
+  enrollmentByExternalId: Map<string, MarketingJourneyEnrollmentRow>,
+  enrollmentByJourneyAndContact: Map<string, MarketingJourneyEnrollmentRow>,
+  journeyByExternalId: Map<string, MarketingJourneyRow>,
+  stepByJourneyAndOrder: Map<string, MarketingJourneyStepRow>,
+  index: number,
+) {
+  const row = asRecord(raw);
+  const enrollmentExternalId = emptyToNull(textFrom(row, [
+    "enrollmentExternalId",
+    "enrollment_external_id",
+    "journeyEnrollmentId",
+    "journey_enrollment_id",
+    "enrollmentId",
+    "enrollment_id",
+  ]));
+  let enrollment = enrollmentExternalId
+    ? lookupByExternalId(enrollmentByExternalId, enrollmentExternalId, ["enrollment", "journey_enrollment"])
+    : null;
+  if (!enrollment) {
+    const journeyExternalId = emptyToNull(textFrom(row, ["journeyExternalId", "journey_external_id", "journeyId", "journey_id"]));
+    const journey = journeyExternalId ? lookupByExternalId(journeyByExternalId, journeyExternalId, ["journey", "workflow"]) : null;
+    const contactExternalId = emptyToNull(textFrom(row, ["contactExternalId", "contact_external_id", "contactId", "contact_id"]));
+    if (journey && contactExternalId) {
+      enrollment = enrollmentByJourneyAndContact.get(`${journey.id}:${contactExternalId}`) ?? null;
+    }
+  }
+  if (!enrollment) return null;
+
+  const stepOrder = numberFrom(row, ["stepOrder", "step_order", "order"], enrollment.current_step_order);
+  const step = stepByJourneyAndOrder.get(`${enrollment.journey_id}:${stepOrder}`) ?? null;
+  const eventType = textFrom(row, ["eventType", "event_type", "type", "status"], "planned");
+  const externalId = normalizeLovableId(row)
+    ?? `${enrollment.lovable_external_id ?? enrollment.id}:event:${index}:${eventType}`;
+  const payload = {
+    enrollment_id: enrollment.id,
+    journey_id: enrollment.journey_id,
+    step_id: step?.id ?? null,
+    step_order: stepOrder,
+    event_type: eventType,
+    event_at: dateOrNull(dateTextFrom(row, ["eventAt", "event_at", "createdAt", "created_at", "updatedAt", "updated_at"])),
+    channel: emptyToNull(textFrom(row, ["channel"])),
+    source: "lovable",
+    lovable_external_id: externalId,
+    metadata: { lovable: row, enrollment_external_id: enrollmentExternalId },
+    updated_at: now,
+  };
+  const [event] = await db.insert(marketingJourneyStepEvents)
+    .values(payload)
+    .onConflictDoUpdate({ target: marketingJourneyStepEvents.lovable_external_id, set: payload })
+    .returning();
+  return event;
 }
 
 adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
@@ -3299,7 +3389,8 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const journeyPayload = lovableJourneyPayload(payload);
     const audiencePayload = lovableAudiencePayload(payload);
     const campaignMetricPayload = arrayFrom(payload.campaignMetrics ?? payload.campaign_metrics ?? payload.analytics ?? payload.metrics);
-    const journeyEnrollmentPayload = arrayFrom(payload.journeyEnrollments ?? payload.journey_enrollments ?? payload.enrollments ?? payload.progress);
+    const journeyEnrollmentPayload = lovableJourneyEnrollmentPayload(payload);
+    const journeyStepEventPayload = lovableJourneyStepEventPayload(payload);
     const contentRows: MarketingContentAssetRow[] = [];
     let mediaAssetCount = 0;
     for (const item of contentPayload) {
@@ -3466,6 +3557,28 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       journeyEnrollmentCount += 1;
       journeyStepEventCount += result.eventCount;
     }
+    if (journeyStepEventPayload.length) {
+      const knownEnrollments = await db.select().from(marketingJourneyEnrollments).orderBy(desc(marketingJourneyEnrollments.updated_at)).limit(50000);
+      const enrollmentByExternalId = new Map<string, MarketingJourneyEnrollmentRow>();
+      const enrollmentByJourneyAndContact = new Map<string, MarketingJourneyEnrollmentRow>();
+      for (const enrollment of knownEnrollments) {
+        addExternalIdVariants(enrollmentByExternalId, enrollment.lovable_external_id, enrollment, ["enrollment", "journey_enrollment"]);
+        if (enrollment.contact_external_id) {
+          enrollmentByJourneyAndContact.set(`${enrollment.journey_id}:${enrollment.contact_external_id}`, enrollment);
+        }
+      }
+      for (const [index, item] of journeyStepEventPayload.entries()) {
+        if (await upsertLovableJourneyStepEvent(
+          item,
+          now,
+          enrollmentByExternalId,
+          enrollmentByJourneyAndContact,
+          journeyByExternalId,
+          stepByJourneyAndOrder,
+          index,
+        )) journeyStepEventCount += 1;
+      }
+    }
 
     const nestedMediaAssetExportCount = contentPayload.reduce((count, item) => {
       const row = asRecord(item);
@@ -3475,6 +3588,9 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const campaignChannelExportCount = campaignPayload.reduce((count, item) => count + campaignChannelPayload(asRecord(item)).length, 0);
     const campaignRecipientExportCount = campaignPayload.reduce((count, item) => (
       count + campaignRecipientSourceCount(asRecord(item), audienceContactExternalIdsByAudienceExternalId)
+    ), 0);
+    const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => (
+      count + journeyEnrollmentEventPayload(asRecord(item)).length
     ), 0);
     const exported = {
       campaigns: campaignPayload.length,
@@ -3486,6 +3602,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       campaignMetrics: allCampaignMetricPayload.length,
       journeys: journeyPayload.length,
       journeyEnrollments: allJourneyEnrollmentPayload.length,
+      journeyStepEvents: nestedJourneyStepEventExportCount + journeyStepEventPayload.length,
       audiences: audiencePayload.length,
     };
     const fieldCoverage = {
@@ -3499,6 +3616,10 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       campaignMetrics: fieldCoverageForPayload(allCampaignMetricPayload.map((item) => item.raw), fieldCoverageAliases.campaignMetrics),
       journeys: fieldCoverageForPayload(journeyPayload, fieldCoverageAliases.journeys),
       journeyEnrollments: fieldCoverageForPayload(allJourneyEnrollmentPayload.map((item) => item.raw), fieldCoverageAliases.journeyEnrollments),
+      journeyStepEvents: fieldCoverageForPayload([
+        ...journeyEnrollmentPayload.flatMap((item) => journeyEnrollmentEventPayload(asRecord(item))),
+        ...journeyStepEventPayload,
+      ], fieldCoverageAliases.journeyStepEvents),
       audiences: fieldCoverageForPayload(audiencePayload, fieldCoverageAliases.audiences),
     };
     const imported = {
@@ -3532,6 +3653,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         campaignMetrics: exported.campaignMetrics - imported.campaignMetrics,
         journeys: exported.journeys - imported.journeys,
         journeyEnrollments: exported.journeyEnrollments - imported.journeyEnrollments,
+        journeyStepEvents: exported.journeyStepEvents - imported.journeyStepEvents,
         audiences: exported.audiences - imported.audiences,
       },
       unmapped: {

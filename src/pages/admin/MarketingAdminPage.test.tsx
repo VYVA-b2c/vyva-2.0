@@ -357,9 +357,9 @@ const exportPreview = {
   apiUrl: "https://lovable.example.test",
   dataset: "live",
   exportedAt: "2026-07-05T09:01:30.000Z",
-  topLevelKeys: ["campaigns", "contacts", "exportedAt", "saved_email_templates", "social_posts"],
+  topLevelKeys: ["campaigns", "contacts", "exportedAt", "journey_step_events", "saved_email_templates", "social_posts"],
   summary: {
-    exported: { campaigns: 1, contacts: 2, content: 2, mediaAssets: 1, journeys: 1 },
+    exported: { campaigns: 1, contacts: 2, content: 2, mediaAssets: 1, journeys: 1, journeyStepEvents: 1 },
     contentSourceCounts: { saved_email_template: 1, social_post: 1 },
     fieldCoverage: {
       content: {

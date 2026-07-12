@@ -266,6 +266,7 @@ describe("admin marketing router", () => {
         contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com" }],
         campaigns: [{ id: "campaign-1", name: "Launch", channels: [{ channel: "email", template_id: "template-1" }] }],
         journeys: [{ id: "journey-1", name: "Nurture" }],
+        journey_step_events: [{ id: "event-1", enrollmentExternalId: "enrollment-1", eventType: "entered", channel: "email" }],
       }), { status: 200, headers: { "Content-Type": "application/json" } })
     ));
 
@@ -285,6 +286,7 @@ describe("admin marketing router", () => {
               campaigns: 1,
               campaignChannels: 1,
               journeys: 1,
+              journeyStepEvents: 1,
             },
             contentSourceCounts: {
               saved_email_template: 1,
@@ -1249,6 +1251,15 @@ describe("admin marketing router", () => {
           eventAt: "2026-07-08T08:00:00.000Z",
         }],
       }],
+      journey_step_events: [{
+        id: "event-2",
+        enrollmentExternalId: "enrollment-1",
+        stepOrder: 0,
+        eventType: "sent",
+        channel: "email",
+        eventAt: "2026-07-08T09:00:00.000Z",
+        eventSource: "automation-log",
+      }],
       cursor: "cursor-1",
     };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
@@ -1399,11 +1410,19 @@ describe("admin marketing router", () => {
       status: "active",
       current_step_order: 0,
     });
-    expect(table("marketing_journey_step_events")).toHaveLength(1);
-    expect(table("marketing_journey_step_events")[0]).toMatchObject({
+    expect(table("marketing_journey_step_events")).toHaveLength(2);
+    expect(table("marketing_journey_step_events").find((row) => row.event_type === "entered")).toMatchObject({
       event_type: "entered",
       step_order: 0,
       channel: "email",
+    });
+    expect(table("marketing_journey_step_events").find((row) => row.event_type === "sent")).toMatchObject({
+      event_type: "sent",
+      step_order: 0,
+      channel: "email",
+      metadata: expect.objectContaining({
+        enrollment_external_id: "enrollment-1",
+      }),
     });
     expect(table("marketing_sync_runs")).toHaveLength(2);
 
@@ -1493,8 +1512,11 @@ describe("admin marketing router", () => {
           journeyName: "Nurture",
           contactExternalId: "contact-1",
           status: "active",
-          events: [expect.objectContaining({ eventType: "entered" })],
         });
+        expect(response.body.enrollments[0].events).toEqual(expect.arrayContaining([
+          expect.objectContaining({ eventType: "sent" }),
+          expect.objectContaining({ eventType: "entered" }),
+        ]));
       });
 
     await request(app)
@@ -1511,7 +1533,7 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_sync_runs")[0].summary).toMatchObject({
-      exported: { content: 5, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1 },
+      exported: { content: 5, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
       imported: {
         content: 5,
         mediaAssets: 4,
@@ -1525,7 +1547,7 @@ describe("admin marketing router", () => {
         campaignMetrics: 1,
         journeys: 1,
         journeyEnrollments: 1,
-        journeyStepEvents: 1,
+        journeyStepEvents: 2,
       },
       unmapped: {
         audienceContactExternalIdCount: 1,
@@ -1550,6 +1572,9 @@ describe("admin marketing router", () => {
         }),
         journeyEnrollments: expect.objectContaining({
           firstClassFields: expect.arrayContaining(["journeyExternalId", "contactExternalId", "status"]),
+        }),
+        journeyStepEvents: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["enrollmentExternalId", "eventType", "channel"]),
         }),
       },
     });
