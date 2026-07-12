@@ -2265,7 +2265,7 @@ export default function MarketingAdminPage() {
   const editingJourney = useMemo(() => editingJourneyId && editingJourneyId !== "new" ? journeys.find((journey) => journey.id === editingJourneyId) ?? null : null, [journeys, editingJourneyId]);
   const editingContent = useMemo(() => content.find((item) => item.id === editingContentId) ?? null, [content, editingContentId]);
   const editingMediaAsset = useMemo(() => mediaAssets.find((item) => item.id === editingMediaAssetId) ?? null, [mediaAssets, editingMediaAssetId]);
-  const selectedContent = useMemo(() => visibleContent.find((item) => item.id === selectedContentId) ?? visibleContent[0] ?? null, [selectedContentId, visibleContent]);
+  const selectedContent = useMemo(() => selectedContentId ? visibleContent.find((item) => item.id === selectedContentId) ?? null : null, [selectedContentId, visibleContent]);
   const selectedContentMediaAssets = useMemo(() => {
     if (!selectedContent) return [];
     return mediaAssets.filter((item) => item.contentAssetId === selectedContent.id);
@@ -2273,6 +2273,20 @@ export default function MarketingAdminPage() {
   const selectedContentDesignSummary = useMemo(() => selectedContent ? designShapeSummary(selectedContent.designJson) : null, [selectedContent]);
   const selectedContentMediaPreviewUrls = useMemo(() => selectedContent ? contentMediaPreviewUrls(selectedContent, selectedContentMediaAssets) : [], [selectedContent, selectedContentMediaAssets]);
   const latestSyncRun = syncState.runs[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedContentId || visibleContentIdSet.has(selectedContentId)) return;
+    if (editingContentId === selectedContentId && contentEditDraft) return;
+    setSelectedContentId(null);
+    setContentDrawerMode(null);
+    setContentActionFeedback("");
+    if (editingContentId === selectedContentId) {
+      setEditingContentId(null);
+      setContentEditDraft(null);
+      setContentFeedback("");
+    }
+  }, [selectedContentId, visibleContentIdSet, editingContentId, contentEditDraft]);
+
   const contentEmptyDiagnostic = useMemo(() => {
     if (content.length > 0 && visibleContent.length === 0) {
       return {
@@ -4640,6 +4654,11 @@ export default function MarketingAdminPage() {
                 </div>
 
                 <SectionCard title="Media references" subtitle={`${visibleMediaAssets.length} visible of ${mediaAssets.length} imported media rows.`}>
+                  {mediaFeedback && !mediaEditDraft ? (
+                    <p className={`mb-3 rounded-xl px-4 py-3 text-sm font-bold ${mediaFeedback.toLowerCase().includes("updated") || mediaFeedback.toLowerCase().includes("deleted") ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`} data-testid="marketing-media-feedback">
+                      {mediaFeedback}
+                    </p>
+                  ) : null}
                   {mediaEditDraft ? (
                     <form className="mb-4 grid gap-3 rounded-xl border border-purple-100 bg-purple-50 p-3" onSubmit={(event) => void saveMediaEdit(event)} data-testid="marketing-media-editor-form">
                       <div className="flex flex-wrap items-start justify-between gap-3">

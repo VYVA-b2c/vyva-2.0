@@ -657,6 +657,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Read more -> https://v2.vyva.life/partners");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Social post");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable ID: lovable-content-2");
+
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
@@ -771,6 +774,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Welcome email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
 
@@ -1006,6 +1012,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-media-metadata-media-1")).toHaveTextContent("Partner hero image");
 
+    fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-media-feedback")).toHaveTextContent("Media deleted.");
+
     fireEvent.click(screen.getByTestId("button-marketing-edit-media-media-1"));
     expect(screen.getByTestId("marketing-media-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-media-original-url")).toHaveValue("https://cdn.example.test/partner.png");
@@ -1121,6 +1133,13 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-contact-contact-2"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Contact deleted.");
+
     fireEvent.click(screen.getByTestId("button-marketing-edit-contact-contact-2"));
 
     expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
@@ -1213,6 +1232,13 @@ describe("MarketingAdminPage", () => {
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-audience-audience-1"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Audience deleted.");
+
     fireEvent.click(screen.getByTestId("button-marketing-edit-audience-audience-1"));
 
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
