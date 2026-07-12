@@ -104,6 +104,7 @@ type ConciergeRoutePrefill = {
 
 type ConciergeLocationState = {
   conciergePrefill?: unknown;
+  conciergeCompletedTemplate?: unknown;
   voiceActionPayload?: Record<string, unknown>;
   focusRightNow?: boolean;
 } | null;
@@ -392,6 +393,22 @@ interface ConciergeCompletedSession {
   outcome_payload: Record<string, unknown> | null;
   outcome_summary: string | null;
   completed_at: string | null;
+}
+
+function coerceConciergeCompletedTemplate(value: unknown): ConciergeCompletedSession | null {
+  if (!isRecord(value)) return null;
+  const useCase = typeof value.use_case === "string" && value.use_case.trim() ? value.use_case.trim() : "";
+  if (!useCase) return null;
+  return {
+    id: typeof value.id === "string" && value.id.trim() ? value.id.trim() : `completed-template-${useCase}`,
+    pending_id: typeof value.pending_id === "string" && value.pending_id.trim() ? value.pending_id.trim() : null,
+    use_case: useCase,
+    provider_name: typeof value.provider_name === "string" && value.provider_name.trim() ? value.provider_name.trim() : null,
+    outcome: typeof value.outcome === "string" && value.outcome.trim() ? value.outcome.trim() : "completed",
+    outcome_payload: isRecord(value.outcome_payload) ? value.outcome_payload : null,
+    outcome_summary: typeof value.outcome_summary === "string" && value.outcome_summary.trim() ? value.outcome_summary.trim() : null,
+    completed_at: typeof value.completed_at === "string" && value.completed_at.trim() ? value.completed_at.trim() : null,
+  };
 }
 
 type ConciergeEmailDraft = {
@@ -3295,6 +3312,7 @@ const ConciergeScreen = () => {
   const billInputRef = useRef<HTMLInputElement>(null);
   const lastAppliedConciergeVoiceActionRef = useRef<string | null>(null);
   const lastRoutePrefillKeyRef = useRef<string | null>(null);
+  const lastCompletedTemplateKeyRef = useRef<string | null>(null);
 
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentNote, setAppointmentNote] = useState("");
@@ -4460,6 +4478,23 @@ const ConciergeScreen = () => {
     }, 80);
     return () => window.clearTimeout(timer);
   }, [location.state]);
+
+  useEffect(() => {
+    const routeState = location.state as ConciergeLocationState;
+    const template = coerceConciergeCompletedTemplate(routeState?.conciergeCompletedTemplate);
+    if (!template) {
+      if (routeState?.conciergeCompletedTemplate) {
+        navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+      }
+      return;
+    }
+
+    const templateKey = `${template.id}:${template.completed_at ?? ""}:${JSON.stringify(template.outcome_payload ?? {})}`;
+    if (lastCompletedTemplateKeyRef.current === templateKey) return;
+    lastCompletedTemplateKeyRef.current = templateKey;
+    handleCompletedSessionUseTemplate(template);
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;

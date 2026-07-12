@@ -148,6 +148,10 @@ const labels: Record<string, string> = {
   "home.conciergeResume.step.attention": "Needs your review",
   "home.conciergeResume.step.confirm": "Waiting for your confirmation",
   "home.conciergeResume.open": "Open Right Now",
+  "home.conciergeReuse.kicker": "Useful again",
+  "home.conciergeReuse.title": "Use last {{task}} again",
+  "home.conciergeReuse.action": "Use template",
+  "home.conciergeReuse.providerFallback": "VYVA",
   "meds.callGpNamed": "Call {{name}}",
   "meds.callGp": "Call GP",
   "meds.callGpSub": "Speak to your practice now.",
@@ -349,6 +353,62 @@ describe("Home fast service actions", () => {
     expect(nudge).toHaveTextContent("Confirm your home service");
     expect(nudge).toHaveTextContent("Ready to save");
     expect(screen.getByTestId("button-home-fast-concierge-status")).toHaveTextContent("Check home service");
+  });
+
+  it("surfaces completed Concierge tasks as reusable templates from Home", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/sessions") {
+        return {
+          data: {
+            items: [{
+              id: "session-ride",
+              pending_id: "old-ride",
+              use_case: "book_ride",
+              provider_name: "Radio Taxi",
+              outcome: "completed",
+              outcome_summary: "Ride saved with Radio Taxi.",
+              completed_at: "2026-08-04T09:30:00.000Z",
+              outcome_payload: {
+                provider_phone: "+34 612 345 678",
+                pickup_address: "Saved home",
+                destination_address: "City Clinic",
+                requested_time: "tomorrow 09:00",
+              },
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const card = screen.getByTestId("card-home-concierge-reuse");
+    expect(card).toHaveTextContent("Useful again");
+    expect(card).toHaveTextContent("Use last ride again");
+    expect(card).toHaveTextContent("Radio Taxi");
+
+    fireEvent.click(card);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: {
+        conciergeCompletedTemplate: expect.objectContaining({
+          id: "session-ride",
+          use_case: "book_ride",
+          provider_name: "Radio Taxi",
+          outcome_payload: expect.objectContaining({
+            destination_address: "City Clinic",
+            requested_time: "tomorrow 09:00",
+          }),
+        }),
+      },
+    });
   });
 
   it("surfaces an in-progress Concierge task and opens Right Now", () => {
