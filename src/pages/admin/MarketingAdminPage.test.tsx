@@ -1721,6 +1721,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
     expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-campaign-delete-confirmation-campaign-1")).toHaveTextContent("Click Confirm delete to remove this campaign, its channels, and recipient snapshots.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));

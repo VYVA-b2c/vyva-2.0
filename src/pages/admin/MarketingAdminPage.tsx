@@ -6141,6 +6141,11 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
                         <Trash2 size={14} /> {deleteIsArmed ? "Confirm delete" : "Delete"}
                       </button>
                     ) : null}
+                    {deleteIsArmed ? (
+                      <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-campaign-delete-confirmation-${campaign.id}`}>
+                        Click Confirm delete to remove this campaign, its channels, and recipient snapshots.
+                      </p>
+                    ) : null}
                   </div>
                 </td>
               ) : null}
@@ -6214,6 +6219,11 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete, confirmingDeleteId
                       <button type="button" onClick={() => onDelete(campaign)} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${confirmingDeleteId === campaign.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} data-testid={`button-marketing-calendar-delete-${campaign.id}`}>
                         <Trash2 size={14} /> {confirmingDeleteId === campaign.id ? "Confirm delete" : "Delete"}
                       </button>
+                      {confirmingDeleteId === campaign.id ? (
+                        <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-calendar-delete-confirmation-${campaign.id}`}>
+                          Click Confirm delete to remove this scheduled campaign.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 </article>
