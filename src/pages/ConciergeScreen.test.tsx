@@ -1268,7 +1268,7 @@ describe("ConciergeScreen action hub", () => {
     await waitFor(() => {
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
       expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Compare safe ways");
-      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Tell VYVA where to go first");
+      expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Save a provider first");
     });
   });
 
@@ -1446,7 +1446,8 @@ describe("ConciergeScreen action hub", () => {
       expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("No saved provider yet");
       expect(screen.getByTestId("panel-transport-readiness")).toHaveTextContent("Current path: VYVA review");
     });
-    fireEvent.click(screen.getByTestId("button-transport-provider-setup"));
+    expect(screen.getByTestId("button-transport-find-options")).toHaveTextContent("Add transport provider");
+    fireEvent.click(screen.getByTestId("button-transport-find-options"));
 
     await waitFor(() => {
       expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
@@ -1553,6 +1554,21 @@ describe("ConciergeScreen action hub", () => {
   it("finds transport options and prepares a provider without starting a booking", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url) === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [{
+            name: "Radio Taxi",
+            role: "taxi",
+            phone: "+34 612 345 678",
+            whatsapp: "+34 612 345 679",
+            preferredChannel: "whatsapp",
+          }],
+          serviceReadiness: {
+            hasSavedTransportProvider: true,
+            hasMobilityInfo: true,
+          },
+        });
+      }
       if (String(url).includes("/api/transport/options")) {
         expect(init?.method).toBe("POST");
         const body = JSON.parse(String(init?.body));
@@ -1616,6 +1632,21 @@ describe("ConciergeScreen action hub", () => {
         });
         return jsonResponse({ event: { id: "ride-event-1", title: body.title } });
       }
+      if (String(url).includes("/api/concierge/actions/transport-1/complete")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.outcome_summary).toBe("Ride saved with Radio Taxi.");
+        expect(body.outcome_payload).toMatchObject({
+          flow_reference: "FLOW_TRANSPORT_BOOKING",
+          provider_name: "Radio Taxi",
+          provider_reply: "Confirmed, arrives at 09:30.",
+          price_estimate: "EUR18",
+          booking_reference: "RT-123",
+          pickup_address: "Saved home",
+          destination_address: "Heart Clinic Madrid",
+        });
+        return jsonResponse({ ok: true, status: "completed", sessionId: "transport-session-1" });
+      }
       return jsonResponse({ items: [] });
     });
 
@@ -1623,6 +1654,9 @@ describe("ConciergeScreen action hub", () => {
     fireEvent.click(await showBookRideFastHelp());
     vi.useRealTimers();
 
+    await waitFor(() => {
+      expect(screen.getByTestId("note-transport-provider-readiness")).toHaveTextContent("Saved provider first: Radio Taxi");
+    });
     fireEvent.change(screen.getByTestId("input-transport-destination"), {
       target: { value: "Heart Clinic Madrid" },
     });
@@ -1665,6 +1699,9 @@ describe("ConciergeScreen action hub", () => {
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/profile/scheduled-events", expect.objectContaining({
+        method: "POST",
+      }));
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/transport-1/complete", expect.objectContaining({
         method: "POST",
       }));
     });

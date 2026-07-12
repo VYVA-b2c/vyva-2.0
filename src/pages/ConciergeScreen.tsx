@@ -571,6 +571,25 @@ type TransportPreparedResponse = { pendingId?: string; status?: string; message?
 
 type ConciergeActionListResponse<T> = { items?: T[] };
 
+async function completePendingConciergeAction(params: {
+  pendingId: string;
+  outcomeSummary: string;
+  outcomePayload: Record<string, unknown>;
+}) {
+  const res = await apiFetch(`/api/concierge/actions/${params.pendingId}/complete`, {
+    method: "POST",
+    body: JSON.stringify({
+      outcome_summary: params.outcomeSummary,
+      outcome_payload: params.outcomePayload,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not complete concierge action");
+  }
+  return await res.json() as { ok: true; status: "completed"; sessionId?: string | null };
+}
+
 interface OfferScoreBreakdown {
   distance: number;
   price_value: number;
@@ -1495,7 +1514,7 @@ async function saveConfirmedRide(params: {
   priceEstimate: string;
   bookingReference: string;
   notes: string;
-}): Promise<{ event?: unknown }> {
+}): Promise<{ event?: unknown; completion?: unknown }> {
   const scheduledDate = new Date(params.scheduledFor);
   const providerName = params.option.providerName || params.option.label;
   const description = [
@@ -1545,7 +1564,25 @@ async function saveConfirmedRide(params: {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Could not save confirmed ride");
   }
-  return await res.json() as { event?: unknown };
+  const saved = await res.json() as { event?: unknown };
+  if (!params.pendingId) return saved;
+
+  const completion = await completePendingConciergeAction({
+    pendingId: params.pendingId,
+    outcomeSummary: `Ride saved with ${providerName}.`,
+    outcomePayload: {
+      flow_reference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+      scheduled_for: scheduledDate.toISOString(),
+      provider_name: providerName,
+      provider_reply: params.providerReply.trim(),
+      price_estimate: params.priceEstimate.trim(),
+      booking_reference: params.bookingReference.trim(),
+      pickup_address: params.pickupAddress.trim(),
+      destination_address: params.destinationAddress.trim(),
+      requested_time: params.requestedTime.trim() || "now",
+    },
+  });
+  return { ...saved, completion };
 }
 
 async function prepareOtcPharmacyConciergeAction(params: {
@@ -3209,6 +3246,20 @@ const ConciergeScreen = () => {
   const hasSavedTransportMobilityInfo = Boolean(conciergeProfile?.serviceReadiness?.hasMobilityInfo);
   const shouldAskTransportMobility = !hasSavedTransportMobilityInfo;
   const hasTransportDestination = transportDestination.trim().length > 0;
+  const canFindTransportOptions = hasSavedTransportProvider && hasTransportDestination;
+  const openTransportProviderSetup = useCallback(() => {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: TRANSPORT_SETUP_FOCUS,
+        setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
+        setupReason: "Add a saved transport provider",
+        notice: isSpanish
+          ? "Guarda un taxi o transporte preferido para usarlo primero."
+          : "Save a preferred taxi or transport provider to check first.",
+      },
+    });
+  }, [isSpanish, navigate]);
   const canPrepareOtcPharmacy = hasSavedPharmacy && otcItemText.trim().length > 0;
   const appointmentIntentType = appointmentRequest?.appointment_type ?? selectedAppointmentChip?.key ?? null;
   const appointmentFlowReference = appointmentIntentType === "home-service"
@@ -3667,8 +3718,12 @@ const ConciergeScreen = () => {
     onSuccess: async () => {
       setTransportNotice(isSpanish ? "Viaje guardado en Scheduled Support." : "Ride saved in Scheduled Support.");
       resetTransportFinalReview();
-      await queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
     },
     onError: (error) => {
       setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el viaje." : "I could not save the ride."));
@@ -5836,24 +5891,14 @@ const ConciergeScreen = () => {
                             ? (isSpanish ? `Primero: ${savedTransportProvider}.` : `Saved provider first: ${savedTransportProvider}.`)
                             : (isSpanish ? "Primero revisamos tu proveedor guardado." : "Saved provider is checked first.")
                         )
-                        : (isSpanish ? "Sin proveedor guardado: VYVA compara opciones seguras." : "No saved provider yet: VYVA compares safe options.")}
+                        : (isSpanish ? "Sin proveedor guardado. Guarda un transporte de confianza para activar reservas." : "No saved provider yet. Save a trusted transport provider to activate ride help.")}
                     </p>
                   </div>
                   {!hasSavedTransportProvider ? (
                     <button
                       type="button"
                       data-testid="button-transport-provider-setup"
-                      onClick={() => navigate("/onboarding/profile/providers", {
-                        state: {
-                          returnTo: "/concierge",
-                          setupFocus: TRANSPORT_SETUP_FOCUS,
-                          setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
-                          setupReason: "Add a saved transport provider",
-                          notice: isSpanish
-                            ? "Guarda un taxi o transporte preferido para usarlo primero."
-                            : "Save a preferred taxi or transport provider to check first.",
-                        },
-                      })}
+                      onClick={openTransportProviderSetup}
                       className="ml-auto flex-shrink-0 rounded-full border border-[#BBF7D0] bg-[#ECFDF5] px-3 py-1.5 font-body text-[12px] font-black text-[#047857]"
                     >
                       {isSpanish ? "Guardar" : "Save"}
@@ -6018,13 +6063,23 @@ const ConciergeScreen = () => {
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <button
                     type="button"
-                    onClick={() => transportOptionsMutation.mutate()}
-                    disabled={transportOptionsMutation.isPending || !hasTransportDestination}
+                    onClick={() => {
+                      if (!hasSavedTransportProvider) {
+                        openTransportProviderSetup();
+                        return;
+                      }
+                      transportOptionsMutation.mutate();
+                    }}
+                    disabled={transportOptionsMutation.isPending || (hasSavedTransportProvider && !canFindTransportOptions)}
                     data-testid="button-transport-find-options"
                     className="vyva-tap inline-flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-full bg-[#047857] px-5 font-body text-[17px] font-black text-white shadow-[0_12px_26px_rgba(4,120,87,0.22)] disabled:opacity-60"
                   >
-                    {transportOptionsMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-                    {isSpanish ? "Comparar viajes seguros" : "Compare safe rides"}
+                    {transportOptionsMutation.isPending
+                      ? <Loader2 size={18} className="animate-spin" />
+                      : hasSavedTransportProvider ? <Search size={18} /> : <ShieldCheck size={18} />}
+                    {!hasSavedTransportProvider
+                      ? (isSpanish ? "Anadir transporte" : "Add transport provider")
+                      : (isSpanish ? "Comparar viajes seguros" : "Compare safe rides")}
                   </button>
                   <button
                     type="button"
@@ -6040,8 +6095,10 @@ const ConciergeScreen = () => {
                 </div>
                 {!transportResult ? (
                   <p className="mt-3 rounded-full bg-[#ECFDF5] px-4 py-2 text-center font-body text-[12px] font-black text-[#047857]">
-                    {!hasTransportDestination
-                      ? (isSpanish ? "Primero dime a donde ir." : "Tell VYVA where to go first.")
+                    {!hasSavedTransportProvider
+                      ? (isSpanish ? "Guarda un proveedor primero. Nada se contacta sin confirmar." : "Save a provider first. Nothing is contacted without confirmation.")
+                      : !hasTransportDestination
+                        ? (isSpanish ? "Primero dime a donde ir." : "Tell VYVA where to go first.")
                       : (isSpanish ? "Nada se reserva ni se contacta sin tu confirmacion." : "Nothing is booked or requested without your confirmation.")}
                   </p>
                 ) : null}
