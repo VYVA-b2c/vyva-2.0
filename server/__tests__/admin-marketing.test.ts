@@ -1766,6 +1766,14 @@ describe("admin marketing router", () => {
       media_assets: [{ url: "https://cdn.example.test/nested-social.png", sourceField: "image_url" }],
       lovable_external_id: "social_post:nested-social-1",
     });
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      fieldCoverage: {
+        content: expect.objectContaining({
+          firstClassFields: expect.arrayContaining(["metadata", "social_post"]),
+          metadataOnlyFields: expect.not.arrayContaining(["metadata", "social_post"]),
+        }),
+      },
+    });
   });
 
   it("maps Lovable CRM-style contact aliases and unsubscribe aliases into first-class contact fields", async () => {

@@ -1085,6 +1085,7 @@ function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boo
 const fieldCoverageAliases = {
   content: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["metadata", "content", "asset", "template", "emailTemplate", "email_template", "socialPost", "social_post", "post", "contentBrief", "content_brief", "properties", "fields", "customFields", "custom_fields"],
     [...contentTitleKeys],
     ["channel", "platform", "network"],
     ["language", "lang", "locale"],
@@ -1109,6 +1110,7 @@ const fieldCoverageAliases = {
   ],
   contacts: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["metadata", "contact", "profile", "properties", "fields", "customFields", "custom_fields"],
     ["name", "fullName", "full_name", "displayName", "display_name", "firstName", "first_name", "givenName", "given_name", "lastName", "last_name", "familyName", "family_name", "surname"],
     ["email", "emailAddress", "email_address"],
     ["phoneNumber", "phone_number", "phone", "mobileNumber", "mobile_number", "mobile", "telephone"],
