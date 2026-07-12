@@ -394,6 +394,43 @@ function contactText(row: Record<string, unknown>, keys: string[], fallback = ""
   return textFromSources(contactFieldSources(row), keys, fallback);
 }
 
+function contentFieldSources(row: Record<string, unknown>) {
+  const metadata = jsonRecordFromLovable(row.metadata);
+  return [
+    row,
+    asRecord(row.content),
+    asRecord(row.asset),
+    asRecord(row.template),
+    asRecord(row.emailTemplate ?? row.email_template),
+    asRecord(row.socialPost ?? row.social_post ?? row.post),
+    asRecord(row.contentBrief ?? row.content_brief ?? row.brief),
+    asRecord(row.properties),
+    asRecord(row.fields),
+    asRecord(row.customFields ?? row.custom_fields),
+    metadata,
+    asRecord(metadata.lovable),
+    asRecord(metadata.content),
+    asRecord(metadata.asset),
+    asRecord(metadata.template),
+    asRecord(metadata.emailTemplate ?? metadata.email_template),
+    asRecord(metadata.socialPost ?? metadata.social_post ?? metadata.post),
+    asRecord(metadata.contentBrief ?? metadata.content_brief ?? metadata.brief),
+    asRecord(metadata.properties),
+    asRecord(metadata.fields),
+    asRecord(metadata.customFields ?? metadata.custom_fields),
+  ];
+}
+
+function contentText(row: Record<string, unknown>, keys: string[], fallback = "") {
+  return textFromSources(contentFieldSources(row), keys, fallback);
+}
+
+function contentValues(row: Record<string, unknown>, keys: readonly string[]) {
+  return contentFieldSources(row).flatMap((source) => (
+    keys.map((key) => [source[key], key] as [unknown, string])
+  ));
+}
+
 function contactFullName(row: Record<string, unknown>) {
   const explicit = emptyToNull(contactText(row, ["fullName", "full_name", "name", "displayName", "display_name"]));
   if (explicit) return explicit;
@@ -585,12 +622,18 @@ function lovableMediaPayload(payload: Record<string, unknown>) {
 }
 
 function contentMediaAssetsFrom(row: Record<string, unknown>) {
-  const nestedAssets = contentMediaArrayKeys.flatMap((key) => arrayFrom(row[key]));
-  const urlAssets = contentMediaUrlKeys.map((key) => {
-    const url = emptyToNull(textFrom(row, [key]));
+  const nestedAssets = contentValues(row, contentMediaArrayKeys).flatMap(([value]) => arrayFrom(value));
+  const urlAssets = contentMediaUrlKeys.flatMap((key) => {
+    const url = emptyToNull(contentText(row, [key]));
     return url ? { url, sourceField: key } : null;
   }).filter((item): item is { url: string; sourceField: string } => Boolean(item));
-  return [...nestedAssets, ...urlAssets];
+  const seen = new Set<string>();
+  return [...nestedAssets, ...urlAssets].filter((asset) => {
+    const key = JSON.stringify(asset);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function lovableAudiencePayload(payload: Record<string, unknown>) {
@@ -1256,21 +1299,23 @@ function jsonObjectFromLovable(value: unknown, arrayKey: string) {
 
 function contentDesignJson(row: Record<string, unknown>) {
   const candidates: Array<[unknown, string]> = [
-    [row.designJson, "designJson"],
-    [row.design_json, "design_json"],
-    [row.design, "design"],
-    [row.emailDesign, "emailDesign"],
-    [row.email_design, "email_design"],
-    [row.layout, "layout"],
-    [row.blocks, "blocks"],
-    [row.sections, "sections"],
-    [row.components, "components"],
-    [row.canvas, "canvas"],
-    [row.builderJson, "builderJson"],
-    [row.builder_json, "builder_json"],
-    [row.templateJson, "templateJson"],
-    [row.template_json, "template_json"],
-    ...contentBodyKeys.map((key) => [row[key], key] as [unknown, string]),
+    ...contentValues(row, [
+      "designJson",
+      "design_json",
+      "design",
+      "emailDesign",
+      "email_design",
+      "layout",
+      "blocks",
+      "sections",
+      "components",
+      "canvas",
+      "builderJson",
+      "builder_json",
+      "templateJson",
+      "template_json",
+    ]),
+    ...contentValues(row, contentBodyKeys),
   ];
   for (const [value, key] of candidates) {
     const object = jsonObjectFromLovable(value, key);
@@ -1329,7 +1374,7 @@ function contentBodyFromDesign(designJson: Record<string, unknown>) {
 
 function contentBodyFromRow(row: Record<string, unknown>) {
   for (const key of contentBodyKeys) {
-    const value = row[key];
+    const value = contentFieldSources(row).find((source) => source[key] !== undefined)?.[key];
     if (typeof value === "string" && value.trim()) {
       const parsed = parseJsonLike(value);
       if (typeof parsed === "string") return parsed.trim();
@@ -2928,24 +2973,24 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   const mediaAssets = contentMediaAssetsFrom(row);
   const explicitBody = contentBodyFromRow(row);
   const designBody = contentBodyFromDesign(designJson);
-  const htmlBody = emptyToNull(textFrom(row, [...contentHtmlKeys]));
+  const htmlBody = emptyToNull(contentText(row, [...contentHtmlKeys]));
   const htmlText = htmlBody ? textFromHtml(htmlBody) : "";
-  const title = textFrom(
+  const title = contentText(
     row,
     [...contentTitleKeys],
-    textFrom(row, [...contentSubjectKeys], sourceType === "social_post" ? "Untitled social post" : "Untitled content"),
+    contentText(row, [...contentSubjectKeys], sourceType === "social_post" ? "Untitled social post" : "Untitled content"),
   );
   const { [LOVABLE_CONTENT_SOURCE_KEY]: _sourceMarker, ...lovableMetadata } = row;
   const payload = {
     title,
-    channel: normalizeChannel(textFrom(row, ["channel", "platform", "network"], sourceType === "social_post" ? "instagram" : "email")),
-    language: textFrom(row, ["language", "lang", "locale"], "en"),
-    status: normalizeContentStatus(textFrom(row, ["status"], "draft")),
-    subject: emptyToNull(textFrom(row, [...contentSubjectKeys])),
+    channel: normalizeChannel(contentText(row, ["channel", "platform", "network"], sourceType === "social_post" ? "instagram" : "email")),
+    language: contentText(row, ["language", "lang", "locale"], "en"),
+    status: normalizeContentStatus(contentText(row, ["status"], "draft")),
+    subject: emptyToNull(contentText(row, [...contentSubjectKeys])),
     body: explicitBody || designBody || htmlText,
     html_body: htmlBody,
-    cta_label: emptyToNull(textFrom(row, [...contentCtaLabelKeys])),
-    cta_url: emptyToNull(textFrom(row, [...contentCtaUrlKeys])),
+    cta_label: emptyToNull(contentText(row, [...contentCtaLabelKeys])),
+    cta_url: emptyToNull(contentText(row, [...contentCtaUrlKeys])),
     design_json: designJson,
     media_assets: mediaAssets,
     source: "lovable",

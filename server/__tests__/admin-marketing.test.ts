@@ -1714,6 +1714,60 @@ describe("admin marketing router", () => {
     });
   });
 
+  it("promotes nested Lovable content fields into usable content assets", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        content: [{
+          id: "nested-content-1",
+          metadata: {
+            template: {
+              template_name: "Nested welcome template",
+              email_subject: "Nested subject",
+              html_content: "<p>Nested HTML</p>",
+              button_text: "Start nested",
+              button_url: "https://v2.vyva.life/nested",
+              email_design: { blocks: [{ text: "Nested design copy" }] },
+              cover_image_url: "https://cdn.example.test/nested-cover.png",
+            },
+          },
+        }],
+        social_posts: [{
+          id: "nested-social-1",
+          social_post: {
+            headline: "Nested LinkedIn post",
+            platform: "linkedin",
+            caption: { blocks: [{ text: "Nested social copy" }] },
+            image_url: "https://cdn.example.test/nested-social.png",
+          },
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+
+    expect(table("marketing_content_assets")).toHaveLength(2);
+    expect(table("marketing_content_assets").find((row) => row.title === "Nested welcome template")).toMatchObject({
+      channel: "email",
+      subject: "Nested subject",
+      body: "Nested design copy",
+      html_body: "<p>Nested HTML</p>",
+      cta_label: "Start nested",
+      cta_url: "https://v2.vyva.life/nested",
+      design_json: { blocks: [{ text: "Nested design copy" }] },
+      media_assets: [{ url: "https://cdn.example.test/nested-cover.png", sourceField: "cover_image_url" }],
+    });
+    expect(table("marketing_content_assets").find((row) => row.title === "Nested LinkedIn post")).toMatchObject({
+      channel: "linkedin",
+      body: "Nested social copy",
+      design_json: { blocks: [{ text: "Nested social copy" }] },
+      media_assets: [{ url: "https://cdn.example.test/nested-social.png", sourceField: "image_url" }],
+      lovable_external_id: "social_post:nested-social-1",
+    });
+  });
+
   it("maps Lovable CRM-style contact aliases and unsubscribe aliases into first-class contact fields", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
