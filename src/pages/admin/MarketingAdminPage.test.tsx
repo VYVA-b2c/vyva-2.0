@@ -1023,7 +1023,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
-    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("scroll-mt-24");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Lovable source details");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Source type");
@@ -1038,7 +1038,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
-    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("scroll-mt-24");
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");

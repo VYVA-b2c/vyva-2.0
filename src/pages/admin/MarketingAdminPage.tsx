@@ -830,6 +830,7 @@ const lovableContentSourceLabels: Record<string, string> = {
   saved_email_template: "Saved email template",
   template: "Template",
   content_brief: "Content brief",
+  journey_step_preset: "Journey step preset",
   social_post: "Social post",
 };
 
@@ -1639,6 +1640,7 @@ const syncCountLabels = {
   campaigns: "Campaigns",
   contacts: "Contacts",
   content: "Content",
+  journeyStepPresetContent: "Journey step preset content",
   mediaAssets: "Media assets",
   campaignChannels: "Campaign channels",
   campaignMetrics: "Campaign metrics",
@@ -1688,6 +1690,15 @@ const lovableDestinationRows: Array<{
     detail: "Planning copy and structured brief sections are preserved as content assets and metadata.",
     countKeys: ["content"],
     contentSourceKeys: ["content_brief", "brief", "marketing_content_brief"],
+  },
+  {
+    key: "journey-step-presets",
+    label: "Journey step presets",
+    sourceHint: "journey steps with config.translations",
+    destination: "Content tab and Journeys tab",
+    detail: "Translated onboarding step copy hidden inside journey configs becomes editable content and is linked back to the journey step.",
+    countKeys: ["journeyStepPresetContent"],
+    contentSourceKeys: ["journey_step_preset"],
   },
   {
     key: "media",
@@ -4923,7 +4934,7 @@ export default function MarketingAdminPage() {
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
-                className={contentDrawerMode === "edit" ? "scroll-mt-24 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-lg" : "hidden"}
+                className={contentDrawerMode === "edit" ? "fixed inset-y-6 right-6 z-[80] w-[min(880px,calc(100vw-3rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -5020,7 +5031,7 @@ export default function MarketingAdminPage() {
                   data-testid="marketing-content-preview-panel"
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
-                  className={contentDrawerMode === "preview" ? "scroll-mt-24 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-lg" : "hidden"}
+                  className={contentDrawerMode === "preview" ? "fixed inset-y-6 right-6 z-[80] w-[min(760px,calc(100vw-3rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"

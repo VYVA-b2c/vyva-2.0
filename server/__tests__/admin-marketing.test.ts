@@ -1356,8 +1356,26 @@ describe("admin marketing router", () => {
         kind: "message",
         dayOffset: 3,
         templateKind: "email_template",
-        templateRef: "content-1",
-        config: JSON.stringify({ variant: "a" }),
+        templateRef: "onboarding_step_1",
+        config: JSON.stringify({
+          default_language: "en",
+          translations: {
+            en: {
+              subject: "Your VYVA start",
+              headline: "Welcome to VYVA",
+              body: "Open the app and complete your first check-in.",
+              cta: "Open VYVA",
+              ctaUrl: "https://v2.vyva.life/app",
+            },
+            es: {
+              subject: "Tu inicio en VYVA",
+              headline: "Bienvenido a VYVA",
+              body: "Abre la app y completa tu primer registro.",
+              cta: "Abrir VYVA",
+              ctaUrl: "https://v2.vyva.life/app",
+            },
+          },
+        }),
       }],
       journeyEnrollments: [{
         id: "enrollment-1",
@@ -1399,7 +1417,7 @@ describe("admin marketing router", () => {
         Authorization: "Bearer secret",
       }),
     }));
-    expect(table("marketing_content_assets")).toHaveLength(5);
+    expect(table("marketing_content_assets")).toHaveLength(6);
     expect(table("marketing_content_assets").find((row) => row.title === "Welcome email")).toMatchObject({
       html_body: "<h1>Hello</h1>",
       design_json: { blocks: [{ type: "hero" }] },
@@ -1444,6 +1462,29 @@ describe("admin marketing router", () => {
       design_json: { sections: [{ text: "Long-form planning brief" }] },
       lovable_external_id: "content_brief:brief-1",
       metadata: { lovable_source_type: "content_brief" },
+    });
+    const journeyPresetContent = table("marketing_content_assets").find((row) => row.lovable_external_id === "journey_step_preset:onboarding_step_1");
+    expect(journeyPresetContent).toMatchObject({
+      title: "Welcome to VYVA",
+      channel: "email",
+      language: "en",
+      status: "draft",
+      subject: "Your VYVA start",
+      body: "Open the app and complete your first check-in.",
+      cta_label: "Open VYVA",
+      cta_url: "https://v2.vyva.life/app",
+      design_json: {
+        default_language: "en",
+        translations: {
+          en: expect.objectContaining({ headline: "Welcome to VYVA" }),
+          es: expect.objectContaining({ headline: "Bienvenido a VYVA" }),
+        },
+      },
+      metadata: expect.objectContaining({
+        lovable_source_type: "journey_step_preset",
+        journey_external_id: "journey:journey-1",
+        template_ref: "onboarding_step_1",
+      }),
     });
     expect(table("marketing_media_assets")).toHaveLength(4);
     expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/hero.png")).toMatchObject({
@@ -1531,8 +1572,14 @@ describe("admin marketing router", () => {
       kind: "message",
       day_offset: 3,
       template_kind: "email_template",
-      template_ref: "content-1",
-      config: { variant: "a" },
+      template_ref: "onboarding_step_1",
+      content_asset_id: journeyPresetContent?.id,
+      config: expect.objectContaining({
+        default_language: "en",
+        translations: expect.objectContaining({
+          en: expect.objectContaining({ subject: "Your VYVA start" }),
+        }),
+      }),
     });
     expect(table("marketing_journey_enrollments")).toHaveLength(1);
     expect(table("marketing_journey_enrollments")[0]).toMatchObject({
@@ -1666,6 +1713,7 @@ describe("admin marketing router", () => {
       exported: { content: 5, mediaAssets: 4, contacts: 1, audiences: 1, campaigns: 2, campaignChannels: 2, campaignRecipients: 2, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 2 },
       imported: {
         content: 5,
+        journeyStepPresetContent: 1,
         mediaAssets: 4,
         contacts: 1,
         audiences: 1,

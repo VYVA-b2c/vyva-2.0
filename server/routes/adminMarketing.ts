@@ -1069,7 +1069,7 @@ function lovableContentReference(row: Record<string, unknown>) {
 }
 
 function contentIdForLovableReference(contentByExternalId: Map<string, string>, externalId: string) {
-  return lookupByExternalId(contentByExternalId, externalId, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]) ?? null;
+  return lookupByExternalId(contentByExternalId, externalId, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"]) ?? null;
 }
 
 function campaignChannelPayload(row: Record<string, unknown>) {
@@ -3536,6 +3536,71 @@ async function upsertLovableCampaign(
   };
 }
 
+async function upsertLovableJourneyStepPresetContent(
+  step: Record<string, unknown>,
+  journey: MarketingJourneyRow,
+  now: Date,
+  actorLabel: string,
+  index: number,
+) {
+  const config = jsonRecordFromLovable(step.config);
+  const translations = jsonRecordFromLovable(config.translations);
+  const translationEntries = Object.entries(translations)
+    .map(([language, value]) => ({ language, value: asRecord(value) }))
+    .filter((entry) => Object.keys(entry.value).length > 0);
+  if (!translationEntries.length) return null;
+
+  const templateRef = emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"]));
+  const stepExternalId = normalizeLovableId(step);
+  const externalId = templateRef
+    ? `journey_step_preset:${templateRef}`
+    : stepExternalId
+      ? `journey_step_preset:${stepExternalId}`
+      : `journey_step_preset:${journey.lovable_external_id ?? journey.id}:${index}`;
+  const defaultLanguage = emptyToNull(textFrom(config, ["default_language", "defaultLanguage"]))
+    ?? translationEntries[0]?.language
+    ?? "en";
+  const defaultTranslation = translationEntries.find((entry) => entry.language === defaultLanguage)?.value
+    ?? translationEntries[0]?.value
+    ?? {};
+  const headline = emptyToNull(textFrom(defaultTranslation, ["headline", "title", "name"]));
+  const subject = emptyToNull(textFrom(defaultTranslation, ["subject", "subjectLine", "subject_line"]));
+  const body = textFrom(defaultTranslation, ["body", "copy", "text", "message"], "");
+  const ctaLabel = emptyToNull(textFrom(defaultTranslation, ["cta", "ctaLabel", "cta_label", "buttonLabel", "button_label"]));
+  const title = headline
+    ?? subject
+    ?? `${journey.name} step ${Number(step.order ?? step.stepOrder ?? step.step_order ?? index) || index + 1}`;
+  const payload = {
+    title,
+    channel: normalizeChannel(textFrom(step, ["channel"], "email")),
+    language: defaultLanguage,
+    status: normalizeContentStatus(textFrom(step, ["status"], "draft")),
+    subject,
+    body,
+    html_body: null,
+    cta_label: ctaLabel,
+    cta_url: emptyToNull(textFrom(defaultTranslation, ["ctaUrl", "cta_url", "buttonUrl", "button_url", "url", "link"])),
+    design_json: { translations, default_language: defaultLanguage, journey_step_config: config },
+    media_assets: [],
+    source: "lovable",
+    lovable_external_id: externalId,
+    metadata: {
+      lovable: step,
+      lovable_source_type: "journey_step_preset",
+      journey_external_id: journey.lovable_external_id,
+      journey_name: journey.name,
+      template_ref: templateRef,
+    },
+    updated_by: actorLabel,
+    updated_at: now,
+  };
+  const [content] = await db.insert(marketingContentAssets)
+    .values({ ...payload, created_by: actorLabel })
+    .onConflictDoUpdate({ target: marketingContentAssets.lovable_external_id, set: payload })
+    .returning();
+  return content;
+}
+
 async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string, contentByExternalId: Map<string, string>) {
   const row = asRecord(raw);
   const externalId = normalizeLovableId(row);
@@ -3561,31 +3626,41 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
     .onConflictDoUpdate({ target: marketingJourneys.lovable_external_id, set: payload })
     .returning();
   const steps = arrayFrom(row.steps);
+  let presetContentCount = 0;
   if (steps.length) {
     await db.delete(marketingJourneySteps).where(eq(marketingJourneySteps.journey_id, journey.id));
-    await db.insert(marketingJourneySteps).values(steps.map((stepRaw, index) => {
+    const stepRows: Array<typeof marketingJourneySteps.$inferInsert> = [];
+    for (let index = 0; index < steps.length; index += 1) {
+      const stepRaw = steps[index];
       const step = asRecord(stepRaw);
       const contentExternalId = lovableContentReference(step);
       const dayOffset = Number(step.dayOffset ?? step.day_offset ?? step.day ?? 0);
       const delayHours = Number(step.delayHours ?? step.delay_hours ?? (Number.isFinite(dayOffset) ? dayOffset * 24 : 0));
-      return {
+      const presetContent = await upsertLovableJourneyStepPresetContent(step, journey, now, actorLabel, index);
+      if (presetContent) {
+        presetContentCount += 1;
+        addExternalIdVariants(contentByExternalId, presetContent.lovable_external_id, presetContent.id, ["content", "content_asset", "journey_step_preset"]);
+      }
+      const templateRef = emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"])) ?? (contentExternalId || null);
+      stepRows.push({
         journey_id: journey.id,
         step_order: Number(step.stepOrder ?? step.step_order ?? index),
         channel: normalizeChannel(textFrom(step, ["channel"], "email")),
-        content_asset_id: contentIdForLovableReference(contentByExternalId, contentExternalId),
+        content_asset_id: presetContent?.id ?? contentIdForLovableReference(contentByExternalId, contentExternalId || templateRef || ""),
         delay_hours: Number.isFinite(delayHours) ? delayHours : 0,
         kind: textFrom(step, ["kind", "stepKind", "step_kind", "type"], "message"),
         day_offset: Number.isFinite(dayOffset) ? dayOffset : 0,
         template_kind: emptyToNull(textFrom(step, ["templateKind", "template_kind"])),
-        template_ref: emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"])) ?? (contentExternalId || null),
+        template_ref: templateRef,
         config: jsonRecordFromLovable(step.config),
         status: normalizeJourneyStatus(textFrom(step, ["status"], "draft")),
         metadata: { lovable: step },
         updated_at: now,
-      };
-    }));
+      });
+    }
+    await db.insert(marketingJourneySteps).values(stepRows);
   }
-  return journey;
+  return { journey, presetContentCount };
 }
 
 async function upsertLovableJourneyEnrollment(
@@ -3850,6 +3925,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     }
 
     let journeyCount = 0;
+    let journeyStepPresetContentCount = 0;
     const journeyRows: MarketingJourneyRow[] = [];
     const nestedJourneyEnrollmentPayload: Array<{ raw: unknown; journeyExternalId: string | null; index: number }> = [];
     for (const item of journeyPayload) {
@@ -3860,9 +3936,10 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         ...arrayOrSingleton(journeyRaw.progress),
       ];
       nestedEnrollments.forEach((raw, index) => nestedJourneyEnrollmentPayload.push({ raw, journeyExternalId, index }));
-      const journey = await upsertLovableJourney(item, now, actorLabel, contentByExternalId);
-      if (journey) {
-        journeyRows.push(journey);
+      const result = await upsertLovableJourney(item, now, actorLabel, contentByExternalId);
+      if (result) {
+        journeyRows.push(result.journey);
+        journeyStepPresetContentCount += result.presetContentCount;
         journeyCount += 1;
       }
     }
@@ -3988,6 +4065,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       campaigns: campaignCount,
       contacts: contactRows.length,
       content: contentRows.length,
+      journeyStepPresetContent: journeyStepPresetContentCount,
       mediaAssets: mediaAssetCount,
       campaignChannels: campaignChannelCount,
       campaignMetrics: campaignMetricCount,
