@@ -130,6 +130,7 @@ type ConciergeProfileSummary = {
   coverage?: CoverageReadinessSummary | null;
   serviceReadiness?: {
     hasSavedPharmacy?: boolean;
+    hasSavedDoctor?: boolean;
     hasCoverageInfo?: boolean;
     hasSavedTransportProvider?: boolean;
     hasMobilityInfo?: boolean;
@@ -151,10 +152,12 @@ type CoverageReadinessSummary = {
 const CONCIERGE_ROUTE_PREFILL_KINDS = ["ride", "appointment", "home_care_quote", "task"] as const;
 const OTC_PHARMACY_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.otcPharmacy;
 const TRANSPORT_BOOKING_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.transportBooking;
+const MEDICAL_APPOINTMENT_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.medicalAppointment;
 const SCAM_CHECK_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.scamCheck;
 const INSURANCE_ADMIN_FLOW_REFERENCE = CONCIERGE_FLOW_REFERENCES.insuranceAdmin;
 const OTC_PHARMACY_SETUP_FOCUS = providerSetupFocusForFlow(OTC_PHARMACY_FLOW_REFERENCE) ?? "pharmacy";
 const TRANSPORT_SETUP_FOCUS = providerSetupFocusForFlow(TRANSPORT_BOOKING_FLOW_REFERENCE) ?? "transport";
+const MEDICAL_APPOINTMENT_SETUP_FOCUS = providerSetupFocusForFlow(MEDICAL_APPOINTMENT_FLOW_REFERENCE) ?? "doctor_clinic";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -2227,6 +2230,26 @@ function profileHasSavedPharmacy(profile: ConciergeProfileSummary | null | undef
   return Boolean(savedPharmacyName(profile));
 }
 
+function savedMedicalProviderDetails(profile: ConciergeProfileSummary | null | undefined): SavedConciergeProvider | null {
+  return profile?.savedProviders?.find((provider) => {
+    const searchable = [provider.role, provider.category, provider.name]
+      .filter((value): value is string => typeof value === "string")
+      .join(" ")
+      .toLowerCase();
+    return /doctor|clinic|medical|gp|physio|physiotherapy|dentist|health|hospital/.test(searchable);
+  }) ?? null;
+}
+
+function savedMedicalProviderName(profile: ConciergeProfileSummary | null | undefined): string {
+  const provider = savedMedicalProviderDetails(profile);
+  return provider?.name?.trim() || "";
+}
+
+function profileHasSavedMedicalProvider(profile: ConciergeProfileSummary | null | undefined): boolean {
+  if (profile?.serviceReadiness?.hasSavedDoctor) return true;
+  return Boolean(savedMedicalProviderName(profile));
+}
+
 function savedTransportProviderDetails(profile: ConciergeProfileSummary | null | undefined): SavedConciergeProvider | null {
   return profile?.savedProviders?.find((item) => {
     const searchable = [item.role, item.category, item.name]
@@ -3101,6 +3124,7 @@ const ConciergeScreen = () => {
     scheduledFor: "",
     location: "",
     providerReply: "",
+    reference: "",
     notes: "",
   });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
@@ -3285,6 +3309,7 @@ const ConciergeScreen = () => {
   const selectedAppointmentActionChannel = appointmentPreferredChannel(selectedAppointmentOption);
   const hasAppointmentCoverageInfo = Boolean(conciergeProfile?.serviceReadiness?.hasCoverageInfo);
   const savedCoverage = conciergeProfile?.coverage ?? null;
+  const hasSavedMedicalProvider = profileHasSavedMedicalProvider(conciergeProfile);
   const savedPharmacyProviderDetailsValue = savedPharmacyProviderDetails(conciergeProfile);
   const savedPharmacy = savedPharmacyProviderDetailsValue?.name?.trim() || savedPharmacyName(conciergeProfile);
   const hasSavedPharmacy = profileHasSavedPharmacy(conciergeProfile);
@@ -3312,6 +3337,19 @@ const ConciergeScreen = () => {
     });
   }, [isSpanish, navigate]);
   const canPrepareOtcPharmacy = hasSavedPharmacy && otcItemText.trim().length > 0;
+  const openMedicalProviderSetup = useCallback(() => {
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: MEDICAL_APPOINTMENT_SETUP_FOCUS,
+        setupFlow: MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+        setupReason: "Add a saved doctor or clinic",
+        notice: isSpanish
+          ? "Guarda un medico o clinica de confianza para usarlo primero."
+          : "Save a trusted doctor or clinic so VYVA can use it first.",
+      },
+    });
+  }, [isSpanish, navigate]);
   const canSaveOtcOutcome = Boolean(otcPreparedResult?.pendingId)
     && (
       otcOutcomeForm.availability.trim().length > 0
@@ -3538,7 +3576,7 @@ const ConciergeScreen = () => {
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
       setAppointmentControlMode("listening");
-      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
     },
     onSuccess: (result) => {
       setAppointmentRequest(result.request);
@@ -3670,15 +3708,58 @@ const ConciergeScreen = () => {
       setAppointmentError(null);
       setAppointmentNotice(null);
     },
-    onSuccess: (result) => {
-      setAppointmentNotice(isSpanish ? "Cita guardada en Scheduled Support." : "Appointment saved in Scheduled Support.");
+    onSuccess: async (result) => {
+      const pendingId = appointmentAttemptResult?.pending?.pendingId || appointmentAttemptResult?.form_task?.pending_id || null;
+      const hadPendingTask = Boolean(pendingId);
+      let taskClosed = false;
+      if (pendingId && appointmentRequest) {
+        try {
+          await completePendingConciergeAction({
+            pendingId,
+            outcomeSummary: isHomeServiceAppointment
+              ? `Home service visit confirmed with ${appointmentProviderName}.`
+              : `Medical appointment confirmed with ${appointmentProviderName}.`,
+            outcomePayload: {
+              flow_reference: appointmentFlowReference,
+              appointment_request_id: appointmentRequest.id,
+              appointment_type: appointmentRequest.appointment_type,
+              provider_name: appointmentProviderName,
+              selected_channel: appointmentRequest.selected_channel ?? selectedAppointmentActionChannel,
+              scheduled_for: appointmentBookedForm.scheduledFor,
+              location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || null,
+              provider_reply: appointmentBookedForm.providerReply.trim() || null,
+              reference: appointmentBookedForm.reference.trim() || null,
+              notes: appointmentBookedForm.notes.trim() || null,
+              coverage_info_saved: appointmentRequest.appointment_type === "medical" ? hasAppointmentCoverageInfo : null,
+              scheduled_event_id: typeof result.scheduled_event === "object" && result.scheduled_event && "id" in result.scheduled_event
+                ? String(result.scheduled_event.id)
+                : null,
+            },
+          });
+          taskClosed = true;
+        } catch (error) {
+          setAppointmentError(error instanceof Error
+            ? error.message
+            : (isSpanish ? "La cita se guardo, pero no pude cerrar la tarea." : "The appointment was saved, but I could not close the task."));
+        }
+      }
+      setAppointmentNotice(!hadPendingTask
+        ? (isSpanish ? "Cita guardada en Scheduled Support." : "Appointment saved in Scheduled Support.")
+        : taskClosed
+        ? (isSpanish ? "Cita guardada en Scheduled Support. La tarea queda cerrada." : "Appointment saved in Scheduled Support. The task is closed.")
+        : (isSpanish ? "Cita guardada en Scheduled Support. Revisa la tarea pendiente." : "Appointment saved in Scheduled Support. Please review the pending task."));
       setAppointmentRequest(null);
       setAppointmentOptions([]);
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
       setAppointmentAttemptResult(null);
-      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
-      queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] }),
+      ]);
     },
     onError: (error) => {
       setAppointmentError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la cita." : "I could not save the appointment."));
@@ -3866,6 +3947,7 @@ const ConciergeScreen = () => {
   const isHomeServiceAppointment = appointmentIntentType === "home-service";
   const isHomeServiceIntakeActive = isHomeServiceAppointment && Boolean(homeServiceType);
   const isHomeServiceWithoutProvider = isHomeServiceAppointment && Boolean(appointmentRequest) && appointmentOptions.length === 0 && !appointmentAttemptResult;
+  const isMedicalAppointmentWithoutProvider = appointmentIntentType === "medical" && Boolean(appointmentRequest) && appointmentOptions.length === 0 && !hasSavedMedicalProvider && !appointmentAttemptResult;
   const AppointmentPanelIcon = isHomeServiceAppointment ? Wrench : Calendar;
   const appointmentPanelKicker = isHomeServiceAppointment
     ? (isSpanish ? "Servicio" : "Service")
@@ -3886,7 +3968,11 @@ const ConciergeScreen = () => {
     ? (isSpanish
       ? "VYVA puede buscar opciones fiables cerca antes de contactar con nadie."
       : "VYVA can search trusted nearby options before anyone is contacted.")
-    : null;
+    : isMedicalAppointmentWithoutProvider
+      ? (isSpanish
+        ? "Guarda un medico o clinica de confianza para usarlo primero, o busca opciones para revisar."
+        : "Save a trusted doctor or clinic to use first, or look for options to review.")
+      : null;
   const appointmentDiscoverLabel = isHomeServiceAppointment
     ? (isSpanish ? "Buscar opciones fiables" : "Find trusted options")
     : (isSpanish ? "Buscar opciones" : "Look for options");
@@ -4035,7 +4121,7 @@ const ConciergeScreen = () => {
     setAppointmentAttemptResult(null);
     setAppointmentNotice(null);
     setAppointmentError(null);
-    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
+    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
   }, [resetHomeServiceIntake]);
 
   useEffect(() => {
@@ -4557,9 +4643,11 @@ const ConciergeScreen = () => {
       return;
     }
     const providerReply = appointmentBookedForm.providerReply.trim();
+    const reference = appointmentBookedForm.reference.trim();
     const userNotes = appointmentBookedForm.notes.trim();
     const finalNotes = [
       providerReply ? `Provider reply: ${providerReply}` : "",
+      reference ? `Reference: ${reference}` : "",
       userNotes ? `Notes: ${userNotes}` : "",
     ].filter(Boolean).join("\n");
     markAppointmentBookedMutation.mutate({
@@ -4578,7 +4666,7 @@ const ConciergeScreen = () => {
       ? "Revisa la opcion o pide a VYVA que contacte de nuevo."
       : "Review the option or ask VYVA to contact them again.");
     setAppointmentError(null);
-    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
+    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
   }
 
   function handleSaveConfirmedRide() {
@@ -7587,6 +7675,17 @@ const ConciergeScreen = () => {
                   {discoverAppointmentOptionsMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
                   {appointmentDiscoverLabel}
                 </button>
+                {isMedicalAppointmentWithoutProvider ? (
+                  <button
+                    type="button"
+                    onClick={openMedicalProviderSetup}
+                    data-testid="button-appointment-provider-setup"
+                    className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} mt-2 border-[#FCD34D] text-[#92400E]`}
+                  >
+                    <ShieldCheck size={16} className="mr-2" />
+                    {isSpanish ? "Anadir medico o clinica" : "Add doctor or clinic"}
+                  </button>
+                ) : null}
                 {appointmentNotice && appointmentOptions.length === 0 && (!isHomeServiceWithoutProvider || appointmentDiscovery) && (
                   <button
                     type="button"
@@ -7661,6 +7760,14 @@ const ConciergeScreen = () => {
                     testId: "input-appointment-confirmed-location",
                   },
                   {
+                    key: "reference",
+                    label: isSpanish ? "Referencia" : "Reference",
+                    value: appointmentBookedForm.reference,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, reference: value })),
+                    placeholder: isSpanish ? "Opcional" : "Optional",
+                    testId: "input-appointment-confirmed-reference",
+                  },
+                  {
                     key: "notes",
                     label: isSpanish ? "Nota para VYVA" : "Note for VYVA",
                     value: appointmentBookedForm.notes,
@@ -7676,6 +7783,7 @@ const ConciergeScreen = () => {
                 onSecondary={handleReviseAppointmentAfterReply}
                 primaryPending={markAppointmentBookedMutation.isPending}
                 testId="panel-appointment-mark-booked"
+                primaryTestId="button-appointment-save-confirmed"
                 secondaryTestId="button-appointment-revise-after-reply"
                 isSpanish={isSpanish}
               />
