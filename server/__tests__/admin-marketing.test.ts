@@ -1289,6 +1289,7 @@ describe("admin marketing router", () => {
         vertical: "healthcare",
         market: "Spain",
         tags: ["partner"],
+        lists: ["Shortlist 1 - Home Care"],
       }],
       email_unsubscribes: [{
         id: "unsubscribe-1",
@@ -1474,6 +1475,7 @@ describe("admin marketing router", () => {
       category: "lead",
       vertical: "healthcare",
       market: "Spain",
+      tags: ["partner", "List: Shortlist 1 - Home Care"],
       consent_status: "opted_out",
       metadata: {
         lovable_email_unsubscribe_rows: [expect.objectContaining({ reason: "lovable_opt_out" })],
@@ -1570,8 +1572,8 @@ describe("admin marketing router", () => {
           vertical: "healthcare",
           market: "Spain",
           consentStatus: "opted_out",
-          lists: ["Partners"],
-          tags: ["partner"],
+          lists: expect.arrayContaining(["Partners", "Shortlist 1 - Home Care"]),
+          tags: ["partner", "List: Shortlist 1 - Home Care"],
         });
       });
 
@@ -1696,7 +1698,7 @@ describe("admin marketing router", () => {
           firstClassFields: expect.arrayContaining(["sent", "opened", "clicked"]),
         }),
         contacts: expect.objectContaining({
-          firstClassFields: expect.arrayContaining(["language", "category", "vertical", "market"]),
+          firstClassFields: expect.arrayContaining(["language", "category", "vertical", "market", "lists"]),
         }),
         journeyEnrollments: expect.objectContaining({
           firstClassFields: expect.arrayContaining(["journeyExternalId", "contactExternalId", "status"]),

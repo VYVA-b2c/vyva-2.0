@@ -1141,6 +1141,7 @@ const fieldCoverageAliases = {
     ["consentStatus", "consent_status"],
     ["channelAvailability", "channel_availability"],
     ["tags"],
+    ["lists", "listNames", "list_names", "audiences", "memberships", "segments", "segmentNames", "segment_names"],
     ["language", "lang", "locale", "preferredLanguage", "preferred_language"],
     ["category", "contactCategory", "contact_category"],
     ["vertical", "industry", "sector"],
@@ -3206,6 +3207,14 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     whatsapp: Boolean(whatsappNumber),
     ...jsonRecordFromLovable(row.channelAvailability ?? row.channel_availability),
   };
+  const contactListTags = uniqueTextArray(contactSources.flatMap((source) => [
+    ...splitTextList(source.lists),
+    ...splitTextList(source.listNames ?? source.list_names),
+    ...splitTextList(source.audiences),
+    ...splitTextList(source.memberships),
+    ...splitTextList(source.segments),
+    ...splitTextList(source.segmentNames ?? source.segment_names),
+  ])).map((list) => `List: ${list}`);
   const payload = {
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2b")),
     full_name: contactFullName(row),
@@ -3221,11 +3230,14 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     consent_status: consentStatus,
     source: "lovable",
     channel_availability: channelAvailability,
-    tags: uniqueTextArray(contactSources.flatMap((source) => [
-      ...splitTextList(source.tags),
-      ...splitTextList(source.tagNames ?? source.tag_names),
-      ...splitTextList(source.labels),
-    ])),
+    tags: uniqueTextArray([
+      ...contactSources.flatMap((source) => [
+        ...splitTextList(source.tags),
+        ...splitTextList(source.tagNames ?? source.tag_names),
+        ...splitTextList(source.labels),
+      ]),
+      ...contactListTags,
+    ]),
     lovable_external_id: externalId,
     last_synced_at: now,
     metadata: {
