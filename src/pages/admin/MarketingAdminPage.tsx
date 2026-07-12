@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -1834,6 +1834,9 @@ export default function MarketingAdminPage() {
   const [contentEditDraft, setContentEditDraft] = useState<ContentEditDraft | null>(null);
   const [contentSaving, setContentSaving] = useState(false);
   const [contentFeedback, setContentFeedback] = useState("");
+  const [contentActionFeedback, setContentActionFeedback] = useState("");
+  const contentEditorPanelRef = useRef<HTMLDivElement | null>(null);
+  const contentPreviewPanelRef = useRef<HTMLDivElement | null>(null);
   const [editingMediaAssetId, setEditingMediaAssetId] = useState<string | null>(null);
   const [mediaEditDraft, setMediaEditDraft] = useState<MediaEditDraft | null>(null);
   const [mediaSaving, setMediaSaving] = useState(false);
@@ -2549,15 +2552,32 @@ export default function MarketingAdminPage() {
       setEditingContentId(result.content.id);
       setContentEditDraft(contentEditDraftFromContent(result.content));
       setContentFeedback("Content draft created.");
+      setContentActionFeedback("Content draft created. Editor opened below.");
       setMessage("Content draft created.");
       await refreshAll();
+      scrollToContentPanel(contentEditorPanelRef);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Content draft could not be created.";
       setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
       setContentSaving(false);
     }
+  }
+
+  function scrollToContentPanel(ref: RefObject<HTMLDivElement | null>) {
+    window.setTimeout(() => {
+      if (typeof ref.current?.scrollIntoView === "function") {
+        ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 0);
+  }
+
+  function previewContent(contentAsset: ContentAsset) {
+    setSelectedContentId(contentAsset.id);
+    setContentActionFeedback(`Previewing "${contentAsset.title}".`);
+    scrollToContentPanel(contentPreviewPanelRef);
   }
 
   function startContentEdit(contentAsset: ContentAsset) {
@@ -2565,12 +2585,15 @@ export default function MarketingAdminPage() {
     setEditingContentId(contentAsset.id);
     setContentEditDraft(contentEditDraftFromContent(contentAsset));
     setContentFeedback("");
+    setContentActionFeedback(`Editing "${contentAsset.title}".`);
+    scrollToContentPanel(contentEditorPanelRef);
   }
 
   function cancelContentEdit() {
     setEditingContentId(null);
     setContentEditDraft(null);
     setContentFeedback("");
+    setContentActionFeedback("");
   }
 
   async function saveContentEdit(event: FormEvent) {
@@ -2591,11 +2614,13 @@ export default function MarketingAdminPage() {
       setEditingContentId(result.content.id);
       setContentEditDraft(contentEditDraftFromContent(result.content));
       setContentFeedback("Updated.");
+      setContentActionFeedback(`Updated "${result.content.title}".`);
       setMessage("Content updated.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Content could not be saved.";
       setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
       setContentSaving(false);
@@ -2611,11 +2636,13 @@ export default function MarketingAdminPage() {
       if (editingContentId === contentAsset.id) cancelContentEdit();
       if (selectedContentId === contentAsset.id) setSelectedContentId(null);
       setContentFeedback("Deleted.");
+      setContentActionFeedback(`Deleted "${contentAsset.title}".`);
       setMessage("Content deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Content could not be deleted.";
       setContentFeedback(errorMessage);
+      setContentActionFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
       setContentSaving(false);
@@ -4058,6 +4085,11 @@ export default function MarketingAdminPage() {
                 )}
               >
                 <div className="grid gap-3">
+                  {contentActionFeedback ? (
+                    <p className={`rounded-xl px-4 py-3 text-sm font-bold ${contentActionFeedback.includes("failed") || contentActionFeedback.includes("required") || contentActionFeedback.includes("valid JSON") || contentActionFeedback.includes("could not") ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`} data-testid="marketing-content-action-feedback">
+                      {contentActionFeedback}
+                    </p>
+                  ) : null}
                   {visibleContent.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4" data-testid="marketing-content-empty-diagnostic">
                       <p className="text-center text-sm font-black text-[#241133]">{contentEmptyDiagnostic?.title ?? "No content matches the filters."}</p>
@@ -4110,7 +4142,7 @@ export default function MarketingAdminPage() {
                         </thead>
                         <tbody>
                           {visibleContent.map((item) => (
-                            <tr key={item.id} className="border-t border-[#f0e7df] align-top">
+                            <tr key={item.id} className={`border-t border-[#f0e7df] align-top ${item.id === selectedContent?.id ? "bg-purple-50/60" : ""}`} data-testid={`marketing-content-row-${item.id}`}>
                               <td className="max-w-[360px] px-4 py-3">
                                 <p className="font-black text-[#241133]">{item.title}</p>
                                 <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
@@ -4143,11 +4175,11 @@ export default function MarketingAdminPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex flex-wrap gap-2">
-                                  <button type="button" onClick={() => setSelectedContentId(item.id)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-preview-content-${item.id}`}>
-                                    <Eye size={13} /> Preview
+                                  <button type="button" onClick={() => previewContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${item.id === selectedContent?.id && editingContentId !== item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} data-testid={`button-marketing-preview-content-${item.id}`}>
+                                    <Eye size={13} /> {item.id === selectedContent?.id && editingContentId !== item.id ? "Previewing" : "Preview"}
                                   </button>
-                                  <button type="button" onClick={() => startContentEdit(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
-                                    <Pencil size={13} /> Edit
+                                  <button type="button" onClick={() => startContentEdit(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${editingContentId === item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
+                                    <Pencil size={13} /> {editingContentId === item.id ? "Editing" : "Edit"}
                                   </button>
                                   <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
                                     <Trash2 size={13} /> Delete
@@ -4162,9 +4194,10 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
-              <SectionCard title="Content editor" subtitle={editingContent ? `Editing ${editingContent.title}` : "Select a content asset to edit imported or local copy."}>
-                {contentEditDraft ? (
-                  <form className="grid gap-4" onSubmit={(event) => void saveContentEdit(event)} data-testid="marketing-content-editor-form">
+              <div ref={contentEditorPanelRef} data-testid="marketing-content-editor-panel">
+                <SectionCard title="Content editor" subtitle={editingContent ? `Editing ${editingContent.title}` : "Select a content asset to edit imported or local copy."}>
+                  {contentEditDraft ? (
+                    <form className="grid gap-4" onSubmit={(event) => void saveContentEdit(event)} data-testid="marketing-content-editor-form">
                     <div className="grid gap-3 xl:grid-cols-[1.4fr_160px_160px_120px]">
                       <Field label="Title">
                         <input className={inputClass} value={contentEditDraft.title} onChange={(event) => setContentEditDraft((draft) => draft ? ({ ...draft, title: event.target.value }) : draft)} disabled={contentSaving} data-testid="input-marketing-edit-content-title" />
@@ -4237,15 +4270,17 @@ export default function MarketingAdminPage() {
                         {contentFeedback}
                       </p>
                     ) : null}
-                  </form>
-                ) : (
-                  <EmptyState text="Select a content asset from the library." />
-                )}
-              </SectionCard>
+                    </form>
+                  ) : (
+                    <EmptyState text="Select a content asset from the library." />
+                  )}
+                </SectionCard>
+              </div>
               <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
-                <SectionCard title="Content preview" subtitle={selectedContent ? selectedContent.title : "Select a content asset to inspect."}>
-                  {selectedContent ? (
-                    <div className="grid gap-3" data-testid="marketing-content-preview">
+                <div ref={contentPreviewPanelRef} data-testid="marketing-content-preview-panel">
+                  <SectionCard title="Content preview" subtitle={selectedContent ? selectedContent.title : "Select a content asset to inspect."}>
+                    {selectedContent ? (
+                      <div className="grid gap-3" data-testid="marketing-content-preview">
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">
                         <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Subject</p>
                         <p className="mt-1 font-black">{selectedContent.subject || selectedContent.title}</p>
@@ -4308,11 +4343,12 @@ export default function MarketingAdminPage() {
                         )}
                       </div>
                       <MetadataPanel title="Imported content metadata" value={selectedContent.metadata} testId="marketing-content-metadata-panel" />
-                    </div>
-                  ) : (
-                    <EmptyState text="No content available." />
-                  )}
-                </SectionCard>
+                      </div>
+                    ) : (
+                      <EmptyState text="No content available." />
+                    )}
+                  </SectionCard>
+                </div>
 
                 <SectionCard title="Media references" subtitle={`${visibleMediaAssets.length} visible of ${mediaAssets.length} imported media rows.`}>
                   {mediaEditDraft ? (
