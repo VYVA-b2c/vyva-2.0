@@ -2948,6 +2948,17 @@ function completedSessionPrompt(
     : `I have a question about this completed task: ${flow} with ${provider}. Summary: ${summary}${details ? ` (${details})` : ""}. Help me understand the next step.`;
 }
 
+type CompletedSessionTemplateKind = "ride" | "otc" | "home-service" | "appointment" | "task";
+
+function completedSessionTemplateKind(session: ConciergeCompletedSession): CompletedSessionTemplateKind {
+  const flowReference = payloadString(session.outcome_payload, ["flow_reference"]);
+  if (session.use_case === "book_ride" || flowReference === TRANSPORT_BOOKING_FLOW_REFERENCE) return "ride";
+  if (session.use_case === "order_medicine" || flowReference === OTC_PHARMACY_FLOW_REFERENCE) return "otc";
+  if (isHomeServiceCompletedSession(session)) return "home-service";
+  if (session.use_case === "book_appointment" || flowReference === MEDICAL_APPOINTMENT_FLOW_REFERENCE) return "appointment";
+  return "task";
+}
+
 type RightNowActionLabelsParams = {
   item: ConciergePendingItem;
   isSpanish: boolean;
@@ -5313,6 +5324,115 @@ const ConciergeScreen = () => {
     prepareConciergeRequest(message);
   }
 
+  function handleCompletedSessionUseTemplate(session: ConciergeCompletedSession) {
+    const payload = session.outcome_payload;
+    const message = completedSessionPrompt(session, isSpanish, "repeat");
+    const kind = completedSessionTemplateKind(session);
+    setSelectedCompletedSessionId(null);
+    setInput(message);
+    setInsuranceAdminOpen(false);
+    setScamCheckOpen(false);
+    closeOffersPanel();
+
+    if (kind === "ride") {
+      const mobilityList = stringList(payload?.mobility_needs);
+      const mobilityText = payloadString(payload, ["mobility_needs", "mobility", "accessibility_needs"]);
+      setRoutePrefill({ kind: "ride", message, source: "home_quick_action" });
+      clearAppointmentAssistantState();
+      setOtcPharmacyOpen(false);
+      setTransportPickup(payloadString(payload, ["pickup_address", "pickup", "start_location", "origin_address", "from"]) || savedTransportPickupLabel);
+      setTransportDestination(payloadString(payload, ["destination_address", "destination", "dropoff_address", "to"]));
+      setTransportTime(payloadString(payload, ["requested_time", "scheduled_for", "scheduled_time", "time"]) || "now");
+      setTransportMobilityNeeds(mobilityList.length > 0 ? mobilityList : splitRoutePayloadList(mobilityText));
+      setTransportResult(null);
+      setTransportError(null);
+      setTransportNotice(null);
+      resetTransportFinalReview();
+      setTransportDetailsOpen(true);
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
+
+    if (kind === "otc") {
+      const fulfillment = payloadString(payload, ["fulfillment_preference", "fulfillment", "delivery_preference"]).toLowerCase();
+      setRoutePrefill(null);
+      clearAppointmentAssistantState();
+      setOtcPharmacyOpen(true);
+      setOtcNotice(null);
+      setOtcError(null);
+      resetOtcOutcomeReview();
+      setOtcItemText(payloadString(payload, ["item_text", "otc_item", "requested_item", "item", "product_name", "medicine_name"]) || session.outcome_summary || "");
+      setOtcFulfillmentPreference(fulfillment.includes("pickup") || fulfillment.includes("collect") ? "pickup" : "delivery");
+      setOtcRequestedTime(payloadString(payload, ["requested_time", "scheduled_for", "scheduled_time", "time"]) || "today");
+      setOtcNotes(payloadString(payload, ["notes", "note", "brand", "quantity", "special_requests", "fulfillment_note"]));
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
+
+    if (kind === "home-service") {
+      const homeServiceChip = APPOINTMENT_TYPE_CHIPS.find((chip) => chip.key === "home-service") ?? APPOINTMENT_TYPE_CHIPS[0];
+      const rawService = payloadString(payload, ["service_type", "service_label", "provider_type", "issue_type"]) || session.outcome_summary || session.provider_name || "";
+      const serviceType = normalizeHomeServiceType(rawService);
+      const problem = payloadString(payload, ["problem_summary", "issue_summary", "service_needed", "notes", "provider_reply", "detail"]) || session.outcome_summary || "";
+      const nextAnswers: Record<string, string> = {};
+      if (problem) nextAnswers.problem_summary = problem;
+      const urgency = payloadString(payload, ["urgency", "priority"]);
+      if (urgency) nextAnswers.urgency = urgency;
+      const criteria = payloadString(payload, ["criteria", "special_requests"]);
+      if (criteria) nextAnswers.criteria = criteria;
+      const locationLabel = payloadString(payload, ["location", "address", "home_address"]);
+      if (locationLabel) nextAnswers.location = locationLabel;
+
+      setRoutePrefill(null);
+      setOtcPharmacyOpen(false);
+      setAppointmentOpen(true);
+      setSelectedAppointmentChip(homeServiceChip);
+      setAppointmentNote(problem || message);
+      setHomeServiceIntakeOrigin("app");
+      setHomeServiceType(serviceType);
+      setHomeServiceIntakeAnswers(nextAnswers);
+      setHomeServiceTextDrafts(nextAnswers);
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
+      setSelectedAppointmentOptionId(null);
+      setAppointmentAttemptResult(null);
+      setAppointmentNotice(null);
+      setAppointmentError(null);
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
+
+    if (kind === "appointment") {
+      const appointmentType = payloadString(payload, ["appointment_type", "type"]).toLowerCase();
+      const chip = APPOINTMENT_TYPE_CHIPS.find((item) => (
+        item.key === appointmentType
+        || item.en.toLowerCase() === appointmentType
+        || item.es.toLowerCase() === appointmentType
+      )) ?? APPOINTMENT_TYPE_CHIPS[0];
+      const note = payloadString(payload, ["appointment_reason", "reason", "detail", "notes", "provider_reply"]) || session.outcome_summary || "";
+      setRoutePrefill(null);
+      setOtcPharmacyOpen(false);
+      setAppointmentOpen(true);
+      setSelectedAppointmentChip(chip);
+      setAppointmentNote(note || message);
+      resetHomeServiceIntake("app", null);
+      setAppointmentRequest(null);
+      setAppointmentOptions([]);
+      setAppointmentDiscovery(null);
+      setSelectedAppointmentOptionId(null);
+      setAppointmentAttemptResult(null);
+      setAppointmentNotice(null);
+      setAppointmentError(null);
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", reference: "", notes: "" });
+      window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+      return;
+    }
+
+    prepareConciergeRequest(message);
+  }
+
   function openScamCheckAssistant() {
     setScamCheckOpen(true);
     setInsuranceAdminOpen(false);
@@ -7398,12 +7518,12 @@ const ConciergeScreen = () => {
             </button>
             <button
               type="button"
-              onClick={() => handleCompletedSessionFollowUp(selectedCompletedSession, "repeat")}
+              onClick={() => handleCompletedSessionUseTemplate(selectedCompletedSession)}
               className={VYVA_MODAL_SECONDARY_ACTION_CLASS}
-              data-testid="button-concierge-receipt-repeat"
+              data-testid="button-concierge-receipt-template"
             >
               <PackageCheck size={16} className="mr-2" />
-              {isSpanish ? "Hacerlo otra vez" : "Do again"}
+              {isSpanish ? "Usar como plantilla" : "Use as template"}
             </button>
             {selectedCompletedSessionContactLink && (
               <a
