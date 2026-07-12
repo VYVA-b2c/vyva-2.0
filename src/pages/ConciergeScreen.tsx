@@ -3234,6 +3234,7 @@ function ProviderReplyPanel({
   item,
   mode,
   form,
+  waitingSinceLabel,
   notice,
   error,
   isSaving,
@@ -3241,6 +3242,7 @@ function ProviderReplyPanel({
   isSpanish,
   onMode,
   onFormChange,
+  onFollowUp,
   onSaveConfirmed,
   onUnavailable,
   onNeedMoreInfo,
@@ -3249,6 +3251,7 @@ function ProviderReplyPanel({
   item: ConciergePendingItem;
   mode: ProviderReplyMode;
   form: ProviderReplyForm;
+  waitingSinceLabel: string;
   notice: string | null;
   error: string | null;
   isSaving: boolean;
@@ -3256,6 +3259,7 @@ function ProviderReplyPanel({
   isSpanish: boolean;
   onMode: (mode: ProviderReplyMode) => void;
   onFormChange: (field: keyof ProviderReplyForm, value: string) => void;
+  onFollowUp: () => void;
   onSaveConfirmed: () => void;
   onUnavailable: () => void;
   onNeedMoreInfo: () => void;
@@ -3283,10 +3287,22 @@ function ProviderReplyPanel({
               ? "Guarda la respuesta o cambia el plan si no pueden hacerlo."
               : "Save the reply, or change the plan if they cannot do it."}
           </span>
+          <span className="mt-2 inline-flex rounded-full bg-white px-3 py-1 font-body text-[11px] font-black text-[#1D4ED8] shadow-sm">
+            {waitingSinceLabel}
+          </span>
         </span>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <Button
+          type="button"
+          data-testid={`button-provider-reply-follow-up-${item.id}`}
+          onClick={onFollowUp}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"
+        >
+          {isSpanish ? "Seguimiento" : "Follow up"}
+        </Button>
         <Button
           type="button"
           data-testid={`button-provider-reply-confirmed-${item.id}`}
@@ -3294,7 +3310,7 @@ function ProviderReplyPanel({
           variant={mode === "confirmed" ? "default" : "outline"}
           className={mode === "confirmed" ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"}
         >
-          {isSpanish ? "Confirmado" : "Confirmed"}
+          {isSpanish ? "Tengo respuesta" : "I got a reply"}
         </Button>
         <Button
           type="button"
@@ -3303,7 +3319,7 @@ function ProviderReplyPanel({
           variant="outline"
           className="vyva-secondary-action h-auto border-[#FED7AA] text-[#9A3412]"
         >
-          {isSpanish ? "No disponible" : "Unavailable"}
+          {isSpanish ? "Probar otro" : "Try another provider"}
         </Button>
         <Button
           type="button"
@@ -3759,6 +3775,48 @@ function providerReplyOutcomeSummary(item: ConciergePendingItem, form: ProviderR
   return isSpanish
     ? `Proveedor confirmado: ${provider}.`
     : `Provider confirmed: ${provider}.`;
+}
+
+function providerWaitingDate(item: ConciergePendingItem): Date | null {
+  const rawDate = item.confirmed_at
+    || payloadString(item.action_payload, ["requested_at", "started_at", "contacted_at", "created_at"]);
+  if (!rawDate) return null;
+  const parsed = new Date(rawDate);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatProviderWaitingSince(item: ConciergePendingItem, locale: string, isSpanish: boolean): string {
+  const waitingDate = providerWaitingDate(item);
+  if (!waitingDate) return isSpanish ? "Esperando respuesta" : "Waiting for reply";
+
+  const displayLocale = isSpanish || locale === "es" ? "es-ES" : "en-GB";
+  const now = new Date();
+  const sameDay =
+    waitingDate.getFullYear() === now.getFullYear()
+    && waitingDate.getMonth() === now.getMonth()
+    && waitingDate.getDate() === now.getDate();
+  const time = new Intl.DateTimeFormat(displayLocale, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(waitingDate);
+
+  if (sameDay) {
+    return isSpanish ? `Esperando desde ${time}` : `Waiting since ${time}`;
+  }
+
+  const day = new Intl.DateTimeFormat(displayLocale, {
+    day: "2-digit",
+    month: "short",
+  }).format(waitingDate);
+  return isSpanish ? `Esperando desde ${day}, ${time}` : `Waiting since ${day}, ${time}`;
+}
+
+function providerFollowUpPrompt(item: ConciergePendingItem, isSpanish: boolean, locale: string): string {
+  const provider = item.provider_name?.trim() || (isSpanish ? "el proveedor" : "the provider");
+  const actionLabel = getPendingActionUseCaseLabel(item, locale).toLowerCase();
+  return isSpanish
+    ? `Prepara un seguimiento breve para ${actionLabel} con ${provider}. Pregunta si pueden confirmar esta solicitud. Mantenlo claro y breve, y no envies nada hasta que yo confirme.`
+    : `Prepare a short follow-up for ${actionLabel} with ${provider}. Ask whether they can confirm this request. Keep it polite and concise, and do not send anything until I confirm.`;
 }
 
 function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughStatus }) {
@@ -6044,6 +6102,15 @@ const ConciergeScreen = () => {
     setProviderReplyForm(providerReplyInitialForm(item, isSpanish));
   }
 
+  function handleProviderFollowUp(item: ConciergePendingItem) {
+    setProviderReplyMode(null);
+    setProviderReplyForm(providerReplyInitialForm(item, isSpanish));
+    setProviderReplyError(null);
+    setProviderReplyNotice(isSpanish ? "Seguimiento preparado en el chat." : "Follow-up prepared in chat.");
+    setInput(providerFollowUpPrompt(item, isSpanish, locale));
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
   function handleSaveProviderReply(item: ConciergePendingItem) {
     providerReplyCompletionMutation.mutate({ item, form: providerReplyForm });
   }
@@ -8001,6 +8068,7 @@ const ConciergeScreen = () => {
                 item={activeAction}
                 mode={providerReplyMode}
                 form={providerReplyForm}
+                waitingSinceLabel={formatProviderWaitingSince(activeAction, locale, isSpanish)}
                 notice={providerReplyNotice}
                 error={providerReplyError}
                 isSaving={providerReplyCompletionMutation.isPending}
@@ -8008,6 +8076,7 @@ const ConciergeScreen = () => {
                 isSpanish={isSpanish}
                 onMode={(mode) => openProviderReplyMode(activeAction, mode)}
                 onFormChange={updateProviderReplyForm}
+                onFollowUp={() => handleProviderFollowUp(activeAction)}
                 onSaveConfirmed={() => handleSaveProviderReply(activeAction)}
                 onUnavailable={() => handleProviderUnavailable(activeAction)}
                 onNeedMoreInfo={() => handleProviderNeedMoreInfo(activeAction)}
