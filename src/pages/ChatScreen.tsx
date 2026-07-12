@@ -1,15 +1,18 @@
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Settings, Square, ArrowUp } from "lucide-react";
+import { ChevronLeft, Settings, ArrowUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useVyvaVoice } from "@/hooks/useVyvaVoice";
+import { useVyvaVoice, type TranscriptEntry } from "@/hooks/useVyvaVoice";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import VoiceCallOverlay from "@/components/VoiceCallOverlay";
+import { apiFetch } from "@/lib/queryClient";
+
+type LiveChatHistoryTurn = { role: "user" | "assistant"; content: string };
 
 const ChatScreen = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [searchParams] = useSearchParams();
   const {
     startVoice,
@@ -26,22 +29,30 @@ const ChatScreen = () => {
     lastErrorCode,
   } = useVyvaVoice();
   const [text, setText] = useState("");
+  const [typedTranscript, setTypedTranscript] = useState<TranscriptEntry[]>([]);
+  const [isTextSending, setIsTextSending] = useState(false);
   const pendingRef = useRef<string | null>(searchParams.get("q"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const routeState = location.state as Record<string, unknown> | null;
   const hasRouteVoiceAutoStart = routeState?.[SECTION_VOICE_AUTO_START_KEY] === true;
   const isVoiceMode = searchParams.get("mode") === "voice" || hasRouteVoiceAutoStart;
+  const visibleTranscript = isVoiceMode ? transcript : typedTranscript;
 
   useEffect(() => {
+    if (!isVoiceMode) {
+      stopVoice();
+      return;
+    }
+
     void startVoice("companion", undefined, {
-      skipMicrophone: !isVoiceMode,
-      autoStartListening: isVoiceMode,
+      skipMicrophone: false,
+      autoStartListening: true,
       dynamicVariables: {
-        app_entrypoint: isVoiceMode ? "chat_voice_mode" : "chat_type_mode",
+        app_entrypoint: "chat_voice_mode",
       },
     });
-  }, [isVoiceMode, startVoice]);
+  }, [isVoiceMode, startVoice, stopVoice]);
 
   useEffect(() => {
     if (!hasRouteVoiceAutoStart) return;
@@ -50,28 +61,94 @@ const ChatScreen = () => {
     navigate(`${location.pathname}?${nextParams.toString()}`, { replace: true, state: null });
   }, [hasRouteVoiceAutoStart, location.pathname, navigate, searchParams]);
 
+  const localFallbackReply = useCallback((message: string) => {
+    const lower = message.toLowerCase();
+    if (i18n.language?.startsWith("es")) {
+      if (lower.includes("medico") || lower.includes("doctor")) {
+        return "Puedo ayudarte a preparar el siguiente paso. Dime que necesitas y VYVA lo dejara listo para que confirmes antes de contactar a nadie.";
+      }
+      return "Estoy aqui contigo. Dime un poco mas y te ayudare a elegir el siguiente paso de forma sencilla.";
+    }
+    if (lower.includes("doctor") || lower.includes("appointment")) {
+      return "I can help prepare the next step. Tell me what you need, and VYVA will keep it ready for you to confirm before anyone is contacted.";
+    }
+    return "I am here with you. Tell me a little more, and I will help you choose the next simple step.";
+  }, [i18n.language]);
+
+  const sendTypedMessage = useCallback(async (rawMessage: string) => {
+    const message = rawMessage.trim();
+    if (!message || isTextSending) return;
+
+    const history: LiveChatHistoryTurn[] = typedTranscript.slice(-12).map((entry) => ({
+      role: entry.from === "user" ? "user" : "assistant",
+      content: entry.text,
+    }));
+
+    setTypedTranscript((previous) => [
+      ...previous,
+      { from: "user", text: message, timestamp: Date.now() },
+    ]);
+    setIsTextSending(true);
+
+    try {
+      const response = await apiFetch("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+          history,
+          locale: i18n.language,
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Chat request failed: ${response.status}`);
+      const data = await response.json() as { reply?: unknown };
+      const reply = typeof data.reply === "string" && data.reply.trim()
+        ? data.reply.trim()
+        : localFallbackReply(message);
+
+      setTypedTranscript((previous) => [
+        ...previous,
+        { from: "vyva", text: reply, timestamp: Date.now() },
+      ]);
+    } catch {
+      setTypedTranscript((previous) => [
+        ...previous,
+        { from: "vyva", text: localFallbackReply(message), timestamp: Date.now() },
+      ]);
+    } finally {
+      setIsTextSending(false);
+    }
+  }, [i18n.language, isTextSending, localFallbackReply, typedTranscript]);
+
   useEffect(() => {
-    if (status === "connected" && pendingRef.current) {
+    if (!pendingRef.current) return;
+
+    if (!isVoiceMode) {
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      void sendTypedMessage(pending);
+      return;
+    }
+
+    if (status === "connected") {
       sendText(pendingRef.current);
       pendingRef.current = null;
     }
-  }, [sendText, status]);
+  }, [isVoiceMode, sendText, sendTypedMessage, status]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [transcript]);
+  }, [visibleTranscript, isTextSending]);
 
   const handleSend = () => {
     if (!text.trim()) return;
-    sendText(text.trim());
+    void sendTypedMessage(text.trim());
     setText("");
   };
 
-  const connectionLabel = isConnecting
-    ? t("chat.connecting")
-    : status === "connected"
-    ? t("chat.mode.typeStatus", "Text mode")
-    : t("chat.tapToConnect");
+  const connectionLabel = isTextSending
+    ? t("chat.mode.thinking", "VYVA is replying")
+    : t("chat.mode.typeStatus", "Text mode");
 
   const handleEndVoiceMode = () => {
     stopVoice();
@@ -136,7 +213,7 @@ const ChatScreen = () => {
         className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-3"
         style={{ scrollbarWidth: "none" }}
       >
-        {transcript.length === 0 ? (
+        {visibleTranscript.length === 0 ? (
           <div
             data-testid="chat-empty-state"
             className="mx-auto flex min-h-[44vh] w-full max-w-[360px] flex-col items-center justify-center text-center"
@@ -166,7 +243,7 @@ const ChatScreen = () => {
           </div>
         )}
 
-        {transcript.map((msg, i) => (
+        {visibleTranscript.map((msg, i) => (
           <div
             key={i}
             className={`flex gap-3 ${msg.from === "user" ? "justify-end" : "justify-start"}`}
@@ -192,6 +269,25 @@ const ChatScreen = () => {
             </div>
           </div>
         ))}
+
+        {isTextSending && (
+          <div className="flex justify-start gap-3" data-testid="bubble-chat-vyva-thinking">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 self-end"
+              style={{ background: "linear-gradient(135deg, #5B12A0 0%, #7C3AED 100%)" }}
+            >
+              <span className="font-display text-[13px] font-bold text-white">V</span>
+            </div>
+            <div
+              className="max-w-[78%] px-4 py-3"
+              style={{ background: "rgba(255,255,255,0.10)", borderRadius: "20px 20px 20px 6px" }}
+            >
+              <p className="font-body text-[16px] leading-[1.6] text-white">
+                {t("chat.mode.thinkingBody", "Thinking with you...")}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
@@ -237,16 +333,8 @@ const ChatScreen = () => {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => stopVoice()}
-                data-testid="button-chat-stop"
-                className="w-9 h-9 flex items-center justify-center rounded-full"
-                style={{ background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.65)" }}
-              >
-                <Square size={14} />
-              </button>
-              <button
                 onClick={handleSend}
-                disabled={!text.trim() || status !== "connected"}
+                disabled={!text.trim() || isTextSending}
                 data-testid="button-chat-send"
                 className="w-9 h-9 flex items-center justify-center rounded-full disabled:opacity-30 transition-opacity"
                 style={{ background: "#7C3AED" }}
