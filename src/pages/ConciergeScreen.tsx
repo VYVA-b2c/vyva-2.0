@@ -42,6 +42,7 @@ import {
   AlertTriangle,
   UserRound,
   Mail,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -3229,6 +3230,191 @@ function PendingActionReviewCard({
   );
 }
 
+function ProviderReplyPanel({
+  item,
+  mode,
+  form,
+  notice,
+  error,
+  isSaving,
+  isCancelling,
+  isSpanish,
+  onMode,
+  onFormChange,
+  onSaveConfirmed,
+  onUnavailable,
+  onNeedMoreInfo,
+  onCancel,
+}: {
+  item: ConciergePendingItem;
+  mode: ProviderReplyMode;
+  form: ProviderReplyForm;
+  notice: string | null;
+  error: string | null;
+  isSaving: boolean;
+  isCancelling: boolean;
+  isSpanish: boolean;
+  onMode: (mode: ProviderReplyMode) => void;
+  onFormChange: (field: keyof ProviderReplyForm, value: string) => void;
+  onSaveConfirmed: () => void;
+  onUnavailable: () => void;
+  onNeedMoreInfo: () => void;
+  onCancel: () => void;
+}) {
+  const canSave = providerReplyFormHasDetails(form) && !isSaving && !isCancelling;
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#BFDBFE] bg-[#F8FBFF] p-4"
+      data-testid="panel-concierge-provider-reply"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[15px] bg-white text-[#2563EB] shadow-sm">
+          <MessageCircle size={18} aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#2563EB]">
+            {isSpanish ? "Respuesta del proveedor" : "Provider reply"}
+          </span>
+          <span className="mt-1 block font-body text-[16px] font-black leading-tight text-vyva-text-1">
+            {isSpanish ? "Que dijeron?" : "What did they say?"}
+          </span>
+          <span className="mt-1 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {isSpanish
+              ? "Guarda la respuesta o cambia el plan si no pueden hacerlo."
+              : "Save the reply, or change the plan if they cannot do it."}
+          </span>
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Button
+          type="button"
+          data-testid={`button-provider-reply-confirmed-${item.id}`}
+          onClick={() => onMode("confirmed")}
+          variant={mode === "confirmed" ? "default" : "outline"}
+          className={mode === "confirmed" ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"}
+        >
+          {isSpanish ? "Confirmado" : "Confirmed"}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-provider-reply-unavailable-${item.id}`}
+          onClick={onUnavailable}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#FED7AA] text-[#9A3412]"
+        >
+          {isSpanish ? "No disponible" : "Unavailable"}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-provider-reply-more-info-${item.id}`}
+          onClick={() => onMode("more_info")}
+          variant={mode === "more_info" ? "default" : "outline"}
+          className={mode === "more_info" ? "vyva-primary-action h-auto" : "vyva-secondary-action h-auto border-[#BFDBFE] text-[#1D4ED8]"}
+        >
+          {isSpanish ? "Piden datos" : "Need info"}
+        </Button>
+        <Button
+          type="button"
+          data-testid={`button-provider-reply-cancel-${item.id}`}
+          onClick={onCancel}
+          disabled={isSaving || isCancelling}
+          variant="outline"
+          className="vyva-secondary-action h-auto border-[#FCA5A5] text-[#B91C1C]"
+        >
+          {isCancelling ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
+          {isSpanish ? "Cancelar" : "Cancel"}
+        </Button>
+      </div>
+
+      {mode === "confirmed" ? (
+        <div className="mt-3 rounded-[18px] border border-[#BFDBFE] bg-white p-3" data-testid={`panel-provider-reply-confirmed-${item.id}`}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Input
+              value={form.scheduledFor}
+              onChange={(event) => onFormChange("scheduledFor", event.target.value)}
+              placeholder={isSpanish ? "Hora o fecha confirmada" : "Confirmed time or date"}
+              data-testid={`input-provider-reply-time-${item.id}`}
+              className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px]"
+            />
+            <Input
+              value={form.reference}
+              onChange={(event) => onFormChange("reference", event.target.value)}
+              placeholder={isSpanish ? "Referencia opcional" : "Reference optional"}
+              data-testid={`input-provider-reply-reference-${item.id}`}
+              className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px]"
+            />
+            <Input
+              value={form.location}
+              onChange={(event) => onFormChange("location", event.target.value)}
+              placeholder={isSpanish ? "Lugar opcional" : "Place optional"}
+              data-testid={`input-provider-reply-location-${item.id}`}
+              className="h-[44px] rounded-[14px] border-[#DBEAFE] bg-white font-body text-[14px] sm:col-span-2"
+            />
+            <textarea
+              value={form.providerReply}
+              onChange={(event) => onFormChange("providerReply", event.target.value)}
+              placeholder={isSpanish ? "Respuesta breve del proveedor" : "Short provider reply"}
+              data-testid={`input-provider-reply-text-${item.id}`}
+              className="min-h-[74px] rounded-[14px] border border-[#DBEAFE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-[#60A5FA] focus:ring-2 focus:ring-[#DBEAFE] sm:col-span-2"
+            />
+            <textarea
+              value={form.notes}
+              onChange={(event) => onFormChange("notes", event.target.value)}
+              placeholder={isSpanish ? "Nota para VYVA opcional" : "Optional note for VYVA"}
+              data-testid={`input-provider-reply-notes-${item.id}`}
+              className="min-h-[62px] rounded-[14px] border border-[#DBEAFE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-[#60A5FA] focus:ring-2 focus:ring-[#DBEAFE] sm:col-span-2"
+            />
+          </div>
+          <Button
+            type="button"
+            data-testid={`button-provider-reply-save-${item.id}`}
+            onClick={onSaveConfirmed}
+            disabled={!canSave}
+            className="vyva-primary-action mt-3 h-auto w-full"
+          >
+            {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+            {isSpanish ? "Guardar como hecho" : "Save as done"}
+          </Button>
+        </div>
+      ) : null}
+
+      {mode === "more_info" ? (
+        <div className="mt-3 rounded-[18px] border border-[#DDD6FE] bg-white p-3" data-testid={`panel-provider-reply-more-info-${item.id}`}>
+          <textarea
+            value={form.followUpQuestion}
+            onChange={(event) => onFormChange("followUpQuestion", event.target.value)}
+            placeholder={isSpanish ? "Pregunta breve" : "Short question"}
+            data-testid={`input-provider-reply-question-${item.id}`}
+            className="min-h-[76px] w-full rounded-[14px] border border-[#DDD6FE] bg-white px-3 py-2 font-body text-[14px] font-semibold text-vyva-text-1 outline-none focus:border-vyva-purple focus:ring-2 focus:ring-[#EDE9FE]"
+          />
+          <Button
+            type="button"
+            data-testid={`button-provider-reply-ask-${item.id}`}
+            onClick={onNeedMoreInfo}
+            disabled={!form.followUpQuestion.trim()}
+            className="vyva-primary-action mt-3 h-auto w-full"
+          >
+            <MessageCircle size={16} className="mr-2" />
+            {isSpanish ? "Preguntar a VYVA" : "Ask VYVA"}
+          </Button>
+        </div>
+      ) : null}
+
+      {notice ? (
+        <p data-testid="provider-reply-notice" className="mt-3 rounded-[14px] bg-[#ECFDF5] px-3 py-2 font-body text-[12px] font-black text-[#047857]">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p data-testid="provider-reply-error" className="mt-3 rounded-[14px] bg-[#FEF2F2] px-3 py-2 font-body text-[12px] font-black text-[#B91C1C]">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
   const { item, isSpanish, formMissingFields } = params;
   const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
@@ -3322,7 +3508,19 @@ type ConciergeFollowThroughStatus = {
   eyebrow: string;
   title: string;
   helper: string;
+  activeStepId: string;
   steps: ConciergeTimelineStep[];
+};
+
+type ProviderReplyMode = "confirmed" | "more_info" | null;
+
+type ProviderReplyForm = {
+  scheduledFor: string;
+  reference: string;
+  location: string;
+  providerReply: string;
+  notes: string;
+  followUpQuestion: string;
 };
 
 function missionStatusForPendingAction(item: ConciergePendingItem): AppointmentMissionState["status"] | null {
@@ -3416,6 +3614,7 @@ function buildConciergeFollowThroughStatus(item: ConciergePendingItem, isSpanish
       eyebrow,
       title: isSpanish ? "Necesita revision" : "Needs attention",
       helper: isSpanish ? "Revisa la tarea antes de continuar." : "Review the task before continuing.",
+      activeStepId: "attention",
       steps: [
         { id: "review", ...timelineStepCopy("review", isSpanish), state: "done" },
         { id: "attention", ...timelineStepCopy("attention", isSpanish), state: "warning" },
@@ -3427,6 +3626,7 @@ function buildConciergeFollowThroughStatus(item: ConciergePendingItem, isSpanish
       eyebrow,
       title: isSpanish ? "Cancelado" : "Cancelled",
       helper: isSpanish ? "Esta gestion no continuara." : "This task will not continue.",
+      activeStepId: "cancelled",
       steps: [
         { id: "review", ...timelineStepCopy("review", isSpanish), state: "done" },
         { id: "cancelled", ...timelineStepCopy("cancelled", isSpanish), state: "warning" },
@@ -3459,6 +3659,7 @@ function buildConciergeFollowThroughStatus(item: ConciergePendingItem, isSpanish
         eyebrow,
         title: isSpanish ? "Detenido" : "Stopped",
         helper: isSpanish ? "Esta gestion no continuara." : "This task will not continue.",
+        activeStepId: "cancelled",
         steps: [
           { id: "review", ...timelineStepCopy("review", isSpanish), state: "done" },
           { id: "cancelled", ...timelineStepCopy("cancelled", isSpanish), state: "warning" },
@@ -3472,12 +3673,92 @@ function buildConciergeFollowThroughStatus(item: ConciergePendingItem, isSpanish
     eyebrow,
     title,
     helper,
+    activeStepId: activeId,
     steps: stepIds.map((id, index) => ({
       id,
       ...timelineStepCopy(id, isSpanish),
       state: index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming",
     })),
   };
+}
+
+function canRecordProviderReply(status: ConciergeFollowThroughStatus | null): boolean {
+  return Boolean(status && ["requested", "waiting", "confirmed"].includes(status.activeStepId));
+}
+
+const EMPTY_PROVIDER_REPLY_FORM: ProviderReplyForm = {
+  scheduledFor: "",
+  reference: "",
+  location: "",
+  providerReply: "",
+  notes: "",
+  followUpQuestion: "",
+};
+
+function providerReplyFormHasDetails(form: ProviderReplyForm): boolean {
+  return Boolean(
+    form.scheduledFor.trim() ||
+    form.reference.trim() ||
+    form.location.trim() ||
+    form.providerReply.trim() ||
+    form.notes.trim(),
+  );
+}
+
+function providerReplyInitialForm(item: ConciergePendingItem, isSpanish: boolean): ProviderReplyForm {
+  const payload = item.action_payload;
+  return {
+    scheduledFor: payloadString(payload, ["scheduled_for", "requested_time", "time"]),
+    reference: payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]),
+    location: payloadString(payload, ["location", "address", "destination_address", "home_address"]),
+    providerReply: payloadString(payload, ["provider_reply", "fulfillment_note"]),
+    notes: "",
+    followUpQuestion: isSpanish
+      ? "Que dato necesita el proveedor para confirmar?"
+      : "What detail does the provider need before confirming?",
+  };
+}
+
+function providerReplyOutcomePayload(item: ConciergePendingItem, form: ProviderReplyForm): Record<string, unknown> {
+  const payload = item.action_payload ?? {};
+  const providerName = item.provider_name ?? (payloadString(payload, ["provider_name", "pharmacy_name"]) || null);
+  const providerPhone = item.provider_phone ?? (payloadString(payload, ["provider_phone", "phone"]) || null);
+  return {
+    ...payload,
+    provider_name: providerName,
+    provider_phone: providerPhone,
+    provider_reply_status: "confirmed",
+    provider_reply: form.providerReply.trim() || "Provider confirmed.",
+    scheduled_for: form.scheduledFor.trim() || payloadString(payload, ["scheduled_for", "requested_time", "time"]) || null,
+    reference: form.reference.trim() || payloadString(payload, ["booking_reference", "pharmacy_reference", "reference"]) || null,
+    location: form.location.trim() || payloadString(payload, ["location", "address", "destination_address", "home_address"]) || null,
+    notes: form.notes.trim() || null,
+    completed_from: "provider_reply_panel",
+  };
+}
+
+function providerReplyOutcomeSummary(item: ConciergePendingItem, form: ProviderReplyForm, isSpanish: boolean): string {
+  const provider = item.provider_name?.trim() || (isSpanish ? "proveedor" : "provider");
+  const time = form.scheduledFor.trim();
+  const reference = form.reference.trim();
+  if (time && reference) {
+    return isSpanish
+      ? `Proveedor confirmado: ${provider}. Hora: ${time}. Referencia: ${reference}.`
+      : `Provider confirmed: ${provider}. Time: ${time}. Reference: ${reference}.`;
+  }
+  if (time) {
+    return isSpanish
+      ? `Proveedor confirmado: ${provider}. Hora: ${time}.`
+      : `Provider confirmed: ${provider}. Time: ${time}.`;
+  }
+  if (reference) {
+    return isSpanish
+      ? `Proveedor confirmado: ${provider}. Referencia: ${reference}.`
+      : `Provider confirmed: ${provider}. Reference: ${reference}.`;
+  }
+  return isSpanish
+    ? `Proveedor confirmado: ${provider}.`
+    : `Provider confirmed: ${provider}.`;
 }
 
 function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughStatus }) {
@@ -3609,6 +3890,10 @@ const ConciergeScreen = () => {
   const [visibleActionId, setVisibleActionId] = useState<string | null>(null);
   const [isRightNowHidden, setIsRightNowHidden] = useState(false);
   const [selectedCompletedSessionId, setSelectedCompletedSessionId] = useState<string | null>(null);
+  const [providerReplyMode, setProviderReplyMode] = useState<ProviderReplyMode>(null);
+  const [providerReplyForm, setProviderReplyForm] = useState<ProviderReplyForm>(EMPTY_PROVIDER_REPLY_FORM);
+  const [providerReplyNotice, setProviderReplyNotice] = useState<string | null>(null);
+  const [providerReplyError, setProviderReplyError] = useState<string | null>(null);
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
@@ -4336,6 +4621,30 @@ const ConciergeScreen = () => {
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
       ]);
+    },
+  });
+
+  const providerReplyCompletionMutation = useMutation({
+    mutationFn: ({ item, form }: { item: ConciergePendingItem; form: ProviderReplyForm }) => completePendingConciergeAction({
+      pendingId: item.id,
+      outcomeSummary: providerReplyOutcomeSummary(item, form, isSpanish),
+      outcomePayload: providerReplyOutcomePayload(item, form),
+    }),
+    onMutate: () => {
+      setProviderReplyError(null);
+      setProviderReplyNotice(null);
+    },
+    onSuccess: async () => {
+      setProviderReplyMode(null);
+      setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
+      setProviderReplyNotice(isSpanish ? "Respuesta guardada. La tarea queda cerrada." : "Reply saved. The task is closed.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/sessions"] }),
+      ]);
+    },
+    onError: (error) => {
+      setProviderReplyError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar la respuesta." : "I could not save the reply."));
     },
   });
 
@@ -5724,6 +6033,41 @@ const ConciergeScreen = () => {
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
+  function updateProviderReplyForm(field: keyof ProviderReplyForm, value: string) {
+    setProviderReplyForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function openProviderReplyMode(item: ConciergePendingItem, mode: ProviderReplyMode) {
+    setProviderReplyMode(mode);
+    setProviderReplyError(null);
+    setProviderReplyNotice(null);
+    setProviderReplyForm(providerReplyInitialForm(item, isSpanish));
+  }
+
+  function handleSaveProviderReply(item: ConciergePendingItem) {
+    providerReplyCompletionMutation.mutate({ item, form: providerReplyForm });
+  }
+
+  function handleProviderUnavailable(item: ConciergePendingItem) {
+    setProviderReplyMode(null);
+    setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
+    setProviderReplyError(null);
+    setProviderReplyNotice(isSpanish ? "Puedes cambiar el proveedor o los detalles." : "You can change the provider or details.");
+    handleChangePendingAction(item);
+  }
+
+  function handleProviderNeedMoreInfo(item: ConciergePendingItem) {
+    const question = providerReplyForm.followUpQuestion.trim();
+    if (!question) return;
+    const provider = item.provider_name?.trim() || (isSpanish ? "el proveedor" : "the provider");
+    const actionLabel = getPendingActionUseCaseLabel(item, locale).toLowerCase();
+    setInput(isSpanish
+      ? `El proveedor necesita mas informacion para ${actionLabel} con ${provider}: ${question}. Ayudame a responder de forma breve.`
+      : `The provider needs more information for ${actionLabel} with ${provider}: ${question}. Help me answer briefly.`);
+    setProviderReplyNotice(isSpanish ? "Pregunta anadida al chat." : "Question added to chat.");
+    window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
   function handleCompletedSessionFollowUp(session: ConciergeCompletedSession, mode: "question" | "repeat") {
     const message = completedSessionPrompt(session, isSpanish, mode);
     setSelectedCompletedSessionId(null);
@@ -6004,6 +6348,13 @@ const ConciergeScreen = () => {
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
   const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
+  const activeActionCanRecordProviderReply = canRecordProviderReply(activeActionTimeline);
+  useEffect(() => {
+    setProviderReplyMode(null);
+    setProviderReplyForm(EMPTY_PROVIDER_REPLY_FORM);
+    setProviderReplyNotice(null);
+    setProviderReplyError(null);
+  }, [activeAction?.id]);
   const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";
   const activeActionOpensWhatsApp = Boolean(activeActionWhatsAppDraft && (
     activeActionPreferredHandoffChannel === "whatsapp" ||
@@ -7644,6 +7995,25 @@ const ConciergeScreen = () => {
                 </p>
               </div>
             )}
+
+            {activeActionCanRecordProviderReply ? (
+              <ProviderReplyPanel
+                item={activeAction}
+                mode={providerReplyMode}
+                form={providerReplyForm}
+                notice={providerReplyNotice}
+                error={providerReplyError}
+                isSaving={providerReplyCompletionMutation.isPending}
+                isCancelling={cancelMutation.isPending}
+                isSpanish={isSpanish}
+                onMode={(mode) => openProviderReplyMode(activeAction, mode)}
+                onFormChange={updateProviderReplyForm}
+                onSaveConfirmed={() => handleSaveProviderReply(activeAction)}
+                onUnavailable={() => handleProviderUnavailable(activeAction)}
+                onNeedMoreInfo={() => handleProviderNeedMoreInfo(activeAction)}
+                onCancel={() => cancelMutation.mutate(activeAction.id)}
+              />
+            ) : null}
 
             {activeActionIsAppointment && (
               <div
