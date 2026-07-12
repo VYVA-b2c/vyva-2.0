@@ -2732,6 +2732,11 @@ export default function MarketingAdminPage() {
     () => content.filter((item) => item.channel === campaignDraft.channel && item.status !== "archived"),
     [campaignDraft.channel, content],
   );
+  const campaignEditPrimaryContentOptions = useMemo(() => {
+    const options = content.filter((item) => item.channel === campaignEditDraft.channel && item.status !== "archived");
+    const selected = campaignEditDraft.contentAssetId ? content.find((item) => item.id === campaignEditDraft.contentAssetId) ?? null : null;
+    return selected && !options.some((item) => item.id === selected.id) ? [selected, ...options] : options;
+  }, [campaignEditDraft.channel, campaignEditDraft.contentAssetId, content]);
   const selectedCampaignDraftTargetAudience = useMemo(
     () => audiences.find((audience) => audience.id === campaignDraft.targetAudienceId) ?? null,
     [audiences, campaignDraft.targetAudienceId],
@@ -4141,7 +4146,8 @@ export default function MarketingAdminPage() {
                               const channel = event.target.value as Channel;
                               setCampaignEditDraft((draft) => {
                                 const channels = campaignChannelsWithPrimary(draft);
-                                const firstContentAssetId = channel === "email" ? draft.contentAssetId : "";
+                                const selectedContent = draft.contentAssetId ? content.find((item) => item.id === draft.contentAssetId) ?? null : null;
+                                const firstContentAssetId = selectedContent?.channel === channel ? draft.contentAssetId : "";
                                 return {
                                   ...draft,
                                   channel,
@@ -4156,11 +4162,10 @@ export default function MarketingAdminPage() {
                               {CHANNELS.map((channel) => <option key={channel} value={channel}>{channelLabel[channel]}</option>)}
                             </select>
                           </Field>
-                          <Field label="Primary email content">
+                          <Field label="Primary content asset">
                             <select
                               className={inputClass}
                               value={campaignEditDraft.contentAssetId}
-                              disabled={campaignEditDraft.channel !== "email"}
                               onChange={(event) => {
                                 const contentAssetId = event.target.value;
                                 setCampaignEditDraft((draft) => {
@@ -4174,8 +4179,8 @@ export default function MarketingAdminPage() {
                               }}
                               data-testid="select-marketing-edit-campaign-content"
                             >
-                              <option value="">{campaignEditDraft.channel === "email" ? "Select email content" : "Email only"}</option>
-                              {emailContentAssets.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+                              <option value="">Select {channelLabel[campaignEditDraft.channel]} content</option>
+                              {campaignEditPrimaryContentOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
                             </select>
                           </Field>
                         </div>

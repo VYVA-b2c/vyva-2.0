@@ -602,6 +602,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: { con
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
+    if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
     if (path === "/api/admin/marketing/campaigns/campaign-1/send-email" && method === "POST") return jsonResponse({ ok: true, sentCount: 1, failedCount: 0, skippedCount: 0, campaign: { ...campaigns[0], status: "published" }, delivery: [{ id: "comm-2", recipient: "karim@example.com", status: "sent" }] });
@@ -1719,5 +1720,33 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
     });
+  });
+
+  it("lets imported social campaigns use social content as the primary campaign asset", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
+
+    expect(screen.getByTestId("select-marketing-edit-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-edit-campaign-content")).not.toBeDisabled();
+    expect(screen.getByTestId("select-marketing-edit-campaign-content")).toHaveTextContent("Partner post");
+
+    fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-content"), { target: { value: "content-2" } });
+    expect(screen.getByTestId("marketing-campaign-channel-content-preview-0")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-2" && init?.method === "PATCH");
+    const patchBody = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchBody.channels).toEqual([
+      expect.objectContaining({
+        channel: "linkedin",
+        contentAssetId: "content-2",
+      }),
+    ]);
   });
 });
