@@ -224,6 +224,7 @@ describe("admin marketing router", () => {
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
+          backendBuild: "marketing-sync-status-2026-07-12-no-cache",
           configured: true,
           canRunSync: false,
           realSendingLocked: false,
@@ -250,6 +251,8 @@ describe("admin marketing router", () => {
           locked: false,
           sendCapability: "enabled",
         }));
+        expect(response.headers["cache-control"]).toBe("no-store");
+        expect(response.headers["x-vyva-marketing-sync-build"]).toBe("marketing-sync-status-2026-07-12-no-cache");
       });
 
     await request(buildApp("karim.assad@mokadigital.net"))

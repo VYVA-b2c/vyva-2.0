@@ -302,6 +302,7 @@ const audiences = [
 
 const sync = {
   provider: "lovable",
+  backendBuild: "marketing-sync-status-2026-07-12-no-cache",
   configured: false,
   canRunSync: true,
   requiredRunnerEmail: "karim.assad@mokadigital.net",
@@ -684,6 +685,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("Bearer token available: no");
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN: no");
     expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("LOVABLE_MARKETING_API_KEY: no");
+    expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("Sync API build: marketing-sync-status-2026-07-12-no-cache");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Email is enabled through VYVA");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");

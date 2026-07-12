@@ -39,6 +39,7 @@ export const adminMarketingRouter = Router();
 
 const SUPER_ADMIN_EMAIL = (process.env.SUPER_ADMIN_EMAIL ?? "karim.assad@mokadigital.net").toLowerCase();
 const DEFAULT_LOVABLE_MARKETING_EXPORT_URL = "https://hecijzbvpxeagcapxwwn.supabase.co/functions/v1/marketing-export";
+const MARKETING_SYNC_STATUS_BUILD = "marketing-sync-status-2026-07-12-no-cache";
 
 function marketingSchemaErrorMessage(error: unknown, fallback: string) {
   const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
@@ -2858,8 +2859,11 @@ adminMarketingRouter.get("/sync/lovable", async (req, res) => {
   const hasUrl = Boolean(apiUrl);
   const hasBearerToken = Boolean(apiKey);
   const runs = await db.select().from(marketingSyncRuns).orderBy(desc(marketingSyncRuns.created_at)).limit(10);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-VYVA-Marketing-Sync-Build", MARKETING_SYNC_STATUS_BUILD);
   return res.json({
     provider: "lovable",
+    backendBuild: MARKETING_SYNC_STATUS_BUILD,
     configured: hasUrl && hasBearerToken,
     canRunSync: isSuperAdmin(req),
     requiredRunnerEmail: SUPER_ADMIN_EMAIL,
