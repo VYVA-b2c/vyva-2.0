@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -74,7 +74,16 @@ type ParticipationPulseHomeSignal = {
 };
 
 type ConciergePendingHomeSignal = {
-  items?: unknown[];
+  items?: ConciergePendingHomeItem[];
+};
+
+type ConciergePendingHomeItem = {
+  id?: string | null;
+  use_case?: string | null;
+  provider_name?: string | null;
+  action_summary?: string | null;
+  status?: "pending" | "calling" | "completed" | "failed" | "cancelled" | string | null;
+  action_payload?: Record<string, unknown> | null;
 };
 
 type HomeFastAction = {
@@ -247,6 +256,45 @@ function conciergeCardAccent(pending: ConciergePendingHomeSignal | null | undefi
     );
   }
   return t("home.master.badges.help", "Help");
+}
+
+function conciergeHomeItems(pending: ConciergePendingHomeSignal | null | undefined) {
+  return pending?.items?.filter((item) => item?.id && item.status !== "completed" && item.status !== "cancelled") ?? [];
+}
+
+function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  switch (item.use_case) {
+    case "book_ride":
+      return t("home.conciergeResume.task.ride", "ride");
+    case "book_appointment":
+      return t("home.conciergeResume.task.appointment", "appointment");
+    case "order_medicine":
+      return t("home.conciergeResume.task.pharmacy", "pharmacy request");
+    case "home_service":
+      return t("home.conciergeResume.task.homeService", "home service");
+    default:
+      return t("home.conciergeResume.task.default", "request");
+  }
+}
+
+function conciergeHomePayloadString(item: ConciergePendingHomeItem, keys: string[]) {
+  const payload = item.action_payload;
+  if (!payload) return "";
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function conciergeHomeStepLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  const missionStatus = conciergeHomePayloadString(item, ["mission_status", "status", "current_step"]).toLowerCase();
+  if (item.status === "calling") return t("home.conciergeResume.step.contacting", "Contacting provider");
+  if (missionStatus.includes("awaiting_provider")) return t("home.conciergeResume.step.waiting", "Waiting for reply");
+  if (missionStatus.includes("form")) return t("home.conciergeResume.step.form", "Preparing form");
+  if (missionStatus.includes("save") || missionStatus.includes("booked")) return t("home.conciergeResume.step.save", "Ready to save");
+  if (item.status === "failed") return t("home.conciergeResume.step.attention", "Needs your review");
+  return t("home.conciergeResume.step.confirm", "Waiting for your confirmation");
 }
 
 const HOME_AGENT_THEMES: Record<HomeAgentCard["theme"], {
@@ -698,6 +746,38 @@ const HomeScreen = () => {
     },
   ];
 
+  const activeConciergeHomeTask = conciergeHomeItems(conciergePendingHomeSignal)[0] ?? null;
+  const activeConciergeTaskText = activeConciergeHomeTask ? conciergeHomeTaskLabel(activeConciergeHomeTask, t) : "";
+  const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
+  const conciergeRightNowNudge = activeConciergeHomeTask ? (
+    <button
+      type="button"
+      data-testid="card-home-concierge-resume"
+      onClick={() => handleNavigate("/concierge", { state: { focusRightNow: true } })}
+      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#BBF7D0] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_52%,#F4FDF8_100%)] p-3 text-left shadow-[0_12px_28px_rgba(4,120,87,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
+      aria-label={`${t("home.conciergeResume.kicker", "Right now")}: ${t("home.conciergeResume.titlePrefix", "VYVA is working on your")} ${activeConciergeTaskText}. ${conciergeHomeStepText}`}
+    >
+      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#047857] min-[390px]:h-[54px] min-[390px]:w-[54px]">
+        <ConciergeBell size={24} strokeWidth={2.55} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-[#047857]">
+          {t("home.conciergeResume.kicker", "Right now")}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+          {t("home.conciergeResume.titlePrefix", "VYVA is working on your")} {activeConciergeTaskText}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+          {conciergeHomeStepText}
+        </span>
+      </span>
+      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-[#047857] shadow-[0_8px_18px_rgba(4,120,87,0.08)] min-[390px]:inline-flex">
+        {t("home.conciergeResume.open", "Open Right Now")}
+      </span>
+      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-[#047857]" aria-hidden="true" />
+    </button>
+  ) : null;
+
   return (
     <MasterDashboardLayout
       testId="home-master-layout"
@@ -728,6 +808,7 @@ const HomeScreen = () => {
       }}
       cards={homeMasterCards}
       fastHelpActions={homeMasterFastHelpActions}
+      beforeFastHelp={conciergeRightNowNudge}
     />
   );
 };

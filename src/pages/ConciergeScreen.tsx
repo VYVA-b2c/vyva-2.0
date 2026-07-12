@@ -105,6 +105,7 @@ type ConciergeRoutePrefill = {
 type ConciergeLocationState = {
   conciergePrefill?: unknown;
   voiceActionPayload?: Record<string, unknown>;
+  focusRightNow?: boolean;
 } | null;
 
 type RoutePrefillHighlight = {
@@ -2897,6 +2898,7 @@ const ConciergeScreen = () => {
   const reqIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatSectionRef = useRef<HTMLElement>(null);
+  const rightNowSectionRef = useRef<HTMLElement>(null);
   const currentLocaleRef = useRef(language);
   const saveReadyRef = useRef(false);
   const billInputRef = useRef<HTMLInputElement>(null);
@@ -3886,6 +3888,16 @@ const ConciergeScreen = () => {
     conciergeVoiceUrgency,
     savedTransportPickupLabel,
   ]);
+
+  useEffect(() => {
+    const routeState = location.state as ConciergeLocationState;
+    if (!routeState?.focusRightNow) return undefined;
+    setIsRightNowHidden(false);
+    const timer = window.setTimeout(() => {
+      rightNowSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [location.state]);
 
   useEffect(() => {
     const routeState = location.state as ConciergeLocationState;
@@ -6266,7 +6278,7 @@ const ConciergeScreen = () => {
         </section>
       )}
 
-      <section className="order-[20] mt-5" data-testid="section-concierge-active-task">
+      <section ref={rightNowSectionRef} className="order-[20] mt-5" data-testid="section-concierge-active-task">
         <div className="flex items-center justify-between mb-[10px]">
           <h2 className="vyva-section-title">
             {isSpanish ? "Ahora mismo" : "Right now"}
