@@ -1429,6 +1429,65 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
   }, 60000);
 
+  it("turns Home Find Care prefills into structured provider-search tasks", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.use_case).toBe("find_provider");
+        expect(body.auto_start).toBe(false);
+        expect(body.provider_name).toBe("VYVA review");
+        expect(body.action_summary).toBe("VYVA prepares trusted options before contacting anyone.");
+        expect(body.action_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          requested_tool: "operator_review",
+          active_tool: "operator_review",
+          readiness_status: "ready",
+          execution_channel: "manual",
+          action_label: "Prepare care search",
+          confirmation_required_before_action: true,
+          review_fallback: true,
+          no_external_action_without_confirmation: true,
+          source: "home_quick_action",
+        });
+        expect(body.action_payload.draft_message).toContain("Help me find care or support options");
+        return jsonResponse({ pendingId: "provider-search-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergePrefill: {
+          kind: "task",
+          message: "Help me find care or support options. Ask what kind of care I need and do not contact anyone without my confirmation.",
+          flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          requestedTool: "operator_review",
+          actionLabel: "Prepare care search",
+          summary: "VYVA prepares trusted options before contacting anyone.",
+          useCase: "find_provider",
+          source: "home_quick_action",
+        },
+      },
+    }]);
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Provider search ready");
+    expect(prefill).toHaveTextContent("VYVA prepares trusted options before contacting anyone.");
+    expect(prefill).toHaveTextContent("Prepare care search");
+    expect(prefill).toHaveTextContent("Add to Right now");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(screen.queryByTestId("panel-concierge-route-prefill")).not.toBeInTheDocument();
+  }, 60000);
+
   it("opens a scam check router and prepares a safe review request", async () => {
     vi.useFakeTimers();
     apiFetchMock.mockImplementation(async (url, init) => {
