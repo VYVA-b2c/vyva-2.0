@@ -295,6 +295,11 @@ function conciergeTaskKind(useCase: string | null | undefined, payload: Record<s
       return "pharmacy";
     case "home_service":
       return "homeService";
+    case "admin_task":
+    case "paperwork":
+      return "admin";
+    case "scam_check":
+      return "safety";
     default:
       return "default";
   }
@@ -318,6 +323,10 @@ function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate
       return t("home.conciergeResume.task.pharmacy", "pharmacy request");
     case "homeService":
       return t("home.conciergeResume.task.homeService", "home service");
+    case "admin":
+      return t("home.conciergeResume.task.admin", "admin task");
+    case "safety":
+      return t("home.conciergeResume.task.safety", "safety check");
     default:
       return t("home.conciergeResume.task.default", "request");
   }
@@ -339,6 +348,10 @@ function conciergeCompletedHomeTaskLabel(item: ConciergeCompletedHomeItem, t: Ho
       return t("home.conciergeResume.task.pharmacy", "pharmacy request");
     case "homeService":
       return t("home.conciergeResume.task.homeService", "home service");
+    case "admin":
+      return t("home.conciergeResume.task.admin", "admin task");
+    case "safety":
+      return t("home.conciergeResume.task.safety", "safety check");
     default:
       return t("home.conciergeResume.task.default", "request");
   }
@@ -431,6 +444,10 @@ function conciergeHomeFastStatusLabel(item: ConciergePendingHomeItem, t: HomeTra
       return t("home.conciergeResume.fastStatus.pharmacy", "Check pharmacy request");
     case "homeService":
       return t("home.conciergeResume.fastStatus.homeService", "Check home service");
+    case "admin":
+      return t("home.conciergeResume.fastStatus.admin", "Check admin task");
+    case "safety":
+      return t("home.conciergeResume.fastStatus.safety", "Check safety review");
     default:
       return t("home.conciergeResume.fastStatus.default", "Check request");
   }
