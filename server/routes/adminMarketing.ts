@@ -255,6 +255,27 @@ function lovableMarketingApiKey() {
   return envValue("LOVABLE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN");
 }
 
+function envKeyPresence(keys: string[]) {
+  return Object.fromEntries(keys.map((key) => [key, Boolean(process.env[key]?.trim())]));
+}
+
+function firstPresentEnvKey(keys: string[]) {
+  return keys.find((key) => Boolean(process.env[key]?.trim())) ?? null;
+}
+
+function lovableMarketingSyncDiagnostics(apiUrl: string, apiKey: string) {
+  const urlKeys = ["LOVABLE_MARKETING_API_URL", "VYVA_MARKETING_EXPORT_URL"];
+  const tokenKeys = ["LOVABLE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN"];
+  return {
+    apiUrlSource: firstPresentEnvKey(urlKeys) ?? "default",
+    tokenSource: firstPresentEnvKey(tokenKeys),
+    urlAliasPresent: envKeyPresence(urlKeys),
+    tokenAliasPresent: envKeyPresence(tokenKeys),
+    hasDefaultEndpoint: apiUrl === DEFAULT_LOVABLE_MARKETING_EXPORT_URL,
+    hasBearerToken: Boolean(apiKey),
+  };
+}
+
 function marketingEmailSchedulerStatus() {
   const enabled = process.env.MARKETING_EMAIL_SCHEDULER_ENABLED === "true";
   const intervalMinutes = Math.max(1, Number(process.env.MARKETING_EMAIL_SCHEDULER_INTERVAL_MINUTES ?? 5));
@@ -2847,6 +2868,7 @@ adminMarketingRouter.get("/sync/lovable", async (req, res) => {
     realSendingLocked: false,
     lockedSendCapabilities: channelSendCapabilities(),
     emailScheduler: marketingEmailSchedulerStatus(),
+    diagnostics: lovableMarketingSyncDiagnostics(apiUrl, apiKey),
     runs: runs.map(serializeSyncRun),
   });
 });

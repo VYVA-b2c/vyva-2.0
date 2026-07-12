@@ -228,6 +228,16 @@ describe("admin marketing router", () => {
           canRunSync: false,
           realSendingLocked: false,
           requiredRunnerEmail: "karim.assad@mokadigital.net",
+          diagnostics: {
+            apiUrlSource: "LOVABLE_MARKETING_API_URL",
+            tokenSource: "VYVA_MARKETING_EXPORT_TOKEN",
+            hasDefaultEndpoint: false,
+            hasBearerToken: true,
+            tokenAliasPresent: {
+              LOVABLE_MARKETING_API_KEY: false,
+              VYVA_MARKETING_EXPORT_TOKEN: true,
+            },
+          },
         });
         expect(response.body.emailScheduler).toMatchObject({
           enabled: true,
@@ -340,6 +350,11 @@ describe("admin marketing router", () => {
           configured: true,
           canRunSync: true,
           apiUrl: "https://lovable.example.test",
+          diagnostics: {
+            apiUrlSource: "VYVA_MARKETING_EXPORT_URL",
+            tokenSource: "VYVA_MARKETING_EXPORT_TOKEN",
+            hasBearerToken: true,
+          },
         });
       });
 
@@ -378,6 +393,12 @@ describe("admin marketing router", () => {
           configured: true,
           canRunSync: true,
           apiUrl: "https://hecijzbvpxeagcapxwwn.supabase.co",
+          diagnostics: {
+            apiUrlSource: "default",
+            tokenSource: "VYVA_MARKETING_EXPORT_TOKEN",
+            hasDefaultEndpoint: true,
+            hasBearerToken: true,
+          },
         });
       });
 
