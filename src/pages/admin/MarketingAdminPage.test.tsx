@@ -962,12 +962,14 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits and deletes imported content assets", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
 
+    fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Click Confirm delete to remove "Partner post".');
+    expect(screen.getByTestId("button-marketing-delete-content-content-2")).toHaveTextContent("Confirm delete");
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
@@ -976,7 +978,7 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
-    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("scroll-mt-24");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Lovable source details");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Source type");
@@ -991,7 +993,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
-    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("scroll-mt-24");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
@@ -1037,11 +1039,11 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-content"));
+    expect(screen.getByTestId("button-marketing-delete-editing-content")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-content"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it("edits and deletes imported media references", async () => {

@@ -99,15 +99,19 @@ const dbMock = vi.hoisted(() => {
       })),
       update: vi.fn((table: unknown) => ({
         set: (patch: Record<string, unknown>) => ({
-          where: () => ({
-            returning: async () => {
+          where: () => {
+            const applyPatch = () => {
               const current = tableRows(table);
               const target = current[0] ?? rowDefaults({});
               if (!current.length) current.push(target);
               Object.assign(target, patch);
               return [target];
-            },
-          }),
+            };
+            return {
+              returning: async () => applyPatch(),
+              then: (resolve: (value: Record<string, unknown>[]) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve(applyPatch()).then(resolve, reject),
+            };
+          },
         }),
       })),
       delete: vi.fn((table: unknown) => ({
@@ -800,6 +804,36 @@ describe("admin marketing router", () => {
       media_assets: [{ url: "https://cdn.example.test/content.png" }],
     });
 
+    dbMock.rows.set("marketing_campaign_channels", [{
+      id: "channel-ref",
+      campaign_id: "campaign-ref",
+      channel: "email",
+      content_asset_id: contentId,
+      scheduled_at: null,
+      status: "draft",
+      send_capability: "email_enabled",
+      metadata: {},
+      created_at: new Date("2026-07-05T10:00:00.000Z"),
+      updated_at: new Date("2026-07-05T10:00:00.000Z"),
+    }]);
+    dbMock.rows.set("marketing_journey_steps", [{
+      id: "step-ref",
+      journey_id: "journey-ref",
+      step_order: 0,
+      channel: "email",
+      content_asset_id: contentId,
+      delay_hours: 0,
+      kind: "message",
+      day_offset: 0,
+      template_kind: null,
+      template_ref: null,
+      config: {},
+      status: "draft",
+      metadata: {},
+      created_at: new Date("2026-07-05T10:00:00.000Z"),
+      updated_at: new Date("2026-07-05T10:00:00.000Z"),
+    }]);
+
     await request(app)
       .delete(`/api/admin/marketing/content/${contentId}`)
       .expect(200)
@@ -808,6 +842,8 @@ describe("admin marketing router", () => {
       });
 
     expect(table("marketing_content_assets")).toHaveLength(0);
+    expect(table("marketing_campaign_channels")[0]).toMatchObject({ content_asset_id: null });
+    expect(table("marketing_journey_steps")[0]).toMatchObject({ content_asset_id: null });
   });
 
   it("updates and deletes marketing media references", async () => {

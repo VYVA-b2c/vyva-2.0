@@ -2554,6 +2554,19 @@ adminMarketingRouter.delete("/content/:contentId", async (req, res) => {
   try {
     const [content] = await db.select().from(marketingContentAssets).where(eq(marketingContentAssets.id, req.params.contentId)).limit(1);
     if (!content) return res.status(404).json({ error: "Marketing content not found." });
+    const [campaignRefs, journeyRefs] = await Promise.all([
+      db.select().from(marketingCampaignChannels).where(eq(marketingCampaignChannels.content_asset_id, content.id)).limit(1),
+      db.select().from(marketingJourneySteps).where(eq(marketingJourneySteps.content_asset_id, content.id)).limit(1),
+    ]);
+    const now = new Date();
+    await Promise.all([
+      campaignRefs.length
+        ? db.update(marketingCampaignChannels).set({ content_asset_id: null, updated_at: now }).where(eq(marketingCampaignChannels.content_asset_id, content.id))
+        : Promise.resolve(),
+      journeyRefs.length
+        ? db.update(marketingJourneySteps).set({ content_asset_id: null, updated_at: now }).where(eq(marketingJourneySteps.content_asset_id, content.id))
+        : Promise.resolve(),
+    ]);
     await db.delete(marketingMediaAssets).where(eq(marketingMediaAssets.content_asset_id, content.id));
     await db.delete(marketingContentAssets).where(eq(marketingContentAssets.id, content.id));
     return res.json({ ok: true, deletedContentId: content.id });

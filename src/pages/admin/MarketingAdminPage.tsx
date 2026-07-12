@@ -2201,6 +2201,7 @@ export default function MarketingAdminPage() {
   const [contentSaving, setContentSaving] = useState(false);
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
+  const [confirmingContentDeleteId, setConfirmingContentDeleteId] = useState<string | null>(null);
   const contentEditorPanelRef = useRef<HTMLDivElement | null>(null);
   const contentPreviewPanelRef = useRef<HTMLDivElement | null>(null);
   const [editingMediaAssetId, setEditingMediaAssetId] = useState<string | null>(null);
@@ -2988,6 +2989,7 @@ export default function MarketingAdminPage() {
     setEditingContentId(null);
     setContentEditDraft(null);
     setContentDrawerMode("preview");
+    setConfirmingContentDeleteId(null);
     setContentActionFeedback(`Previewing "${contentAsset.title}".`);
     scrollToContentPanel(contentPreviewPanelRef);
   }
@@ -2997,6 +2999,7 @@ export default function MarketingAdminPage() {
     setEditingContentId(contentAsset.id);
     setContentEditDraft(contentEditDraftFromContent(contentAsset));
     setContentDrawerMode("edit");
+    setConfirmingContentDeleteId(null);
     setContentFeedback("");
     setContentActionFeedback(`Editing "${contentAsset.title}".`);
     scrollToContentPanel(contentEditorPanelRef);
@@ -3008,6 +3011,7 @@ export default function MarketingAdminPage() {
     setContentDrawerMode(null);
     setContentFeedback("");
     setContentActionFeedback("");
+    setConfirmingContentDeleteId(null);
   }
 
   function closeContentDrawer() {
@@ -3052,14 +3056,20 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteContent(contentAsset: ContentAsset) {
-    if (!window.confirm(`Delete content "${contentAsset.title}"? Campaigns and journey steps will keep their records but lose this content link.`)) return;
+    if (confirmingContentDeleteId !== contentAsset.id) {
+      setConfirmingContentDeleteId(contentAsset.id);
+      setContentActionFeedback(`Click Confirm delete to remove "${contentAsset.title}". Campaigns and journey steps will keep their records but lose this content link.`);
+      return;
+    }
     setContentSaving(true);
     setContentFeedback("Deleting content...");
+    setContentActionFeedback(`Deleting "${contentAsset.title}"...`);
     try {
       await api(`/api/admin/marketing/content/${contentAsset.id}`, { method: "DELETE" });
       if (editingContentId === contentAsset.id) cancelContentEdit();
       if (selectedContentId === contentAsset.id) setSelectedContentId(null);
       if (editingContentId === contentAsset.id || selectedContentId === contentAsset.id) setContentDrawerMode(null);
+      setConfirmingContentDeleteId(null);
       setContentFeedback("Deleted.");
       setContentActionFeedback(`Deleted "${contentAsset.title}".`);
       setMessage("Content deleted.");
@@ -3069,6 +3079,7 @@ export default function MarketingAdminPage() {
       setContentFeedback(errorMessage);
       setContentActionFeedback(errorMessage);
       setMessage(errorMessage);
+      setConfirmingContentDeleteId(null);
     } finally {
       setContentSaving(false);
     }
@@ -4645,8 +4656,8 @@ export default function MarketingAdminPage() {
                                   <button type="button" onClick={() => startContentEdit(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${editingContentId === item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
                                     <Pencil size={13} /> {editingContentId === item.id ? "Editing" : "Edit"}
                                   </button>
-                                  <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
-                                    <Trash2 size={13} /> Delete
+                                  <button type="button" onClick={() => void deleteContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === item.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
+                                    <Trash2 size={13} /> {confirmingContentDeleteId === item.id ? "Confirm delete" : "Delete"}
                                   </button>
                                 </div>
                               </td>
@@ -4663,7 +4674,7 @@ export default function MarketingAdminPage() {
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
-                className={contentDrawerMode === "edit" ? "fixed inset-y-4 right-4 z-[90] w-[min(980px,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                className={contentDrawerMode === "edit" ? "scroll-mt-24 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-lg" : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -4735,8 +4746,8 @@ export default function MarketingAdminPage() {
                         <Save size={16} /> {contentSaving ? "Saving..." : "Save content"}
                       </button>
                       {editingContent ? (
-                        <button type="button" onClick={() => void deleteContent(editingContent)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contentSaving} data-testid="button-marketing-delete-editing-content">
-                          <Trash2 size={16} /> Delete
+                        <button type="button" onClick={() => void deleteContent(editingContent)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === editingContent.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid="button-marketing-delete-editing-content">
+                          <Trash2 size={16} /> {confirmingContentDeleteId === editingContent.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
                       <button type="button" onClick={cancelContentEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133]" disabled={contentSaving}>
@@ -4760,7 +4771,7 @@ export default function MarketingAdminPage() {
                   data-testid="marketing-content-preview-panel"
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
-                  className={contentDrawerMode === "preview" ? "fixed inset-y-4 right-4 z-[90] w-[min(980px,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                  className={contentDrawerMode === "preview" ? "scroll-mt-24 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-lg" : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"
