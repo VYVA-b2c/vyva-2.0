@@ -351,6 +351,14 @@ type SyncState = {
   realSendingLocked: boolean;
   lockedSendCapabilities: SendCapability[];
   emailScheduler?: EmailSchedulerStatus;
+  diagnostics?: {
+    apiUrlSource?: string;
+    tokenSource?: string | null;
+    urlAliasPresent?: Record<string, boolean>;
+    tokenAliasPresent?: Record<string, boolean>;
+    hasDefaultEndpoint?: boolean;
+    hasBearerToken?: boolean;
+  };
   runs: SyncRun[];
 };
 
@@ -2954,6 +2962,10 @@ export default function MarketingAdminPage() {
     initialDelaySeconds: 30,
     actor: "marketing-email-scheduler",
   };
+  const syncDiagnostics = syncState.diagnostics;
+  const tokenAliasPresent = syncDiagnostics?.tokenAliasPresent ?? {};
+  const urlAliasPresent = syncDiagnostics?.urlAliasPresent ?? {};
+  const yesNo = (value: boolean | undefined) => value ? "yes" : "no";
   const testEmailDisabled = !editingCampaign || testEmailSending || !draftEmailChannel?.contentAssetId;
   const hasUnsavedCampaignSendChanges = Boolean(editingCampaign && (
     campaignEditDraft.name !== editingCampaign.name ||
@@ -4862,6 +4874,22 @@ export default function MarketingAdminPage() {
                     <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
                     <p className="font-black">{syncState.mode}</p>
                     <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Default Lovable export endpoint"}</p>
+                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-[#7d6b65]" data-testid="marketing-sync-env-diagnostics">
+                      <p className="text-sm font-black text-[#2f2135]">Server configuration check</p>
+                      {syncDiagnostics ? (
+                        <div className="mt-2 grid gap-1">
+                          <p>Endpoint source: {syncDiagnostics.apiUrlSource ?? "unknown"}{syncDiagnostics.hasDefaultEndpoint ? " (built-in default)" : ""}</p>
+                          <p>Bearer token available: {yesNo(syncDiagnostics.hasBearerToken)}</p>
+                          <p>VYVA_MARKETING_EXPORT_TOKEN: {yesNo(tokenAliasPresent.VYVA_MARKETING_EXPORT_TOKEN)}</p>
+                          <p>LOVABLE_MARKETING_API_KEY: {yesNo(tokenAliasPresent.LOVABLE_MARKETING_API_KEY)}</p>
+                          <p>VYVA_MARKETING_EXPORT_URL: {yesNo(urlAliasPresent.VYVA_MARKETING_EXPORT_URL)}</p>
+                          <p>LOVABLE_MARKETING_API_URL: {yesNo(urlAliasPresent.LOVABLE_MARKETING_API_URL)}</p>
+                          <p>Token source: {syncDiagnostics.tokenSource ?? "none"}</p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-red-700">The server did not return configuration diagnostics. The deployment may still be running an older backend bundle.</p>
+                      )}
+                    </div>
                     <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-black text-[#2f2135]">Scheduled email automation</p>

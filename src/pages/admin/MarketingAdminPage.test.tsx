@@ -310,6 +310,20 @@ const sync = {
   realSendingLocked: false,
   lockedSendCapabilities: summary.lockedSendCapabilities,
   emailScheduler: summary.emailScheduler,
+  diagnostics: {
+    apiUrlSource: "default",
+    tokenSource: null,
+    urlAliasPresent: {
+      LOVABLE_MARKETING_API_URL: false,
+      VYVA_MARKETING_EXPORT_URL: false,
+    },
+    tokenAliasPresent: {
+      LOVABLE_MARKETING_API_KEY: false,
+      VYVA_MARKETING_EXPORT_TOKEN: false,
+    },
+    hasDefaultEndpoint: true,
+    hasBearerToken: false,
+  },
   runs: [{
     id: "sync-1",
     provider: "lovable",
@@ -666,6 +680,10 @@ describe("MarketingAdminPage", () => {
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
+    expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("Endpoint source: default");
+    expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("Bearer token available: no");
+    expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN: no");
+    expect(screen.getByTestId("marketing-sync-env-diagnostics")).toHaveTextContent("LOVABLE_MARKETING_API_KEY: no");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Email is enabled through VYVA");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");
