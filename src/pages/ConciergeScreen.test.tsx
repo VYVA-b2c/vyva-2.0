@@ -1933,6 +1933,36 @@ describe("ConciergeScreen route prefill", () => {
     expect(body.prompt).toContain("easy outing");
   });
 
+  it("turns a completed Home task handoff into a reusable Concierge template", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+
+    renderScreen([{
+      pathname: "/concierge",
+      state: {
+        conciergeCompletedTemplate: {
+          id: "session-ride",
+          pending_id: "old-ride",
+          use_case: "book_ride",
+          provider_name: "Radio Taxi",
+          outcome: "completed",
+          outcome_summary: "Ride saved with Radio Taxi.",
+          completed_at: "2026-08-04T09:30:00.000Z",
+          outcome_payload: {
+            pickup_address: "Saved home",
+            destination_address: "City Clinic",
+            requested_time: "tomorrow 09:00",
+            mobility_needs: ["Help to the door"],
+          },
+        },
+      },
+    }]);
+
+    expect(await screen.findByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
+    expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
+    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow 09:00");
+  });
+
   it("shows readiness fallback for email-style tool-gated task handoffs", async () => {
     apiFetchMock.mockResolvedValue(jsonResponse({ items: [] }));
 

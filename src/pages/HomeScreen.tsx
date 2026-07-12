@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { NavigateOptions } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, type LucideIcon } from "lucide-react";
+import { Brain, Heart, Users, ConciergeBell, Stethoscope, Calendar, Car, PhoneCall, Mail, Mic, ShieldCheck, MessageCircle, FileText, HeartHandshake, HeartPulse, ChevronRight, PackageCheck, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import VoiceHero from "@/components/VoiceHero";
 import MasterDashboardLayout, {
@@ -77,6 +77,10 @@ type ConciergePendingHomeSignal = {
   items?: ConciergePendingHomeItem[];
 };
 
+type ConciergeCompletedHomeSignal = {
+  items?: ConciergeCompletedHomeItem[];
+};
+
 type ConciergePendingHomeItem = {
   id?: string | null;
   use_case?: string | null;
@@ -84,6 +88,17 @@ type ConciergePendingHomeItem = {
   action_summary?: string | null;
   status?: "pending" | "calling" | "completed" | "failed" | "cancelled" | string | null;
   action_payload?: Record<string, unknown> | null;
+};
+
+type ConciergeCompletedHomeItem = {
+  id?: string | null;
+  pending_id?: string | null;
+  use_case?: string | null;
+  provider_name?: string | null;
+  outcome?: string | null;
+  outcome_payload?: Record<string, unknown> | null;
+  outcome_summary?: string | null;
+  completed_at?: string | null;
 };
 
 type HomeFastAction = {
@@ -266,12 +281,12 @@ function conciergeHomeStatus(item: ConciergePendingHomeItem) {
   return (item.status ?? "").toLowerCase();
 }
 
-function conciergeHomeTaskKind(item: ConciergePendingHomeItem) {
-  const appointmentType = typeof item.action_payload?.appointment_type === "string"
-    ? item.action_payload.appointment_type
+function conciergeTaskKind(useCase: string | null | undefined, payload: Record<string, unknown> | null | undefined) {
+  const appointmentType = typeof payload?.appointment_type === "string"
+    ? payload.appointment_type
     : "";
   if (appointmentType === "home-service") return "homeService";
-  switch (item.use_case) {
+  switch (useCase) {
     case "book_ride":
       return "ride";
     case "book_appointment":
@@ -285,8 +300,31 @@ function conciergeHomeTaskKind(item: ConciergePendingHomeItem) {
   }
 }
 
+function conciergeHomeTaskKind(item: ConciergePendingHomeItem) {
+  return conciergeTaskKind(item.use_case, item.action_payload);
+}
+
+function conciergeCompletedHomeTaskKind(item: ConciergeCompletedHomeItem) {
+  return conciergeTaskKind(item.use_case, item.outcome_payload);
+}
+
 function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
   switch (conciergeHomeTaskKind(item)) {
+    case "ride":
+      return t("home.conciergeResume.task.ride", "ride");
+    case "appointment":
+      return t("home.conciergeResume.task.appointment", "appointment");
+    case "pharmacy":
+      return t("home.conciergeResume.task.pharmacy", "pharmacy request");
+    case "homeService":
+      return t("home.conciergeResume.task.homeService", "home service");
+    default:
+      return t("home.conciergeResume.task.default", "request");
+  }
+}
+
+function conciergeCompletedHomeTaskLabel(item: ConciergeCompletedHomeItem, t: HomeTranslate) {
+  switch (conciergeCompletedHomeTaskKind(item)) {
     case "ride":
       return t("home.conciergeResume.task.ride", "ride");
     case "appointment":
@@ -308,6 +346,43 @@ function conciergeHomePayloadString(item: ConciergePendingHomeItem, keys: string
     if (typeof value === "string" && value.trim()) return value.trim();
   }
   return "";
+}
+
+function conciergeCompletedPayloadString(item: ConciergeCompletedHomeItem, keys: string[]) {
+  const payload = item.outcome_payload;
+  if (!payload) return "";
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function conciergeCompletedHomeItems(completed: ConciergeCompletedHomeSignal | null | undefined) {
+  return completed?.items?.filter((item) => {
+    if (!item?.id || !item.use_case) return false;
+    if (item.outcome !== "completed" && !item.completed_at) return false;
+    return conciergeCompletedHomeTaskKind(item) !== "default";
+  }) ?? [];
+}
+
+function conciergeCompletedHomeProvider(item: ConciergeCompletedHomeItem, t: HomeTranslate) {
+  return item.provider_name?.trim()
+    || conciergeCompletedPayloadString(item, ["provider_name", "pharmacy_name"])
+    || t("home.conciergeReuse.providerFallback", "VYVA");
+}
+
+function conciergeCompletedHomeTemplate(item: ConciergeCompletedHomeItem) {
+  return {
+    id: item.id ?? "home-completed-template",
+    pending_id: item.pending_id ?? null,
+    use_case: item.use_case ?? "concierge_task",
+    provider_name: item.provider_name ?? null,
+    outcome: item.outcome ?? "completed",
+    outcome_summary: item.outcome_summary ?? null,
+    completed_at: item.completed_at ?? null,
+    outcome_payload: item.outcome_payload ?? {},
+  };
 }
 
 function conciergeHomeIsWaitingOnProvider(item: ConciergePendingHomeItem) {
@@ -545,6 +620,12 @@ const HomeScreen = () => {
 
   const { data: conciergePendingHomeSignal } = useQuery<ConciergePendingHomeSignal>({
     queryKey: ["/api/concierge/actions/pending"],
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  const { data: conciergeCompletedHomeSignal } = useQuery<ConciergeCompletedHomeSignal>({
+    queryKey: ["/api/concierge/actions/sessions"],
     staleTime: 60 * 1000,
     retry: false,
   });
@@ -805,6 +886,7 @@ const HomeScreen = () => {
   ];
 
   const activeConciergeHomeTask = conciergeHomeItems(conciergePendingHomeSignal)[0] ?? null;
+  const reusableConciergeHomeTask = conciergeCompletedHomeItems(conciergeCompletedHomeSignal)[0] ?? null;
   const activeConciergeTaskText = activeConciergeHomeTask ? conciergeHomeTaskLabel(activeConciergeHomeTask, t) : "";
   const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
   const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t) : "";
@@ -850,6 +932,46 @@ const HomeScreen = () => {
       <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-[#047857]" aria-hidden="true" />
     </button>
   ) : null;
+  const conciergeReuseNudge = reusableConciergeHomeTask ? (
+    <button
+      type="button"
+      data-testid="card-home-concierge-reuse"
+      onClick={() => handleNavigate("/concierge", {
+        state: {
+          conciergeCompletedTemplate: conciergeCompletedHomeTemplate(reusableConciergeHomeTask),
+        },
+      })}
+      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#DDD6FE] bg-[linear-gradient(135deg,#FFFFFF_0%,#FBF8FF_100%)] p-3 text-left shadow-[0_12px_28px_rgba(107,33,168,0.07)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
+      aria-label={`${t("home.conciergeReuse.kicker", "Useful again")}: ${t("home.conciergeReuse.title", "Use last {{task}} again", { task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t) })}`}
+    >
+      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#F5F3FF] text-vyva-purple min-[390px]:h-[54px] min-[390px]:w-[54px]">
+        <PackageCheck size={24} strokeWidth={2.55} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-vyva-purple">
+          {t("home.conciergeReuse.kicker", "Useful again")}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+          {t("home.conciergeReuse.title", "Use last {{task}} again", {
+            task: conciergeCompletedHomeTaskLabel(reusableConciergeHomeTask, t),
+          })}
+        </span>
+        <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+          {conciergeCompletedHomeProvider(reusableConciergeHomeTask, t)}
+        </span>
+      </span>
+      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-vyva-purple shadow-[0_8px_18px_rgba(107,33,168,0.08)] min-[390px]:inline-flex">
+        {t("home.conciergeReuse.action", "Use template")}
+      </span>
+      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-vyva-purple" aria-hidden="true" />
+    </button>
+  ) : null;
+  const conciergeHomeNudges = conciergeRightNowNudge || conciergeReuseNudge ? (
+    <div className="space-y-3">
+      {conciergeRightNowNudge}
+      {conciergeReuseNudge}
+    </div>
+  ) : null;
 
   return (
     <MasterDashboardLayout
@@ -881,7 +1003,7 @@ const HomeScreen = () => {
       }}
       cards={homeMasterCards}
       fastHelpActions={homeMasterFastHelpActionsWithStatus}
-      beforeFastHelp={conciergeRightNowNudge}
+      beforeFastHelp={conciergeHomeNudges}
     />
   );
 };
