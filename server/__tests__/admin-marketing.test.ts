@@ -254,6 +254,55 @@ describe("admin marketing router", () => {
       });
   });
 
+  it("previews the Lovable export without creating sync or marketing rows", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        exportedAt: "2026-07-05T12:00:00.000Z",
+        dataset: "live",
+        saved_email_templates: [{ id: "template-1", template_name: "Welcome", html_content: "<p>Hello</p>" }],
+        social_posts: [{ id: "post-1", platform: "linkedin", caption: "Partner update", image_url: "https://cdn.example.test/post.png" }],
+        contacts: [{ id: "contact-1", name: "Hassan", email: "hassan@example.com" }],
+        campaigns: [{ id: "campaign-1", name: "Launch", channels: [{ channel: "email", template_id: "template-1" }] }],
+        journeys: [{ id: "journey-1", name: "Nurture" }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    await request(buildApp("karim.assad@mokadigital.net"))
+      .get("/api/admin/marketing/sync/lovable/preview")
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          ok: true,
+          dataset: "live",
+          exportedAt: "2026-07-05T12:00:00.000Z",
+          summary: {
+            exported: {
+              content: 2,
+              mediaAssets: 1,
+              contacts: 1,
+              campaigns: 1,
+              campaignChannels: 1,
+              journeys: 1,
+            },
+            contentSourceCounts: {
+              saved_email_template: 1,
+              social_post: 1,
+            },
+          },
+        });
+        expect(response.body.summary.fieldCoverage.content.firstClassFields).toEqual(expect.arrayContaining(["id", "template_name", "html_content"]));
+      });
+
+    expect(fetchMock).toHaveBeenCalledWith("https://lovable.example.test/marketing-export", expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer secret" }),
+    }));
+    expect(table("marketing_sync_runs")).toHaveLength(0);
+    expect(table("marketing_content_assets")).toHaveLength(0);
+    fetchMock.mockRestore();
+  });
+
   it("accepts VYVA export URL and token aliases for Lovable sync", async () => {
     vi.stubEnv("VYVA_MARKETING_EXPORT_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "alias-secret");

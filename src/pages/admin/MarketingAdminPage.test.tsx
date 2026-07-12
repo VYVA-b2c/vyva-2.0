@@ -351,6 +351,29 @@ const sync = {
   }],
 };
 
+const exportPreview = {
+  ok: true,
+  checkedAt: "2026-07-05T09:02:00.000Z",
+  apiUrl: "https://lovable.example.test",
+  dataset: "live",
+  exportedAt: "2026-07-05T09:01:30.000Z",
+  topLevelKeys: ["campaigns", "contacts", "exportedAt", "saved_email_templates", "social_posts"],
+  summary: {
+    exported: { campaigns: 1, contacts: 2, content: 2, mediaAssets: 1, journeys: 1 },
+    contentSourceCounts: { saved_email_template: 1, social_post: 1 },
+    fieldCoverage: {
+      content: {
+        exportedFieldCount: 7,
+        firstClassFieldCount: 6,
+        metadataOnlyFieldCount: 1,
+        exportedFields: ["body", "channel", "extraLovableOnlyField", "id", "status", "subject", "title"],
+        firstClassFields: ["body", "channel", "id", "status", "subject", "title"],
+        metadataOnlyFields: ["extraLovableOnlyField"],
+      },
+    },
+  },
+};
+
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     status: init.status ?? 200,
@@ -510,6 +533,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: { con
     if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts });
     if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
+    if (path === "/api/admin/marketing/sync/lovable/preview" && method === "GET") return jsonResponse(exportPreview);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
@@ -780,6 +804,25 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("Lovable sync completed. Imported Campaigns: 1, Contacts: 1, Content: 1, Journeys: 1.");
     });
+  });
+
+  it("previews the Lovable export before importing rows", async () => {
+    renderPage({ configured: true, canRunSync: true, apiUrl: "https://lovable.example.test" });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-settings"));
+    fireEvent.click(screen.getByTestId("button-marketing-preview-export"));
+
+    expect(screen.getByTestId("button-marketing-preview-export")).toHaveTextContent("Checking export...");
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/sync/lovable/preview", undefined);
+    });
+
+    expect(screen.getByTestId("marketing-export-preview-feedback")).toHaveTextContent("Lovable export contains");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Content: 2");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("saved_email_template: 1");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("social_post: 1");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Top-level export keys");
   });
 
   it("creates rich marketing content drafts", async () => {

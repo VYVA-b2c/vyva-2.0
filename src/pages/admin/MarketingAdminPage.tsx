@@ -329,6 +329,16 @@ type SyncRun = {
   createdAt: string | null;
 };
 
+type LovableExportPreview = {
+  ok: boolean;
+  checkedAt: string;
+  apiUrl: string | null;
+  dataset: string;
+  exportedAt: string | null;
+  topLevelKeys: string[];
+  summary: Record<string, unknown>;
+};
+
 type SyncState = {
   provider: string;
   configured: boolean;
@@ -1496,6 +1506,15 @@ function syncCompletionMessage(summary?: Record<string, unknown>) {
   return `Lovable sync completed. Imported ${visible}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}.`;
 }
 
+function exportPreviewMessage(summary?: Record<string, unknown>) {
+  if (!summary) return "Lovable export checked.";
+  const exported = syncCountItems(summary, "exported");
+  if (!exported.length) return "Lovable export checked. No export counts were reported.";
+  const visible = exported.slice(0, 6).map((item) => `${item.label}: ${item.value}`).join(", ");
+  const hiddenCount = exported.length - 6;
+  return `Lovable export contains ${visible}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}.`;
+}
+
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await apiFetch(url, options);
   const body = await response.json().catch(() => null) as T | { error?: string } | null;
@@ -1775,6 +1794,9 @@ export default function MarketingAdminPage() {
   const [syncState, setSyncState] = useState<SyncState>(emptySync);
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState("");
+  const [exportPreview, setExportPreview] = useState<LovableExportPreview | null>(null);
+  const [exportPreviewRunning, setExportPreviewRunning] = useState(false);
+  const [exportPreviewFeedback, setExportPreviewFeedback] = useState("");
   const [contactFeedback, setContactFeedback] = useState("");
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testEmailFeedback, setTestEmailFeedback] = useState("");
@@ -2894,14 +2916,36 @@ export default function MarketingAdminPage() {
     }
   }
 
+  async function previewLovableExport() {
+    setExportPreviewFeedback("");
+    setMessage("Checking Lovable export...");
+    setExportPreviewRunning(true);
+    try {
+      const result = await api<LovableExportPreview>("/api/admin/marketing/sync/lovable/preview");
+      const completionMessage = exportPreviewMessage(result.summary);
+      setExportPreview(result);
+      setExportPreviewFeedback(completionMessage);
+      setMessage(completionMessage);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Lovable export preview failed.";
+      setExportPreview(null);
+      setExportPreviewFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setExportPreviewRunning(false);
+    }
+  }
+
   const syncBlockedReason = !syncState.configured
     ? "Set LOVABLE_MARKETING_API_URL plus LOVABLE_MARKETING_API_KEY or VYVA_MARKETING_EXPORT_TOKEN before running a sync."
     : syncState.canRunSync === false
       ? `Only the super admin${syncState.requiredRunnerEmail ? ` (${syncState.requiredRunnerEmail})` : ""} can run Lovable sync.`
       : "";
   const syncButtonDisabled = Boolean(syncBlockedReason) || syncRunning;
+  const exportPreviewButtonDisabled = Boolean(syncBlockedReason) || exportPreviewRunning || syncRunning;
   const syncFeedbackText = syncFeedback || syncBlockedReason;
   const syncFeedbackIsError = Boolean(syncBlockedReason) || /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(syncFeedback);
+  const exportPreviewFeedbackIsError = /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(exportPreviewFeedback);
   const emailScheduler = syncState.emailScheduler ?? summary.emailScheduler ?? emptySummary.emailScheduler ?? {
     enabled: false,
     intervalMinutes: 5,
@@ -4831,15 +4875,35 @@ export default function MarketingAdminPage() {
                       <p className="mt-1 text-xs font-bold text-[#8b7a73]">Actor: {emailScheduler.actor}</p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={syncButtonDisabled}
-                    onClick={() => void runLovableSync()}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                    data-testid="button-marketing-run-sync"
-                  >
-                    <RefreshCw size={16} className={syncRunning ? "animate-spin" : ""} /> {syncRunning ? "Running sync..." : "Run one-way sync"}
-                  </button>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      disabled={exportPreviewButtonDisabled}
+                      onClick={() => void previewLovableExport()}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                      data-testid="button-marketing-preview-export"
+                    >
+                      <Eye size={16} /> {exportPreviewRunning ? "Checking export..." : "Check Lovable export"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={syncButtonDisabled}
+                      onClick={() => void runLovableSync()}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                      data-testid="button-marketing-run-sync"
+                    >
+                      <RefreshCw size={16} className={syncRunning ? "animate-spin" : ""} /> {syncRunning ? "Running sync..." : "Run one-way sync"}
+                    </button>
+                  </div>
+                  {exportPreviewFeedback ? (
+                    <p
+                      className={`rounded-xl px-4 py-3 text-sm font-bold ${exportPreviewFeedbackIsError ? "bg-red-50 text-red-800" : "bg-blue-50 text-blue-800"}`}
+                      data-testid="marketing-export-preview-feedback"
+                    >
+                      {exportPreviewFeedback}
+                    </p>
+                  ) : null}
+                  {exportPreview ? <LovableExportPreviewDiagnostics preview={exportPreview} /> : null}
                   {syncFeedbackText ? (
                     <p
                       className={`rounded-xl px-4 py-3 text-sm font-bold ${syncFeedbackIsError ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}
@@ -4881,6 +4945,63 @@ export default function MarketingAdminPage() {
         </section>
       </section>
     </main>
+  );
+}
+
+function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPreview }) {
+  const exported = syncCountItems(preview.summary, "exported");
+  const contentSourceCounts = Object.entries(recordValue(preview.summary.contentSourceCounts))
+    .map(([key, value]) => ({ key, value: numberValue(value) }))
+    .filter((item) => item.value > 0);
+  const fieldCoverage = syncFieldCoverageItems(preview.summary);
+
+  return (
+    <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs font-bold text-blue-950" data-testid="marketing-export-preview">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="uppercase tracking-[0.12em] text-blue-800">Lovable export preview</p>
+          <p className="mt-1 text-sm font-black">Dataset: {preview.dataset || "unknown"}</p>
+          {preview.exportedAt ? <p className="mt-1 text-xs font-semibold">Exported at {formatDate(preview.exportedAt)}</p> : null}
+        </div>
+        <Pill className="bg-white text-blue-800">Preview only</Pill>
+      </div>
+      {exported.length ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-blue-800">Available to import</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {exported.map((item) => <Pill key={`preview-exported-${item.key}`} className="bg-white text-blue-800">{item.label}: {item.value}</Pill>)}
+          </div>
+        </div>
+      ) : <p className="rounded-lg bg-white p-3 text-sm font-black text-amber-800">Lovable returned no recognized marketing rows.</p>}
+      {contentSourceCounts.length ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-blue-800">Content source buckets</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {contentSourceCounts.map((item) => <Pill key={item.key} className="bg-white text-purple-800">{item.key}: {item.value}</Pill>)}
+          </div>
+        </div>
+      ) : null}
+      {preview.topLevelKeys.length ? (
+        <p className="rounded-lg bg-white p-3 font-semibold text-[#5b4a46]">
+          Top-level export keys: {preview.topLevelKeys.slice(0, 18).join(", ")}{preview.topLevelKeys.length > 18 ? `, +${preview.topLevelKeys.length - 18} more` : ""}
+        </p>
+      ) : null}
+      {fieldCoverage.length ? (
+        <div>
+          <p className="uppercase tracking-[0.12em] text-blue-800">Field coverage before import</p>
+          <div className="mt-1 grid gap-1.5">
+            {fieldCoverage.map((item) => (
+              <div key={item.entity} className="rounded-lg bg-white px-3 py-2">
+                <p className="font-black text-[#241133]">{item.entity}: {item.firstClass} of {item.exported} fields mapped first-class</p>
+                {item.metadataOnly ? (
+                  <p className="mt-1 font-semibold">Metadata-only: {item.metadataOnlyFields.slice(0, 6).join(", ")}{item.metadataOnlyFields.length > 6 ? ` +${item.metadataOnlyFields.length - 6}` : ""}</p>
+                ) : <p className="mt-1 font-semibold text-emerald-800">All exported fields are mapped first-class.</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

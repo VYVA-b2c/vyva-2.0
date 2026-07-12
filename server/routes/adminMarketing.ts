@@ -783,6 +783,65 @@ function campaignRecipientSourceCount(row: Record<string, unknown>, audienceCont
   return Math.max(explicitCount, directCount + audienceCount);
 }
 
+function lovableExportSummary(payload: Record<string, unknown>) {
+  const contentPayload = lovableContentPayload(payload);
+  const standaloneMediaPayload = lovableMediaPayload(payload);
+  const contactPayload = lovableContactPayload(payload);
+  const campaignPayload = lovableCampaignPayload(payload);
+  const journeyPayload = lovableJourneyPayload(payload);
+  const audiencePayload = lovableAudiencePayload(payload);
+  const campaignMetricPayload = arrayFrom(payload.campaignMetrics ?? payload.campaign_metrics ?? payload.analytics ?? payload.metrics);
+  const journeyEnrollmentPayload = arrayFrom(payload.journeyEnrollments ?? payload.journey_enrollments ?? payload.enrollments ?? payload.progress);
+  const audienceContactExternalIdsByAudienceExternalId = new Map<string, string[]>();
+
+  for (const item of audiencePayload) {
+    const audienceRow = asRecord(item);
+    const audienceExternalId = normalizeLovableId(audienceRow);
+    if (!audienceExternalId) continue;
+    for (const variant of externalIdVariants(audienceExternalId, ["audience", "list", "contact_list"])) {
+      audienceContactExternalIdsByAudienceExternalId.set(variant, audienceContactExternalIds(audienceRow));
+    }
+  }
+
+  const nestedMediaAssetExportCount = contentPayload.reduce((count, item) => count + contentMediaAssetsFrom(asRecord(item)).length, 0);
+  const mediaAssetExportCount = nestedMediaAssetExportCount + standaloneMediaPayload.length;
+  const campaignChannelExportCount = campaignPayload.reduce((count, item) => count + campaignChannelPayload(asRecord(item)).length, 0);
+  const campaignRecipientExportCount = campaignPayload.reduce((count, item) => (
+    count + campaignRecipientSourceCount(asRecord(item), audienceContactExternalIdsByAudienceExternalId)
+  ), 0);
+  const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
+    const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
+    counts[sourceType] = (counts[sourceType] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  return {
+    exported: {
+      campaigns: campaignPayload.length,
+      contacts: contactPayload.length,
+      content: contentPayload.length,
+      mediaAssets: mediaAssetExportCount,
+      campaignChannels: campaignChannelExportCount,
+      campaignRecipients: campaignRecipientExportCount,
+      campaignMetrics: campaignMetricPayload.length,
+      journeys: journeyPayload.length,
+      journeyEnrollments: journeyEnrollmentPayload.length,
+      audiences: audiencePayload.length,
+    },
+    contentSourceCounts,
+    fieldCoverage: {
+      content: fieldCoverageForPayload(contentPayload, fieldCoverageAliases.content),
+      media: fieldCoverageForPayload([...contentPayload.flatMap((item) => contentMediaAssetsFrom(asRecord(item))), ...standaloneMediaPayload], fieldCoverageAliases.media),
+      contacts: fieldCoverageForPayload(contactPayload, fieldCoverageAliases.contacts),
+      campaigns: fieldCoverageForPayload(campaignPayload, fieldCoverageAliases.campaigns),
+      campaignMetrics: fieldCoverageForPayload(campaignMetricPayload, fieldCoverageAliases.campaignMetrics),
+      journeys: fieldCoverageForPayload(journeyPayload, fieldCoverageAliases.journeys),
+      journeyEnrollments: fieldCoverageForPayload(journeyEnrollmentPayload, fieldCoverageAliases.journeyEnrollments),
+      audiences: fieldCoverageForPayload(audiencePayload, fieldCoverageAliases.audiences),
+    },
+  };
+}
+
 function lovableCampaignPayload(payload: Record<string, unknown>) {
   const campaignRows = arrayFrom(payload.campaigns).map(asRecord);
   const channelsByCampaignId = groupCampaignChildRows(lovableCampaignChannelRows(payload));
@@ -2588,6 +2647,41 @@ adminMarketingRouter.get("/sync/lovable", async (req, res) => {
     emailScheduler: marketingEmailSchedulerStatus(),
     runs: runs.map(serializeSyncRun),
   });
+});
+
+adminMarketingRouter.get("/sync/lovable/preview", async (req, res) => {
+  if (!requireSuperAdmin(req, res, "preview the Lovable marketing export")) return;
+
+  const apiUrl = lovableMarketingApiUrl();
+  const apiKey = lovableMarketingApiKey();
+  if (!apiUrl || !apiKey) {
+    return res.status(409).json({ error: "Lovable marketing sync is not configured." });
+  }
+
+  try {
+    const response = await fetch(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+    });
+    const payload = await response.json().catch(async () => ({ error: await response.text().catch(() => response.statusText) })) as Record<string, unknown>;
+    if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Lovable export preview failed with ${response.status}`));
+
+    const summary = lovableExportSummary(payload);
+    return res.json({
+      ok: true,
+      checkedAt: new Date().toISOString(),
+      apiUrl: safeUrlOrigin(apiUrl),
+      dataset: textFrom(payload, ["dataset", "environment", "source"], "unknown"),
+      exportedAt: textFrom(payload, ["exportedAt", "exported_at", "updatedAt", "updated_at"]),
+      topLevelKeys: Object.keys(payload).sort(),
+      summary,
+    });
+  } catch (error) {
+    console.error("[admin/marketing] lovable export preview failed", error);
+    return res.status(502).json({ error: error instanceof Error ? error.message : "Lovable export preview failed." });
+  }
 });
 
 async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string) {
