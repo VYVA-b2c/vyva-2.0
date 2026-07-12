@@ -138,6 +138,7 @@ const dispatchMock = vi.hoisted(() => ({
 vi.mock("../services/communicationDispatcher.js", () => dispatchMock);
 
 import { adminMarketingRouter } from "../routes/adminMarketing.js";
+import { runMarketingEmailSchedulerOnce } from "../services/marketingEmailScheduler.js";
 
 function buildApp(email = "admin@example.com") {
   const app = express();
@@ -214,6 +215,9 @@ describe("admin marketing router", () => {
   it("reports whether the current admin can run Lovable sync", async () => {
     vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
     vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
+    vi.stubEnv("MARKETING_EMAIL_SCHEDULER_ENABLED", "true");
+    vi.stubEnv("MARKETING_EMAIL_SCHEDULER_INTERVAL_MINUTES", "7");
+    vi.stubEnv("MARKETING_EMAIL_SCHEDULER_INITIAL_DELAY_SECONDS", "12");
 
     await request(buildApp("ops@example.com"))
       .get("/api/admin/marketing/sync/lovable")
@@ -224,6 +228,12 @@ describe("admin marketing router", () => {
           canRunSync: false,
           realSendingLocked: false,
           requiredRunnerEmail: "karim.assad@mokadigital.net",
+        });
+        expect(response.body.emailScheduler).toMatchObject({
+          enabled: true,
+          intervalMinutes: 7,
+          initialDelaySeconds: 12,
+          actor: "marketing-email-scheduler",
         });
         expect(response.body.lockedSendCapabilities).toContainEqual(expect.objectContaining({
           channel: "email",
@@ -531,6 +541,80 @@ describe("admin marketing router", () => {
     });
     expect(table("marketing_campaign_recipients").find((row) => row.recipient === "due@example.com")).toMatchObject({ status: "sent" });
     expect(table("marketing_campaign_recipients").find((row) => row.recipient === "future@example.com")).toMatchObject({ status: "planned" });
+    expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the background scheduler send due email campaigns through the same dispatcher path", async () => {
+    const app = buildApp("karim.assad@mokadigital.net");
+    const contentResponse = await request(app)
+      .post("/api/admin/marketing/content")
+      .send({
+        title: "Automated newsletter",
+        channel: "email",
+        subject: "Automation update",
+        body: "This should be sent by the scheduler.",
+      })
+      .expect(201);
+    const dueAt = "2026-07-05T09:00:00.000Z";
+    const futureAt = "2026-07-05T12:00:00.000Z";
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Scheduler due campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: dueAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: dueAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "due-scheduler@example.com", status: "planned", scheduledAt: dueAt, snapshot: { consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    await request(app)
+      .post("/api/admin/marketing/campaigns")
+      .send({
+        name: "Scheduler future campaign",
+        status: "scheduled",
+        audienceType: "b2c",
+        scheduleStartsAt: futureAt,
+        channels: [{
+          channel: "email",
+          contentAssetId: contentResponse.body.content.id,
+          status: "scheduled",
+          scheduledAt: futureAt,
+        }],
+        recipients: [
+          { channel: "email", recipient: "future-scheduler@example.com", status: "planned", scheduledAt: futureAt, snapshot: { consentStatus: "opted_in" } },
+        ],
+      })
+      .expect(201);
+
+    const result = await runMarketingEmailSchedulerOnce(new Date("2026-07-05T10:00:00.000Z"));
+
+    expect(result).toMatchObject({
+      skipped: false,
+      result: {
+        ok: true,
+        dueCount: 1,
+        sentCount: 1,
+        failedCount: 0,
+      },
+    });
+    expect(table("communications_log")).toHaveLength(1);
+    expect(table("communications_log")[0]).toMatchObject({
+      recipient: "due-scheduler@example.com",
+      purpose: "marketing_campaign_email",
+      metadata: expect.objectContaining({ initiated_by: "marketing-email-scheduler" }),
+    });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "due-scheduler@example.com")).toMatchObject({ status: "sent" });
+    expect(table("marketing_campaign_recipients").find((row) => row.recipient === "future-scheduler@example.com")).toMatchObject({ status: "planned" });
     expect(dispatchMock.dispatchCommunicationsByIds).toHaveBeenCalledTimes(1);
   });
 

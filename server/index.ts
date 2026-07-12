@@ -105,6 +105,7 @@ import vyvaDemoRouter from "./routes/vyvaDemo.js";
 import { getGooglePlacesApiKey, getGooglePlacesApiKeySource } from "./lib/googlePlacesKey.js";
 import { startCommunicationDispatcher } from "./services/communicationDispatcher.js";
 import { startDailyCheckinNoResponseMonitor } from "./services/dailyCheckinMonitor.js";
+import { startMarketingEmailScheduler } from "./services/marketingEmailScheduler.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 const app = express();
@@ -478,6 +479,9 @@ configureFrontend().then(() => {
     }
     if (startDailyCheckinNoResponseMonitor()) {
       console.log("[daily-checkin-monitor] no-response monitor enabled");
+    }
+    if (startMarketingEmailScheduler()) {
+      console.log("[marketing-email-scheduler] scheduled email campaign runner enabled");
     }
   });
 }).catch((err) => {

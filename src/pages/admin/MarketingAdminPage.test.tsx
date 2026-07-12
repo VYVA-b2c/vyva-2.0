@@ -52,6 +52,12 @@ const summary = {
     { channel: "linkedin", sendCapability: "planning_only", locked: true, note: "Planning only." },
     { channel: "tiktok", sendCapability: "planning_only", locked: true, note: "Planning only." },
   ],
+  emailScheduler: {
+    enabled: false,
+    intervalMinutes: 5,
+    initialDelaySeconds: 30,
+    actor: "marketing-email-scheduler",
+  },
   latestSyncRun: null,
 };
 
@@ -303,6 +309,7 @@ const sync = {
   mode: "one_way_into_vyva",
   realSendingLocked: false,
   lockedSendCapabilities: summary.lockedSendCapabilities,
+  emailScheduler: summary.emailScheduler,
   runs: [{
     id: "sync-1",
     provider: "lovable",
@@ -628,6 +635,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Email is enabled through VYVA");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
+    expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");
+    expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Manual Run due emails button only");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Exported by Lovable");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Audiences: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Media assets: 1");

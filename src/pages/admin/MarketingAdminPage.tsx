@@ -62,6 +62,7 @@ type MarketingSummary = {
   byChannel: Array<{ channel: Channel; campaigns: number; content: number }>;
   byAudience: Array<{ audienceType: Audience; campaigns: number; contacts: number }>;
   lockedSendCapabilities: SendCapability[];
+  emailScheduler?: EmailSchedulerStatus;
   latestSyncRun: SyncRun | null;
 };
 
@@ -81,6 +82,13 @@ type SendCapability = {
   sendCapability: string;
   locked: boolean;
   note: string;
+};
+
+type EmailSchedulerStatus = {
+  enabled: boolean;
+  intervalMinutes: number;
+  initialDelaySeconds: number;
+  actor: string;
 };
 
 type CampaignChannel = {
@@ -330,6 +338,7 @@ type SyncState = {
   mode: string;
   realSendingLocked: boolean;
   lockedSendCapabilities: SendCapability[];
+  emailScheduler?: EmailSchedulerStatus;
   runs: SyncRun[];
 };
 
@@ -507,6 +516,12 @@ const emptySummary: MarketingSummary = {
     locked: channel !== "email",
     note: channel === "email" ? "Email sends use VYVA communications." : "Marketing sends are locked in this foundation.",
   })),
+  emailScheduler: {
+    enabled: false,
+    intervalMinutes: 5,
+    initialDelaySeconds: 30,
+    actor: "marketing-email-scheduler",
+  },
   latestSyncRun: null,
 };
 
@@ -519,6 +534,7 @@ const emptySync: SyncState = {
   mode: "one_way_into_vyva",
   realSendingLocked: false,
   lockedSendCapabilities: emptySummary.lockedSendCapabilities,
+  emailScheduler: emptySummary.emailScheduler,
   runs: [],
 };
 
@@ -2886,6 +2902,12 @@ export default function MarketingAdminPage() {
   const syncButtonDisabled = Boolean(syncBlockedReason) || syncRunning;
   const syncFeedbackText = syncFeedback || syncBlockedReason;
   const syncFeedbackIsError = Boolean(syncBlockedReason) || /fail|error|unauthorized|forbidden|not configured|only the super admin/i.test(syncFeedback);
+  const emailScheduler = syncState.emailScheduler ?? summary.emailScheduler ?? emptySummary.emailScheduler ?? {
+    enabled: false,
+    intervalMinutes: 5,
+    initialDelaySeconds: 30,
+    actor: "marketing-email-scheduler",
+  };
   const testEmailDisabled = !editingCampaign || testEmailSending || !draftEmailChannel?.contentAssetId;
   const hasUnsavedCampaignSendChanges = Boolean(editingCampaign && (
     campaignEditDraft.name !== editingCampaign.name ||
@@ -4794,6 +4816,20 @@ export default function MarketingAdminPage() {
                     <p className="text-sm font-bold text-[#7d6b65]">Mode</p>
                     <p className="font-black">{syncState.mode}</p>
                     <p className="mt-2 text-sm font-semibold text-[#7d6b65]">Endpoint: {syncState.apiUrl ?? "Set LOVABLE_MARKETING_API_URL"}</p>
+                    <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-black text-[#2f2135]">Scheduled email automation</p>
+                        <Pill className={emailScheduler.enabled ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}>
+                          {emailScheduler.enabled ? "Enabled" : "Disabled"}
+                        </Pill>
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-[#7d6b65]">
+                        {emailScheduler.enabled
+                          ? `Runs every ${emailScheduler.intervalMinutes} min after a ${emailScheduler.initialDelaySeconds}s startup delay.`
+                          : "Manual Run due emails button only. Set MARKETING_EMAIL_SCHEDULER_ENABLED=true to automate scheduled email campaigns."}
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-[#8b7a73]">Actor: {emailScheduler.actor}</p>
+                    </div>
                   </div>
                   <button
                     type="button"

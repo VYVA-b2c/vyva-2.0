@@ -254,6 +254,18 @@ function lovableMarketingApiKey() {
   return envValue("LOVABLE_MARKETING_API_KEY", "VYVA_MARKETING_EXPORT_TOKEN");
 }
 
+function marketingEmailSchedulerStatus() {
+  const enabled = process.env.MARKETING_EMAIL_SCHEDULER_ENABLED === "true";
+  const intervalMinutes = Math.max(1, Number(process.env.MARKETING_EMAIL_SCHEDULER_INTERVAL_MINUTES ?? 5));
+  const initialDelaySeconds = Math.max(5, Number(process.env.MARKETING_EMAIL_SCHEDULER_INITIAL_DELAY_SECONDS ?? 30));
+  return {
+    enabled,
+    intervalMinutes,
+    initialDelaySeconds,
+    actor: process.env.MARKETING_EMAIL_SCHEDULER_ACTOR?.trim() || "marketing-email-scheduler",
+  };
+}
+
 function dateOrNull(value: string | null | undefined) {
   return value ? new Date(value) : null;
 }
@@ -1498,6 +1510,7 @@ adminMarketingRouter.get("/summary", async (_req, res) => {
         contacts: contactRows.filter((row) => row.audience_type === audienceType).length,
       })),
       lockedSendCapabilities: channelSendCapabilities(),
+      emailScheduler: marketingEmailSchedulerStatus(),
       latestSyncRun: latestRuns[0] ? serializeSyncRun(latestRuns[0]) : null,
     });
   } catch (error) {
@@ -1760,7 +1773,7 @@ adminMarketingRouter.post("/campaigns/:campaignId/test-email", async (req, res) 
   }
 });
 
-async function sendMarketingCampaignEmail(campaignId: string, actorLabel: string) {
+export async function sendMarketingCampaignEmail(campaignId: string, actorLabel: string) {
   const [campaign] = await db.select().from(marketingCampaigns).where(eq(marketingCampaigns.id, campaignId)).limit(1);
   if (!campaign) return { statusCode: 404, body: { error: "Marketing campaign not found." } };
 
@@ -1915,6 +1928,62 @@ async function sendMarketingCampaignEmail(campaignId: string, actorLabel: string
   };
 }
 
+export async function sendDueMarketingCampaignEmails(actorLabel: string, now = new Date()) {
+  const [campaignRows, channelRows] = await Promise.all([
+    db.select().from(marketingCampaigns).where(eq(marketingCampaigns.status, "scheduled")).orderBy(asc(marketingCampaigns.schedule_starts_at)),
+    db.select().from(marketingCampaignChannels).where(eq(marketingCampaignChannels.channel, "email")).orderBy(asc(marketingCampaignChannels.scheduled_at)),
+  ]);
+  const emailChannelByCampaign = new Map(channelRows.filter((row) => row.channel === "email").map((row) => [row.campaign_id, row]));
+  const dueCampaigns = campaignRows.filter((campaign) => campaign.status === "scheduled").filter((campaign) => {
+    const emailChannel = emailChannelByCampaign.get(campaign.id);
+    if (!emailChannel) return false;
+    const dueAt = emailChannel.scheduled_at ?? campaign.schedule_starts_at;
+    return Boolean(dueAt && dueAt <= now);
+  });
+
+  const results = [];
+  for (const campaign of dueCampaigns) {
+    try {
+      const result = await sendMarketingCampaignEmail(campaign.id, actorLabel);
+      const body = asRecord(result.body);
+      results.push({
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        statusCode: result.statusCode,
+        ok: result.statusCode >= 200 && result.statusCode < 300 && body.ok !== false,
+        sentCount: numberFrom(body, ["sentCount"]),
+        failedCount: numberFrom(body, ["failedCount"]),
+        skippedCount: numberFrom(body, ["skippedCount"]),
+        error: typeof body.error === "string" ? body.error : null,
+      });
+    } catch (error) {
+      results.push({
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        statusCode: 500,
+        ok: false,
+        sentCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+        error: error instanceof Error ? error.message : "Campaign email could not be sent.",
+      });
+    }
+  }
+
+  const sentCount = results.reduce((sum, item) => sum + item.sentCount, 0);
+  const failedCount = results.reduce((sum, item) => sum + item.failedCount + (item.statusCode >= 500 ? 1 : 0), 0);
+  const skippedCount = results.reduce((sum, item) => sum + item.skippedCount + (item.statusCode >= 400 && item.statusCode < 500 ? 1 : 0), 0);
+  return {
+    ok: failedCount === 0,
+    checkedAt: now.toISOString(),
+    dueCount: dueCampaigns.length,
+    sentCount,
+    failedCount,
+    skippedCount,
+    results,
+  };
+}
+
 adminMarketingRouter.post("/campaigns/:campaignId/send-email", async (req, res) => {
   if (!requireSuperAdmin(req, res, "send marketing campaign emails")) return;
 
@@ -1931,60 +2000,7 @@ adminMarketingRouter.post("/campaigns/send-due-email", async (req, res) => {
   if (!requireSuperAdmin(req, res, "send due scheduled marketing emails")) return;
 
   try {
-    const now = new Date();
-    const [campaignRows, channelRows] = await Promise.all([
-      db.select().from(marketingCampaigns).where(eq(marketingCampaigns.status, "scheduled")).orderBy(asc(marketingCampaigns.schedule_starts_at)),
-      db.select().from(marketingCampaignChannels).where(eq(marketingCampaignChannels.channel, "email")).orderBy(asc(marketingCampaignChannels.scheduled_at)),
-    ]);
-    const emailChannelByCampaign = new Map(channelRows.filter((row) => row.channel === "email").map((row) => [row.campaign_id, row]));
-    const dueCampaigns = campaignRows.filter((campaign) => campaign.status === "scheduled").filter((campaign) => {
-      const emailChannel = emailChannelByCampaign.get(campaign.id);
-      if (!emailChannel) return false;
-      const dueAt = emailChannel.scheduled_at ?? campaign.schedule_starts_at;
-      return Boolean(dueAt && dueAt <= now);
-    });
-
-    const results = [];
-    for (const campaign of dueCampaigns) {
-      try {
-        const result = await sendMarketingCampaignEmail(campaign.id, actor(req));
-        const body = asRecord(result.body);
-        results.push({
-          campaignId: campaign.id,
-          campaignName: campaign.name,
-          statusCode: result.statusCode,
-          ok: result.statusCode >= 200 && result.statusCode < 300 && body.ok !== false,
-          sentCount: numberFrom(body, ["sentCount"]),
-          failedCount: numberFrom(body, ["failedCount"]),
-          skippedCount: numberFrom(body, ["skippedCount"]),
-          error: typeof body.error === "string" ? body.error : null,
-        });
-      } catch (error) {
-        results.push({
-          campaignId: campaign.id,
-          campaignName: campaign.name,
-          statusCode: 500,
-          ok: false,
-          sentCount: 0,
-          failedCount: 0,
-          skippedCount: 0,
-          error: error instanceof Error ? error.message : "Campaign email could not be sent.",
-        });
-      }
-    }
-
-    const sentCount = results.reduce((sum, item) => sum + item.sentCount, 0);
-    const failedCount = results.reduce((sum, item) => sum + item.failedCount + (item.statusCode >= 500 ? 1 : 0), 0);
-    const skippedCount = results.reduce((sum, item) => sum + item.skippedCount + (item.statusCode >= 400 && item.statusCode < 500 ? 1 : 0), 0);
-    return res.json({
-      ok: failedCount === 0,
-      checkedAt: now.toISOString(),
-      dueCount: dueCampaigns.length,
-      sentCount,
-      failedCount,
-      skippedCount,
-      results,
-    });
+    return res.json(await sendDueMarketingCampaignEmails(actor(req)));
   } catch (error) {
     console.error("[admin/marketing] due campaign email send failed", error);
     return res.status(500).json({ error: "Due scheduled marketing emails could not be sent." });
@@ -2569,6 +2585,7 @@ adminMarketingRouter.get("/sync/lovable", async (req, res) => {
     mode: "one_way_into_vyva",
     realSendingLocked: false,
     lockedSendCapabilities: channelSendCapabilities(),
+    emailScheduler: marketingEmailSchedulerStatus(),
     runs: runs.map(serializeSyncRun),
   });
 });
