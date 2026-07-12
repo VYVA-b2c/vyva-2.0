@@ -1653,6 +1653,92 @@ const syncCountLabels = {
 
 type SyncCountKey = keyof typeof syncCountLabels;
 
+const lovableDestinationRows: Array<{
+  key: string;
+  label: string;
+  sourceHint: string;
+  destination: string;
+  detail: string;
+  countKeys: SyncCountKey[];
+  contentSourceKeys?: string[];
+}> = [
+  {
+    key: "email-templates",
+    label: "Saved email templates",
+    sourceHint: "saved_email_templates, emailTemplates",
+    destination: "Content tab",
+    detail: "Email subject, HTML, CTA, design data, and media become editable content assets.",
+    countKeys: ["content"],
+    contentSourceKeys: ["saved_email_template", "email_template", "marketing_email_template"],
+  },
+  {
+    key: "social-posts",
+    label: "Social posts",
+    sourceHint: "social_posts, posts",
+    destination: "Content tab",
+    detail: "Platform, caption/body, image, and builder metadata become channel-specific content assets.",
+    countKeys: ["content"],
+    contentSourceKeys: ["social_post", "post", "marketing_social_post"],
+  },
+  {
+    key: "content-briefs",
+    label: "Content briefs",
+    sourceHint: "content_briefs, briefs",
+    destination: "Content tab",
+    detail: "Planning copy and structured brief sections are preserved as content assets and metadata.",
+    countKeys: ["content"],
+    contentSourceKeys: ["content_brief", "brief", "marketing_content_brief"],
+  },
+  {
+    key: "media",
+    label: "Media assets",
+    sourceHint: "media_assets, mediaAssets, images",
+    destination: "Content > Media references",
+    detail: "Standalone and content-linked image/file URLs are listed and can be linked to content.",
+    countKeys: ["mediaAssets"],
+  },
+  {
+    key: "contacts",
+    label: "Contacts",
+    sourceHint: "contacts, email_unsubscribes",
+    destination: "Contacts tab",
+    detail: "Names, email, phone, WhatsApp, company, role, consent, tags, and segmentation fields are searchable.",
+    countKeys: ["contacts"],
+  },
+  {
+    key: "lists",
+    label: "Lists and audiences",
+    sourceHint: "audiences, contact_lists, contact_list_members",
+    destination: "Contacts tab > Lists",
+    detail: "List rules, member IDs, mapped contacts, and unmapped members are shown together.",
+    countKeys: ["audiences", "audienceMembers"],
+  },
+  {
+    key: "campaigns",
+    label: "Campaigns",
+    sourceHint: "campaigns, campaign channels, recipients",
+    destination: "Dashboard, Campaigns, Calendar",
+    detail: "Schedules, channels, linked content, recipient snapshots, and email send controls live in campaign details.",
+    countKeys: ["campaigns", "campaignChannels", "campaignRecipients"],
+  },
+  {
+    key: "analytics",
+    label: "Campaign metrics",
+    sourceHint: "campaignMetrics, analytics, performance",
+    destination: "Dashboard analytics",
+    detail: "Sent, delivered, opened, clicked, bounced, unsubscribed, replied, and social engagement metrics are summarized.",
+    countKeys: ["campaignMetrics"],
+  },
+  {
+    key: "journeys",
+    label: "Journeys",
+    sourceHint: "journeys, journey_steps, enrollments, events",
+    destination: "Journeys tab",
+    detail: "Triggers, goals, steps, enrollment progress, and journey event history are editable or inspectable.",
+    countKeys: ["journeys", "journeyEnrollments", "journeyStepEvents"],
+  },
+];
+
 function recordValue(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
@@ -1714,6 +1800,19 @@ function syncContentSourceItems(summary: Record<string, unknown>) {
     .map(([key, value]) => ({ key, label: contentSourceLabel(key), value: numberValue(value) }))
     .filter((item) => item.value > 0)
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+}
+
+function syncContentSourceCount(summary: Record<string, unknown>, keys: string[]) {
+  const counts = recordValue(summary.contentSourceCounts);
+  return keys.reduce((total, key) => total + numberValue(counts[key]), 0);
+}
+
+function syncDestinationCount(summary: Record<string, unknown>, row: typeof lovableDestinationRows[number]) {
+  const sourceCount = row.contentSourceKeys?.length ? syncContentSourceCount(summary, row.contentSourceKeys) : 0;
+  if (sourceCount) return sourceCount;
+  const exported = row.countKeys.reduce((total, key) => total + syncCountValue(summary, "exported", key), 0);
+  if (exported) return exported;
+  return row.countKeys.reduce((total, key) => total + syncCountValue(summary, "imported", key), 0);
 }
 
 function syncFieldCoverageItems(summary: Record<string, unknown>) {
@@ -2075,6 +2174,7 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
           </div>
         </div>
       ) : null}
+      <LovableDestinationMap summary={run.summary} />
     </div>
   );
 }
@@ -2163,6 +2263,7 @@ function LovableImportCoveragePanel({
             </div>
           </div>
         ) : null}
+        {run ? <LovableDestinationMap summary={run.summary} /> : null}
         {unmappedCount || unmappedCampaignRecipientCount ? (
           <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
             {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
@@ -2171,6 +2272,37 @@ function LovableImportCoveragePanel({
         ) : null}
       </div>
     </SectionCard>
+  );
+}
+
+function LovableDestinationMap({ summary }: { summary: Record<string, unknown> }) {
+  const rows = lovableDestinationRows.map((row) => ({ ...row, count: syncDestinationCount(summary, row) }));
+  const hasCounts = rows.some((row) => row.count > 0);
+  return (
+    <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-destination-map">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Where Lovable data appears</p>
+          <p className="mt-1 text-xs font-semibold text-[#8b7a73]">Use this map to find each imported Lovable source in VYVA after preview or sync.</p>
+        </div>
+        <Pill className={hasCounts ? "bg-emerald-50 text-emerald-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{hasCounts ? "mapped" : "waiting for sync"}</Pill>
+      </div>
+      <div className="mt-3 grid gap-2 xl:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.key} className="rounded-lg border border-[#f0e7df] bg-[#fffaf4] p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-black text-[#241133]">{row.label}</p>
+                <p className="mt-1 text-xs font-semibold text-[#8b7a73]">{row.sourceHint}</p>
+              </div>
+              <Pill className={row.count > 0 ? "bg-blue-50 text-blue-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{row.count}</Pill>
+            </div>
+            <p className="mt-2 text-xs font-black text-purple-800">Destination: {row.destination}</p>
+            <p className="mt-1 text-xs font-semibold text-[#5b4a46]">{row.detail}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -5881,6 +6013,7 @@ function LovableExportPreviewDiagnostics({ preview }: { preview: LovableExportPr
           </div>
         </div>
       ) : null}
+      <LovableDestinationMap summary={preview.summary} />
       <MetadataPanel title="Recognized sample rows from Lovable" value={sampleRows} testId="marketing-export-preview-samples" />
       <MetadataPanel title="Raw top-level Lovable array samples" value={rawArraySamples} testId="marketing-export-preview-raw-samples" />
     </div>

@@ -769,6 +769,14 @@ describe("MarketingAdminPage", () => {
     expect(contentCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     expect(contentCoverage).toHaveTextContent("Mapped first-class: body, channel, id, status, subject, title");
     expect(contentCoverage).toHaveTextContent("All exported: body, channel, extraLovableOnlyField, id, status, subject, title");
+    const syncDestinationMap = screen.getAllByTestId("marketing-lovable-destination-map")[0];
+    expect(syncDestinationMap).toHaveTextContent("Where Lovable data appears");
+    expect(syncDestinationMap).toHaveTextContent("Saved email templates");
+    expect(syncDestinationMap).toHaveTextContent("Content tab");
+    expect(syncDestinationMap).toHaveTextContent("Lists and audiences");
+    expect(syncDestinationMap).toHaveTextContent("Contacts tab > Lists");
+    expect(syncDestinationMap).toHaveTextContent("Campaigns");
+    expect(syncDestinationMap).toHaveTextContent("Dashboard, Campaigns, Calendar");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
@@ -947,6 +955,12 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("saved_email_template: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("social_post: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Top-level export keys");
+    const previewDestinationMap = screen.getAllByTestId("marketing-lovable-destination-map").at(-1);
+    expect(previewDestinationMap).toHaveTextContent("Where Lovable data appears");
+    expect(previewDestinationMap).toHaveTextContent("Social posts");
+    expect(previewDestinationMap).toHaveTextContent("Content tab");
+    expect(previewDestinationMap).toHaveTextContent("Journeys");
+    expect(previewDestinationMap).toHaveTextContent("Journeys tab");
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("Recognized sample rows");
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("template_name");
     expect(screen.getByTestId("marketing-export-preview-raw-samples")).toHaveTextContent("social_posts");
