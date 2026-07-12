@@ -1798,7 +1798,9 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Waiting for you");
     expect(screen.getByTestId("timeline-step-user-confirm")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-contacting")).toHaveAttribute("data-state", "upcoming");
-    expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm and call");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Confirm ride call");
+    expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm ride call");
   });
 
   it("shows contacting provider as the active timeline step for started actions", async () => {
@@ -1908,11 +1910,12 @@ describe("ConciergeScreen route prefill", () => {
     expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
     expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA is handling this");
     expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("VYVA preparing");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Add missing details");
     expect(screen.getByTestId("timeline-step-vyva-prepare")).toHaveAttribute("data-state", "active");
     expect(screen.getByTestId("timeline-step-reply")).toHaveAttribute("data-state", "upcoming");
     expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs first: number of guests");
-    expect(screen.getByText("VYVA is handling it")).toBeVisible();
+    expect(screen.getAllByText("Add missing details").length).toBeGreaterThan(0);
   });
 
   it("shows booking forms as ready to open when no details are missing", async () => {
@@ -1949,6 +1952,7 @@ describe("ConciergeScreen route prefill", () => {
       "href",
       "https://www.thefork.es/restaurante/example?date=tomorrow",
     );
-    expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Open form");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Open appointment form");
+    expect(screen.getByTestId("button-concierge-confirm-form-ready-1")).toHaveTextContent("Open appointment form");
   });
 });

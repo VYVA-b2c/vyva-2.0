@@ -2666,6 +2666,96 @@ function statusLabel(status: ConciergePendingItem["status"], locale = "es"): str
   }
 }
 
+type RightNowActionLabelsParams = {
+  item: ConciergePendingItem;
+  isSpanish: boolean;
+  opensWhatsApp: boolean;
+  opensEmail: boolean;
+  opensBooking: boolean;
+  canOpenForm: boolean;
+  isVyvaTask: boolean;
+  formMissingFields: string[];
+};
+
+function rightNowPassiveActionLabel(params: Pick<RightNowActionLabelsParams, "item" | "isSpanish" | "formMissingFields">): string {
+  const { item, isSpanish, formMissingFields } = params;
+  const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
+  if (formMissingFields.length > 0) return isSpanish ? "Anadir datos que faltan" : "Add missing details";
+  if (missionStatus.includes("awaiting_provider")) return isSpanish ? "Esperar respuesta" : "Wait for provider reply";
+  if (missionStatus.includes("form")) return isSpanish ? "VYVA prepara el formulario" : "VYVA is preparing the form";
+  if (item.use_case === "order_medicine") return isSpanish ? "VYVA prepara el pedido OTC" : "VYVA is preparing the OTC request";
+  return isSpanish ? "VYVA lo esta preparando" : "VYVA is preparing this";
+}
+
+function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string {
+  const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, canOpenForm, isVyvaTask, formMissingFields } = params;
+  if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
+
+  if (item.use_case === "book_ride") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar mensaje del viaje" : "Confirm ride message";
+    if (opensBooking) return isSpanish ? "Abrir reserva del viaje" : "Open ride booking";
+    return isSpanish ? "Confirmar llamada del viaje" : "Confirm ride call";
+  }
+
+  if (item.use_case === "book_appointment") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar mensaje de cita" : "Confirm appointment message";
+    if (opensBooking) return canOpenForm
+      ? (isSpanish ? "Abrir formulario de cita" : "Open appointment form")
+      : (isSpanish ? "Abrir reserva de cita" : "Open appointment booking");
+    return isSpanish ? "Confirmar llamada de cita" : "Confirm appointment call";
+  }
+
+  if (item.use_case === "order_medicine") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar pedido OTC" : "Confirm OTC request";
+    if (opensBooking) return isSpanish ? "Abrir pedido de farmacia" : "Open pharmacy request";
+    return isSpanish ? "Confirmar llamada a farmacia" : "Confirm pharmacy call";
+  }
+
+  if (item.use_case === "home_service") {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Revisar solicitud de presupuesto" : "Review quote request";
+    if (opensBooking) return isSpanish ? "Abrir solicitud de servicio" : "Open service request";
+    return isSpanish ? "Confirmar llamada de servicio" : "Confirm service call";
+  }
+
+  if (opensWhatsApp) return isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft";
+  if (opensEmail) return isSpanish ? "Abrir email" : "Open email draft";
+  if (opensBooking) return canOpenForm
+    ? (isSpanish ? "Abrir formulario" : "Open form")
+    : (isSpanish ? "Abrir reserva" : "Open booking");
+  return isSpanish ? "Confirmar y llamar" : "Confirm and call";
+}
+
+function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
+  const { item, isSpanish } = params;
+  const missionStatus = payloadString(item.action_payload, ["mission_status", "status"]).toLowerCase();
+  if (item.status === "calling") {
+    if (item.use_case === "book_appointment") return isSpanish ? "Escuchar, silenciar o detener" : "Listen, mute, or stop";
+    return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
+  }
+  if (item.status === "failed") return isSpanish ? "Revisar y elegir siguiente paso" : "Review and choose next step";
+  if (missionStatus.includes("awaiting_user_save") || missionStatus.includes("booked")) {
+    if (item.use_case === "book_ride") return isSpanish ? "Guardar viaje confirmado" : "Save confirmed ride";
+    if (item.use_case === "book_appointment") return isSpanish ? "Guardar cita confirmada" : "Save confirmed appointment";
+    return isSpanish ? "Guardar confirmacion" : "Save confirmation";
+  }
+  if (missionStatus.includes("awaiting_provider")) return isSpanish ? "Esperar respuesta del proveedor" : "Wait for provider reply";
+  return rightNowPrimaryActionLabel(params);
+}
+
+function rightNowNextStepHelper(params: RightNowActionLabelsParams): string {
+  const { item, isSpanish, isVyvaTask } = params;
+  if (item.status === "calling") {
+    return isSpanish ? "Puedes volver mas tarde; la tarea seguira aqui." : "You can come back later; this task stays here.";
+  }
+  if (item.status === "failed") {
+    return isSpanish ? "Nada se envia hasta que lo confirmes." : "Nothing is sent until you confirm.";
+  }
+  if (isVyvaTask) {
+    return isSpanish ? "VYVA lo mantiene aqui hasta que este listo para confirmar." : "VYVA keeps it here until it is ready to confirm.";
+  }
+  return isSpanish ? "Tu confirmas antes de enviar, llamar o reservar." : "You confirm before anything is sent, called, or booked.";
+}
+
 type ConciergeTimelineStepState = "done" | "active" | "upcoming" | "warning";
 
 type ConciergeTimelineStep = {
@@ -4944,6 +5034,19 @@ const ConciergeScreen = () => {
   const activeActionPreferredChannel = activeActionIsAppointment && typeof activeAction?.action_payload?.preferred_channel === "string"
     ? activeAction.action_payload.preferred_channel as AppointmentChannel
     : null;
+  const activeActionLabelParams = activeAction ? {
+    item: activeAction,
+    isSpanish,
+    opensWhatsApp: activeActionOpensWhatsApp,
+    opensEmail: activeActionOpensEmail,
+    opensBooking: activeActionOpensBooking,
+    canOpenForm: activeActionCanOpenForm,
+    isVyvaTask: activeActionIsVyvaTask,
+    formMissingFields: activeActionFormMissingFields,
+  } : null;
+  const activeActionPrimaryLabel = activeActionLabelParams ? rightNowPrimaryActionLabel(activeActionLabelParams) : "";
+  const activeActionNextStepLabel = activeActionLabelParams ? rightNowNextStepLabel(activeActionLabelParams) : "";
+  const activeActionNextStepHelper = activeActionLabelParams ? rightNowNextStepHelper(activeActionLabelParams) : "";
   const routePrefillHighlights = routePrefill
     ? buildRoutePrefillHighlights(routePrefill.message, isSpanish)
     : [];
@@ -6385,6 +6488,21 @@ const ConciergeScreen = () => {
 
             <ConciergeActionTimeline steps={activeActionTimeline} />
 
+            <div
+              className="mt-3 rounded-[18px] border border-[#BBF7D0] bg-[#F8FFFC] px-3 py-2"
+              data-testid="panel-concierge-next-action"
+            >
+              <p className="font-body text-[11px] font-black uppercase tracking-[0.12em] text-[#047857]">
+                {isSpanish ? "Siguiente paso" : "Next step"}
+              </p>
+              <p className="mt-1 font-body text-[15px] font-black leading-tight text-vyva-text-1">
+                {activeActionNextStepLabel}
+              </p>
+              <p className="mt-1 font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+                {activeActionNextStepHelper}
+              </p>
+            </div>
+
             {activeActionIsAppointment && (
               <div
                 className="mt-3 rounded-[18px] border border-[#D8B4FE] bg-[#F5F3FF] px-3 py-2"
@@ -6542,7 +6660,7 @@ const ConciergeScreen = () => {
                 {activeActionIsVyvaTask ? (
                   <span className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-[#F5F3FF] px-4 font-body text-[13px] font-black text-vyva-purple">
                     <Sparkles size={15} className="mr-2" />
-                    {isSpanish ? "VYVA lo esta gestionando" : "VYVA is handling it"}
+                    {activeActionPrimaryLabel}
                   </span>
                 ) : (
                   <Button
@@ -6552,15 +6670,7 @@ const ConciergeScreen = () => {
                     className="vyva-primary-action h-auto hover:bg-vyva-purple/90"
                   >
                     {activeActionOpensWhatsApp ? <Send size={16} className="mr-2" /> : activeActionOpensEmail ? <Mail size={16} className="mr-2" /> : activeActionOpensBooking ? <ExternalLink size={16} className="mr-2" /> : <PhoneCall size={16} className="mr-2" />}
-                    {activeActionOpensWhatsApp
-                      ? (isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft")
-                      : activeActionOpensEmail
-                      ? (isSpanish ? "Abrir email" : "Open email draft")
-                      : activeActionOpensBooking
-                      ? activeActionCanOpenForm
-                        ? (isSpanish ? "Abrir formulario" : "Open form")
-                        : (isSpanish ? "Abrir reserva" : "Open booking")
-                      : (isSpanish ? "Confirmar y llamar" : "Confirm and call")}
+                    {activeActionPrimaryLabel}
                   </Button>
                 )}
                 <Button
