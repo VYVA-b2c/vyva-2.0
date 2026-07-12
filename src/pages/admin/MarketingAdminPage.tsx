@@ -4473,21 +4473,12 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
-              {contentDrawerMode ? (
-                <button
-                  type="button"
-                  aria-label="Close content action panel"
-                  className="fixed inset-0 z-40 bg-[#241133]/25"
-                  onClick={closeContentDrawer}
-                  data-testid="button-marketing-close-content-drawer-backdrop"
-                />
-              ) : null}
               <div
                 ref={contentEditorPanelRef}
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
-                className={contentDrawerMode === "edit" ? "fixed inset-y-0 right-0 z-50 w-[min(820px,calc(100vw-32px))] overflow-y-auto border-l border-[#eadfd5] bg-[#fffaf4] p-4 shadow-2xl" : undefined}
+                className={contentDrawerMode === "edit" ? "scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-purple-50/40 p-3 shadow-sm" : undefined}
               >
                 <SectionCard
                   title="Content editor"
@@ -4584,7 +4575,7 @@ export default function MarketingAdminPage() {
                   data-testid="marketing-content-preview-panel"
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
-                  className={contentDrawerMode === "preview" ? "fixed inset-y-0 right-0 z-50 w-[min(820px,calc(100vw-32px))] overflow-y-auto border-l border-[#eadfd5] bg-[#fffaf4] p-4 shadow-2xl" : undefined}
+                  className={contentDrawerMode === "preview" ? "scroll-mt-4 rounded-2xl border-2 border-purple-200 bg-purple-50/40 p-3 shadow-sm" : undefined}
                 >
                   <SectionCard
                     title="Content preview"
