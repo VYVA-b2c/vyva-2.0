@@ -797,6 +797,37 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
   });
 
+  it("filters Lovable contacts by source, consent, segmentation fields, and lists", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("lovable (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("pending (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("en (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("lead (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("healthcare (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("Spain (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("Partners (1)");
+
+    fireEvent.change(screen.getByTestId("select-marketing-contact-market-filter"), { target: { value: "spain" } });
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contacts-table")).not.toHaveTextContent("Karim Assad");
+
+    fireEvent.change(screen.getByTestId("select-marketing-contact-list-filter"), { target: { value: "partners" } });
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("List: Partners");
+
+    fireEvent.change(screen.getByTestId("select-marketing-contact-source-filter"), { target: { value: "vyva" } });
+    expect(screen.getByTestId("marketing-contact-empty-diagnostic")).toHaveTextContent("Contacts are loaded, but hidden");
+
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("2 visible of 2 contacts");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Karim Assad");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Hassan Partner");
+  });
+
   it("filters the content library by imported Lovable source type", async () => {
     renderPage();
 

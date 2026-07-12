@@ -44,6 +44,7 @@ type CampaignStatus = typeof CAMPAIGN_STATUSES[number];
 type JourneyStatus = typeof JOURNEY_STATUSES[number];
 type ContentStatus = typeof CONTENT_STATUSES[number];
 type ConsentStatus = typeof CONSENT_STATUSES[number];
+type CountOption = { value: string; label: string; count: number };
 
 type MarketingSummary = {
   totals: {
@@ -1596,6 +1597,28 @@ function contactSearchText(contact: MarketingContact) {
   ].map(searchableValue).join(" ");
 }
 
+function countedOptions(values: Array<string | null | undefined>): CountOption[] {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const rawValue of values) {
+    const label = String(rawValue ?? "").trim();
+    if (!label) continue;
+    const value = label.toLowerCase();
+    const current = counts.get(value);
+    if (current) {
+      current.count += 1;
+    } else {
+      counts.set(value, { label, count: 1 });
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([value, item]) => ({ value, label: item.label, count: item.count }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function valueMatchesFilter(value: string | null | undefined, filter: string) {
+  return filter === "all" || String(value ?? "").trim().toLowerCase() === filter;
+}
+
 function searchableValue(value: unknown) {
   if (value === null || value === undefined) return "";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value).toLowerCase();
@@ -2185,6 +2208,13 @@ export default function MarketingAdminPage() {
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [audienceFilter, setAudienceFilter] = useState<Audience | "all">("all");
   const [contentSourceFilter, setContentSourceFilter] = useState("all");
+  const [contactSourceFilter, setContactSourceFilter] = useState("all");
+  const [contactConsentFilter, setContactConsentFilter] = useState("all");
+  const [contactLanguageFilter, setContactLanguageFilter] = useState("all");
+  const [contactCategoryFilter, setContactCategoryFilter] = useState("all");
+  const [contactVerticalFilter, setContactVerticalFilter] = useState("all");
+  const [contactMarketFilter, setContactMarketFilter] = useState("all");
+  const [contactListFilter, setContactListFilter] = useState("all");
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft>(() => emptyCampaignDraft());
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
@@ -2360,11 +2390,35 @@ export default function MarketingAdminPage() {
     return matchesText && matchesSource;
   }), [mediaAssets, search, contentSourceFilter, visibleContentIdSet]);
 
+  const contactSourceOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.source)), [contacts]);
+  const contactConsentOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.consentStatus)), [contacts]);
+  const contactLanguageOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.language)), [contacts]);
+  const contactCategoryOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.category)), [contacts]);
+  const contactVerticalOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.vertical)), [contacts]);
+  const contactMarketOptions = useMemo(() => countedOptions(contacts.map((contact) => contact.market)), [contacts]);
+  const contactListOptions = useMemo(() => countedOptions(contacts.flatMap((contact) => contact.lists ?? [])), [contacts]);
+  const contactFiltersActive = [
+    contactSourceFilter,
+    contactConsentFilter,
+    contactLanguageFilter,
+    contactCategoryFilter,
+    contactVerticalFilter,
+    contactMarketFilter,
+    contactListFilter,
+  ].some((value) => value !== "all");
+
   const visibleContacts = useMemo(() => contacts.filter((contact) => {
     const matchesSearch = !search || contactSearchText(contact).includes(search.toLowerCase());
     const matchesAudience = audienceFilter === "all" || contact.audienceType === audienceFilter;
-    return matchesSearch && matchesAudience;
-  }), [contacts, search, audienceFilter]);
+    const matchesSource = valueMatchesFilter(contact.source, contactSourceFilter);
+    const matchesConsent = valueMatchesFilter(contact.consentStatus, contactConsentFilter);
+    const matchesLanguage = valueMatchesFilter(contact.language, contactLanguageFilter);
+    const matchesCategory = valueMatchesFilter(contact.category, contactCategoryFilter);
+    const matchesVertical = valueMatchesFilter(contact.vertical, contactVerticalFilter);
+    const matchesMarket = valueMatchesFilter(contact.market, contactMarketFilter);
+    const matchesList = contactListFilter === "all" || contact.lists.some((list) => valueMatchesFilter(list, contactListFilter));
+    return matchesSearch && matchesAudience && matchesSource && matchesConsent && matchesLanguage && matchesCategory && matchesVertical && matchesMarket && matchesList;
+  }), [contacts, search, audienceFilter, contactSourceFilter, contactConsentFilter, contactLanguageFilter, contactCategoryFilter, contactVerticalFilter, contactMarketFilter, contactListFilter]);
 
   const visibleAudiences = useMemo(() => audiences.filter((audience) => {
     return matchesSearch(search, [
@@ -5189,6 +5243,79 @@ export default function MarketingAdminPage() {
                     </SectionCard>
                   ) : null}
                   <SectionCard title="Contacts" subtitle={`${visibleContacts.length} visible of ${contacts.length} contacts.`}>
+                    <div className="mb-3 grid gap-3 rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3" data-testid="marketing-contact-segmentation-filters">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-[#241133]">Contact segmentation</p>
+                          <p className="text-xs font-bold text-[#7d6b65]">Filter imported Lovable contacts by list, consent, market, language, category, vertical, and source.</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearch("");
+                            setAudienceFilter("all");
+                            setContactSourceFilter("all");
+                            setContactConsentFilter("all");
+                            setContactLanguageFilter("all");
+                            setContactCategoryFilter("all");
+                            setContactVerticalFilter("all");
+                            setContactMarketFilter("all");
+                            setContactListFilter("all");
+                          }}
+                          disabled={!search && audienceFilter === "all" && !contactFiltersActive}
+                          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
+                          data-testid="button-marketing-clear-contact-filters"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                        <Field label="Source">
+                          <select className={inputClass} value={contactSourceFilter} onChange={(event) => setContactSourceFilter(event.target.value)} data-testid="select-marketing-contact-source-filter">
+                            <option value="all">All sources ({contacts.length})</option>
+                            {contactSourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Consent">
+                          <select className={inputClass} value={contactConsentFilter} onChange={(event) => setContactConsentFilter(event.target.value)} data-testid="select-marketing-contact-consent-filter">
+                            <option value="all">All consent ({contacts.length})</option>
+                            {contactConsentOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Language">
+                          <select className={inputClass} value={contactLanguageFilter} onChange={(event) => setContactLanguageFilter(event.target.value)} data-testid="select-marketing-contact-language-filter">
+                            <option value="all">All languages ({contacts.length})</option>
+                            {contactLanguageOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="List">
+                          <select className={inputClass} value={contactListFilter} onChange={(event) => setContactListFilter(event.target.value)} data-testid="select-marketing-contact-list-filter">
+                            <option value="all">All lists ({contacts.length})</option>
+                            {contactListOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <Field label="Category">
+                          <select className={inputClass} value={contactCategoryFilter} onChange={(event) => setContactCategoryFilter(event.target.value)} data-testid="select-marketing-contact-category-filter">
+                            <option value="all">All categories ({contacts.length})</option>
+                            {contactCategoryOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Vertical">
+                          <select className={inputClass} value={contactVerticalFilter} onChange={(event) => setContactVerticalFilter(event.target.value)} data-testid="select-marketing-contact-vertical-filter">
+                            <option value="all">All verticals ({contacts.length})</option>
+                            {contactVerticalOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                        <Field label="Market">
+                          <select className={inputClass} value={contactMarketFilter} onChange={(event) => setContactMarketFilter(event.target.value)} data-testid="select-marketing-contact-market-filter">
+                            <option value="all">All markets ({contacts.length})</option>
+                            {contactMarketOptions.map((option) => <option key={option.value} value={option.value}>{option.label} ({option.count})</option>)}
+                          </select>
+                        </Field>
+                      </div>
+                    </div>
                     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-contacts-table">
                       <table className="min-w-[1500px] border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
@@ -5212,7 +5339,11 @@ export default function MarketingAdminPage() {
                         </thead>
                         <tbody>
                           {visibleContacts.length === 0 ? (
-                            <tr><td colSpan={15} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No contacts match the filters.</td></tr>
+                            <tr>
+                              <td colSpan={15} className="px-4 py-6 text-center font-bold text-[#8b7a73]" data-testid="marketing-contact-empty-diagnostic">
+                                {contacts.length ? "Contacts are loaded, but hidden by the current search or segmentation filters." : "No contacts imported yet."}
+                              </td>
+                            </tr>
                           ) : visibleContacts.map((contact) => {
                             const tagsAndLists = [
                               ...(contact.tags ?? []),
