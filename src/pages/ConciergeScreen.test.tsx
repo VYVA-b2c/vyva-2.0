@@ -2012,6 +2012,19 @@ describe("ConciergeScreen route prefill", () => {
   it("shows recent completed concierge sessions without replacing the active task", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       const target = String(url);
+      if (target === "/api/profile") {
+        return jsonResponse({
+          savedProviders: [
+            { name: "Radio Taxi", role: "taxi", phone: "+34 612 345 678", preferredChannel: "phone" },
+            { name: "Neighborhood Pharmacy", role: "pharmacy", phone: "+34 600 333 444", preferredChannel: "phone" },
+            { name: "Saved Plumber", role: "plumber", phone: "+34 600 222 333", preferredChannel: "phone" },
+          ],
+          serviceReadiness: {
+            hasSavedTransportProvider: true,
+            hasSavedPharmacy: true,
+          },
+        });
+      }
       if (target.endsWith("/api/concierge/actions/pending")) {
         return jsonResponse({
           items: [{
@@ -2040,6 +2053,10 @@ describe("ConciergeScreen route prefill", () => {
               outcome_payload: {
                 flow_reference: CONCIERGE_FLOW_REFERENCES.transportBooking,
                 provider_phone: "+34 612 345 678",
+                pickup_address: "Saved home",
+                destination_address: "City Clinic",
+                requested_time: "tomorrow 09:00",
+                mobility_needs: ["Help to the door"],
                 price_estimate: "EUR18",
                 booking_reference: "RT-123",
               },
@@ -2054,6 +2071,10 @@ describe("ConciergeScreen route prefill", () => {
               completed_at: "2026-08-03T17:00:00.000Z",
               outcome_payload: {
                 flow_reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+                item_text: "Vitamin D",
+                fulfillment_preference: "pickup",
+                requested_time: "tomorrow",
+                notes: "Same brand",
                 cost_estimate: "EUR12",
                 pharmacy_reference: "PH-22",
               },
@@ -2068,6 +2089,9 @@ describe("ConciergeScreen route prefill", () => {
               completed_at: "2026-08-02T10:00:00.000Z",
               outcome_payload: {
                 appointment_type: "home-service",
+                service_type: "plumber",
+                problem_summary: "Leak under the kitchen sink",
+                urgency: "tomorrow",
                 estimated_cost: "EUR80",
                 location: "Home kitchen",
               },
@@ -2109,11 +2133,31 @@ describe("ConciergeScreen route prefill", () => {
     expect(within(receipt).getByTestId("list-concierge-completed-receipt-details")).toHaveTextContent("RT-123");
     expect(within(receipt).getByTestId("link-concierge-receipt-contact")).toHaveAttribute("href", "tel:+34612345678");
 
-    fireEvent.click(within(receipt).getByTestId("button-concierge-receipt-repeat"));
+    fireEvent.click(within(receipt).getByTestId("button-concierge-receipt-template"));
     await waitFor(() => {
       expect(screen.queryByTestId("modal-concierge-completed-receipt")).not.toBeInTheDocument();
     });
-    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Help me do this again");
+    expect(screen.getByTestId("panel-concierge-route-prefill")).toHaveTextContent("Transport options");
+    expect(screen.getByTestId("input-transport-pickup")).toHaveValue("Saved home");
+    expect(screen.getByTestId("input-transport-destination")).toHaveValue("City Clinic");
+    expect(screen.getByTestId("input-transport-time")).toHaveValue("tomorrow 09:00");
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-otc"));
+    const otcReceipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    fireEvent.click(within(otcReceipt).getByTestId("button-concierge-receipt-template"));
+
+    expect(await screen.findByTestId("panel-otc-pharmacy")).toHaveTextContent("Saved pharmacy: Neighborhood Pharmacy");
+    expect(screen.getByTestId("input-otc-pharmacy-item")).toHaveValue("Vitamin D");
+    expect(screen.getByTestId("input-otc-pharmacy-time")).toHaveValue("tomorrow");
+    expect(screen.getByTestId("input-otc-pharmacy-notes")).toHaveValue("Same brand");
+
+    fireEvent.click(screen.getByTestId("card-concierge-completed-session-home"));
+    const homeReceipt = await screen.findByTestId("panel-concierge-completed-receipt");
+    fireEvent.click(within(homeReceipt).getByTestId("button-concierge-receipt-template"));
+
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("Home service");
+    expect(screen.getByTestId("panel-home-service-intake")).toBeVisible();
+    expect(screen.getByTestId("button-home-service-type-plumber")).toBeInTheDocument();
   });
 
   it("shows contacting provider as the active timeline step for started actions", async () => {
