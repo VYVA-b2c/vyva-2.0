@@ -255,6 +255,26 @@
       "action": "VYVA fragen",
       "aria": "VYVA fragen, wo man anfangen soll"
     },
+    "conciergeResume": {
+      "kicker": "Jetzt",
+      "titlePrefix": "VYVA arbeitet an deinem",
+      "task": {
+        "ride": "Transport",
+        "appointment": "Termin",
+        "pharmacy": "Apothekenanfrage",
+        "homeService": "Hausdienst",
+        "default": "Anliegen"
+      },
+      "step": {
+        "contacting": "Anbieter kontaktieren",
+        "waiting": "Auf Antwort warten",
+        "form": "Formular vorbereiten",
+        "save": "Bereit zum Speichern",
+        "attention": "Braucht deine Pruefung",
+        "confirm": "Wartet auf deine Bestaetigung"
+      },
+      "open": "Jetzt oeffnen"
+    },
     "fastHelp": {
       "kicker": "Schnelle Hilfe",
       "title": "Was soll VYVA fur Sie tun?",

@@ -387,6 +387,26 @@
       "action": "Ask VYVA",
       "aria": "Ask VYVA where to start"
     },
+    "conciergeResume": {
+      "kicker": "Right now",
+      "titlePrefix": "VYVA is working on your",
+      "task": {
+        "ride": "ride",
+        "appointment": "appointment",
+        "pharmacy": "pharmacy request",
+        "homeService": "home service",
+        "default": "request"
+      },
+      "step": {
+        "contacting": "Contacting provider",
+        "waiting": "Waiting for reply",
+        "form": "Preparing form",
+        "save": "Ready to save",
+        "attention": "Needs your review",
+        "confirm": "Waiting for your confirmation"
+      },
+      "open": "Open Right Now"
+    },
     "fastHelp": {
       "kicker": "Fast help",
       "title": "What would you like VYVA to do?",

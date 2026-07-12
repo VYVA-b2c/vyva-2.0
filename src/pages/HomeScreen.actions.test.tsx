@@ -124,6 +124,20 @@ const labels: Record<string, string> = {
   "home.nudge.text": "Not sure where to start?",
   "home.nudge.action": "Ask VYVA",
   "home.nudge.aria": "Ask VYVA where to start",
+  "home.conciergeResume.kicker": "Right now",
+  "home.conciergeResume.titlePrefix": "VYVA is working on your",
+  "home.conciergeResume.task.ride": "ride",
+  "home.conciergeResume.task.appointment": "appointment",
+  "home.conciergeResume.task.pharmacy": "pharmacy request",
+  "home.conciergeResume.task.homeService": "home service",
+  "home.conciergeResume.task.default": "request",
+  "home.conciergeResume.step.contacting": "Contacting provider",
+  "home.conciergeResume.step.waiting": "Waiting for reply",
+  "home.conciergeResume.step.form": "Preparing form",
+  "home.conciergeResume.step.save": "Ready to save",
+  "home.conciergeResume.step.attention": "Needs your review",
+  "home.conciergeResume.step.confirm": "Waiting for your confirmation",
+  "home.conciergeResume.open": "Open Right Now",
   "meds.callGpNamed": "Call {{name}}",
   "meds.callGp": "Call GP",
   "meds.callGpSub": "Speak to your practice now.",
@@ -247,6 +261,44 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("card-home-agent-cognitive")).toHaveTextContent("4 days");
     expect(screen.getByTestId("card-home-agent-social")).toHaveTextContent("2 saved");
     expect(screen.getByTestId("card-home-agent-concierge")).toHaveTextContent("2 tasks");
+  });
+
+  it("surfaces an active Concierge task and opens Right Now", () => {
+    queryMock.mockImplementation((queryKey: unknown[]) => {
+      const [key] = queryKey;
+      if (key === "/api/weather") {
+        return { data: { city: "Madrid", temperature: 22, description: "Clear" }, isError: false, error: null };
+      }
+      if (key === "/api/concierge/actions/pending") {
+        return {
+          data: {
+            items: [{
+              id: "ride-1",
+              use_case: "book_ride",
+              status: "calling",
+              provider_name: "Radio Taxi",
+              action_summary: "VYVA is contacting Radio Taxi.",
+              action_payload: null,
+            }],
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      return { data: null, isError: false, error: null };
+    });
+
+    render(<HomeScreen />);
+
+    const nudge = screen.getByTestId("card-home-concierge-resume");
+    expect(nudge).toHaveTextContent("Right now");
+    expect(nudge).toHaveTextContent("VYVA is working on your ride");
+    expect(nudge).toHaveTextContent("Contacting provider");
+    expect(nudge).toHaveTextContent("Open Right Now");
+
+    fireEvent.click(nudge);
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", { state: { focusRightNow: true } });
   });
 
   it("does not render the legacy Home chat nudge", () => {
