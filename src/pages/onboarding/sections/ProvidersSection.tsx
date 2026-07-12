@@ -30,6 +30,7 @@ import {
   normalizeConciergeProviderCategory,
   type ConciergeProviderCategoryId,
 } from "../../../../shared/conciergeFlowRegistry";
+import { useTranslation } from "react-i18next";
 
 interface ProviderCategory {
   id: ConciergeProviderCategoryId;
@@ -312,6 +313,7 @@ const ProvidersSection = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const initialCategory = setupFocusFromState(location.state) ?? PROVIDER_CATEGORIES[0].id;
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory);
@@ -575,7 +577,13 @@ const ProvidersSection = () => {
     try {
       res = await saveProvidersToServer(updatedList);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast({ title: "Provider updated" });
+      toast({
+        title: t("onboarding.toast.providerUpdated.title", "Provider updated"),
+        description: t("onboarding.toast.providerUpdated.description", {
+          name: entry.name || t("onboarding.toast.providerUpdated.fallbackName", "This provider"),
+          defaultValue: "{{name}} was saved to your trusted providers.",
+        }),
+      });
     } catch (err) {
       setProviders(providers);
       const msg = await friendlyError(err, res && !res.ok ? res : undefined);

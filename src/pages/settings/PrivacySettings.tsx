@@ -331,7 +331,10 @@ const PrivacySettings = () => {
           members: current.members.map((member) => member.id === data.member.id ? data.member : member),
         };
       });
-      toast({ title: "Brain Coach access updated" });
+      toast({
+        title: t("settings.privacy.brainCoachAccessUpdated", "Brain Coach access updated"),
+        description: t("settings.privacy.brainCoachAccessUpdatedDesc", "This care team member's Brain Coach permissions were saved."),
+      });
     },
     onError: (error) => {
       toast({

@@ -646,10 +646,17 @@ const MedsScreen = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       setEditMed(null);
-      toast({ title: t("meds.editSuccess", "Medication updated") });
+      toast({
+        title: t("meds.editSuccess", "Medication updated"),
+        description: t("meds.editSuccessDesc", "Your medication details were saved."),
+      });
     },
     onError: () => {
-      toast({ title: t("meds.editError", "Could not update medication"), variant: "destructive" });
+      toast({
+        title: t("meds.editError", "Could not update medication"),
+        description: t("meds.editErrorDesc", "Your medication details were not saved. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -667,10 +674,17 @@ const MedsScreen = () => {
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       setDeleteMed(null);
-      toast({ title: t("meds.deleteSuccess", "Medication removed") });
+      toast({
+        title: t("meds.deleteSuccess", "Medication removed"),
+        description: t("meds.deleteSuccessDesc", "This medicine was removed from your list."),
+      });
     },
     onError: () => {
-      toast({ title: t("meds.deleteError", "Could not remove medication"), variant: "destructive" });
+      toast({
+        title: t("meds.deleteError", "Could not remove medication"),
+        description: t("meds.deleteErrorDesc", "This medicine was not removed from your list. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 
@@ -781,16 +795,29 @@ const MedsScreen = () => {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
-      toast({ title: t("meds.taken"), description: med.displayName });
+      toast({
+        title: t("meds.takenToastTitle", "Good job"),
+        description: t("meds.takenToastDescription", {
+          medicine: med.displayName,
+          defaultValue: "{{medicine}} was taken.",
+        }),
+      });
     },
     onError: (error) => {
       const err = error as Error & { status?: number };
       if (err.status === 409) {
         queryClient.invalidateQueries({ queryKey: ["/api/meds/adherence-report/today"] });
-        toast({ title: t("meds.taken"), description: t("meds.allTaken") });
+        toast({
+          title: t("meds.takenToastTitle", "Good job"),
+          description: t("meds.allTakenToastDescription", "All of today's doses are already marked as taken."),
+        });
         return;
       }
-      toast({ title: "Could not confirm dose", variant: "destructive" });
+      toast({
+        title: t("meds.confirmDoseError", "Could not confirm dose"),
+        description: t("meds.confirmDoseErrorDesc", "The dose was not marked as taken. Please try again."),
+        variant: "destructive",
+      });
     },
   });
 

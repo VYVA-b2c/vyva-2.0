@@ -642,7 +642,8 @@
         "appVersion": "Versione app",
         "signOut": "Disconnettiti",
         "deleteAccount": "Elimina il mio account e tutti i dati",
-        "deleteAccountSub": "Permanente — non può essere annullato"
+        "deleteAccountSub": "Permanente — non può essere annullato",
+        "downloadDataStartedDesc": "VYVA ha avviato il download dell?esportazione del tuo profilo."
       }
     },
     "notifications": {
@@ -673,7 +674,8 @@
       "supportModeAi": "Con IA",
       "supportModeAiSub": "VYVA gestisce automaticamente check-in e promemoria di routine.",
       "supportModeHuman": "Con supporto umano",
-      "supportModeHumanSub": "Una persona gestisce il contatto mentre VYVA mantiene chiaro il piano."
+      "supportModeHumanSub": "Una persona gestisce il contatto mentre VYVA mantiene chiaro il piano.",
+      "savedDesc": "Le tue preferenze di notifica sono state aggiornate."
     },
     "privacy": {
       "title": "Privacy e consenso",
@@ -689,7 +691,9 @@
       "locationSub": "Posizione in tempo reale quando attivo",
       "conversationsLabel": "Riepiloghi delle conversazioni",
       "conversationsSub": "Momenti salienti quotidiani delle tue chat",
-      "gdprFooter": "Le modifiche vengono salvate automaticamente. Protetto dal GDPR."
+      "gdprFooter": "Le modifiche vengono salvate automaticamente. Protetto dal GDPR.",
+      "brainCoachAccessUpdated": "Accesso a Brain Coach aggiornato",
+      "brainCoachAccessUpdatedDesc": "I permessi Brain Coach di questo membro del team di cura sono stati salvati."
     },
     "account": {
       "title": "Il mio account",
@@ -737,7 +741,13 @@
       "requiredFieldsMissing": "Completa i campi obbligatori.",
       "saved": "Dati account salvati",
       "saveError": "Impossibile salvare i dati account",
-      "defaultName": "Maria"
+      "defaultName": "Maria",
+      "requiredFieldsMissingDesc": "Completa i dati del profilo evidenziati prima di salvare.",
+      "savedDesc": "I dati del tuo account sono stati salvati.",
+      "photoUpdated": "Foto aggiornata",
+      "photoUpdatedDesc": "La tua foto profilo ? stata salvata.",
+      "photoError": "Impossibile aggiornare la foto",
+      "photoErrorDesc": "La tua foto profilo non ? stata salvata. Prova con un?altra immagine."
     }
   },
   "health": {
@@ -1458,6 +1468,31 @@
       "asked": "Ho chiesto",
       "later": "Piu tardi",
       "footer": "{{count}} farmaci controllati. VYVA non cambia mai le dosi."
+    },
+    "takenToastTitle": "Ottimo lavoro",
+    "takenToastDescription": "{{medicine}} ? stato segnato come assunto.",
+    "allTakenToastDescription": "Tutte le dosi di oggi sono gi? segnate come assunte.",
+    "editSuccessDesc": "I dettagli del farmaco sono stati salvati.",
+    "editErrorDesc": "I dettagli del farmaco non sono stati salvati. Riprova.",
+    "deleteSuccessDesc": "Questo farmaco ? stato rimosso dalla tua lista.",
+    "deleteErrorDesc": "Questo farmaco non ? stato rimosso dalla tua lista. Riprova.",
+    "confirmDoseError": "Impossibile confermare la dose",
+    "confirmDoseErrorDesc": "La dose non ? stata segnata come assunta. Riprova.",
+    "safety": {
+      "analyseSuccess": "Controllo di sicurezza aggiornato",
+      "analyseSuccessDesc": "VYVA ha controllato i segnali dei tuoi farmaci.",
+      "analyseError": "Impossibile analizzare la sicurezza dei farmaci",
+      "analyseErrorDesc": "VYVA non ha potuto controllare i segnali dei tuoi farmaci in questo momento.",
+      "sharedSuccess": "Caso condiviso con il caregiver",
+      "sharedSuccessDesc": "Il caso di sicurezza del farmaco ? stato condiviso con il tuo caregiver.",
+      "saveSuccess": "Caso di sicurezza salvato",
+      "saveSuccessDesc": "Il caso di sicurezza del farmaco ? stato salvato per la revisione.",
+      "saveError": "Impossibile salvare il caso di sicurezza",
+      "saveErrorDesc": "Il caso di sicurezza del farmaco non ? stato salvato. Riprova.",
+      "exportSuccess": "Pacchetto pronto per audit creato",
+      "exportSuccessDesc": "Il pacchetto di sicurezza del farmaco ? pronto per essere copiato o condiviso.",
+      "exportError": "Impossibile esportare il caso di sicurezza",
+      "exportErrorDesc": "Il pacchetto di sicurezza del farmaco non ? stato creato. Riprova."
     }
   },
   "brain": {
@@ -1706,6 +1741,30 @@
       "title": "Prossimamente",
       "subtitle": "Questa sezione sarà disponibile presto.",
       "back": "Torna al profilo"
+    },
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Allergeni gi? salvati",
+        "description": "Tutto ci? che hai detto ? gi? nella tua lista allergie."
+      },
+      "allergyListUpdated": {
+        "title": "Lista allergie aggiornata"
+      },
+      "healthConditionsUpdated": {
+        "title": "Condizioni di salute aggiornate"
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Hobby gi? salvati",
+        "description": "Tutto ci? che hai detto ? gi? selezionato."
+      },
+      "hobbiesUpdated": {
+        "title": "Hobby aggiornati"
+      },
+      "providerUpdated": {
+        "title": "Fornitore aggiornato",
+        "description": "{{name}} ? stato salvato tra i tuoi fornitori fidati.",
+        "fallbackName": "Questo fornitore"
+      }
     }
   },
   "weather": {
@@ -1776,7 +1835,8 @@
       "accepted": "Connesso",
       "accept": "Accetta",
       "decline": "Rifiuta",
-      "requestSent": "Richiesta di connessione inviata!"
+      "requestSent": "Richiesta di connessione inviata!",
+      "requestSentDesc": "La tua richiesta di compagnia ? stata inviata."
     },
     "noConnections": "Ancora nessun compagno — controlla la scheda Suggerimenti!",
     "activityTile": "Connettiti con altri",
@@ -1787,7 +1847,11 @@
       "saveInterestsFailed": "Impossibile salvare gli interessi",
       "connectFailed": "Impossibile inviare la richiesta",
       "respondFailed": "Impossibile aggiornare la connessione",
-      "activateFailed": "Impossibile attivare la comunità. Riprova."
+      "activateFailed": "Impossibile attivare la comunità. Riprova.",
+      "saveInterestsFailedDesc": "I tuoi interessi per la compagnia non sono stati salvati. Riprova.",
+      "connectFailedDesc": "La tua richiesta di compagnia non ? stata inviata. Riprova.",
+      "respondFailedDesc": "La tua risposta di compagnia non ? stata salvata. Riprova.",
+      "activateFailedDesc": "La ricerca di compagnia non ? stata attivata. Riprova."
     },
     "profile": {
       "valuesTitle": "Cosa è importante per te",

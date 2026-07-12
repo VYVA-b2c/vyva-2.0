@@ -522,7 +522,8 @@
         "appVersion": "Versão do aplicativo",
         "signOut": "Sair",
         "deleteAccount": "Excluir minha conta e todos os dados",
-        "deleteAccountSub": "Permanente — não pode ser desfeito"
+        "deleteAccountSub": "Permanente — não pode ser desfeito",
+        "downloadDataStartedDesc": "A VYVA come?ou a transferir a exporta??o do seu perfil."
       }
     },
     "notifications": {
@@ -553,7 +554,8 @@
       "supportModeAi": "Com IA",
       "supportModeAiSub": "A VYVA gere automaticamente check-ins e lembretes de rotina.",
       "supportModeHuman": "Com apoio humano",
-      "supportModeHumanSub": "Uma pessoa gere o contacto enquanto a VYVA mantém o plano claro."
+      "supportModeHumanSub": "Uma pessoa gere o contacto enquanto a VYVA mantém o plano claro.",
+      "savedDesc": "As suas prefer?ncias de notifica??o foram atualizadas."
     },
     "privacy": {
       "title": "Privacidade e consentimento",
@@ -569,7 +571,9 @@
       "locationSub": "Localização em tempo real quando ativo",
       "conversationsLabel": "Resumos de conversas",
       "conversationsSub": "Destaques diários dos seus chats",
-      "gdprFooter": "As alterações são salvas automaticamente. Protegido pelo RGPD."
+      "gdprFooter": "As alterações são salvas automaticamente. Protegido pelo RGPD.",
+      "brainCoachAccessUpdated": "Acesso ao Brain Coach atualizado",
+      "brainCoachAccessUpdatedDesc": "As permiss?es de Brain Coach deste membro da equipa de cuidados foram guardadas."
     },
     "account": {
       "title": "Minha conta",
@@ -617,7 +621,13 @@
       "requiredFieldsMissing": "Preencha os campos obrigatorios.",
       "saved": "Dados da conta guardados",
       "saveError": "Nao foi possivel guardar os dados da conta",
-      "defaultName": "Maria"
+      "defaultName": "Maria",
+      "requiredFieldsMissingDesc": "Preencha os dados destacados do perfil antes de guardar.",
+      "savedDesc": "Os dados da sua conta foram guardados.",
+      "photoUpdated": "Foto atualizada",
+      "photoUpdatedDesc": "A sua foto de perfil foi guardada.",
+      "photoError": "N?o foi poss?vel atualizar a foto",
+      "photoErrorDesc": "A sua foto de perfil n?o foi guardada. Tente outra imagem."
     }
   },
   "health": {
@@ -1338,6 +1348,31 @@
       "asked": "Perguntei",
       "later": "Mais tarde",
       "footer": "{{count}} medicamentos verificados. A VYVA nunca altera doses."
+    },
+    "takenToastTitle": "Bom trabalho",
+    "takenToastDescription": "{{medicine}} foi marcado como tomado.",
+    "allTakenToastDescription": "Todas as doses de hoje j? est?o marcadas como tomadas.",
+    "editSuccessDesc": "Os dados do medicamento foram guardados.",
+    "editErrorDesc": "Os dados do medicamento n?o foram guardados. Tente novamente.",
+    "deleteSuccessDesc": "Este medicamento foi removido da sua lista.",
+    "deleteErrorDesc": "Este medicamento n?o foi removido da sua lista. Tente novamente.",
+    "confirmDoseError": "N?o foi poss?vel confirmar a dose",
+    "confirmDoseErrorDesc": "A dose n?o foi marcada como tomada. Tente novamente.",
+    "safety": {
+      "analyseSuccess": "Verifica??o de seguran?a atualizada",
+      "analyseSuccessDesc": "A VYVA reviu os sinais dos seus medicamentos.",
+      "analyseError": "N?o foi poss?vel analisar a seguran?a dos medicamentos",
+      "analyseErrorDesc": "A VYVA n?o conseguiu rever os sinais dos seus medicamentos neste momento.",
+      "sharedSuccess": "Caso partilhado com o cuidador",
+      "sharedSuccessDesc": "O caso de seguran?a do medicamento foi partilhado com o seu cuidador.",
+      "saveSuccess": "Caso de seguran?a guardado",
+      "saveSuccessDesc": "O caso de seguran?a do medicamento foi guardado para revis?o.",
+      "saveError": "N?o foi poss?vel guardar o caso de seguran?a",
+      "saveErrorDesc": "O caso de seguran?a do medicamento n?o foi guardado. Tente novamente.",
+      "exportSuccess": "Pacote pronto para auditoria criado",
+      "exportSuccessDesc": "O pacote de seguran?a do medicamento est? pronto para copiar ou partilhar.",
+      "exportError": "N?o foi poss?vel exportar o caso de seguran?a",
+      "exportErrorDesc": "O pacote de seguran?a do medicamento n?o foi criado. Tente novamente."
     }
   },
   "brain": {
@@ -1586,6 +1621,30 @@
       "title": "Em breve",
       "subtitle": "Esta secção estará disponível em breve.",
       "back": "Voltar ao perfil"
+    },
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Alerg?nios j? guardados",
+        "description": "Tudo o que disse j? est? na sua lista de alergias."
+      },
+      "allergyListUpdated": {
+        "title": "Lista de alergias atualizada"
+      },
+      "healthConditionsUpdated": {
+        "title": "Condi??es de sa?de atualizadas"
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Interesses j? guardados",
+        "description": "Tudo o que disse j? est? selecionado."
+      },
+      "hobbiesUpdated": {
+        "title": "Interesses atualizados"
+      },
+      "providerUpdated": {
+        "title": "Fornecedor atualizado",
+        "description": "{{name}} foi guardado nos seus fornecedores de confian?a.",
+        "fallbackName": "Este fornecedor"
+      }
     }
   },
   "weather": {
@@ -1656,7 +1715,8 @@
       "accepted": "Conectado",
       "accept": "Aceitar",
       "decline": "Recusar",
-      "requestSent": "Pedido de ligação enviado!"
+      "requestSent": "Pedido de ligação enviado!",
+      "requestSentDesc": "O seu pedido de companhia foi enviado."
     },
     "noConnections": "Ainda sem companheiros — veja a aba Sugestões!",
     "activityTile": "Conectar com outros",
@@ -1667,7 +1727,11 @@
       "saveInterestsFailed": "Não foi possível guardar os interesses",
       "connectFailed": "Não foi possível enviar o pedido",
       "respondFailed": "Não foi possível atualizar a ligação",
-      "activateFailed": "Não foi possível ativar a comunidade. Por favor, tente novamente."
+      "activateFailed": "Não foi possível ativar a comunidade. Por favor, tente novamente.",
+      "saveInterestsFailedDesc": "Os seus interesses de companhia n?o foram guardados. Tente novamente.",
+      "connectFailedDesc": "O seu pedido de companhia n?o foi enviado. Tente novamente.",
+      "respondFailedDesc": "A sua resposta de companhia n?o foi guardada. Tente novamente.",
+      "activateFailedDesc": "A procura de companhia n?o foi ativada. Tente novamente."
     },
     "profile": {
       "valuesTitle": "O que é importante para si",

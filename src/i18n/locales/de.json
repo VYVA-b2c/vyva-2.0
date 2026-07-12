@@ -522,7 +522,8 @@
         "appVersion": "App-Version",
         "signOut": "Abmelden",
         "deleteAccount": "Mein Konto und alle Daten löschen",
-        "deleteAccountSub": "Dauerhaft — kann nicht rückgängig gemacht werden"
+        "deleteAccountSub": "Dauerhaft — kann nicht rückgängig gemacht werden",
+        "downloadDataStartedDesc": "VYVA hat den Download Ihres Profilexports gestartet."
       }
     },
     "notifications": {
@@ -553,7 +554,8 @@
       "supportModeAi": "KI-gestützt",
       "supportModeAiSub": "VYVA übernimmt routinemäßige Check-ins und Erinnerungen automatisch.",
       "supportModeHuman": "Menschliche Unterstützung",
-      "supportModeHumanSub": "Eine Person übernimmt den Kontakt, während VYVA den Plan klar hält."
+      "supportModeHumanSub": "Eine Person übernimmt den Kontakt, während VYVA den Plan klar hält.",
+      "savedDesc": "Ihre Benachrichtigungseinstellungen wurden aktualisiert."
     },
     "privacy": {
       "title": "Datenschutz & Einwilligung",
@@ -569,7 +571,9 @@
       "locationSub": "Echtzeit-Standort bei Aktivität",
       "conversationsLabel": "Gesprächszusammenfassungen",
       "conversationsSub": "Tägliche Highlights aus Ihren Chats",
-      "gdprFooter": "Änderungen werden automatisch gespeichert. Geschützt gemäß DSGVO."
+      "gdprFooter": "Änderungen werden automatisch gespeichert. Geschützt gemäß DSGVO.",
+      "brainCoachAccessUpdated": "Brain-Coach-Zugriff aktualisiert",
+      "brainCoachAccessUpdatedDesc": "Die Brain-Coach-Berechtigungen dieses Betreuungsteam-Mitglieds wurden gespeichert."
     },
     "account": {
       "title": "Mein Konto",
@@ -617,7 +621,13 @@
       "requiredFieldsMissing": "Bitte fullen Sie die erforderlichen Felder aus.",
       "saved": "Kontodaten gespeichert",
       "saveError": "Kontodaten konnten nicht gespeichert werden",
-      "defaultName": "Maria"
+      "defaultName": "Maria",
+      "requiredFieldsMissingDesc": "Bitte f?llen Sie die markierten Profildaten aus, bevor Sie speichern.",
+      "savedDesc": "Ihre Kontodaten wurden gespeichert.",
+      "photoUpdated": "Foto aktualisiert",
+      "photoUpdatedDesc": "Ihr Profilfoto wurde gespeichert.",
+      "photoError": "Foto konnte nicht aktualisiert werden",
+      "photoErrorDesc": "Ihr Profilfoto wurde nicht gespeichert. Bitte versuchen Sie es mit einem anderen Bild."
     }
   },
   "health": {
@@ -1338,6 +1348,31 @@
       "asked": "Ich habe gefragt",
       "later": "Spaeter",
       "footer": "{{count}} Medikamente geprueft. VYVA aendert niemals Dosierungen."
+    },
+    "takenToastTitle": "Gut gemacht",
+    "takenToastDescription": "{{medicine}} wurde als eingenommen markiert.",
+    "allTakenToastDescription": "Alle heutigen Dosen sind bereits als eingenommen markiert.",
+    "editSuccessDesc": "Ihre Medikamentendaten wurden gespeichert.",
+    "editErrorDesc": "Ihre Medikamentendaten wurden nicht gespeichert. Bitte versuchen Sie es erneut.",
+    "deleteSuccessDesc": "Dieses Medikament wurde aus Ihrer Liste entfernt.",
+    "deleteErrorDesc": "Dieses Medikament wurde nicht aus Ihrer Liste entfernt. Bitte versuchen Sie es erneut.",
+    "confirmDoseError": "Dosis konnte nicht best?tigt werden",
+    "confirmDoseErrorDesc": "Die Dosis wurde nicht als eingenommen markiert. Bitte versuchen Sie es erneut.",
+    "safety": {
+      "analyseSuccess": "Sicherheitspr?fung aktualisiert",
+      "analyseSuccessDesc": "VYVA hat Ihre Medikamentensignale gepr?ft.",
+      "analyseError": "Medikamentensicherheit konnte nicht analysiert werden",
+      "analyseErrorDesc": "VYVA konnte Ihre Medikamentensignale im Moment nicht pr?fen.",
+      "sharedSuccess": "Fall mit Betreuungsperson geteilt",
+      "sharedSuccessDesc": "Der Medikamentensicherheitsfall wurde mit Ihrer Betreuungsperson geteilt.",
+      "saveSuccess": "Sicherheitsfall gespeichert",
+      "saveSuccessDesc": "Der Medikamentensicherheitsfall wurde zur Pr?fung gespeichert.",
+      "saveError": "Sicherheitsfall konnte nicht gespeichert werden",
+      "saveErrorDesc": "Der Medikamentensicherheitsfall wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
+      "exportSuccess": "Pr?fbereites Paket erstellt",
+      "exportSuccessDesc": "Das Medikamentensicherheitspaket ist zum Kopieren oder Teilen bereit.",
+      "exportError": "Sicherheitsfall konnte nicht exportiert werden",
+      "exportErrorDesc": "Das Medikamentensicherheitspaket wurde nicht erstellt. Bitte versuchen Sie es erneut."
     }
   },
   "brain": {
@@ -1586,6 +1621,30 @@
       "title": "Demnächst",
       "subtitle": "Dieser Bereich ist bald verfügbar.",
       "back": "Zurück zum Profil"
+    },
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Allergene bereits gespeichert",
+        "description": "Alles, was Sie gesagt haben, steht bereits auf Ihrer Allergieliste."
+      },
+      "allergyListUpdated": {
+        "title": "Allergieliste aktualisiert"
+      },
+      "healthConditionsUpdated": {
+        "title": "Gesundheitsangaben aktualisiert"
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Hobbys bereits gespeichert",
+        "description": "Alles, was Sie gesagt haben, ist bereits ausgew?hlt."
+      },
+      "hobbiesUpdated": {
+        "title": "Hobbys aktualisiert"
+      },
+      "providerUpdated": {
+        "title": "Anbieter aktualisiert",
+        "description": "{{name}} wurde in Ihren vertrauensw?rdigen Anbietern gespeichert.",
+        "fallbackName": "Dieser Anbieter"
+      }
     }
   },
   "weather": {
@@ -1656,7 +1715,8 @@
       "accepted": "Verbunden",
       "accept": "Annehmen",
       "decline": "Ablehnen",
-      "requestSent": "Verbindungsanfrage gesendet!"
+      "requestSent": "Verbindungsanfrage gesendet!",
+      "requestSentDesc": "Ihre Begleiteranfrage wurde gesendet."
     },
     "noConnections": "Noch keine Begleiter — schau in den Vorschlägen nach!",
     "activityTile": "Mit anderen verbinden",
@@ -1667,7 +1727,11 @@
       "saveInterestsFailed": "Interessen konnten nicht gespeichert werden",
       "connectFailed": "Anfrage konnte nicht gesendet werden",
       "respondFailed": "Verbindung konnte nicht aktualisiert werden",
-      "activateFailed": "Community konnte nicht aktiviert werden. Bitte versuchen Sie es erneut."
+      "activateFailed": "Community konnte nicht aktiviert werden. Bitte versuchen Sie es erneut.",
+      "saveInterestsFailedDesc": "Ihre Interessen f?r Begleiter wurden nicht gespeichert. Bitte versuchen Sie es erneut.",
+      "connectFailedDesc": "Ihre Begleiteranfrage wurde nicht gesendet. Bitte versuchen Sie es erneut.",
+      "respondFailedDesc": "Ihre Antwort wurde nicht gespeichert. Bitte versuchen Sie es erneut.",
+      "activateFailedDesc": "Die Begleitersuche wurde nicht aktiviert. Bitte versuchen Sie es erneut."
     },
     "profile": {
       "valuesTitle": "Was Ihnen wichtig ist",

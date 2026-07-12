@@ -642,7 +642,8 @@
         "appVersion": "App version",
         "signOut": "Sign out",
         "deleteAccount": "Delete my account and all data",
-        "deleteAccountSub": "Permanent — cannot be undone"
+        "deleteAccountSub": "Permanent — cannot be undone",
+        "downloadDataStartedDesc": "VYVA started downloading your profile export."
       }
     },
     "notifications": {
@@ -673,7 +674,8 @@
       "supportModeAi": "AI-powered",
       "supportModeAiSub": "VYVA handles routine check-ins and reminders automatically.",
       "supportModeHuman": "Human-supported",
-      "supportModeHumanSub": "A person handles contact while VYVA keeps the plan clear."
+      "supportModeHumanSub": "A person handles contact while VYVA keeps the plan clear.",
+      "savedDesc": "Your notification preferences were updated."
     },
     "privacy": {
       "title": "Privacy & consent",
@@ -689,7 +691,9 @@
       "locationSub": "Real-time location when active",
       "conversationsLabel": "Conversation summaries",
       "conversationsSub": "Daily highlights from your chats",
-      "gdprFooter": "Changes are saved automatically. Protected under GDPR."
+      "gdprFooter": "Changes are saved automatically. Protected under GDPR.",
+      "brainCoachAccessUpdated": "Brain Coach access updated",
+      "brainCoachAccessUpdatedDesc": "This care team member's Brain Coach permissions were saved."
     },
     "account": {
       "title": "My account",
@@ -737,7 +741,13 @@
       "requiredFieldsMissing": "Please complete the required fields.",
       "saved": "Account details saved",
       "saveError": "Could not save account details",
-      "defaultName": "Maria"
+      "defaultName": "Maria",
+      "requiredFieldsMissingDesc": "Please fill the highlighted profile details before saving.",
+      "savedDesc": "Your account details were saved.",
+      "photoUpdated": "Photo updated",
+      "photoUpdatedDesc": "Your profile photo was saved.",
+      "photoError": "Could not update photo",
+      "photoErrorDesc": "Your profile photo was not saved. Please try another image."
     }
   },
   "health": {
@@ -1458,6 +1468,31 @@
       "errorSub": "Please try again in a moment.",
       "retry": "Try again",
       "dosageFallback": "—"
+    },
+    "takenToastTitle": "Good job",
+    "takenToastDescription": "{{medicine}} was taken.",
+    "allTakenToastDescription": "All of today's doses are already marked as taken.",
+    "editSuccessDesc": "Your medication details were saved.",
+    "editErrorDesc": "Your medication details were not saved. Please try again.",
+    "deleteSuccessDesc": "This medicine was removed from your list.",
+    "deleteErrorDesc": "This medicine was not removed from your list. Please try again.",
+    "confirmDoseError": "Could not confirm dose",
+    "confirmDoseErrorDesc": "The dose was not marked as taken. Please try again.",
+    "safety": {
+      "analyseSuccess": "Safety check updated",
+      "analyseSuccessDesc": "VYVA reviewed your medicine signals.",
+      "analyseError": "Could not analyse medication safety",
+      "analyseErrorDesc": "VYVA could not review your medicine signals right now.",
+      "sharedSuccess": "Case shared with caregiver",
+      "sharedSuccessDesc": "The medication safety case was shared with your caregiver.",
+      "saveSuccess": "Safety case saved",
+      "saveSuccessDesc": "The medication safety case was saved for review.",
+      "saveError": "Could not save safety case",
+      "saveErrorDesc": "The medication safety case was not saved. Please try again.",
+      "exportSuccess": "Audit-ready packet created",
+      "exportSuccessDesc": "The medication safety packet is ready to copy or share.",
+      "exportError": "Could not export safety case",
+      "exportErrorDesc": "The medication safety packet was not created. Please try again."
     }
   },
   "brain": {
@@ -1706,6 +1741,30 @@
       "title": "Coming soon",
       "subtitle": "This section is on its way.",
       "back": "Back to profile"
+    },
+    "toast": {
+      "allergensAlreadySaved": {
+        "title": "Allergens already saved",
+        "description": "Everything you said is already on your allergy list."
+      },
+      "allergyListUpdated": {
+        "title": "Allergy list updated"
+      },
+      "healthConditionsUpdated": {
+        "title": "Health conditions updated"
+      },
+      "hobbiesAlreadySaved": {
+        "title": "Hobbies already saved",
+        "description": "Everything you said is already selected."
+      },
+      "hobbiesUpdated": {
+        "title": "Hobbies updated"
+      },
+      "providerUpdated": {
+        "title": "Provider updated",
+        "description": "{{name}} was saved to your trusted providers.",
+        "fallbackName": "This provider"
+      }
     }
   },
   "weather": {
@@ -1776,7 +1835,8 @@
       "accepted": "Connected",
       "accept": "Accept",
       "decline": "Decline",
-      "requestSent": "Connection request sent!"
+      "requestSent": "Connection request sent!",
+      "requestSentDesc": "Your companion request was sent."
     },
     "noConnections": "No companions yet — check the Suggestions tab!",
     "activityTile": "Connect with others",
@@ -1787,7 +1847,11 @@
       "saveInterestsFailed": "Could not save your interests",
       "connectFailed": "Could not send connection request",
       "respondFailed": "Could not update connection",
-      "activateFailed": "Could not activate community. Please try again."
+      "activateFailed": "Could not activate community. Please try again.",
+      "saveInterestsFailedDesc": "Your companion interests were not saved. Please try again.",
+      "connectFailedDesc": "Your companion request was not sent. Please try again.",
+      "respondFailedDesc": "Your companion response was not saved. Please try again.",
+      "activateFailedDesc": "Companion matching was not turned on. Please try again."
     },
     "profile": {
       "valuesTitle": "What matters to you",

@@ -13,6 +13,7 @@ import VoiceAllergiesModal from "@/components/VoiceAllergiesModal";
 import { AlertTriangle, Plus, Mic, CheckCircle2 } from "lucide-react";
 import { friendlyError } from "@/lib/apiError";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 const COMMON_ALLERGENS = [
   "Penicillin", "Aspirin", "Ibuprofen", "Sulfa drugs", "Codeine",
@@ -41,6 +42,7 @@ const ALLERGEN_ICON: Record<string, string> = {
 export default function AllergiesSection() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [allergies, setAllergies] = useState<string[]>([]);
   const [noKnownAllergies, setNoKnownAllergies] = useState(false);
   const [input, setInput] = useState("");
@@ -122,13 +124,22 @@ export default function AllergiesSection() {
     const existing = new Set(allergies.map((a) => a.toLowerCase()));
     const novel = incoming.map((a) => a.trim()).filter((a) => a && !existing.has(a.toLowerCase()));
     if (novel.length === 0) {
-      toast({ title: "All allergens are already on your list" });
+      toast({
+        title: t("onboarding.toast.allergensAlreadySaved.title", "Allergens already saved"),
+        description: t("onboarding.toast.allergensAlreadySaved.description", "Everything you said is already on your allergy list."),
+      });
       return;
     }
     setNoKnownAllergies(false);
     setAllergies((prev) => Array.from(new Set([...prev, ...novel])));
     scheduleAutoSave();
-    toast({ title: `${novel.length} allergen${novel.length > 1 ? "s" : ""} added` });
+    toast({
+      title: t("onboarding.toast.allergyListUpdated.title", "Allergy list updated"),
+      description: t("onboarding.toast.allergyListUpdated.description", {
+        count: novel.length,
+        defaultValue: "{{count}} allergen was added to your profile.",
+      }),
+    });
   };
 
   const handleSave = async () => {
