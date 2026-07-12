@@ -989,6 +989,12 @@ describe("admin marketing router", () => {
       memberCount: 2,
       mappedMemberCount: 1,
       contactExternalIds: ["lovable-contact-1", "missing-contact"],
+      memberPreview: [expect.objectContaining({
+        fullName: "Partner Lead",
+        email: "lead@example.com",
+        lovableExternalId: "lovable-contact-1",
+        contactExternalId: "lovable-contact-1",
+      })],
       unmappedContactExternalIds: ["missing-contact"],
     });
 
@@ -1012,6 +1018,12 @@ describe("admin marketing router", () => {
           memberCount: 2,
           mappedMemberCount: 1,
           contactExternalIds: ["lovable-contact-1", "new-unmapped-contact"],
+          memberPreview: [expect.objectContaining({
+            fullName: "Partner Lead",
+            email: "lead@example.com",
+            lovableExternalId: "lovable-contact-1",
+            contactExternalId: "lovable-contact-1",
+          })],
           unmappedContactExternalIds: ["new-unmapped-contact"],
         });
       });

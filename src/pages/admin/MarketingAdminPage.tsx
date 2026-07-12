@@ -312,6 +312,17 @@ type MarketingAudience = {
   memberCount: number;
   mappedMemberCount: number;
   contactExternalIds: string[];
+  memberPreview: Array<{
+    id: string;
+    fullName: string;
+    email: string | null;
+    phoneNumber: string | null;
+    whatsappNumber: string | null;
+    companyName: string | null;
+    roleLabel: string | null;
+    lovableExternalId: string | null;
+    contactExternalId: string | null;
+  }>;
   unmappedContactExternalIds: string[];
   lastSyncedAt: string | null;
   metadata?: Record<string, unknown>;
@@ -2225,6 +2236,16 @@ export default function MarketingAdminPage() {
       audience.metadata,
       ...(audience.contactExternalIds ?? []),
       ...(audience.unmappedContactExternalIds ?? []),
+      ...(audience.memberPreview ?? []).flatMap((member) => [
+        member.fullName,
+        member.email,
+        member.phoneNumber,
+        member.whatsappNumber,
+        member.companyName,
+        member.roleLabel,
+        member.lovableExternalId,
+        member.contactExternalId,
+      ]),
     ]);
   }), [audiences, search]);
 
@@ -5198,6 +5219,29 @@ export default function MarketingAdminPage() {
                             {unmappedCount ? (
                               <p className="mt-2 text-xs font-semibold text-[#8b5d13]">Unmapped examples: {audience.unmappedContactExternalIds.slice(0, 3).join(", ")}</p>
                             ) : null}
+                            {audience.memberPreview?.length ? (
+                              <div className="mt-3 grid gap-2" data-testid={`marketing-audience-member-preview-${audience.id}`}>
+                                <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Mapped contacts</p>
+                                {audience.memberPreview.slice(0, 5).map((member) => {
+                                  const contactLine = member.email || member.whatsappNumber || member.phoneNumber || member.contactExternalId || "No channel";
+                                  const roleLine = [member.roleLabel, member.companyName].filter(Boolean).join(" at ");
+                                  return (
+                                    <div key={`${member.id}-${member.contactExternalId ?? ""}`} className="rounded-lg border border-[#eadfd5] bg-white px-3 py-2">
+                                      <p className="font-black text-[#241133]">{member.fullName || contactLine}</p>
+                                      {roleLine ? <p className="mt-0.5 text-xs font-bold text-[#7d6b65]">{roleLine}</p> : null}
+                                      <p className="mt-0.5 break-all text-xs font-semibold text-[#8b7a73]">{contactLine}</p>
+                                    </div>
+                                  );
+                                })}
+                                {audience.mappedMemberCount > audience.memberPreview.slice(0, 5).length ? (
+                                  <Pill className="w-fit bg-[#f5eee8] text-[#7d6b65]">
+                                    +{audience.mappedMemberCount - audience.memberPreview.slice(0, 5).length} more mapped contacts
+                                  </Pill>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <p className="mt-3 rounded-lg bg-[#f5eee8] px-3 py-2 text-xs font-bold text-[#8b7a73]">No mapped contacts to preview yet.</p>
+                            )}
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
                                 <Pencil size={13} /> Edit

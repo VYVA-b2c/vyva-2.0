@@ -1647,10 +1647,30 @@ function serializeContact(row: MarketingContactRow, audienceListNames: string[] 
   };
 }
 
-function serializeAudience(row: MarketingAudienceRow, members: MarketingAudienceMemberRow[] = []) {
+function serializeAudience(
+  row: MarketingAudienceRow,
+  members: MarketingAudienceMemberRow[] = [],
+  contactsById: Map<string, MarketingContactRow> = new Map(),
+) {
   const contactExternalIds = members
     .map((member) => member.contact_external_id)
     .filter((value): value is string => Boolean(value));
+  const memberPreview = members.flatMap((member) => {
+    if (!member.contact_id) return [];
+    const contact = contactsById.get(member.contact_id);
+    if (!contact) return [];
+    return [{
+      id: contact.id,
+      fullName: contact.full_name,
+      email: contact.email,
+      phoneNumber: contact.phone_number,
+      whatsappNumber: contact.whatsapp_number,
+      companyName: contact.company_name,
+      roleLabel: contact.role_label,
+      lovableExternalId: contact.lovable_external_id,
+      contactExternalId: member.contact_external_id,
+    }];
+  }).slice(0, 12);
   return {
     id: row.id,
     name: row.name,
@@ -1662,6 +1682,7 @@ function serializeAudience(row: MarketingAudienceRow, members: MarketingAudience
     memberCount: members.length,
     mappedMemberCount: members.filter((member) => Boolean(member.contact_id)).length,
     contactExternalIds,
+    memberPreview,
     unmappedContactExternalIds: members.filter((member) => !member.contact_id).map((member) => member.contact_external_id),
     lastSyncedAt: iso(row.last_synced_at),
     metadata: row.metadata,
@@ -2690,13 +2711,15 @@ adminMarketingRouter.delete("/journeys/:journeyId", async (req, res) => {
 adminMarketingRouter.get("/audiences", async (req, res) => {
   try {
     const search = String(req.query.search ?? "").trim().toLowerCase();
-    const [audienceRows, memberRows] = await Promise.all([
+    const [audienceRows, memberRows, contactRows] = await Promise.all([
       db.select().from(marketingAudiences).orderBy(desc(marketingAudiences.updated_at)).limit(1000),
       db.select().from(marketingAudienceMembers).orderBy(asc(marketingAudienceMembers.created_at)).limit(100000),
+      db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(10000),
     ]);
     const membersByAudience = groupBy(memberRows, (row) => row.audience_id);
+    const contactsById = new Map(contactRows.map((row) => [row.id, row]));
     const audiences = audienceRows
-      .map((row) => serializeAudience(row, membersByAudience.get(row.id)))
+      .map((row) => serializeAudience(row, membersByAudience.get(row.id), contactsById))
       .filter((audience) => !search || [
         audience.name,
         audience.description,
@@ -2704,6 +2727,16 @@ adminMarketingRouter.get("/audiences", async (req, res) => {
         audience.source,
         audience.lovableExternalId,
         ...audience.unmappedContactExternalIds,
+        ...audience.memberPreview.flatMap((member) => [
+          member.fullName,
+          member.email,
+          member.phoneNumber,
+          member.whatsappNumber,
+          member.companyName,
+          member.roleLabel,
+          member.lovableExternalId,
+          member.contactExternalId,
+        ]),
       ].some((value) => textMatches(value, search)));
     return res.json({ audiences });
   } catch (error) {
@@ -2745,7 +2778,8 @@ adminMarketingRouter.post("/audiences", async (req, res) => {
       }))).returning()
       : [];
 
-    return res.status(201).json({ ok: true, audience: serializeAudience(audience, members) });
+    const contactsById = new Map(contactRows.map((row) => [row.id, row]));
+    return res.status(201).json({ ok: true, audience: serializeAudience(audience, members, contactsById) });
   } catch (error) {
     console.error("[admin/marketing] audience create failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audience could not be created.") });
@@ -2789,7 +2823,12 @@ adminMarketingRouter.patch("/audiences/:audienceId", async (req, res) => {
         }))).returning()
         : [];
     }
-    return res.json({ ok: true, audience: serializeAudience(audience, members) });
+    const memberContactIds = members.map((member) => member.contact_id).filter((value): value is string => Boolean(value));
+    const contactRows = memberContactIds.length
+      ? await db.select().from(marketingContacts).where(inArray(marketingContacts.id, memberContactIds)).limit(10000)
+      : [];
+    const contactsById = new Map(contactRows.map((row) => [row.id, row]));
+    return res.json({ ok: true, audience: serializeAudience(audience, members, contactsById) });
   } catch (error) {
     console.error("[admin/marketing] audience update failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audience could not be updated.") });

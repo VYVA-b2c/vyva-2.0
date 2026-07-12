@@ -303,6 +303,17 @@ const audiences = [
     memberCount: 2,
     mappedMemberCount: 1,
     contactExternalIds: ["lovable-contact-2", "missing-contact"],
+    memberPreview: [{
+      id: "contact-2",
+      fullName: "Hassan Partner",
+      email: "hassan@example.com",
+      phoneNumber: "+34 983 419 300",
+      whatsappNumber: "+34 770 900 123",
+      companyName: "Moka Digital",
+      roleLabel: "Partner",
+      lovableExternalId: "lovable-contact-2",
+      contactExternalId: "lovable-contact-2",
+    }],
     unmappedContactExternalIds: ["missing-contact"],
     lastSyncedAt: "2026-07-05T09:00:00.000Z",
     metadata: { lovable: { sourceList: "Partners" } },
@@ -544,6 +555,17 @@ function audienceFromRequestBody(id: string, init?: RequestInit) {
     memberCount: contactExternalIds.length,
     mappedMemberCount: contactExternalIds.filter((value: string) => value === "lovable-contact-2").length,
     contactExternalIds,
+    memberPreview: contactExternalIds.includes("lovable-contact-2") ? [{
+      id: "contact-2",
+      fullName: "Hassan Partner",
+      email: "hassan@example.com",
+      phoneNumber: "+34 983 419 300",
+      whatsappNumber: "+34 770 900 123",
+      companyName: "Moka Digital",
+      roleLabel: "Partner",
+      lovableExternalId: "lovable-contact-2",
+      contactExternalId: "lovable-contact-2",
+    }] : [],
     unmappedContactExternalIds: contactExternalIds.filter((value: string) => value !== "lovable-contact-2"),
     lastSyncedAt: null,
     metadata: body.metadata ?? {},
@@ -699,6 +721,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Partner at Moka Digital");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("hassan@example.com");
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
