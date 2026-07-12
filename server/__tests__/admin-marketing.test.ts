@@ -1315,6 +1315,7 @@ describe("admin marketing router", () => {
     expect(table("marketing_content_assets").find((row) => row.title === "Template welcome")).toMatchObject({
       channel: "email",
       subject: "Template subject",
+      body: "Template body",
       html_body: "<p>Template body</p>",
       cta_label: "Read more",
       cta_url: "https://v2.vyva.life/template",
@@ -1596,6 +1597,61 @@ describe("admin marketing router", () => {
           firstClassFields: expect.arrayContaining(["enrollmentExternalId", "eventType", "channel"]),
         }),
       },
+    });
+  });
+
+  it("uses imported Lovable HTML-only email templates as readable/sendable content", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("VYVA_MARKETING_EXPORT_TOKEN", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        saved_email_templates: [{
+          id: "template-html-only",
+          template_name: "HTML only template",
+          email_subject: "HTML only subject",
+          html_content: "<h1>Hello &amp; welcome</h1><p>Start your VYVA journey.</p>",
+        }],
+        contacts: [{
+          id: "contact-html-only",
+          name: "HTML Contact",
+          email: "html-contact@example.com",
+          consentStatus: "opted_in",
+        }],
+        campaigns: [{
+          id: "campaign-html-only",
+          name: "HTML only campaign",
+          status: "scheduled",
+          channels: [{ channel: "email", template_id: "template-html-only", status: "scheduled" }],
+          recipients: [{ id: "recipient-html-only", contact_id: "contact-html-only", channel: "email", recipient: "html-contact@example.com", status: "planned" }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+
+    const content = table("marketing_content_assets").find((row) => row.title === "HTML only template");
+    expect(content).toMatchObject({
+      body: "Hello & welcome\nStart your VYVA journey.",
+      html_body: "<h1>Hello &amp; welcome</h1><p>Start your VYVA journey.</p>",
+    });
+
+    const campaign = table("marketing_campaigns").find((row) => row.name === "HTML only campaign");
+    await request(app)
+      .post(`/api/admin/marketing/campaigns/${campaign?.id}/send-email`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ ok: true, sentCount: 1, failedCount: 0 });
+      });
+
+    expect(table("communications_log")[0]).toMatchObject({
+      recipient: "html-contact@example.com",
+      purpose: "marketing_campaign_email",
+      body: "Hello & welcome\nStart your VYVA journey.",
+      metadata: expect.objectContaining({
+        subject: "HTML only subject",
+        htmlBody: "<h1>Hello &amp; welcome</h1><p>Start your VYVA journey.</p>",
+      }),
     });
   });
 

@@ -1320,6 +1320,32 @@ function contentBodyFromRow(row: Record<string, unknown>) {
   return "";
 }
 
+function textFromHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<\/(p|div|h[1-6]|li|tr|table|section|article|br)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n")
+    .slice(0, 12000);
+}
+
+function marketingContentPlainBody(content: MarketingContentAssetRow, campaignObjective = "") {
+  return content.body?.trim()
+    || (content.html_body ? textFromHtml(content.html_body) : "")
+    || campaignObjective
+    || content.title;
+}
+
 function iso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
@@ -1971,7 +1997,7 @@ adminMarketingRouter.post("/campaigns/:campaignId/test-email", async (req, res) 
       recipient,
       purpose: "marketing_campaign_test",
       status: "queued",
-      body: content.body || campaign.objective || content.title,
+      body: marketingContentPlainBody(content, campaign.objective),
       metadata: {
         subject,
         campaign_id: campaign.id,
@@ -2080,7 +2106,7 @@ export async function sendMarketingCampaignEmail(campaignId: string, actorLabel:
     recipient: recipientRow.recipient.trim(),
     purpose: "marketing_campaign_email",
     status: "queued",
-    body: content.body || campaign.objective || content.title,
+    body: marketingContentPlainBody(content, campaign.objective),
     metadata: {
       subject,
       campaign_id: campaign.id,
@@ -2875,6 +2901,8 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   const mediaAssets = contentMediaAssetsFrom(row);
   const explicitBody = contentBodyFromRow(row);
   const designBody = contentBodyFromDesign(designJson);
+  const htmlBody = emptyToNull(textFrom(row, [...contentHtmlKeys]));
+  const htmlText = htmlBody ? textFromHtml(htmlBody) : "";
   const title = textFrom(
     row,
     [...contentTitleKeys],
@@ -2887,8 +2915,8 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
     language: textFrom(row, ["language", "lang", "locale"], "en"),
     status: normalizeContentStatus(textFrom(row, ["status"], "draft")),
     subject: emptyToNull(textFrom(row, [...contentSubjectKeys])),
-    body: explicitBody || designBody,
-    html_body: emptyToNull(textFrom(row, [...contentHtmlKeys])),
+    body: explicitBody || designBody || htmlText,
+    html_body: htmlBody,
     cta_label: emptyToNull(textFrom(row, [...contentCtaLabelKeys])),
     cta_url: emptyToNull(textFrom(row, [...contentCtaUrlKeys])),
     design_json: designJson,
