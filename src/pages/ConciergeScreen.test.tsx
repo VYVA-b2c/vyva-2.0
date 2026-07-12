@@ -1200,7 +1200,7 @@ describe("ConciergeScreen action hub", () => {
         });
         return jsonResponse({
           attempt: { id: "attempt-home-service", channel: "whatsapp", status: "whatsapp_sent" },
-          pending: null,
+          pending: { pendingId: "pending-home-service", status: "queued" },
           communication: {
             id: "communication-home-service",
             channel: "whatsapp",
@@ -1210,6 +1210,24 @@ describe("ConciergeScreen action hub", () => {
           handled_by_vyva: true,
           needs_booking_confirmation: true,
         });
+      }
+      if (target.endsWith("/api/concierge/actions/pending-home-service/complete")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.outcome_summary).toContain("Home service visit confirmed with Saved Plumber");
+        expect(body.outcome_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.homeService,
+          appointment_request_id: "request-voice-home-service",
+          appointment_type: "home-service",
+          provider_name: "Saved Plumber",
+          service_type: "plumber",
+          service_label: "Plumber",
+          urgency: "today",
+          criteria: "trusted",
+          estimated_cost: "EUR80",
+          scheduled_event_id: "scheduled-home-service",
+        });
+        expect(body.outcome_payload.safety_flags).toEqual(expect.arrayContaining(["active_water_damage"]));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-home-service" });
       }
       if (target.endsWith("/api/appointments/requests/request-voice-home-service/mark-booked")) {
         const body = JSON.parse(String(init?.body));
@@ -1329,7 +1347,8 @@ describe("ConciergeScreen action hub", () => {
         expect.objectContaining({ method: "POST" }),
       );
     });
-    expect(await screen.findByText("Appointment saved in Scheduled Support.")).toBeVisible();
+    expect(await screen.findByText("Appointment saved in Scheduled Support. The task is closed.")).toBeVisible();
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/pending-home-service/complete", expect.objectContaining({ method: "POST" }));
   });
 
   it("still prepares ride requests without booking", async () => {
