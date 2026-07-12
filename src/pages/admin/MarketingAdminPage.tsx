@@ -3882,46 +3882,74 @@ export default function MarketingAdminPage() {
                         </div>
                       ) : null}
                     </div>
-                  ) : visibleContent.map((item) => (
-                    <article key={item.id} className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <h3 className="font-black">{item.title}</h3>
-                          <p className="mt-1 text-sm font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
-                            {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design data</Pill> : null}
-                            {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media</Pill> : null}
-                            {item.ctaLabel || item.ctaUrl ? <Pill className="bg-amber-50 text-amber-800">CTA</Pill> : null}
-                          </div>
-                          {item.ctaLabel || item.ctaUrl ? (
-                            <p className="mt-2 text-xs font-bold text-[#7d6b65]">CTA: {[item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ")}</p>
-                          ) : null}
-                          {item.source === "lovable" ? (
-                            <p className="mt-2 break-all text-xs font-bold text-[#7d6b65]">
-                              Imported from {contentOriginLabel(item)}
-                              {item.lovableExternalId ? ` - Lovable ID: ${item.lovableExternalId}` : ""}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill>
-                          <Pill className={statusClass(item.status)}>{item.status}</Pill>
-                          {item.source === "lovable" ? <Pill className="bg-violet-50 text-violet-700">Lovable</Pill> : null}
-                          {item.source === "lovable" ? <Pill className="bg-white text-[#5b4a46]">{contentOriginLabel(item)}</Pill> : null}
-                          <button type="button" onClick={() => setSelectedContentId(item.id)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-preview-content-${item.id}`}>
-                            <Eye size={13} /> Preview
-                          </button>
-                          <button type="button" onClick={() => startContentEdit(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
-                            <Pencil size={13} /> Edit
-                          </button>
-                          <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
-                            <Trash2 size={13} /> Delete
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
+                  ) : (
+                    <div className="overflow-hidden rounded-xl border border-[#eadfd5]" data-testid="marketing-content-library-table">
+                      <table className="min-w-[1180px] border-collapse text-left text-sm">
+                        <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
+                          <tr>
+                            <th className="px-4 py-3">Content</th>
+                            <th className="px-4 py-3">Type</th>
+                            <th className="px-4 py-3">Channel</th>
+                            <th className="px-4 py-3">Language</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3">Design/media</th>
+                            <th className="px-4 py-3">CTA</th>
+                            <th className="px-4 py-3">Source</th>
+                            <th className="px-4 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleContent.map((item) => (
+                            <tr key={item.id} className="border-t border-[#f0e7df] align-top">
+                              <td className="max-w-[360px] px-4 py-3">
+                                <p className="font-black text-[#241133]">{item.title}</p>
+                                <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#7d6b65]">{item.subject || item.body || "No copy yet."}</p>
+                                {item.body && item.body !== item.subject ? (
+                                  <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#8b7a73]">{item.body}</p>
+                                ) : null}
+                              </td>
+                              <td className="px-4 py-3">
+                                <Pill className={item.source === "lovable" ? "bg-violet-50 text-violet-700" : "bg-[#f5eee8] text-[#5b4a46]"}>
+                                  {contentOriginLabel(item)}
+                                </Pill>
+                              </td>
+                              <td className="px-4 py-3"><Pill className={channelClass(item.channel)}>{channelLabel[item.channel]}</Pill></td>
+                              <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{item.language}</td>
+                              <td className="px-4 py-3"><Pill className={statusClass(item.status)}>{item.status}</Pill></td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {item.hasHtml ? <Pill className="bg-blue-50 text-blue-800">HTML</Pill> : null}
+                                  {item.hasDesign ? <Pill className="bg-purple-50 text-purple-800">Design</Pill> : null}
+                                  {item.mediaAssetCount ? <Pill className="bg-emerald-50 text-emerald-800">{item.mediaAssetCount} media</Pill> : null}
+                                  {!item.hasHtml && !item.hasDesign && !item.mediaAssetCount ? <span className="text-xs font-bold text-[#8b7a73]">Plain copy</span> : null}
+                                </div>
+                              </td>
+                              <td className="max-w-[220px] px-4 py-3 text-xs font-bold text-[#5b4a46]">
+                                {item.ctaLabel || item.ctaUrl ? [item.ctaLabel, item.ctaUrl].filter(Boolean).join(" -> ") : "-"}
+                              </td>
+                              <td className="max-w-[240px] px-4 py-3">
+                                <p className="text-xs font-black text-[#241133]">{item.source}</p>
+                                {item.lovableExternalId ? <p className="mt-1 break-all text-xs font-semibold text-[#7d6b65]">Lovable ID: {item.lovableExternalId}</p> : null}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-2">
+                                  <button type="button" onClick={() => setSelectedContentId(item.id)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-preview-content-${item.id}`}>
+                                    <Eye size={13} /> Preview
+                                  </button>
+                                  <button type="button" onClick={() => startContentEdit(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
+                                    <Pencil size={13} /> Edit
+                                  </button>
+                                  <button type="button" onClick={() => void deleteContent(item)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
+                                    <Trash2 size={13} /> Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </SectionCard>
               <SectionCard title="Content editor" subtitle={editingContent ? `Editing ${editingContent.title}` : "Select a content asset to edit imported or local copy."}>

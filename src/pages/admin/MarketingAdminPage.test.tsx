@@ -575,12 +575,15 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-journey-event-metadata-event-1")).toHaveTextContent("automation-log");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Content");
+    expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Type");
+    expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Design/media");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("HTML");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Design data");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Design");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 media");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Imported from Social post");
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Read more -> https://v2.vyva.life/partners");
+    expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Social post");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
