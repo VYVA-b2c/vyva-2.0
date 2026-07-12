@@ -4936,7 +4936,7 @@ export default function MarketingAdminPage() {
                 data-testid="marketing-content-editor-panel"
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
-                className={contentDrawerMode === "edit" ? "fixed inset-y-6 right-6 z-[80] w-[min(880px,calc(100vw-3rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                className={contentDrawerMode === "edit" ? "fixed inset-y-6 left-1/2 z-[100] w-[min(1040px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -5033,7 +5033,7 @@ export default function MarketingAdminPage() {
                   data-testid="marketing-content-preview-panel"
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
-                  className={contentDrawerMode === "preview" ? "fixed inset-y-6 right-6 z-[80] w-[min(760px,calc(100vw-3rem))] overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                  className={contentDrawerMode === "preview" ? "fixed inset-y-6 left-1/2 z-[100] w-[min(900px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"
