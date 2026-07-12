@@ -323,6 +323,12 @@ function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate
   }
 }
 
+function conciergeHomeProviderLabel(item: ConciergePendingHomeItem, t: HomeTranslate) {
+  return item.provider_name?.trim()
+    || conciergeHomePayloadString(item, ["provider_name", "pharmacy_name"])
+    || t("home.conciergeResume.providerFallback", "provider");
+}
+
 function conciergeCompletedHomeTaskLabel(item: ConciergeCompletedHomeItem, t: HomeTranslate) {
   switch (conciergeCompletedHomeTaskKind(item)) {
     case "ride":
@@ -891,6 +897,27 @@ const HomeScreen = () => {
   const conciergeHomeStepText = activeConciergeHomeTask ? conciergeHomeStepLabel(activeConciergeHomeTask, t) : "";
   const conciergeHomeKickerText = activeConciergeHomeTask ? conciergeHomeKickerLabel(activeConciergeHomeTask, t) : "";
   const conciergeHomeTitlePrefixText = activeConciergeHomeTask ? conciergeHomeTitlePrefix(activeConciergeHomeTask, t) : "";
+  const activeConciergeWaitingOnProvider = activeConciergeHomeTask ? conciergeHomeIsWaitingOnProvider(activeConciergeHomeTask) : false;
+  const activeConciergeProviderText = activeConciergeHomeTask ? conciergeHomeProviderLabel(activeConciergeHomeTask, t) : "";
+  const activeConciergeTitleText = activeConciergeHomeTask
+    ? activeConciergeWaitingOnProvider
+      ? t("home.conciergeResume.waitingTitle", "Waiting for {{provider}}", { provider: activeConciergeProviderText })
+      : `${conciergeHomeTitlePrefixText} ${activeConciergeTaskText}`
+    : "";
+  const openActiveConciergeTask = (mode?: "follow_up" | "reply") => {
+    if (!activeConciergeHomeTask?.id) return;
+    handleNavigate("/concierge", {
+      state: mode
+        ? {
+            focusRightNow: true,
+            conciergeProviderAction: {
+              pendingId: activeConciergeHomeTask.id,
+              mode,
+            },
+          }
+        : { focusRightNow: true },
+    });
+  };
   const activeConciergeFastHelpAction: MasterFastHelpAction | null = activeConciergeHomeTask ? {
     id: "concierge-status",
     icon: ConciergeBell,
@@ -905,32 +932,58 @@ const HomeScreen = () => {
     ? [activeConciergeFastHelpAction, ...homeMasterFastHelpActions]
     : homeMasterFastHelpActions;
   const conciergeRightNowNudge = activeConciergeHomeTask ? (
-    <button
-      type="button"
+    <div
       data-testid="card-home-concierge-resume"
-      onClick={() => handleNavigate("/concierge", { state: { focusRightNow: true } })}
-      className="vyva-tap flex w-full min-w-0 items-center gap-3 rounded-[22px] border border-[#BBF7D0] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_52%,#F4FDF8_100%)] p-3 text-left shadow-[0_12px_28px_rgba(4,120,87,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:gap-4 min-[390px]:p-4"
-      aria-label={`${conciergeHomeKickerText}: ${conciergeHomeTitlePrefixText} ${activeConciergeTaskText}. ${conciergeHomeStepText}`}
+      className="w-full min-w-0 rounded-[22px] border border-[#BBF7D0] bg-[linear-gradient(135deg,#F8FFFC_0%,#FFFFFF_52%,#F4FDF8_100%)] p-3 text-left shadow-[0_12px_28px_rgba(4,120,87,0.08)] min-[390px]:p-4"
+      aria-label={`${conciergeHomeKickerText}: ${activeConciergeTitleText}. ${conciergeHomeStepText}`}
     >
-      <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#047857] min-[390px]:h-[54px] min-[390px]:w-[54px]">
-        <ConciergeBell size={24} strokeWidth={2.55} aria-hidden="true" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-[#047857]">
-          {conciergeHomeKickerText}
+      <div className="flex min-w-0 items-center gap-3 min-[390px]:gap-4">
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-[17px] bg-[#ECFDF5] text-[#047857] min-[390px]:h-[54px] min-[390px]:w-[54px]">
+          <ConciergeBell size={24} strokeWidth={2.55} aria-hidden="true" />
         </span>
-        <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
-          {conciergeHomeTitlePrefixText} {activeConciergeTaskText}
+        <span className="min-w-0 flex-1">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.13em] text-[#047857]">
+            {conciergeHomeKickerText}
+          </span>
+          <span className="mt-0.5 block truncate font-body text-[16px] font-black leading-tight text-vyva-text-1 min-[390px]:text-[18px]">
+            {activeConciergeTitleText}
+          </span>
+          <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
+            {conciergeHomeStepText}
+          </span>
         </span>
-        <span className="mt-0.5 block truncate font-body text-[13px] font-bold leading-tight text-vyva-text-2 min-[390px]:text-[14px]">
-          {conciergeHomeStepText}
-        </span>
-      </span>
-      <span className="hidden flex-shrink-0 rounded-full bg-white px-3 py-2 font-body text-[12px] font-black text-[#047857] shadow-[0_8px_18px_rgba(4,120,87,0.08)] min-[390px]:inline-flex">
-        {t("home.conciergeResume.open", "Open Right Now")}
-      </span>
-      <ChevronRight size={24} strokeWidth={2.6} className="flex-shrink-0 text-[#047857]" aria-hidden="true" />
-    </button>
+      </div>
+      <div className={`mt-3 grid gap-2 ${activeConciergeWaitingOnProvider ? "grid-cols-3" : "grid-cols-1"}`}>
+        <button
+          type="button"
+          data-testid="button-home-concierge-open"
+          onClick={() => openActiveConciergeTask()}
+          className="vyva-tap min-h-[42px] rounded-full bg-white px-3 font-body text-[12px] font-black text-[#047857] shadow-[0_8px_18px_rgba(4,120,87,0.08)] transition-transform hover:-translate-y-0.5 min-[390px]:text-[13px]"
+        >
+          {t("home.conciergeResume.openShort", "Open")}
+        </button>
+        {activeConciergeWaitingOnProvider ? (
+          <>
+            <button
+              type="button"
+              data-testid="button-home-concierge-follow-up"
+              onClick={() => openActiveConciergeTask("follow_up")}
+              className="vyva-tap min-h-[42px] rounded-full bg-[#ECFDF5] px-3 font-body text-[12px] font-black text-[#047857] transition-transform hover:-translate-y-0.5 min-[390px]:text-[13px]"
+            >
+              {t("home.conciergeResume.followUp", "Follow up")}
+            </button>
+            <button
+              type="button"
+              data-testid="button-home-concierge-got-reply"
+              onClick={() => openActiveConciergeTask("reply")}
+              className="vyva-tap min-h-[42px] rounded-full bg-[#F5F3FF] px-3 font-body text-[12px] font-black text-vyva-purple transition-transform hover:-translate-y-0.5 min-[390px]:text-[13px]"
+            >
+              {t("home.conciergeResume.gotReply", "I got a reply")}
+            </button>
+          </>
+        ) : null}
+      </div>
+    </div>
   ) : null;
   const conciergeReuseNudge = reusableConciergeHomeTask ? (
     <button
