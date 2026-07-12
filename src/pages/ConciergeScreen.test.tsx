@@ -2280,6 +2280,43 @@ describe("ConciergeScreen route prefill", () => {
     });
   });
 
+  it("prepares a provider follow-up while keeping the final send under user control", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "reply-follow-up",
+            use_case: "book_ride",
+            provider_name: "Radio Taxi",
+            provider_phone: "+34 612 345 678",
+            action_summary: "VYVA is waiting for the taxi provider reply.",
+            action_payload: {
+              pickup_address: "Saved home",
+              destination_address: "City Clinic",
+              requested_time: "tomorrow 09:00",
+              mission_status: "awaiting_provider_reply",
+            },
+            status: "calling",
+            language: "en",
+            confirmed_at: new Date().toISOString(),
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    const panel = await screen.findByTestId("panel-concierge-provider-reply");
+    expect(panel).toHaveTextContent("Waiting since");
+    expect(screen.getByTestId("button-provider-reply-confirmed-reply-follow-up")).toHaveTextContent("I got a reply");
+    expect(screen.getByTestId("button-provider-reply-unavailable-reply-follow-up")).toHaveTextContent("Try another provider");
+
+    fireEvent.click(screen.getByTestId("button-provider-reply-follow-up-reply-follow-up"));
+
+    expect(screen.getByTestId("provider-reply-notice")).toHaveTextContent("Follow-up prepared in chat.");
+  });
+
   it("reopens the original ride flow when a provider is unavailable", async () => {
     apiFetchMock.mockImplementation(async (url) => {
       if (String(url).endsWith("/api/concierge/actions/pending")) {
