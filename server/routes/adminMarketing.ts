@@ -3787,6 +3787,11 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => (
       count + journeyEnrollmentEventPayload(asRecord(item)).length
     ), 0);
+    const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
+      const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
+      counts[sourceType] = (counts[sourceType] ?? 0) + 1;
+      return counts;
+    }, {});
     const exported = {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
@@ -3857,6 +3862,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         campaignRecipientExternalIdCount: uniqueUnmappedCampaignRecipientExternalIds.length,
         campaignRecipientExternalIds: uniqueUnmappedCampaignRecipientExternalIds.slice(0, 50),
       },
+      contentSourceCounts,
       fieldCoverage,
       mode: "one_way_into_vyva",
       dispatch_locked: true,

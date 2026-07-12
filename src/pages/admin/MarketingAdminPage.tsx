@@ -1485,6 +1485,13 @@ function syncUnmappedSample(summary: Record<string, unknown>) {
   return ids.map((id) => String(id)).filter(Boolean).slice(0, 5);
 }
 
+function syncContentSourceItems(summary: Record<string, unknown>) {
+  return Object.entries(recordValue(summary.contentSourceCounts))
+    .map(([key, value]) => ({ key, label: contentSourceLabel(key), value: numberValue(value) }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+}
+
 function syncFieldCoverageItems(summary: Record<string, unknown>) {
   const coverage = recordValue(summary.fieldCoverage);
   return Object.entries(coverage).map(([entity, value]) => {
@@ -1786,6 +1793,101 @@ function SyncRunDiagnostics({ run }: { run: SyncRun }) {
   );
 }
 
+function LovableImportCoveragePanel({
+  run,
+  title = "Lovable import coverage",
+  subtitle = "Latest sync coverage across Lovable export and VYVA import.",
+  focusKeys,
+  onOpenSettings,
+}: {
+  run: SyncRun | null;
+  title?: string;
+  subtitle?: string;
+  focusKeys?: SyncCountKey[];
+  onOpenSettings: () => void;
+}) {
+  const parity = run ? syncParityItems(run.summary) : [];
+  const focusedParity = focusKeys?.length
+    ? focusKeys.flatMap((key) => parity.find((item) => item.key === key) ?? [])
+    : parity;
+  const contentSources = run ? syncContentSourceItems(run.summary) : [];
+  const unmappedCount = run ? syncUnmappedCount(run.summary) : 0;
+  const unmappedCampaignRecipientCount = run ? syncUnmappedCampaignRecipientCount(run.summary) : 0;
+  const isFailed = run?.status === "failed";
+  const coverageNote = !run
+    ? "No Lovable sync has run yet. Run sync from Settings to import campaigns, content, contacts, lists, media, metrics, and journey history."
+    : isFailed
+      ? (run.error || "The last Lovable sync failed. Open Settings to inspect the error and retry.")
+      : focusedParity.length
+        ? "Use this as the quick truth table for what Lovable sent versus what VYVA stored."
+        : "The last Lovable sync did not report import coverage counts.";
+
+  return (
+    <SectionCard
+      title={title}
+      subtitle={run ? `${subtitle} Last run: ${run.status} / ${formatDate(run.createdAt)}.` : subtitle}
+      action={(
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700"
+          data-testid="button-marketing-open-sync-coverage-settings"
+        >
+          <Settings size={14} /> Sync settings
+        </button>
+      )}
+    >
+      <div className={`rounded-xl border p-3 text-sm font-bold ${isFailed ? "border-red-100 bg-red-50 text-red-800" : "border-blue-100 bg-blue-50 text-blue-900"}`} data-testid="marketing-lovable-import-coverage">
+        <p>{coverageNote}</p>
+        {focusedParity.length ? (
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {focusedParity.map((item) => {
+              const badgeClass = item.status === "missing"
+                ? "bg-red-50 text-red-800"
+                : item.status === "review"
+                  ? "bg-amber-50 text-amber-800"
+                  : item.status === "derived"
+                    ? "bg-blue-50 text-blue-800"
+                    : "bg-emerald-50 text-emerald-800";
+              const detail = item.status === "missing"
+                ? `${item.missing} missing`
+                : item.status === "review"
+                  ? `${item.skipped} skipped`
+                  : item.status === "derived"
+                    ? "derived"
+                    : "complete";
+              return (
+                <div key={item.key} className="rounded-lg bg-white p-3 text-[#241133]">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-black">{item.label}</p>
+                    <Pill className={badgeClass}>{detail}</Pill>
+                  </div>
+                  <p className="mt-1 text-xs font-bold text-[#7d6b65]">Lovable {item.exported} / VYVA {item.imported}</p>
+                  {item.skipped ? <p className="mt-1 text-xs font-bold text-amber-800">Skipped: {item.skipped}</p> : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {contentSources.length ? (
+          <div className="mt-3 rounded-lg bg-white p-3" data-testid="marketing-lovable-content-source-buckets">
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">Lovable content buckets</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {contentSources.map((item) => <Pill key={item.key} className="bg-purple-50 text-purple-800">{item.label}: {item.value}</Pill>)}
+            </div>
+          </div>
+        ) : null}
+        {unmappedCount || unmappedCampaignRecipientCount ? (
+          <div className="mt-3 flex flex-wrap gap-1.5" data-testid="marketing-lovable-unmapped-summary">
+            {unmappedCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped list members: {unmappedCount}</Pill> : null}
+            {unmappedCampaignRecipientCount ? <Pill className="bg-amber-50 text-amber-800">Unmapped campaign recipients: {unmappedCampaignRecipientCount}</Pill> : null}
+          </div>
+        ) : null}
+      </div>
+    </SectionCard>
+  );
+}
+
 const inputClass = "h-11 w-full rounded-xl border border-[#E5D8CA] bg-white px-3 text-sm font-semibold text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 const textareaClass = "min-h-[92px] w-full rounded-xl border border-[#E5D8CA] bg-white px-3 py-3 text-sm font-semibold leading-relaxed text-[#2f2135] outline-none focus:border-purple-300 focus:ring-4 focus:ring-purple-100";
 
@@ -1832,6 +1934,7 @@ export default function MarketingAdminPage() {
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
   const [contentEditDraft, setContentEditDraft] = useState<ContentEditDraft | null>(null);
+  const [contentDrawerMode, setContentDrawerMode] = useState<"preview" | "edit" | null>(null);
   const [contentSaving, setContentSaving] = useState(false);
   const [contentFeedback, setContentFeedback] = useState("");
   const [contentActionFeedback, setContentActionFeedback] = useState("");
@@ -2552,7 +2655,8 @@ export default function MarketingAdminPage() {
       setEditingContentId(result.content.id);
       setContentEditDraft(contentEditDraftFromContent(result.content));
       setContentFeedback("Content draft created.");
-      setContentActionFeedback("Content draft created. Editor opened below.");
+      setContentActionFeedback("Content draft created. Editor opened.");
+      setContentDrawerMode("edit");
       setMessage("Content draft created.");
       await refreshAll();
       scrollToContentPanel(contentEditorPanelRef);
@@ -2576,6 +2680,9 @@ export default function MarketingAdminPage() {
 
   function previewContent(contentAsset: ContentAsset) {
     setSelectedContentId(contentAsset.id);
+    setEditingContentId(null);
+    setContentEditDraft(null);
+    setContentDrawerMode("preview");
     setContentActionFeedback(`Previewing "${contentAsset.title}".`);
     scrollToContentPanel(contentPreviewPanelRef);
   }
@@ -2584,6 +2691,7 @@ export default function MarketingAdminPage() {
     setSelectedContentId(contentAsset.id);
     setEditingContentId(contentAsset.id);
     setContentEditDraft(contentEditDraftFromContent(contentAsset));
+    setContentDrawerMode("edit");
     setContentFeedback("");
     setContentActionFeedback(`Editing "${contentAsset.title}".`);
     scrollToContentPanel(contentEditorPanelRef);
@@ -2592,7 +2700,17 @@ export default function MarketingAdminPage() {
   function cancelContentEdit() {
     setEditingContentId(null);
     setContentEditDraft(null);
+    setContentDrawerMode(null);
     setContentFeedback("");
+    setContentActionFeedback("");
+  }
+
+  function closeContentDrawer() {
+    if (contentDrawerMode === "edit") {
+      cancelContentEdit();
+      return;
+    }
+    setContentDrawerMode(null);
     setContentActionFeedback("");
   }
 
@@ -2613,6 +2731,7 @@ export default function MarketingAdminPage() {
       setSelectedContentId(result.content.id);
       setEditingContentId(result.content.id);
       setContentEditDraft(contentEditDraftFromContent(result.content));
+      setContentDrawerMode("edit");
       setContentFeedback("Updated.");
       setContentActionFeedback(`Updated "${result.content.title}".`);
       setMessage("Content updated.");
@@ -2635,6 +2754,7 @@ export default function MarketingAdminPage() {
       await api(`/api/admin/marketing/content/${contentAsset.id}`, { method: "DELETE" });
       if (editingContentId === contentAsset.id) cancelContentEdit();
       if (selectedContentId === contentAsset.id) setSelectedContentId(null);
+      if (editingContentId === contentAsset.id || selectedContentId === contentAsset.id) setContentDrawerMode(null);
       setContentFeedback("Deleted.");
       setContentActionFeedback(`Deleted "${contentAsset.title}".`);
       setMessage("Content deleted.");
@@ -3126,6 +3246,11 @@ export default function MarketingAdminPage() {
                 <MetricCard label="Email/social sends tracked" value={analyticsTotals.sent} icon={BarChart3} />
                 <MetricCard label="Clicks tracked" value={analyticsTotals.clicked} icon={CheckCircle2} />
               </div>
+
+              <LovableImportCoveragePanel
+                run={latestSyncRun}
+                onOpenSettings={() => setActiveTab("settings")}
+              />
 
               <div className="grid gap-4 xl:grid-cols-[1fr_0.75fr]">
                 <SectionCard title="By channel" subtitle="Planning coverage across campaign channels.">
@@ -4005,6 +4130,14 @@ export default function MarketingAdminPage() {
 
           {activeTab === "content" && (
             <div className="grid gap-4" data-testid="marketing-content-tab">
+              <LovableImportCoveragePanel
+                run={latestSyncRun}
+                title="Lovable content coverage"
+                subtitle="Quickly see whether Lovable exported templates, social posts, briefs, media, and campaign links."
+                focusKeys={["content", "mediaAssets", "campaigns", "campaignChannels", "journeys"]}
+                onOpenSettings={() => setActiveTab("settings")}
+              />
+
               <SectionCard title="Content draft" subtitle="Create reusable campaign copy, templates, social posts, CTAs, HTML, and media references.">
                 <form className="grid gap-3" onSubmit={(event) => createContent(event).catch((error) => setMessage(error.message))} data-testid="marketing-content-draft-form">
                   <div className="grid gap-3 xl:grid-cols-[1fr_170px_140px_120px]">
@@ -4194,8 +4327,31 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
-              <div ref={contentEditorPanelRef} data-testid="marketing-content-editor-panel">
-                <SectionCard title="Content editor" subtitle={editingContent ? `Editing ${editingContent.title}` : "Select a content asset to edit imported or local copy."}>
+              {contentDrawerMode ? (
+                <button
+                  type="button"
+                  aria-label="Close content action panel"
+                  className="fixed inset-0 z-40 bg-[#241133]/25"
+                  onClick={closeContentDrawer}
+                  data-testid="button-marketing-close-content-drawer-backdrop"
+                />
+              ) : null}
+              <div
+                ref={contentEditorPanelRef}
+                data-testid="marketing-content-editor-panel"
+                role={contentDrawerMode === "edit" ? "dialog" : undefined}
+                aria-modal={contentDrawerMode === "edit" ? true : undefined}
+                className={contentDrawerMode === "edit" ? "fixed inset-y-0 right-0 z-50 w-[min(820px,calc(100vw-32px))] overflow-y-auto border-l border-[#eadfd5] bg-[#fffaf4] p-4 shadow-2xl" : undefined}
+              >
+                <SectionCard
+                  title="Content editor"
+                  subtitle={editingContent ? `Editing ${editingContent.title}` : "Select a content asset to edit imported or local copy."}
+                  action={contentDrawerMode === "edit" ? (
+                    <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]" data-testid="button-marketing-close-content-drawer">
+                      <X size={14} /> Close
+                    </button>
+                  ) : null}
+                >
                   {contentEditDraft ? (
                     <form className="grid gap-4" onSubmit={(event) => void saveContentEdit(event)} data-testid="marketing-content-editor-form">
                     <div className="grid gap-3 xl:grid-cols-[1.4fr_160px_160px_120px]">
@@ -4277,8 +4433,29 @@ export default function MarketingAdminPage() {
                 </SectionCard>
               </div>
               <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
-                <div ref={contentPreviewPanelRef} data-testid="marketing-content-preview-panel">
-                  <SectionCard title="Content preview" subtitle={selectedContent ? selectedContent.title : "Select a content asset to inspect."}>
+                <div
+                  ref={contentPreviewPanelRef}
+                  data-testid="marketing-content-preview-panel"
+                  role={contentDrawerMode === "preview" ? "dialog" : undefined}
+                  aria-modal={contentDrawerMode === "preview" ? true : undefined}
+                  className={contentDrawerMode === "preview" ? "fixed inset-y-0 right-0 z-50 w-[min(820px,calc(100vw-32px))] overflow-y-auto border-l border-[#eadfd5] bg-[#fffaf4] p-4 shadow-2xl" : undefined}
+                >
+                  <SectionCard
+                    title="Content preview"
+                    subtitle={selectedContent ? selectedContent.title : "Select a content asset to inspect."}
+                    action={contentDrawerMode === "preview" ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedContent ? (
+                          <button type="button" onClick={() => startContentEdit(selectedContent)} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-purple-700 px-3 text-xs font-black text-white" data-testid="button-marketing-edit-previewed-content">
+                            <Pencil size={14} /> Edit
+                          </button>
+                        ) : null}
+                        <button type="button" onClick={closeContentDrawer} className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-[#241133]" data-testid="button-marketing-close-content-drawer">
+                          <X size={14} /> Close
+                        </button>
+                      </div>
+                    ) : null}
+                  >
                     {selectedContent ? (
                       <div className="grid gap-3" data-testid="marketing-content-preview">
                       <div className="rounded-xl border border-[#eadfd5] bg-[#fffaf4] p-3">

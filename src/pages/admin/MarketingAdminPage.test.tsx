@@ -335,6 +335,7 @@ const sync = {
       exported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, audiences: 1 },
       imported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1 },
       skipped: {},
+      contentSourceCounts: { saved_email_template: 1, social_post: 1 },
       unmapped: {
         audienceContactExternalIdCount: 1,
         audienceContactExternalIds: ["missing-contact"],
@@ -604,6 +605,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Audiences");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Imported media refs");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Journey enrollments");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Lovable 2 / VYVA 2");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Saved email template: 1");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Social post: 1");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
@@ -630,6 +635,9 @@ describe("MarketingAdminPage", () => {
     expect(openMetadataPanel("marketing-journey-event-metadata-event-1")).toHaveTextContent("automation-log");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
+    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Saved email template: 1");
+    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Social post: 1");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Content");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Type");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Design/media");
@@ -904,8 +912,16 @@ describe("MarketingAdminPage", () => {
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
+    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("button-marketing-edit-previewed-content")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-edit-previewed-content"));
+
     fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
 
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
