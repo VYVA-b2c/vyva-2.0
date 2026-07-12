@@ -290,6 +290,31 @@ describe("ConciergeScreen action hub", () => {
           handled_by_vyva: true,
         });
       }
+      if (String(url).includes("/api/appointments/requests/request-1/mark-booked")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.provider_name).toBe("Clinica Lopez");
+        expect(body.location).toBe("Calle Mayor 1");
+        expect(body.notes).toContain("Provider reply: Confirmed Tuesday at 10");
+        expect(body.notes).toContain("Reference: REF-22");
+        return jsonResponse({
+          scheduled_event: { id: "scheduled-1", scheduled_for: body.scheduled_for, title: "Appointment" },
+          mission: { status: "booked", current_step: "booked", preferred_channel: "phone", activity_log: [] },
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/pending-1/complete")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.outcome_summary).toContain("Medical appointment confirmed with Clinica Lopez");
+        expect(body.outcome_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.medicalAppointment,
+          appointment_request_id: "request-1",
+          appointment_type: "medical",
+          provider_name: "Clinica Lopez",
+          provider_reply: "Confirmed Tuesday at 10",
+          reference: "REF-22",
+          scheduled_event_id: "scheduled-1",
+        });
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-appointment-1" });
+      }
       if (String(url).includes("/api/appointments/requests")) {
         return jsonResponse({
           request: {
@@ -337,8 +362,22 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA is calling now. Save the appointment once confirmed.")).toBeVisible();
+    fireEvent.change(screen.getByTestId("input-appointment-provider-reply"), {
+      target: { value: "Confirmed Tuesday at 10" },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-time"), {
+      target: { value: "2026-07-14T10:00" },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-reference"), {
+      target: { value: "REF-22" },
+    });
+    fireEvent.click(screen.getByTestId("button-appointment-save-confirmed"));
+
+    expect(await screen.findByText("Appointment saved in Scheduled Support. The task is closed.")).toBeVisible();
+    expect(screen.queryByTestId("panel-appointment-mark-booked")).not.toBeInTheDocument();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests", expect.objectContaining({ method: "POST" }));
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-1/confirm-attempt", expect.objectContaining({ method: "POST" }));
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/pending-1/complete", expect.objectContaining({ method: "POST" }));
   });
 
   it("sends appointment email through VYVA before booking is saved", async () => {
@@ -398,6 +437,42 @@ describe("ConciergeScreen action hub", () => {
 
     expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA sent the message. Save the appointment when they reply.")).toBeVisible();
+  });
+
+  it("routes missing medical provider setup to trusted providers", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/appointments/requests")) {
+        return jsonResponse({
+          request: {
+            id: "request-no-provider",
+            appointment_type: "medical",
+            reason_detail: "cardiology",
+            status: "needs_provider",
+            selected_provider_option_id: null,
+            selected_channel: null,
+          },
+          options: [],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-appointment"));
+    fireEvent.change(screen.getByPlaceholderText("E.g. dermatology, Tuesday morning, WhatsApp if possible"), {
+      target: { value: "cardiology" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Medical" }));
+
+    expect(await screen.findByTestId("panel-appointment-assistant")).toHaveTextContent("No saved provider for this yet.");
+    expect(screen.getByTestId("button-appointment-provider-setup")).toHaveTextContent("Add doctor or clinic");
+    fireEvent.click(screen.getByTestId("button-appointment-provider-setup"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+    });
+    expect(screen.getByTestId("route-state")).toHaveTextContent("doctor_clinic");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.medicalAppointment);
   });
 
   it("shows VYVA-handled booking form status before booking is saved", async () => {
