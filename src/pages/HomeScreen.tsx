@@ -13,6 +13,7 @@ import { useProfile } from "@/contexts/ProfileContext";
 import { SECTION_VOICE_AUTO_START_KEY } from "@/hooks/useRouteVoiceAutoStart";
 import { serviceForPath, useServiceGate } from "@/hooks/useServiceGate";
 import { displayFirstName } from "@/lib/displayIdentity";
+import { CONCIERGE_FLOW_REFERENCES } from "../../shared/conciergeFlowRegistry";
 
 type HomeAgentCard = {
   id: "health" | "cognitive" | "social" | "concierge";
@@ -295,6 +296,8 @@ function conciergeTaskKind(useCase: string | null | undefined, payload: Record<s
       return "pharmacy";
     case "home_service":
       return "homeService";
+    case "find_provider":
+      return "provider";
     case "admin_task":
     case "paperwork":
       return "admin";
@@ -323,6 +326,8 @@ function conciergeHomeTaskLabel(item: ConciergePendingHomeItem, t: HomeTranslate
       return t("home.conciergeResume.task.pharmacy", "pharmacy request");
     case "homeService":
       return t("home.conciergeResume.task.homeService", "home service");
+    case "provider":
+      return t("home.conciergeResume.task.provider", "provider search");
     case "admin":
       return t("home.conciergeResume.task.admin", "admin task");
     case "safety":
@@ -348,6 +353,8 @@ function conciergeCompletedHomeTaskLabel(item: ConciergeCompletedHomeItem, t: Ho
       return t("home.conciergeResume.task.pharmacy", "pharmacy request");
     case "homeService":
       return t("home.conciergeResume.task.homeService", "home service");
+    case "provider":
+      return t("home.conciergeResume.task.provider", "provider search");
     case "admin":
       return t("home.conciergeResume.task.admin", "admin task");
     case "safety":
@@ -444,6 +451,8 @@ function conciergeHomeFastStatusLabel(item: ConciergePendingHomeItem, t: HomeTra
       return t("home.conciergeResume.fastStatus.pharmacy", "Check pharmacy request");
     case "homeService":
       return t("home.conciergeResume.fastStatus.homeService", "Check home service");
+    case "provider":
+      return t("home.conciergeResume.fastStatus.provider", "Check provider search");
     case "admin":
       return t("home.conciergeResume.fastStatus.admin", "Check admin task");
     case "safety":
@@ -857,6 +866,11 @@ const HomeScreen = () => {
           conciergePrefill: {
             kind: "task",
             message: t("home.master.fastHelp.findCarePrefill", "Help me find care or support options. Ask what kind of care I need and do not contact anyone without my confirmation."),
+            flowReference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+            requestedTool: "operator_review",
+            actionLabel: t("home.master.fastHelp.findCareAction", "Prepare care search"),
+            summary: t("home.master.fastHelp.findCareSummary", "VYVA prepares options first, then asks before contacting anyone."),
+            useCase: "find_provider",
             source: "home_quick_action",
           },
         },
@@ -874,6 +888,7 @@ const HomeScreen = () => {
           conciergePrefill: {
             kind: "ride",
             message: t("home.fastHelp.ridePrefill", "Please help me find safe transport options. Ask for destination and timing, and do not book anything without my confirmation."),
+            flowReference: CONCIERGE_FLOW_REFERENCES.transportBooking,
             source: "home_quick_action",
           },
         },
@@ -891,6 +906,11 @@ const HomeScreen = () => {
           conciergePrefill: {
             kind: "task",
             message: t("home.master.fastHelp.paperworkHelpPrefill", "Help me with paperwork or a form. Prepare answers and stop before submitting so I can confirm."),
+            flowReference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+            requestedTool: "operator_review",
+            actionLabel: t("home.master.fastHelp.paperworkHelpAction", "Prepare paperwork"),
+            summary: t("home.master.fastHelp.paperworkHelpSummary", "VYVA organizes the form, missing details, and safest next step."),
+            useCase: "admin_task",
             source: "home_quick_action",
           },
         },

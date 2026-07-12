@@ -135,6 +135,7 @@ const labels: Record<string, string> = {
   "home.conciergeResume.task.appointment": "appointment",
   "home.conciergeResume.task.pharmacy": "pharmacy request",
   "home.conciergeResume.task.homeService": "home service",
+  "home.conciergeResume.task.provider": "provider search",
   "home.conciergeResume.task.admin": "admin task",
   "home.conciergeResume.task.safety": "safety check",
   "home.conciergeResume.task.default": "request",
@@ -142,6 +143,7 @@ const labels: Record<string, string> = {
   "home.conciergeResume.fastStatus.appointment": "Check appointment",
   "home.conciergeResume.fastStatus.pharmacy": "Check pharmacy request",
   "home.conciergeResume.fastStatus.homeService": "Check home service",
+  "home.conciergeResume.fastStatus.provider": "Check provider search",
   "home.conciergeResume.fastStatus.admin": "Check admin task",
   "home.conciergeResume.fastStatus.safety": "Check safety review",
   "home.conciergeResume.fastStatus.default": "Check request",
@@ -557,6 +559,25 @@ describe("Home fast service actions", () => {
     expect(screen.getByTestId("button-home-fast-feel-better")).toHaveTextContent("Symptoms Check");
     expect(screen.getByTestId("button-home-fast-stay-well")).toHaveTextContent("Age Well");
     expect(screen.getByTestId("button-home-fast-find-care")).toHaveTextContent("Find Care");
+  });
+
+  it("opens Find Care as a structured Concierge provider search", () => {
+    render(<HomeScreen />);
+
+    fireEvent.click(screen.getByTestId("button-home-fast-find-care"));
+
+    expect(guardPathMock).toHaveBeenCalledWith("/concierge", {
+      state: {
+        conciergePrefill: expect.objectContaining({
+          kind: "task",
+          flowReference: "FLOW_TOOL_GATED_TASK",
+          requestedTool: "operator_review",
+          actionLabel: "Prepare care search",
+          useCase: "find_provider",
+          source: "home_quick_action",
+        }),
+      },
+    });
   });
 
   it("renders the session-aware main hero CTA", () => {

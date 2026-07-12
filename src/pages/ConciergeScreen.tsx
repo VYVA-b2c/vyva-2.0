@@ -105,7 +105,7 @@ type ConciergeRoutePrefill = {
   requestedTool?: ConciergeToolRequirement;
   actionLabel?: string;
   summary?: string;
-  useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers";
+  useCase?: "scam_check" | "admin_task" | "paperwork" | "send_message" | "find_offers" | "find_provider";
   source?: "symptom_report" | "daily_checkin" | "shared_checkin" | "visual_scan" | "caregiver_alert" | "doctor_choice" | "adherence_report" | "medication_support" | "safe_home_scan" | "scam_guard" | "health_home_doctor" | "specialist_finder" | "vitals_safety" | "activity_support" | "home_quick_action" | "voice_action";
 };
 
@@ -181,7 +181,7 @@ const CONCIERGE_TOOL_REQUIREMENTS: ConciergeToolRequirement[] = [
   "web_search",
   "operator_review",
 ];
-const CONCIERGE_PREPARED_USE_CASES = ["scam_check", "admin_task", "paperwork", "send_message", "find_offers"] as const;
+const CONCIERGE_PREPARED_USE_CASES = ["scam_check", "admin_task", "paperwork", "send_message", "find_offers", "find_provider"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -422,6 +422,9 @@ function routePrefillTaskTitle(prefill: ConciergeRoutePrefill, isSpanish: boolea
   if (prefill.flowReference === INSURANCE_ADMIN_FLOW_REFERENCE) {
     return isSpanish ? "Gestion preparada" : "Paperwork task ready";
   }
+  if (prefill.useCase === "find_provider") {
+    return isSpanish ? "Busqueda preparada" : "Provider search ready";
+  }
   return isSpanish ? "Revisa la solicitud" : "Review request";
 }
 
@@ -436,6 +439,11 @@ function routePrefillTaskDetail(prefill: ConciergeRoutePrefill, isSpanish: boole
     return isSpanish
       ? "VYVA organiza el documento, destinatario y proximo paso."
       : "VYVA organizes the document, recipient, and next step.";
+  }
+  if (prefill.useCase === "find_provider") {
+    return isSpanish
+      ? "VYVA prepara opciones fiables antes de contactar con nadie."
+      : "VYVA prepares trusted options before contacting anyone.";
   }
   return isSpanish ? "Comprueba los detalles antes de enviarlos." : "Check the details before sending.";
 }
@@ -4016,6 +4024,8 @@ function getUseCaseLabel(useCase: string, locale = "es"): string {
       return es ? "Medicacion" : "Medicine";
     case "book_appointment":
       return es ? "Cita medica" : "Appointment";
+    case "find_provider":
+      return es ? "Busqueda de proveedor" : "Provider search";
     case "admin_task":
       return es ? "Gestion administrativa" : "Admin task";
     case "scam_check":
