@@ -1518,7 +1518,12 @@ async function saveConfirmedRide(params: {
   priceEstimate: string;
   bookingReference: string;
   notes: string;
-}): Promise<{ event?: unknown; completion?: unknown }> {
+}): Promise<{
+  event?: unknown;
+  completion?: unknown;
+  completionStatus: "closed" | "none" | "review_pending";
+  completionError?: string | null;
+}> {
   const scheduledDate = new Date(params.scheduledFor);
   const providerName = params.option.providerName || params.option.label;
   const description = [
@@ -1569,24 +1574,32 @@ async function saveConfirmedRide(params: {
     throw new Error(data?.error ?? "Could not save confirmed ride");
   }
   const saved = await res.json() as { event?: unknown };
-  if (!params.pendingId) return saved;
+  if (!params.pendingId) return { ...saved, completionStatus: "none" };
 
-  const completion = await completePendingConciergeAction({
-    pendingId: params.pendingId,
-    outcomeSummary: `Ride saved with ${providerName}.`,
-    outcomePayload: {
-      flow_reference: TRANSPORT_BOOKING_FLOW_REFERENCE,
-      scheduled_for: scheduledDate.toISOString(),
-      provider_name: providerName,
-      provider_reply: params.providerReply.trim(),
-      price_estimate: params.priceEstimate.trim(),
-      booking_reference: params.bookingReference.trim(),
-      pickup_address: params.pickupAddress.trim(),
-      destination_address: params.destinationAddress.trim(),
-      requested_time: params.requestedTime.trim() || "now",
-    },
-  });
-  return { ...saved, completion };
+  try {
+    const completion = await completePendingConciergeAction({
+      pendingId: params.pendingId,
+      outcomeSummary: `Ride saved with ${providerName}.`,
+      outcomePayload: {
+        flow_reference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+        scheduled_for: scheduledDate.toISOString(),
+        provider_name: providerName,
+        provider_reply: params.providerReply.trim(),
+        price_estimate: params.priceEstimate.trim(),
+        booking_reference: params.bookingReference.trim(),
+        pickup_address: params.pickupAddress.trim(),
+        destination_address: params.destinationAddress.trim(),
+        requested_time: params.requestedTime.trim() || "now",
+      },
+    });
+    return { ...saved, completion, completionStatus: "closed" };
+  } catch (error) {
+    return {
+      ...saved,
+      completionStatus: "review_pending",
+      completionError: error instanceof Error ? error.message : "Could not close pending task",
+    };
+  }
 }
 
 async function prepareOtcPharmacyConciergeAction(params: {
@@ -2768,6 +2781,10 @@ function statusLabel(status: ConciergePendingItem["status"], locale = "es"): str
   }
 }
 
+function isHomeServicePendingAction(item: ConciergePendingItem): boolean {
+  return item.use_case === "home_service" || item.action_payload?.appointment_type === "home-service";
+}
+
 type RightNowActionLabelsParams = {
   item: ConciergePendingItem;
   isSpanish: boolean;
@@ -2793,6 +2810,12 @@ function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string 
   const { item, isSpanish, opensWhatsApp, opensEmail, opensBooking, canOpenForm, isVyvaTask, formMissingFields } = params;
   if (isVyvaTask) return rightNowPassiveActionLabel({ item, isSpanish, formMissingFields });
 
+  if (isHomeServicePendingAction(item)) {
+    if (opensWhatsApp || opensEmail) return isSpanish ? "Revisar solicitud de servicio" : "Review service request";
+    if (opensBooking) return isSpanish ? "Abrir solicitud de servicio" : "Open service request";
+    return isSpanish ? "Confirmar llamada de servicio" : "Confirm service call";
+  }
+
   if (item.use_case === "book_ride") {
     if (opensWhatsApp || opensEmail) return isSpanish ? "Confirmar mensaje del viaje" : "Confirm ride message";
     if (opensBooking) return isSpanish ? "Abrir reserva del viaje" : "Open ride booking";
@@ -2813,12 +2836,6 @@ function rightNowPrimaryActionLabel(params: RightNowActionLabelsParams): string 
     return isSpanish ? "Confirmar llamada a farmacia" : "Confirm pharmacy call";
   }
 
-  if (item.use_case === "home_service") {
-    if (opensWhatsApp || opensEmail) return isSpanish ? "Revisar solicitud de presupuesto" : "Review quote request";
-    if (opensBooking) return isSpanish ? "Abrir solicitud de servicio" : "Open service request";
-    return isSpanish ? "Confirmar llamada de servicio" : "Confirm service call";
-  }
-
   if (opensWhatsApp) return isSpanish ? "Abrir WhatsApp" : "Open WhatsApp draft";
   if (opensEmail) return isSpanish ? "Abrir email" : "Open email draft";
   if (opensBooking) return canOpenForm
@@ -2837,6 +2854,7 @@ function rightNowNextStepLabel(params: RightNowActionLabelsParams): string {
   if (item.status === "failed") return isSpanish ? "Revisar y elegir siguiente paso" : "Review and choose next step";
   if (missionStatus.includes("awaiting_user_save") || missionStatus.includes("booked")) {
     if (item.use_case === "book_ride") return isSpanish ? "Guardar viaje confirmado" : "Save confirmed ride";
+    if (isHomeServicePendingAction(item)) return isSpanish ? "Guardar servicio confirmado" : "Save confirmed service";
     if (item.use_case === "book_appointment") return isSpanish ? "Guardar cita confirmada" : "Save confirmed appointment";
     return isSpanish ? "Guardar confirmacion" : "Save confirmation";
   }
@@ -3048,6 +3066,12 @@ function getUseCaseLabel(useCase: string, locale = "es"): string {
     default:
       return useCase.replace(/_/g, " ");
   }
+}
+
+function getPendingActionUseCaseLabel(item: ConciergePendingItem, locale = "es"): string {
+  const es = locale.startsWith("es");
+  if (isHomeServicePendingAction(item)) return es ? "Servicio en casa" : "Home service";
+  return getUseCaseLabel(item.use_case, locale);
 }
 
 type BrowserSpeechRecognitionEvent = {
@@ -3879,8 +3903,12 @@ const ConciergeScreen = () => {
       setTransportError(null);
       setTransportNotice(null);
     },
-    onSuccess: async () => {
-      setTransportNotice(isSpanish ? "Viaje guardado en Scheduled Support." : "Ride saved in Scheduled Support.");
+    onSuccess: async (result) => {
+      setTransportNotice(result.completionStatus === "closed"
+        ? (isSpanish ? "Viaje guardado en Scheduled Support. La tarea queda cerrada." : "Ride saved in Scheduled Support. The task is closed.")
+        : result.completionStatus === "review_pending"
+          ? (isSpanish ? "Viaje guardado en Scheduled Support. Revisa la tarea pendiente." : "Ride saved in Scheduled Support. Please review the pending task.")
+          : (isSpanish ? "Viaje guardado en Scheduled Support." : "Ride saved in Scheduled Support."));
       resetTransportFinalReview();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] }),
@@ -6822,7 +6850,7 @@ const ConciergeScreen = () => {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-body text-[12px] uppercase tracking-[0.12em] text-vyva-text-2">
-                  {getUseCaseLabel(activeAction.use_case, locale)}
+                  {getPendingActionUseCaseLabel(activeAction, locale)}
                 </p>
                 <p className="mt-1 font-body text-[20px] font-semibold leading-tight text-vyva-text-1">
                   {activeAction.provider_name || (isSpanish ? "Proveedor seleccionado" : "Selected provider")}
