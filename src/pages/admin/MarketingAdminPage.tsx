@@ -723,6 +723,83 @@ function mediaPreviewLabel(url: string) {
   }
 }
 
+const designPreviewArrayKeys = ["blocks", "sections", "elements", "nodes", "components", "rows", "children", "items"] as const;
+const designPreviewObjectKeys = ["content", "props", "settings", "data", "attributes", "style", "styles"] as const;
+const designPreviewTitleKeys = ["headline", "heading", "title", "subject", "name", "label"] as const;
+const designPreviewBodyKeys = ["body", "copy", "text", "description", "caption", "message", "content", "plainText", "plain_text", "subtitle"] as const;
+const designPreviewCtaLabelKeys = ["ctaLabel", "cta_label", "buttonText", "button_text", "buttonLabel", "button_label", "linkText", "link_text"] as const;
+const designPreviewCtaUrlKeys = ["ctaUrl", "cta_url", "buttonUrl", "button_url", "linkUrl", "link_url", "href", "url"] as const;
+const designPreviewMediaKeys = ["imageUrl", "image_url", "src", "assetUrl", "asset_url", "mediaUrl", "media_url", "videoUrl", "video_url", "thumbnailUrl", "thumbnail_url", "coverImageUrl", "cover_image_url"] as const;
+
+type DesignPreviewBlock = {
+  key: string;
+  type: string;
+  title: string;
+  body: string;
+  mediaUrl: string;
+  ctaLabel: string;
+  ctaUrl: string;
+};
+
+function parsedDesignValue(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed || !/^[{[]/.test(trimmed)) return value;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function designRecordText(record: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    const value = parsedDesignValue(record[key]);
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+  }
+  return "";
+}
+
+function designRecordMediaUrl(record: Record<string, unknown>) {
+  for (const key of designPreviewMediaKeys) {
+    const value = parsedDesignValue(record[key]);
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (value && typeof value === "object") {
+      const nested = mediaUrlFrom(value);
+      if (nested) return nested;
+    }
+  }
+  return "";
+}
+
+function collectDesignPreviewBlocks(value: unknown, path = "design", seen = new Set<unknown>()): DesignPreviewBlock[] {
+  const parsed = parsedDesignValue(value);
+  if (!parsed || typeof parsed !== "object") return [];
+  if (seen.has(parsed)) return [];
+  seen.add(parsed);
+
+  if (Array.isArray(parsed)) {
+    return parsed.flatMap((item, index) => collectDesignPreviewBlocks(item, `${path}.${index}`, seen));
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const title = designRecordText(record, designPreviewTitleKeys);
+  const body = designRecordText(record, designPreviewBodyKeys);
+  const mediaUrl = designRecordMediaUrl(record);
+  const ctaLabel = designRecordText(record, designPreviewCtaLabelKeys);
+  const ctaUrl = designRecordText(record, designPreviewCtaUrlKeys);
+  const type = designRecordText(record, ["type", "kind", "component", "blockType", "block_type"]) || "Block";
+  const current = title || body || mediaUrl || ctaLabel || ctaUrl
+    ? [{ key: path, type, title, body, mediaUrl, ctaLabel, ctaUrl }]
+    : [];
+  const children = [
+    ...designPreviewArrayKeys.flatMap((key) => collectDesignPreviewBlocks(record[key], `${path}.${key}`, seen)),
+    ...designPreviewObjectKeys.flatMap((key) => collectDesignPreviewBlocks(record[key], `${path}.${key}`, seen)),
+  ];
+  return [...current, ...children].slice(0, 8);
+}
+
 const lovableContentSourceLabels: Record<string, string> = {
   content: "Content",
   content_asset: "Content asset",
@@ -1723,6 +1800,47 @@ function MediaPreviewTile({ url, label, testId }: { url: string; label?: string;
     <a href={url} target="_blank" rel="noreferrer" className="flex min-h-24 items-center rounded-xl border border-[#eadfd5] bg-white p-3 text-xs font-bold text-purple-700" data-testid={testId}>
       <span className="break-all">{mediaLabel}</span>
     </a>
+  );
+}
+
+function LovableDesignPreview({ contentAsset }: { contentAsset: ContentAsset }) {
+  const blocks = collectDesignPreviewBlocks(contentAsset.designJson);
+  if (!blocks.length) return null;
+
+  return (
+    <div className="rounded-xl border border-purple-100 bg-[#fbf7ff] p-3" data-testid="marketing-content-design-preview">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-purple-700">Lovable design preview</p>
+          <p className="mt-1 text-xs font-bold text-[#7d6b65]">{blocks.length} visible design block{blocks.length === 1 ? "" : "s"} parsed from imported builder data.</p>
+        </div>
+        <Pill className="bg-purple-50 text-purple-800">Design rendered</Pill>
+      </div>
+      <div className="mt-3 grid gap-3">
+        {blocks.map((block, index) => (
+          <article key={`${block.key}-${index}`} className="overflow-hidden rounded-xl border border-[#eadfd5] bg-white">
+            {block.mediaUrl ? (
+              <MediaPreviewTile url={block.mediaUrl} label={block.title || contentAsset.title} testId={`marketing-content-design-media-${index}`} />
+            ) : null}
+            <div className="p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill className="bg-purple-50 text-purple-800">{humanizeMetadataKey(block.type)}</Pill>
+                <span className="text-xs font-bold text-[#8b7a73]">{block.key}</span>
+              </div>
+              {block.title ? <h4 className="mt-2 text-base font-black text-[#241133]">{block.title}</h4> : null}
+              {block.body && block.body !== block.title ? (
+                <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-relaxed text-[#5b4a46]">{block.body}</p>
+              ) : null}
+              {block.ctaLabel || block.ctaUrl ? (
+                <p className="mt-3 text-xs font-black text-purple-700">
+                  CTA: {[block.ctaLabel, block.ctaUrl].filter(Boolean).join(" -> ")}
+                </p>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -4620,6 +4738,7 @@ export default function MarketingAdminPage() {
                           {selectedContent.body || "No body copy yet."}
                         </div>
                       )}
+                      <LovableDesignPreview contentAsset={selectedContent} />
                       <div className="grid gap-2 md:grid-cols-3">
                         <Pill className={selectedContent.hasDesign ? "bg-purple-50 text-purple-800" : "bg-[#f5eee8] text-[#7d6b65]"}>{selectedContent.hasDesign ? "Design JSON present" : "No design JSON"}</Pill>
                         <Pill className="bg-blue-50 text-blue-800">{selectedContent.language}</Pill>

@@ -163,7 +163,16 @@ const content = [
     htmlBody: "<h1>Partner update</h1>",
     ctaLabel: "Read more",
     ctaUrl: "https://v2.vyva.life/partners",
-    designJson: { blocks: [{ type: "hero" }] },
+    designJson: {
+      blocks: [{
+        type: "hero",
+        headline: "Partner hero",
+        body: "Lovable builder copy",
+        imageUrl: "https://cdn.example.test/partner-design.png",
+        ctaLabel: "Book a demo",
+        ctaUrl: "https://v2.vyva.life/demo",
+      }],
+    },
     mediaAssets: [{ url: "https://cdn.example.test/partner.png" }],
     hasHtml: true,
     hasDesign: true,
@@ -683,6 +692,11 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
 
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Lovable design preview");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Partner hero");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Lovable builder copy");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("CTA: Book a demo -> https://v2.vyva.life/demo");
+    expect(within(screen.getByTestId("marketing-content-design-preview")).getByAltText("Partner hero")).toHaveAttribute("src", "https://cdn.example.test/partner-design.png");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
