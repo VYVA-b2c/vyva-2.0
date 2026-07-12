@@ -170,7 +170,16 @@ const content = [
     mediaAssetCount: 1,
     source: "lovable",
     lovableExternalId: "lovable-content-2",
-    metadata: { extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" } },
+    metadata: {
+      extraLovableOnlyField: "kept",
+      lovable_source_type: "social_post",
+      lovable: {
+        tone: "partner",
+        platform: "linkedin",
+        tags: ["b2b", "partners"],
+        updatedAt: "2026-07-05T09:00:00.000Z",
+      },
+    },
   },
 ];
 
@@ -916,6 +925,13 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Lovable source details");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Source type");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Social post");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Platform");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("linkedin");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Tags");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("b2b, partners");
     expect(screen.getByTestId("button-marketing-edit-previewed-content")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-marketing-edit-previewed-content"));
 
@@ -926,7 +942,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-content-lovable-id")).toHaveValue("lovable-content-2");
-    expect(screen.getByTestId("textarea-marketing-edit-content-metadata")).toHaveValue(JSON.stringify({ extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" } }, null, 2));
+    expect(screen.getByTestId("textarea-marketing-edit-content-metadata")).toHaveValue(JSON.stringify(content[1].metadata, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-content-title"), { target: { value: "Updated partner post" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-content-channel"), { target: { value: "instagram" } });
@@ -939,7 +955,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-html"), { target: { value: "<p>Updated HTML</p>" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-design-json"), { target: { value: "{\"blocks\":[{\"type\":\"text\"}]}" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-media-assets"), { target: { value: "[{\"url\":\"https://cdn.example.test/new.png\"}]" } });
-    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-metadata"), { target: { value: "{\"extraLovableOnlyField\":\"kept\",\"lovable_source_type\":\"social_post\",\"lovable\":{\"tone\":\"partner\"},\"review\":\"done\"}" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-metadata"), { target: { value: JSON.stringify({ ...content[1].metadata, review: "done" }) } });
     fireEvent.click(screen.getByTestId("button-marketing-save-content"));
 
     await waitFor(() => {
@@ -960,7 +976,7 @@ describe("MarketingAdminPage", () => {
       lovableExternalId: "lovable-content-2",
       designJson: { blocks: [{ type: "text" }] },
       mediaAssets: [{ url: "https://cdn.example.test/new.png" }],
-      metadata: { extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" }, review: "done" },
+      metadata: { ...content[1].metadata, review: "done" },
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Updated.");

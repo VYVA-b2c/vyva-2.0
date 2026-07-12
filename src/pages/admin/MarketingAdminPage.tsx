@@ -745,6 +745,96 @@ function contentOriginLabel(item: ContentAsset) {
   return item.source;
 }
 
+const lovableContentSourceDetailKeys = [
+  "id",
+  "title",
+  "name",
+  "templateName",
+  "template_name",
+  "subject",
+  "subjectLine",
+  "subject_line",
+  "channel",
+  "platform",
+  "network",
+  "language",
+  "locale",
+  "status",
+  "audienceType",
+  "audience_type",
+  "campaignId",
+  "campaign_id",
+  "journeyId",
+  "journey_id",
+  "templateKind",
+  "template_kind",
+  "tags",
+  "hashtags",
+  "category",
+  "updatedAt",
+  "updated_at",
+  "createdAt",
+  "created_at",
+] as const;
+
+function humanizeMetadataKey(key: string) {
+  return key
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^./, (match) => match.toUpperCase());
+}
+
+function sourceDetailParsedValue(value: unknown) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed || !/^[{[]/.test(trimmed)) return value;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function sourceDetailText(value: unknown) {
+  const parsed = sourceDetailParsedValue(value);
+  if (parsed === null || parsed === undefined) return "";
+  if (typeof parsed === "string") return parsed.trim();
+  if (typeof parsed === "number" || typeof parsed === "boolean") return String(parsed);
+  if (Array.isArray(parsed)) {
+    const values = parsed
+      .map((item) => sourceDetailText(item))
+      .filter(Boolean);
+    return values.length ? values.slice(0, 8).join(", ") : "";
+  }
+  return "";
+}
+
+function sourceDetailDisplayValue(key: string, value: unknown) {
+  const text = sourceDetailText(value);
+  if (!text) return "";
+  if (/(^|_|\b)(created|updated|scheduled|published|sent|date|at)(_|$|\b)/i.test(key)) {
+    const formatted = formatDate(text);
+    if (formatted !== "Unknown" && formatted !== "Not scheduled") return formatted;
+  }
+  return text.length > 220 ? `${text.slice(0, 217)}...` : text;
+}
+
+function lovableContentSourceDetails(content: ContentAsset) {
+  const metadata = recordValue(content.metadata);
+  const lovable = recordValue(metadata.lovable);
+  if (content.source !== "lovable" && Object.keys(lovable).length === 0) return [];
+  const rows = new Map<string, string>();
+  if (content.lovableExternalId) rows.set("Lovable ID", content.lovableExternalId);
+  rows.set("Source type", contentOriginLabel(content));
+  for (const key of lovableContentSourceDetailKeys) {
+    const value = sourceDetailDisplayValue(key, lovable[key]);
+    if (value) rows.set(humanizeMetadataKey(key), value);
+  }
+  return Array.from(rows, ([label, value]) => ({ label, value }));
+}
+
 function contentAssetByReference(content: ContentAsset[], reference?: string | null) {
   const normalized = lower(reference);
   if (!normalized) return null;
@@ -1560,6 +1650,27 @@ function MetadataPanel({ title, value, testId }: { title: string; value?: Record
         {JSON.stringify(value, null, 2)}
       </pre>
     </details>
+  );
+}
+
+function LovableContentSourceDetails({ content }: { content: ContentAsset }) {
+  const rows = lovableContentSourceDetails(content);
+  if (!rows.length) return null;
+  return (
+    <div className="rounded-xl border border-violet-100 bg-violet-50 p-3" data-testid="marketing-content-source-details">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-violet-900">Lovable source details</p>
+        <Pill className="bg-white text-violet-800">{contentOriginLabel(content)}</Pill>
+      </div>
+      <dl className="mt-3 grid gap-2 md:grid-cols-2">
+        {rows.map((row) => (
+          <div key={`${row.label}-${row.value}`} className="rounded-lg bg-white px-3 py-2">
+            <dt className="text-[11px] font-black uppercase tracking-[0.1em] text-[#8b7a73]">{row.label}</dt>
+            <dd className="mt-1 break-words text-xs font-bold text-[#241133]">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -4470,6 +4581,7 @@ export default function MarketingAdminPage() {
                           ) : null}
                         </div>
                       ) : null}
+                      <LovableContentSourceDetails content={selectedContent} />
                       {selectedContent.htmlBody ? (
                         <iframe
                           title={`Preview ${selectedContent.title}`}
