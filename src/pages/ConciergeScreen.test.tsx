@@ -848,7 +848,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-offers-search")).toBeVisible();
     expect(screen.getByTitle("No commissions")).toBeVisible();
 
-    fireEvent.click(screen.getByTestId("button-offers-search"));
+    fireEvent.click(screen.getByRole("button", { name: /review available benefits/i }));
 
     const proofSummary = await screen.findByTestId("panel-offers-objective-summary");
     expect(proofSummary).toHaveTextContent("Independent");
@@ -874,6 +874,98 @@ describe("ConciergeScreen action hub", () => {
     expect(prefill).toHaveTextContent("Watch important changes for Senior Energy Saver");
     expect(prefill).toHaveTextContent("Nothing is booked");
   });
+
+  it("turns provider results into clear prepared-contact tasks", async () => {
+    apiFetchMock.mockImplementation(async (url, init) => {
+      if (String(url).includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Care options",
+          decision_explanation: "Ranked by fit, trust, access, and cost clarity.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["verified local directories", "public reviews"],
+          protection_summary: {
+            title: "Protected search",
+            checkpoints: ["No contact without confirmation."],
+            notification_triggers: [],
+            action_guardrail: "VYVA asks before contacting anyone.",
+          },
+          options: [{
+            label: "Opcion recomendada",
+            name: "Marbella Care Clinic",
+            category: "Care",
+            what_it_offers: "Personal care assessment.",
+            price_or_advantage: "Clear first-visit price.",
+            why_good_option: "Close, trusted, and accessible.",
+            distance_or_availability: "1.2 km away and available this week.",
+            contact_method: "Phone",
+            phone: "+34 600 111 222",
+            trust_note: "Verified reviews and published contact.",
+            score: 88,
+            score_breakdown: {
+              distance: 90,
+              price_value: 78,
+              trust: 86,
+              simplicity: 82,
+              preference_match: 84,
+            },
+          }],
+          next_step: "Confirm before contacting any provider.",
+        });
+      }
+      if (String(url).includes("/api/concierge/actions/trigger")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.use_case).toBe("find_provider");
+        expect(body.auto_start).toBe(false);
+        expect(body.action_summary).toBe("Provider search prepared: Marbella Care Clinic.");
+        expect(body.action_payload).toMatchObject({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          requested_tool: "operator_review",
+          action_label: "Prepare contact",
+          confirmation_required_before_action: true,
+          no_external_action_without_confirmation: true,
+        });
+        expect(body.action_payload.draft_message).toContain("Help me prepare contact with Marbella Care Clinic");
+        expect(body.action_payload.draft_message).toContain("Chosen criteria:");
+        expect(body.action_payload.draft_message).toContain("Do not call, book, message, or share details without my confirmation.");
+        return jsonResponse({ pendingId: "provider-contact-1", status: "pending" });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByTestId("button-provider-criterion-clear-price"));
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    const badges = await screen.findByTestId("panel-provider-result-badges-opcion-recomendada-marbella-care-clinic");
+    expect(badges).toHaveTextContent("Nearby");
+    expect(badges).toHaveTextContent("Good reputation");
+    expect(badges).toHaveTextContent("Easy access");
+    expect(badges).toHaveTextContent("Clear price");
+
+    const fit = screen.getByTestId("panel-provider-result-fit-opcion-recomendada-marbella-care-clinic");
+    expect(fit).toHaveTextContent("Why this fits");
+    expect(fit).toHaveTextContent("Close, trusted, and accessible.");
+    expect(fit).toHaveTextContent("1.2 km away and available this week.");
+    expect(screen.queryByRole("button", { name: /watch changes/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("button-provider-prepare-contact-opcion-recomendada-marbella-care-clinic"));
+
+    const prefill = await screen.findByTestId("panel-concierge-route-prefill");
+    expect(prefill).toHaveTextContent("Provider search ready");
+    expect(prefill).toHaveTextContent("Provider search prepared: Marbella Care Clinic.");
+    expect(prefill).toHaveTextContent("Prepare contact");
+    expect(prefill).toHaveTextContent("Add to Right now");
+
+    fireEvent.click(screen.getByTestId("button-concierge-prefill-send"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/trigger", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+  }, 60000);
 
   it("adds provider search criteria to care option searches", async () => {
     let searchBody: { query?: string; locale?: string } | null = null;
@@ -918,6 +1010,44 @@ describe("ConciergeScreen action hub", () => {
     expect(searchBody?.query).toContain("accessible for older adults");
     expect(searchBody?.query).toContain("clear pricing and no hidden fees");
     expect(searchBody?.query).toContain("Do not contact or share details without confirmation");
+  });
+
+  it("offers manual search and setup fallbacks when provider results are empty", async () => {
+    apiFetchMock.mockImplementation(async (url) => {
+      if (String(url).includes("/api/offers/search")) {
+        return jsonResponse({
+          category: "Care options",
+          decision_explanation: "Ranked by fit, trust, access, and cost clarity.",
+          neutrality_note: "No provider paid for placement.",
+          source_guidance: ["verified local directories"],
+          protection_summary: {
+            title: "Protected search",
+            checkpoints: ["No contact without confirmation."],
+            notification_triggers: [],
+            action_guardrail: "VYVA asks before contacting anyone.",
+          },
+          no_results_message: "No verified provider matched those needs.",
+          options: [],
+          next_step: "Save a trusted provider or ask VYVA to search manually.",
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+    fireEvent.click(await screen.findByTestId("button-concierge-card-ride"));
+    fireEvent.click(screen.getByTestId("button-offers-search"));
+
+    expect(await screen.findByText("No verified provider matched those needs.")).toBeVisible();
+    expect(screen.getByTestId("button-provider-search-manual")).toHaveTextContent("Ask VYVA to search");
+    expect(screen.getByTestId("button-provider-search-setup")).toHaveTextContent("Set up trusted provider");
+
+    fireEvent.click(screen.getByTestId("button-provider-search-setup"));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/onboarding/profile/providers");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("personal_care");
+    expect(screen.getByTestId("route-state")).toHaveTextContent("Add a trusted provider");
+    expect(screen.getByTestId("route-state")).toHaveTextContent(CONCIERGE_FLOW_REFERENCES.toolGatedTask);
   });
 
   it("collects plumber intake, stores app origin, and automatically searches when no saved provider exists", async () => {
