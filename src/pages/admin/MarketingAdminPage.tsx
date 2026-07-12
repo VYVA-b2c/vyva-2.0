@@ -343,6 +343,7 @@ type LovableExportPreview = {
 
 type SyncState = {
   provider: string;
+  backendBuild?: string;
   configured: boolean;
   canRunSync: boolean;
   requiredRunnerEmail: string | null;
@@ -4885,9 +4886,10 @@ export default function MarketingAdminPage() {
                           <p>VYVA_MARKETING_EXPORT_URL: {yesNo(urlAliasPresent.VYVA_MARKETING_EXPORT_URL)}</p>
                           <p>LOVABLE_MARKETING_API_URL: {yesNo(urlAliasPresent.LOVABLE_MARKETING_API_URL)}</p>
                           <p>Token source: {syncDiagnostics.tokenSource ?? "none"}</p>
+                          <p>Sync API build: {syncState.backendBuild ?? "old response"}</p>
                         </div>
                       ) : (
-                        <p className="mt-2 text-red-700">The server did not return configuration diagnostics. The deployment may still be running an older backend bundle.</p>
+                        <p className="mt-2 text-red-700">The server did not return configuration diagnostics. Sync API build: {syncState.backendBuild ?? "old response"}. The deployment may still be running an older backend bundle.</p>
                       )}
                     </div>
                     <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
