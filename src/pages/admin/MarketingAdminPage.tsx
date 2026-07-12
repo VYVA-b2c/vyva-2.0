@@ -2674,6 +2674,16 @@ export default function MarketingAdminPage() {
     }
   }, [selectedContentId, visibleContentIdSet, editingContentId, contentEditDraft]);
 
+  useEffect(() => {
+    if (activeTab !== "content") return;
+    if (contentDrawerMode === "preview" && selectedContentId) {
+      scrollToContentPanel(contentPreviewPanelRef);
+    }
+    if (contentDrawerMode === "edit" && editingContentId) {
+      scrollToContentPanel(contentEditorPanelRef);
+    }
+  }, [activeTab, contentDrawerMode, selectedContentId, editingContentId]);
+
   const contentEmptyDiagnostic = useMemo(() => {
     if (content.length > 0 && visibleContent.length === 0) {
       return {
@@ -4925,7 +4935,7 @@ export default function MarketingAdminPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex flex-wrap gap-2">
-                                  <button type="button" onClick={() => previewContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${item.id === selectedContent?.id && editingContentId !== item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} data-testid={`button-marketing-preview-content-${item.id}`}>
+                                  <button type="button" onClick={() => previewContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-[#9d8b9d] ${item.id === selectedContent?.id && contentDrawerMode === "preview" ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-preview-content-${item.id}`}>
                                     <Eye size={13} /> {item.id === selectedContent?.id && editingContentId !== item.id ? "Previewing" : "Preview"}
                                   </button>
                                   <button type="button" onClick={() => startContentEdit(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${editingContentId === item.id ? "border-purple-300 bg-purple-700 text-white" : "border-[#eadfd5] bg-white text-purple-700"}`} disabled={contentSaving} data-testid={`button-marketing-edit-content-${item.id}`}>
@@ -4938,6 +4948,22 @@ export default function MarketingAdminPage() {
                                     <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-content-delete-confirmation-${item.id}`}>
                                       Click Confirm delete to remove this content.
                                     </p>
+                                  ) : null}
+                                  {item.id === selectedContentId && contentDrawerMode === "preview" ? (
+                                    <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-preview-open-${item.id}`}>
+                                      <p>Preview opened below.</p>
+                                      <button type="button" onClick={() => scrollToContentPanel(contentPreviewPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
+                                        <ArrowDown size={12} /> Jump to preview
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                  {item.id === editingContentId && contentDrawerMode === "edit" ? (
+                                    <div className="basis-full rounded-lg bg-purple-50 px-2 py-2 text-xs font-black text-purple-900" role="status" data-testid={`marketing-content-editor-open-${item.id}`}>
+                                      <p>Editor opened below.</p>
+                                      <button type="button" onClick={() => scrollToContentPanel(contentEditorPanelRef)} className="mt-1 inline-flex items-center gap-1 text-purple-700 underline">
+                                        <ArrowDown size={12} /> Jump to editor
+                                      </button>
+                                    </div>
                                   ) : null}
                                 </div>
                               </td>
