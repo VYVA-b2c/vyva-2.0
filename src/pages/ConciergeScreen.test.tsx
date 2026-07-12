@@ -335,7 +335,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.queryByTestId("button-appointment-channel-phone")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
-    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA is calling now. Save the appointment once confirmed.")).toBeVisible();
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests", expect.objectContaining({ method: "POST" }));
     expect(apiFetchMock).toHaveBeenCalledWith("/api/appointments/requests/request-1/confirm-attempt", expect.objectContaining({ method: "POST" }));
@@ -396,7 +396,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Current path: email");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
-    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA sent the message. Save the appointment when they reply.")).toBeVisible();
   });
 
@@ -455,7 +455,7 @@ describe("ConciergeScreen action hub", () => {
     expect(screen.getByTestId("panel-appointment-readiness")).toHaveTextContent("Current path: booking link");
     fireEvent.click(screen.getByTestId("button-appointment-handle-provider"));
 
-    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("When it is confirmed");
+    expect(await screen.findByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm appointment");
     expect(screen.getByText("VYVA has the booking form task. Save the appointment once confirmed.")).toBeVisible();
   });
 
@@ -1136,6 +1136,34 @@ describe("ConciergeScreen action hub", () => {
           needs_booking_confirmation: true,
         });
       }
+      if (target.endsWith("/api/appointments/requests/request-voice-home-service/mark-booked")) {
+        const body = JSON.parse(String(init?.body));
+        expect(body).toMatchObject({
+          provider_name: "Saved Plumber",
+          location: "Home kitchen",
+        });
+        expect(body.notes).toContain("Provider reply: Can visit tomorrow at 10:00. Estimated cost EUR80.");
+        expect(body.notes).toContain("Notes: Caregiver will open the door.");
+        return jsonResponse({
+          scheduled_event: {
+            id: "scheduled-home-service",
+            scheduled_for: body.scheduled_for,
+            title: "Saved Plumber",
+          },
+          mission: {
+            status: "booked",
+            current_step: "Saved",
+            preferred_channel: "whatsapp",
+            user_control_state: {
+              listening: false,
+              muted: false,
+              stopped: true,
+              awaiting_confirmation: false,
+            },
+            activity_log: ["Saved"],
+          },
+        });
+      }
       if (target.endsWith("/api/appointments/requests")) {
         const body = JSON.parse(String(init?.body));
         expect(body.preferences.service_intake).toMatchObject({
@@ -1204,6 +1232,29 @@ describe("ConciergeScreen action hub", () => {
       );
     });
     expect(await screen.findByText("VYVA sent the message. Save the appointment when they reply.")).toBeVisible();
+    expect(screen.getByTestId("panel-appointment-mark-booked")).toHaveTextContent("Review and confirm visit");
+
+    fireEvent.change(screen.getByTestId("input-appointment-provider-reply"), {
+      target: { value: "Can visit tomorrow at 10:00. Estimated cost EUR80." },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-time"), {
+      target: { value: "2026-08-04T10:00" },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-location"), {
+      target: { value: "Home kitchen" },
+    });
+    fireEvent.change(screen.getByTestId("input-appointment-confirmed-note"), {
+      target: { value: "Caregiver will open the door." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save confirmed visit" }));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith(
+        "/api/appointments/requests/request-voice-home-service/mark-booked",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    expect(await screen.findByText("Appointment saved in Scheduled Support.")).toBeVisible();
   });
 
   it("still prepares ride requests without booking", async () => {
@@ -1535,6 +1586,36 @@ describe("ConciergeScreen action hub", () => {
         expect(body.action_payload.whatsapp_message).toContain("Destination: Heart Clinic Madrid");
         return jsonResponse({ pendingId: "transport-1", status: "pending" });
       }
+      if (String(url).includes("/api/profile/scheduled-events")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body).toMatchObject({
+          event_type: "transport",
+          title: "Ride with Radio Taxi",
+          source: "concierge",
+          status: "upcoming",
+        });
+        expect(body.description).toContain("Pickup: Saved home");
+        expect(body.description).toContain("Destination: Heart Clinic Madrid");
+        expect(body.description).toContain("Provider reply: Confirmed, arrives at 09:30.");
+        expect(body.description).toContain("Price: EUR18");
+        expect(body.description).toContain("Reference: RT-123");
+        expect(body.metadata).toMatchObject({
+          flow_reference: "FLOW_TRANSPORT_BOOKING",
+          pending_id: "transport-1",
+          provider_name: "Radio Taxi",
+          provider_phone: "+34 612 345 678",
+          provider_whatsapp: "+34 612 345 679",
+          option_kind: "local_taxi",
+          pickup_address: "Saved home",
+          destination_address: "Heart Clinic Madrid",
+          requested_time: "now",
+          provider_reply: "Confirmed, arrives at 09:30.",
+          price_estimate: "EUR18",
+          booking_reference: "RT-123",
+        });
+        return jsonResponse({ event: { id: "ride-event-1", title: body.title } });
+      }
       return jsonResponse({ items: [] });
     });
 
@@ -1564,7 +1645,30 @@ describe("ConciergeScreen action hub", () => {
         method: "POST",
       }));
     });
-    expect(await screen.findByText("Transport request prepared. Confirm before VYVA contacts anyone.")).toBeVisible();
+    expect(await screen.findByText("Ride request prepared. Confirm contact in Right now, then review and save the ride.")).toBeVisible();
+    expect(screen.getByTestId("panel-transport-final-review")).toHaveTextContent("Review and confirm ride");
+
+    fireEvent.change(screen.getByTestId("input-transport-provider-reply"), {
+      target: { value: "Confirmed, arrives at 09:30." },
+    });
+    fireEvent.change(screen.getByTestId("input-transport-confirmed-time"), {
+      target: { value: "2026-08-04T09:30" },
+    });
+    fireEvent.change(screen.getByTestId("input-transport-confirmed-price"), {
+      target: { value: "EUR18" },
+    });
+    fireEvent.change(screen.getByTestId("input-transport-confirmed-reference"), {
+      target: { value: "RT-123" },
+    });
+
+    fireEvent.click(screen.getByTestId("button-transport-save-confirmed-ride"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/profile/scheduled-events", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(await screen.findByText("Ride saved in Scheduled Support.")).toBeVisible();
   });
 });
 
@@ -1690,7 +1794,33 @@ describe("ConciergeScreen route prefill", () => {
 
     const callLink = await screen.findByRole("link", { name: "Call +34 612 345 678" });
     expect(callLink).toHaveAttribute("href", "tel:+34612345678");
+    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Details prepared");
+    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("Waiting for you");
+    expect(screen.getByTestId("timeline-step-user-confirm")).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("timeline-step-contacting")).toHaveAttribute("data-state", "upcoming");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Confirm and call");
+  });
+
+  it("shows contacting provider as the active timeline step for started actions", async () => {
+    apiFetchMock.mockResolvedValue(jsonResponse({
+      items: [{
+        id: "ride-calling-1",
+        use_case: "book_ride",
+        provider_name: "Radio Taxi",
+        provider_phone: "+34 612 345 678",
+        action_summary: "VYVA is calling the taxi provider now.",
+        action_payload: null,
+        status: "calling",
+        language: "en",
+      }],
+    }));
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-action-timeline")).toHaveTextContent("Contacting provider");
+    expect(screen.getByTestId("timeline-step-user-confirm")).toHaveAttribute("data-state", "done");
+    expect(screen.getByTestId("timeline-step-contacting")).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("timeline-step-reply")).toHaveAttribute("data-state", "upcoming");
   });
 
   it("renders prepared email actions as draft mail links", async () => {
@@ -1777,6 +1907,9 @@ describe("ConciergeScreen route prefill", () => {
 
     expect(await screen.findByTestId("panel-concierge-appointment-mission")).toHaveTextContent("Form in progress");
     expect(screen.getByTestId("panel-concierge-appointment-mission")).toHaveTextContent("VYVA is handling this");
+    expect(screen.getByTestId("panel-concierge-action-timeline")).toHaveTextContent("VYVA preparing");
+    expect(screen.getByTestId("timeline-step-vyva-prepare")).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("timeline-step-reply")).toHaveAttribute("data-state", "upcoming");
     expect(await screen.findByTestId("panel-concierge-form-plan")).toHaveTextContent("System: TheFork");
     expect(screen.getByTestId("panel-concierge-form-plan")).toHaveTextContent("Needs first: number of guests");
     expect(screen.getByText("VYVA is handling it")).toBeVisible();

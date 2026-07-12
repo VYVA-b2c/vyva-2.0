@@ -566,6 +566,8 @@ interface TransportOptionsResponse {
   disclaimers: string[];
 }
 
+type TransportPreparedResponse = { pendingId?: string; status?: string; message?: string };
+
 type ConciergeActionListResponse<T> = { items?: T[] };
 
 interface OfferScoreBreakdown {
@@ -1476,7 +1478,73 @@ async function prepareTransportConciergeAction(params: {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(data?.error ?? "Could not prepare transport request");
   }
-  return await res.json() as { pendingId?: string; status?: string; message?: string };
+  return await res.json() as TransportPreparedResponse;
+}
+
+async function saveConfirmedRide(params: {
+  option: TransportOption;
+  pendingId?: string | null;
+  scheduledFor: string;
+  timezone: string;
+  pickupAddress: string;
+  destinationAddress: string;
+  requestedTime: string;
+  mobilityNeeds: string[];
+  providerReply: string;
+  priceEstimate: string;
+  bookingReference: string;
+  notes: string;
+}): Promise<{ event?: unknown }> {
+  const scheduledDate = new Date(params.scheduledFor);
+  const providerName = params.option.providerName || params.option.label;
+  const description = [
+    `Pickup: ${params.pickupAddress.trim() || "To confirm"}`,
+    `Destination: ${params.destinationAddress.trim() || "To confirm"}`,
+    params.requestedTime.trim() ? `Requested time: ${params.requestedTime.trim()}` : "",
+    params.providerReply.trim() ? `Provider reply: ${params.providerReply.trim()}` : "",
+    params.priceEstimate.trim() ? `Price: ${params.priceEstimate.trim()}` : "",
+    params.bookingReference.trim() ? `Reference: ${params.bookingReference.trim()}` : "",
+    params.mobilityNeeds.length ? `Mobility needs: ${params.mobilityNeeds.join(", ")}` : "",
+    params.notes.trim() ? `Notes: ${params.notes.trim()}` : "",
+  ].filter(Boolean).join("\n").slice(0, 1000);
+
+  const res = await apiFetch("/api/profile/scheduled-events", {
+    method: "POST",
+    body: JSON.stringify({
+      event_type: "transport",
+      title: `Ride with ${providerName}`,
+      description,
+      channel: "app",
+      scheduled_for: scheduledDate.toISOString(),
+      timezone: params.timezone,
+      recurrence: "none",
+      status: "upcoming",
+      source: "concierge",
+      metadata: {
+        flow_reference: TRANSPORT_BOOKING_FLOW_REFERENCE,
+        pending_id: params.pendingId ?? null,
+        provider_name: providerName,
+        provider_phone: params.option.phone ?? null,
+        provider_email: params.option.email ?? null,
+        provider_whatsapp: params.option.whatsapp ?? null,
+        booking_url: params.option.bookingUrl || (params.option.kind === "ride_app" ? params.option.url : null) || null,
+        option_kind: params.option.kind,
+        pickup_address: params.pickupAddress.trim(),
+        destination_address: params.destinationAddress.trim(),
+        requested_time: params.requestedTime.trim() || "now",
+        mobility_needs: params.mobilityNeeds,
+        provider_reply: params.providerReply.trim(),
+        price_estimate: params.priceEstimate.trim(),
+        booking_reference: params.bookingReference.trim(),
+        notes: params.notes.trim(),
+      },
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Could not save confirmed ride");
+  }
+  return await res.json() as { event?: unknown };
 }
 
 async function prepareOtcPharmacyConciergeAction(params: {
@@ -2213,6 +2281,135 @@ function transportConfirmationItems(params: {
   return items;
 }
 
+type FinalConfirmationField = {
+  key: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: "text" | "datetime-local";
+  multiline?: boolean;
+  testId: string;
+  fullWidth?: boolean;
+};
+
+function FinalConfirmationCard({
+  title,
+  body,
+  providerName,
+  icon: Icon,
+  fields,
+  primaryLabel,
+  secondaryLabel,
+  onPrimary,
+  onSecondary,
+  primaryPending,
+  testId,
+  primaryTestId,
+  secondaryTestId,
+  isSpanish,
+}: {
+  title: string;
+  body: string;
+  providerName?: string | null;
+  icon: LucideIcon;
+  fields: FinalConfirmationField[];
+  primaryLabel: string;
+  secondaryLabel: string;
+  onPrimary: () => void;
+  onSecondary: () => void;
+  primaryPending?: boolean;
+  testId: string;
+  primaryTestId?: string;
+  secondaryTestId?: string;
+  isSpanish: boolean;
+}) {
+  return (
+    <div
+      className="mt-3 rounded-[22px] border border-[#99F6E4] bg-[#F0FDFA] p-4 shadow-[0_14px_30px_rgba(13,148,136,0.10)] sm:p-5"
+      data-testid={testId}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[16px] bg-white text-[#0F766E] shadow-sm">
+          <Icon size={19} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-body text-[12px] font-black uppercase tracking-[0.1em] text-[#0F766E]">
+            {isSpanish ? "Ultimo paso" : "Final step"}
+          </p>
+          <h3 className="mt-1 font-body text-[18px] font-black leading-tight text-vyva-text-1">
+            {title}
+          </h3>
+          <p className="mt-1 font-body text-[13px] font-semibold leading-snug text-vyva-text-2">
+            {body}
+          </p>
+        </div>
+      </div>
+
+      {providerName ? (
+        <div className="mt-3 rounded-[16px] border border-[#99F6E4] bg-white px-3 py-2 font-body text-[13px] font-black text-[#0F766E]">
+          {providerName}
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {fields.map((field) => {
+          const labelClassName = `block font-body text-[12px] font-black uppercase tracking-[0.08em] text-[#0F766E]${
+            field.fullWidth || field.multiline ? " sm:col-span-2" : ""
+          }`;
+
+          return (
+            <label key={field.key} className={labelClassName}>
+              {field.label}
+              {field.multiline ? (
+                <textarea
+                  value={field.value}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  placeholder={field.placeholder}
+                  rows={3}
+                  className="mt-2 w-full resize-none rounded-[16px] border border-[#99F6E4] bg-white px-3 py-3 font-body text-[14px] font-semibold normal-case tracking-normal text-vyva-text-1 outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-[#14B8A6]/15"
+                  data-testid={field.testId}
+                />
+              ) : (
+                <Input
+                  type={field.type ?? "text"}
+                  value={field.value}
+                  onChange={(event) => field.onChange(event.target.value)}
+                  placeholder={field.placeholder}
+                  className="mt-2 min-h-[48px] rounded-[16px] border-[#99F6E4] bg-white font-body text-[14px] focus-visible:ring-[#14B8A6]/20"
+                  data-testid={field.testId}
+                />
+              )}
+            </label>
+          );
+        })}
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+        <button
+          type="button"
+          onClick={onPrimary}
+          disabled={primaryPending}
+          className={VYVA_MODAL_PRIMARY_ACTION_CLASS}
+          data-testid={primaryTestId}
+        >
+          {primaryPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
+          {primaryLabel}
+        </button>
+        <button
+          type="button"
+          onClick={onSecondary}
+          disabled={primaryPending}
+          className={`${VYVA_MODAL_SECONDARY_ACTION_CLASS} border-[#99F6E4] text-[#0F766E]`}
+          data-testid={secondaryTestId}
+        >
+          {secondaryLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function otcPharmacyConfirmationItems(params: {
   pharmacyName: string;
   itemText: string;
@@ -2468,6 +2665,184 @@ function statusLabel(status: ConciergePendingItem["status"], locale = "es"): str
   }
 }
 
+type ConciergeTimelineStepState = "done" | "active" | "upcoming" | "warning";
+
+type ConciergeTimelineStep = {
+  id: string;
+  label: string;
+  helper: string;
+  state: ConciergeTimelineStepState;
+};
+
+function missionStatusForPendingAction(item: ConciergePendingItem): AppointmentMissionState["status"] | null {
+  return isAppointmentMissionStatus(item.action_payload?.mission_status)
+    ? item.action_payload.mission_status
+    : null;
+}
+
+function timelineStepCopy(id: string, isSpanish: boolean): Omit<ConciergeTimelineStep, "id" | "state"> {
+  const copy: Record<string, { en: string; es: string; helperEn: string; helperEs: string }> = {
+    prepared: {
+      en: "Details prepared",
+      es: "Detalles preparados",
+      helperEn: "VYVA has the request.",
+      helperEs: "VYVA tiene la solicitud.",
+    },
+    "user-confirm": {
+      en: "Waiting for you",
+      es: "Esperando tu confirmacion",
+      helperEn: "Nothing is sent yet.",
+      helperEs: "Aun no se envia nada.",
+    },
+    "vyva-prepare": {
+      en: "VYVA preparing",
+      es: "VYVA preparando",
+      helperEn: "VYVA is organizing the next step.",
+      helperEs: "VYVA organiza el siguiente paso.",
+    },
+    contacting: {
+      en: "Contacting provider",
+      es: "Contactando proveedor",
+      helperEn: "Call, message, or form in progress.",
+      helperEs: "Llamada, mensaje o formulario en curso.",
+    },
+    reply: {
+      en: "Waiting for reply",
+      es: "Esperando respuesta",
+      helperEn: "Save it when they confirm.",
+      helperEs: "Guardalo cuando confirmen.",
+    },
+    save: {
+      en: "Ready to save",
+      es: "Listo para guardar",
+      helperEn: "Add confirmed time or reference.",
+      helperEs: "Anade hora o referencia confirmada.",
+    },
+    saved: {
+      en: "Saved",
+      es: "Guardado",
+      helperEn: "It appears in Scheduled Support.",
+      helperEs: "Aparece en soporte programado.",
+    },
+    attention: {
+      en: "Needs attention",
+      es: "Necesita revision",
+      helperEn: "Review before continuing.",
+      helperEs: "Revisa antes de continuar.",
+    },
+    stopped: {
+      en: "Stopped",
+      es: "Detenido",
+      helperEn: "This task will not continue.",
+      helperEs: "Esta gestion no continuara.",
+    },
+  };
+  const entry = copy[id] ?? copy.prepared;
+  return {
+    label: isSpanish ? entry.es : entry.en,
+    helper: isSpanish ? entry.helperEs : entry.helperEn,
+  };
+}
+
+function buildConciergeActionTimeline(item: ConciergePendingItem, isSpanish: boolean): ConciergeTimelineStep[] {
+  const missionStatus = missionStatusForPendingAction(item);
+  const executionChannel = getExecutionChannel(item);
+  const bookingUrl = getBookingUrl(item);
+  const formPlan = getFormAutomationPlan(item);
+  const formReady = executionChannel === "booking_url" && Boolean(bookingUrl) && (formPlan?.missingFields.length ?? 0) === 0;
+  const isVyvaTask = executionChannel === "manual" || (executionChannel === "booking_url" && !formReady);
+  const stepIds = isVyvaTask
+    ? ["prepared", "vyva-prepare", "reply", "save", "saved"]
+    : ["prepared", "user-confirm", "contacting", "reply", "save", "saved"];
+
+  let activeId = isVyvaTask ? "vyva-prepare" : "user-confirm";
+  if (item.status === "calling") activeId = "contacting";
+  if (item.status === "failed") activeId = "attention";
+  if (item.status === "cancelled") activeId = "stopped";
+
+  if (missionStatus) {
+    if (missionStatus === "awaiting_confirmation") activeId = "user-confirm";
+    if (missionStatus === "contacting_provider" || missionStatus === "form_in_progress") activeId = "contacting";
+    if (missionStatus === "awaiting_provider_reply") activeId = "reply";
+    if (missionStatus === "awaiting_user_save") activeId = "save";
+    if (missionStatus === "booked") activeId = "saved";
+    if (missionStatus === "stopped") activeId = "stopped";
+  }
+
+  if (isVyvaTask && activeId === "contacting" && !stepIds.includes(activeId)) {
+    activeId = "vyva-prepare";
+  }
+
+  if (activeId === "attention" || activeId === "stopped") {
+    return [
+      { id: "prepared", ...timelineStepCopy("prepared", isSpanish), state: "done" },
+      { id: activeId, ...timelineStepCopy(activeId, isSpanish), state: "warning" },
+    ];
+  }
+
+  const activeIndex = Math.max(0, stepIds.indexOf(activeId));
+  return stepIds.map((id, index) => ({
+    id,
+    ...timelineStepCopy(id, isSpanish),
+    state: index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming",
+  }));
+}
+
+function ConciergeActionTimeline({ steps }: { steps: ConciergeTimelineStep[] }) {
+  return (
+    <div
+      className="mt-4 rounded-[18px] border border-[#E9D5FF] bg-[#FBF8FF] p-3"
+      data-testid="panel-concierge-action-timeline"
+    >
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {steps.map((step, index) => {
+          const isDone = step.state === "done";
+          const isActive = step.state === "active";
+          const isWarning = step.state === "warning";
+          return (
+            <li
+              key={step.id}
+              data-testid={`timeline-step-${step.id}`}
+              data-state={step.state}
+              className={`flex min-h-[58px] items-start gap-3 rounded-[14px] border px-3 py-2 ${
+                isWarning
+                  ? "border-[#FCA5A5] bg-[#FEF2F2]"
+                  : isActive
+                    ? "border-[#C4B5FD] bg-white"
+                    : isDone
+                      ? "border-[#BBF7D0] bg-[#F8FFFC]"
+                      : "border-transparent bg-white/60"
+              }`}
+            >
+              <span
+                className={`mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full font-body text-[11px] font-black ${
+                  isWarning
+                    ? "bg-[#FEE2E2] text-[#B91C1C]"
+                    : isActive
+                      ? "bg-vyva-purple text-white"
+                      : isDone
+                        ? "bg-[#ECFDF5] text-[#047857]"
+                        : "bg-[#F3F4F6] text-vyva-text-3"
+                }`}
+              >
+                {isDone ? <CircleCheck size={13} /> : index + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-body text-[13px] font-black leading-tight text-vyva-text-1">
+                  {step.label}
+                </span>
+                <span className="mt-0.5 block font-body text-[11px] font-semibold leading-snug text-vyva-text-2">
+                  {step.helper}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function getUseCaseLabel(useCase: string, locale = "es"): string {
   const es = locale.startsWith("es");
   switch (useCase) {
@@ -2563,6 +2938,7 @@ const ConciergeScreen = () => {
   const [appointmentBookedForm, setAppointmentBookedForm] = useState({
     scheduledFor: "",
     location: "",
+    providerReply: "",
     notes: "",
   });
   const [routePrefill, setRoutePrefill] = useState<ConciergeRoutePrefill | null>(null);
@@ -2572,6 +2948,30 @@ const ConciergeScreen = () => {
   const [transportMobilityNeeds, setTransportMobilityNeeds] = useState<string[]>([]);
   const [transportDetailsOpen, setTransportDetailsOpen] = useState(false);
   const [transportResult, setTransportResult] = useState<TransportOptionsResponse | null>(null);
+  const [transportPreparedOption, setTransportPreparedOption] = useState<TransportOption | null>(null);
+  const [transportPreparedResult, setTransportPreparedResult] = useState<TransportPreparedResponse | null>(null);
+  const [transportFinalForm, setTransportFinalForm] = useState({
+    scheduledFor: "",
+    pickup: "",
+    destination: "",
+    providerReply: "",
+    priceEstimate: "",
+    bookingReference: "",
+    notes: "",
+  });
+  function resetTransportFinalReview() {
+    setTransportPreparedOption(null);
+    setTransportPreparedResult(null);
+    setTransportFinalForm({
+      scheduledFor: "",
+      pickup: "",
+      destination: "",
+      providerReply: "",
+      priceEstimate: "",
+      bookingReference: "",
+      notes: "",
+    });
+  }
   const [transportError, setTransportError] = useState<string | null>(null);
   const [transportNotice, setTransportNotice] = useState<string | null>(null);
   const [insuranceAdminOpen, setInsuranceAdminOpen] = useState(false);
@@ -2936,6 +3336,7 @@ const ConciergeScreen = () => {
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
       setAppointmentControlMode("listening");
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
     },
     onSuccess: (result) => {
       setAppointmentRequest(result.request);
@@ -3074,7 +3475,7 @@ const ConciergeScreen = () => {
       setAppointmentDiscovery(null);
       setSelectedAppointmentOptionId(null);
       setAppointmentAttemptResult(null);
-      setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+      setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
       queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
     onError: (error) => {
@@ -3117,6 +3518,7 @@ const ConciergeScreen = () => {
       setTransportError(null);
       setTransportNotice(null);
       setTransportResult(null);
+      resetTransportFinalReview();
     },
     onSuccess: (result) => {
       setTransportResult(result);
@@ -3142,14 +3544,42 @@ const ConciergeScreen = () => {
       setTransportError(null);
       setTransportNotice(null);
     },
-    onSuccess: async () => {
+    onSuccess: async (result, option) => {
+      setTransportPreparedOption(option);
+      setTransportPreparedResult(result);
+      setTransportFinalForm({
+        scheduledFor: "",
+        pickup: transportPickup.trim() || savedTransportPickupLabel,
+        destination: transportDestination.trim(),
+        providerReply: "",
+        priceEstimate: "",
+        bookingReference: "",
+        notes: "",
+      });
       setTransportNotice(isSpanish
-        ? "Solicitud preparada. Confirma antes de que VYVA contacte con nadie."
-        : "Transport request prepared. Confirm before VYVA contacts anyone.");
+        ? "Solicitud preparada. Confirma el contacto en Ahora mismo; despues revisa y guarda el viaje."
+        : "Ride request prepared. Confirm contact in Right now, then review and save the ride.");
       await queryClient.invalidateQueries({ queryKey: ["/api/concierge/actions/pending"] });
     },
     onError: (error) => {
       setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido preparar la solicitud." : "I could not prepare the request."));
+    },
+  });
+
+  const saveTransportRideMutation = useMutation({
+    mutationFn: saveConfirmedRide,
+    onMutate: () => {
+      setTransportError(null);
+      setTransportNotice(null);
+    },
+    onSuccess: async () => {
+      setTransportNotice(isSpanish ? "Viaje guardado en Scheduled Support." : "Ride saved in Scheduled Support.");
+      resetTransportFinalReview();
+      await queryClient.invalidateQueries({ queryKey: ["/api/profile/scheduled-events"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/scheduled-events"] });
+    },
+    onError: (error) => {
+      setTransportError(error instanceof Error ? error.message : (isSpanish ? "No he podido guardar el viaje." : "I could not save the ride."));
     },
   });
 
@@ -3190,7 +3620,7 @@ const ConciergeScreen = () => {
     || coveragePlan.trim().length > 0;
   const isHomeServiceAppointment = appointmentIntentType === "home-service";
   const isHomeServiceIntakeActive = isHomeServiceAppointment && Boolean(homeServiceType);
-  const isHomeServiceWithoutProvider = isHomeServiceAppointment && appointmentOptions.length === 0 && !appointmentAttemptResult;
+  const isHomeServiceWithoutProvider = isHomeServiceAppointment && Boolean(appointmentRequest) && appointmentOptions.length === 0 && !appointmentAttemptResult;
   const AppointmentPanelIcon = isHomeServiceAppointment ? Wrench : Calendar;
   const appointmentPanelKicker = isHomeServiceAppointment
     ? (isSpanish ? "Servicio" : "Service")
@@ -3218,6 +3648,19 @@ const ConciergeScreen = () => {
   const appointmentPrepareLabel = isHomeServiceAppointment
     ? (isSpanish ? "Preparar mensaje" : "Prepare message")
     : (isSpanish ? "Prepararlo por chat" : "Prepare in chat");
+  const appointmentFinalReviewTitle = isHomeServiceAppointment
+    ? (isSpanish ? "Revisar y confirmar visita" : "Review and confirm visit")
+    : (isSpanish ? "Revisar y confirmar cita" : "Review and confirm appointment");
+  const appointmentFinalReviewBody = isHomeServiceAppointment
+    ? (isSpanish
+      ? "Cuando el proveedor responda, guarda aqui la hora, lugar, precio o preparacion. Nada queda final hasta que confirmes."
+      : "When the provider replies, save the time, place, price, or prep here. Nothing is final until you confirm.")
+    : (isSpanish
+      ? "Cuando el proveedor responda, guarda aqui la hora, lugar y cualquier instruccion. Nada queda final hasta que confirmes."
+      : "When the provider replies, save the time, place, and any instructions here. Nothing is final until you confirm.");
+  const appointmentFinalSaveLabel = isHomeServiceAppointment
+    ? (isSpanish ? "Guardar visita confirmada" : "Save confirmed visit")
+    : (isSpanish ? "Guardar cita confirmada" : "Save confirmed appointment");
   const showAppointmentStatusMessage = Boolean(
     appointmentError
     || createAppointmentMutation.isPending
@@ -3347,7 +3790,7 @@ const ConciergeScreen = () => {
     setAppointmentAttemptResult(null);
     setAppointmentNotice(null);
     setAppointmentError(null);
-    setAppointmentBookedForm({ scheduledFor: "", location: "", notes: "" });
+    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
   }, [resetHomeServiceIntake]);
 
   useEffect(() => {
@@ -3687,6 +4130,7 @@ const ConciergeScreen = () => {
     setTransportResult(null);
     setTransportError(null);
     setTransportNotice(null);
+    resetTransportFinalReview();
     setTransportTime(requestedTime);
     setTransportDetailsOpen(true);
     setOffersOpen(false);
@@ -3857,14 +4301,64 @@ const ConciergeScreen = () => {
       setAppointmentError(isSpanish ? "Anade fecha y hora confirmadas." : "Add the confirmed date and time.");
       return;
     }
+    const providerReply = appointmentBookedForm.providerReply.trim();
+    const userNotes = appointmentBookedForm.notes.trim();
+    const finalNotes = [
+      providerReply ? `Provider reply: ${providerReply}` : "",
+      userNotes ? `Notes: ${userNotes}` : "",
+    ].filter(Boolean).join("\n");
     markAppointmentBookedMutation.mutate({
       requestId: appointmentRequest.id,
       scheduledFor: appointmentBookedForm.scheduledFor,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
       providerName: appointmentProviderName,
       location: appointmentBookedForm.location.trim() || appointmentSnapshotText(selectedAppointmentOption, "address") || undefined,
-      notes: appointmentBookedForm.notes.trim() || appointmentRequest.reason_detail || undefined,
+      notes: finalNotes || appointmentRequest.reason_detail || undefined,
     });
+  }
+
+  function handleReviseAppointmentAfterReply() {
+    setAppointmentAttemptResult(null);
+    setAppointmentNotice(isSpanish
+      ? "Revisa la opcion o pide a VYVA que contacte de nuevo."
+      : "Review the option or ask VYVA to contact them again.");
+    setAppointmentError(null);
+    setAppointmentBookedForm({ scheduledFor: "", location: "", providerReply: "", notes: "" });
+  }
+
+  function handleSaveConfirmedRide() {
+    if (!transportPreparedOption) return;
+    if (!transportFinalForm.scheduledFor) {
+      setTransportError(isSpanish ? "Anade la hora confirmada de recogida." : "Add the confirmed pickup time.");
+      return;
+    }
+    const scheduledDate = new Date(transportFinalForm.scheduledFor);
+    if (Number.isNaN(scheduledDate.getTime())) {
+      setTransportError(isSpanish ? "Usa una fecha y hora validas." : "Use a valid date and time.");
+      return;
+    }
+    saveTransportRideMutation.mutate({
+      option: transportPreparedOption,
+      pendingId: transportPreparedResult?.pendingId ?? null,
+      scheduledFor: transportFinalForm.scheduledFor,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
+      pickupAddress: transportFinalForm.pickup.trim() || transportPickup.trim() || savedTransportPickupLabel,
+      destinationAddress: transportFinalForm.destination.trim() || transportDestination.trim(),
+      requestedTime: transportTime,
+      mobilityNeeds: transportMobilityNeeds,
+      providerReply: transportFinalForm.providerReply,
+      priceEstimate: transportFinalForm.priceEstimate,
+      bookingReference: transportFinalForm.bookingReference,
+      notes: transportFinalForm.notes,
+    });
+  }
+
+  function handleReviseConfirmedRide() {
+    resetTransportFinalReview();
+    setTransportNotice(isSpanish
+      ? "Puedes cambiar el viaje o elegir otra opcion."
+      : "You can change the ride or choose another option.");
+    setTransportError(null);
   }
 
   async function handleSearchOffers(nextQuery = offersQuery, documentContext?: BillDocumentAnalysis) {
@@ -4403,6 +4897,7 @@ const ConciergeScreen = () => {
   const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
+  const activeActionTimeline = activeAction ? buildConciergeActionTimeline(activeAction, isSpanish) : [];
   const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";
   const activeActionOpensWhatsApp = Boolean(activeActionWhatsAppDraft && (
     activeActionPreferredHandoffChannel === "whatsapp" ||
@@ -5550,6 +6045,84 @@ const ConciergeScreen = () => {
                     </article>
                   );
                 })}
+                {transportPreparedOption ? (
+                  <FinalConfirmationCard
+                    title={isSpanish ? "Revisar y confirmar viaje" : "Review and confirm ride"}
+                    body={isSpanish
+                      ? "Cuando el proveedor confirme, guarda aqui hora, precio o referencia."
+                      : "When the provider confirms, save the time, price, or reference here."}
+                    providerName={transportPreparedOption.providerName || transportPreparedOption.label}
+                    icon={Car}
+                    fields={[
+                      {
+                        key: "scheduledFor",
+                        label: isSpanish ? "Recogida confirmada" : "Confirmed pickup",
+                        value: transportFinalForm.scheduledFor,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, scheduledFor: value })),
+                        type: "datetime-local",
+                        testId: "input-transport-confirmed-time",
+                      },
+                      {
+                        key: "priceEstimate",
+                        label: isSpanish ? "Precio" : "Price",
+                        value: transportFinalForm.priceEstimate,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, priceEstimate: value })),
+                        placeholder: isSpanish ? "Ej. 18 EUR" : "E.g. EUR18",
+                        testId: "input-transport-confirmed-price",
+                      },
+                      {
+                        key: "pickup",
+                        label: isSpanish ? "Desde" : "Pickup",
+                        value: transportFinalForm.pickup,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, pickup: value })),
+                        placeholder: transportPickup.trim() || savedTransportPickupLabel,
+                        testId: "input-transport-confirmed-pickup",
+                      },
+                      {
+                        key: "destination",
+                        label: isSpanish ? "Destino" : "Destination",
+                        value: transportFinalForm.destination,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, destination: value })),
+                        placeholder: transportDestination,
+                        testId: "input-transport-confirmed-destination",
+                      },
+                      {
+                        key: "providerReply",
+                        label: isSpanish ? "Respuesta del proveedor" : "Provider reply",
+                        value: transportFinalForm.providerReply,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, providerReply: value })),
+                        placeholder: isSpanish ? "Ej. Confirmado, llega a las 09:30." : "E.g. Confirmed, arrives at 09:30.",
+                        multiline: true,
+                        testId: "input-transport-provider-reply",
+                      },
+                      {
+                        key: "bookingReference",
+                        label: isSpanish ? "Referencia" : "Reference",
+                        value: transportFinalForm.bookingReference,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, bookingReference: value })),
+                        placeholder: isSpanish ? "Opcional" : "Optional",
+                        testId: "input-transport-confirmed-reference",
+                      },
+                      {
+                        key: "notes",
+                        label: isSpanish ? "Nota" : "Note",
+                        value: transportFinalForm.notes,
+                        onChange: (value) => setTransportFinalForm((current) => ({ ...current, notes: value })),
+                        placeholder: isSpanish ? "Opcional" : "Optional",
+                        testId: "input-transport-confirmed-note",
+                      },
+                    ]}
+                    primaryLabel={isSpanish ? "Guardar viaje confirmado" : "Save confirmed ride"}
+                    secondaryLabel={isSpanish ? "Cambiar" : "Change"}
+                    onPrimary={handleSaveConfirmedRide}
+                    onSecondary={handleReviseConfirmedRide}
+                    primaryPending={saveTransportRideMutation.isPending}
+                    testId="panel-transport-final-review"
+                    primaryTestId="button-transport-save-confirmed-ride"
+                    secondaryTestId="button-transport-revise-confirmed-ride"
+                    isSpanish={isSpanish}
+                  />
+                ) : null}
                 <p className="rounded-full bg-[#ECFDF5] px-3 py-2 text-center font-body text-[13px] font-black text-[#047857]">
                   {transportResult.disclaimers[2] ?? (isSpanish ? "Nada se reserva sin tu confirmacion." : "Nothing is booked without your confirmation.")}
                 </p>
@@ -5797,6 +6370,8 @@ const ConciergeScreen = () => {
             <p className="mt-4 font-body text-[15px] leading-relaxed text-vyva-text-1">
               {activeAction.action_summary}
             </p>
+
+            <ConciergeActionTimeline steps={activeActionTimeline} />
 
             {activeActionIsAppointment && (
               <div
@@ -6674,41 +7249,58 @@ const ConciergeScreen = () => {
             )}
 
             {appointmentAttemptResult && appointmentRequest && !appointmentAttemptResult.scheduled_event && (
-              <div className="mt-3 rounded-[20px] border border-[#D8B4FE] bg-white p-4" data-testid="panel-appointment-mark-booked">
-                <p className="font-body text-[15px] font-black text-vyva-text-1">
-                  {isSpanish ? "Cuando este confirmada" : "When it is confirmed"}
-                </p>
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Input
-                    type="datetime-local"
-                    value={appointmentBookedForm.scheduledFor}
-                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, scheduledFor: event.target.value }))}
-                    className="min-h-[48px] rounded-[16px] border-[#D8B4FE] bg-white font-body text-[14px] focus-visible:ring-[#7C3AED]/20"
-                    aria-label={isSpanish ? "Fecha y hora" : "Date and time"}
-                  />
-                  <Input
-                    value={appointmentBookedForm.location}
-                    onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, location: event.target.value }))}
-                    placeholder={isSpanish ? "Lugar" : "Location"}
-                    className="min-h-[48px] rounded-[16px] border-[#D8B4FE] bg-white font-body text-[14px] focus-visible:ring-[#7C3AED]/20"
-                  />
-                </div>
-                <Input
-                  value={appointmentBookedForm.notes}
-                  onChange={(event) => setAppointmentBookedForm((current) => ({ ...current, notes: event.target.value }))}
-                  placeholder={isSpanish ? "Nota opcional" : "Optional note"}
-                  className="mt-2 min-h-[48px] rounded-[16px] border-[#D8B4FE] bg-white font-body text-[14px] focus-visible:ring-[#7C3AED]/20"
-                />
-                <button
-                  type="button"
-                  onClick={handleMarkAppointmentBooked}
-                  disabled={markAppointmentBookedMutation.isPending}
-                  className={`${VYVA_MODAL_PRIMARY_ACTION_CLASS} mt-3`}
-                >
-                  {markAppointmentBookedMutation.isPending ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CircleCheck size={16} className="mr-2" />}
-                  {isSpanish ? "Guardar cita" : "Save appointment"}
-                </button>
-              </div>
+              <FinalConfirmationCard
+                title={appointmentFinalReviewTitle}
+                body={appointmentFinalReviewBody}
+                providerName={appointmentProviderName}
+                icon={CircleCheck}
+                fields={[
+                  {
+                    key: "providerReply",
+                    label: isSpanish ? "Respuesta del proveedor" : "Provider reply",
+                    value: appointmentBookedForm.providerReply,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, providerReply: value })),
+                    placeholder: isHomeServiceAppointment
+                      ? (isSpanish ? "Ej. Puede venir manana a las 10:00. Coste estimado 80 EUR." : "E.g. Can visit tomorrow at 10:00. Estimated cost EUR80.")
+                      : (isSpanish ? "Ej. Confirmado martes a las 10:00. Traer tarjeta sanitaria." : "E.g. Confirmed Tuesday at 10:00. Bring insurance card."),
+                    multiline: true,
+                    testId: "input-appointment-provider-reply",
+                  },
+                  {
+                    key: "scheduledFor",
+                    label: isSpanish ? "Fecha y hora" : "Date and time",
+                    value: appointmentBookedForm.scheduledFor,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, scheduledFor: value })),
+                    type: "datetime-local",
+                    testId: "input-appointment-confirmed-time",
+                  },
+                  {
+                    key: "location",
+                    label: isSpanish ? "Lugar" : "Place",
+                    value: appointmentBookedForm.location,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, location: value })),
+                    placeholder: appointmentProviderAddress || (isSpanish ? "Lugar" : "Location"),
+                    testId: "input-appointment-confirmed-location",
+                  },
+                  {
+                    key: "notes",
+                    label: isSpanish ? "Nota para VYVA" : "Note for VYVA",
+                    value: appointmentBookedForm.notes,
+                    onChange: (value) => setAppointmentBookedForm((current) => ({ ...current, notes: value })),
+                    placeholder: isSpanish ? "Opcional" : "Optional",
+                    testId: "input-appointment-confirmed-note",
+                    fullWidth: true,
+                  },
+                ]}
+                primaryLabel={appointmentFinalSaveLabel}
+                secondaryLabel={isSpanish ? "Cambiar" : "Change"}
+                onPrimary={handleMarkAppointmentBooked}
+                onSecondary={handleReviseAppointmentAfterReply}
+                primaryPending={markAppointmentBookedMutation.isPending}
+                testId="panel-appointment-mark-booked"
+                secondaryTestId="button-appointment-revise-after-reply"
+                isSpanish={isSpanish}
+              />
             )}
 
             {appointmentRequest && appointmentOptions.length > 0 && (
