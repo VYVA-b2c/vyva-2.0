@@ -1862,7 +1862,7 @@ export default function MarketingAdminPage() {
   const [audienceFeedback, setAudienceFeedback] = useState("");
 
   async function refreshAll() {
-    const [summaryBody, campaignBody, journeyBody, enrollmentBody, contentBody, mediaBody, analyticsBody, contactBody, audienceBody, syncBody] = await Promise.all([
+    const marketingDataRequest = Promise.all([
       api<MarketingSummary>("/api/admin/marketing/summary"),
       api<{ campaigns: Campaign[] }>("/api/admin/marketing/campaigns"),
       api<{ journeys: Journey[] }>("/api/admin/marketing/journeys"),
@@ -1872,19 +1872,28 @@ export default function MarketingAdminPage() {
       api<{ totals: MarketingAnalyticsTotals; metrics: MarketingCampaignMetric[] }>("/api/admin/marketing/analytics"),
       api<{ contacts: MarketingContact[] }>("/api/admin/marketing/contacts"),
       api<{ audiences: MarketingAudience[] }>("/api/admin/marketing/audiences"),
-      api<SyncState>("/api/admin/marketing/sync/lovable"),
-    ]);
-    setSummary(summaryBody);
-    setCampaigns(campaignBody.campaigns);
-    setJourneys(journeyBody.journeys);
-    setJourneyEnrollments(enrollmentBody.enrollments);
-    setContent(contentBody.content);
-    setMediaAssets(mediaBody.mediaAssets);
-    setAnalyticsTotals(analyticsBody.totals);
-    setCampaignMetrics(analyticsBody.metrics);
-    setContacts(contactBody.contacts);
-    setAudiences(audienceBody.audiences);
-    setSyncState(syncBody);
+    ]).then(([summaryBody, campaignBody, journeyBody, enrollmentBody, contentBody, mediaBody, analyticsBody, contactBody, audienceBody]) => {
+      setSummary(summaryBody);
+      setCampaigns(campaignBody.campaigns);
+      setJourneys(journeyBody.journeys);
+      setJourneyEnrollments(enrollmentBody.enrollments);
+      setContent(contentBody.content);
+      setMediaAssets(mediaBody.mediaAssets);
+      setAnalyticsTotals(analyticsBody.totals);
+      setCampaignMetrics(analyticsBody.metrics);
+      setContacts(contactBody.contacts);
+      setAudiences(audienceBody.audiences);
+    });
+
+    const syncRequest = api<SyncState>("/api/admin/marketing/sync/lovable").then((syncBody) => {
+      setSyncState(syncBody);
+    });
+
+    const [marketingResult, syncResult] = await Promise.allSettled([marketingDataRequest, syncRequest]);
+    const failed = [marketingResult, syncResult].find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failed) {
+      throw failed.reason instanceof Error ? failed.reason : new Error("Marketing admin data could not be refreshed.");
+    }
   }
 
   useEffect(() => {
@@ -4886,10 +4895,10 @@ export default function MarketingAdminPage() {
                           <p>VYVA_MARKETING_EXPORT_URL: {yesNo(urlAliasPresent.VYVA_MARKETING_EXPORT_URL)}</p>
                           <p>LOVABLE_MARKETING_API_URL: {yesNo(urlAliasPresent.LOVABLE_MARKETING_API_URL)}</p>
                           <p>Token source: {syncDiagnostics.tokenSource ?? "none"}</p>
-                          <p>Sync API build: {syncState.backendBuild ?? "old response"}</p>
+                          <p>Sync API build: {syncState.backendBuild ?? "unavailable"}</p>
                         </div>
                       ) : (
-                        <p className="mt-2 text-red-700">The server did not return configuration diagnostics. Sync API build: {syncState.backendBuild ?? "old response"}. The deployment may still be running an older backend bundle.</p>
+                        <p className="mt-2 text-red-700">Sync configuration status is unavailable. A marketing data request may have failed before this status loaded, or the deployment may still be running an older backend bundle.</p>
                       )}
                     </div>
                     <div className="mt-3 rounded-xl border border-[#eadfd5] bg-white p-3" data-testid="marketing-email-scheduler-status">
