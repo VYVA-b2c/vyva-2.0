@@ -3318,6 +3318,13 @@ type ConciergeTimelineStep = {
   state: ConciergeTimelineStepState;
 };
 
+type ConciergeFollowThroughStatus = {
+  eyebrow: string;
+  title: string;
+  helper: string;
+  steps: ConciergeTimelineStep[];
+};
+
 function missionStatusForPendingAction(item: ConciergePendingItem): AppointmentMissionState["status"] | null {
   return isAppointmentMissionStatus(item.action_payload?.mission_status)
     ? item.action_payload.mission_status
@@ -3326,47 +3333,35 @@ function missionStatusForPendingAction(item: ConciergePendingItem): AppointmentM
 
 function timelineStepCopy(id: string, isSpanish: boolean): Omit<ConciergeTimelineStep, "id" | "state"> {
   const copy: Record<string, { en: string; es: string; helperEn: string; helperEs: string }> = {
-    prepared: {
-      en: "Details prepared",
-      es: "Detalles preparados",
-      helperEn: "VYVA has the request.",
-      helperEs: "VYVA tiene la solicitud.",
-    },
-    "user-confirm": {
-      en: "Waiting for you",
-      es: "Esperando tu confirmacion",
+    review: {
+      en: "Review",
+      es: "Revisar",
       helperEn: "Nothing is sent yet.",
       helperEs: "Aun no se envia nada.",
     },
-    "vyva-prepare": {
-      en: "VYVA preparing",
-      es: "VYVA preparando",
-      helperEn: "VYVA is organizing the next step.",
-      helperEs: "VYVA organiza el siguiente paso.",
+    requested: {
+      en: "Requested",
+      es: "Solicitado",
+      helperEn: "VYVA has started it.",
+      helperEs: "VYVA lo ha iniciado.",
     },
-    contacting: {
-      en: "Contacting provider",
-      es: "Contactando proveedor",
-      helperEn: "Call, message, or form in progress.",
-      helperEs: "Llamada, mensaje o formulario en curso.",
+    waiting: {
+      en: "Waiting",
+      es: "Esperando",
+      helperEn: "Provider reply pending.",
+      helperEs: "Falta respuesta del proveedor.",
     },
-    reply: {
-      en: "Waiting for reply",
-      es: "Esperando respuesta",
-      helperEn: "Save it when they confirm.",
-      helperEs: "Guardalo cuando confirmen.",
+    confirmed: {
+      en: "Confirmed",
+      es: "Confirmado",
+      helperEn: "Save the final detail.",
+      helperEs: "Guarda el dato final.",
     },
-    save: {
-      en: "Ready to save",
-      es: "Listo para guardar",
-      helperEn: "Add confirmed time or reference.",
-      helperEs: "Anade hora o referencia confirmada.",
-    },
-    saved: {
-      en: "Saved",
-      es: "Guardado",
-      helperEn: "It appears in Scheduled Support.",
-      helperEs: "Aparece en soporte programado.",
+    done: {
+      en: "Done",
+      es: "Hecho",
+      helperEn: "Saved in Concierge.",
+      helperEs: "Guardado en Concierge.",
     },
     attention: {
       en: "Needs attention",
@@ -3374,72 +3369,141 @@ function timelineStepCopy(id: string, isSpanish: boolean): Omit<ConciergeTimelin
       helperEn: "Review before continuing.",
       helperEs: "Revisa antes de continuar.",
     },
-    stopped: {
-      en: "Stopped",
-      es: "Detenido",
+    cancelled: {
+      en: "Cancelled",
+      es: "Cancelado",
       helperEn: "This task will not continue.",
       helperEs: "Esta gestion no continuara.",
     },
   };
-  const entry = copy[id] ?? copy.prepared;
+  const entry = copy[id] ?? copy.review;
   return {
     label: isSpanish ? entry.es : entry.en,
     helper: isSpanish ? entry.helperEs : entry.helperEn,
   };
 }
 
-function buildConciergeActionTimeline(item: ConciergePendingItem, isSpanish: boolean): ConciergeTimelineStep[] {
+function buildConciergeFollowThroughStatus(item: ConciergePendingItem, isSpanish: boolean): ConciergeFollowThroughStatus {
   const missionStatus = missionStatusForPendingAction(item);
   const executionChannel = getExecutionChannel(item);
   const bookingUrl = getBookingUrl(item);
   const formPlan = getFormAutomationPlan(item);
   const formReady = executionChannel === "booking_url" && Boolean(bookingUrl) && (formPlan?.missingFields.length ?? 0) === 0;
   const isVyvaTask = executionChannel === "manual" || (executionChannel === "booking_url" && !formReady);
-  const stepIds = isVyvaTask
-    ? ["prepared", "vyva-prepare", "reply", "save", "saved"]
-    : ["prepared", "user-confirm", "contacting", "reply", "save", "saved"];
+  const stepIds = ["review", "requested", "waiting", "confirmed", "done"];
 
-  let activeId = isVyvaTask ? "vyva-prepare" : "user-confirm";
-  if (item.status === "calling") activeId = "contacting";
-  if (item.status === "failed") activeId = "attention";
-  if (item.status === "cancelled") activeId = "stopped";
+  let activeId = isVyvaTask ? "requested" : "review";
+  const eyebrow = isSpanish ? "Seguimiento" : "Follow-through";
+  let title = isVyvaTask
+    ? (isSpanish ? "VYVA lo esta preparando" : "VYVA is preparing it")
+    : (isSpanish ? "Listo para tu OK" : "Ready for your OK");
+  let helper = isVyvaTask
+    ? (isSpanish ? "La tarea se queda aqui mientras VYVA reune lo necesario." : "This stays here while VYVA gathers what is needed.")
+    : (isSpanish ? "Nada se envia, llama o reserva hasta que confirmes." : "Nothing is sent, called, or booked until you confirm.");
+
+  if (item.status === "calling") {
+    activeId = "requested";
+    title = isSpanish ? "Solicitud iniciada" : "Request started";
+    helper = isSpanish ? "VYVA esta contactando al proveedor." : "VYVA is contacting the provider.";
+  }
+  if (item.status === "completed") {
+    activeId = "done";
+    title = isSpanish ? "Completado" : "Completed";
+    helper = isSpanish ? "Guardado en el historial de Concierge." : "Saved in Concierge history.";
+  }
+  if (item.status === "failed") {
+    return {
+      eyebrow,
+      title: isSpanish ? "Necesita revision" : "Needs attention",
+      helper: isSpanish ? "Revisa la tarea antes de continuar." : "Review the task before continuing.",
+      steps: [
+        { id: "review", ...timelineStepCopy("review", isSpanish), state: "done" },
+        { id: "attention", ...timelineStepCopy("attention", isSpanish), state: "warning" },
+      ],
+    };
+  }
+  if (item.status === "cancelled") {
+    return {
+      eyebrow,
+      title: isSpanish ? "Cancelado" : "Cancelled",
+      helper: isSpanish ? "Esta gestion no continuara." : "This task will not continue.",
+      steps: [
+        { id: "review", ...timelineStepCopy("review", isSpanish), state: "done" },
+        { id: "cancelled", ...timelineStepCopy("cancelled", isSpanish), state: "warning" },
+      ],
+    };
+  }
 
   if (missionStatus) {
-    if (missionStatus === "awaiting_confirmation") activeId = "user-confirm";
-    if (missionStatus === "contacting_provider" || missionStatus === "form_in_progress") activeId = "contacting";
-    if (missionStatus === "awaiting_provider_reply") activeId = "reply";
-    if (missionStatus === "awaiting_user_save") activeId = "save";
-    if (missionStatus === "booked") activeId = "saved";
-    if (missionStatus === "stopped") activeId = "stopped";
-  }
-
-  if (isVyvaTask && activeId === "contacting" && !stepIds.includes(activeId)) {
-    activeId = "vyva-prepare";
-  }
-
-  if (activeId === "attention" || activeId === "stopped") {
-    return [
-      { id: "prepared", ...timelineStepCopy("prepared", isSpanish), state: "done" },
-      { id: activeId, ...timelineStepCopy(activeId, isSpanish), state: "warning" },
-    ];
+    if (missionStatus === "awaiting_confirmation") {
+      activeId = "review";
+      title = isSpanish ? "Listo para tu OK" : "Ready for your OK";
+    }
+    if (missionStatus === "contacting_provider" || missionStatus === "form_in_progress") {
+      activeId = "requested";
+      title = isSpanish ? "Solicitud iniciada" : "Request started";
+      helper = isSpanish ? "VYVA esta contactando o preparando el formulario." : "VYVA is contacting or preparing the form.";
+    }
+    if (missionStatus === "awaiting_provider_reply") {
+      activeId = "waiting";
+      title = isSpanish ? "Esperando proveedor" : "Waiting for provider";
+      helper = isSpanish ? "La respuesta aparecera aqui cuando llegue." : "The reply will appear here when it arrives.";
+    }
+    if (missionStatus === "awaiting_user_save" || missionStatus === "booked") {
+      activeId = "confirmed";
+      title = isSpanish ? "Proveedor confirmado" : "Provider confirmed";
+      helper = isSpanish ? "Guarda la hora, referencia o detalle final." : "Save the time, reference, or final detail.";
+    }
+    if (missionStatus === "stopped") {
+      return {
+        eyebrow,
+        title: isSpanish ? "Detenido" : "Stopped",
+        helper: isSpanish ? "Esta gestion no continuara." : "This task will not continue.",
+        steps: [
+          { id: "review", ...timelineStepCopy("review", isSpanish), state: "done" },
+          { id: "cancelled", ...timelineStepCopy("cancelled", isSpanish), state: "warning" },
+        ],
+      };
+    }
   }
 
   const activeIndex = Math.max(0, stepIds.indexOf(activeId));
-  return stepIds.map((id, index) => ({
-    id,
-    ...timelineStepCopy(id, isSpanish),
-    state: index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming",
-  }));
+  return {
+    eyebrow,
+    title,
+    helper,
+    steps: stepIds.map((id, index) => ({
+      id,
+      ...timelineStepCopy(id, isSpanish),
+      state: index < activeIndex ? "done" : index === activeIndex ? "active" : "upcoming",
+    })),
+  };
 }
 
-function ConciergeActionTimeline({ steps }: { steps: ConciergeTimelineStep[] }) {
+function ConciergeActionTimeline({ status }: { status: ConciergeFollowThroughStatus }) {
   return (
     <div
       className="mt-4 rounded-[18px] border border-[#E9D5FF] bg-[#FBF8FF] p-3"
       data-testid="panel-concierge-action-timeline"
     >
-      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {steps.map((step, index) => {
+      <div className="flex items-start gap-3">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[14px] bg-white text-vyva-purple shadow-sm">
+          <PackageCheck size={17} aria-hidden="true" />
+        </span>
+        <span className="min-w-0">
+          <span className="block font-body text-[11px] font-black uppercase tracking-[0.12em] text-vyva-purple">
+            {status.eyebrow}
+          </span>
+          <span className="mt-0.5 block font-body text-[15px] font-black leading-tight text-vyva-text-1">
+            {status.title}
+          </span>
+          <span className="mt-0.5 block font-body text-[12px] font-bold leading-snug text-vyva-text-2">
+            {status.helper}
+          </span>
+        </span>
+      </div>
+      <ol className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-5">
+        {status.steps.map((step, index) => {
           const isDone = step.state === "done";
           const isActive = step.state === "active";
           const isWarning = step.state === "warning";
@@ -5939,7 +6003,7 @@ const ConciergeScreen = () => {
   const activeActionEmailHref = activeActionEmailDraft ? emailDraftHref(activeActionEmailDraft) : "";
   const activeActionWhatsAppDraft = activeAction ? getActionWhatsAppDraft(activeAction) : null;
   const activeActionWhatsAppHref = activeActionWhatsAppDraft ? whatsAppDraftHref(activeActionWhatsAppDraft) : "";
-  const activeActionTimeline = activeAction ? buildConciergeActionTimeline(activeAction, isSpanish) : [];
+  const activeActionTimeline = activeAction ? buildConciergeFollowThroughStatus(activeAction, isSpanish) : null;
   const activeActionPreferredHandoffChannel = activeAction ? getPreferredHandoffChannel(activeAction) : "";
   const activeActionOpensWhatsApp = Boolean(activeActionWhatsAppDraft && (
     activeActionPreferredHandoffChannel === "whatsapp" ||
@@ -7546,7 +7610,7 @@ const ConciergeScreen = () => {
               {activeAction.action_summary}
             </p>
 
-            <ConciergeActionTimeline steps={activeActionTimeline} />
+            {activeActionTimeline ? <ConciergeActionTimeline status={activeActionTimeline} /> : null}
 
             {activeAction.status === "pending" && activeActionReviewSummary ? (
               <PendingActionReviewCard
