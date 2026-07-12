@@ -4929,6 +4929,11 @@ export default function MarketingAdminPage() {
                                   <button type="button" onClick={() => void deleteContent(item)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContentDeleteId === item.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contentSaving} data-testid={`button-marketing-delete-content-${item.id}`}>
                                     <Trash2 size={13} /> {confirmingContentDeleteId === item.id ? "Confirm delete" : "Delete"}
                                   </button>
+                                  {confirmingContentDeleteId === item.id ? (
+                                    <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-content-delete-confirmation-${item.id}`}>
+                                      Click Confirm delete to remove this content.
+                                    </p>
+                                  ) : null}
                                 </div>
                               </td>
                             </tr>
@@ -4945,7 +4950,7 @@ export default function MarketingAdminPage() {
                 role={contentDrawerMode === "edit" ? "dialog" : undefined}
                 aria-modal={contentDrawerMode === "edit" ? true : undefined}
                 tabIndex={contentDrawerMode === "edit" ? -1 : undefined}
-                className={contentDrawerMode === "edit" ? "fixed inset-y-6 left-1/2 z-[100] w-[min(1040px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                className={contentDrawerMode === "edit" ? "scroll-mt-6 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
               >
                 <SectionCard
                   title="Content editor"
@@ -5043,7 +5048,7 @@ export default function MarketingAdminPage() {
                   role={contentDrawerMode === "preview" ? "dialog" : undefined}
                   aria-modal={contentDrawerMode === "preview" ? true : undefined}
                   tabIndex={contentDrawerMode === "preview" ? -1 : undefined}
-                  className={contentDrawerMode === "preview" ? "fixed inset-y-6 left-1/2 z-[100] w-[min(900px,calc(100vw-3rem))] -translate-x-1/2 overflow-y-auto rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-2xl" : "hidden"}
+                  className={contentDrawerMode === "preview" ? "scroll-mt-6 rounded-2xl border-2 border-purple-200 bg-white p-3 shadow-xl" : "hidden"}
                 >
                   <SectionCard
                     title="Content preview"

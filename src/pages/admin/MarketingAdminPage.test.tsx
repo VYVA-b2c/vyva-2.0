@@ -1016,6 +1016,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Click Confirm delete to remove "Partner post".');
     expect(screen.getByTestId("button-marketing-delete-content-content-2")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-content-delete-confirmation-content-2")).toHaveTextContent("Click Confirm delete to remove this content.");
     fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
@@ -1026,7 +1027,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
-    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("scroll-mt-6");
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Lovable source details");
     expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Source type");
@@ -1043,7 +1044,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
 
     expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
-    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("scroll-mt-6");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
