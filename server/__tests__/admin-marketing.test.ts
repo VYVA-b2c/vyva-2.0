@@ -780,10 +780,19 @@ describe("admin marketing router", () => {
         channel: "email",
         subject: "Draft",
         body: "Original body",
+        mediaAssets: [{ url: "https://cdn.example.test/draft.png", type: "image" }],
       })
       .expect(201);
 
     const contentId = createResponse.body.content.id;
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/draft.png")).toMatchObject({
+      content_asset_id: contentId,
+      source: "vyva",
+      asset_type: "image",
+      status: "referenced",
+      metadata: { media: { url: "https://cdn.example.test/draft.png", type: "image" }, source: "content_media_assets" },
+    });
+
     await request(app)
       .patch(`/api/admin/marketing/content/${contentId}`)
       .send({
@@ -827,6 +836,13 @@ describe("admin marketing router", () => {
       cta_url: "https://v2.vyva.life/open",
       design_json: { blocks: [{ type: "text" }] },
       media_assets: [{ url: "https://cdn.example.test/content.png" }],
+    });
+    expect(table("marketing_media_assets").find((row) => row.original_url === "https://cdn.example.test/content.png")).toMatchObject({
+      content_asset_id: contentId,
+      source: "vyva",
+      asset_type: "unknown",
+      status: "referenced",
+      metadata: { media: { url: "https://cdn.example.test/content.png" }, source: "content_media_assets" },
     });
 
     dbMock.rows.set("marketing_campaign_channels", [{

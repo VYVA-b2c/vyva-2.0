@@ -2557,6 +2557,7 @@ adminMarketingRouter.post("/content", async (req, res) => {
       updated_by: actor(req),
       updated_at: new Date(),
     }).returning();
+    await replaceContentMediaAssetReferences(content, parsed.data.mediaAssets, new Date(), parsed.data.source);
     return res.status(201).json({ ok: true, content: serializeContent(content) });
   } catch (error) {
     console.error("[admin/marketing] content create failed", error);
@@ -2588,6 +2589,9 @@ adminMarketingRouter.patch("/content/:contentId", async (req, res) => {
   try {
     const [content] = await db.update(marketingContentAssets).set(patch).where(eq(marketingContentAssets.id, req.params.contentId)).returning();
     if (!content) return res.status(404).json({ error: "Marketing content not found." });
+    if (parsed.data.mediaAssets !== undefined) {
+      await replaceContentMediaAssetReferences(content, parsed.data.mediaAssets, new Date(), content.source);
+    }
     return res.json({ ok: true, content: serializeContent(content) });
   } catch (error) {
     console.error("[admin/marketing] content update failed", error);
@@ -3210,26 +3214,27 @@ async function upsertMissingLovableContentReference(
   return content;
 }
 
-async function replaceLovableMediaAssets(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date) {
+async function replaceContentMediaAssetReferences(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date, source = content.source || "vyva") {
+  const normalizedSource = source.trim() || "vyva";
   await db.delete(marketingMediaAssets).where(and(
     eq(marketingMediaAssets.content_asset_id, content.id),
-    eq(marketingMediaAssets.source, "lovable"),
+    eq(marketingMediaAssets.source, normalizedSource),
   ));
   const rows = mediaAssets.map((raw, index) => {
     const media = typeof raw === "string" ? { url: raw } : asRecord(raw);
     const originalUrl = emptyToNull(textFrom(media, ["url", "src", "href", "originalUrl", "original_url", ...contentMediaUrlKeys]));
     if (!originalUrl) return null;
     const localUrl = emptyToNull(textFrom(media, ["localUrl", "local_url"]));
-    const externalId = normalizeLovableId(media) ?? `${content.lovable_external_id ?? content.id}:media:${index}:${originalUrl}`;
+    const externalId = normalizeLovableId(media) ?? `${normalizedSource}:${content.lovable_external_id ?? content.id}:media:${index}:${originalUrl}`;
     return {
       content_asset_id: content.id,
-      source: "lovable",
+      source: normalizedSource,
       asset_type: textFrom(media, ["type", "kind", "assetType", "asset_type", "mimeType", "mime_type"], "unknown"),
       original_url: originalUrl,
       local_url: localUrl,
       status: textFrom(media, ["status", "importStatus", "import_status"], localUrl ? "mirrored" : "referenced"),
       lovable_external_id: externalId,
-      metadata: { lovable: media },
+      metadata: normalizedSource === "lovable" ? { lovable: media } : { media, source: "content_media_assets" },
       last_synced_at: now,
       updated_at: now,
     };
@@ -3241,6 +3246,10 @@ async function replaceLovableMediaAssets(content: MarketingContentAssetRow, medi
       .onConflictDoUpdate({ target: marketingMediaAssets.lovable_external_id, set: row });
   }
   return rows.length;
+}
+
+async function replaceLovableMediaAssets(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date) {
+  return replaceContentMediaAssetReferences(content, mediaAssets, now, "lovable");
 }
 
 async function upsertLovableStandaloneMedia(
