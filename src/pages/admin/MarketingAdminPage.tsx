@@ -2219,10 +2219,14 @@ export default function MarketingAdminPage() {
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
   const [campaignSaving, setCampaignSaving] = useState(false);
+  const [confirmingCampaignDeleteId, setConfirmingCampaignDeleteId] = useState<string | null>(null);
+  const [confirmingCampaignSendId, setConfirmingCampaignSendId] = useState<string | null>(null);
+  const [confirmingDueEmailSend, setConfirmingDueEmailSend] = useState(false);
   const [editingJourneyId, setEditingJourneyId] = useState<string | "new" | null>(null);
   const [journeyEditDraft, setJourneyEditDraft] = useState<JourneyEditDraft>(() => emptyJourneyEditDraft());
   const [journeySaving, setJourneySaving] = useState(false);
   const [journeyFeedback, setJourneyFeedback] = useState("");
+  const [confirmingJourneyDeleteId, setConfirmingJourneyDeleteId] = useState<string | null>(null);
   const [contentDraft, setContentDraft] = useState<ContentDraft>(() => emptyContentDraft());
   const [selectedContentId, setSelectedContentId] = useState<string | null>(null);
   const [editingContentId, setEditingContentId] = useState<string | null>(null);
@@ -2238,6 +2242,7 @@ export default function MarketingAdminPage() {
   const [mediaEditDraft, setMediaEditDraft] = useState<MediaEditDraft | null>(null);
   const [mediaSaving, setMediaSaving] = useState(false);
   const [mediaFeedback, setMediaFeedback] = useState("");
+  const [confirmingMediaDeleteId, setConfirmingMediaDeleteId] = useState<string | null>(null);
   const [contactDraft, setContactDraft] = useState<ContactDraft>({
     fullName: "",
     audienceType: "b2b",
@@ -2255,11 +2260,13 @@ export default function MarketingAdminPage() {
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactEditDraft, setContactEditDraft] = useState<ContactEditDraft | null>(null);
   const [contactSaving, setContactSaving] = useState(false);
+  const [confirmingContactDeleteId, setConfirmingContactDeleteId] = useState<string | null>(null);
   const [audienceDraft, setAudienceDraft] = useState<AudienceDraft>({ name: "", listType: "dynamic", description: "", rulesText: "{\n  \"market\": \"Spain\"\n}", contactExternalIds: "" });
   const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null);
   const [audienceEditDraft, setAudienceEditDraft] = useState<AudienceEditDraft | null>(null);
   const [audienceSaving, setAudienceSaving] = useState(false);
   const [audienceFeedback, setAudienceFeedback] = useState("");
+  const [confirmingAudienceDeleteId, setConfirmingAudienceDeleteId] = useState<string | null>(null);
 
   async function refreshAll() {
     const marketingDataRequest = Promise.all([
@@ -2678,6 +2685,8 @@ export default function MarketingAdminPage() {
   function startCampaignEdit(campaign: Campaign) {
     setEditingCampaignId(campaign.id);
     setCampaignEditDraft(campaignEditDraftFromCampaign(campaign, audiences));
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
     setMessage("");
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
@@ -2690,6 +2699,8 @@ export default function MarketingAdminPage() {
 
   function cancelCampaignEdit() {
     setEditingCampaignId(null);
+    setConfirmingCampaignDeleteId(null);
+    setConfirmingCampaignSendId(null);
     setTestEmailFeedback("");
     setCampaignEmailFeedback("");
     setCampaignEditDraft(emptyCampaignEditDraft());
@@ -2825,17 +2836,23 @@ export default function MarketingAdminPage() {
   }
 
   async function sendCampaignEmails(campaign: Campaign) {
-    if (!window.confirm(`Send email campaign "${campaign.name}" to ${campaign.recipientCount} saved recipient${campaign.recipientCount === 1 ? "" : "s"} now?`)) return;
+    if (confirmingCampaignSendId !== campaign.id) {
+      setConfirmingCampaignSendId(campaign.id);
+      setCampaignEmailFeedback(`Click Confirm send to email ${campaign.recipientCount} saved recipient${campaign.recipientCount === 1 ? "" : "s"} for "${campaign.name}".`);
+      return;
+    }
     setCampaignEmailSending(true);
     setCampaignEmailFeedback("Sending campaign emails...");
     try {
       const result = await api<CampaignEmailSendResponse>(`/api/admin/marketing/campaigns/${campaign.id}/send-email`, { method: "POST" });
       const summaryText = `Campaign email sent to ${result.sentCount} recipient${result.sentCount === 1 ? "" : "s"}. ${result.failedCount ? `${result.failedCount} failed. ` : ""}${result.skippedCount ? `${result.skippedCount} skipped.` : ""}`.trim();
+      setConfirmingCampaignSendId(null);
       setCampaignEmailFeedback(summaryText);
       setMessage(summaryText);
       await refreshAll();
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Campaign email could not be sent.";
+      setConfirmingCampaignSendId(null);
       setCampaignEmailFeedback(messageText);
       setMessage(messageText);
     } finally {
@@ -2844,7 +2861,11 @@ export default function MarketingAdminPage() {
   }
 
   async function sendDueCampaignEmails() {
-    if (!window.confirm("Send all due scheduled email campaigns now?")) return;
+    if (!confirmingDueEmailSend) {
+      setConfirmingDueEmailSend(true);
+      setDueEmailFeedback("Click Confirm run due emails to send every due scheduled email campaign.");
+      return;
+    }
     setDueEmailSending(true);
     setDueEmailFeedback("Checking due scheduled email campaigns...");
     try {
@@ -2852,11 +2873,13 @@ export default function MarketingAdminPage() {
       const summaryText = result.dueCount === 0
         ? "No scheduled email campaigns are due."
         : `Due email run checked ${result.dueCount} campaign${result.dueCount === 1 ? "" : "s"}: ${result.sentCount} sent, ${result.failedCount} failed, ${result.skippedCount} skipped.`;
+      setConfirmingDueEmailSend(false);
       setDueEmailFeedback(summaryText);
       setMessage(summaryText);
       await refreshAll();
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Due scheduled emails could not be sent.";
+      setConfirmingDueEmailSend(false);
       setDueEmailFeedback(messageText);
       setMessage(messageText);
     } finally {
@@ -2865,15 +2888,21 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteCampaign(campaign: Campaign) {
-    if (!window.confirm(`Delete campaign "${campaign.name}"? This removes the local VYVA planning record.`)) return;
+    if (confirmingCampaignDeleteId !== campaign.id) {
+      setConfirmingCampaignDeleteId(campaign.id);
+      setMessage(`Click Confirm delete to remove campaign "${campaign.name}".`);
+      return;
+    }
     setCampaignSaving(true);
     setMessage("Deleting campaign...");
     try {
       await api(`/api/admin/marketing/campaigns/${campaign.id}`, { method: "DELETE" });
       if (editingCampaignId === campaign.id) cancelCampaignEdit();
+      setConfirmingCampaignDeleteId(null);
       setMessage("Campaign deleted.");
       await refreshAll();
     } catch (error) {
+      setConfirmingCampaignDeleteId(null);
       setMessage(error instanceof Error ? error.message : "Campaign could not be deleted.");
     } finally {
       setCampaignSaving(false);
@@ -2883,6 +2912,7 @@ export default function MarketingAdminPage() {
   function startNewJourney() {
     setEditingJourneyId("new");
     setJourneyEditDraft(emptyJourneyEditDraft());
+    setConfirmingJourneyDeleteId(null);
     setJourneyFeedback("");
     setMessage("");
   }
@@ -2890,6 +2920,7 @@ export default function MarketingAdminPage() {
   function startJourneyEdit(journey: Journey) {
     setEditingJourneyId(journey.id);
     setJourneyEditDraft(journeyEditDraftFromJourney(journey, audiences));
+    setConfirmingJourneyDeleteId(null);
     setJourneyFeedback("");
     setMessage("");
   }
@@ -2897,6 +2928,7 @@ export default function MarketingAdminPage() {
   function cancelJourneyEdit() {
     setEditingJourneyId(null);
     setJourneyEditDraft(emptyJourneyEditDraft());
+    setConfirmingJourneyDeleteId(null);
     setJourneyFeedback("");
   }
 
@@ -2967,17 +2999,23 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteJourney(journey: Journey) {
-    if (!window.confirm(`Delete journey "${journey.name}"? This removes the local VYVA planning record.`)) return;
+    if (confirmingJourneyDeleteId !== journey.id) {
+      setConfirmingJourneyDeleteId(journey.id);
+      setJourneyFeedback(`Click Confirm delete to remove journey "${journey.name}".`);
+      return;
+    }
     setJourneySaving(true);
     setJourneyFeedback("Deleting journey...");
     try {
       await api(`/api/admin/marketing/journeys/${journey.id}`, { method: "DELETE" });
       if (editingJourneyId === journey.id) cancelJourneyEdit();
+      setConfirmingJourneyDeleteId(null);
       setJourneyFeedback("Deleted.");
       setMessage("Journey deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Journey could not be deleted.";
+      setConfirmingJourneyDeleteId(null);
       setJourneyFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -3142,12 +3180,14 @@ export default function MarketingAdminPage() {
   function startMediaEdit(asset: MarketingMediaAsset) {
     setEditingMediaAssetId(asset.id);
     setMediaEditDraft(mediaEditDraftFromAsset(asset));
+    setConfirmingMediaDeleteId(null);
     setMediaFeedback("");
   }
 
   function cancelMediaEdit() {
     setEditingMediaAssetId(null);
     setMediaEditDraft(null);
+    setConfirmingMediaDeleteId(null);
     setMediaFeedback("");
   }
 
@@ -3181,18 +3221,24 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteMediaAsset(asset: MarketingMediaAsset) {
-    if (!window.confirm(`Delete media reference "${asset.originalUrl}"? This removes the VYVA media row only; the original Lovable URL is not changed.`)) return;
+    if (confirmingMediaDeleteId !== asset.id) {
+      setConfirmingMediaDeleteId(asset.id);
+      setMediaFeedback(`Click Confirm delete to remove this VYVA media reference. The original Lovable URL is not changed.`);
+      return;
+    }
     setMediaSaving(true);
     setMediaFeedback("Deleting media...");
     try {
       await api(`/api/admin/marketing/media/${asset.id}`, { method: "DELETE" });
       if (editingMediaAssetId === asset.id) cancelMediaEdit();
       setMediaAssets((current) => current.filter((item) => item.id !== asset.id));
+      setConfirmingMediaDeleteId(null);
       setMediaFeedback("Media deleted.");
       setMessage("Marketing media deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Marketing media could not be deleted.";
+      setConfirmingMediaDeleteId(null);
       setMediaFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -3269,12 +3315,14 @@ export default function MarketingAdminPage() {
   function startContactEdit(contact: MarketingContact) {
     setEditingContactId(contact.id);
     setContactEditDraft(contactEditDraftFromContact(contact));
+    setConfirmingContactDeleteId(null);
     setContactFeedback("");
   }
 
   function cancelContactEdit() {
     setEditingContactId(null);
     setContactEditDraft(null);
+    setConfirmingContactDeleteId(null);
     setContactFeedback("");
   }
 
@@ -3307,17 +3355,23 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteContact(contact: MarketingContact) {
-    if (!window.confirm(`Delete contact "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}"? Audience memberships will be removed and campaign/journey history will keep its records.`)) return;
+    if (confirmingContactDeleteId !== contact.id) {
+      setConfirmingContactDeleteId(contact.id);
+      setContactFeedback(`Click Confirm delete to remove "${contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}". Audience memberships will be removed.`);
+      return;
+    }
     setContactSaving(true);
     setContactFeedback("Deleting contact...");
     try {
       await api(`/api/admin/marketing/contacts/${contact.id}`, { method: "DELETE" });
       if (editingContactId === contact.id) cancelContactEdit();
+      setConfirmingContactDeleteId(null);
       setContactFeedback("Contact deleted.");
       setMessage("Marketing contact deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Marketing contact could not be deleted.";
+      setConfirmingContactDeleteId(null);
       setContactFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -3370,12 +3424,14 @@ export default function MarketingAdminPage() {
   function startAudienceEdit(audience: MarketingAudience) {
     setEditingAudienceId(audience.id);
     setAudienceEditDraft(audienceEditDraftFromAudience(audience));
+    setConfirmingAudienceDeleteId(null);
     setAudienceFeedback("");
   }
 
   function cancelAudienceEdit() {
     setEditingAudienceId(null);
     setAudienceEditDraft(null);
+    setConfirmingAudienceDeleteId(null);
     setAudienceFeedback("");
   }
 
@@ -3442,17 +3498,23 @@ export default function MarketingAdminPage() {
   }
 
   async function deleteAudience(audience: MarketingAudience) {
-    if (!window.confirm(`Delete list "${audience.name}"? Contacts will stay in marketing contacts; only this list and its memberships are removed.`)) return;
+    if (confirmingAudienceDeleteId !== audience.id) {
+      setConfirmingAudienceDeleteId(audience.id);
+      setAudienceFeedback(`Click Confirm delete to remove list "${audience.name}". Contacts will stay in marketing contacts.`);
+      return;
+    }
     setAudienceSaving(true);
     setAudienceFeedback("Deleting audience...");
     try {
       await api(`/api/admin/marketing/audiences/${audience.id}`, { method: "DELETE" });
       if (editingAudienceId === audience.id) cancelAudienceEdit();
+      setConfirmingAudienceDeleteId(null);
       setAudienceFeedback("Audience deleted.");
       setMessage("Audience deleted.");
       await refreshAll();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Audience could not be deleted.";
+      setConfirmingAudienceDeleteId(null);
       setAudienceFeedback(errorMessage);
       setMessage(errorMessage);
     } finally {
@@ -3794,6 +3856,7 @@ export default function MarketingAdminPage() {
                     onEdit={startCampaignEdit}
                     onDelete={(campaign) => deleteCampaign(campaign).catch((error) => setMessage(error.message))}
                     actionsDisabled={campaignSaving}
+                    confirmingDeleteId={confirmingCampaignDeleteId}
                   />
                 </SectionCard>
 
@@ -4164,10 +4227,10 @@ export default function MarketingAdminPage() {
                           type="button"
                           disabled={campaignEmailDisabled}
                           onClick={() => editingCampaign ? void sendCampaignEmails(editingCampaign) : undefined}
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                          className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8] ${confirmingCampaignSendId === editingCampaign.id ? "bg-red-700" : "bg-purple-700"}`}
                           data-testid="button-marketing-send-campaign-email"
                         >
-                          <Send size={15} /> {campaignEmailSending ? "Sending campaign..." : "Send campaign emails"}
+                          <Send size={15} /> {campaignEmailSending ? "Sending campaign..." : confirmingCampaignSendId === editingCampaign.id ? "Confirm send emails" : "Send campaign emails"}
                         </button>
                         <button type="button" onClick={cancelCampaignEdit} disabled={campaignSaving} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#2f2135] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" data-testid="button-marketing-cancel-campaign">
                           <X size={15} /> Close details
@@ -4245,7 +4308,7 @@ export default function MarketingAdminPage() {
                                 <Pencil size={14} /> Edit
                               </button>
                               <button type="button" onClick={() => deleteJourney(journey)} disabled={journeySaving} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:text-red-300" data-testid={`button-marketing-delete-journey-${journey.id}`}>
-                                <Trash2 size={14} /> Delete
+                                <Trash2 size={14} /> {confirmingJourneyDeleteId === journey.id ? "Confirm delete" : "Delete"}
                               </button>
                             </div>
                           </div>
@@ -4966,8 +5029,8 @@ export default function MarketingAdminPage() {
                           <Save size={15} /> {mediaSaving ? "Saving..." : "Save media"}
                         </button>
                         {editingMediaAsset ? (
-                          <button type="button" onClick={() => void deleteMediaAsset(editingMediaAsset)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={mediaSaving} data-testid="button-marketing-delete-editing-media">
-                            <Trash2 size={15} /> Delete
+                          <button type="button" onClick={() => void deleteMediaAsset(editingMediaAsset)} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === editingMediaAsset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid="button-marketing-delete-editing-media">
+                            <Trash2 size={15} /> {confirmingMediaDeleteId === editingMediaAsset.id ? "Confirm delete" : "Delete"}
                           </button>
                         ) : null}
                         <button type="button" onClick={cancelMediaEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 text-sm font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid="button-marketing-cancel-media">
@@ -5005,8 +5068,8 @@ export default function MarketingAdminPage() {
                           <button type="button" onClick={() => startMediaEdit(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-${asset.id}`}>
                             <Pencil size={13} /> Edit
                           </button>
-                          <button type="button" onClick={() => void deleteMediaAsset(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
-                            <Trash2 size={13} /> Delete
+                          <button type="button" onClick={() => void deleteMediaAsset(asset)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === asset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
+                            <Trash2 size={13} /> {confirmingMediaDeleteId === asset.id ? "Confirm delete" : "Delete"}
                           </button>
                         </div>
                       </article>
@@ -5027,10 +5090,10 @@ export default function MarketingAdminPage() {
                     type="button"
                     onClick={() => void sendDueCampaignEmails()}
                     disabled={dueEmailSending}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                    className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8] ${confirmingDueEmailSend ? "bg-red-700" : "bg-purple-700"}`}
                     data-testid="button-marketing-run-due-email"
                   >
-                    <Send size={15} /> {dueEmailSending ? "Running..." : "Run due emails"}
+                    <Send size={15} /> {dueEmailSending ? "Running..." : confirmingDueEmailSend ? "Confirm run due emails" : "Run due emails"}
                   </button>
                 )}
               >
@@ -5046,6 +5109,7 @@ export default function MarketingAdminPage() {
                   campaigns={visibleCampaigns}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
+                  confirmingDeleteId={confirmingCampaignDeleteId}
                 />
               </SectionCard>
               <SectionCard title="Scheduled campaign details" subtitle="Table view for scheduled records.">
@@ -5054,6 +5118,7 @@ export default function MarketingAdminPage() {
                   activeCampaignId={editingCampaignId}
                   onEdit={openCampaignFromCalendar}
                   onDelete={(campaign) => void deleteCampaign(campaign)}
+                  confirmingDeleteId={confirmingCampaignDeleteId}
                 />
               </SectionCard>
             </div>
@@ -5226,8 +5291,8 @@ export default function MarketingAdminPage() {
                         <Save size={16} /> {contactSaving ? "Saving..." : "Save contact"}
                       </button>
                       {editingContact ? (
-                        <button type="button" onClick={() => void deleteContact(editingContact)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contactSaving} data-testid="button-marketing-delete-editing-contact">
-                          <Trash2 size={16} /> Delete
+                        <button type="button" onClick={() => void deleteContact(editingContact)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContactDeleteId === editingContact.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contactSaving} data-testid="button-marketing-delete-editing-contact">
+                          <Trash2 size={16} /> {confirmingContactDeleteId === editingContact.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
                       <button type="button" onClick={cancelContactEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid="button-marketing-cancel-contact">
@@ -5398,8 +5463,8 @@ export default function MarketingAdminPage() {
                                     <button type="button" onClick={() => startContactEdit(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={contactSaving} data-testid={`button-marketing-edit-contact-${contact.id}`}>
                                       <Pencil size={13} /> Edit
                                     </button>
-                                    <button type="button" onClick={() => void deleteContact(contact)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={contactSaving} data-testid={`button-marketing-delete-contact-${contact.id}`}>
-                                      <Trash2 size={13} /> Delete
+                                    <button type="button" onClick={() => void deleteContact(contact)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingContactDeleteId === contact.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={contactSaving} data-testid={`button-marketing-delete-contact-${contact.id}`}>
+                                      <Trash2 size={13} /> {confirmingContactDeleteId === contact.id ? "Confirm delete" : "Delete"}
                                     </button>
                                   </div>
                                 </td>
@@ -5560,8 +5625,8 @@ export default function MarketingAdminPage() {
                         <Save size={16} /> {audienceSaving ? "Saving..." : "Save list"}
                       </button>
                       {editingAudience ? (
-                        <button type="button" onClick={() => void deleteAudience(editingAudience)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid="button-marketing-delete-editing-audience">
-                          <Trash2 size={16} /> Delete
+                        <button type="button" onClick={() => void deleteAudience(editingAudience)} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingAudienceDeleteId === editingAudience.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={audienceSaving} data-testid="button-marketing-delete-editing-audience">
+                          <Trash2 size={16} /> {confirmingAudienceDeleteId === editingAudience.id ? "Confirm delete" : "Delete"}
                         </button>
                       ) : null}
                       <button type="button" onClick={cancelAudienceEdit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#eadfd5] bg-white px-4 font-black text-[#241133] disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid="button-marketing-cancel-audience">
@@ -5626,8 +5691,8 @@ export default function MarketingAdminPage() {
                               <button type="button" onClick={() => startAudienceEdit(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={audienceSaving} data-testid={`button-marketing-edit-audience-${audience.id}`}>
                                 <Pencil size={13} /> Edit
                               </button>
-                              <button type="button" onClick={() => void deleteAudience(audience)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8]" disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
-                                <Trash2 size={13} /> Delete
+                              <button type="button" onClick={() => void deleteAudience(audience)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingAudienceDeleteId === audience.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={audienceSaving} data-testid={`button-marketing-delete-audience-${audience.id}`}>
+                                <Trash2 size={13} /> {confirmingAudienceDeleteId === audience.id ? "Confirm delete" : "Delete"}
                               </button>
                             </div>
                           </div>
@@ -5826,7 +5891,7 @@ function EmptyState({ text }: { text: string }) {
   return <p className="rounded-xl border border-dashed border-[#eadfd5] bg-[#fffaf4] p-4 text-center text-sm font-bold text-[#8b7a73]">{text}</p>;
 }
 
-function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsDisabled = false }: { campaigns: Campaign[]; activeCampaignId?: string | null; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void; actionsDisabled?: boolean }) {
+function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsDisabled = false, confirmingDeleteId = null }: { campaigns: Campaign[]; activeCampaignId?: string | null; onEdit?: (campaign: Campaign) => void; onDelete?: (campaign: Campaign) => void; actionsDisabled?: boolean; confirmingDeleteId?: string | null }) {
   const showActions = Boolean(onEdit || onDelete);
   return (
     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-campaign-table">
@@ -5847,6 +5912,7 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
             <tr><td colSpan={showActions ? 7 : 6} className="px-4 py-6 text-center font-bold text-[#8b7a73]">No campaigns match the filters.</td></tr>
           ) : campaigns.map((campaign) => {
             const isActive = activeCampaignId === campaign.id;
+            const deleteIsArmed = confirmingDeleteId === campaign.id;
             return (
             <tr
               key={campaign.id}
@@ -5890,8 +5956,8 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
                       </button>
                     ) : null}
                     {onDelete ? (
-                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300" data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
-                        <Trash2 size={14} /> Delete
+                      <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(campaign); }} disabled={actionsDisabled} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] disabled:text-red-300 ${deleteIsArmed ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} data-testid={`button-marketing-delete-campaign-${campaign.id}`}>
+                        <Trash2 size={14} /> {deleteIsArmed ? "Confirm delete" : "Delete"}
                       </button>
                     ) : null}
                   </div>
@@ -5906,7 +5972,7 @@ function CampaignTable({ campaigns, activeCampaignId, onEdit, onDelete, actionsD
   );
 }
 
-function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Campaign[]; onEdit: (campaign: Campaign) => void; onDelete: (campaign: Campaign) => void }) {
+function MarketingCalendarView({ campaigns, onEdit, onDelete, confirmingDeleteId = null }: { campaigns: Campaign[]; onEdit: (campaign: Campaign) => void; onDelete: (campaign: Campaign) => void; confirmingDeleteId?: string | null }) {
   const scheduledCampaigns = [...campaigns]
     .filter((campaign) => campaign.scheduleStartsAt)
     .sort((a, b) => new Date(a.scheduleStartsAt ?? 0).getTime() - new Date(b.scheduleStartsAt ?? 0).getTime());
@@ -5964,8 +6030,8 @@ function MarketingCalendarView({ campaigns, onEdit, onDelete }: { campaigns: Cam
                       <button type="button" onClick={() => onEdit(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700" data-testid={`button-marketing-calendar-edit-${campaign.id}`}>
                         <Pencil size={14} /> Edit
                       </button>
-                      <button type="button" onClick={() => onDelete(campaign)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700" data-testid={`button-marketing-calendar-delete-${campaign.id}`}>
-                        <Trash2 size={14} /> Delete
+                      <button type="button" onClick={() => onDelete(campaign)} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black ${confirmingDeleteId === campaign.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} data-testid={`button-marketing-calendar-delete-${campaign.id}`}>
+                        <Trash2 size={14} /> {confirmingDeleteId === campaign.id ? "Confirm delete" : "Delete"}
                       </button>
                     </div>
                   </div>

@@ -1078,7 +1078,6 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits and deletes imported media references", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1086,6 +1085,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-media-metadata-media-1")).toHaveTextContent("Partner hero image");
 
+    fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
+    expect(screen.getByTestId("button-marketing-delete-media-media-1")).toHaveTextContent("Confirm delete");
     fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
@@ -1123,11 +1124,11 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-media"));
+    expect(screen.getByTestId("button-marketing-delete-editing-media")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-media"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it("validates and creates richer marketing contacts", async () => {
@@ -1202,12 +1203,13 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits and deletes imported marketing contacts", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
 
+    fireEvent.click(screen.getByTestId("button-marketing-delete-contact-contact-2"));
+    expect(screen.getByTestId("button-marketing-delete-contact-contact-2")).toHaveTextContent("Confirm delete");
     fireEvent.click(screen.getByTestId("button-marketing-delete-contact-contact-2"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
@@ -1292,21 +1294,22 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-contact"));
+    expect(screen.getByTestId("button-marketing-delete-editing-contact")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-contact"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete contact"));
-    confirmSpy.mockRestore();
   });
 
   it("edits and deletes imported marketing audiences", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
 
+    fireEvent.click(screen.getByTestId("button-marketing-delete-audience-audience-1"));
+    expect(screen.getByTestId("button-marketing-delete-audience-audience-1")).toHaveTextContent("Confirm delete");
     fireEvent.click(screen.getByTestId("button-marketing-delete-audience-audience-1"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "DELETE" }));
@@ -1355,11 +1358,11 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-audience"));
+    expect(screen.getByTestId("button-marketing-delete-editing-audience")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-audience"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete list"));
-    confirmSpy.mockRestore();
   });
 
   it("creates a blank journey draft and keeps the editor open", async () => {
@@ -1401,7 +1404,6 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits journey logic, steps, ordering, and deletes journey records", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1494,12 +1496,12 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
+    expect(screen.getByTestId("button-marketing-delete-journey-journey-1")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys/journey-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete journey"));
-    confirmSpy.mockRestore();
   });
 
   it("creates campaign metadata without auto-dispatching", async () => {
@@ -1553,11 +1555,12 @@ describe("MarketingAdminPage", () => {
   });
 
   it("runs due scheduled email campaigns from the calendar tab", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    fireEvent.click(screen.getByTestId("button-marketing-run-due-email"));
+    expect(screen.getByTestId("button-marketing-run-due-email")).toHaveTextContent("Confirm run due emails");
     fireEvent.click(screen.getByTestId("button-marketing-run-due-email"));
 
     await waitFor(() => {
@@ -1566,12 +1569,9 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-due-email-feedback")).toHaveTextContent("1 sent");
     });
-    expect(confirmSpy).toHaveBeenCalledWith("Send all due scheduled email campaigns now?");
-    confirmSpy.mockRestore();
   });
 
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1685,6 +1685,8 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("button-marketing-send-campaign-email")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-marketing-send-campaign-email"));
+    expect(screen.getByTestId("button-marketing-send-campaign-email")).toHaveTextContent("Confirm send emails");
+    fireEvent.click(screen.getByTestId("button-marketing-send-campaign-email"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.objectContaining({ method: "POST" }));
@@ -1694,10 +1696,10 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
+    expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete campaign"));
-    confirmSpy.mockRestore();
   });
 });
