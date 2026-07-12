@@ -1758,6 +1758,59 @@ describe("admin marketing router", () => {
           firstClassFields: expect.arrayContaining(["enrollmentExternalId", "eventType", "channel"]),
         }),
       },
+      });
+  });
+
+  it("creates visible content placeholders for Lovable campaign references that are not exported", async () => {
+    vi.stubEnv("LOVABLE_MARKETING_API_URL", "https://lovable.example.test/marketing-export");
+    vi.stubEnv("LOVABLE_MARKETING_API_KEY", "secret");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => (
+      new Response(JSON.stringify({
+        campaigns: [{
+          id: "campaign:missing-content",
+          name: "Missing brief campaign",
+          status: "draft",
+          audienceType: "b2c",
+          channels: [{ channel: "email", contentExternalId: "content_brief:missing-brief", status: "draft" }],
+        }],
+      }), { status: 200, headers: { "Content-Type": "application/json" } })
+    ));
+
+    const app = buildApp("karim.assad@mokadigital.net");
+    await request(app).post("/api/admin/marketing/sync/lovable/run").expect(200);
+
+    const placeholder = table("marketing_content_assets").find((row) => row.lovable_external_id === "content_brief:missing-brief");
+    expect(placeholder).toMatchObject({
+      title: "Missing Lovable content brief: content_brief:missing-brief",
+      channel: "email",
+      status: "draft",
+      body: expect.stringContaining("Lovable referenced content_brief:missing-brief"),
+      design_json: expect.objectContaining({
+        missing_lovable_reference: true,
+        external_id: "content_brief:missing-brief",
+      }),
+      metadata: expect.objectContaining({
+        lovable_missing_reference: true,
+        lovable_source_type: "missing_lovable_reference",
+        referenced_source_type: "content_brief",
+        campaign_external_id: "campaign:missing-content",
+      }),
+    });
+
+    const campaign = table("marketing_campaigns").find((row) => row.name === "Missing brief campaign");
+    expect(table("marketing_campaign_channels").find((row) => row.campaign_id === campaign?.id)).toMatchObject({
+      channel: "email",
+      content_asset_id: placeholder?.id,
+    });
+    expect(table("marketing_sync_runs")[0].summary).toMatchObject({
+      imported: {
+        campaigns: 1,
+        campaignChannels: 1,
+        missingContentReferences: 1,
+      },
+      contentSourceCounts: {
+        missing_lovable_reference: 1,
+      },
     });
   });
 

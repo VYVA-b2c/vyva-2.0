@@ -832,6 +832,7 @@ const lovableContentSourceLabels: Record<string, string> = {
   content_brief: "Content brief",
   journey_step_preset: "Journey step preset",
   social_post: "Social post",
+  missing_lovable_reference: "Missing Lovable reference",
 };
 
 function metadataString(value: unknown, key: string) {
@@ -1641,6 +1642,7 @@ const syncCountLabels = {
   contacts: "Contacts",
   content: "Content",
   journeyStepPresetContent: "Journey step preset content",
+  missingContentReferences: "Missing content references",
   mediaAssets: "Media assets",
   campaignChannels: "Campaign channels",
   campaignMetrics: "Campaign metrics",

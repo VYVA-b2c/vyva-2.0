@@ -1090,6 +1090,27 @@ function contentIdForLovableReference(contentByExternalId: Map<string, string>, 
   return lookupByExternalId(contentByExternalId, externalId, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"]) ?? null;
 }
 
+function lovableReferenceSourceType(externalId: string) {
+  const trimmed = externalId.trim();
+  if (!trimmed.includes(":")) return "missing_lovable_reference";
+  const prefix = trimmed.split(":")[0]?.trim();
+  if (!prefix) return "missing_lovable_reference";
+  if (["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"].includes(prefix)) {
+    return prefix;
+  }
+  return "missing_lovable_reference";
+}
+
+function lovableReferenceSourceLabel(sourceType: string) {
+  if (sourceType === "saved_email_template") return "email template";
+  if (sourceType === "social_post") return "social post";
+  if (sourceType === "content_brief") return "content brief";
+  if (sourceType === "journey_step_preset") return "journey step preset";
+  if (sourceType === "template") return "template";
+  if (sourceType === "content" || sourceType === "content_asset") return "content";
+  return "content reference";
+}
+
 function campaignChannelPayload(row: Record<string, unknown>) {
   const channelRows = arrayFrom(row.channels);
   if (channelRows.length) return channelRows;
@@ -3131,6 +3152,59 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   return { content, mediaAssetCount };
 }
 
+async function upsertMissingLovableContentReference(
+  externalId: string,
+  channel: string,
+  now: Date,
+  actorLabel: string,
+  context: Record<string, unknown>,
+) {
+  const normalizedExternalId = emptyToNull(externalId);
+  if (!normalizedExternalId) return null;
+  const sourceType = lovableReferenceSourceType(normalizedExternalId);
+  const sourceLabel = lovableReferenceSourceLabel(sourceType);
+  const title = `Missing Lovable ${sourceLabel}: ${normalizedExternalId}`;
+  const body = [
+    `Lovable referenced ${normalizedExternalId}, but the export did not include the content body, HTML, design, or media for this item.`,
+    "Run sync again after Lovable exports the referenced item, or replace this placeholder with the real content in VYVA.",
+  ].join("\n\n");
+  const payload = {
+    title,
+    channel: normalizeChannel(channel),
+    language: "en",
+    status: "draft",
+    subject: null,
+    body,
+    html_body: null,
+    cta_label: null,
+    cta_url: null,
+    design_json: {
+      missing_lovable_reference: true,
+      external_id: normalizedExternalId,
+      source_type: sourceType,
+      context,
+    },
+    media_assets: [],
+    source: "lovable",
+    lovable_external_id: normalizedExternalId,
+    metadata: {
+      lovable_missing_reference: true,
+      lovable_source_type: "missing_lovable_reference",
+      referenced_source_type: sourceType,
+      referenced_source_label: sourceLabel,
+      external_id: normalizedExternalId,
+      ...context,
+    },
+    updated_by: actorLabel,
+    updated_at: now,
+  };
+  const [content] = await db.insert(marketingContentAssets)
+    .values({ ...payload, created_by: actorLabel })
+    .onConflictDoUpdate({ target: marketingContentAssets.lovable_external_id, set: payload })
+    .returning();
+  return content;
+}
+
 async function replaceLovableMediaAssets(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date) {
   await db.delete(marketingMediaAssets).where(and(
     eq(marketingMediaAssets.content_asset_id, content.id),
@@ -3514,23 +3588,41 @@ async function upsertLovableCampaign(
   const firstChannelRow = asRecord(channelRows[0]);
   const defaultChannel = normalizeChannel(textFrom(firstChannelRow, ["channel", "platform", "network"], "email"));
   const defaultScheduledAt = dateOrNull(dateTextFrom(firstChannelRow, ["scheduledAt", "scheduled_at"])) ?? campaign.schedule_starts_at ?? null;
+  let missingContentReferenceCount = 0;
   if (channelRows.length) {
     await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
-    await db.insert(marketingCampaignChannels).values(channelRows.map((channelRaw) => {
+    const campaignChannelRows: Array<typeof marketingCampaignChannels.$inferInsert> = [];
+    for (const channelRaw of channelRows) {
       const channelRow = asRecord(channelRaw);
       const contentExternalId = lovableContentReference(channelRow);
       const channel = normalizeChannel(textFrom(channelRow, ["channel", "platform", "network"], "email"));
-      return {
+      let contentAssetId = contentIdForLovableReference(contentByExternalId, contentExternalId);
+      if (!contentAssetId && contentExternalId) {
+        const placeholder = await upsertMissingLovableContentReference(contentExternalId, channel, now, actorLabel, {
+          context: "campaign_channel",
+          campaign_external_id: externalId,
+          campaign_name: campaign.name,
+          channel,
+          lovable_channel: channelRow,
+        });
+        if (placeholder) {
+          missingContentReferenceCount += 1;
+          contentAssetId = placeholder.id;
+          addExternalIdVariants(contentByExternalId, placeholder.lovable_external_id, placeholder.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
+        }
+      }
+      campaignChannelRows.push({
         campaign_id: campaign.id,
         channel,
-        content_asset_id: contentIdForLovableReference(contentByExternalId, contentExternalId),
+        content_asset_id: contentAssetId,
         scheduled_at: dateOrNull(dateTextFrom(channelRow, ["scheduledAt", "scheduled_at"])),
         status: normalizeCampaignStatus(textFrom(channelRow, ["status"], payload.status)),
         send_capability: sendCapabilityForChannel(channel),
         metadata: sendMetadataForChannel(channel, { lovable: channelRow }),
         updated_at: now,
-      };
-    }));
+      });
+    }
+    await db.insert(marketingCampaignChannels).values(campaignChannelRows);
   }
   const recipientImport = lovableCampaignRecipients(
     row,
@@ -3550,6 +3642,7 @@ async function upsertLovableCampaign(
     campaign,
     channelCount: channelRows.length,
     recipientCount: recipientImport.recipientRows.length,
+    missingContentReferenceCount,
     unmappedRecipientExternalIds: recipientImport.unmappedContactExternalIds,
   };
 }
@@ -3853,13 +3946,13 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     for (const item of contentRows) {
       addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
     }
-    if (contentByExternalId.size < contentRows.length) {
-      const ids = contentRows.map((item) => item.lovable_external_id).filter((value): value is string => Boolean(value));
-      if (ids.length) {
-        const rows = await db.select().from(marketingContentAssets).where(inArray(marketingContentAssets.lovable_external_id, ids));
-        for (const item of rows) {
-          addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
-        }
+    const existingContentRows = await db.select({
+      id: marketingContentAssets.id,
+      lovable_external_id: marketingContentAssets.lovable_external_id,
+    }).from(marketingContentAssets).limit(5000);
+    for (const item of existingContentRows) {
+      if (item.lovable_external_id) {
+        addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"]);
       }
     }
     for (const [index, item] of standaloneMediaPayload.entries()) {
@@ -3914,6 +4007,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     let campaignCount = 0;
     let campaignChannelCount = 0;
     let campaignRecipientCount = 0;
+    let missingContentReferenceCount = 0;
     const unmappedCampaignRecipientExternalIds: string[] = [];
     const campaignRows: MarketingCampaignRow[] = [];
     const nestedCampaignMetricPayload: Array<{ raw: unknown; campaignExternalId: string | null; index: number }> = [];
@@ -3939,6 +4033,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       campaignChannelCount += result.channelCount;
       campaignRows.push(result.campaign);
       campaignRecipientCount += result.recipientCount;
+      missingContentReferenceCount += result.missingContentReferenceCount;
       unmappedCampaignRecipientExternalIds.push(...result.unmappedRecipientExternalIds);
     }
 
@@ -4053,6 +4148,9 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     if (journeyStepPresetExportCount || journeyStepPresetContentCount) {
       contentSourceCounts.journey_step_preset = Math.max(journeyStepPresetExportCount, journeyStepPresetContentCount);
     }
+    if (missingContentReferenceCount) {
+      contentSourceCounts.missing_lovable_reference = missingContentReferenceCount;
+    }
     const exported = {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
@@ -4089,6 +4187,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       contacts: contactRows.length,
       content: contentRows.length,
       journeyStepPresetContent: journeyStepPresetContentCount,
+      missingContentReferences: missingContentReferenceCount,
       mediaAssets: mediaAssetCount,
       campaignChannels: campaignChannelCount,
       campaignMetrics: campaignMetricCount,
