@@ -1512,6 +1512,26 @@ describe("ConciergeScreen action hub", () => {
         expect(body.action_payload.requested_time).toBe("tomorrow");
         return jsonResponse({ pendingId: "otc-1", status: "pending" });
       }
+      if (String(url).includes("/api/concierge/actions/otc-1/complete")) {
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(String(init?.body));
+        expect(body.outcome_summary).toBe("OTC pharmacy request saved with Neighborhood Pharmacy.");
+        expect(body.outcome_payload).toMatchObject({
+          flow_reference: "FLOW_OTC_PHARMACY",
+          pharmacy_name: "Neighborhood Pharmacy",
+          item_text: "Vitamins",
+          item_scope: "over_the_counter_only",
+          prescription_items_allowed: false,
+          fulfillment_preference: "pickup",
+          requested_time: "tomorrow",
+          availability: "Available after 5pm",
+          cost_estimate: "EUR12",
+          fulfillment_note: "Pickup counter",
+          pharmacy_reference: "PH-22",
+          notes: "Bring ID",
+        });
+        return jsonResponse({ ok: true, status: "completed", sessionId: "otc-session-1" });
+      }
       return jsonResponse({ items: [] });
     });
 
@@ -1549,6 +1569,34 @@ describe("ConciergeScreen action hub", () => {
       }));
     });
     expect(await screen.findByText("OTC request prepared. Confirm before VYVA contacts the pharmacy.")).toBeVisible();
+    expect(screen.getByTestId("panel-otc-pharmacy-outcome")).toHaveTextContent("Pharmacy reply");
+    expect(screen.getByTestId("button-otc-outcome-save")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("input-otc-outcome-availability"), {
+      target: { value: "Available after 5pm" },
+    });
+    fireEvent.change(screen.getByTestId("input-otc-outcome-cost"), {
+      target: { value: "EUR12" },
+    });
+    fireEvent.change(screen.getByTestId("input-otc-outcome-fulfillment"), {
+      target: { value: "Pickup counter" },
+    });
+    fireEvent.change(screen.getByTestId("input-otc-outcome-reference"), {
+      target: { value: "PH-22" },
+    });
+    fireEvent.change(screen.getByTestId("input-otc-outcome-notes"), {
+      target: { value: "Bring ID" },
+    });
+    expect(screen.getByTestId("button-otc-outcome-save")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("button-otc-outcome-save"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/concierge/actions/otc-1/complete", expect.objectContaining({
+        method: "POST",
+      }));
+    });
+    expect(await screen.findByText("Pharmacy reply saved. The OTC task is closed.")).toBeVisible();
+    expect(screen.queryByTestId("panel-otc-pharmacy-outcome")).not.toBeInTheDocument();
   });
 
   it("finds transport options and prepares a provider without starting a booking", async () => {
