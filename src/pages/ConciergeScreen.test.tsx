@@ -2741,10 +2741,8 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("button-concierge-checklist-provider")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-checklist-confirm")).toHaveTextContent("OK");
     expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Next step");
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review & confirm");
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Provider");
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Contact route");
-    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Review call script");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Call and record outcome");
+    expect(screen.getByTestId("panel-concierge-next-action")).toHaveTextContent("Call from here and save the result to close the task.");
     expect(screen.getByTestId("button-concierge-change-ride-1")).toHaveTextContent("Change");
     expect(screen.getByTestId("button-concierge-cancel-ride-1")).toHaveTextContent("Cancel");
     expect(screen.getByTestId("button-concierge-confirm-ride-1")).toHaveTextContent("Review call script");
@@ -2793,7 +2791,6 @@ describe("ConciergeScreen route prefill", () => {
     expect(screen.getByTestId("link-concierge-phone-call-phone-task-1")).toHaveAttribute("href", "tel:+34600111222");
     fireEvent.click(screen.getByTestId("button-concierge-confirm-phone-task-1"));
     expect(apiFetchMock).not.toHaveBeenCalledWith("/api/concierge/actions/phone-task-1/confirm", { method: "POST" });
-
     fireEvent.change(screen.getByTestId("input-phone-outcome-time-phone-task-1"), {
       target: { value: "tomorrow 10:30" },
     });
@@ -3826,6 +3823,131 @@ describe("ConciergeScreen route prefill", () => {
       "mailto:clinic@example.com?subject=Question%20about%20my%20appointment&body=Hello%2C%20I%20would%20like%20to%20confirm%20my%20appointment%20details.",
     );
     expect(screen.getByTestId("button-concierge-confirm-email-1")).toHaveTextContent("Open email draft");
+    expect(screen.getByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
+    expect(screen.getByTestId("button-email-draft-sent-email-1")).toHaveTextContent("I sent it");
+  });
+
+  it("records a sent email draft through the existing completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/email-sent-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-email-sent-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "email-sent-1",
+            use_case: "insurance_admin",
+            provider_name: "Insurer Desk",
+            provider_phone: null,
+            action_summary: "Email ready for insurer.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+              execution_channel: "email",
+              provider_email: "claims@example.com",
+              email_subject: "Claim documents",
+              email_body: "Hello, please review my claim documents.",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
+    expect(screen.getByTestId("link-concierge-email-draft-open-email-sent-1")).toHaveAttribute(
+      "href",
+      "mailto:claims@example.com?subject=Claim%20documents&body=Hello%2C%20please%20review%20my%20claim%20documents.",
+    );
+    fireEvent.change(screen.getByTestId("input-email-draft-reference-email-sent-1"), {
+      target: { value: "CL-11" },
+    });
+    fireEvent.change(screen.getByTestId("input-email-draft-notes-email-sent-1"), {
+      target: { value: "Sent from Gmail." },
+    });
+    fireEvent.click(screen.getByTestId("button-email-draft-sent-email-sent-1"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Email sent to Insurer Desk. Reference: CL-11.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.insuranceAdmin,
+          execution_type: "email_draft_outcome_capture",
+          execution_channel: "email",
+          email_outcome: "sent",
+          provider_name: "Insurer Desk",
+          provider_email: "claims@example.com",
+          recipient_email: "claims@example.com",
+          email_subject: "Claim documents",
+          reference: "CL-11",
+          notes: "Sent from Gmail.",
+          completed_from: "email_draft_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
+  });
+
+  it("records a sent tool-gated email draft through the existing completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/tool-email-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-tool-email-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "tool-email-1",
+            use_case: "admin_task",
+            provider_name: "Council Office",
+            provider_phone: null,
+            action_summary: "Email ready for the council office.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+              execution_channel: "email",
+              provider_email: "office@example.com",
+              email_subject: "Application question",
+              email_body: "Hello, I need help with my application.",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-email-draft")).toHaveTextContent("Email ready");
+    fireEvent.change(screen.getByTestId("input-email-draft-reference-tool-email-1"), {
+      target: { value: "APP-3" },
+    });
+    fireEvent.click(screen.getByTestId("button-email-draft-sent-tool-email-1"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "Email sent to Council Office. Reference: APP-3.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+          execution_type: "email_draft_outcome_capture",
+          execution_channel: "email",
+          email_outcome: "sent",
+          provider_name: "Council Office",
+          provider_email: "office@example.com",
+          completed_from: "email_draft_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
   });
 
   it("renders prepared WhatsApp actions as draft message links", async () => {
@@ -3853,6 +3975,74 @@ describe("ConciergeScreen route prefill", () => {
       "https://wa.me/34611222333?text=Hello%2C%20can%20we%20confirm%20the%20visit%20time%3F",
     );
     expect(screen.getByTestId("button-concierge-confirm-whatsapp-1")).toHaveTextContent("Open WhatsApp draft");
+    expect(screen.getByTestId("panel-concierge-whatsapp-draft")).toHaveTextContent("WhatsApp ready");
+    expect(screen.getByTestId("button-whatsapp-draft-sent-whatsapp-1")).toHaveTextContent("I sent it");
+  });
+
+  it("records a sent WhatsApp draft through the existing completion endpoint", async () => {
+    let completeBody: { outcome_summary?: string; outcome_payload?: Record<string, unknown> } | null = null;
+    apiFetchMock.mockImplementation(async (url, init) => {
+      const target = String(url);
+      if (target.endsWith("/api/concierge/actions/whatsapp-sent-1/complete")) {
+        completeBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ok: true, status: "completed", sessionId: "session-whatsapp-sent-1" });
+      }
+      if (target.endsWith("/api/concierge/actions/pending")) {
+        return jsonResponse({
+          items: [{
+            id: "whatsapp-sent-1",
+            use_case: "order_medicine",
+            provider_name: "Farmacia Luz",
+            provider_phone: "+34 600 111 222",
+            action_summary: "OTC request ready for Farmacia Luz.",
+            action_payload: {
+              flow_reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+              preferred_channel: "whatsapp",
+              execution_channel: "whatsapp",
+              whatsapp_message: "Hello, do you have paracetamol available for pickup today?",
+            },
+            status: "pending",
+            language: "en",
+          }],
+        });
+      }
+      return jsonResponse({ items: [] });
+    });
+
+    renderScreen();
+
+    expect(await screen.findByTestId("panel-concierge-whatsapp-draft")).toHaveTextContent("WhatsApp ready");
+    expect(screen.getByTestId("link-concierge-whatsapp-draft-open-whatsapp-sent-1")).toHaveAttribute(
+      "href",
+      "https://wa.me/34600111222?text=Hello%2C%20do%20you%20have%20paracetamol%20available%20for%20pickup%20today%3F",
+    );
+    fireEvent.change(screen.getByTestId("input-whatsapp-draft-reference-whatsapp-sent-1"), {
+      target: { value: "OTC-77" },
+    });
+    fireEvent.change(screen.getByTestId("input-whatsapp-draft-notes-whatsapp-sent-1"), {
+      target: { value: "Sent in WhatsApp." },
+    });
+    fireEvent.click(screen.getByTestId("button-whatsapp-draft-sent-whatsapp-sent-1"));
+
+    await waitFor(() => {
+      expect(completeBody).toMatchObject({
+        outcome_summary: "WhatsApp sent to Farmacia Luz. Reference: OTC-77.",
+        outcome_payload: expect.objectContaining({
+          flow_reference: CONCIERGE_FLOW_REFERENCES.otcPharmacy,
+          execution_type: "whatsapp_draft_outcome_capture",
+          execution_channel: "whatsapp",
+          whatsapp_outcome: "sent",
+          provider_name: "Farmacia Luz",
+          provider_phone: "+34 600 111 222",
+          provider_whatsapp: "34600111222",
+          recipient_whatsapp: "34600111222",
+          reference: "OTC-77",
+          notes: "Sent in WhatsApp.",
+          completed_from: "whatsapp_draft_outcome_panel",
+          no_external_action_without_confirmation: true,
+        }),
+      });
+    });
   });
 
   it("shows compact form plan details for VYVA-handled booking tasks", async () => {

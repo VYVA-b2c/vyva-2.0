@@ -7,6 +7,8 @@ export type ConciergeFlowCoverageStage =
   | "saved_provider_path"
   | "provider_unavailable_recovery"
   | "final_user_confirmation"
+  | "action_handoff"
+  | "outcome_capture"
   | "completed_history";
 
 export const CONCIERGE_FLOW_COVERAGE_STAGE_LABELS: Record<ConciergeFlowCoverageStage, string> = {
@@ -16,6 +18,8 @@ export const CONCIERGE_FLOW_COVERAGE_STAGE_LABELS: Record<ConciergeFlowCoverageS
   saved_provider_path: "Saved provider path",
   provider_unavailable_recovery: "Provider unavailable recovery",
   final_user_confirmation: "Final user confirmation",
+  action_handoff: "Action handoff",
+  outcome_capture: "Outcome capture",
   completed_history: "Completed history",
 };
 
@@ -33,6 +37,8 @@ const PROVIDER_FLOW_STAGES: ConciergeFlowCoverageStage[] = [
   "saved_provider_path",
   "provider_unavailable_recovery",
   "final_user_confirmation",
+  "action_handoff",
+  "outcome_capture",
   "completed_history",
 ];
 
@@ -40,6 +46,9 @@ const REVIEW_FLOW_STAGES: ConciergeFlowCoverageStage[] = [
   "start_action",
   "detail_collection",
   "final_user_confirmation",
+  "action_handoff",
+  "outcome_capture",
+  "completed_history",
 ];
 
 export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
@@ -54,6 +63,8 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
       saved_provider_path: "finds transport options and prepares a provider without starting a booking",
       provider_unavailable_recovery: "opens a replacement transport search when a provider is unavailable",
       final_user_confirmation: "finds transport options and prepares a provider without starting a booking",
+      action_handoff: "renders prepared provider phone actions as direct call links",
+      outcome_capture: "records a confirmed provider reply through the existing completion endpoint",
       completed_history: "shows recent completed concierge sessions without replacing the active task",
     },
   },
@@ -68,6 +79,8 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
       saved_provider_path: "prepares OTC pharmacy requests only through a saved pharmacy",
       provider_unavailable_recovery: "opens a replacement pharmacy search when an OTC provider is unavailable",
       final_user_confirmation: "prepares OTC pharmacy requests only through a saved pharmacy",
+      action_handoff: "records a sent WhatsApp draft through the existing completion endpoint",
+      outcome_capture: "records a sent WhatsApp draft through the existing completion endpoint",
       completed_history: "shows recent completed concierge sessions without replacing the active task",
     },
   },
@@ -82,6 +95,8 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
       saved_provider_path: "creates an appointment request and asks VYVA to handle the saved provider before booking",
       provider_unavailable_recovery: "opens a replacement appointment search when a provider is unavailable",
       final_user_confirmation: "creates an appointment request and asks VYVA to handle the saved provider before booking",
+      action_handoff: "sends appointment email through VYVA before booking is saved",
+      outcome_capture: "saves a confirmed medical appointment reply into Scheduled Support before closing the task",
       completed_history: "shows completed appointment history as a reusable appointment template",
     },
   },
@@ -96,6 +111,8 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
       saved_provider_path: "turns a voice plumber payload into the same structured service intake",
       provider_unavailable_recovery: "opens a replacement home-service search when a provider is unavailable",
       final_user_confirmation: "turns a voice plumber payload into the same structured service intake",
+      action_handoff: "prepares a provider follow-up while keeping the final send under user control",
+      outcome_capture: "saves a confirmed home-service reply into Scheduled Support before closing the task",
       completed_history: "shows recent completed concierge sessions without replacing the active task",
     },
   },
@@ -107,6 +124,9 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
       start_action: "opens a scam check router and prepares a safe review request",
       detail_collection: "opens a scam check router and prepares a safe review request",
       final_user_confirmation: "opens a scam check router and prepares a safe review request",
+      action_handoff: "runs a safe web search from a pending Concierge task before closing it",
+      outcome_capture: "runs a safe web search from a pending Concierge task before closing it",
+      completed_history: "runs a safe web search from a pending Concierge task before closing it",
     },
   },
   {
@@ -117,6 +137,9 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
       start_action: "opens an insurance admin router and prepares a claim review request",
       detail_collection: "opens an insurance admin router and prepares a claim review request",
       final_user_confirmation: "opens an insurance admin router and prepares a claim review request",
+      action_handoff: "records a user phone call outcome through the existing completion endpoint",
+      outcome_capture: "records a user phone call outcome through the existing completion endpoint",
+      completed_history: "records a user phone call outcome through the existing completion endpoint",
     },
   },
   {
@@ -127,6 +150,9 @@ export const CONCIERGE_FLOW_COVERAGE: ConciergeFlowCoverageDefinition[] = [
       start_action: "turns Home Find Care prefills into structured provider-search tasks",
       detail_collection: "shows readiness fallback for email-style tool-gated task handoffs",
       final_user_confirmation: "turns Home Find Care prefills into structured provider-search tasks",
+      action_handoff: "records a sent tool-gated email draft through the existing completion endpoint",
+      outcome_capture: "records a sent tool-gated email draft through the existing completion endpoint",
+      completed_history: "records a sent tool-gated email draft through the existing completion endpoint",
     },
   },
 ];
