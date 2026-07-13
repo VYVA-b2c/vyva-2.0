@@ -3634,6 +3634,7 @@ export default function MarketingAdminPage() {
   const [campaignStudioCategory, setCampaignStudioCategory] = useState<CampaignStudioCategoryId>("all");
   const [campaignStudioAiDraft, setCampaignStudioAiDraft] = useState<CampaignStudioGeneratedDraft | null>(null);
   const [campaignStudioAiRunning, setCampaignStudioAiRunning] = useState(false);
+  const [campaignStudioSaving, setCampaignStudioSaving] = useState(false);
   const [campaignStudioFeedback, setCampaignStudioFeedback] = useState("");
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignEditDraft, setCampaignEditDraft] = useState<CampaignEditDraft>(() => emptyCampaignEditDraft());
@@ -4376,6 +4377,102 @@ export default function MarketingAdminPage() {
     }));
     setCampaignStudioFeedback(`Draft applied: ${campaignStudioGenerated.campaignName}.`);
     setMessage("Smart campaign draft applied. Save the content asset, then link it in the campaign planner when ready.");
+  }
+
+  async function createCampaignAndContentFromStudio() {
+    const scheduleStartsAt = fromDateTimeLocal(campaignStudioSchedule);
+    const campaignStatus: CampaignStatus = scheduleStartsAt ? "scheduled" : "draft";
+    const targetAudience = selectedCampaignStudioTargetAudience;
+    const targetAudienceSnapshot = audienceSnapshot(targetAudience);
+    const recipients = campaignStudioRecipientPreview.map((contact) => ({
+      contactId: contact.id,
+      channel: campaignStudio.channel,
+      recipient: recipientForChannel(contact, campaignStudio.channel) ?? contact.id,
+      status: "planned",
+      scheduledAt: scheduleStartsAt,
+      snapshot: {
+        ...recipientSnapshot(contact),
+        ...(targetAudienceSnapshot ? { audienceList: targetAudienceSnapshot } : {}),
+      },
+    }));
+
+    setCampaignStudioSaving(true);
+    setCampaignStudioFeedback("Creating content and campaign...");
+    setMessage("Creating campaign starter...");
+    try {
+      const contentResult = await api<{ content: ContentAsset }>("/api/admin/marketing/content", {
+        method: "POST",
+        body: JSON.stringify({
+          title: campaignStudioGenerated.contentTitle,
+          channel: campaignStudio.channel,
+          language: campaignStudioGenerated.language || "en",
+          status: "draft",
+          subject: campaignStudioGenerated.subject || null,
+          body: campaignStudioGenerated.body,
+          htmlBody: null,
+          ctaLabel: campaignStudioGenerated.ctaLabel || null,
+          ctaUrl: campaignStudioGenerated.ctaUrl || null,
+          designJson: {
+            ...campaignStudioGenerated.designJson,
+            generator: "marketing_campaign_studio",
+            playId: selectedCampaignStudioPlay.id,
+            playCategory: selectedCampaignStudioPlay.categoryId,
+            tone: campaignStudio.toneId,
+            source: campaignStudioGenerated.source ?? "template",
+            audience: targetAudienceSnapshot,
+          },
+          mediaAssets: [],
+        }),
+      });
+
+      const campaignResult = await api<{ campaign: Campaign }>("/api/admin/marketing/campaigns", {
+        method: "POST",
+        body: JSON.stringify({
+          name: campaignStudioGenerated.campaignName,
+          audienceType: selectedCampaignStudioPlay.audienceType,
+          status: campaignStatus,
+          objective: campaignStudioGenerated.objective,
+          scheduleStartsAt,
+          scheduleEndsAt: null,
+          metadata: campaignMetadataWithTarget({
+            studio: {
+              playId: selectedCampaignStudioPlay.id,
+              playCategory: selectedCampaignStudioPlay.categoryId,
+              tone: campaignStudio.toneId,
+              generatedSource: campaignStudioGenerated.source ?? "template",
+            },
+            generatedContentAssetId: contentResult.content.id,
+          }, targetAudience),
+          channels: [{
+            channel: campaignStudio.channel,
+            contentAssetId: contentResult.content.id,
+            status: campaignStatus,
+            scheduledAt: scheduleStartsAt,
+          }],
+          recipients,
+        }),
+      });
+
+      await refreshAll();
+      setContent((current) => [contentResult.content, ...current.filter((item) => item.id !== contentResult.content.id)]);
+      setCampaigns((current) => [campaignResult.campaign, ...current.filter((campaign) => campaign.id !== campaignResult.campaign.id)]);
+      setContentDraft(emptyContentDraft());
+      setCampaignDraft(emptyCampaignDraft());
+      setSelectedContentId(contentResult.content.id);
+      setEditingContentId(null);
+      setContentEditDraft(null);
+      setContentDrawerMode(null);
+      setEditingCampaignId(campaignResult.campaign.id);
+      setCampaignEditDraft(campaignEditDraftFromCampaign(campaignResult.campaign, audiences));
+      setCampaignStudioFeedback(`Created "${campaignResult.campaign.name}" with ${recipients.length} recipient${recipients.length === 1 ? "" : "s"} ready.`);
+      setMessage(`Campaign and content created from ${campaignStudioGenerated.source === "openai" ? "AI" : "studio"} draft.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Campaign starter could not be created.";
+      setCampaignStudioFeedback(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setCampaignStudioSaving(false);
+    }
   }
 
   async function createCampaign(event: FormEvent) {
@@ -5855,15 +5952,25 @@ export default function MarketingAdminPage() {
                         type="button"
                         onClick={() => generateCampaignStudioAiDraft().catch((error) => setCampaignStudioFeedback(error.message))}
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:text-[#9d8b9d]"
-                        disabled={campaignStudioAiRunning}
+                        disabled={campaignStudioAiRunning || campaignStudioSaving}
                         data-testid="button-marketing-generate-ai-campaign-draft"
                       >
                         <Sparkles size={16} /> {campaignStudioAiRunning ? "Generating..." : "Improve with AI"}
                       </button>
                       <button
                         type="button"
+                        onClick={() => void createCampaignAndContentFromStudio()}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                        disabled={campaignStudioSaving || campaignStudioAiRunning}
+                        data-testid="button-marketing-create-studio-campaign"
+                      >
+                        <Plus size={16} /> {campaignStudioSaving ? "Creating..." : "Create campaign + content"}
+                      </button>
+                      <button
+                        type="button"
                         onClick={applyCampaignStudioDraft}
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 font-black text-white hover:bg-purple-800"
+                        disabled={campaignStudioSaving}
                         data-testid="button-marketing-apply-studio-draft"
                       >
                         <Sparkles size={16} /> Apply to planner
@@ -5875,6 +5982,7 @@ export default function MarketingAdminPage() {
                           setActiveTab("content");
                         }}
                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 font-black text-purple-700 hover:bg-purple-50"
+                        disabled={campaignStudioSaving}
                         data-testid="button-marketing-open-studio-content-draft"
                       >
                         <FileText size={16} /> Open content draft

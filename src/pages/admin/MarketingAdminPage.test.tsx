@@ -571,6 +571,49 @@ function journeyFromRequestBody(id: string, init?: RequestInit) {
   };
 }
 
+function campaignFromRequestBody(id: string, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body ?? "{}"));
+  const channels = Array.isArray(body.channels) ? body.channels : [];
+  const recipients = Array.isArray(body.recipients) ? body.recipients : [];
+  return {
+    id,
+    name: body.name ?? "Untitled campaign",
+    status: body.status ?? "draft",
+    audienceType: body.audienceType ?? "b2c",
+    objective: body.objective ?? "",
+    scheduleStartsAt: body.scheduleStartsAt ?? null,
+    scheduleEndsAt: body.scheduleEndsAt ?? null,
+    timezone: body.timezone ?? "Europe/Madrid",
+    source: body.source ?? "vyva",
+    lovableExternalId: body.lovableExternalId ?? null,
+    metadata: body.metadata ?? {},
+    channels: channels.map((channel: Record<string, unknown>, index: number) => ({
+      id: `${id}-channel-${index + 1}`,
+      campaignId: id,
+      channel: channel.channel ?? "email",
+      contentAssetId: channel.contentAssetId ?? null,
+      scheduledAt: channel.scheduledAt ?? body.scheduleStartsAt ?? null,
+      status: channel.status ?? body.status ?? "draft",
+      sendCapability: channel.channel === "email" ? "enabled" : channel.channel === "whatsapp" ? "future_send_capable" : "planning_only",
+    })),
+    recipientCount: recipients.length,
+    recipients: recipients.map((recipient: Record<string, unknown>, index: number) => ({
+      id: `${id}-recipient-${index + 1}`,
+      campaignId: id,
+      contactId: recipient.contactId ?? null,
+      profileId: recipient.profileId ?? null,
+      channel: recipient.channel ?? "email",
+      recipient: recipient.recipient ?? "",
+      status: recipient.status ?? "planned",
+      scheduledAt: recipient.scheduledAt ?? body.scheduleStartsAt ?? null,
+      snapshot: recipient.snapshot ?? {},
+      communicationLogId: null,
+      createdAt: "2026-07-05T09:00:00.000Z",
+      updatedAt: "2026-07-05T09:00:00.000Z",
+    })),
+  };
+}
+
 function contentFromRequestBody(id: string, init?: RequestInit) {
   const body = JSON.parse(String(init?.body ?? "{}"));
   return {
@@ -717,7 +760,7 @@ function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
         },
       });
     }
-    if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
+    if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaignFromRequestBody("campaign-created", init) }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
     if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
@@ -1998,6 +2041,76 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Partner outreach AI content");
     expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("linkedin");
     expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("AI body copy");
+  });
+
+  it("creates linked campaign and content directly from the smart studio", async () => {
+    renderPage();
+
+    expect(await screen.findByTestId("marketing-campaign-studio")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-campaign-studio-play-b2b-partner-outreach"));
+    fireEvent.change(screen.getByTestId("select-marketing-campaign-studio-tone"), { target: { value: "direct" } });
+    fireEvent.click(screen.getByTestId("button-marketing-generate-ai-campaign-draft"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("AI draft generated");
+    });
+    fireEvent.click(screen.getByTestId("button-marketing-create-studio-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content", expect.objectContaining({ method: "POST" }));
+    });
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns", expect.objectContaining({ method: "POST" }));
+    });
+
+    const contentPost = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/content" && init?.method === "POST");
+    const contentBody = JSON.parse(String(contentPost?.[1]?.body));
+    expect(contentBody).toMatchObject({
+      title: "Partner outreach AI content",
+      channel: "linkedin",
+      language: "en",
+      status: "draft",
+      subject: "AI subject line",
+      body: "AI body copy with stronger channel direction.",
+      ctaLabel: "AI CTA",
+      ctaUrl: "https://v2.vyva.life/ai",
+      designJson: {
+        generator: "marketing_campaign_studio",
+        playId: "b2b-partner-outreach",
+        source: "openai",
+      },
+    });
+
+    const campaignPost = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns" && init?.method === "POST");
+    const campaignBody = JSON.parse(String(campaignPost?.[1]?.body));
+    expect(campaignBody).toMatchObject({
+      name: "Partner outreach AI campaign",
+      audienceType: "b2b",
+      status: "scheduled",
+      objective: "AI objective for Partners",
+      channels: [{ channel: "linkedin", contentAssetId: "content-created", status: "scheduled" }],
+      recipients: [{
+        contactId: "contact-2",
+        channel: "linkedin",
+        recipient: "hassan@example.com",
+        status: "planned",
+      }],
+      metadata: {
+        generatedContentAssetId: "content-created",
+        studio: {
+          playId: "b2b-partner-outreach",
+          generatedSource: "openai",
+        },
+        targetAudience: {
+          name: "Partners",
+          lovableExternalId: "lovable-audience-1",
+        },
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent('Created "Partner outreach AI campaign" with 1 recipient ready.');
+    });
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Partner outreach AI campaign");
   });
 
   it("creates campaign metadata without auto-dispatching", async () => {
