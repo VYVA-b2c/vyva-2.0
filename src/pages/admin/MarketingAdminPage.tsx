@@ -1586,6 +1586,30 @@ function recipientSnapshotLabel(recipient: CampaignRecipient) {
   return objectValue(recipient.snapshot, "fullName") || objectValue(recipient.snapshot, "email") || recipient.recipient;
 }
 
+function recipientSnapshotText(recipient: CampaignRecipient, keys: string[]) {
+  const snapshot = recordValue(recipient.snapshot);
+  const lovable = recordValue(snapshot.lovable);
+  const nestedContact = recordValue(lovable.contact ?? snapshot.contact);
+  for (const source of [snapshot, lovable, nestedContact]) {
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  return "";
+}
+
+function recipientContactLookupKeys(recipient: CampaignRecipient) {
+  return [
+    recipient.contactId,
+    recipientSnapshotText(recipient, ["contactExternalId", "contact_external_id", "contactId", "contact_id", "externalId", "external_id", "lovableExternalId", "lovable_external_id", "id"]),
+  ].flatMap((value) => lookupKeysForExternalId(value, ["contact"]));
+}
+
+function recipientEmailLookupKey(recipient: CampaignRecipient) {
+  return lower(recipientSnapshotText(recipient, ["email", "emailAddress", "email_address"]) || recipient.recipient);
+}
+
 function sumMarketingMetrics(metrics: MarketingCampaignMetric[]): MarketingAnalyticsTotals {
   return metrics.reduce((totals, metric) => ({
     sent: totals.sent + metric.sent,
@@ -2579,6 +2603,14 @@ export default function MarketingAdminPage() {
     }
     return map;
   }, [contacts]);
+  const contactByEmail = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const contact of contacts) {
+      const email = lower(contact.email);
+      if (email) map.set(email, contact);
+    }
+    return map;
+  }, [contacts]);
   const contentSourceOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of content) {
@@ -2819,6 +2851,22 @@ export default function MarketingAdminPage() {
     }
     return map;
   }, [journeyEnrollments, contactById, contactByImportId]);
+
+  const contactByCampaignRecipientId = useMemo(() => {
+    const map = new Map<string, MarketingContact>();
+    for (const campaign of campaigns) {
+      for (const recipient of campaign.recipients ?? []) {
+        const directContact = recipient.contactId ? contactById.get(recipient.contactId) ?? null : null;
+        const importedContact = recipientContactLookupKeys(recipient)
+          .map((key) => contactByImportId.get(key) ?? null)
+          .find((contact): contact is MarketingContact => Boolean(contact)) ?? null;
+        const emailContact = contactByEmail.get(recipientEmailLookupKey(recipient)) ?? null;
+        const contact = directContact ?? importedContact ?? emailContact;
+        if (contact) map.set(recipient.id, contact);
+      }
+    }
+    return map;
+  }, [campaigns, contactById, contactByImportId, contactByEmail]);
 
   const visibleJourneyEnrollments = useMemo(() => journeyEnrollments.filter((enrollment) => {
     const journey = journeyById.get(enrollment.journeyId) ?? null;
@@ -4609,15 +4657,45 @@ export default function MarketingAdminPage() {
                           <p className="mt-3 rounded-lg bg-white p-3 text-sm font-bold text-[#8b7a73]">No recipient snapshot saved yet.</p>
                         ) : (
                           <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto pr-1">
-                            {savedCampaignRecipients.map((recipient) => (
-                              <div key={recipient.id} className="grid gap-2 rounded-lg bg-white p-2 text-sm font-bold">
+                            {savedCampaignRecipients.map((recipient) => {
+                              const contact = contactByCampaignRecipientId.get(recipient.id) ?? null;
+                              const contactSummary = contact
+                                ? [contact.email, contact.phoneNumber, contact.whatsappNumber, contact.companyName].filter(Boolean).join(" - ")
+                                : "";
+                              return (
+                                <div key={recipient.id} className="grid gap-2 rounded-lg bg-white p-2 text-sm font-bold">
                                 <div className="flex items-center justify-between gap-3">
-                                  <span className="truncate text-[#241133]">{recipientSnapshotLabel(recipient)}</span>
-                                  <Pill className={channelClass(recipient.channel)}>{recipient.status}</Pill>
+                                  <div className="min-w-0">
+                                    <span className="block truncate text-[#241133]">{recipientSnapshotLabel(recipient)}</span>
+                                    <span className="block truncate text-xs text-[#8b7a73]">{recipient.recipient}</span>
+                                  </div>
+                                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                                    <Pill className={channelClass(recipient.channel)}>{recipient.channel}</Pill>
+                                    <Pill className={statusClass(recipient.status)}>{recipient.status}</Pill>
+                                  </div>
                                 </div>
+                                {contact ? (
+                                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900" data-testid={`marketing-campaign-recipient-contact-${recipient.id}`}>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-sm font-black">{contact.fullName || contact.email || contact.phoneNumber || "Unnamed contact"}</p>
+                                        {contactSummary ? <p className="mt-0.5 text-emerald-800">{contactSummary}</p> : null}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => startContactEdit(contact)}
+                                        className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2 text-xs font-black text-emerald-800"
+                                        data-testid={`button-marketing-open-recipient-contact-${recipient.id}`}
+                                      >
+                                        <Pencil size={12} /> Open contact
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : null}
                                 <MetadataPanel title="Saved recipient snapshot" value={recordValue(recipient.snapshot)} testId={`marketing-campaign-recipient-snapshot-${recipient.id}`} />
-                              </div>
-                            ))}
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

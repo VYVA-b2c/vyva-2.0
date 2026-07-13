@@ -82,13 +82,13 @@ const campaigns = [
     recipients: [{
       id: "recipient-1",
       campaignId: "campaign-1",
-      contactId: "contact-1",
+      contactId: null,
       profileId: null,
       channel: "email",
-      recipient: "karim@example.com",
+      recipient: "hassan@example.com",
       status: "planned",
       scheduledAt: "2026-07-06T09:00:00.000Z",
-      snapshot: { fullName: "Karim Assad", email: "karim@example.com", lovableSource: "recipient-export" },
+      snapshot: { fullName: "Hassan Partner", email: "hassan@example.com", contact_external_id: "lovable-contact-2", lovableSource: "recipient-export" },
       communicationLogId: null,
       createdAt: "2026-07-05T09:00:00.000Z",
       updatedAt: "2026-07-05T09:00:00.000Z",
@@ -1916,6 +1916,21 @@ describe("MarketingAdminPage", () => {
     });
   });
 
+  it("opens contacts from imported campaign recipient snapshots", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("Hassan Partner");
+
+    fireEvent.click(screen.getByTestId("button-marketing-open-recipient-contact-recipient-1"));
+
+    expect(screen.getByTestId("button-marketing-contacts-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-contact-editor-feedback")).toHaveTextContent('Editing "Hassan Partner".');
+    expect(screen.getByTestId("input-marketing-edit-contact-lovable-id")).toHaveValue("lovable-contact-2");
+  });
+
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
     renderPage();
 
@@ -1952,7 +1967,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-campaign-channel-content-preview-0-edit")).toBeInTheDocument();
     expect(screen.getByTestId("select-marketing-edit-campaign-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("Partners");
-    expect(screen.getByText("Karim Assad")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("Moka Digital");
+    expect(screen.getByTestId("button-marketing-open-recipient-contact-recipient-1")).toBeInTheDocument();
     expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-1")).toHaveTextContent("recipient-export");
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
