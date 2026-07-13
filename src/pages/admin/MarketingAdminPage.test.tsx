@@ -347,7 +347,16 @@ const contacts = [
     lists: ["Partners"],
     lovableExternalId: "lovable-contact-2",
     channelAvailability: { email: true, linkedin: true, whatsapp: false, source: "lovable" },
-    metadata: { lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" } },
+    metadata: {
+      lovable: {
+        persona: "partner-lead",
+        profile: {
+          emailAddress: "profile-lead@example.com",
+          crmScore: 87,
+        },
+      },
+      segmentation: { lifecycle: "lead" },
+    },
   },
 ];
 
@@ -447,11 +456,11 @@ const sync = {
         },
         contacts: {
           exportedFieldCount: 11,
-          firstClassFieldCount: 10,
-          metadataOnlyFieldCount: 1,
+          firstClassFieldCount: 11,
+          metadataOnlyFieldCount: 0,
           exportedFields: ["audienceType", "email", "id", "name", "phoneNumber", "profile.emailAddress", "profile.firstName", "profile.crmScore", "tags", "updatedAt", "vertical"],
-          firstClassFields: ["audienceType", "email", "id", "name", "phoneNumber", "profile.emailAddress", "profile.firstName", "tags", "updatedAt", "vertical"],
-          metadataOnlyFields: ["profile.crmScore"],
+          firstClassFields: ["audienceType", "email", "id", "name", "phoneNumber", "profile.crmScore", "profile.emailAddress", "profile.firstName", "tags", "updatedAt", "vertical"],
+          metadataOnlyFields: [],
         },
       },
     },
@@ -831,6 +840,10 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("lead");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("healthcare");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Spain");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("CRM: 87");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("Lifecycle: lead");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("Persona: partner-lead");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("Profile email: profile-lead@example.com");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("madrid");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Lovable ID: lovable-contact-2");
@@ -885,9 +898,8 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("derived");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("contacts: 10 of 11 fields mapped first-class");
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: audienceType, email, id, name, phoneNumber, profile.emailAddress, profile.firstName, tags, updatedAt, vertical");
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: profile.crmScore");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("contacts: 11 of 11 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: audienceType, email, id, name, phoneNumber, profile.crmScore, profile.emailAddress, profile.firstName, tags, updatedAt, vertical");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     const contentCoverage = openMetadataPanel("marketing-sync-field-coverage-sync-1-content");
     expect(contentCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
@@ -1566,7 +1578,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-contact-profile-id")).toHaveValue("profile-2");
     expect(screen.getByTestId("input-marketing-edit-contact-organization-id")).toHaveValue("11111111-1111-4111-8111-111111111111");
     expect(screen.getByTestId("textarea-marketing-edit-contact-channel-availability")).toHaveValue(JSON.stringify({ email: true, linkedin: true, whatsapp: false, source: "lovable" }, null, 2));
-    expect(screen.getByTestId("textarea-marketing-edit-contact-metadata")).toHaveValue(JSON.stringify({ lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" } }, null, 2));
+    expect(screen.getByTestId("textarea-marketing-edit-contact-metadata")).toHaveValue(JSON.stringify(contacts[1].metadata, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-name"), { target: { value: "Updated Partner" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-contact-audience"), { target: { value: "both" } });

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
@@ -1637,7 +1638,43 @@ function summarizeCampaignMetrics(metrics: MarketingCampaignMetric[]): CampaignM
   };
 }
 
+function contactProfileSignals(contact: MarketingContact) {
+  const metadata = recordValue(contact.metadata);
+  const lovable = recordValue(metadata.lovable);
+  const profile = recordValue(lovable.profile ?? metadata.profile);
+  const segmentation = recordValue(metadata.segmentation ?? lovable.segmentation);
+  const sources = [metadata, lovable, profile, segmentation];
+  const entries = [
+    {
+      key: "crmScore",
+      label: "CRM",
+      value: firstMetadataText(sources, ["crmScore", "crm_score", "leadScore", "lead_score", "score", "profile.crmScore", "profile.crm_score"]),
+      className: "bg-emerald-50 text-emerald-800",
+    },
+    {
+      key: "lifecycle",
+      label: "Lifecycle",
+      value: firstMetadataText(sources, ["lifecycle", "lifeCycle", "life_cycle", "stage", "profile.lifecycle", "segmentation.lifecycle"]),
+      className: "bg-blue-50 text-blue-800",
+    },
+    {
+      key: "persona",
+      label: "Persona",
+      value: firstMetadataText(sources, ["persona", "profile.persona", "segment", "profile.segment"]),
+      className: "bg-purple-50 text-purple-800",
+    },
+    {
+      key: "profileEmail",
+      label: "Profile email",
+      value: firstMetadataText(sources, ["profile.emailAddress", "profile.email_address", "profile.email", "emailAddress", "email_address"]),
+      className: "bg-[#f5eee8] text-[#5b4a46]",
+    },
+  ].filter((entry) => entry.value);
+  return entries;
+}
+
 function contactSearchText(contact: MarketingContact) {
+  const profileSignals = contactProfileSignals(contact);
   return [
     contact.id,
     contact.fullName,
@@ -1657,6 +1694,7 @@ function contactSearchText(contact: MarketingContact) {
     contact.organizationId,
     contact.channelAvailability,
     contact.metadata,
+    ...profileSignals.flatMap((entry) => [entry.label, entry.value]),
     ...(contact.tags ?? []),
     ...(contact.lists ?? []),
   ].map(searchableValue).join(" ");
@@ -1698,6 +1736,33 @@ function matchesSearch(search: string, values: unknown[]) {
   const query = search.trim().toLowerCase();
   if (!query) return true;
   return values.map(searchableValue).join(" ").includes(query);
+}
+
+function displayText(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return "";
+}
+
+function nestedValue(source: Record<string, unknown>, path: string) {
+  let current: unknown = source;
+  for (const segment of path.split(".")) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function firstMetadataText(sources: Record<string, unknown>[], paths: string[]) {
+  for (const source of sources) {
+    for (const path of paths) {
+      const text = displayText(nestedValue(source, path));
+      if (text) return text;
+    }
+  }
+  return "";
 }
 
 const syncCountLabels = {
@@ -2174,6 +2239,11 @@ function SectionCard({ title, subtitle, children, action }: { title: string; sub
       <div className="mt-4">{children}</div>
     </section>
   );
+}
+
+function FloatingPanelPortal({ children }: { children: ReactNode }) {
+  if (typeof document === "undefined" || !document.body) return <>{children}</>;
+  return createPortal(children, document.body);
 }
 
 function SyncRunDiagnostics({ run }: { run: SyncRun }) {
@@ -5628,13 +5698,15 @@ export default function MarketingAdminPage() {
                   )}
                 </div>
               </SectionCard>
+              {contentDrawerMode === "edit" ? (
+              <FloatingPanelPortal>
               <div
                 ref={contentEditorPanelRef}
                 data-testid="marketing-content-editor-panel"
-                role={contentDrawerMode === "edit" ? "dialog" : undefined}
-                aria-modal={contentDrawerMode === "edit" ? true : undefined}
-                tabIndex={contentDrawerMode === "edit" ? -1 : undefined}
-                className={contentDrawerMode === "edit" ? floatingContentPanelClass : "hidden"}
+                role="dialog"
+                aria-modal={true}
+                tabIndex={-1}
+                className={floatingContentPanelClass}
               >
                 <SectionCard
                   title="Content editor"
@@ -5725,14 +5797,18 @@ export default function MarketingAdminPage() {
                   )}
                 </SectionCard>
               </div>
+              </FloatingPanelPortal>
+              ) : null}
               <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
+                {contentDrawerMode === "preview" ? (
+                <FloatingPanelPortal>
                 <div
                   ref={contentPreviewPanelRef}
                   data-testid="marketing-content-preview-panel"
-                  role={contentDrawerMode === "preview" ? "dialog" : undefined}
-                  aria-modal={contentDrawerMode === "preview" ? true : undefined}
-                  tabIndex={contentDrawerMode === "preview" ? -1 : undefined}
-                  className={contentDrawerMode === "preview" ? floatingContentPanelClass : "hidden"}
+                  role="dialog"
+                  aria-modal={true}
+                  tabIndex={-1}
+                  className={floatingContentPanelClass}
                 >
                   <SectionCard
                     title="Content preview"
@@ -5822,6 +5898,8 @@ export default function MarketingAdminPage() {
                     )}
                   </SectionCard>
                 </div>
+                </FloatingPanelPortal>
+                ) : null}
 
                 <SectionCard title="Media references" subtitle={`${visibleMediaAssets.length} visible of ${mediaAssets.length} imported media rows.`}>
                   {mediaFeedback && !mediaEditDraft ? (
@@ -6260,7 +6338,7 @@ export default function MarketingAdminPage() {
                       </div>
                     </div>
                     <div className="overflow-x-auto rounded-xl border border-[#eadfd5]" data-testid="marketing-contacts-table">
-                      <table className="min-w-[1500px] border-collapse text-left text-sm">
+                      <table className="min-w-[1650px] border-collapse text-left text-sm">
                         <thead className="bg-[#fbf8f5] text-xs font-black uppercase tracking-[0.12em] text-[#7d6b65]">
                           <tr>
                             <th className="px-4 py-3">Contact</th>
@@ -6274,6 +6352,7 @@ export default function MarketingAdminPage() {
                             <th className="px-4 py-3">Category</th>
                             <th className="px-4 py-3">Vertical</th>
                             <th className="px-4 py-3">Market</th>
+                            <th className="px-4 py-3">Lovable profile</th>
                             <th className="px-4 py-3">Tags / lists</th>
                             <th className="px-4 py-3">Consent</th>
                             <th className="px-4 py-3">Source</th>
@@ -6283,7 +6362,7 @@ export default function MarketingAdminPage() {
                         <tbody>
                           {visibleContacts.length === 0 ? (
                             <tr>
-                              <td colSpan={15} className="px-4 py-6 text-center font-bold text-[#8b7a73]" data-testid="marketing-contact-empty-diagnostic">
+                              <td colSpan={16} className="px-4 py-6 text-center font-bold text-[#8b7a73]" data-testid="marketing-contact-empty-diagnostic">
                                 {contacts.length ? "Contacts are loaded, but hidden by the current search or segmentation filters." : "No contacts imported yet."}
                               </td>
                             </tr>
@@ -6292,6 +6371,7 @@ export default function MarketingAdminPage() {
                               ...(contact.tags ?? []),
                               ...(contact.lists ?? []).map((list) => `List: ${list}`),
                             ];
+                            const profileSignals = contactProfileSignals(contact);
                             return (
                               <tr key={contact.id} className={`border-t border-[#f0e7df] align-top ${editingContactId === contact.id ? "bg-purple-50" : ""}`}>
                                 <td className="px-4 py-3">
@@ -6308,6 +6388,17 @@ export default function MarketingAdminPage() {
                                 <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.category || "-"}</td>
                                 <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.vertical || "-"}</td>
                                 <td className="px-4 py-3 text-xs font-bold text-[#5b4a46]">{contact.market || "-"}</td>
+                                <td className="max-w-[260px] px-4 py-3">
+                                  {profileSignals.length ? (
+                                    <div className="flex flex-wrap gap-1.5" data-testid={`marketing-contact-profile-signals-${contact.id}`}>
+                                      {profileSignals.map((entry) => (
+                                        <Pill key={entry.key} className={entry.className}>{entry.label}: {entry.value}</Pill>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs font-bold text-[#8b7a73]">No profile signals</span>
+                                  )}
+                                </td>
                                 <td className="max-w-[320px] px-4 py-3">
                                   {tagsAndLists.length ? (
                                     <div className="flex flex-wrap gap-1.5">

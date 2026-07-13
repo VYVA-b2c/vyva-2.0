@@ -337,8 +337,8 @@ describe("admin marketing router", () => {
           },
         });
         expect(response.body.summary.fieldCoverage.content.firstClassFields).toEqual(expect.arrayContaining(["id", "template_name", "html_content", "emailTemplate.previewText"]));
-        expect(response.body.summary.fieldCoverage.contacts.firstClassFields).toEqual(expect.arrayContaining(["profile.firstName", "profile.emailAddress"]));
-        expect(response.body.summary.fieldCoverage.contacts.metadataOnlyFields).toEqual(expect.arrayContaining(["profile.crmScore"]));
+        expect(response.body.summary.fieldCoverage.contacts.firstClassFields).toEqual(expect.arrayContaining(["profile.firstName", "profile.emailAddress", "profile.crmScore"]));
+        expect(response.body.summary.fieldCoverage.contacts.metadataOnlyFields).not.toContain("profile.crmScore");
         expect(response.body.summary.fieldCoverage.campaigns.firstClassFields).toEqual(expect.arrayContaining(["channels.channel", "channels.template_id"]));
         expect(response.body.samples.content[0]).toMatchObject({
           id: "template-1",
@@ -1892,8 +1892,8 @@ describe("admin marketing router", () => {
           firstClassFields: expect.arrayContaining(["sent", "opened", "clicked"]),
         }),
         contacts: expect.objectContaining({
-          firstClassFields: expect.arrayContaining(["profile.firstName", "profile.emailAddress", "profile.phoneNumber", "profile.whatsappNumber", "language", "category", "vertical", "market", "lists"]),
-          metadataOnlyFields: expect.arrayContaining(["profile.crmScore"]),
+          firstClassFields: expect.arrayContaining(["profile.firstName", "profile.emailAddress", "profile.phoneNumber", "profile.whatsappNumber", "profile.crmScore", "language", "category", "vertical", "market", "lists"]),
+          metadataOnlyFields: expect.not.arrayContaining(["profile.crmScore"]),
         }),
         campaigns: expect.objectContaining({
           firstClassFields: expect.arrayContaining(["channels.channel", "channels.contentExternalId"]),

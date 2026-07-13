@@ -1213,6 +1213,7 @@ const fieldCoverageAliases = {
     ["category", "contactCategory", "contact_category"],
     ["vertical", "industry", "sector"],
     ["market", "country", "region"],
+    ["crmScore", "crm_score", "leadScore", "lead_score", "score"],
     ["updatedAt", "updated_at"],
   ],
   campaigns: [
