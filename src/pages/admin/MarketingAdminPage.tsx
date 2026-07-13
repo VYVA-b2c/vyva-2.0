@@ -1912,6 +1912,29 @@ function contentDraftFromTemplate(template: ContentTemplate): ContentDraft {
   };
 }
 
+function campaignDraftFromContentTemplate(template: ContentTemplate): CampaignDraft {
+  return {
+    name: `${template.title} campaign`,
+    audienceType: template.audienceType,
+    channel: template.channel,
+    contentAssetId: "",
+    status: "draft",
+    scheduleStartsAt: "",
+    scheduleEndsAt: "",
+    objective: [
+      template.description,
+      "",
+      `Audience: ${template.audienceType.toUpperCase()}.`,
+      `Primary channel: ${channelLabel[template.channel]}.`,
+      template.ctaLabel ? `CTA: ${template.ctaLabel}${template.ctaUrl ? ` (${template.ctaUrl})` : ""}.` : "",
+      "Next step: save the content draft, then attach the saved content asset to this campaign before sending.",
+    ].filter(Boolean).join("\n"),
+    targetAudienceId: "",
+    recipientFilter: "",
+    snapshotRecipients: false,
+  };
+}
+
 function campaignChannelDraftFromChannel(channel: CampaignChannel, fallbackStatus: CampaignStatus, fallbackSchedule: string): CampaignChannelDraft {
   return {
     id: channel.id || newDraftId(),
@@ -4810,6 +4833,21 @@ export default function MarketingAdminPage() {
     setMessage(`Template applied: ${template.title}.`);
   }
 
+  function startCampaignFromContentTemplate(template: ContentTemplate) {
+    setContentDraft(contentDraftFromTemplate(template));
+    setCampaignDraft(campaignDraftFromContentTemplate(template));
+    setSelectedContentId(null);
+    setEditingContentId(null);
+    setContentEditDraft(null);
+    setContentDrawerMode(null);
+    setEditingCampaignId(null);
+    setCampaignStudioFeedback(`Campaign starter applied from "${template.title}".`);
+    setContentFeedback(`Template applied: ${template.title}. Save this content, then attach it to the campaign.`);
+    setContentActionFeedback(`Campaign starter applied: ${template.title}.`);
+    setMessage(`Campaign starter applied: ${template.title}. Save the content draft, then add the campaign.`);
+    setActiveTab("dashboard");
+  }
+
   function scrollToContentPanel(ref: RefObject<HTMLDivElement | null>) {
     window.setTimeout(() => {
       const node = ref.current;
@@ -6931,15 +6969,26 @@ export default function MarketingAdminPage() {
                             </p>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => applyContentTemplate(template)}
-                          className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
-                          disabled={contentSaving}
-                          data-testid={`button-marketing-use-content-template-${template.id}`}
-                        >
-                          <Sparkles size={14} /> Use template
-                        </button>
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => applyContentTemplate(template)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-purple-200 bg-white px-4 text-sm font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#b8abb8]"
+                            disabled={contentSaving}
+                            data-testid={`button-marketing-use-content-template-${template.id}`}
+                          >
+                            <Sparkles size={14} /> Use content
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => startCampaignFromContentTemplate(template)}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-purple-700 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-[#b8abb8]"
+                            disabled={contentSaving}
+                            data-testid={`button-marketing-start-campaign-template-${template.id}`}
+                          >
+                            <Megaphone size={14} /> Start campaign
+                          </button>
+                        </div>
                       </article>
                     )) : (
                     <div className="rounded-2xl border border-dashed border-[#d9c9bd] bg-[#fffaf4] p-5 text-sm font-bold text-[#6f5f59] xl:col-span-3" data-testid="marketing-content-template-empty">

@@ -1344,6 +1344,25 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-feedback")).toHaveTextContent("Template applied: Profile completion WhatsApp nudge");
   });
 
+  it("starts a campaign planner draft from a content template", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.click(screen.getByTestId("button-marketing-start-campaign-template-caregiver-email-welcome"));
+
+    expect(screen.getByTestId("input-marketing-campaign-name")).toHaveValue("Caregiver welcome email campaign");
+    expect(screen.getByTestId("select-marketing-campaign-audience")).toHaveValue("b2c");
+    expect(screen.getByTestId("select-marketing-campaign-channel")).toHaveValue("email");
+    expect((screen.getByTestId("textarea-marketing-campaign-objective") as HTMLTextAreaElement).value).toContain("A warm first email for a family caregiver");
+    expect(screen.getByTestId("marketing-campaign-studio-feedback")).toHaveTextContent("Campaign starter applied from \"Caregiver welcome email\"");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("input-marketing-content-title")).toHaveValue("Caregiver welcome email");
+    expect(screen.getByTestId("select-marketing-content-channel")).toHaveValue("email");
+    expect((screen.getByTestId("textarea-marketing-content-body") as HTMLTextAreaElement).value).toContain("You are now connected to {{elder_name}}'s care circle");
+  });
+
   it("creates rich marketing content drafts", async () => {
     renderPage();
 
