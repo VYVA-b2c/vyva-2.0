@@ -3389,12 +3389,15 @@ type PendingActionReviewSummary = {
 };
 
 type ActiveTaskChecklistItemState = "done" | "active" | "needed" | "waiting" | "warning";
+type ActiveTaskChecklistAction = "details" | "provider" | "contact" | "reply" | "confirm";
 
 type ActiveTaskChecklistItem = {
   key: string;
   label: string;
   value: string;
   state: ActiveTaskChecklistItemState;
+  action?: ActiveTaskChecklistAction;
+  actionLabel?: string;
 };
 
 type ActiveTaskChecklist = {
@@ -3569,6 +3572,10 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
           ? (isSpanish ? "Listos" : "Ready")
           : (isSpanish ? "Por confirmar" : "Needs check"),
       state: hasMissingFormFields ? "needed" : detailsReady ? "done" : "active",
+      action: "details",
+      actionLabel: hasMissingFormFields || !detailsReady
+        ? (isSpanish ? "Anadir" : "Add")
+        : (isSpanish ? "Revisar" : "Review"),
     },
     {
       key: "provider",
@@ -3577,6 +3584,12 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
         ? (isSpanish ? "No necesario" : "Not needed")
         : (isSpanish ? "Por elegir" : "Choose first")),
       state: provider ? "done" : providerNotRequired ? "done" : "needed",
+      action: providerNotRequired ? undefined : "provider",
+      actionLabel: providerNotRequired
+        ? undefined
+        : provider
+          ? (isSpanish ? "Cambiar" : "Change")
+          : (isSpanish ? "Anadir" : "Add"),
     },
     {
       key: "contact",
@@ -3585,6 +3598,8 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       state: channel.toLowerCase().includes("review") || channel.toLowerCase().includes("revision")
         ? "active"
         : "done",
+      action: item.status === "pending" ? "contact" : undefined,
+      actionLabel: item.status === "pending" ? (isSpanish ? "Cambiar" : "Change") : undefined,
     },
   ];
 
@@ -3596,6 +3611,8 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
         ? (isSpanish ? "Recibida" : "Received")
         : (isSpanish ? "Esperando" : "Waiting"),
       state: timeline?.activeStepId === "confirmed" ? "done" : "waiting",
+      action: "reply",
+      actionLabel: isSpanish ? "Registrar" : "Record",
     });
   }
 
@@ -3613,9 +3630,19 @@ function buildActiveTaskChecklist(params: RightNowActionLabelsParams & {
       ? "warning"
       : isWaitingForProvider
         ? "waiting"
-        : isVyvaTask
-          ? "waiting"
-          : "active",
+      : isVyvaTask
+        ? "waiting"
+        : "active",
+    action: item.status === "pending"
+      ? (isVyvaTask ? "details" : "confirm")
+      : isWaitingForProvider
+        ? "reply"
+        : undefined,
+    actionLabel: item.status === "pending"
+      ? (isVyvaTask ? (isSpanish ? "Anadir" : "Add") : (isSpanish ? "OK" : "OK"))
+      : isWaitingForProvider
+        ? (isSpanish ? "Registrar" : "Record")
+        : undefined,
   });
 
   return {
@@ -3643,7 +3670,13 @@ function activeTaskChecklistStateClasses(state: ActiveTaskChecklistItemState): s
   }
 }
 
-function ActiveTaskChecklistPanel({ checklist }: { checklist: ActiveTaskChecklist }) {
+function ActiveTaskChecklistPanel({
+  checklist,
+  onAction,
+}: {
+  checklist: ActiveTaskChecklist;
+  onAction: (action: ActiveTaskChecklistAction) => void;
+}) {
   return (
     <div
       className="mt-3 rounded-[18px] border border-vyva-border bg-white p-3"
@@ -3664,20 +3697,49 @@ function ActiveTaskChecklistPanel({ checklist }: { checklist: ActiveTaskChecklis
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {checklist.items.map((item) => (
-          <div
-            key={item.key}
-            data-state={item.state}
-            className={`min-h-[58px] rounded-[14px] border px-3 py-2 ${activeTaskChecklistStateClasses(item.state)}`}
-          >
+        {checklist.items.map((item) => {
+          const contents = (
+            <>
             <p className="font-body text-[11px] font-black uppercase tracking-[0.08em] opacity-80">
               {item.label}
             </p>
             <p className="mt-1 font-body text-[13px] font-black leading-tight text-vyva-text-1">
               {item.value}
             </p>
-          </div>
-        ))}
+            {item.action && item.actionLabel ? (
+              <span className="mt-2 inline-flex rounded-full bg-white/80 px-2.5 py-1 font-body text-[11px] font-black text-current shadow-sm">
+                {item.actionLabel}
+              </span>
+            ) : null}
+            </>
+          );
+          const className = `min-h-[58px] rounded-[14px] border px-3 py-2 text-left transition ${
+            activeTaskChecklistStateClasses(item.state)
+          }`;
+          if (item.action) {
+            return (
+              <button
+                key={item.key}
+                type="button"
+                data-state={item.state}
+                data-testid={`button-concierge-checklist-${item.key}`}
+                onClick={() => onAction(item.action as ActiveTaskChecklistAction)}
+                className={`${className} vyva-tap`}
+              >
+                {contents}
+              </button>
+            );
+          }
+          return (
+            <div
+              key={item.key}
+              data-state={item.state}
+              className={className}
+            >
+              {contents}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -7172,6 +7234,153 @@ const ConciergeScreen = () => {
     window.setTimeout(() => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
+  function openProviderSetupForPendingAction(item: ConciergePendingItem) {
+    if (isProviderSearchPendingAction(item)) {
+      handleSaveProviderSearchProvider(item);
+      return;
+    }
+
+    const payload = item.action_payload;
+    const message = payloadString(payload, ["draft_message", "message", "reason", "detail"]) || item.action_summary;
+
+    if (item.use_case === "book_ride") {
+      navigate("/onboarding/profile/providers", {
+        state: {
+          returnTo: "/concierge",
+          setupFocus: TRANSPORT_SETUP_FOCUS,
+          setupFlow: TRANSPORT_BOOKING_FLOW_REFERENCE,
+          setupReason: "Add a saved transport provider",
+          conciergeResume: {
+            kind: "transport",
+            message,
+            pickup: payloadString(payload, ["pickup_address", "pickup"]) || savedTransportPickupLabel,
+            destination: payloadString(payload, ["destination_address", "destination"]),
+            time: payloadString(payload, ["requested_time", "time"]) || "now",
+            mobilityNeeds: stringList(payload?.mobility_needs),
+          },
+          notice: isSpanish
+            ? "Guarda un taxi o transporte preferido. VYVA seguira pidiendo tu OK antes de reservar."
+            : "Save a preferred taxi or transport provider. VYVA will still ask for your OK before booking.",
+        },
+      });
+      return;
+    }
+
+    if (item.use_case === "order_medicine") {
+      const fulfillment = payloadString(payload, ["fulfillment_preference"]).toLowerCase();
+      navigate("/onboarding/profile/providers", {
+        state: {
+          returnTo: "/concierge",
+          setupFocus: OTC_PHARMACY_SETUP_FOCUS,
+          setupFlow: OTC_PHARMACY_FLOW_REFERENCE,
+          setupReason: "Add a saved pharmacy",
+          conciergeResume: {
+            kind: "otc_pharmacy",
+            itemText: payloadString(payload, ["item_text", "items", "item"]),
+            fulfillmentPreference: fulfillment.includes("pickup") || fulfillment.includes("collect") ? "pickup" : "delivery",
+            requestedTime: payloadString(payload, ["requested_time", "time"]) || "today",
+            notes: payloadString(payload, ["notes", "note"]),
+          },
+          notice: isSpanish
+            ? "Guarda una farmacia para usarla primero con productos sin receta."
+            : "Save a pharmacy so VYVA can use it first for over-the-counter items.",
+        },
+      });
+      return;
+    }
+
+    if (item.use_case === "book_appointment" || isHomeServicePendingAction(item)) {
+      const isHomeService = isHomeServicePendingAction(item);
+      const serviceType = isHomeService
+        ? normalizeHomeServiceType(payloadString(payload, ["service_type", "service_label", "service_needed"]) || message)
+        : null;
+      const answers: Record<string, string> = {};
+      const urgency = payloadString(payload, ["urgency", "priority"]);
+      const problem = payloadString(payload, ["problem_summary", "service_needed", "reason"]);
+      if (urgency) answers.urgency = urgency;
+      if (problem) answers.problem_summary = problem;
+
+      navigate("/onboarding/profile/providers", {
+        state: {
+          returnTo: "/concierge",
+          setupFocus: isHomeService ? "home_service" : MEDICAL_APPOINTMENT_SETUP_FOCUS,
+          setupFlow: isHomeService ? CONCIERGE_FLOW_REFERENCES.homeService : MEDICAL_APPOINTMENT_FLOW_REFERENCE,
+          setupReason: isHomeService ? "Add a saved home service provider" : "Add a saved doctor or clinic",
+          conciergeResume: isHomeService
+            ? {
+              kind: "home_service",
+              serviceType,
+              origin: "app",
+              note: payloadString(payload, ["problem_summary", "service_needed", "reason"]) || message,
+              answers,
+              textDrafts: answers,
+            }
+            : {
+              kind: "medical_appointment",
+              appointmentType: "medical",
+              note: payloadString(payload, ["reason", "detail", "appointment_reason"]) || message,
+            },
+          notice: isHomeService
+            ? (isSpanish
+              ? "Guarda un proveedor de casa de confianza. VYVA pedira confirmacion antes de contactar."
+              : "Save a trusted home service provider. VYVA will ask before contacting.")
+            : (isSpanish
+              ? "Guarda un medico o clinica de confianza. VYVA pedira confirmacion antes de contactar."
+              : "Save a trusted doctor or clinic. VYVA will ask before contacting."),
+        },
+      });
+      return;
+    }
+
+    navigate("/onboarding/profile/providers", {
+      state: {
+        returnTo: "/concierge",
+        setupFocus: "other",
+        setupFlow: CONCIERGE_FLOW_REFERENCES.toolGatedTask,
+        setupReason: "Add a trusted provider",
+        conciergeResume: {
+          kind: "generic",
+          message,
+        },
+        notice: isSpanish
+          ? "Guarda el proveedor de confianza. VYVA seguira pidiendo tu OK antes de contactar."
+          : "Save the trusted provider. VYVA will still ask for your OK before contacting.",
+      },
+    });
+  }
+
+  function handleActiveChecklistAction(action: ActiveTaskChecklistAction) {
+    if (!activeAction) return;
+    setIsRightNowHidden(false);
+
+    if (action === "details" || action === "contact") {
+      handleChangePendingAction(activeAction);
+      return;
+    }
+
+    if (action === "provider") {
+      openProviderSetupForPendingAction(activeAction);
+      return;
+    }
+
+    if (action === "reply") {
+      if (activeActionCanRecordProviderReply) {
+        openProviderReplyMode(activeAction, "confirmed");
+      } else {
+        handleProviderFollowUp(activeAction);
+      }
+      return;
+    }
+
+    if (action === "confirm") {
+      if (activeAction.status === "pending" && !activeActionIsVyvaTask) {
+        confirmMutation.mutate(activeAction);
+      } else {
+        handleChangePendingAction(activeAction);
+      }
+    }
+  }
+
   function updateProviderReplyForm(field: keyof ProviderReplyForm, value: string) {
     setProviderReplyForm((current) => ({ ...current, [field]: value }));
   }
@@ -9537,7 +9746,12 @@ const ConciergeScreen = () => {
 
             {activeActionTimeline ? <ConciergeActionTimeline status={activeActionTimeline} /> : null}
 
-            {activeActionChecklist ? <ActiveTaskChecklistPanel checklist={activeActionChecklist} /> : null}
+            {activeActionChecklist ? (
+              <ActiveTaskChecklistPanel
+                checklist={activeActionChecklist}
+                onAction={handleActiveChecklistAction}
+              />
+            ) : null}
 
             {activeAction.status === "pending" && activeActionReviewSummary ? (
               <PendingActionReviewCard
