@@ -82,13 +82,13 @@ const campaigns = [
     recipients: [{
       id: "recipient-1",
       campaignId: "campaign-1",
-      contactId: "contact-1",
+      contactId: null,
       profileId: null,
       channel: "email",
-      recipient: "karim@example.com",
+      recipient: "hassan@example.com",
       status: "planned",
       scheduledAt: "2026-07-06T09:00:00.000Z",
-      snapshot: { fullName: "Karim Assad", email: "karim@example.com", lovableSource: "recipient-export" },
+      snapshot: { fullName: "Hassan Partner", email: "hassan@example.com", contact_external_id: "lovable-contact-2", lovableSource: "recipient-export" },
       communicationLogId: null,
       createdAt: "2026-07-05T09:00:00.000Z",
       updatedAt: "2026-07-05T09:00:00.000Z",
@@ -163,14 +163,34 @@ const content = [
     htmlBody: "<h1>Partner update</h1>",
     ctaLabel: "Read more",
     ctaUrl: "https://v2.vyva.life/partners",
-    designJson: { blocks: [{ type: "hero" }] },
+    designJson: {
+      blocks: [{
+        type: "hero",
+        headline: "Partner hero",
+        body: "Lovable builder copy",
+        imageUrl: "https://cdn.example.test/partner-design.png",
+        ctaLabel: "Book a demo",
+        ctaUrl: "https://v2.vyva.life/demo",
+      }],
+    },
     mediaAssets: [{ url: "https://cdn.example.test/partner.png" }],
     hasHtml: true,
     hasDesign: true,
     mediaAssetCount: 1,
     source: "lovable",
     lovableExternalId: "lovable-content-2",
-    metadata: { extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" } },
+    createdAt: "2026-07-05T08:55:00.000Z",
+    updatedAt: "2026-07-05T09:00:00.000Z",
+    metadata: {
+      extraLovableOnlyField: "kept",
+      lovable_source_type: "social_post",
+      lovable: {
+        tone: "partner",
+        platform: "linkedin",
+        tags: ["b2b", "partners"],
+        updatedAt: "2026-07-05T09:00:00.000Z",
+      },
+    },
   },
 ];
 
@@ -185,6 +205,8 @@ const mediaAssets = [
     localUrl: null,
     status: "referenced",
     lovableExternalId: "media-1",
+    lastSyncedAt: "2026-07-05T09:01:00.000Z",
+    updatedAt: "2026-07-05T09:01:00.000Z",
     metadata: { lovable: { altText: "Partner hero image" } },
   },
 ];
@@ -208,7 +230,28 @@ const analytics = {
     source: "lovable",
     lovableExternalId: "metric-1",
     metadata: { lovable: { providerMetricId: "metric-provider-1" } },
-  }],
+  },
+  ...Array.from({ length: 9 }, (_, index) => {
+    const metricNumber = index + 2;
+    return {
+      id: `metric-${metricNumber}`,
+      campaignId: "campaign-1",
+      campaignName: `Overflow metric ${metricNumber}`,
+      channel: "email",
+      metricDate: "2026-07-06T09:00:00.000Z",
+      sent: metricNumber,
+      delivered: metricNumber,
+      opened: index,
+      clicked: 0,
+      bounced: 0,
+      unsubscribed: 0,
+      replied: 0,
+      socialEngagement: 0,
+      source: "lovable",
+      lovableExternalId: `metric-${metricNumber}`,
+      metadata: { lovable: { providerMetricId: `metric-provider-${metricNumber}` } },
+    };
+  })],
 };
 
 const journeyEnrollments = [
@@ -216,7 +259,7 @@ const journeyEnrollments = [
     id: "enrollment-1",
     journeyId: "journey-1",
     journeyName: "B2B nurture",
-    contactId: "contact-2",
+    contactId: null,
     contactExternalId: "lovable-contact-2",
     status: "active",
     currentStepOrder: 0,
@@ -233,8 +276,38 @@ const journeyEnrollments = [
       eventAt: "2026-07-05T09:00:00.000Z",
       channel: "email",
       metadata: { lovable: { eventSource: "automation-log" } },
-    }],
+    },
+    ...Array.from({ length: 9 }, (_, index) => {
+      const eventNumber = index + 2;
+      return {
+        id: `event-${eventNumber}`,
+        eventType: `event-${eventNumber}`,
+        stepOrder: eventNumber,
+        eventAt: "2026-07-05T09:30:00.000Z",
+        channel: "email",
+        metadata: { lovable: { eventSource: `automation-log-${eventNumber}` } },
+      };
+    })],
   },
+  ...Array.from({ length: 10 }, (_, index) => {
+    const enrollmentNumber = index + 2;
+    return {
+      id: `enrollment-${enrollmentNumber}`,
+      journeyId: "journey-1",
+      journeyName: "B2B nurture",
+      contactId: "contact-2",
+      contactExternalId: `lovable-contact-overflow-${enrollmentNumber}`,
+      status: "active",
+      currentStepOrder: 0,
+      enteredAt: "2026-07-05T09:00:00.000Z",
+      exitedAt: null,
+      lastActivityAt: "2026-07-05T09:30:00.000Z",
+      source: "lovable",
+      lovableExternalId: `enrollment-${enrollmentNumber}`,
+      metadata: { lovable: { cohort: "partners-july" } },
+      events: [],
+    };
+  }),
 ];
 
 const contacts = [
@@ -277,8 +350,19 @@ const contacts = [
     market: "Spain",
     lists: ["Partners"],
     lovableExternalId: "lovable-contact-2",
+    lastSyncedAt: "2026-07-05T09:02:00.000Z",
+    updatedAt: "2026-07-05T09:02:00.000Z",
     channelAvailability: { email: true, linkedin: true, whatsapp: false, source: "lovable" },
-    metadata: { lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" } },
+    metadata: {
+      lovable: {
+        persona: "partner-lead",
+        profile: {
+          emailAddress: "profile-lead@example.com",
+          crmScore: 87,
+        },
+      },
+      segmentation: { lifecycle: "lead" },
+    },
   },
 ];
 
@@ -294,8 +378,34 @@ const audiences = [
     memberCount: 2,
     mappedMemberCount: 1,
     contactExternalIds: ["lovable-contact-2", "missing-contact"],
+    memberPreview: [{
+      id: "contact-2",
+      fullName: "Hassan Partner",
+      email: "hassan@example.com",
+      phoneNumber: "+34 983 419 300",
+      whatsappNumber: "+34 770 900 123",
+      companyName: "Moka Digital",
+      roleLabel: "Partner",
+      lovableExternalId: "lovable-contact-2",
+      contactExternalId: "lovable-contact-2",
+    },
+    ...Array.from({ length: 6 }, (_, index) => {
+      const memberNumber = index + 2;
+      return {
+        id: `preview-contact-${memberNumber}`,
+        fullName: `Lovable list member ${memberNumber}`,
+        email: `list-member-${memberNumber}@example.com`,
+        phoneNumber: null,
+        whatsappNumber: null,
+        companyName: "Imported List Co",
+        roleLabel: "Lead",
+        lovableExternalId: `lovable-list-member-${memberNumber}`,
+        contactExternalId: `lovable-list-member-${memberNumber}`,
+      };
+    })],
     unmappedContactExternalIds: ["missing-contact"],
     lastSyncedAt: "2026-07-05T09:00:00.000Z",
+    updatedAt: "2026-07-05T09:00:00.000Z",
     metadata: { lovable: { sourceList: "Partners" } },
   },
 ];
@@ -333,8 +443,16 @@ const sync = {
     completedAt: "2026-07-05T09:01:00.000Z",
     summary: {
       exported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, audiences: 1 },
-      imported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1 },
+      imported: { campaigns: 2, contacts: 2, content: 2, mediaAssets: 1, campaignMetrics: 1, journeys: 1, journeyEnrollments: 1, journeyStepEvents: 1, audiences: 1, audienceMembers: 2, mappedAudienceMembers: 1, campaignRecipients: 1, missingContentReferences: 1 },
       skipped: {},
+      exportMetadata: {
+        dataset: "live",
+        exportedAt: "2026-07-05T09:01:30.000Z",
+        cursor: "cursor-1",
+        apiUrl: "https://lovable.example.test",
+        topLevelKeys: ["campaigns", "contacts", "exportedAt", "journey_step_events", "saved_email_templates", "social_posts"],
+      },
+      contentSourceCounts: { saved_email_template: 1, social_post: 1, missing_lovable_reference: 1 },
       unmapped: {
         audienceContactExternalIdCount: 1,
         audienceContactExternalIds: ["missing-contact"],
@@ -343,19 +461,19 @@ const sync = {
       },
       fieldCoverage: {
         content: {
-          exportedFieldCount: 7,
-          firstClassFieldCount: 6,
+          exportedFieldCount: 9,
+          firstClassFieldCount: 8,
           metadataOnlyFieldCount: 1,
-          exportedFields: ["body", "channel", "extraLovableOnlyField", "id", "status", "subject", "title"],
-          firstClassFields: ["body", "channel", "id", "status", "subject", "title"],
+          exportedFields: ["body", "channel", "emailTemplate.previewText", "extraLovableOnlyField", "id", "status", "subject", "template.html_content", "title"],
+          firstClassFields: ["body", "channel", "emailTemplate.previewText", "id", "status", "subject", "template.html_content", "title"],
           metadataOnlyFields: ["extraLovableOnlyField"],
         },
         contacts: {
-          exportedFieldCount: 8,
-          firstClassFieldCount: 8,
+          exportedFieldCount: 11,
+          firstClassFieldCount: 11,
           metadataOnlyFieldCount: 0,
-          exportedFields: ["audienceType", "email", "id", "name", "phoneNumber", "tags", "updatedAt", "vertical"],
-          firstClassFields: ["audienceType", "email", "id", "name", "phoneNumber", "tags", "updatedAt", "vertical"],
+          exportedFields: ["audienceType", "email", "id", "name", "phoneNumber", "profile.emailAddress", "profile.firstName", "profile.crmScore", "tags", "updatedAt", "vertical"],
+          firstClassFields: ["audienceType", "email", "id", "name", "phoneNumber", "profile.crmScore", "profile.emailAddress", "profile.firstName", "tags", "updatedAt", "vertical"],
           metadataOnlyFields: [],
         },
       },
@@ -378,11 +496,11 @@ const exportPreview = {
     contentSourceCounts: { saved_email_template: 1, social_post: 1 },
     fieldCoverage: {
       content: {
-        exportedFieldCount: 7,
-        firstClassFieldCount: 6,
+        exportedFieldCount: 9,
+        firstClassFieldCount: 8,
         metadataOnlyFieldCount: 1,
-        exportedFields: ["body", "channel", "extraLovableOnlyField", "id", "status", "subject", "title"],
-        firstClassFields: ["body", "channel", "id", "status", "subject", "title"],
+        exportedFields: ["body", "channel", "emailTemplate.previewText", "extraLovableOnlyField", "id", "status", "subject", "template.html_content", "title"],
+        firstClassFields: ["body", "channel", "emailTemplate.previewText", "id", "status", "subject", "template.html_content", "title"],
         metadataOnlyFields: ["extraLovableOnlyField"],
       },
     },
@@ -534,33 +652,54 @@ function audienceFromRequestBody(id: string, init?: RequestInit) {
     memberCount: contactExternalIds.length,
     mappedMemberCount: contactExternalIds.filter((value: string) => value === "lovable-contact-2").length,
     contactExternalIds,
+    memberPreview: contactExternalIds.includes("lovable-contact-2") ? [{
+      id: "contact-2",
+      fullName: "Hassan Partner",
+      email: "hassan@example.com",
+      phoneNumber: "+34 983 419 300",
+      whatsappNumber: "+34 770 900 123",
+      companyName: "Moka Digital",
+      roleLabel: "Partner",
+      lovableExternalId: "lovable-contact-2",
+      contactExternalId: "lovable-contact-2",
+    }] : [],
     unmappedContactExternalIds: contactExternalIds.filter((value: string) => value !== "lovable-contact-2"),
     lastSyncedAt: null,
     metadata: body.metadata ?? {},
   };
 }
 
-function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: { content?: unknown[]; mediaAssets?: unknown[] } = {}) {
+function renderPage(syncOverride: Partial<typeof sync> = {}, dataOverride: {
+  campaigns?: unknown[];
+  contacts?: unknown[];
+  content?: unknown[];
+  mediaAssets?: unknown[];
+  analytics?: typeof analytics;
+} = {}) {
   const syncResponse = { ...sync, ...syncOverride };
+  const campaignsResponse = dataOverride.campaigns ?? campaigns;
+  const contactsResponse = dataOverride.contacts ?? contacts;
   const contentResponse = dataOverride.content ?? content;
   const mediaAssetsResponse = dataOverride.mediaAssets ?? mediaAssets;
+  const analyticsResponse = dataOverride.analytics ?? analytics;
   apiFetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     const method = init?.method ?? "GET";
     if (path === "/api/admin/marketing/summary") return jsonResponse(summary);
-    if (path === "/api/admin/marketing/campaigns" && method === "GET") return jsonResponse({ campaigns });
+    if (path === "/api/admin/marketing/campaigns" && method === "GET") return jsonResponse({ campaigns: campaignsResponse });
     if (path === "/api/admin/marketing/journeys" && method === "GET") return jsonResponse({ journeys });
     if (path === "/api/admin/marketing/journey-enrollments" && method === "GET") return jsonResponse({ enrollments: journeyEnrollments });
     if (path === "/api/admin/marketing/content" && method === "GET") return jsonResponse({ content: contentResponse });
     if (path === "/api/admin/marketing/media" && method === "GET") return jsonResponse({ mediaAssets: mediaAssetsResponse });
-    if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analytics);
-    if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts });
+    if (path === "/api/admin/marketing/analytics" && method === "GET") return jsonResponse(analyticsResponse);
+    if (path === "/api/admin/marketing/contacts" && method === "GET") return jsonResponse({ contacts: contactsResponse });
     if (path === "/api/admin/marketing/audiences" && method === "GET") return jsonResponse({ audiences });
     if (path === "/api/admin/marketing/sync/lovable" && method === "GET") return jsonResponse(syncResponse);
     if (path === "/api/admin/marketing/sync/lovable/preview" && method === "GET") return jsonResponse(exportPreview);
     if (path === "/api/admin/marketing/sync/lovable/run" && method === "POST") return jsonResponse({ ok: true, summary: { campaigns: 1, content: 1, contacts: 1, journeys: 1 } });
     if (path === "/api/admin/marketing/campaigns" && method === "POST") return jsonResponse({ ok: true, campaign: campaigns[0] }, { status: 201 });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[0] });
+    if (path === "/api/admin/marketing/campaigns/campaign-2" && method === "PATCH") return jsonResponse({ ok: true, campaign: campaigns[1] });
     if (path === "/api/admin/marketing/campaigns/campaign-1" && method === "DELETE") return jsonResponse({ ok: true, deletedCampaignId: "campaign-1" });
     if (path === "/api/admin/marketing/campaigns/campaign-1/test-email" && method === "POST") return jsonResponse({ ok: true, communication: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" }, delivery: { id: "comm-1", recipient: "karim.assad@mokadigital.net", status: "sent" } });
     if (path === "/api/admin/marketing/campaigns/campaign-1/send-email" && method === "POST") return jsonResponse({ ok: true, sentCount: 1, failedCount: 0, skippedCount: 0, campaign: { ...campaigns[0], status: "published" }, delivery: [{ id: "comm-2", recipient: "karim@example.com", status: "sent" }] });
@@ -604,9 +743,25 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Audiences");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Imported media refs");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Journey enrollments");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Lovable 2 / VYVA 2");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Saved email template: 1");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Social post: 1");
+    expect(screen.getByTestId("marketing-lovable-import-coverage")).toHaveTextContent("Unmapped list members: 1");
     expect(screen.getByTestId("marketing-dashboard-tab")).toHaveTextContent("Analytics snapshots");
     expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-analytics-table")).toHaveTextContent("Overflow metric 10");
+    expect(openMetadataPanel("marketing-analytics-metadata-metric-1")).toHaveTextContent("metric-provider-1");
+    fireEvent.click(screen.getByTestId("button-marketing-open-metric-campaign-metric-1"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByText('Opened campaign "Caregiver welcome" from imported analytics.')).toBeInTheDocument();
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Caregiver welcome")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("List: Partners");
+    expect(screen.getByTestId("marketing-campaign-target-list-campaign-1")).toHaveTextContent("1/2 mapped");
+    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("66 sent");
+    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("44 opened");
+    expect(screen.getByTestId("marketing-campaign-performance-campaign-1")).toHaveTextContent("4 clicked");
+    expect(screen.getByTestId("marketing-campaign-channel-link-channel-1")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-campaign-channel-link-channel-1-linkedin")).toHaveTextContent("Partner post");
 
     fireEvent.change(screen.getByTestId("input-marketing-search"), { target: { value: "Warm B2B" } });
     expect(within(screen.getByTestId("marketing-campaign-table")).getByText("Partner outreach")).toBeInTheDocument();
@@ -619,17 +774,39 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Trigger: signup");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-journey-logic-journey-1")).toHaveTextContent("Goal: activation");
-    expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / content-1");
+    expect(screen.getByTestId("marketing-journeys-tab")).toHaveTextContent("message / Email / day 3 / Welcome email");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-2");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("Moka Digital");
+    expect(screen.getByTestId("marketing-journey-enrollment-contact-enrollment-1")).toHaveTextContent("Linked from lovable-contact-2");
+    expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("lovable-contact-overflow-11");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Lovable enrollment ID: enrollment-1");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Entered");
     expect(screen.getByTestId("marketing-journey-enrollments")).toHaveTextContent("Last activity");
     expect(openMetadataPanel("marketing-journey-enrollment-metadata-enrollment-1")).toHaveTextContent("partners-july");
     expect(screen.getByTestId("marketing-journey-event-event-1")).toHaveTextContent("entered");
     expect(screen.getByTestId("marketing-journey-event-event-1")).toHaveTextContent("email");
+    expect(screen.getByTestId("marketing-journey-event-event-10")).toHaveTextContent("event-10");
     expect(openMetadataPanel("marketing-journey-event-metadata-event-1")).toHaveTextContent("automation-log");
 
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable content coverage");
+    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Saved email template: 1");
+    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Social post: 1");
+    expect(screen.getByTestId("marketing-lovable-content-source-buckets")).toHaveTextContent("Missing Lovable reference: 1");
+    expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
+    expect(screen.getByTestId("marketing-lovable-field-coverage")).toHaveTextContent("Mapped: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    const contentImportCoverage = openMetadataPanel("marketing-lovable-field-map-content");
+    expect(contentImportCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    expect(contentImportCoverage).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(contentImportCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraLovableOnlyField, id, status, subject, template.html_content, title");
+    expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("Lovable referenced content that was not exported.");
+    expect(screen.getByTestId("marketing-missing-content-reference-panel")).toHaveTextContent("1 campaign or journey content reference");
+    fireEvent.click(screen.getByTestId("button-marketing-show-missing-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent("Showing Lovable content placeholders");
+    expect(screen.getByTestId("marketing-content-empty-diagnostic")).toHaveTextContent("Content is loaded, but hidden by filters.");
+    fireEvent.click(screen.getByTestId("button-marketing-clear-content-filters"));
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Content");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Type");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Design/media");
@@ -640,23 +817,45 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Read more -> https://v2.vyva.life/partners");
     expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Social post");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Lovable ID: lovable-content-2");
+    expect(screen.getByTestId("marketing-content-timeline-content-2")).toHaveTextContent("Updated");
+    expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("Caregiver welcome");
+    expect(screen.getByTestId("marketing-content-usage-content-2")).toHaveTextContent("LinkedIn campaign channel");
+    expect(screen.getByTestId("marketing-content-usage-content-1")).toHaveTextContent("B2B nurture");
+    expect(screen.getByTestId("marketing-content-usage-content-1")).toHaveTextContent("Step 1: message / Email / day 3");
+
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+
     expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Design JSON present");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Lovable design preview");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Partner hero");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Lovable builder copy");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("CTA: Book a demo -> https://v2.vyva.life/demo");
+    expect(within(screen.getByTestId("marketing-content-design-preview")).getByAltText("Partner hero")).toHaveAttribute("src", "https://cdn.example.test/partner-design.png");
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("VYVA updated");
+    expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Used in campaigns and journeys");
+    expect(screen.getByTestId("marketing-selected-content-usage")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design blocks: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Design keys: blocks");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("Media refs: 1");
     expect(screen.getByTestId("marketing-content-design-media-summary")).toHaveTextContent("https://cdn.example.test/partner.png");
-    expect(screen.getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
+    expect(within(screen.getByTestId("marketing-content-preview-panel")).getByAltText("partner.png")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-content-metadata-panel")).toHaveTextContent("extraLovableOnlyField");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("Lovable ID: media-1");
+    expect(screen.getByTestId("marketing-media-timeline-media-1")).toHaveTextContent("Synced");
     expect(screen.getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
+
+    fireEvent.click(within(screen.getByTestId("marketing-selected-content-usage")).getByTestId("button-marketing-open-content-usage-campaign:campaign-1:channel-1-linkedin"));
+    expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Caregiver welcome");
 
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
 
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveClass("overflow-x-auto");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Hassan Partner");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("hassan@example.com");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("+34 983 419 300");
@@ -667,10 +866,15 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("lead");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("healthcare");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Spain");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("CRM: 87");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("Lifecycle: lead");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("Persona: partner-lead");
+    expect(screen.getByTestId("marketing-contact-profile-signals-contact-2")).toHaveTextContent("Profile email: profile-lead@example.com");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("madrid");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("List: Partners");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Lovable ID: lovable-contact-2");
     expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("Profile: profile-2");
+    expect(screen.getByTestId("marketing-contact-timeline-contact-2")).toHaveTextContent("Synced");
     expect(openMetadataPanel("marketing-contact-metadata-contact-2")).toHaveTextContent("partner-lead");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Contacts (2)");
     expect(screen.getByTestId("marketing-contacts-view-switcher")).toHaveTextContent("Lists (1)");
@@ -678,6 +882,23 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audience-builder")).toHaveTextContent("Rules JSON");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("1 unmapped");
+    expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Synced");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("List member preview");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Partner at Moka Digital");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Mapped");
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Imported only");
+    fireEvent.click(screen.getByTestId("button-marketing-open-audience-member-contact-audience-1-contact-2"));
+    expect(screen.getByTestId("button-marketing-contacts-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-contact-editor-feedback")).toHaveTextContent('Editing "Hassan Partner".');
+    fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Lovable list member 5");
+    expect(within(screen.getByTestId("marketing-audience-member-preview-audience-1")).queryByText("Lovable list member 7")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-toggle-audience-members-audience-1"));
+    expect(screen.getByTestId("marketing-audience-member-preview-audience-1")).toHaveTextContent("Lovable list member 7");
+    expect(screen.getByTestId("button-marketing-toggle-audience-members-audience-1")).toHaveTextContent("Collapse members");
 
     fireEvent.click(screen.getByTestId("tab-marketing-settings"));
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Not configured");
@@ -690,6 +911,11 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Enabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Disabled");
     expect(screen.getByTestId("marketing-email-scheduler-status")).toHaveTextContent("Manual Run due emails button only");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Dataset: live");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Exported at");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Endpoint: https://lovable.example.test");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("Cursor: cursor-1");
+    expect(screen.getByTestId("marketing-sync-export-metadata-sync-1")).toHaveTextContent("saved_email_templates");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Exported by Lovable");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Audiences: 1");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Media assets: 1");
@@ -703,15 +929,131 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Lovable 2 / VYVA 2");
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("Mapped members");
     expect(screen.getByTestId("marketing-sync-parity-sync-1")).toHaveTextContent("derived");
-    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 6 of 7 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("contacts: 11 of 11 fields mapped first-class");
+    expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Mapped first-class: audienceType, email, id, name, phoneNumber, profile.crmScore, profile.emailAddress, profile.firstName, tags, updatedAt, vertical");
     expect(screen.getByTestId("marketing-settings-tab")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
     const contentCoverage = openMetadataPanel("marketing-sync-field-coverage-sync-1-content");
     expect(contentCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
-    expect(contentCoverage).toHaveTextContent("Mapped first-class: body, channel, id, status, subject, title");
-    expect(contentCoverage).toHaveTextContent("All exported: body, channel, extraLovableOnlyField, id, status, subject, title");
+    expect(contentCoverage).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(contentCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraLovableOnlyField, id, status, subject, template.html_content, title");
+    const syncDestinationMap = screen.getAllByTestId("marketing-lovable-destination-map")[0];
+    expect(syncDestinationMap).toHaveTextContent("Where Lovable data appears");
+    expect(syncDestinationMap).toHaveTextContent("Saved email templates");
+    expect(syncDestinationMap).toHaveTextContent("Content tab");
+    expect(syncDestinationMap).toHaveTextContent("Lists and audiences");
+    expect(syncDestinationMap).toHaveTextContent("Contacts tab > Lists");
+    expect(syncDestinationMap).toHaveTextContent("Campaigns");
+    expect(syncDestinationMap).toHaveTextContent("Dashboard, Campaigns, Calendar");
     expect(screen.getByTestId("button-marketing-run-sync")).toBeDisabled();
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("VYVA_MARKETING_EXPORT_TOKEN or LOVABLE_MARKETING_API_KEY");
     expect(screen.getByTestId("marketing-sync-feedback")).toHaveTextContent("default Lovable export endpoint is already built in");
+  });
+
+  it("shows all imported Lovable details instead of hiding rows behind preview caps", async () => {
+    const manyRecipients = Array.from({ length: 105 }, (_, index) => {
+      const recipientNumber = index + 1;
+      return {
+        id: `recipient-${recipientNumber}`,
+        campaignId: "campaign-1",
+        contactId: null,
+        profileId: null,
+        channel: "email",
+        recipient: `caregiver-${recipientNumber}@example.com`,
+        status: "planned",
+        scheduledAt: "2026-07-06T09:00:00.000Z",
+        snapshot: {
+          fullName: `Caregiver ${recipientNumber}`,
+          email: `caregiver-${recipientNumber}@example.com`,
+          lovableSource: `recipient-export-${recipientNumber}`,
+        },
+        communicationLogId: null,
+        createdAt: "2026-07-05T09:00:00.000Z",
+        updatedAt: "2026-07-05T09:00:00.000Z",
+      };
+    });
+    const manyMediaAssets = [
+      ...mediaAssets,
+      ...Array.from({ length: 12 }, (_, index) => {
+        const mediaNumber = index + 2;
+        return {
+          id: `media-${mediaNumber}`,
+          contentAssetId: null,
+          contentTitle: null,
+          source: "lovable",
+          assetType: "image",
+          originalUrl: `https://cdn.example.test/asset-${mediaNumber}.png`,
+          localUrl: null,
+          status: "referenced",
+          lovableExternalId: `media-${mediaNumber}`,
+          metadata: { lovable: { altText: `Imported media ${mediaNumber}` } },
+        };
+      }),
+    ];
+    const expandedContact = {
+      ...contacts[1],
+      tags: Array.from({ length: 10 }, (_, index) => `tag-${index + 1}`),
+      lists: ["Partners", "Priority", "Madrid", "Care homes"],
+    };
+    const expandedContent = [
+      content[0],
+      {
+        ...content[1],
+        designJson: {
+          blocks: Array.from({ length: 9 }, (_, index) => ({
+            type: "section",
+            headline: `Design block ${index + 1}`,
+            body: `Lovable builder copy ${index + 1}`,
+            imageUrl: `https://cdn.example.test/design-${index + 1}.png`,
+          })),
+        },
+        mediaAssets: Array.from({ length: 7 }, (_, index) => ({
+          url: `https://cdn.example.test/embedded-${index + 1}.png`,
+        })),
+      },
+    ];
+    const expandedCampaigns = [
+      { ...campaigns[0], recipientCount: manyRecipients.length, recipients: manyRecipients },
+      {
+        ...campaigns[1],
+        channels: ["linkedin", "instagram", "facebook", "tiktok", "whatsapp"].map((channel) => ({
+          id: `channel-2-${channel}`,
+          channel,
+          contentAssetId: null,
+          scheduledAt: null,
+          status: "draft",
+          sendCapability: channel === "whatsapp" ? "future_send_capable" : "planning_only",
+        })),
+      },
+    ];
+
+    renderPage({}, {
+      campaigns: expandedCampaigns,
+      contacts: [contacts[0], expandedContact],
+      content: expandedContent,
+      mediaAssets: manyMediaAssets,
+    });
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+
+    expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-10")).toHaveTextContent("metric-provider-10");
+    expect(screen.getByTestId("marketing-campaign-edit-form")).toHaveTextContent("Caregiver 105");
+    expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-105")).toHaveTextContent("recipient-export-105");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/asset-13.png");
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("embedded-7.png");
+    expect(screen.getByTestId("marketing-content-design-preview")).toHaveTextContent("Design block 9");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("tag-10");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("List: Care homes");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    expect(screen.getByTestId("marketing-calendar-unscheduled-channel-link-channel-2-tiktok")).toHaveTextContent("TikTok");
   });
 
   it("searches imported Lovable IDs, metadata, media, lists, and journey steps", async () => {
@@ -737,6 +1079,37 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-audiences-list")).toHaveTextContent("Partners");
   });
 
+  it("filters Lovable contacts by source, consent, segmentation fields, and lists", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("lovable (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("pending (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("en (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("lead (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("healthcare (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("Spain (1)");
+    expect(screen.getByTestId("marketing-contact-segmentation-filters")).toHaveTextContent("Partners (1)");
+
+    fireEvent.change(screen.getByTestId("select-marketing-contact-market-filter"), { target: { value: "spain" } });
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("1 visible of 2 contacts");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-contacts-table")).not.toHaveTextContent("Karim Assad");
+
+    fireEvent.change(screen.getByTestId("select-marketing-contact-list-filter"), { target: { value: "partners" } });
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("List: Partners");
+
+    fireEvent.change(screen.getByTestId("select-marketing-contact-source-filter"), { target: { value: "vyva" } });
+    expect(screen.getByTestId("marketing-contact-empty-diagnostic")).toHaveTextContent("Contacts are loaded, but hidden");
+
+    fireEvent.click(screen.getByTestId("button-marketing-clear-contact-filters"));
+    expect(screen.getByTestId("marketing-contacts-tab")).toHaveTextContent("2 visible of 2 contacts");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Karim Assad");
+    expect(screen.getByTestId("marketing-contacts-table")).toHaveTextContent("Hassan Partner");
+  });
+
   it("filters the content library by imported Lovable source type", async () => {
     renderPage();
 
@@ -753,15 +1126,18 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Partner post");
     expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Welcome email");
+
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+
     expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
 
     fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
 
     expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("1 visible of 2 assets");
-    expect(screen.getByTestId("marketing-content-tab")).toHaveTextContent("Welcome email");
-    expect(screen.getByTestId("marketing-content-tab")).not.toHaveTextContent("Partner post");
-    expect(screen.queryByTestId("marketing-content-origin-summary")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketing-content-library-table")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-content-library-table")).not.toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-origin-summary")).toHaveTextContent("Imported from Social post");
   });
 
   it("explains empty content when Lovable sync has not imported anything yet", async () => {
@@ -801,13 +1177,64 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("marketing-calendar-scheduler")).toHaveTextContent("Caregiver welcome");
     expect(screen.getByTestId("marketing-calendar-timeline")).toHaveTextContent("1 scheduled");
+    expect(screen.getByTestId("marketing-calendar-channel-link-channel-1")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("marketing-calendar-performance-campaign-1")).toHaveTextContent("66 sent");
+    expect(screen.getByTestId("marketing-calendar-performance-campaign-1")).toHaveTextContent("44 opened");
     expect(screen.getByTestId("marketing-calendar-unscheduled")).toHaveTextContent("Partner outreach");
+    expect(screen.getByTestId("marketing-calendar-unscheduled-channel-link-channel-2")).toHaveTextContent("No content linked");
+    expect(screen.getByTestId("marketing-calendar-unscheduled-performance-campaign-2")).toHaveTextContent("No imported metrics");
 
     fireEvent.click(screen.getByTestId("button-marketing-calendar-edit-campaign-1"));
 
     expect(screen.getByTestId("marketing-dashboard-tab")).toBeInTheDocument();
     expect(screen.getByTestId("marketing-campaign-edit-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-campaign-name")).toHaveValue("Caregiver welcome");
+  });
+
+  it("opens linked content records from campaign and journey previews even when content filters hide them", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("tab-marketing-content"));
+    fireEvent.change(screen.getByTestId("select-marketing-content-source-filter"), { target: { value: "vyva" } });
+
+    fireEvent.click(screen.getByTestId("tab-marketing-dashboard"));
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+    fireEvent.click(screen.getByTestId("marketing-campaign-channel-content-preview-1-preview"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Lovable ID: lovable-content-2");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-journey-journey-1"));
+    fireEvent.click(screen.getByTestId("marketing-journey-step-content-preview-0-edit"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Welcome email".');
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Welcome email");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Welcome email");
+  });
+
+  it("opens Lovable content from campaign, calendar, and journey overview references", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("button-marketing-preview-campaign-content-channel-1-linkedin"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    fireEvent.click(screen.getByTestId("button-marketing-edit-calendar-content-channel-1"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Welcome email".');
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Welcome email");
+
+    fireEvent.click(screen.getByTestId("tab-marketing-journeys"));
+    fireEvent.click(screen.getByTestId("button-marketing-preview-journey-step-content-step-1"));
+
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Welcome email".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Welcome email");
   });
 
   it("explains when the current admin cannot run Lovable sync", async () => {
@@ -853,6 +1280,19 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("saved_email_template: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("social_post: 1");
     expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Top-level export keys");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("content: 8 of 9 fields mapped first-class");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Mapped: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(screen.getByTestId("marketing-export-preview")).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    const previewContentCoverage = openMetadataPanel("marketing-export-field-coverage-content");
+    expect(previewContentCoverage).toHaveTextContent("Metadata-only: extraLovableOnlyField");
+    expect(previewContentCoverage).toHaveTextContent("Mapped first-class: body, channel, emailTemplate.previewText, id, status, subject, template.html_content, title");
+    expect(previewContentCoverage).toHaveTextContent("All exported: body, channel, emailTemplate.previewText, extraLovableOnlyField, id, status, subject, template.html_content, title");
+    const previewDestinationMap = screen.getAllByTestId("marketing-lovable-destination-map").at(-1);
+    expect(previewDestinationMap).toHaveTextContent("Where Lovable data appears");
+    expect(previewDestinationMap).toHaveTextContent("Social posts");
+    expect(previewDestinationMap).toHaveTextContent("Content tab");
+    expect(previewDestinationMap).toHaveTextContent("Journeys");
+    expect(previewDestinationMap).toHaveTextContent("Journeys tab");
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("Recognized sample rows");
     expect(screen.getByTestId("marketing-export-preview-samples")).toHaveTextContent("template_name");
     expect(screen.getByTestId("marketing-export-preview-raw-samples")).toHaveTextContent("social_posts");
@@ -899,18 +1339,74 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits and deletes imported content assets", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
-    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
 
+    fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Click Confirm delete to remove "Partner post".');
+    expect(screen.getByTestId("button-marketing-delete-content-content-2")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Confirm delete?");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Lovable is not changed.");
+    expect(screen.getByTestId("marketing-content-delete-confirmation-content-2")).toHaveTextContent("Click Confirm delete to remove this content.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-content-content-2"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Deleted "Partner post".');
+
+    fireEvent.click(screen.getByTestId("button-marketing-preview-content-content-2"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Preview opened.");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Partner update");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Preview panel opened.");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Partner update");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Social post");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Rendered HTML available");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable design data");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("1 media refs");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("CTA: Read more -> https://v2.vyva.life/partners");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Lovable ID: lovable-content-2");
+    expect(screen.getByTestId("marketing-content-preview-open-content-2")).toHaveTextContent("Focus preview");
+    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Partner update");
+    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Lovable design preview");
+    expect(screen.getByTestId("marketing-content-inline-preview-content-2")).toHaveTextContent("Media references");
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveAttribute("role", "status");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveAttribute("role", "dialog");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("fixed");
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveClass("z-[9999]");
+    expect(screen.getByTestId("marketing-content-preview")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Lovable source details");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Source type");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Social post");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Platform");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("linkedin");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("Tags");
+    expect(screen.getByTestId("marketing-content-source-details")).toHaveTextContent("b2b, partners");
+    expect(screen.getByTestId("button-marketing-edit-previewed-content")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-marketing-edit-previewed-content"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
+
+    fireEvent.click(screen.getByTestId("button-marketing-edit-content-content-2"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Editing "Partner post".');
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Editor opened.");
+    expect(screen.getByTestId("marketing-content-action-card-content-2")).toHaveTextContent("Changes save to this VYVA content record.");
+    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Editor panel opened.");
+    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Edit and save this content directly here.");
+    expect(screen.getByTestId("marketing-content-editor-open-content-2")).toHaveTextContent("Full editor");
+    expect(screen.getByTestId("marketing-content-inline-editor-content-2")).toBeInTheDocument();
+    expect(screen.getByTestId("input-marketing-inline-edit-content-title-content-2")).toHaveValue("Partner post");
+    expect(screen.getByTestId("textarea-marketing-inline-edit-content-body-content-2")).toHaveValue("Partner update");
+
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveAttribute("role", "dialog");
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("fixed");
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveClass("z-[9999]");
     expect(screen.getByTestId("marketing-content-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
     expect(screen.getByTestId("input-marketing-edit-content-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-content-lovable-id")).toHaveValue("lovable-content-2");
-    expect(screen.getByTestId("textarea-marketing-edit-content-metadata")).toHaveValue(JSON.stringify({ extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" } }, null, 2));
+    expect(screen.getByTestId("textarea-marketing-edit-content-metadata")).toHaveValue(JSON.stringify(content[1].metadata, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-content-title"), { target: { value: "Updated partner post" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-content-channel"), { target: { value: "instagram" } });
@@ -923,7 +1419,7 @@ describe("MarketingAdminPage", () => {
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-html"), { target: { value: "<p>Updated HTML</p>" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-design-json"), { target: { value: "{\"blocks\":[{\"type\":\"text\"}]}" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-media-assets"), { target: { value: "[{\"url\":\"https://cdn.example.test/new.png\"}]" } });
-    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-metadata"), { target: { value: "{\"extraLovableOnlyField\":\"kept\",\"lovable_source_type\":\"social_post\",\"lovable\":{\"tone\":\"partner\"},\"review\":\"done\"}" } });
+    fireEvent.change(screen.getByTestId("textarea-marketing-edit-content-metadata"), { target: { value: JSON.stringify({ ...content[1].metadata, review: "done" }) } });
     fireEvent.click(screen.getByTestId("button-marketing-save-content"));
 
     await waitFor(() => {
@@ -944,28 +1440,43 @@ describe("MarketingAdminPage", () => {
       lovableExternalId: "lovable-content-2",
       designJson: { blocks: [{ type: "text" }] },
       mediaAssets: [{ url: "https://cdn.example.test/new.png" }],
-      metadata: { extraLovableOnlyField: "kept", lovable_source_type: "social_post", lovable: { tone: "partner" }, review: "done" },
+      metadata: { ...content[1].metadata, review: "done" },
     });
     await waitFor(() => {
       expect(screen.getByTestId("marketing-content-editor-feedback")).toHaveTextContent("Updated.");
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-content"));
+    expect(screen.getByTestId("button-marketing-delete-editing-content")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-content"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/content/content-2", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it("edits and deletes imported media references", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-content"));
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-media-metadata-media-1")).toHaveTextContent("Partner hero image");
+
+    fireEvent.click(screen.getByTestId("button-marketing-preview-media-content-media-1"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+    fireEvent.click(screen.getByTestId("button-marketing-edit-media-content-media-1"));
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
+    expect(screen.getByTestId("button-marketing-delete-media-media-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-media-delete-confirmation-media-1")).toHaveTextContent("Click Confirm delete to remove this VYVA media reference.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-media-feedback")).toHaveTextContent("Media deleted.");
 
     fireEvent.click(screen.getByTestId("button-marketing-edit-media-media-1"));
     expect(screen.getByTestId("marketing-media-editor-form")).toBeInTheDocument();
@@ -998,11 +1509,11 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-media"));
+    expect(screen.getByTestId("button-marketing-delete-editing-media")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-media"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/media/media-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it("validates and creates richer marketing contacts", async () => {
@@ -1077,11 +1588,20 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits and deletes imported marketing contacts", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-contact-contact-2"));
+    expect(screen.getByTestId("button-marketing-delete-contact-contact-2")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-contact-delete-confirmation-contact-2")).toHaveTextContent("Click Confirm delete to remove this marketing contact.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-contact-contact-2"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-contact-feedback")).toHaveTextContent("Contact deleted.");
+
     fireEvent.click(screen.getByTestId("button-marketing-edit-contact-contact-2"));
 
     expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
@@ -1091,7 +1611,7 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-contact-profile-id")).toHaveValue("profile-2");
     expect(screen.getByTestId("input-marketing-edit-contact-organization-id")).toHaveValue("11111111-1111-4111-8111-111111111111");
     expect(screen.getByTestId("textarea-marketing-edit-contact-channel-availability")).toHaveValue(JSON.stringify({ email: true, linkedin: true, whatsapp: false, source: "lovable" }, null, 2));
-    expect(screen.getByTestId("textarea-marketing-edit-contact-metadata")).toHaveValue(JSON.stringify({ lovable: { persona: "partner-lead" }, segmentation: { lifecycle: "lead" } }, null, 2));
+    expect(screen.getByTestId("textarea-marketing-edit-contact-metadata")).toHaveValue(JSON.stringify(contacts[1].metadata, null, 2));
 
     fireEvent.change(screen.getByTestId("input-marketing-edit-contact-name"), { target: { value: "Updated Partner" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-contact-audience"), { target: { value: "both" } });
@@ -1160,25 +1680,40 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-contact"));
+    expect(screen.getByTestId("button-marketing-delete-editing-contact")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-contact"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/contacts/contact-2", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete contact"));
-    confirmSpy.mockRestore();
   });
 
   it("edits and deletes imported marketing audiences", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-contacts"));
     fireEvent.click(screen.getByTestId("button-marketing-lists-view"));
+
+    fireEvent.click(screen.getByTestId("button-marketing-delete-audience-audience-1"));
+    expect(screen.getByTestId("button-marketing-delete-audience-audience-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-audience-delete-confirmation-audience-1")).toHaveTextContent("Click Confirm delete to remove this list and membership rows.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-audience-audience-1"));
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(screen.getByTestId("marketing-audience-feedback")).toHaveTextContent("Audience deleted.");
+
     fireEvent.click(screen.getByTestId("button-marketing-edit-audience-audience-1"));
 
     expect(screen.getByTestId("marketing-audience-editor-form")).toBeInTheDocument();
     expect(screen.getByTestId("input-marketing-edit-audience-name")).toHaveValue("Partners");
     expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("lovable-contact-2\nmissing-contact");
+    expect(screen.getByTestId("marketing-edit-audience-member-picker")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-edit-audience-member-picker")).toHaveTextContent("1 imported member ID");
+    fireEvent.click(screen.getByTestId("button-marketing-remove-audience-member-contact-2"));
+    expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("missing-contact");
+    fireEvent.change(screen.getByTestId("select-marketing-edit-audience-add-contact"), { target: { value: "contact-2" } });
+    expect(screen.getByTestId("textarea-marketing-edit-audience-contact-ids")).toHaveValue("missing-contact\nlovable-contact-2");
     expect(screen.getByTestId("input-marketing-edit-audience-source")).toHaveValue("lovable");
     expect(screen.getByTestId("input-marketing-edit-audience-lovable-id")).toHaveValue("lovable-audience-1");
     expect(screen.getByTestId("textarea-marketing-edit-audience-metadata")).toHaveValue(JSON.stringify({ lovable: { sourceList: "Partners" } }, null, 2));
@@ -1210,11 +1745,11 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-editing-audience"));
+    expect(screen.getByTestId("button-marketing-delete-editing-audience")).toHaveTextContent("Confirm delete");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-editing-audience"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/audiences/audience-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete list"));
-    confirmSpy.mockRestore();
   });
 
   it("creates a blank journey draft and keeps the editor open", async () => {
@@ -1256,7 +1791,6 @@ describe("MarketingAdminPage", () => {
   });
 
   it("edits journey logic, steps, ordering, and deletes journey records", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1274,6 +1808,8 @@ describe("MarketingAdminPage", () => {
     expect(journeyStepPreview).toHaveTextContent("Welcome email");
     expect(journeyStepPreview).toHaveTextContent("Welcome to VYVA");
     expect(journeyStepPreview).toHaveTextContent("Hello");
+    expect(screen.getByTestId("marketing-journey-step-content-preview-0-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-journey-step-content-preview-0-edit")).toBeInTheDocument();
     fireEvent.change(screen.getByTestId("input-marketing-edit-journey-name"), { target: { value: "Updated nurture" } });
     fireEvent.change(screen.getByTestId("textarea-marketing-edit-journey-objective"), { target: { value: "Updated objective" } });
     fireEvent.change(screen.getByTestId("select-marketing-edit-journey-audience"), { target: { value: "both" } });
@@ -1349,12 +1885,13 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
+    expect(screen.getByTestId("button-marketing-delete-journey-journey-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-journey-delete-confirmation-journey-1")).toHaveTextContent("Click Confirm delete to remove this journey and its steps.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-journey-journey-1"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/journeys/journey-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete journey"));
-    confirmSpy.mockRestore();
   });
 
   it("creates campaign metadata without auto-dispatching", async () => {
@@ -1408,11 +1945,12 @@ describe("MarketingAdminPage", () => {
   });
 
   it("runs due scheduled email campaigns from the calendar tab", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
     fireEvent.click(screen.getByTestId("tab-marketing-calendar"));
+    fireEvent.click(screen.getByTestId("button-marketing-run-due-email"));
+    expect(screen.getByTestId("button-marketing-run-due-email")).toHaveTextContent("Confirm run due emails");
     fireEvent.click(screen.getByTestId("button-marketing-run-due-email"));
 
     await waitFor(() => {
@@ -1421,12 +1959,24 @@ describe("MarketingAdminPage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("marketing-due-email-feedback")).toHaveTextContent("1 sent");
     });
-    expect(confirmSpy).toHaveBeenCalledWith("Send all due scheduled email campaigns now?");
-    confirmSpy.mockRestore();
+  });
+
+  it("opens contacts from imported campaign recipient snapshots", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-1"));
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("Hassan Partner");
+
+    fireEvent.click(screen.getByTestId("button-marketing-open-recipient-contact-recipient-1"));
+
+    expect(screen.getByTestId("button-marketing-contacts-view")).toHaveClass("bg-purple-700");
+    expect(screen.getByTestId("marketing-contact-editor-form")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-contact-editor-feedback")).toHaveTextContent('Editing "Hassan Partner".');
+    expect(screen.getByTestId("input-marketing-edit-contact-lovable-id")).toHaveValue("lovable-contact-2");
   });
 
   it("edits, snapshots recipients for, sends email campaigns, and deletes campaigns", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByTestId("marketing-dashboard-tab");
@@ -1440,9 +1990,9 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("input-marketing-edit-campaign-schedule-end")).toHaveValue(toLocalInput("2026-07-06T11:00:00.000Z"));
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("Ends");
     expect(screen.getByTestId("marketing-campaign-detail-panel")).toHaveTextContent("1");
-    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("12 sent");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("66 sent");
     expect(openMetadataPanel("marketing-campaign-metric-metadata-metric-1")).toHaveTextContent("metric-provider-1");
-    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("8");
+    expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("44");
     expect(screen.getByTestId("marketing-campaign-performance-panel")).toHaveTextContent("4");
     expect(screen.getByTestId("marketing-campaign-channels-editor")).toHaveTextContent("LinkedIn");
     expect(screen.getByTestId("select-marketing-campaign-channel-content-1")).toHaveValue("content-2");
@@ -1458,9 +2008,14 @@ describe("MarketingAdminPage", () => {
     expect(socialContentPreview).toHaveTextContent("Social post");
     expect(socialContentPreview).toHaveTextContent("Lovable ID: lovable-content-2");
     expect(within(socialContentPreview).getByAltText("Partner post")).toHaveAttribute("src", "https://cdn.example.test/partner.png");
+    expect(screen.getByTestId("marketing-campaign-channel-content-preview-1-preview")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-channel-content-preview-0-edit")).toBeInTheDocument();
     expect(screen.getByTestId("select-marketing-edit-campaign-target-audience")).toHaveValue("audience-1");
     expect(screen.getByTestId("marketing-campaign-target-audience-summary")).toHaveTextContent("Partners");
-    expect(screen.getByText("Karim Assad")).toBeInTheDocument();
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("Hassan Partner");
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("hassan@example.com");
+    expect(screen.getByTestId("marketing-campaign-recipient-contact-recipient-1")).toHaveTextContent("Moka Digital");
+    expect(screen.getByTestId("button-marketing-open-recipient-contact-recipient-1")).toBeInTheDocument();
     expect(openMetadataPanel("marketing-campaign-recipient-snapshot-recipient-1")).toHaveTextContent("recipient-export");
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-name"), { target: { value: "Updated campaign" } });
     fireEvent.change(screen.getByTestId("input-marketing-edit-campaign-objective"), { target: { value: "Updated objective" } });
@@ -1540,6 +2095,8 @@ describe("MarketingAdminPage", () => {
 
     expect(screen.getByTestId("button-marketing-send-campaign-email")).not.toBeDisabled();
     fireEvent.click(screen.getByTestId("button-marketing-send-campaign-email"));
+    expect(screen.getByTestId("button-marketing-send-campaign-email")).toHaveTextContent("Confirm send emails");
+    fireEvent.click(screen.getByTestId("button-marketing-send-campaign-email"));
 
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1/send-email", expect.objectContaining({ method: "POST" }));
@@ -1549,10 +2106,39 @@ describe("MarketingAdminPage", () => {
     });
 
     fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
+    expect(screen.getByTestId("button-marketing-delete-campaign-campaign-1")).toHaveTextContent("Confirm delete");
+    expect(screen.getByTestId("marketing-campaign-delete-confirmation-campaign-1")).toHaveTextContent("Click Confirm delete to remove this campaign, its channels, and recipient snapshots.");
+    fireEvent.click(screen.getByTestId("button-marketing-delete-campaign-campaign-1"));
     await waitFor(() => {
       expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-1", expect.objectContaining({ method: "DELETE" }));
     });
-    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Delete campaign"));
-    confirmSpy.mockRestore();
+  });
+
+  it("lets imported social campaigns use social content as the primary campaign asset", async () => {
+    renderPage();
+
+    await screen.findByTestId("marketing-dashboard-tab");
+    fireEvent.click(screen.getByTestId("row-marketing-campaign-campaign-2"));
+
+    expect(screen.getByTestId("select-marketing-edit-campaign-channel")).toHaveValue("linkedin");
+    expect(screen.getByTestId("select-marketing-edit-campaign-content")).not.toBeDisabled();
+    expect(screen.getByTestId("select-marketing-edit-campaign-content")).toHaveTextContent("Partner post");
+
+    fireEvent.change(screen.getByTestId("select-marketing-edit-campaign-content"), { target: { value: "content-2" } });
+    expect(screen.getByTestId("marketing-campaign-channel-content-preview-0")).toHaveTextContent("Partner post");
+
+    fireEvent.click(screen.getByTestId("button-marketing-save-campaign"));
+
+    await waitFor(() => {
+      expect(apiFetchMock).toHaveBeenCalledWith("/api/admin/marketing/campaigns/campaign-2", expect.objectContaining({ method: "PATCH" }));
+    });
+    const patchCall = apiFetchMock.mock.calls.find(([path, init]) => path === "/api/admin/marketing/campaigns/campaign-2" && init?.method === "PATCH");
+    const patchBody = JSON.parse(String(patchCall?.[1]?.body));
+    expect(patchBody.channels).toEqual([
+      expect.objectContaining({
+        channel: "linkedin",
+        contentAssetId: "content-2",
+      }),
+    ]);
   });
 });

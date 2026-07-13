@@ -277,6 +277,16 @@ function lovableMarketingSyncDiagnostics(apiUrl: string, apiKey: string) {
   };
 }
 
+function lovableExportMetadata(payload: Record<string, unknown>, apiUrl: string) {
+  return {
+    dataset: textFrom(payload, ["dataset", "environment", "source"], "unknown"),
+    exportedAt: textFrom(payload, ["exportedAt", "exported_at", "updatedAt", "updated_at"]) || null,
+    cursor: typeof payload.cursor === "string" && payload.cursor.trim() ? payload.cursor.trim() : null,
+    apiUrl: safeUrlOrigin(apiUrl),
+    topLevelKeys: Object.keys(payload).sort(),
+  };
+}
+
 function marketingEmailSchedulerStatus() {
   const enabled = process.env.MARKETING_EMAIL_SCHEDULER_ENABLED === "true";
   const intervalMinutes = Math.max(1, Number(process.env.MARKETING_EMAIL_SCHEDULER_INTERVAL_MINUTES ?? 5));
@@ -392,6 +402,43 @@ function contactFieldSources(row: Record<string, unknown>) {
 
 function contactText(row: Record<string, unknown>, keys: string[], fallback = "") {
   return textFromSources(contactFieldSources(row), keys, fallback);
+}
+
+function contentFieldSources(row: Record<string, unknown>) {
+  const metadata = jsonRecordFromLovable(row.metadata);
+  return [
+    row,
+    asRecord(row.content),
+    asRecord(row.asset),
+    asRecord(row.template),
+    asRecord(row.emailTemplate ?? row.email_template),
+    asRecord(row.socialPost ?? row.social_post ?? row.post),
+    asRecord(row.contentBrief ?? row.content_brief ?? row.brief),
+    asRecord(row.properties),
+    asRecord(row.fields),
+    asRecord(row.customFields ?? row.custom_fields),
+    metadata,
+    asRecord(metadata.lovable),
+    asRecord(metadata.content),
+    asRecord(metadata.asset),
+    asRecord(metadata.template),
+    asRecord(metadata.emailTemplate ?? metadata.email_template),
+    asRecord(metadata.socialPost ?? metadata.social_post ?? metadata.post),
+    asRecord(metadata.contentBrief ?? metadata.content_brief ?? metadata.brief),
+    asRecord(metadata.properties),
+    asRecord(metadata.fields),
+    asRecord(metadata.customFields ?? metadata.custom_fields),
+  ];
+}
+
+function contentText(row: Record<string, unknown>, keys: string[], fallback = "") {
+  return textFromSources(contentFieldSources(row), keys, fallback);
+}
+
+function contentValues(row: Record<string, unknown>, keys: readonly string[]) {
+  return contentFieldSources(row).flatMap((source) => (
+    keys.map((key) => [source[key], key] as [unknown, string])
+  ));
 }
 
 function contactFullName(row: Record<string, unknown>) {
@@ -525,6 +572,10 @@ const contentMediaUrlKeys = [
   "image_url",
   "assetUrl",
   "asset_url",
+  "fileUrl",
+  "file_url",
+  "downloadUrl",
+  "download_url",
   "thumbnailUrl",
   "thumbnail_url",
   "coverImageUrl",
@@ -536,6 +587,15 @@ const contentMediaUrlKeys = [
   "videoUrl",
   "video_url",
 ] as const;
+const contentGenericUrlMediaKeys = ["url", "src", "href"] as const;
+
+function looksLikeMediaUrl(value: string) {
+  const trimmed = value.trim();
+  if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith("/")) return false;
+  const path = trimmed.split(/[?#]/, 1)[0]?.toLowerCase() ?? "";
+  return /\.(avif|bmp|gif|heic|jpe?g|mov|mp3|mp4|mpeg|ogg|pdf|png|svg|webm|webp|wav)$/i.test(path);
+}
+
 const mediaContentRefKeys = [
   "contentAssetId",
   "content_asset_id",
@@ -585,12 +645,33 @@ function lovableMediaPayload(payload: Record<string, unknown>) {
 }
 
 function contentMediaAssetsFrom(row: Record<string, unknown>) {
-  const nestedAssets = contentMediaArrayKeys.flatMap((key) => arrayFrom(row[key]));
-  const urlAssets = contentMediaUrlKeys.map((key) => {
-    const url = emptyToNull(textFrom(row, [key]));
+  const nestedAssets = contentValues(row, contentMediaArrayKeys).flatMap(([value]) => arrayFrom(value));
+  const urlAssets = contentMediaUrlKeys.flatMap((key) => {
+    const url = emptyToNull(contentText(row, [key]));
     return url ? { url, sourceField: key } : null;
   }).filter((item): item is { url: string; sourceField: string } => Boolean(item));
-  return [...nestedAssets, ...urlAssets];
+  const genericUrlAssets = contentGenericUrlMediaKeys.flatMap((key) => {
+    const url = emptyToNull(contentText(row, [key]));
+    return url && looksLikeMediaUrl(url) ? { url, sourceField: key } : null;
+  }).filter((item): item is { url: string; sourceField: string } => Boolean(item));
+  const seen = new Set<string>();
+  return [...nestedAssets, ...urlAssets, ...genericUrlAssets].filter((asset) => {
+    const key = JSON.stringify(asset);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function contentCtaUrlFromRow(row: Record<string, unknown>) {
+  for (const [value, key] of contentValues(row, contentCtaUrlKeys)) {
+    if (typeof value !== "string") continue;
+    const url = emptyToNull(value);
+    if (!url) continue;
+    if ((contentGenericUrlMediaKeys as readonly string[]).includes(key) && looksLikeMediaUrl(url)) continue;
+    return url;
+  }
+  return null;
 }
 
 function lovableAudiencePayload(payload: Record<string, unknown>) {
@@ -709,6 +790,19 @@ function lovableJourneyStepEventPayload(payload: Record<string, unknown>) {
   );
 }
 
+function journeyStepHasPresetTranslations(raw: unknown) {
+  const step = asRecord(raw);
+  const config = jsonRecordFromLovable(step.config);
+  const translations = jsonRecordFromLovable(config.translations);
+  return Object.values(translations).some((value) => Object.keys(asRecord(value)).length > 0);
+}
+
+function journeyStepPresetContentExportCount(journeyPayload: unknown[]) {
+  return journeyPayload.reduce((count, item) => (
+    count + arrayFrom(asRecord(item).steps).filter(journeyStepHasPresetTranslations).length
+  ), 0);
+}
+
 function journeyEnrollmentEventPayload(row: Record<string, unknown>) {
   return [
     ...arrayFrom(row.events),
@@ -732,8 +826,10 @@ function lovableContactPayload(payload: Record<string, unknown>) {
     unsubscribesByEmail.set(email, current);
   }
 
-  return contactRows.map((contact) => {
+  const contactEmails = new Set<string>();
+  const contactsWithUnsubscribes = contactRows.map((contact) => {
     const email = emptyToNull(contactText(contact, ["email", "emailAddress", "email_address"]))?.toLowerCase();
+    if (email) contactEmails.add(email);
     const unsubscribeMatches = email ? unsubscribesByEmail.get(email) ?? [] : [];
     if (!unsubscribeMatches.length) return contact;
     return {
@@ -742,6 +838,24 @@ function lovableContactPayload(payload: Record<string, unknown>) {
       [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: unsubscribeMatches,
     };
   });
+  const suppressionOnlyContacts = unsubscribeRows.flatMap((row) => {
+    const email = emptyToNull(textFrom(row, ["email", "contactEmail", "contact_email", "recipient", "emailAddress", "email_address"]))?.toLowerCase();
+    if (!email || contactEmails.has(email)) return [];
+    contactEmails.add(email);
+    return [{
+      id: normalizeLovableId(row) ?? `unsubscribe:${email}`,
+      fullName: textFrom(row, ["name", "fullName", "full_name", "contactName", "contact_name"], email),
+      email,
+      audienceType: "both",
+      consentStatus: "opted_out",
+      channelAvailability: { email: true },
+      tags: ["lovable_unsubscribe"],
+      metadata: { lovable_unsubscribe: row },
+      [LOVABLE_CONTACT_UNSUBSCRIBE_ROWS_KEY]: [row],
+    }];
+  });
+
+  return [...contactsWithUnsubscribes, ...suppressionOnlyContacts];
 }
 
 function campaignChildCampaignExternalId(row: Record<string, unknown>) {
@@ -873,17 +987,22 @@ function lovableExportSummary(payload: Record<string, unknown>) {
     count + campaignRecipientSourceCount(asRecord(item), audienceContactExternalIdsByAudienceExternalId)
   ), 0);
   const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => count + journeyEnrollmentEventPayload(asRecord(item)).length, 0);
+  const journeyStepPresetExportCount = journeyStepPresetContentExportCount(journeyPayload);
   const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
     const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
     counts[sourceType] = (counts[sourceType] ?? 0) + 1;
     return counts;
   }, {});
+  if (journeyStepPresetExportCount) {
+    contentSourceCounts.journey_step_preset = journeyStepPresetExportCount;
+  }
 
   return {
     exported: {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
       content: contentPayload.length,
+      journeyStepPresetContent: journeyStepPresetExportCount,
       mediaAssets: mediaAssetExportCount,
       campaignChannels: campaignChannelExportCount,
       campaignRecipients: campaignRecipientExportCount,
@@ -1006,7 +1125,28 @@ function lovableContentReference(row: Record<string, unknown>) {
 }
 
 function contentIdForLovableReference(contentByExternalId: Map<string, string>, externalId: string) {
-  return lookupByExternalId(contentByExternalId, externalId, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]) ?? null;
+  return lookupByExternalId(contentByExternalId, externalId, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"]) ?? null;
+}
+
+function lovableReferenceSourceType(externalId: string) {
+  const trimmed = externalId.trim();
+  if (!trimmed.includes(":")) return "missing_lovable_reference";
+  const prefix = trimmed.split(":")[0]?.trim();
+  if (!prefix) return "missing_lovable_reference";
+  if (["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"].includes(prefix)) {
+    return prefix;
+  }
+  return "missing_lovable_reference";
+}
+
+function lovableReferenceSourceLabel(sourceType: string) {
+  if (sourceType === "saved_email_template") return "email template";
+  if (sourceType === "social_post") return "social post";
+  if (sourceType === "content_brief") return "content brief";
+  if (sourceType === "journey_step_preset") return "journey step preset";
+  if (sourceType === "template") return "template";
+  if (sourceType === "content" || sourceType === "content_asset") return "content";
+  return "content reference";
 }
 
 function campaignChannelPayload(row: Record<string, unknown>) {
@@ -1042,6 +1182,7 @@ function booleanFrom(row: Record<string, unknown>, keys: string[], fallback: boo
 const fieldCoverageAliases = {
   content: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["metadata", "content", "asset", "template", "emailTemplate", "email_template", "socialPost", "social_post", "post", "contentBrief", "content_brief", "properties", "fields", "customFields", "custom_fields"],
     [...contentTitleKeys],
     ["channel", "platform", "network"],
     ["language", "lang", "locale"],
@@ -1066,6 +1207,7 @@ const fieldCoverageAliases = {
   ],
   contacts: [
     ["id", "externalId", "external_id", "lovableExternalId", "lovable_external_id"],
+    ["metadata", "contact", "profile", "properties", "fields", "customFields", "custom_fields"],
     ["name", "fullName", "full_name", "displayName", "display_name", "firstName", "first_name", "givenName", "given_name", "lastName", "last_name", "familyName", "family_name", "surname"],
     ["email", "emailAddress", "email_address"],
     ["phoneNumber", "phone_number", "phone", "mobileNumber", "mobile_number", "mobile", "telephone"],
@@ -1076,10 +1218,12 @@ const fieldCoverageAliases = {
     ["consentStatus", "consent_status"],
     ["channelAvailability", "channel_availability"],
     ["tags"],
+    ["lists", "listNames", "list_names", "audiences", "memberships", "segments", "segmentNames", "segment_names"],
     ["language", "lang", "locale", "preferredLanguage", "preferred_language"],
     ["category", "contactCategory", "contact_category"],
     ["vertical", "industry", "sector"],
     ["market", "country", "region"],
+    ["crmScore", "crm_score", "leadScore", "lead_score", "score"],
     ["updatedAt", "updated_at"],
   ],
   campaigns: [
@@ -1160,11 +1304,46 @@ const fieldCoverageAliases = {
   ],
 } as const;
 
+type FieldCoverageEntry = { display: string; matchKey: string };
+
+function fieldCoverageEntriesFromValue(value: unknown, path: string, depth = 0): FieldCoverageEntry[] {
+  if (depth > 2) return [];
+  const parsed = parseJsonLike(value);
+  if (Array.isArray(parsed)) {
+    return parsed.slice(0, 5).flatMap((item) => fieldCoverageEntriesFromValue(item, path, depth));
+  }
+  if (!parsed || typeof parsed !== "object") return [];
+  return Object.entries(parsed as Record<string, unknown>).flatMap(([key, nested]) => {
+    if (key.startsWith("__vyva")) return [];
+    const display = `${path}.${key}`;
+    return [
+      { display, matchKey: key },
+      ...fieldCoverageEntriesFromValue(nested, display, depth + 1),
+    ];
+  });
+}
+
+function fieldCoverageEntriesForRow(row: Record<string, unknown>) {
+  return Object.entries(row)
+    .filter(([key]) => !key.startsWith("__vyva"))
+    .flatMap(([key, value]) => [
+      { display: key, matchKey: key },
+      ...fieldCoverageEntriesFromValue(value, key),
+    ]);
+}
+
 function fieldCoverageForPayload(payload: unknown[], aliasGroups: readonly (readonly string[])[]) {
-  const exportedFields = Array.from(new Set(
-    payload.flatMap((item) => Object.keys(asRecord(item)).filter((key) => !key.startsWith("__vyva"))),
-  )).sort();
-  const firstClassFields = exportedFields.filter((field) => aliasGroups.some((aliases) => (aliases as readonly string[]).includes(field)));
+  const exportedEntries = new Map<string, string>();
+  for (const item of payload) {
+    for (const entry of fieldCoverageEntriesForRow(asRecord(item))) {
+      exportedEntries.set(entry.display, entry.matchKey);
+    }
+  }
+  const exportedFields = Array.from(exportedEntries.keys()).sort();
+  const firstClassFields = exportedFields.filter((field) => {
+    const matchKey = exportedEntries.get(field) ?? field;
+    return aliasGroups.some((aliases) => (aliases as readonly string[]).includes(matchKey));
+  });
   const metadataOnlyFields = exportedFields.filter((field) => !firstClassFields.includes(field));
   return {
     exportedFieldCount: exportedFields.length,
@@ -1188,6 +1367,11 @@ function normalizeAudience(value: string) {
   if (normalized === "b2b" || normalized === "business") return "b2b";
   if (normalized === "both" || normalized === "all") return "both";
   return "b2c";
+}
+
+function audienceMatchesTarget(rowAudience: string, targetAudience: string) {
+  if (targetAudience === "both") return true;
+  return rowAudience === targetAudience || rowAudience === "both";
 }
 
 function normalizeCampaignStatus(value: string) {
@@ -1248,6 +1432,15 @@ function addExternalIdVariants<T>(map: Map<string, T>, externalId: string | null
   }
 }
 
+function marketingContactIdLookup(contactRows: MarketingContactRow[]) {
+  const contactByExternalId = new Map<string, string>();
+  for (const row of contactRows) {
+    contactByExternalId.set(row.id, row.id);
+    addExternalIdVariants(contactByExternalId, row.lovable_external_id, row.id, ["contact"]);
+  }
+  return contactByExternalId;
+}
+
 function jsonObjectFromLovable(value: unknown, arrayKey: string) {
   const parsed = parseJsonLike(value);
   if (Array.isArray(parsed)) return { [arrayKey]: parsed };
@@ -1256,21 +1449,23 @@ function jsonObjectFromLovable(value: unknown, arrayKey: string) {
 
 function contentDesignJson(row: Record<string, unknown>) {
   const candidates: Array<[unknown, string]> = [
-    [row.designJson, "designJson"],
-    [row.design_json, "design_json"],
-    [row.design, "design"],
-    [row.emailDesign, "emailDesign"],
-    [row.email_design, "email_design"],
-    [row.layout, "layout"],
-    [row.blocks, "blocks"],
-    [row.sections, "sections"],
-    [row.components, "components"],
-    [row.canvas, "canvas"],
-    [row.builderJson, "builderJson"],
-    [row.builder_json, "builder_json"],
-    [row.templateJson, "templateJson"],
-    [row.template_json, "template_json"],
-    ...contentBodyKeys.map((key) => [row[key], key] as [unknown, string]),
+    ...contentValues(row, [
+      "designJson",
+      "design_json",
+      "design",
+      "emailDesign",
+      "email_design",
+      "layout",
+      "blocks",
+      "sections",
+      "components",
+      "canvas",
+      "builderJson",
+      "builder_json",
+      "templateJson",
+      "template_json",
+    ]),
+    ...contentValues(row, contentBodyKeys),
   ];
   for (const [value, key] of candidates) {
     const object = jsonObjectFromLovable(value, key);
@@ -1324,20 +1519,20 @@ function collectDesignText(value: unknown, parentKey = "", seen = new Set<unknow
 }
 
 function contentBodyFromDesign(designJson: Record<string, unknown>) {
-  return uniqueTextArray(collectDesignText(designJson)).slice(0, 12).join("\n\n");
+  return uniqueTextArray(collectDesignText(designJson)).join("\n\n");
 }
 
 function contentBodyFromRow(row: Record<string, unknown>) {
   for (const key of contentBodyKeys) {
-    const value = row[key];
+    const value = contentFieldSources(row).find((source) => source[key] !== undefined)?.[key];
     if (typeof value === "string" && value.trim()) {
       const parsed = parseJsonLike(value);
       if (typeof parsed === "string") return parsed.trim();
-      const extracted = uniqueTextArray(collectDesignText(parsed, key)).slice(0, 12).join("\n\n");
+      const extracted = uniqueTextArray(collectDesignText(parsed, key)).join("\n\n");
       if (extracted) return extracted;
       continue;
     }
-    const extracted = uniqueTextArray(collectDesignText(value, key)).slice(0, 12).join("\n\n");
+    const extracted = uniqueTextArray(collectDesignText(value, key)).join("\n\n");
     if (extracted) return extracted;
   }
   return "";
@@ -1493,7 +1688,7 @@ function serializeCampaign(row: MarketingCampaignRow, channels: MarketingCampaig
     updatedAt: iso(row.updated_at),
     channels: channels.map(serializeCampaignChannel),
     recipientCount: recipients.length,
-    recipients: recipients.slice(0, 100).map(serializeRecipient),
+    recipients: recipients.map(serializeRecipient),
   };
 }
 
@@ -1580,10 +1775,30 @@ function serializeContact(row: MarketingContactRow, audienceListNames: string[] 
   };
 }
 
-function serializeAudience(row: MarketingAudienceRow, members: MarketingAudienceMemberRow[] = []) {
+function serializeAudience(
+  row: MarketingAudienceRow,
+  members: MarketingAudienceMemberRow[] = [],
+  contactsById: Map<string, MarketingContactRow> = new Map(),
+) {
   const contactExternalIds = members
     .map((member) => member.contact_external_id)
     .filter((value): value is string => Boolean(value));
+  const memberPreview = members.flatMap((member) => {
+    if (!member.contact_id) return [];
+    const contact = contactsById.get(member.contact_id);
+    if (!contact) return [];
+    return [{
+      id: contact.id,
+      fullName: contact.full_name,
+      email: contact.email,
+      phoneNumber: contact.phone_number,
+      whatsappNumber: contact.whatsapp_number,
+      companyName: contact.company_name,
+      roleLabel: contact.role_label,
+      lovableExternalId: contact.lovable_external_id,
+      contactExternalId: member.contact_external_id,
+    }];
+  });
   return {
     id: row.id,
     name: row.name,
@@ -1595,6 +1810,7 @@ function serializeAudience(row: MarketingAudienceRow, members: MarketingAudience
     memberCount: members.length,
     mappedMemberCount: members.filter((member) => Boolean(member.contact_id)).length,
     contactExternalIds,
+    memberPreview,
     unmappedContactExternalIds: members.filter((member) => !member.contact_id).map((member) => member.contact_external_id),
     lastSyncedAt: iso(row.last_synced_at),
     metadata: row.metadata,
@@ -1789,8 +2005,8 @@ adminMarketingRouter.get("/summary", async (_req, res) => {
       })),
       byAudience: audienceTypes.map((audienceType) => ({
         audienceType,
-        campaigns: bundle.campaignRows.filter((row) => row.audience_type === audienceType).length,
-        contacts: contactRows.filter((row) => row.audience_type === audienceType).length,
+        campaigns: bundle.campaignRows.filter((row) => audienceMatchesTarget(row.audience_type, audienceType)).length,
+        contacts: contactRows.filter((row) => audienceMatchesTarget(row.audience_type, audienceType)).length,
       })),
       lockedSendCapabilities: channelSendCapabilities(),
       emailScheduler: marketingEmailSchedulerStatus(),
@@ -2081,19 +2297,35 @@ export async function sendMarketingCampaignEmail(campaignId: string, actorLabel:
   if (!emailRecipients.length) return { statusCode: 400, body: { error: "Snapshot email recipients before sending this campaign." } };
 
   const contactIds = Array.from(new Set(emailRecipients.map((row) => row.contact_id).filter(Boolean))) as string[];
+  const recipientEmails = Array.from(new Set(emailRecipients.map((row) => row.recipient.trim().toLowerCase()).filter(Boolean)));
   const contactRows = contactIds.length
     ? await db.select().from(marketingContacts).where(inArray(marketingContacts.id, contactIds))
     : [];
+  const emailContactRows = recipientEmails.length
+    ? await db.select().from(marketingContacts).where(inArray(marketingContacts.email, recipientEmails))
+    : [];
   const contactsById = new Map(contactRows.map((row) => [row.id, row]));
+  const contactsByEmail = new Map<string, MarketingContactRow>();
+  for (const row of emailContactRows) {
+    const email = row.email?.trim().toLowerCase();
+    if (!email) continue;
+    const existing = contactsByEmail.get(email);
+    if (!existing || row.consent_status === "opted_out") contactsByEmail.set(email, row);
+  }
   const seenRecipients = new Set<string>();
   const sendableRecipients: MarketingCampaignRecipientRow[] = [];
   const skipped: Array<{ id: string; recipient: string; reason: string }> = [];
 
   for (const recipientRow of emailRecipients) {
     const normalizedRecipient = recipientRow.recipient.trim().toLowerCase();
-    const contact = recipientRow.contact_id ? contactsById.get(recipientRow.contact_id) : null;
+    const linkedContact = recipientRow.contact_id ? contactsById.get(recipientRow.contact_id) : null;
+    const emailContact = contactsByEmail.get(normalizedRecipient) ?? null;
     const snapshot = asRecord(recipientRow.snapshot);
-    const consentStatus = String(contact?.consent_status ?? snapshot.consentStatus ?? "").toLowerCase();
+    const consentStatus = String(
+      emailContact?.consent_status === "opted_out"
+        ? "opted_out"
+        : linkedContact?.consent_status ?? emailContact?.consent_status ?? snapshot.consentStatus ?? "",
+    ).toLowerCase();
     if (recipientRow.status === "sent") {
       skipped.push({ id: recipientRow.id, recipient: recipientRow.recipient, reason: "already_sent" });
       continue;
@@ -2399,6 +2631,7 @@ adminMarketingRouter.post("/content", async (req, res) => {
       updated_by: actor(req),
       updated_at: new Date(),
     }).returning();
+    await replaceContentMediaAssetReferences(content, parsed.data.mediaAssets, new Date(), parsed.data.source);
     return res.status(201).json({ ok: true, content: serializeContent(content) });
   } catch (error) {
     console.error("[admin/marketing] content create failed", error);
@@ -2430,6 +2663,9 @@ adminMarketingRouter.patch("/content/:contentId", async (req, res) => {
   try {
     const [content] = await db.update(marketingContentAssets).set(patch).where(eq(marketingContentAssets.id, req.params.contentId)).returning();
     if (!content) return res.status(404).json({ error: "Marketing content not found." });
+    if (parsed.data.mediaAssets !== undefined) {
+      await replaceContentMediaAssetReferences(content, parsed.data.mediaAssets, new Date(), content.source);
+    }
     return res.json({ ok: true, content: serializeContent(content) });
   } catch (error) {
     console.error("[admin/marketing] content update failed", error);
@@ -2441,6 +2677,19 @@ adminMarketingRouter.delete("/content/:contentId", async (req, res) => {
   try {
     const [content] = await db.select().from(marketingContentAssets).where(eq(marketingContentAssets.id, req.params.contentId)).limit(1);
     if (!content) return res.status(404).json({ error: "Marketing content not found." });
+    const [campaignRefs, journeyRefs] = await Promise.all([
+      db.select().from(marketingCampaignChannels).where(eq(marketingCampaignChannels.content_asset_id, content.id)).limit(1),
+      db.select().from(marketingJourneySteps).where(eq(marketingJourneySteps.content_asset_id, content.id)).limit(1),
+    ]);
+    const now = new Date();
+    await Promise.all([
+      campaignRefs.length
+        ? db.update(marketingCampaignChannels).set({ content_asset_id: null, updated_at: now }).where(eq(marketingCampaignChannels.content_asset_id, content.id))
+        : Promise.resolve(),
+      journeyRefs.length
+        ? db.update(marketingJourneySteps).set({ content_asset_id: null, updated_at: now }).where(eq(marketingJourneySteps.content_asset_id, content.id))
+        : Promise.resolve(),
+    ]);
     await db.delete(marketingMediaAssets).where(eq(marketingMediaAssets.content_asset_id, content.id));
     await db.delete(marketingContentAssets).where(eq(marketingContentAssets.id, content.id));
     return res.json({ ok: true, deletedContentId: content.id });
@@ -2607,13 +2856,15 @@ adminMarketingRouter.delete("/journeys/:journeyId", async (req, res) => {
 adminMarketingRouter.get("/audiences", async (req, res) => {
   try {
     const search = String(req.query.search ?? "").trim().toLowerCase();
-    const [audienceRows, memberRows] = await Promise.all([
+    const [audienceRows, memberRows, contactRows] = await Promise.all([
       db.select().from(marketingAudiences).orderBy(desc(marketingAudiences.updated_at)).limit(1000),
       db.select().from(marketingAudienceMembers).orderBy(asc(marketingAudienceMembers.created_at)).limit(100000),
+      db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(10000),
     ]);
     const membersByAudience = groupBy(memberRows, (row) => row.audience_id);
+    const contactsById = new Map(contactRows.map((row) => [row.id, row]));
     const audiences = audienceRows
-      .map((row) => serializeAudience(row, membersByAudience.get(row.id)))
+      .map((row) => serializeAudience(row, membersByAudience.get(row.id), contactsById))
       .filter((audience) => !search || [
         audience.name,
         audience.description,
@@ -2621,6 +2872,16 @@ adminMarketingRouter.get("/audiences", async (req, res) => {
         audience.source,
         audience.lovableExternalId,
         ...audience.unmappedContactExternalIds,
+        ...audience.memberPreview.flatMap((member) => [
+          member.fullName,
+          member.email,
+          member.phoneNumber,
+          member.whatsappNumber,
+          member.companyName,
+          member.roleLabel,
+          member.lovableExternalId,
+          member.contactExternalId,
+        ]),
       ].some((value) => textMatches(value, search)));
     return res.json({ audiences });
   } catch (error) {
@@ -2650,19 +2911,23 @@ adminMarketingRouter.post("/audiences", async (req, res) => {
     }).returning();
 
     const contactRows = contactExternalIds.length ? await db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(10000) : [];
-    const contactByExternalId = new Map(contactRows.map((row) => [row.lovable_external_id ?? "", row.id]).filter(([externalId]) => externalId));
+    const contactByExternalId = marketingContactIdLookup(contactRows);
     const members = contactExternalIds.length
-      ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => ({
-        audience_id: audience.id,
-        contact_id: contactByExternalId.get(contactExternalId) ?? null,
-        contact_external_id: contactExternalId,
-        source: parsed.data.source,
-        metadata: { manual_rule_builder: true, mapped: contactByExternalId.has(contactExternalId) },
-        updated_at: now,
-      }))).returning()
+      ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => {
+        const contactId = lookupByExternalId(contactByExternalId, contactExternalId, ["contact"]) ?? null;
+        return {
+          audience_id: audience.id,
+          contact_id: contactId,
+          contact_external_id: contactExternalId,
+          source: parsed.data.source,
+          metadata: { manual_rule_builder: true, mapped: Boolean(contactId) },
+          updated_at: now,
+        };
+      })).returning()
       : [];
 
-    return res.status(201).json({ ok: true, audience: serializeAudience(audience, members) });
+    const contactsById = new Map(contactRows.map((row) => [row.id, row]));
+    return res.status(201).json({ ok: true, audience: serializeAudience(audience, members, contactsById) });
   } catch (error) {
     console.error("[admin/marketing] audience create failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audience could not be created.") });
@@ -2694,19 +2959,27 @@ adminMarketingRouter.patch("/audiences/:audienceId", async (req, res) => {
       const contactExternalIds = uniqueTextArray(parsed.data.contactExternalIds ?? []);
       await db.delete(marketingAudienceMembers).where(eq(marketingAudienceMembers.audience_id, audience.id));
       const contactRows = contactExternalIds.length ? await db.select().from(marketingContacts).orderBy(desc(marketingContacts.updated_at)).limit(10000) : [];
-      const contactByExternalId = new Map(contactRows.map((row) => [row.lovable_external_id ?? "", row.id]).filter(([externalId]) => externalId));
+      const contactByExternalId = marketingContactIdLookup(contactRows);
       members = contactExternalIds.length
-        ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => ({
-          audience_id: audience.id,
-          contact_id: contactByExternalId.get(contactExternalId) ?? null,
-          contact_external_id: contactExternalId,
-          source: audience.source,
-          metadata: { manual_rule_builder: true, mapped: contactByExternalId.has(contactExternalId) },
-          updated_at: now,
-        }))).returning()
+        ? await db.insert(marketingAudienceMembers).values(contactExternalIds.map((contactExternalId) => {
+          const contactId = lookupByExternalId(contactByExternalId, contactExternalId, ["contact"]) ?? null;
+          return {
+            audience_id: audience.id,
+            contact_id: contactId,
+            contact_external_id: contactExternalId,
+            source: audience.source,
+            metadata: { manual_rule_builder: true, mapped: Boolean(contactId) },
+            updated_at: now,
+          };
+        })).returning()
         : [];
     }
-    return res.json({ ok: true, audience: serializeAudience(audience, members) });
+    const memberContactIds = members.map((member) => member.contact_id).filter((value): value is string => Boolean(value));
+    const contactRows = memberContactIds.length
+      ? await db.select().from(marketingContacts).where(inArray(marketingContacts.id, memberContactIds)).limit(10000)
+      : [];
+    const contactsById = new Map(contactRows.map((row) => [row.id, row]));
+    return res.json({ ok: true, audience: serializeAudience(audience, members, contactsById) });
   } catch (error) {
     console.error("[admin/marketing] audience update failed", error);
     return res.status(500).json({ error: marketingSchemaErrorMessage(error, "Marketing audience could not be updated.") });
@@ -2897,13 +3170,14 @@ adminMarketingRouter.get("/sync/lovable/preview", async (req, res) => {
     if (!response.ok) throw new Error(String(payload.error ?? payload.message ?? `Lovable export preview failed with ${response.status}`));
 
     const summary = lovableExportSummary(payload);
+    const exportMetadata = lovableExportMetadata(payload, apiUrl);
     return res.json({
       ok: true,
       checkedAt: new Date().toISOString(),
-      apiUrl: safeUrlOrigin(apiUrl),
-      dataset: textFrom(payload, ["dataset", "environment", "source"], "unknown"),
-      exportedAt: textFrom(payload, ["exportedAt", "exported_at", "updatedAt", "updated_at"]),
-      topLevelKeys: Object.keys(payload).sort(),
+      apiUrl: exportMetadata.apiUrl,
+      dataset: exportMetadata.dataset,
+      exportedAt: exportMetadata.exportedAt,
+      topLevelKeys: exportMetadata.topLevelKeys,
       summary,
       samples: lovableExportSamples(payload),
       rawArraySamples: topLevelArraySamples(payload),
@@ -2928,24 +3202,24 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   const mediaAssets = contentMediaAssetsFrom(row);
   const explicitBody = contentBodyFromRow(row);
   const designBody = contentBodyFromDesign(designJson);
-  const htmlBody = emptyToNull(textFrom(row, [...contentHtmlKeys]));
+  const htmlBody = emptyToNull(contentText(row, [...contentHtmlKeys]));
   const htmlText = htmlBody ? textFromHtml(htmlBody) : "";
-  const title = textFrom(
+  const title = contentText(
     row,
     [...contentTitleKeys],
-    textFrom(row, [...contentSubjectKeys], sourceType === "social_post" ? "Untitled social post" : "Untitled content"),
+    contentText(row, [...contentSubjectKeys], sourceType === "social_post" ? "Untitled social post" : "Untitled content"),
   );
   const { [LOVABLE_CONTENT_SOURCE_KEY]: _sourceMarker, ...lovableMetadata } = row;
   const payload = {
     title,
-    channel: normalizeChannel(textFrom(row, ["channel", "platform", "network"], sourceType === "social_post" ? "instagram" : "email")),
-    language: textFrom(row, ["language", "lang", "locale"], "en"),
-    status: normalizeContentStatus(textFrom(row, ["status"], "draft")),
-    subject: emptyToNull(textFrom(row, [...contentSubjectKeys])),
+    channel: normalizeChannel(contentText(row, ["channel", "platform", "network"], sourceType === "social_post" ? "instagram" : "email")),
+    language: contentText(row, ["language", "lang", "locale"], "en"),
+    status: normalizeContentStatus(contentText(row, ["status"], "draft")),
+    subject: emptyToNull(contentText(row, [...contentSubjectKeys])),
     body: explicitBody || designBody || htmlText,
     html_body: htmlBody,
-    cta_label: emptyToNull(textFrom(row, [...contentCtaLabelKeys])),
-    cta_url: emptyToNull(textFrom(row, [...contentCtaUrlKeys])),
+    cta_label: emptyToNull(contentText(row, [...contentCtaLabelKeys])),
+    cta_url: contentCtaUrlFromRow(row),
     design_json: designJson,
     media_assets: mediaAssets,
     source: "lovable",
@@ -2962,26 +3236,80 @@ async function upsertLovableContent(raw: unknown, now: Date, actorLabel: string)
   return { content, mediaAssetCount };
 }
 
-async function replaceLovableMediaAssets(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date) {
+async function upsertMissingLovableContentReference(
+  externalId: string,
+  channel: string,
+  now: Date,
+  actorLabel: string,
+  context: Record<string, unknown>,
+) {
+  const normalizedExternalId = emptyToNull(externalId);
+  if (!normalizedExternalId) return null;
+  const sourceType = lovableReferenceSourceType(normalizedExternalId);
+  const sourceLabel = lovableReferenceSourceLabel(sourceType);
+  const title = `Missing Lovable ${sourceLabel}: ${normalizedExternalId}`;
+  const body = [
+    `Lovable referenced ${normalizedExternalId}, but the export did not include the content body, HTML, design, or media for this item.`,
+    "Run sync again after Lovable exports the referenced item, or replace this placeholder with the real content in VYVA.",
+  ].join("\n\n");
+  const payload = {
+    title,
+    channel: normalizeChannel(channel),
+    language: "en",
+    status: "draft",
+    subject: null,
+    body,
+    html_body: null,
+    cta_label: null,
+    cta_url: null,
+    design_json: {
+      missing_lovable_reference: true,
+      external_id: normalizedExternalId,
+      source_type: sourceType,
+      context,
+    },
+    media_assets: [],
+    source: "lovable",
+    lovable_external_id: normalizedExternalId,
+    metadata: {
+      lovable_missing_reference: true,
+      lovable_source_type: "missing_lovable_reference",
+      referenced_source_type: sourceType,
+      referenced_source_label: sourceLabel,
+      external_id: normalizedExternalId,
+      ...context,
+    },
+    updated_by: actorLabel,
+    updated_at: now,
+  };
+  const [content] = await db.insert(marketingContentAssets)
+    .values({ ...payload, created_by: actorLabel })
+    .onConflictDoUpdate({ target: marketingContentAssets.lovable_external_id, set: payload })
+    .returning();
+  return content;
+}
+
+async function replaceContentMediaAssetReferences(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date, source = content.source || "vyva") {
+  const normalizedSource = source.trim() || "vyva";
   await db.delete(marketingMediaAssets).where(and(
     eq(marketingMediaAssets.content_asset_id, content.id),
-    eq(marketingMediaAssets.source, "lovable"),
+    eq(marketingMediaAssets.source, normalizedSource),
   ));
   const rows = mediaAssets.map((raw, index) => {
     const media = typeof raw === "string" ? { url: raw } : asRecord(raw);
     const originalUrl = emptyToNull(textFrom(media, ["url", "src", "href", "originalUrl", "original_url", ...contentMediaUrlKeys]));
     if (!originalUrl) return null;
     const localUrl = emptyToNull(textFrom(media, ["localUrl", "local_url"]));
-    const externalId = normalizeLovableId(media) ?? `${content.lovable_external_id ?? content.id}:media:${index}:${originalUrl}`;
+    const externalId = normalizeLovableId(media) ?? `${normalizedSource}:${content.lovable_external_id ?? content.id}:media:${index}:${originalUrl}`;
     return {
       content_asset_id: content.id,
-      source: "lovable",
+      source: normalizedSource,
       asset_type: textFrom(media, ["type", "kind", "assetType", "asset_type", "mimeType", "mime_type"], "unknown"),
       original_url: originalUrl,
       local_url: localUrl,
       status: textFrom(media, ["status", "importStatus", "import_status"], localUrl ? "mirrored" : "referenced"),
       lovable_external_id: externalId,
-      metadata: { lovable: media },
+      metadata: normalizedSource === "lovable" ? { lovable: media } : { media, source: "content_media_assets" },
       last_synced_at: now,
       updated_at: now,
     };
@@ -2993,6 +3321,10 @@ async function replaceLovableMediaAssets(content: MarketingContentAssetRow, medi
       .onConflictDoUpdate({ target: marketingMediaAssets.lovable_external_id, set: row });
   }
   return rows.length;
+}
+
+async function replaceLovableMediaAssets(content: MarketingContentAssetRow, mediaAssets: unknown[], now: Date) {
+  return replaceContentMediaAssetReferences(content, mediaAssets, now, "lovable");
 }
 
 async function upsertLovableStandaloneMedia(
@@ -3056,6 +3388,14 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     whatsapp: Boolean(whatsappNumber),
     ...jsonRecordFromLovable(row.channelAvailability ?? row.channel_availability),
   };
+  const contactListTags = uniqueTextArray(contactSources.flatMap((source) => [
+    ...splitTextList(source.lists),
+    ...splitTextList(source.listNames ?? source.list_names),
+    ...splitTextList(source.audiences),
+    ...splitTextList(source.memberships),
+    ...splitTextList(source.segments),
+    ...splitTextList(source.segmentNames ?? source.segment_names),
+  ])).map((list) => `List: ${list}`);
   const payload = {
     audience_type: normalizeAudience(textFrom(row, ["audienceType", "audience_type", "audience"], "b2b")),
     full_name: contactFullName(row),
@@ -3071,11 +3411,14 @@ async function upsertLovableContact(raw: unknown, now: Date) {
     consent_status: consentStatus,
     source: "lovable",
     channel_availability: channelAvailability,
-    tags: uniqueTextArray(contactSources.flatMap((source) => [
-      ...splitTextList(source.tags),
-      ...splitTextList(source.tagNames ?? source.tag_names),
-      ...splitTextList(source.labels),
-    ])),
+    tags: uniqueTextArray([
+      ...contactSources.flatMap((source) => [
+        ...splitTextList(source.tags),
+        ...splitTextList(source.tagNames ?? source.tag_names),
+        ...splitTextList(source.labels),
+      ]),
+      ...contactListTags,
+    ]),
     lovable_external_id: externalId,
     last_synced_at: now,
     metadata: {
@@ -3334,23 +3677,41 @@ async function upsertLovableCampaign(
   const firstChannelRow = asRecord(channelRows[0]);
   const defaultChannel = normalizeChannel(textFrom(firstChannelRow, ["channel", "platform", "network"], "email"));
   const defaultScheduledAt = dateOrNull(dateTextFrom(firstChannelRow, ["scheduledAt", "scheduled_at"])) ?? campaign.schedule_starts_at ?? null;
+  let missingContentReferenceCount = 0;
   if (channelRows.length) {
     await db.delete(marketingCampaignChannels).where(eq(marketingCampaignChannels.campaign_id, campaign.id));
-    await db.insert(marketingCampaignChannels).values(channelRows.map((channelRaw) => {
+    const campaignChannelRows: Array<typeof marketingCampaignChannels.$inferInsert> = [];
+    for (const channelRaw of channelRows) {
       const channelRow = asRecord(channelRaw);
       const contentExternalId = lovableContentReference(channelRow);
       const channel = normalizeChannel(textFrom(channelRow, ["channel", "platform", "network"], "email"));
-      return {
+      let contentAssetId = contentIdForLovableReference(contentByExternalId, contentExternalId);
+      if (!contentAssetId && contentExternalId) {
+        const placeholder = await upsertMissingLovableContentReference(contentExternalId, channel, now, actorLabel, {
+          context: "campaign_channel",
+          campaign_external_id: externalId,
+          campaign_name: campaign.name,
+          channel,
+          lovable_channel: channelRow,
+        });
+        if (placeholder) {
+          missingContentReferenceCount += 1;
+          contentAssetId = placeholder.id;
+          addExternalIdVariants(contentByExternalId, placeholder.lovable_external_id, placeholder.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
+        }
+      }
+      campaignChannelRows.push({
         campaign_id: campaign.id,
         channel,
-        content_asset_id: contentIdForLovableReference(contentByExternalId, contentExternalId),
+        content_asset_id: contentAssetId,
         scheduled_at: dateOrNull(dateTextFrom(channelRow, ["scheduledAt", "scheduled_at"])),
         status: normalizeCampaignStatus(textFrom(channelRow, ["status"], payload.status)),
         send_capability: sendCapabilityForChannel(channel),
         metadata: sendMetadataForChannel(channel, { lovable: channelRow }),
         updated_at: now,
-      };
-    }));
+      });
+    }
+    await db.insert(marketingCampaignChannels).values(campaignChannelRows);
   }
   const recipientImport = lovableCampaignRecipients(
     row,
@@ -3370,8 +3731,74 @@ async function upsertLovableCampaign(
     campaign,
     channelCount: channelRows.length,
     recipientCount: recipientImport.recipientRows.length,
+    missingContentReferenceCount,
     unmappedRecipientExternalIds: recipientImport.unmappedContactExternalIds,
   };
+}
+
+async function upsertLovableJourneyStepPresetContent(
+  step: Record<string, unknown>,
+  journey: MarketingJourneyRow,
+  now: Date,
+  actorLabel: string,
+  index: number,
+) {
+  const config = jsonRecordFromLovable(step.config);
+  const translations = jsonRecordFromLovable(config.translations);
+  const translationEntries = Object.entries(translations)
+    .map(([language, value]) => ({ language, value: asRecord(value) }))
+    .filter((entry) => Object.keys(entry.value).length > 0);
+  if (!translationEntries.length) return null;
+
+  const templateRef = emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"]));
+  const stepExternalId = normalizeLovableId(step);
+  const externalId = templateRef
+    ? `journey_step_preset:${templateRef}`
+    : stepExternalId
+      ? `journey_step_preset:${stepExternalId}`
+      : `journey_step_preset:${journey.lovable_external_id ?? journey.id}:${index}`;
+  const defaultLanguage = emptyToNull(textFrom(config, ["default_language", "defaultLanguage"]))
+    ?? translationEntries[0]?.language
+    ?? "en";
+  const defaultTranslation = translationEntries.find((entry) => entry.language === defaultLanguage)?.value
+    ?? translationEntries[0]?.value
+    ?? {};
+  const headline = emptyToNull(textFrom(defaultTranslation, ["headline", "title", "name"]));
+  const subject = emptyToNull(textFrom(defaultTranslation, ["subject", "subjectLine", "subject_line"]));
+  const body = textFrom(defaultTranslation, ["body", "copy", "text", "message"], "");
+  const ctaLabel = emptyToNull(textFrom(defaultTranslation, ["cta", "ctaLabel", "cta_label", "buttonLabel", "button_label"]));
+  const title = headline
+    ?? subject
+    ?? `${journey.name} step ${Number(step.order ?? step.stepOrder ?? step.step_order ?? index) || index + 1}`;
+  const payload = {
+    title,
+    channel: normalizeChannel(textFrom(step, ["channel"], "email")),
+    language: defaultLanguage,
+    status: normalizeContentStatus(textFrom(step, ["status"], "draft")),
+    subject,
+    body,
+    html_body: null,
+    cta_label: ctaLabel,
+    cta_url: emptyToNull(textFrom(defaultTranslation, ["ctaUrl", "cta_url", "buttonUrl", "button_url", "url", "link"])),
+    design_json: { translations, default_language: defaultLanguage, journey_step_config: config },
+    media_assets: [],
+    source: "lovable",
+    lovable_external_id: externalId,
+    metadata: {
+      lovable: step,
+      lovable_source_type: "journey_step_preset",
+      journey_external_id: journey.lovable_external_id,
+      journey_name: journey.name,
+      template_ref: templateRef,
+    },
+    updated_by: actorLabel,
+    updated_at: now,
+  };
+  const [content] = await db.insert(marketingContentAssets)
+    .values({ ...payload, created_by: actorLabel })
+    .onConflictDoUpdate({ target: marketingContentAssets.lovable_external_id, set: payload })
+    .returning();
+  return content;
 }
 
 async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string, contentByExternalId: Map<string, string>) {
@@ -3399,31 +3826,59 @@ async function upsertLovableJourney(raw: unknown, now: Date, actorLabel: string,
     .onConflictDoUpdate({ target: marketingJourneys.lovable_external_id, set: payload })
     .returning();
   const steps = arrayFrom(row.steps);
+  let presetContentCount = 0;
+  let missingContentReferenceCount = 0;
   if (steps.length) {
     await db.delete(marketingJourneySteps).where(eq(marketingJourneySteps.journey_id, journey.id));
-    await db.insert(marketingJourneySteps).values(steps.map((stepRaw, index) => {
+    const stepRows: Array<typeof marketingJourneySteps.$inferInsert> = [];
+    for (let index = 0; index < steps.length; index += 1) {
+      const stepRaw = steps[index];
       const step = asRecord(stepRaw);
       const contentExternalId = lovableContentReference(step);
+      const channel = normalizeChannel(textFrom(step, ["channel"], "email"));
       const dayOffset = Number(step.dayOffset ?? step.day_offset ?? step.day ?? 0);
       const delayHours = Number(step.delayHours ?? step.delay_hours ?? (Number.isFinite(dayOffset) ? dayOffset * 24 : 0));
-      return {
+      const presetContent = await upsertLovableJourneyStepPresetContent(step, journey, now, actorLabel, index);
+      if (presetContent) {
+        presetContentCount += 1;
+        addExternalIdVariants(contentByExternalId, presetContent.lovable_external_id, presetContent.id, ["content", "content_asset", "journey_step_preset"]);
+      }
+      const templateRef = emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"])) ?? (contentExternalId || null);
+      let contentAssetId = presetContent?.id ?? contentIdForLovableReference(contentByExternalId, contentExternalId || templateRef || "");
+      if (!contentAssetId && contentExternalId) {
+        const placeholder = await upsertMissingLovableContentReference(contentExternalId, channel, now, actorLabel, {
+          context: "journey_step",
+          journey_external_id: externalId,
+          journey_name: journey.name,
+          step_order: Number(step.stepOrder ?? step.step_order ?? index),
+          channel,
+          lovable_step: step,
+        });
+        if (placeholder) {
+          missingContentReferenceCount += 1;
+          contentAssetId = placeholder.id;
+          addExternalIdVariants(contentByExternalId, placeholder.lovable_external_id, placeholder.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
+        }
+      }
+      stepRows.push({
         journey_id: journey.id,
         step_order: Number(step.stepOrder ?? step.step_order ?? index),
-        channel: normalizeChannel(textFrom(step, ["channel"], "email")),
-        content_asset_id: contentIdForLovableReference(contentByExternalId, contentExternalId),
+        channel,
+        content_asset_id: contentAssetId,
         delay_hours: Number.isFinite(delayHours) ? delayHours : 0,
         kind: textFrom(step, ["kind", "stepKind", "step_kind", "type"], "message"),
         day_offset: Number.isFinite(dayOffset) ? dayOffset : 0,
         template_kind: emptyToNull(textFrom(step, ["templateKind", "template_kind"])),
-        template_ref: emptyToNull(textFrom(step, ["templateRef", "template_ref", "templateId", "template_id"])) ?? (contentExternalId || null),
+        template_ref: templateRef,
         config: jsonRecordFromLovable(step.config),
         status: normalizeJourneyStatus(textFrom(step, ["status"], "draft")),
         metadata: { lovable: step },
         updated_at: now,
-      };
-    }));
+      });
+    }
+    await db.insert(marketingJourneySteps).values(stepRows);
   }
-  return journey;
+  return { journey, presetContentCount, missingContentReferenceCount };
 }
 
 async function upsertLovableJourneyEnrollment(
@@ -3598,13 +4053,13 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     for (const item of contentRows) {
       addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
     }
-    if (contentByExternalId.size < contentRows.length) {
-      const ids = contentRows.map((item) => item.lovable_external_id).filter((value): value is string => Boolean(value));
-      if (ids.length) {
-        const rows = await db.select().from(marketingContentAssets).where(inArray(marketingContentAssets.lovable_external_id, ids));
-        for (const item of rows) {
-          addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief"]);
-        }
+    const existingContentRows = await db.select({
+      id: marketingContentAssets.id,
+      lovable_external_id: marketingContentAssets.lovable_external_id,
+    }).from(marketingContentAssets).limit(5000);
+    for (const item of existingContentRows) {
+      if (item.lovable_external_id) {
+        addExternalIdVariants(contentByExternalId, item.lovable_external_id, item.id, ["content", "content_asset", "saved_email_template", "social_post", "template", "content_brief", "journey_step_preset"]);
       }
     }
     for (const [index, item] of standaloneMediaPayload.entries()) {
@@ -3659,6 +4114,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     let campaignCount = 0;
     let campaignChannelCount = 0;
     let campaignRecipientCount = 0;
+    let missingContentReferenceCount = 0;
     const unmappedCampaignRecipientExternalIds: string[] = [];
     const campaignRows: MarketingCampaignRow[] = [];
     const nestedCampaignMetricPayload: Array<{ raw: unknown; campaignExternalId: string | null; index: number }> = [];
@@ -3684,10 +4140,12 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       campaignChannelCount += result.channelCount;
       campaignRows.push(result.campaign);
       campaignRecipientCount += result.recipientCount;
+      missingContentReferenceCount += result.missingContentReferenceCount;
       unmappedCampaignRecipientExternalIds.push(...result.unmappedRecipientExternalIds);
     }
 
     let journeyCount = 0;
+    let journeyStepPresetContentCount = 0;
     const journeyRows: MarketingJourneyRow[] = [];
     const nestedJourneyEnrollmentPayload: Array<{ raw: unknown; journeyExternalId: string | null; index: number }> = [];
     for (const item of journeyPayload) {
@@ -3698,9 +4156,11 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         ...arrayOrSingleton(journeyRaw.progress),
       ];
       nestedEnrollments.forEach((raw, index) => nestedJourneyEnrollmentPayload.push({ raw, journeyExternalId, index }));
-      const journey = await upsertLovableJourney(item, now, actorLabel, contentByExternalId);
-      if (journey) {
-        journeyRows.push(journey);
+      const result = await upsertLovableJourney(item, now, actorLabel, contentByExternalId);
+      if (result) {
+        journeyRows.push(result.journey);
+        journeyStepPresetContentCount += result.presetContentCount;
+        missingContentReferenceCount += result.missingContentReferenceCount;
         journeyCount += 1;
       }
     }
@@ -3787,10 +4247,23 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     const nestedJourneyStepEventExportCount = journeyEnrollmentPayload.reduce((count, item) => (
       count + journeyEnrollmentEventPayload(asRecord(item)).length
     ), 0);
+    const journeyStepPresetExportCount = journeyStepPresetContentExportCount(journeyPayload);
+    const contentSourceCounts = contentPayload.reduce<Record<string, number>>((counts, item) => {
+      const sourceType = String(asRecord(item)[LOVABLE_CONTENT_SOURCE_KEY] ?? "content");
+      counts[sourceType] = (counts[sourceType] ?? 0) + 1;
+      return counts;
+    }, {});
+    if (journeyStepPresetExportCount || journeyStepPresetContentCount) {
+      contentSourceCounts.journey_step_preset = Math.max(journeyStepPresetExportCount, journeyStepPresetContentCount);
+    }
+    if (missingContentReferenceCount) {
+      contentSourceCounts.missing_lovable_reference = missingContentReferenceCount;
+    }
     const exported = {
       campaigns: campaignPayload.length,
       contacts: contactPayload.length,
       content: contentPayload.length,
+      journeyStepPresetContent: journeyStepPresetExportCount,
       mediaAssets: mediaAssetExportCount,
       campaignChannels: campaignChannelExportCount,
       campaignRecipients: campaignRecipientExportCount,
@@ -3821,6 +4294,8 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
       campaigns: campaignCount,
       contacts: contactRows.length,
       content: contentRows.length,
+      journeyStepPresetContent: journeyStepPresetContentCount,
+      missingContentReferences: missingContentReferenceCount,
       mediaAssets: mediaAssetCount,
       campaignChannels: campaignChannelCount,
       campaignMetrics: campaignMetricCount,
@@ -3834,6 +4309,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
     };
     const uniqueUnmappedAudienceContactExternalIds = Array.from(new Set(unmappedAudienceContactExternalIds));
     const uniqueUnmappedCampaignRecipientExternalIds = Array.from(new Set(unmappedCampaignRecipientExternalIds));
+    const exportMetadata = lovableExportMetadata(payload, apiUrl);
     const summary = {
       ...imported,
       exported,
@@ -3842,6 +4318,7 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         campaigns: exported.campaigns - imported.campaigns,
         contacts: exported.contacts - imported.contacts,
         content: exported.content - imported.content,
+        journeyStepPresetContent: exported.journeyStepPresetContent - imported.journeyStepPresetContent,
         mediaAssets: exported.mediaAssets - imported.mediaAssets,
         campaignChannels: exported.campaignChannels - imported.campaignChannels,
         campaignRecipients: exported.campaignRecipients - imported.campaignRecipients,
@@ -3857,14 +4334,16 @@ adminMarketingRouter.post("/sync/lovable/run", async (req, res) => {
         campaignRecipientExternalIdCount: uniqueUnmappedCampaignRecipientExternalIds.length,
         campaignRecipientExternalIds: uniqueUnmappedCampaignRecipientExternalIds.slice(0, 50),
       },
+      contentSourceCounts,
       fieldCoverage,
+      exportMetadata,
       mode: "one_way_into_vyva",
       dispatch_locked: true,
     };
     const [completed] = await db.update(marketingSyncRuns).set({
       status: "succeeded",
       completed_at: new Date(),
-      cursor: typeof payload.cursor === "string" ? payload.cursor : null,
+      cursor: exportMetadata.cursor,
       summary,
     }).where(eq(marketingSyncRuns.id, run.id)).returning();
     return res.json({ ok: true, run: serializeSyncRun(completed), summary });
