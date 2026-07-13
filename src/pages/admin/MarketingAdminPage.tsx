@@ -5328,38 +5328,51 @@ export default function MarketingAdminPage() {
                   <div className="grid gap-3" data-testid="marketing-media-assets-list">
                     {visibleMediaAssets.length === 0 ? (
                       <EmptyState text="No media references imported yet." />
-                    ) : visibleMediaAssets.slice(0, 12).map((asset) => (
-                      <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap gap-1.5">
-                            <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
-                            <Pill className="bg-violet-50 text-violet-700">{asset.source}</Pill>
+                    ) : visibleMediaAssets.slice(0, 12).map((asset) => {
+                      const linkedContent = asset.contentAssetId ? content.find((item) => item.id === asset.contentAssetId) ?? null : null;
+                      return (
+                        <article key={asset.id} className={`rounded-xl border p-3 ${selectedContentMediaAssets.some((item) => item.id === asset.id) ? "border-purple-200 bg-purple-50" : "border-[#eadfd5] bg-[#fffaf4]"}`}>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap gap-1.5">
+                              <Pill className="bg-blue-50 text-blue-800">{asset.assetType}</Pill>
+                              <Pill className="bg-violet-50 text-violet-700">{asset.source}</Pill>
+                            </div>
+                            <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
                           </div>
-                          <Pill className={statusClass(asset.status)}>{asset.status}</Pill>
-                        </div>
-                        <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
-                        {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
-                        <div className="mt-3" data-testid={`marketing-media-preview-${asset.id}`}>
-                          <MediaPreviewTile url={asset.localUrl || asset.originalUrl} label={asset.contentTitle || mediaPreviewLabel(asset.originalUrl)} />
-                        </div>
-                        <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
-                        {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
-                        <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button type="button" onClick={() => startMediaEdit(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-${asset.id}`}>
-                            <Pencil size={13} /> Edit
-                          </button>
-                          <button type="button" onClick={() => void deleteMediaAsset(asset)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === asset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
-                            <Trash2 size={13} /> {confirmingMediaDeleteId === asset.id ? "Confirm delete" : "Delete"}
-                          </button>
-                          {confirmingMediaDeleteId === asset.id ? (
-                            <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-media-delete-confirmation-${asset.id}`}>
-                              Click Confirm delete to remove this VYVA media reference.
-                            </p>
-                          ) : null}
-                        </div>
-                      </article>
-                    ))}
+                          <p className="mt-2 text-xs font-black text-[#241133]">{asset.contentTitle || "Unlinked content"}</p>
+                          {asset.lovableExternalId ? <p className="mt-1 break-all text-xs font-bold text-[#7d6b65]">Lovable ID: {asset.lovableExternalId}</p> : null}
+                          <div className="mt-3" data-testid={`marketing-media-preview-${asset.id}`}>
+                            <MediaPreviewTile url={asset.localUrl || asset.originalUrl} label={asset.contentTitle || mediaPreviewLabel(asset.originalUrl)} />
+                          </div>
+                          <a className="mt-1 block break-all text-xs font-bold text-purple-700 underline" href={asset.originalUrl} target="_blank" rel="noreferrer">{asset.originalUrl}</a>
+                          {asset.localUrl ? <p className="mt-1 break-all text-xs font-bold text-emerald-700">Local: {asset.localUrl}</p> : null}
+                          <MetadataPanel title="Imported media metadata" value={asset.metadata} testId={`marketing-media-metadata-${asset.id}`} />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {linkedContent ? (
+                              <>
+                                <button type="button" onClick={() => previewContent(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-preview-media-content-${asset.id}`}>
+                                  <Eye size={13} /> Preview content
+                                </button>
+                                <button type="button" onClick={() => startContentEdit(linkedContent)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-content-${asset.id}`}>
+                                  <FileText size={13} /> Edit content
+                                </button>
+                              </>
+                            ) : null}
+                            <button type="button" onClick={() => startMediaEdit(asset)} className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border border-[#eadfd5] bg-white px-3 text-xs font-black text-purple-700 disabled:cursor-not-allowed disabled:text-[#9d8b9d]" disabled={mediaSaving} data-testid={`button-marketing-edit-media-${asset.id}`}>
+                              <Pencil size={13} /> Edit media
+                            </button>
+                            <button type="button" onClick={() => void deleteMediaAsset(asset)} className={`inline-flex min-h-8 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-black disabled:cursor-not-allowed disabled:bg-[#f5eee8] ${confirmingMediaDeleteId === asset.id ? "border-red-300 bg-red-700 text-white" : "border-red-200 bg-red-50 text-red-700"}`} disabled={mediaSaving} data-testid={`button-marketing-delete-media-${asset.id}`}>
+                              <Trash2 size={13} /> {confirmingMediaDeleteId === asset.id ? "Confirm delete" : "Delete"}
+                            </button>
+                            {confirmingMediaDeleteId === asset.id ? (
+                              <p className="basis-full rounded-lg bg-red-50 px-2 py-1 text-xs font-black text-red-800" data-testid={`marketing-media-delete-confirmation-${asset.id}`}>
+                                Click Confirm delete to remove this VYVA media reference.
+                              </p>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 </SectionCard>
               </div>

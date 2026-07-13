@@ -1146,6 +1146,13 @@ describe("MarketingAdminPage", () => {
     expect(screen.getByTestId("marketing-media-assets-list")).toHaveTextContent("https://cdn.example.test/partner.png");
     expect(openMetadataPanel("marketing-media-metadata-media-1")).toHaveTextContent("Partner hero image");
 
+    fireEvent.click(screen.getByTestId("button-marketing-preview-media-content-media-1"));
+    expect(screen.getByTestId("marketing-content-action-feedback")).toHaveTextContent('Previewing "Partner post".');
+    expect(screen.getByTestId("marketing-content-preview-panel")).toHaveTextContent("Partner post");
+    fireEvent.click(screen.getByTestId("button-marketing-edit-media-content-media-1"));
+    expect(screen.getByTestId("marketing-content-editor-panel")).toHaveTextContent("Partner post");
+    expect(screen.getByTestId("input-marketing-edit-content-title")).toHaveValue("Partner post");
+
     fireEvent.click(screen.getByTestId("button-marketing-delete-media-media-1"));
     expect(screen.getByTestId("button-marketing-delete-media-media-1")).toHaveTextContent("Confirm delete");
     expect(screen.getByTestId("marketing-media-delete-confirmation-media-1")).toHaveTextContent("Click Confirm delete to remove this VYVA media reference.");
